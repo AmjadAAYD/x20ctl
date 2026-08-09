@@ -1,0 +1,265 @@
+# The KeyLinker protocol
+
+Recovered by decompiling `com.pulsenet.inputset` version 3.x with jadx. The app is
+**not obfuscated**: class, method and constant names are intact.
+
+Primary source: `com/pulsenet/inputset/util/CodeHelper.java` (packet construction),
+`com/pulsenet/inputset/config/AgreementConfig.java` (transport UUIDs),
+`com/pulsenet/inputset/util/BlueToothHelper.java` (GATT plumbing).
+
+Everything below is read from source. **Nothing has been sent to hardware yet**, so
+treat field meanings within payloads as unverified until confirmed by capture.
+
+---
+
+## 1. Transport
+
+Bluetooth LE GATT.
+
+| Role | UUID |
+|---|---|
+| Configuration service | `d7f010e0-660d-46e9-96c3-19c4148bdab5` |
+| Write characteristic | `d7f010e1-660d-46e9-96c3-19c4148bdab5` |
+| Read / notify characteristic | `d7f010e2-660d-46e9-96c3-19c4148bdab5` |
+| CCCD (standard) | `00002902-0000-1000-8000-00805f9b34fb` |
+| Battery service (standard) | `0000180f-...` / level `00002a19-...` |
+
+**OTA service, never touch:** `2de516f0-50f5-45d5-a1b2-c3565de543ae`, with
+`2de516f1..f4` as its characteristics. This is the firmware path.
+
+There is a second, unrelated pair used elsewhere in the app,
+`00010203-0405-0607-0809-0a0b0c0d1912` / `...2b12`. That is a stock Android BLE
+sample UUID and appears to belong to a different device family. The `d7f010e0`
+family is the one guarded by `AgreementConfig`.
+
+### Device identification
+
+MAC address prefixes, from `AgreementConfig`:
+
+| Prefix | Meaning |
+|---|---|
+| `98:B6:E9:` | standard gamepad |
+| `98:B6:ED:` | Switch-mode device |
+| `98:B6:EC:` | two-in-one device |
+
+This is a far better fingerprint than VID/PID, which is a cloned `045E:028E`.
+
+---
+
+## 2. Packet format
+
+All packets, both directions:
+
+```
+byte 0        opcode
+byte 1        length field
+byte 2        serial
+byte 3        random nonce
+bytes 4..n-2  payload
+byte n-1      CRC-8 over bytes 0..n-2
+```
+
+The whole packet is then passed through `encrypt()` before being written to the
+characteristic, and incoming packets through `decode()`.
+
+### Length field
+
+Three variants, all producing byte 1:
+
+- `getLength(payload)`: `len(payload) + 5`, or `5` when the payload is empty.
+- `getHostLength(payload)`: top 3 bits are a rotating counter `countHost`, which
+  cycles 7,6,5,...,0 and reloads at 8; bottom 5 bits are `len(payload) + 5`.
+- `getHostMacroLength(n, payload)`: top 3 bits are the caller-supplied `n`,
+  bottom 5 bits `len(payload) + 5`.
+
+So on `host` commands byte 1 is **not** a plain length. Mask with `0x1F` to read
+the length and `>> 5` for the counter.
+
+### Serial
+
+- `getSerial()`: increments a counter; even values return `(n % 128) + 128`, odd
+  values return `n % 128`. The high bit therefore alternates each packet.
+- `getSaveButtonSerial(bits)`: `parity_bit ++ bits ++ counter[0:3]` assembled as a
+  binary string and parsed as an integer. Used by every `writeHost*Data` call,
+  where `bits` is a 4-bit profile/slot index.
+
+### CRC
+
+```java
+int crc = 0;
+for (int b : bytes) crc = CRC_ARRAY[crc ^ b];
+```
+
+A 256-entry table-driven CRC-8 in the standard `crc = table[crc ^ byte]` form.
+
+The shipped table is **reflected (LSB-first) CRC-8, polynomial `0xEB`, init `0x00`,
+no final xor**, equivalent to normal-form polynomial `0xD7`. Confirmed two ways:
+generating the table from that polynomial reproduces all 256 entries exactly, and
+the table satisfies `T[a ^ b] == T[a] ^ T[b]` for every pair, which is the defining
+xor-linearity of a genuine CRC rather than an arbitrary substitution box.
+
+`x20ctl/protocol.py` generates the table and asserts equality against the literal
+one from the app, so the claim is checked on every test run.
+
+### Obfuscation layer
+
+`encrypt()`, applied after the CRC is appended:
+
+```
+out[0] = in[0] ^ ((in[2] + in[3]) - 154)
+out[1] = in[1] ^ ((in[2] + in[3]) + 155)
+out[2] = (in[2] - 173) ^ in[3]
+out[3] = (in[3] + 191) ^ 219
+out[i] = in[i] ^ ((in[2] + in[3]) - SEND_DATA_ENCRYPT[i-4])   for 4 <= i < len-1
+out[len-1] = in[len-1]                                        CRC byte passes through
+then, for all i:
+out[i] ^= SERIAL_ENCRYPT[offset + i]   where offset = (out[3] & 2) * 10
+```
+
+`decode()` is the exact inverse, deriving the same offset as
+`((in[3] ^ SERIAL_ENCRYPT[3]) & 2) != 0 ? 20 : 0`.
+
+Two fixed keystreams:
+
+```
+SEND_DATA_ENCRYPT = [51, 99, 157, 121, 242, 219, 162, 26, 170, 33, 139, 232, 116, 211, 88]
+SERIAL_ENCRYPT    = [161, 82, 213, 163, 245, 137, 246, 143, 240, 157, 72, 147, 234, 52,
+                     49, 186, 195, 77, 198, 235, 73, 96, 216, 163, 218, 42, 83, 141,
+                     244, 97, 24, 191, 174, 215, 111, 81, 228, 160, 217, 146]
+```
+
+This is scrambling, not cryptography. There is no key exchange and no
+authentication, so packets can be constructed offline.
+
+> Note: `SEND_DATA_ENCRYPT` has 15 entries, which caps the useful payload at 15
+> bytes past the header. This matches `ComposeByte.compse20Bytes`, which chunks
+> button data into 15-byte groups.
+
+---
+
+## 3. Opcodes
+
+From `CodeHelper` constants. Names are the app's own.
+
+### Query, device to host reads
+
+| Dec | Hex | Constant | Meaning |
+|---|---|---|---|
+| 144 | `0x90` | `CODE_READ_NAME` | device name |
+| 145 | `0x91` | `CODE_READ_VID_PID_VERSION` | VID, PID, firmware version |
+| 147 | `0x93` | `CODE_HOST_GUID` | unclear, possibly gyro |
+| 151 | `0x97` | `CODE_READ_BUTTON_MODE` | button mode |
+| 152 | `0x98` | `CODE_LOAD_BUTTON` | load button config |
+| 154 | `0x9A` | `CODE_READ_3D` | 3D / motion data |
+| 164 | `0xA4` | `READ_PRESS_GUN` | recoil macro |
+| 165 | `0xA5` | `READ_TOOBLE` | **turbo** settings |
+| 166 | `0xA6` | `READ_SLIDE_SCREEN` | slide screen |
+| 167 | `0xA7` | `READ_MACRO` | macros |
+| 168 | `0xA8` | `CODE_TWO_IN_ONE_STATE` | two-in-one state |
+| 176 | `0xB0` | `CODE_HOST_MENU` | menu / capability query |
+| 177 | `0xB1` | `CODE_HOST_ROCK` | **stick settings** |
+| 178 | `0xB2` | `CODE_HOST_TRIGGER` | **trigger settings** |
+| 179 | `0xB3` | `CODE_HOST_MOTOR` | **vibration** |
+| 180 | `0xB4` | `CODE_HOST_TOOBLE` | **turbo** |
+| 181 | `0xB5` | `CODE_HOST_MACRO` | macros |
+| 182 | `0xB6` | `CODE_HOST_CHANGEKEY_NEW` | **button remapping** |
+| 183 | `0xB7` | `CODE_HOST_LIGHTING` | **RGB lighting** |
+
+### Write
+
+| Dec | Hex | Constant | Meaning |
+|---|---|---|---|
+| 49 | `0x31` | `CODE_HOST_WRITE_ROCK` | write stick settings |
+| 50 | `0x32` | `CODE_HOST_WRITE_TRIGGER` | write trigger settings |
+| 51 | `0x33` | `CODE_HOST_WRITE_MOTOR` | write vibration |
+| 52 | `0x34` | `CODE_HOST_WRITE_TOOBLE` | write turbo |
+| 53 | `0x35` | `CODE_HOST_WRITE_MACRO` | write macro |
+| 54 | `0x36` | `CODE_HOST_WRITE_CHANGEKEY` | write remapping |
+| 55 | `0x37` | `CODE_HOST_WHITE_LIGHTING` | **write RGB lighting** |
+
+`CODE_HOST_WHITE_LIGHTING` is a misspelling of WRITE in the original source, not a
+white-LED command.
+
+### Control
+
+| Dec | Hex | Constant |
+|---|---|---|
+| 22 | `0x16` | `CODE_RECOVER` |
+| 23 | `0x17` | `CODE_WRITE_BUTTON_MODE` |
+| 24 | `0x18` | `CODE_SAVE_BUTTON` |
+| 25 | `0x19` | `CODE_RESPONSE` |
+| 26 | `0x1A` | `CODE_WITER_3D` |
+| 27 | `0x1B` | `CODE_TEST_SET_MODE` |
+| 28 | `0x1C` | `CODE_TEST_NORMAL_MODE` |
+| 29 | `0x1D` | `CODE_SET_MODE` |
+| 30 | `0x1E` | `CODE_NORMAL_MODE` |
+| 31 | `0x1F` | `CODE_LOCATION` |
+| 32 | `0x20` | `CODE_FLOAT` |
+| 36 | `0x24` | `CODE_PRESS_GUN_MODE` |
+| 37 | `0x25` | `CODE_TOOBLE_MODE` |
+| 38 | `0x26` | `CODE_SLIDE_SCREEN_MODE` |
+| 39 | `0x27` | `CODE_WITER_MACRO` |
+| 41 | `0x29` | `CODE_CAST_CALIBRATION_XY` |
+
+**"TOOBLE" means turbo.** It is a transliteration that appears throughout.
+
+---
+
+## 4. Command shapes
+
+### Query, e.g. lighting
+
+```java
+getHostLighting(int i)
+  -> [183, getLength([i]), getSerial(), getRandom(), i, CRC]
+```
+
+Every `getHost*` query has this identical shape with only the opcode changing.
+The single payload byte `i` is a slot or profile index.
+
+### Write, e.g. lighting
+
+```java
+writeHostLightingData(int[] data, int slot)
+  -> [55, getHostLength(data), getSaveButtonSerial(toBinary(slot,4)),
+      getRandom(), ...data, CRC]
+```
+
+Every `writeHost*Data` is identical apart from the opcode. Payload layout inside
+`data` is not yet known and must come from capture.
+
+### Factory reset
+
+```java
+getRecover()     -> [22, getLength([3,223,169,1]), serial, random, 3, 223, 169, 1, CRC]
+getRecoverHost() -> [22, ..., 3, 223, 169, 2, CRC]
+```
+
+Payload `0x03 0xDF 0xA9` is a magic guard, with a trailing `1` for the device and
+`2` for the host. Useful as a known-good restore, and a reminder that the guard
+exists precisely because this command is destructive to settings.
+
+---
+
+## 5. What is still unknown
+
+- Byte layout **inside** the payloads. The opcodes are certain; the field meanings
+  are not. Colour ordering, brightness scale, effect enumeration, gyro flags and
+  deadzone encoding all need capture to confirm.
+- Whether `CODE_HOST_GUID` (147) is gyro or a device identifier.
+- Whether the pad requires a `CODE_HOST_MENU` capability handshake before it will
+  accept writes.
+- Whether settings are committed to flash immediately or need an explicit save.
+- Whether the same protocol is reachable over USB HID in DInput or Switch mode, or
+  BLE only.
+
+## 6. Method for resolving the unknowns
+
+For each setting, in order:
+
+1. Send the **query** opcode and record the reply. Queries are read-only and safe.
+2. Change that one setting in the official app, query again, diff the two replies.
+3. Only then construct a write, and only for the byte that changed.
+
+This keeps every write traceable to an observed difference, per rule 4 of the
+safety contract.

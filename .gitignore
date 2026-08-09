@@ -1,0 +1,21 @@
+# Manufacturer binaries: kept locally for interoperability analysis, never redistributed.
+vendor/
+
+# Packet captures may contain device serials and pairing keys.
+captures/
+
+# APK and decompiler output
+*.apk
+*.dex
+jadx-out/
+
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+build/
+dist/
+*.egg-info/
+
+.vscode/
+.idea/
