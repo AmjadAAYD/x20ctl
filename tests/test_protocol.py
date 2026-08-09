@@ -198,6 +198,55 @@ def test_groups_rejects_bad_size():
     raise AssertionError("expected ValueError for a zero group size")
 
 
+# --- lighting record, reassembled from chunks 0 and 1 of a real X20 ---------
+# chunk 0: 18 ff 00 00 00 00 ff 00 00 ff 10 10 ff 00 00
+# chunk 1:                                              ff 40 00 40 80 80 80 a0 80 ff
+LIGHTING_RECORD = bytes.fromhex("18ff000000 00ff0000ff 1010ff0000 ff40004080 808 0a080ff".replace(" ", ""))
+
+
+def test_lighting_record_is_four_six_byte_entries():
+    body = p.unwrap(LIGHTING_RECORD)
+    assert body.declared == 24
+    assert body.complete
+    entries = p.parse_lighting(body)
+    assert len(entries) == 4, "24 bytes is four 6-byte entries, not eight triplets"
+    assert entries[0].hex_colour == "#ff0000"
+    assert entries[0].light == 0xFF
+    assert entries[1].hex_colour == "#0000ff"
+    assert entries[3].rgb == (0x80, 0x80, 0x80)
+
+
+def test_lighting_entry_round_trips():
+    entry = p.LightingEntry.parse(bytes.fromhex("0000ff1010ff"))
+    assert entry.to_bytes() == bytes.fromhex("0000ff1010ff")
+    assert entry.hex_colour == "#0000ff"
+
+
+def test_lighting_rejects_incomplete_record():
+    partial = p.Body(declared=24, data=bytes(12))
+    try:
+        p.parse_lighting(partial)
+    except ValueError:
+        return
+    raise AssertionError("expected ValueError on an incomplete lighting record")
+
+
+def test_lighting_rejects_misaligned_length():
+    try:
+        p.parse_lighting(p.Body(declared=7, data=bytes(7)))
+    except ValueError:
+        return
+    raise AssertionError("expected ValueError when length is not a multiple of 6")
+
+
+def test_lighting_entry_rejects_wrong_size():
+    try:
+        p.LightingEntry.parse(b"\x01\x02\x03")
+    except ValueError:
+        return
+    raise AssertionError("expected ValueError for a short entry")
+
+
 def test_corrupted_packet_fails_crc():
     raw = bytearray(p.build_query(p.Op.HOST_LIGHTING, index=0, serial=1, nonce=0x42))
     plain = bytearray(p.unscramble(bytes(raw)))
