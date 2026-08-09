@@ -241,6 +241,66 @@ exists precisely because this command is destructive to settings.
 
 ---
 
+## 4a. Confirmed against hardware
+
+First live exchange with an EasySMX X20, BLE `98:B6:ED:E3:15:C4`.
+
+Request, `READ_VID_PID_VERSION`:
+
+```
+plain   91 05 01 43 be
+wire    9a 88 c2 7a 4b        written to d7f010e1
+```
+
+Reply, after 2.2 s on the notify characteristic:
+
+```
+wire    26 8c b6 8e f7 4c 7e 10 bf c1 fd df 62
+plain   19 0d 01 37 07 10 13 20 09 01 23 52 88
+```
+
+| Field | Value | Note |
+|---|---|---|
+| opcode | `0x19` | `CODE_RESPONSE`, generic for all replies |
+| length | `0x0D` | 13 = 8 payload + 5 |
+| serial | `0x01` | **echoes the request serial** |
+| nonce | `0x37` | fresh, not echoed |
+| CRC | valid | |
+
+**Replies are correlated to requests by the serial byte**, which makes a
+request/response client straightforward: send, then match the reply on serial.
+
+### GATT layout as observed
+
+```
+d7f010e0-660d-46e9-96c3-19c4148bdab5     configuration service
+    d7f010e1  [write]
+    d7f010e2  [notify]  + CCCD 00002902
+0000ff12-0000-1000-8000-00805f9b34fb     secondary service, purpose unknown
+    0000ff13  [write]
+    0000ff14  [notify]  + CCCD
+    0000ff15  [read, write-without-response]
+```
+
+The OTA service `2de516f0-...` was **not present** on this peripheral, so the
+firmware path is not even reachable in this mode.
+
+### Device info payload
+
+Decoded per `ZXBTHelper.parsingVidAndPidAndVersion`:
+
+| Bytes | Field | This device |
+|---|---|---|
+| 0-1 | vendor id, hex string | `0710` |
+| 2-3 | product id, hex string | `1320` |
+| 4-5 | version, `major.minor` in hex | `9.01` |
+| — | device_id, top 4 bits of pid | `1` |
+| 6 | bitfield: model (low 4), sensor (bit 4), family (bits 5-7) | **only parsed when the payload is exactly 7 bytes** |
+
+These are the vendor's own identifiers and are unrelated to the cloned USB
+`045E:*` descriptors. With an 8-byte payload the app sets `is_new_2_ver = 0` and
+skips the bitfield entirely, so bytes 6 and 7 (`23 52` here) remain unexplained.
+
 ## 5. What is still unknown
 
 - Byte layout **inside** the payloads. The opcodes are certain; the field meanings
