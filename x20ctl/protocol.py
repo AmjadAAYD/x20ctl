@@ -337,6 +337,63 @@ def unwrap(payload: bytes) -> Body:
     return Body(declared=payload[0], data=payload[1:])
 
 
+LIGHTING_ENTRY_SIZE = 6
+
+
+@dataclass
+class LightingEntry:
+    """One lighting record.
+
+    Field order is taken from ZXBTHelper.writeLightingData, which appends
+    r, g, b, data4, data5, light per entry and prefixes the whole run with
+    entry_count * 6. The two middle bytes are named data4/data5 in the app
+    itself and their meaning is genuinely undocumented; they are preserved
+    verbatim rather than guessed at.
+    """
+
+    r: int
+    g: int
+    b: int
+    data4: int
+    data5: int
+    light: int
+
+    @classmethod
+    def parse(cls, raw: bytes) -> "LightingEntry":
+        if len(raw) != LIGHTING_ENTRY_SIZE:
+            raise ValueError(f"lighting entry must be {LIGHTING_ENTRY_SIZE} bytes, got {len(raw)}")
+        return cls(*raw)
+
+    def to_bytes(self) -> bytes:
+        return bytes([self.r, self.g, self.b, self.data4, self.data5, self.light])
+
+    @property
+    def rgb(self) -> tuple[int, int, int]:
+        return (self.r, self.g, self.b)
+
+    @property
+    def hex_colour(self) -> str:
+        return f"#{self.r:02x}{self.g:02x}{self.b:02x}"
+
+    def __repr__(self) -> str:
+        return (f"LightingEntry({self.hex_colour} light=0x{self.light:02x} "
+                f"data4=0x{self.data4:02x} data5=0x{self.data5:02x})")
+
+
+def parse_lighting(body: "Body") -> list[LightingEntry]:
+    """Split a reassembled lighting record into entries.
+
+    Requires the complete record; a chunked read must be concatenated first.
+    """
+    if not body.complete:
+        raise ValueError(f"lighting record incomplete, {body.missing} bytes missing")
+    if body.declared % LIGHTING_ENTRY_SIZE:
+        raise ValueError(
+            f"lighting length {body.declared} is not a multiple of {LIGHTING_ENTRY_SIZE}"
+        )
+    return [LightingEntry.parse(g) for g in body.groups(LIGHTING_ENTRY_SIZE)]
+
+
 @dataclass
 class DeviceInfo:
     """Decoded reply to READ_VID_PID_VERSION.

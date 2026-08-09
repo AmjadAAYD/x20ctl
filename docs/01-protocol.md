@@ -332,15 +332,26 @@ is what you would expect from symmetric per-side settings. In the stick record
 `0x55` and `0xAA` are precisely one third and two thirds of 255, consistent with
 response-curve control points.
 
-### HOST_LIGHTING is a palette, not live state
+### The lighting record
 
-Chunks 0 and 1 concatenate to 25 bytes:
+Chunks 0 and 1 concatenate to 25 bytes. `0x18` is 24, which is
+**four six-byte entries**, not eight RGB triplets. The entry layout comes from
+`ZXBTHelper.writeLightingData`, which appends `r, g, b, data4, data5, light` per
+entry and prefixes the run with `entry_count * 6`:
 
 ```
-18 | ff 00 00 | 00 00 ff | 00 00 ff | 10 10 ff | 00 00 ff | 40 00 40 | 80 80 80 | a0 80 ff
+18 | ff 00 00 00 00 ff | 00 00 ff 10 10 ff | 00 00 ff 40 00 40 | 80 80 80 a0 80 ff
 ```
 
-`0x18` is 24, exactly the eight RGB triplets that follow.
+| # | r | g | b | data4 | data5 | light |
+|---|---|---|---|---|---|---|
+| 1 | `ff` | `00` | `00` | `00` | `00` | `ff` |
+| 2 | `00` | `00` | `ff` | `10` | `10` | `ff` |
+| 3 | `00` | `00` | `ff` | `40` | `00` | `40` |
+| 4 | `80` | `80` | `80` | `a0` | `80` | `ff` |
+
+`data4` and `data5` are the app's own field names and their meaning is genuinely
+undocumented. They are preserved verbatim rather than guessed at.
 
 Crucially, this record **did not change** when the pad's lighting was switched
 from off to brightness 1 and set to green, and no `00 ff 00` appears anywhere in
