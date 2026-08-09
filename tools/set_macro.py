@@ -39,7 +39,8 @@ DIM = "\033[2m"
 RESET = "\033[0m"
 
 
-def build_payload(key_names: list[str], hold_ms: int, gap_ms: int) -> bytes:
+def build_payload(key_names: list[str], hold_ms: int, gap_ms: int,
+                  total_ms: int | None = None) -> bytes:
     steps: list[p.MacroStep] = []
     for name in key_names:
         try:
@@ -48,8 +49,12 @@ def build_payload(key_names: list[str], hold_ms: int, gap_ms: int) -> bytes:
             valid = ", ".join(k.name for k in p.MACRO_MASK_BIT)
             raise SystemExit(f"unknown key {name!r}. supported: {valid}")
         steps.append(p.MacroStep(mask=p.mask_for([key]), duration_ms=hold_ms))
-        steps.append(p.MacroStep(mask=0, duration_ms=gap_ms))
-    total = sum(s.duration_ms for s in steps)
+        # Must be released(), not mask=0. A zero mask commands both sticks.
+        steps.append(p.MacroStep.released(gap_ms))
+    # The header duration is separate from the step durations. It appears to
+    # bound the overall run while the steps supply the repeating pattern, but
+    # that is a hypothesis and not yet confirmed on hardware.
+    total = total_ms if total_ms is not None else sum(s.duration_ms for s in steps)
     return p.build_macro_payload(steps, total_ms=total)
 
 
@@ -141,6 +146,8 @@ def main() -> None:
     parser.add_argument("--clear", action="store_true", help="write an empty macro")
     parser.add_argument("--hold", type=int, default=50, help="press duration ms")
     parser.add_argument("--gap", type=int, default=50, help="release duration ms")
+    parser.add_argument("--total-ms", type=int, default=None,
+                        help="header duration; hypothesised to bound the overall run")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
@@ -153,7 +160,8 @@ def main() -> None:
     names = [] if args.clear else [k for k in args.keys.split(",") if k.strip()]
     # Clearing sends a bare [0], which is what writeMacroData emits when the
     # step list is empty. An empty header is not the same thing.
-    payload = p.MACRO_CLEAR if args.clear else build_payload(names, args.hold, args.gap)
+    payload = p.MACRO_CLEAR if args.clear else \
+        build_payload(names, args.hold, args.gap, args.total_ms)
 
     if args.dry_run:
         describe(p.build_macro_write(payload, slot=slot0), payload, slot0, names)
