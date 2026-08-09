@@ -353,6 +353,65 @@ def test_write_acknowledgement_from_hardware():
     assert p.unwrap(ack.payload).data == b"\xdf\xaa"
 
 
+# --- support lists: count byte + RLE, both captured from the same X20 -------
+
+def test_changekey_support_list_count_matches_decode():
+    """kind 3. The leading 0x10 claims 16 keys; the RLE must expand to exactly
+    16, which is what makes this decode self-verifying."""
+    keys = p.decode_key_list(bytes.fromhex("1001880d840b825d82"))
+    assert len(keys) == 16
+    assert keys == [1, 2, 3, 4, 5, 6, 7, 8, 13, 14, 15, 16, 11, 12, 93, 94]
+
+
+def test_macro_support_list_count_matches_decode():
+    """kind 5. Declares 18 keys and includes 18 and 19, the two analog inputs
+    the macro encoder treats specially."""
+    keys = p.decode_key_list(bytes.fromhex("1212130d8401880b825d82"))
+    assert len(keys) == 18
+    assert keys[:2] == [18, 19]
+    assert set(keys) == {1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 14, 15, 16, 18, 19, 93, 94}
+
+
+def test_key_list_rejects_count_mismatch():
+    try:
+        p.decode_key_list(bytes([99, 1, 2, 3]))
+    except ValueError:
+        return
+    raise AssertionError("a wrong count must be rejected, that is the point of it")
+
+
+def test_key_list_rejects_leading_run_marker():
+    try:
+        p.decode_key_list(bytes([4, 0x84]))
+    except ValueError:
+        return
+    raise AssertionError("a run with nothing to extend must be rejected")
+
+
+def test_macro_step_round_trips():
+    step = p.MacroStep(mask=0b101, duration_ms=100)
+    raw = step.to_bytes()
+    assert len(raw) == p.MACRO_STEP_SIZE
+    assert raw == bytes([0x05, 0x00, 0x00, 20, 0x00])   # 100ms / 5 = 20 ticks
+    assert p.MacroStep.parse(raw) == step
+
+
+def test_macro_step_rejects_unrepresentable_duration():
+    try:
+        p.MacroStep(mask=1, duration_ms=7).to_bytes()
+    except ValueError:
+        return
+    raise AssertionError("durations are counted in 5 ms units")
+
+
+def test_macro_payload_header_sizes_the_steps():
+    steps = [p.MacroStep(mask=1, duration_ms=50), p.MacroStep(mask=0, duration_ms=50)]
+    payload = p.build_macro_payload(steps, total_ms=100)
+    assert payload[0] == len(steps) * 5 + 2
+    assert len(payload) == 3 + len(steps) * p.MACRO_STEP_SIZE
+    assert p.MacroStep.parse(payload[3:8]) == steps[0]
+
+
 def test_corrupted_packet_fails_crc():
     raw = bytearray(p.build_query(p.Op.HOST_LIGHTING, index=0, serial=1, nonce=0x42))
     plain = bytearray(p.unscramble(bytes(raw)))

@@ -365,6 +365,100 @@ def unwrap(payload: bytes) -> Body:
     return Body(declared=payload[0], data=payload[1:])
 
 
+def decode_key_list(data: bytes) -> list[int]:
+    """Decode a support list: one count byte, then run-length encoded key codes.
+
+    From HostActivity's oldChangeKeyList loop. A byte with bit 7 clear is a
+    literal key code. A byte with bit 7 set is a run: `b & 127` gives the run
+    length, and the run appends that many minus one values, each one greater
+    than the last.
+
+    The leading count byte is a checksum of sorts: it states how many keys the
+    RLE should expand to, so a mismatch means the decode is wrong.
+    """
+    if not data:
+        return []
+    expected = data[0]
+    keys: list[int] = []
+    for byte in data[1:]:
+        if byte & 0x80:
+            run = byte & 0x7F
+            if not keys:
+                raise ValueError("run-length marker with no preceding literal")
+            for _ in range(run - 1):
+                keys.append(keys[-1] + 1)
+        else:
+            keys.append(byte)
+    if expected != len(keys):
+        raise ValueError(f"key list declares {expected} keys but decoded {len(keys)}")
+    return keys
+
+
+MACRO_STEP_SIZE = 5
+
+
+@dataclass
+class MacroStep:
+    """One step of a macro: a button mask held for a duration.
+
+    From ZXBTHelper.writeMacroData, each step serialises as five bytes: three
+    bytes of a 24-bit button mask, then the duration as a 16-bit value counted
+    in 5 ms units.
+    """
+
+    mask: int
+    duration_ms: int
+
+    def to_bytes(self) -> bytes:
+        if self.duration_ms % 5:
+            raise ValueError("duration must be a multiple of 5 ms")
+        ticks = self.duration_ms // 5
+        if not 0 <= ticks <= 0xFFFF:
+            raise ValueError("duration out of range")
+        if not 0 <= self.mask < 1 << 24:
+            raise ValueError("mask must fit in 24 bits")
+        return bytes([
+            self.mask & 0xFF,
+            self.mask >> 8 & 0xFF,
+            self.mask >> 16 & 0xFF,
+            ticks & 0xFF,
+            ticks >> 8 & 0xFF,
+        ])
+
+    @classmethod
+    def parse(cls, raw: bytes) -> "MacroStep":
+        if len(raw) != MACRO_STEP_SIZE:
+            raise ValueError(f"macro step must be {MACRO_STEP_SIZE} bytes")
+        mask = raw[0] | raw[1] << 8 | raw[2] << 16
+        ticks = raw[3] | raw[4] << 8
+        return cls(mask=mask, duration_ms=ticks * 5)
+
+
+def build_macro_payload(steps: list[MacroStep], total_ms: int, flag: int = 0) -> bytes:
+    """Assemble a macro payload: a three-byte header then five bytes per step.
+
+    Header layout from writeMacroData: byte 0 is (len(steps) * 5) + 2, bytes 1
+    and 2 carry a 12-bit total duration in 5 ms units, split as the low 8 bits
+    then a packed byte holding `flag` in its top bits and the remaining 4 bits
+    of the duration in its low nibble.
+
+    Untested against hardware. The step encoding is well evidenced; the header
+    packing is read from source but has never been sent.
+    """
+    if total_ms % 5:
+        raise ValueError("total duration must be a multiple of 5 ms")
+    ticks = total_ms // 5
+    if not 0 <= ticks < 1 << 12:
+        raise ValueError("total duration out of range for 12 bits")
+
+    header = bytes([
+        (len(steps) * MACRO_STEP_SIZE) + 2,
+        ticks & 0xFF,
+        (flag << 7 | 0b000 << 4 | ticks >> 8 & 0x0F) & 0xFF,
+    ])
+    return header + b"".join(step.to_bytes() for step in steps)
+
+
 @dataclass
 class Capabilities:
     """What a pad exposes to the configuration protocol.
