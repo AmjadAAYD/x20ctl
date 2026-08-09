@@ -271,6 +271,34 @@ def build_query(opcode: int, index: int, *, serial: int, nonce: int | None = Non
     return build(opcode, bytes([index]), serial=serial, nonce=nonce)
 
 
+class MenuKind(IntEnum):
+    """Second payload byte of a HOST_MENU (0xB0) query.
+
+    0xB0 is multiplexed: the payload is [position, kind], where position is the
+    chunk index and kind selects the sub-query. Values are taken from the app's
+    call sites, e.g. getHostChangeKeySupport(pos, 3), getHostToobleSupport(pos, 4).
+    """
+
+    MENU = 1
+    GAMEPAD_ALL_KEYS = 2
+    CHANGEKEY_SUPPORT = 3
+    TURBO_SUPPORT = 4
+    MACRO_SUPPORT = 5
+    CHANGEKEY_ALT6 = 6
+    CHANGEKEY_ALT7 = 7
+
+
+def build_menu_query(
+    kind: int,
+    position: int = 0,
+    *,
+    serial: int,
+    nonce: int | None = None,
+) -> bytes:
+    """A HOST_MENU sub-query. Payload is [position, kind], in that order."""
+    return build(Op.HOST_MENU, bytes([position, kind]), serial=serial, nonce=nonce)
+
+
 def build_write(
     opcode: int,
     payload: bytes,

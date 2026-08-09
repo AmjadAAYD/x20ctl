@@ -361,6 +361,39 @@ somewhere else and is still unlocated.
 This is a useful negative result: it rules out the obvious reading of
 `HOST_LIGHTING` and means writes to it would not have done what we expected.
 
+## 4c. HOST_MENU is multiplexed
+
+`0xB0` is not a single query. Its payload is **two bytes, `[position, kind]`**,
+where `position` is the chunk index and `kind` selects a sub-query. This was
+missed initially, and sending a single byte produced silence that looked like an
+unsupported opcode. It was a malformed request.
+
+Kinds, from the app's call sites (`getHostChangeKeySupport(pos, 3)`,
+`getHostToobleSupport(pos, 4)`, `getHostMacroSupport(pos, 5)`, and so on):
+
+| kind | sub-query | reply from an X20 at `[0, kind]` |
+|---|---|---|
+| 1 | menu | `0a` + `03 03 03 00 0f 01 00 02 c0 00` |
+| 2 | gamepad all keys | `08` + `17 01 88 0b 89 5d 85 68` |
+| 3 | changekey support | `09` + `10 01 88 0d 84 0b 82 5d 82` |
+| 4 | turbo support | `0a` + `0c 01 88 0d 84` repeated twice |
+| 5 | macro support | `0b` + `12 12 13 0d 84 01 88 0b 82 5d 82` |
+| 6 | changekey variant | `10` + `2a 00` four times, then six zero bytes |
+| 7 | changekey variant | no reply |
+
+Two observations, offered as leads rather than conclusions. Kind 4 is a 5-byte
+block repeated twice, matching the two-channel pattern already seen in the stick
+and trigger records. Kind 6 repeats `2a 00` exactly four times, which is
+suggestive on a pad with four rear buttons, though nothing yet confirms that.
+
+Recurring 16-bit-looking pairs appear across kinds 2, 3, 4 and 5: `01 88`,
+`0d 84`, `0b 82`, `5d 82`, `85 68`. These are plausibly key identifiers, since
+they cluster in the changekey and macro sub-queries.
+
+Opcode `0xB5` also has both a one-byte and a two-byte form in the app
+(`getHostToobleData(i)` on `0xB4` versus `getHostToobleData(i, i2)` on `0xB5`),
+so its earlier silence has the same explanation.
+
 ## 5. What is still unknown
 
 - Byte layout **inside** the payloads. The opcodes are certain; the field meanings

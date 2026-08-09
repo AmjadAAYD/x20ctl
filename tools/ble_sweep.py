@@ -43,10 +43,10 @@ def parse_range(text: str) -> list[int]:
     return out
 
 
-async def sweep(address: str, requests: list[tuple[p.Op, int | None]], wait: float) -> None:
+async def sweep(address: str, requests: list[tuple[p.Op, bytes]], wait: float) -> None:
     serial = p.SerialCounter()
     replies: dict[int, list[bytes]] = {}
-    pending: dict[int, tuple[p.Op, int | None]] = {}
+    pending: dict[int, tuple[p.Op, bytes]] = {}
 
     def on_notify(_sender, data: bytearray) -> None:
         raw = bytes(data)
@@ -60,26 +60,22 @@ async def sweep(address: str, requests: list[tuple[p.Op, int | None]], wait: flo
     async with BleakClient(address) as client:
         await client.start_notify(CONFIG_NOTIFY, on_notify)
 
-        for opcode, index in requests:
+        for opcode, payload in requests:
             s = serial.next()
-            pending[s] = (opcode, index)
-            packet = (
-                p.build_query(opcode, index, serial=s)
-                if index is not None
-                else p.build(opcode, b"", serial=s)
-            )
+            pending[s] = (opcode, payload)
+            packet = p.build(opcode, payload, serial=s)
             await client.write_gatt_char(CONFIG_WRITE, packet, response=True)
             await asyncio.sleep(wait)
 
         await asyncio.sleep(1.5)
         await client.stop_notify(CONFIG_NOTIFY)
 
-    print(f"{BOLD}{'opcode':<16}{'idx':>4}   payload{RESET}")
-    print("-" * 76)
+    print(f"{BOLD}{'opcode':<16}{'sent':>10}   reply payload{RESET}")
+    print("-" * 78)
     seen_payloads: dict[bytes, str] = {}
-    for s, (opcode, index) in pending.items():
+    for s, (opcode, sent) in pending.items():
         got = replies.get(s, [])
-        label = f"{opcode.name:<16}{index if index is not None else '-':>4}"
+        label = f"{opcode.name:<16}{sent.hex() or '-':>10}"
         if not got:
             print(f"{label}   {DIM}(no reply){RESET}")
             continue
@@ -90,9 +86,9 @@ async def sweep(address: str, requests: list[tuple[p.Op, int | None]], wait: flo
             dup = seen_payloads.get(payload)
             note = f"   {DIM}same as {dup}{RESET}" if dup else ""
             if not dup:
-                seen_payloads[payload] = f"{opcode.name}[{index}]"
+                seen_payloads[payload] = f"{opcode.name}[{sent.hex()}]"
             print(f"{label}   {payload.hex(' ')}{flag}{note}")
-            label = " " * 20
+            label = " " * 26
 
     distinct = len(seen_payloads)
     print(f"\n{distinct} distinct payload(s) across {len(pending)} queries")
@@ -106,24 +102,29 @@ def main() -> None:
     parser.add_argument("address")
     parser.add_argument("opcode", nargs="?")
     parser.add_argument("--indices", default="0", help="e.g. 0-7 or 0,2,5")
+    parser.add_argument("--payloads", help="explicit hex payloads, e.g. 0001,0002,0003")
     parser.add_argument("--opcodes", help="comma-separated opcode names, index 0 each")
     parser.add_argument("--wait", type=float, default=0.6, help="seconds between queries")
     args = parser.parse_args()
 
-    requests: list[tuple[p.Op, int | None]] = []
+    requests: list[tuple[p.Op, bytes]] = []
     if args.opcodes:
         for name in args.opcodes.split(","):
             try:
                 op = p.Op[name.strip()]
             except KeyError:
                 raise SystemExit(f"unknown opcode {name!r}")
-            requests.append((op, 0))
+            requests.append((op, b"\x00"))
     elif args.opcode:
         try:
             op = p.Op[args.opcode]
         except KeyError:
             raise SystemExit(f"unknown opcode {args.opcode!r}")
-        requests = [(op, i) for i in parse_range(args.indices)]
+        if args.payloads:
+            # explicit payloads, hex, comma separated, e.g. 0001,0002,0003
+            requests = [(op, bytes.fromhex(h.strip())) for h in args.payloads.split(",")]
+        else:
+            requests = [(op, bytes([i])) for i in parse_range(args.indices)]
     else:
         parser.error("give an opcode or --opcodes")
 
