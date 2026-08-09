@@ -141,6 +141,63 @@ def test_device_info_rejects_short_payload():
     raise AssertionError("expected ValueError for a short payload")
 
 
+# --- length-prefix structure, all captured from the same X20 ----------------
+
+def test_read_name_proves_the_length_prefix():
+    """The decisive case: the prefix is 6 and exactly six ASCII bytes follow."""
+    body = p.unwrap(bytes.fromhex("06 587065727432".replace(" ", "")))
+    assert body.declared == 6
+    assert body.complete
+    assert body.as_text() == "Xpert2"
+
+
+def test_stick_settings_split_into_two_equal_channels():
+    body = p.unwrap(bytes.fromhex("0e08085555aaaa0008085555aaaa00"))
+    assert body.declared == 14
+    assert body.complete
+    left, right = body.groups(7)
+    assert left == right, "the two stick channels should be symmetric at defaults"
+    assert left == bytes.fromhex("08085555aaaa00")
+
+
+def test_trigger_settings_split_into_two_equal_channels():
+    body = p.unwrap(bytes.fromhex("0e042252 85e5eb00 04225285e5eb00".replace(" ", "")))
+    assert body.declared == 14
+    left, right = body.groups(7)
+    assert left == right
+
+
+def test_empty_changekey_means_no_remaps():
+    body = p.unwrap(bytes.fromhex("00"))
+    assert body.declared == 0
+    assert body.complete
+    assert body.data == b""
+
+
+def test_chunked_response_is_reported_as_partial():
+    """HOST_GUID declares 18 bytes but only 14 fit in one BLE packet."""
+    body = p.unwrap(bytes.fromhex("12a1ca51da724cb6103658c05d7d4e"))
+    assert body.declared == 18
+    assert not body.complete
+    assert body.missing == 4
+
+
+def test_unwrap_rejects_empty_payload():
+    try:
+        p.unwrap(b"")
+    except ValueError:
+        return
+    raise AssertionError("expected ValueError on an empty payload")
+
+
+def test_groups_rejects_bad_size():
+    try:
+        p.unwrap(b"\x02ab").groups(0)
+    except ValueError:
+        return
+    raise AssertionError("expected ValueError for a zero group size")
+
+
 def test_corrupted_packet_fails_crc():
     raw = bytearray(p.build_query(p.Op.HOST_LIGHTING, index=0, serial=1, nonce=0x42))
     plain = bytearray(p.unscramble(bytes(raw)))

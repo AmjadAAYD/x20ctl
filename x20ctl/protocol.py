@@ -290,6 +290,54 @@ def build_write(
 
 
 @dataclass
+class Body:
+    """A response payload after its length prefix has been stripped.
+
+    Byte 0 of every response payload is the length of the data that follows.
+    Confirmed by READ_NAME, which returns `06` followed by exactly the six ASCII
+    bytes of "Xpert2".
+
+    When `declared` exceeds what arrived, the record is split across chunks and
+    the remainder must be fetched by re-querying with the next index.
+    """
+
+    declared: int
+    data: bytes
+
+    @property
+    def complete(self) -> bool:
+        return len(self.data) == self.declared
+
+    @property
+    def missing(self) -> int:
+        return max(0, self.declared - len(self.data))
+
+    def as_text(self) -> str:
+        return self.data.decode("utf-8", "replace")
+
+    def groups(self, size: int) -> list[bytes]:
+        """Split the data into fixed-size records.
+
+        Several settings are stored as repeated per-channel blocks: sticks and
+        triggers each return two identical 7-byte groups, one per side.
+        """
+        if size <= 0:
+            raise ValueError("group size must be positive")
+        return [self.data[i:i + size] for i in range(0, len(self.data), size)]
+
+    def __repr__(self) -> str:
+        state = "complete" if self.complete else f"partial, {self.missing} more expected"
+        return f"Body(declared={self.declared}, {state}, data={self.data.hex(' ')})"
+
+
+def unwrap(payload: bytes) -> Body:
+    """Strip the length prefix from a response payload."""
+    if not payload:
+        raise ValueError("empty payload has no length prefix")
+    return Body(declared=payload[0], data=payload[1:])
+
+
+@dataclass
 class DeviceInfo:
     """Decoded reply to READ_VID_PID_VERSION.
 
