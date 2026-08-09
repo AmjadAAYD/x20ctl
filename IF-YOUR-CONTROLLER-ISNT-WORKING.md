@@ -21,7 +21,7 @@ The input tester works without Bluetooth. Everything else needs it.
 
 ## 2. The pad is asleep
 
-It drops the Bluetooth link after a while. Press any button on it and try again.
+It drops the Bluetooth link when it's been idle. Press any button on it and try again.
 
 If the app remembered an address from an earlier session and the pad has since gone
 quiet, you'll get "controller not found". Same fix.
