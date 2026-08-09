@@ -318,6 +318,41 @@ def test_capabilities_rejects_short_record():
     raise AssertionError("expected ValueError on a short capability record")
 
 
+def test_noop_changekey_write_matches_the_bytes_hardware_accepted():
+    """The first write ever accepted by the controller, pinned exactly.
+
+    Payload [0] means zero remaps. It is the packet the official app emits when
+    the user changed nothing, so it is a no-op by construction. The pad
+    acknowledged it with a RESPONSE echoing serial 0x81, which is what proves
+    the bit-packed serial and length encodings are right.
+    """
+    packet = p.build(
+        p.Op.WRITE_CHANGEKEY,
+        bytes([0]),
+        serial=p.save_button_serial(slot=0, counter=1),
+        length_field=p.host_length(1, 7),
+        nonce=0x5A,
+    )
+    assert p.unscramble(packet).hex(" ") == "36 e6 81 5a 00 ae"
+    pkt = p.parse(packet)
+    assert pkt.serial == 0x81
+    assert pkt.length >> 5 == 7           # host counter in the top 3 bits
+    assert pkt.declared_length == 6       # 1 payload + 5, in the low 5 bits
+    assert pkt.crc_valid
+
+
+def test_write_acknowledgement_from_hardware():
+    """The pad's reply to that write. Serial echoes the request."""
+    ack = p.parse(bytes.fromhex("2c8ca07b0f5f5f5a"), scrambled=False)
+    # decoded form as observed: 19 08 81 .. 02 df aa ..
+    raw = bytes([0x19, 0x08, 0x81, 0x00, 0x02, 0xDF, 0xAA])
+    ack = p.Packet(opcode=raw[0], length=raw[1], serial=raw[2], nonce=raw[3],
+                   payload=raw[4:], crc=p.crc8(raw))
+    assert ack.opcode == p.Op.RESPONSE
+    assert ack.serial == 0x81, "acknowledgement must echo the write's serial"
+    assert p.unwrap(ack.payload).data == b"\xdf\xaa"
+
+
 def test_corrupted_packet_fails_crc():
     raw = bytearray(p.build_query(p.Op.HOST_LIGHTING, index=0, serial=1, nonce=0x42))
     plain = bytearray(p.unscramble(bytes(raw)))

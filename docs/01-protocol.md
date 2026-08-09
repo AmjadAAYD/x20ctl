@@ -460,6 +460,48 @@ earlier negative result was correct, and this is why.
 That is a genuinely useful configuration tool, and it is more than the vendor
 offers on the desktop, which is nothing. It is not RGB control.
 
+## 4e. Writes are accepted
+
+The first write to the hardware was deliberately chosen to be a no-op: the
+changekey write the official app emits when the user changed nothing.
+
+```java
+CodeHelper.writeHostChangeKeyData(new int[]{0}, 0)
+```
+
+A count of zero means no remaps, and the pad already held zero remaps.
+
+```
+plain     36 e6 81 5a 00 ae
+wire      3e f0 56 61 72 84
+ack       19 08 81 .. 02 df aa      RESPONSE, serial echoed, crc ok
+
+before    HOST_CHANGEKEY -> 00
+after     HOST_CHANGEKEY -> 00
+```
+
+This confirms the two encodings that could not be checked any other way:
+
+- **Length field** `0xE6`: top 3 bits carry the rotating `countHost` value (7),
+  low 5 bits carry `len(payload) + 5` (6). Accepted.
+- **Serial** `0x81`: `getSaveButtonSerial` packs parity, a 4-bit slot index and a
+  3-bit counter into one byte. The acknowledgement **echoed 0x81 exactly**, so the
+  packing is right rather than merely self-consistent.
+
+### The two write counters are independent
+
+`getHostLength` uses `countHost`, initialised to 8 and decremented before first
+use, so the first write carries 7. `getSaveButtonSerial` uses `countSaveButtons`,
+initialised to 0 and incremented before first use, so the first write carries 1.
+They are separate fields and must not share a counter.
+
+### `df aa` is an acknowledgement, not device state
+
+The ack payload is `02 df aa`, byte-identical to what `TWO_IN_ONE_STATE` returned
+in the earlier sweep. So `df aa` is very likely a generic acknowledgement, and the
+earlier table entry treating it as two-in-one device state is probably wrong.
+Corrected here rather than left standing.
+
 ## 5. What is still unknown
 
 - Byte layout **inside** the payloads. The opcodes are certain; the field meanings
