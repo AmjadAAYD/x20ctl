@@ -301,6 +301,55 @@ These are the vendor's own identifiers and are unrelated to the cloned USB
 `045E:*` descriptors. With an 8-byte payload the app sets `is_new_2_ver = 0` and
 skips the bitfield entirely, so bytes 6 and 7 (`23 52` here) remain unexplained.
 
+## 4b. Response payload structure
+
+**Byte 0 of every response payload is a length prefix.** Proven by `READ_NAME`,
+which returns `06` followed by exactly six ASCII bytes, `Xpert2`. If the declared
+length exceeds what arrived, the record is chunked and the remainder is fetched by
+re-querying with the next index.
+
+The index byte on `getHost*` queries is therefore a **chunk number**, not a zone.
+`HOST_LIGHTING` answers on index 0 and 1 and is silent from 2 upward, because its
+record is 25 bytes and a single BLE packet carries at most 20.
+
+### Live readings from an X20, firmware 9.01
+
+| Opcode | Raw payload | Structure |
+|---|---|---|
+| `READ_NAME` | `06 58 70 65 72 74 32` | length 6, ASCII `Xpert2` |
+| `HOST_STICK` | `0e` + `08 08 55 55 aa aa 00` ×2 | two 7-byte channels, left then right |
+| `HOST_TRIGGER` | `0e` + `04 22 52 85 e5 eb 00` ×2 | two 7-byte channels |
+| `HOST_MOTOR` | `08` + `4c 4c 00 00 c0 d4 01 00` | `4c 4c` = two motor strengths (76) |
+| `HOST_TURBO` | `0d` + `08 00 …  58 02 58 02` | `0x0258` = 600, twice; interval in ms |
+| `HOST_CHANGEKEY` | `00` | length 0, no remaps configured |
+| `HOST_GUID` | `12` + 14 bytes | declares 18, chunked; a device GUID, **not gyro** |
+| `READ_BUTTON_MODE` | `03 01 00 00` | |
+| `TWO_IN_ONE_STATE` | `02 df aa` | |
+| `HOST_MENU`, `HOST_MACRO`, `READ_TURBO` | no reply | not supported on this model, or need a handshake |
+
+The stick and trigger records are two identical halves at factory defaults, which
+is what you would expect from symmetric per-side settings. In the stick record
+`0x55` and `0xAA` are precisely one third and two thirds of 255, consistent with
+response-curve control points.
+
+### HOST_LIGHTING is a palette, not live state
+
+Chunks 0 and 1 concatenate to 25 bytes:
+
+```
+18 | ff 00 00 | 00 00 ff | 00 00 ff | 10 10 ff | 00 00 ff | 40 00 40 | 80 80 80 | a0 80 ff
+```
+
+`0x18` is 24, exactly the eight RGB triplets that follow.
+
+Crucially, this record **did not change** when the pad's lighting was switched
+from off to brightness 1 and set to green, and no `00 ff 00` appears anywhere in
+it. So this is a stored palette, not the active lighting state. The live state is
+somewhere else and is still unlocated.
+
+This is a useful negative result: it rules out the obvious reading of
+`HOST_LIGHTING` and means writes to it would not have done what we expected.
+
 ## 5. What is still unknown
 
 - Byte layout **inside** the payloads. The opcodes are certain; the field meanings
