@@ -247,6 +247,30 @@ def test_lighting_entry_rejects_wrong_size():
     raise AssertionError("expected ValueError for a short entry")
 
 
+def test_menu_query_sends_position_then_kind():
+    """0xB0 is multiplexed; payload order is [position, kind], not [kind, position].
+    Getting this backwards is what made the opcode look unsupported."""
+    raw = p.build_menu_query(p.MenuKind.TURBO_SUPPORT, position=0, serial=1, nonce=0)
+    pkt = p.parse(raw)
+    assert pkt.opcode == p.Op.HOST_MENU
+    assert pkt.payload == bytes([0, 4])
+    assert pkt.declared_length == 7  # 2 payload + 5
+    assert pkt.crc_valid
+
+
+def test_menu_query_honours_position():
+    pkt = p.parse(p.build_menu_query(p.MenuKind.MACRO_SUPPORT, position=3, serial=1, nonce=0))
+    assert pkt.payload == bytes([3, 5])
+
+
+def test_turbo_support_reply_is_two_equal_channels():
+    body = p.unwrap(bytes.fromhex("0a0c0188 0d840c01 880d84".replace(" ", "")))
+    assert body.declared == 10
+    assert body.complete
+    first, second = body.groups(5)
+    assert first == second == bytes.fromhex("0c0188 0d84".replace(" ", ""))
+
+
 def test_corrupted_packet_fails_crc():
     raw = bytearray(p.build_query(p.Op.HOST_LIGHTING, index=0, serial=1, nonce=0x42))
     plain = bytearray(p.unscramble(bytes(raw)))
