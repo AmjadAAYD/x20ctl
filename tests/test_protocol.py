@@ -412,6 +412,38 @@ def test_macro_payload_header_sizes_the_steps():
     assert p.MacroStep.parse(payload[3:8]) == steps[0]
 
 
+def test_mask_defaults_to_analog_neutral():
+    """Regression for a bug that reached hardware.
+
+    The analog nibbles encode "untouched" as 0b1000, not 0b0000. A mask built
+    with zeroed nibbles selects direction 0 on both sticks and drives them
+    continuously. Every mask must therefore start from the neutral value.
+    """
+    assert p.mask_for([]) == p.MACRO_ANALOG_NEUTRAL
+    assert p.mask_for([]) & 0xFF == 0x88
+    a_mask = p.mask_for([p.Key.A])
+    assert a_mask & 0xFF == 0x88, "analog nibbles must stay neutral"
+    assert a_mask >> 12 & 1 == 1, "A is bit 12"
+
+
+def test_every_digital_key_leaves_analog_nibbles_neutral():
+    for key in p.MACRO_MASK_BIT:
+        assert p.mask_for([key]) & 0xFF == p.MACRO_ANALOG_NEUTRAL, key.name
+
+
+def test_macro_clear_is_a_bare_zero():
+    """writeMacroData empties a slot with [0], not with an empty header."""
+    assert p.MACRO_CLEAR == b"\x00"
+
+
+def test_analog_keys_rejected_from_mask():
+    try:
+        p.mask_for([p.Key.LSTICK_ANALOG])
+    except ValueError:
+        return
+    raise AssertionError("analog keys must not be silently packed as single bits")
+
+
 def test_corrupted_packet_fails_crc():
     raw = bytearray(p.build_query(p.Op.HOST_LIGHTING, index=0, serial=1, nonce=0x42))
     plain = bytearray(p.unscramble(bytes(raw)))

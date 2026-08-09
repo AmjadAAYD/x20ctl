@@ -271,6 +271,35 @@ def build_query(opcode: int, index: int, *, serial: int, nonce: int | None = Non
     return build(opcode, bytes([index]), serial=serial, nonce=nonce)
 
 
+def build_macro_write(
+    payload: bytes,
+    slot: int,
+    chunk: int = 0,
+    counter: int = 1,
+    *,
+    nonce: int | None = None,
+) -> bytes:
+    """Write a macro payload to a slot.
+
+    From CodeHelper.writeHostMacroData: the length byte is
+    getHostMacroLength(slot, payload), which places the **macro slot** in the top
+    three bits rather than the rotating counter used by other writes. The serial
+    is getSaveButtonSerial over the chunk index.
+
+    Slots are zero-based: M1 is 0.
+    """
+    if not 0 <= slot <= 7:
+        raise ValueError("macro slot must be 0-7 to fit three bits")
+    length_field = ((slot & 0x07) << 5) | ((len(payload) + 5) & 0x1F)
+    return build(
+        Op.WRITE_MACRO,
+        payload,
+        serial=save_button_serial(slot=chunk, counter=counter),
+        length_field=length_field,
+        nonce=nonce,
+    )
+
+
 class MenuKind(IntEnum):
     """Second payload byte of a HOST_MENU (0xB0) query.
 
@@ -392,6 +421,94 @@ def decode_key_list(data: bytes) -> list[int]:
     if expected != len(keys):
         raise ValueError(f"key list declares {expected} keys but decoded {len(keys)}")
     return keys
+
+
+class Key(IntEnum):
+    """Button codes.
+
+    Recovered from ButtonUtil's parallel BUTTON_CODE / BIG_BUTTON_RES arrays,
+    resolved through the resource table. The drawable names carry both the code
+    and the name, e.g. `ic_big_code_0x01_a1`, so this mapping is not inferred.
+    """
+
+    A = 1
+    B = 2
+    X = 3
+    Y = 4
+    LB = 5
+    RB = 6
+    LT = 7
+    RT = 8
+    SELECT = 9
+    START = 10
+    L3 = 11
+    R3 = 12
+    DPAD_DOWN = 13
+    DPAD_UP = 14
+    DPAD_RIGHT = 15
+    DPAD_LEFT = 16
+    HOME = 17
+    LSTICK_ANALOG = 18
+    RSTICK_ANALOG = 19
+
+
+# Bit position of each key inside a macro step's 24-bit mask.
+#
+# writeMacroData walks the device's macro key list and prepends each key's bits
+# to a string, so the list order reverses into the mask. The list from this X20
+# is [18, 19, 13, 14, 15, 16, 1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 93, 94], and codes
+# 18 and 19 take four bits each because they are analog. That accounts for
+# exactly 24 bits with nothing left over, which is the check that this layout is
+# right.
+MACRO_MASK_BIT = {
+    Key.DPAD_DOWN: 8,
+    Key.DPAD_UP: 9,
+    Key.DPAD_RIGHT: 10,
+    Key.DPAD_LEFT: 11,
+    Key.A: 12,
+    Key.B: 13,
+    Key.X: 14,
+    Key.Y: 15,
+    Key.LB: 16,
+    Key.RB: 17,
+    Key.LT: 18,
+    Key.RT: 19,
+    Key.L3: 20,
+    Key.R3: 21,
+}
+
+# Analog entries occupy nibbles rather than single bits and are not supported
+# by mask_for() yet.
+MACRO_ANALOG_BITS = {Key.LSTICK_ANALOG: (0, 4), Key.RSTICK_ANALOG: (4, 4)}
+
+
+# Neutral value for the two analog nibbles.
+#
+# This bit an early write badly. writeMacroData encodes an untouched analog
+# entry as "1000", not "0000": the top bit of the nibble means "no input", and
+# the low three bits are a direction minus one. Leaving the nibbles at zero
+# therefore does not mean "stick centred", it selects direction 0 and drives the
+# stick continuously. Verified the hard way on real hardware, where a macro with
+# zeroed nibbles swept both sticks up and down until the macro was interrupted.
+MACRO_ANALOG_NEUTRAL = 0x88
+
+# What writeMacroData sends to empty a slot: a bare zero, not an empty header.
+MACRO_CLEAR = bytes([0])
+
+
+def mask_for(keys) -> int:
+    """Build a macro step mask from digital keys.
+
+    The analog nibbles are set to their neutral encoding, so a mask built here
+    never accidentally commands stick movement.
+    """
+    mask = MACRO_ANALOG_NEUTRAL
+    for key in keys:
+        k = Key(key)
+        if k not in MACRO_MASK_BIT:
+            raise ValueError(f"{k.name} is analog or unmapped; not supported in a mask")
+        mask |= 1 << MACRO_MASK_BIT[k]
+    return mask
 
 
 MACRO_STEP_SIZE = 5
