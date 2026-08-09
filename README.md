@@ -1,112 +1,180 @@
 # x20ctl
 
-An open configuration library for the EasySMX X20 gamepad, and for any other pad
+Open configuration for the EasySMX X20 gamepad, and for other controllers
 speaking the same KeyLinker protocol.
 
-The X20 has no desktop configuration software. The vendor ships only a manual, a
-driver, and a firmware updater. Settings such as lighting, gyro mapping, rear
-button assignment and turbo are only reachable through button combinations on the
-pad or through a mobile-only app. This project closes that gap.
+The X20 ships with no desktop configuration software. The vendor provides a
+manual, a driver, and a firmware updater. Everything else lives in a mobile-only
+app or behind button combinations on the pad itself. This project documents the
+protocol and makes it usable from a PC.
 
-**Status: Phase 1, mapping. No protocol bytes recovered yet.** See
-[docs/00-findings.md](docs/00-findings.md).
+**Working today:** vibration strength, verified against hardware across its full
+range. See [status](#status) for exactly what is and is not proven.
+
+The protocol was reverse engineered from scratch. No prior documentation of
+KeyLinker, `Xpert2`, or `com.pulsenet.inputset` appears to exist publicly.
 
 ---
 
-## Safety contract
+## Safety
 
-This is the most important section in the repository.
-
-The controller has two completely separate command channels:
+The controller has two entirely separate command channels:
 
 | Channel | Mechanism | Risk | Policy |
 |---|---|---|---|
 | Bootloader | USB mass storage, SCSI pass-through | **can brick the device** | never touched |
-| Configuration | HID or BLE GATT, to be confirmed | recoverable | the only target |
+| Configuration | BLE GATT | recoverable | the only target |
 
-### Hard rules
+### Rules this project follows
 
-1. **This project never issues a SCSI command, never opens `\\.\PHYSICALDRIVE`,
-   never opens a drive letter, and never runs the vendor updater.** The bootloader
-   is the only path that can destroy the pad and it is permanently out of scope.
-2. **Never put the pad in upgrade mode** (hold `L3` while connecting USB) while
-   working on this project.
-3. **Read before writing.** Enumeration and feature-report reads are non-destructive.
-   Every discovery step is exhausted before any write is attempted.
-4. **No write happens without a documented reason.** Every byte sent to the device
-   must be traceable to a captured packet from the official app or to a
-   deliberately designed experiment recorded in the findings log.
-5. **Capture full state before the first write**, so the pad can be restored.
-6. **Recovery path for any settings-level mistake: hold `C` for 5 seconds** for a
-   factory reset.
+1. **No SCSI, ever.** No `\\.\PHYSICALDRIVE`, no drive letters, no running the
+   vendor updater. The bootloader is permanently out of scope.
+2. **Never enter upgrade mode** (`L3` held while connecting USB).
+3. **Read before writing.** Every write is traceable to a captured read or to the
+   vendor app's own code. Nothing is guessed.
+4. **Tools refuse unsafe opcodes by default.** `ble_query.py` and `ble_probe.py`
+   accept only read-only opcodes. `verify_write.py` can construct exactly one
+   packet, a provable no-op. `set_vibration.py` always reads first and reuses
+   undecoded bytes verbatim rather than inventing values.
 
-Following rules 1 and 2, the realistic worst case is a controller that needs a
-factory reset. Settings live in a different place from firmware.
+**Recovery from any settings-level mistake: hold `C` for 5 seconds** for a
+factory reset. Settings live separately from firmware.
+
+---
+
+## Status
+
+| Feature | State |
+|---|---|
+| BLE transport, framing, CRC, scrambling | confirmed against hardware |
+| Reading device info, capabilities, all settings | working |
+| **Vibration strength** | **working, verified by feel at 0%, 30%, 100%** |
+| Stick curves | format known, **untested** |
+| Trigger curves | format known, **untested** |
+| Macros | capability supported, payload format not yet traced |
+| RGB lighting | **not exposed by the X20** |
+| Turbo | **not exposed by the X20** |
+| Gyro | **not exposed by the X20** |
+
+### About the three "not exposed" rows
+
+The pad reports its own capabilities in a descriptor that the official app uses to
+decide which settings pages to show. An X20 reports zero for lighting, turbo and
+gyro. Those features exist in the hardware but are driven entirely by on-pad
+button combinations, and are not reachable through this protocol on this model.
+
+This is a property of the controller, not a limitation of this software. Another
+brand's pad on the same chip may well report them as available, and this library
+gates on that descriptor, so it will simply work.
+
+---
+
+## Requirements
+
+- Python 3.10+
+- `bleak` for the BLE tools: `pip install bleak`
+- The pad paired over Bluetooth
+
+The library core (`x20ctl/protocol.py`) is pure computation with no dependencies
+and no I/O, so the whole packet layer can be exercised without a controller.
+
+---
+
+## Usage
+
+Find the controller. It advertises as `Xpert2`, on a MAC distinct from the one it
+uses for the gamepad interface:
+
+```bash
+python tools/ble_scan.py
+```
+
+Inspect its GATT table:
+
+```bash
+python tools/ble_enum.py <address>
+```
+
+Read a setting:
+
+```bash
+python tools/ble_probe.py <address> HOST_MOTOR --label baseline
+```
+
+Read every setting at once:
+
+```bash
+python tools/ble_sweep.py <address> --opcodes HOST_STICK,HOST_TRIGGER,HOST_MOTOR
+```
+
+Read and change vibration strength:
+
+```bash
+python tools/set_vibration.py <address>
+python tools/set_vibration.py <address> --percent 60
+python tools/set_vibration.py <address> --restore 4c
+```
+
+Run the tests, no hardware required:
+
+```bash
+python tests/test_protocol.py
+```
+
+---
+
+## The protocol, in brief
+
+Full detail in [docs/01-protocol.md](docs/01-protocol.md).
+
+**Transport.** BLE GATT. Service `d7f010e0-660d-46e9-96c3-19c4148bdab5`, write on
+`...e1`, notify on `...e2`. The pad advertises this as a separate peripheral
+alongside its gamepad interface, so both are live at once.
+
+**Packets.** `[opcode][length][serial][nonce][payload][crc8]`, capped at 20 bytes
+to fit a default BLE MTU, then passed through a scrambling pass. Replies use a
+single `RESPONSE` opcode and are matched to requests by the serial byte.
+
+**Checksum.** Reflected CRC-8, polynomial `0xEB`. The table is generated from the
+polynomial and asserted equal to the one shipped in the vendor app on every test
+run.
+
+**Payloads.** Byte 0 of every response is a length prefix. Records longer than one
+packet are chunked and fetched by index.
 
 ---
 
 ## Layout
 
 ```
-docs/       reverse engineering log and protocol notes
-tools/      discovery utilities, all read-only
-vendor/     vendor binaries kept for analysis, never redistributed
-captures/   USB and BLE packet captures
-x20ctl/     the library itself, once there is a protocol to implement
+docs/       protocol documentation and the reverse engineering log
+tools/      discovery and configuration utilities
+x20ctl/     the protocol library
+tests/      offline tests, including bytes captured from real hardware
+vendor/     manufacturer binaries, analysis only, never committed
+captures/   packet logs, never committed
 ```
 
-## Tools
+---
 
-All read-only.
+## Notes for other devices
 
-```bash
-python tools/hid_scan.py
-```
+The protocol belongs to the chip vendor (ShenZhen ZhiXu, package
+`com.pulsenet.inputset`), not to EasySMX, so it likely covers controllers from
+several brands. Two things to know before pointing this at other hardware:
 
-List every HID collection on the system.
+- **Do not identify a pad by USB VID/PID.** The X20 clones Microsoft's
+  `045E:028E` when wired and `045E:02FD` over Bluetooth Classic. Matching on those
+  would target genuine Xbox controllers. Identify by the BLE peripheral instead.
+- **Always read the capability descriptor first** and honour it. It is how the pad
+  tells you which settings it will accept.
 
-```bash
-python tools/hid_scan.py --vendor
-```
+---
 
-Show only vendor-defined collections, usage page `0xFF00` or above. This is how
-a hidden configuration channel announces itself.
+## Licence
 
-```bash
-python tools/hid_scan.py --vid 045E
-```
+MIT, see [LICENSE](LICENSE).
 
-Filter to one vendor id. The X20 clones `045E:028E` in XInput mode.
-
-```bash
-python tools/hid_scan.py --probe "\\?\hid#..."
-```
-
-Sweep feature report ids on one collection. Issues reads only, never writes.
-
-```bash
-python tools/hid_scan.py --watch "\\?\hid#..."
-```
-
-Print input reports as they change, for mapping buttons to bits.
-
-## Findings so far
-
-- The vendor updater is a rebadged `UsbUpdateAppX.exe` that drops a `DeviceUsb.dll`
-  and drives the pad as a **mass storage device over SCSI**. That is the bootloader.
-- In XInput mode the pad exposes exactly two USB interfaces and **no vendor HID
-  collection, no feature reports**. No configuration channel there.
-- The real configuration app is **KeyLinker**, Android package
-  `com.pulsenet.inputset`, by ShenZhen ZhiXu Technology. It is a **chip-vendor
-  protocol**, not an EasySMX one, so this library should generalise across brands.
-- KeyLinker ships on iOS, which cannot speak USB HID to a gamepad. The protocol
-  must therefore be reachable **over Bluetooth LE**, on a peripheral named `Xpert2`.
-
-## Licence and redistribution
-
-Code here is intended for MIT release. The contents of `vendor/` are the
-manufacturer's copyrighted binaries, kept locally for interoperability analysis
-only, and are excluded from version control. Do not redistribute them.
-
-Reverse engineering hardware you own for the purpose of interoperability is
-well-precedented; see OpenRGB, DS4Windows, and dekuNukem's Nintendo Switch work.
+This is an independent interoperability project, not affiliated with or endorsed
+by any manufacturer. No vendor firmware, application binaries, or decompiled
+source are distributed here.
