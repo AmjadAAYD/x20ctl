@@ -502,6 +502,49 @@ in the earlier sweep. So `df aa` is very likely a generic acknowledgement, and t
 earlier table entry treating it as two-in-one device state is probably wrong.
 Corrected here rather than left standing.
 
+## 4f. On-pad assignments are invisible to the protocol
+
+An experiment worth recording, because it invalidates an obvious assumption.
+
+A rear button was assigned to `A` using the pad's own programming combo
+(`hold C + M4`, press `A`, `C + M4` again). An independent controller test page
+confirmed the button then reports as `A`.
+
+Every readable protocol value was then re-queried: `HOST_STICK`, `HOST_TRIGGER`,
+`HOST_MOTOR`, `HOST_TURBO`, `HOST_CHANGEKEY`, `READ_BUTTON_MODE`,
+`TWO_IN_ONE_STATE`, `HOST_LIGHTING`, all six `HOST_MENU` kinds, and `READ_MACRO`
+in one- and two-byte forms across four slots.
+
+**Not a single byte changed.**
+
+So the pad keeps two separate stores:
+
+| Store | Set by | Visible to protocol |
+|---|---|---|
+| On-pad button assignment | pad combos | **no** |
+| Protocol macro slots M1-M4 | KeyLinker | yes, and currently empty |
+
+The capability record reports macros as supported (`0f`, M1-M4) and the macro
+slots read back empty, so the protocol side is a real but unused feature. It is
+not simply a second view of the same assignment.
+
+The practical consequence is that **read-back cannot verify a rear-button change
+made on the pad**, and any plan relying on that is unsound.
+
+### Where the protocol's unique value actually lies
+
+This shifts the priority. Rear-button assignment already has an on-pad route, so
+software adds convenience there at best. Two settings have **no on-pad route at
+all**, are capability-supported, and return real non-default-looking data:
+
+| Setting | Current value | Note |
+|---|---|---|
+| Stick curves | `08 08 55 55 aa aa 00` per side | `0x55`/`0xAA` at ⅓ and ⅔ of range |
+| Trigger curves | `04 22 52 85 e5 eb 00` per side | ascending control points |
+| Vibration | `4c 4c` = 76, 76 | two motors |
+
+These are the settings a desktop tool could offer that nothing else can.
+
 ## 5. What is still unknown
 
 - Byte layout **inside** the payloads. The opcodes are certain; the field meanings
