@@ -545,6 +545,24 @@ all**, are capability-supported, and return real non-default-looking data:
 
 These are the settings a desktop tool could offer that nothing else can.
 
+## 4g. Transports tested so far
+
+| Transport | Gamepad interface | Config channel |
+|---|---|---|
+| Wired USB, XInput | `045E:028E`, 2 interfaces | **none** |
+| Bluetooth Classic | `045E:02FD`, BR/EDR HID | **none** |
+| BLE, `Xpert2` peripheral | n/a | **yes**, service `d7f010e0` |
+| 2.4 GHz dongle | not yet tested | not yet tested |
+
+The dongle remains untested. Expectation is that it presents as another plain
+HID gamepad with no vendor collection, matching wired and Bluetooth Classic, but
+it is a distinct USB device with its own VID/PID and is worth enumerating.
+
+Note that link speed is irrelevant to configuration. The dongle's 1000 Hz polling
+matters for input latency during play; a configuration write is a single packet
+of under 20 bytes. The likely workflow is to configure over BLE and play over the
+dongle, since both links are live simultaneously.
+
 ## 5. What is still unknown
 
 - Byte layout **inside** the payloads. The opcodes are certain; the field meanings
