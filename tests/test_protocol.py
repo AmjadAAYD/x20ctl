@@ -444,6 +444,30 @@ def test_analog_keys_rejected_from_mask():
     raise AssertionError("analog keys must not be silently packed as single bits")
 
 
+def test_release_step_keeps_analog_neutral():
+    """Second regression for the same bug, one line further along.
+
+    Fixing mask_for() was not enough: a release step built as MacroStep(mask=0)
+    bypasses it and re-creates the fault. MacroStep.released() exists so the
+    safe form is the obvious one.
+    """
+    step = p.MacroStep.released(50)
+    assert step.mask & 0xFF == p.MACRO_ANALOG_NEUTRAL
+    assert step.to_bytes()[0] == 0x88
+    # the unsafe form is still expressible, but must not be what tools reach for
+    assert p.MacroStep(mask=0, duration_ms=50).to_bytes()[0] == 0x00
+
+
+def test_a_full_tap_sequence_never_zeroes_the_nibbles():
+    steps = [
+        p.MacroStep(mask=p.mask_for([p.Key.A]), duration_ms=50),
+        p.MacroStep.released(50),
+    ]
+    payload = p.build_macro_payload(steps, total_ms=3000)
+    for i in range(3, len(payload), p.MACRO_STEP_SIZE):
+        assert payload[i] == 0x88, f"step at {i} has non-neutral analog nibbles"
+
+
 def test_corrupted_packet_fails_crc():
     raw = bytearray(p.build_query(p.Op.HOST_LIGHTING, index=0, serial=1, nonce=0x42))
     plain = bytearray(p.unscramble(bytes(raw)))

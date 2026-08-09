@@ -543,6 +543,16 @@ class MacroStep:
         ])
 
     @classmethod
+    def released(cls, duration_ms: int) -> "MacroStep":
+        """A step with nothing pressed.
+
+        Use this rather than `MacroStep(mask=0, ...)`. A zero mask leaves both
+        analog nibbles at 0b0000, which is direction 0 rather than idle, and
+        drives the sticks. That mistake reached hardware once already.
+        """
+        return cls(mask=MACRO_ANALOG_NEUTRAL, duration_ms=duration_ms)
+
+    @classmethod
     def parse(cls, raw: bytes) -> "MacroStep":
         if len(raw) != MACRO_STEP_SIZE:
             raise ValueError(f"macro step must be {MACRO_STEP_SIZE} bytes")
