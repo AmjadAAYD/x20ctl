@@ -271,6 +271,53 @@ def test_turbo_support_reply_is_two_equal_channels():
     assert first == second == bytes.fromhex("0c0188 0d84".replace(" ", ""))
 
 
+# --- capability descriptor, HOST_MENU kind 1, from a real X20 ---------------
+CAPABILITY_RECORD = bytes.fromhex("0a03030300 0f01000 2c000".replace(" ", ""))
+
+
+def test_capabilities_match_the_physical_x20():
+    """Cross-check: the decoded record must agree with the hardware in hand.
+    The X20 has two hall sticks, two triggers, two rumble motors and four rear
+    buttons. If the bit order were wrong these would not all line up."""
+    caps = p.parse_capabilities(p.unwrap(CAPABILITY_RECORD))
+    assert caps.has_left_stick and caps.has_right_stick
+    assert caps.has_left_trigger and caps.has_right_trigger
+    assert caps.motor_count == 2
+    assert caps.macro_slots == ["M1", "M2", "M3", "M4"]
+
+
+def test_x20_does_not_expose_lighting_turbo_or_gyro():
+    """The headline negative result. The X20 has RGB, turbo and a gyro in
+    hardware, all driven by on-pad button combos, but reports none of them as
+    configurable over this protocol."""
+    caps = p.parse_capabilities(p.unwrap(CAPABILITY_RECORD))
+    assert caps.lighting == 0
+    assert caps.lighting_zones == 0
+    assert caps.turbo == 0
+    assert caps.sensor == 0
+    assert "lighting" not in caps.supported()
+    assert "turbo" not in caps.supported()
+    assert "sensor" not in caps.supported()
+
+
+def test_x20_exposes_remapping_and_macros():
+    caps = p.parse_capabilities(p.unwrap(CAPABILITY_RECORD))
+    assert caps.changekey == 1
+    assert "button remapping" in caps.supported()
+    assert "macros" in caps.supported()
+    assert set(caps.supported()) == {
+        "sticks", "triggers", "vibration", "macros", "button remapping", "eq", "nfc",
+    }
+
+
+def test_capabilities_rejects_short_record():
+    try:
+        p.parse_capabilities(p.Body(declared=3, data=b"\x01\x02\x03"))
+    except ValueError:
+        return
+    raise AssertionError("expected ValueError on a short capability record")
+
+
 def test_corrupted_packet_fails_crc():
     raw = bytearray(p.build_query(p.Op.HOST_LIGHTING, index=0, serial=1, nonce=0x42))
     plain = bytearray(p.unscramble(bytes(raw)))

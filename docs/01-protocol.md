@@ -394,6 +394,72 @@ Opcode `0xB5` also has both a one-byte and a two-byte form in the app
 (`getHostToobleData(i)` on `0xB4` versus `getHostToobleData(i, i2)` on `0xB5`),
 so its earlier silence has the same explanation.
 
+## 4d. The capability descriptor, and what the X20 actually exposes
+
+`HOST_MENU` kind 1 returns the record that drives the entire app UI.
+`HostActivity.initMenu` switches each settings page on or off from a single byte,
+so this record is authoritative about what a given pad will accept.
+
+Byte offsets below are into the payload **after** the length prefix, so offset 0
+here is the app's `iArr[1]`.
+
+| Offset | Capability | Bit meaning |
+|---|---|---|
+| 0 | sticks | bit 1 left, bit 0 right |
+| 1 | triggers | bit 1 left, bit 0 right |
+| 2 | motors | bits 0-3, motors 1 to 4 |
+| 3 | turbo | non-zero enables the page |
+| 4 | macros | bits 0-7: M1-M6, ML, MR |
+| 5 | button remapping | non-zero enables the page |
+| 6 | lighting | one bit per lighting zone |
+| 7 | EQ | audio equaliser |
+| 8 | NFC | bits for pro/left/right pad and NFC 1-4 |
+| 9 | sensor | gyro |
+
+### Reading from an EasySMX X20, firmware 9.01
+
+Record: `0a | 03 03 03 00 0f 01 00 02 c0 00`
+
+```
+configurable: sticks, triggers, vibration, macros, button remapping, eq, nfc
+  sticks     L=True R=True
+  triggers   L=True R=True
+  motors     2
+  macros     M1, M2, M3, M4
+  lighting   0 zone(s)
+```
+
+The decode cross-checks against the physical hardware on four independent
+counts: two hall sticks, two triggers, two rumble motors, four rear buttons. A
+wrong bit order would not produce four correct answers at once.
+
+### The headline result
+
+**The X20 does not expose lighting, turbo, or gyro to this protocol.** Offsets
+6, 3 and 9 are all zero.
+
+This is not a limitation of our client. It is what the pad reports about itself,
+and the official app honours it by never showing those pages for this model.
+Those three features exist in the hardware and are driven entirely by on-pad
+button combinations, which is exactly how the manual documents them:
+`C + L3` for brightness, `T + A` for turbo, `C + BACK + L3/R3` for gyro mapping.
+
+It also retroactively explains the `HOST_LIGHTING` result. That opcode answers,
+and returns a well-formed four-entry palette, but the record is inert on this
+model. Nothing we could have written to it would have changed the LEDs. The
+earlier negative result was correct, and this is why.
+
+### What is buildable on an X20
+
+- Button remapping, which the pad reports as supported and currently has unset
+- Macros on M1 through M4
+- Stick response curves, per side
+- Trigger response curves, per side
+- Vibration strength, two motors
+
+That is a genuinely useful configuration tool, and it is more than the vendor
+offers on the desktop, which is nothing. It is not RGB control.
+
 ## 5. What is still unknown
 
 - Byte layout **inside** the payloads. The opcodes are certain; the field meanings

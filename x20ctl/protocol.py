@@ -365,6 +365,113 @@ def unwrap(payload: bytes) -> Body:
     return Body(declared=payload[0], data=payload[1:])
 
 
+@dataclass
+class Capabilities:
+    """What a pad exposes to the configuration protocol.
+
+    Decoded from the HOST_MENU kind 1 reply. Byte offsets and bit meanings come
+    from HostActivity.initMenu, which switches the app's whole UI off this one
+    record: a zero byte means the corresponding settings page is never shown.
+
+    A zero here means "not configurable over this protocol", NOT "the hardware
+    lacks the feature". An X20 has RGB lighting and a gyro in hardware, both
+    driven by on-pad button combinations, yet reports zero for both.
+    """
+
+    sticks: int
+    triggers: int
+    motors: int
+    turbo: int
+    macros: int
+    changekey: int
+    lighting: int
+    eq: int
+    nfc: int
+    sensor: int
+
+    # bit 0 is the rightmost; the app reads binaryString(x).charAt(7) for bit 0
+    @staticmethod
+    def _bit(value: int, index: int) -> bool:
+        return bool(value >> index & 1)
+
+    @property
+    def has_left_stick(self) -> bool:
+        return self._bit(self.sticks, 1)
+
+    @property
+    def has_right_stick(self) -> bool:
+        return self._bit(self.sticks, 0)
+
+    @property
+    def has_left_trigger(self) -> bool:
+        return self._bit(self.triggers, 1)
+
+    @property
+    def has_right_trigger(self) -> bool:
+        return self._bit(self.triggers, 0)
+
+    @property
+    def motor_count(self) -> int:
+        return sum(self._bit(self.motors, i) for i in range(4))
+
+    @property
+    def macro_slots(self) -> list[str]:
+        names = ["M1", "M2", "M3", "M4", "M5", "M6", "ML", "MR"]
+        return [n for i, n in enumerate(names) if self._bit(self.macros, i)]
+
+    @property
+    def lighting_zones(self) -> int:
+        return sum(self._bit(self.lighting, i) for i in range(8))
+
+    def supported(self) -> list[str]:
+        out = []
+        if self.sticks:
+            out.append("sticks")
+        if self.triggers:
+            out.append("triggers")
+        if self.motors:
+            out.append("vibration")
+        if self.turbo:
+            out.append("turbo")
+        if self.macros:
+            out.append("macros")
+        if self.changekey:
+            out.append("button remapping")
+        if self.lighting:
+            out.append("lighting")
+        if self.eq:
+            out.append("eq")
+        if self.nfc:
+            out.append("nfc")
+        if self.sensor:
+            out.append("sensor")
+        return out
+
+    def __str__(self) -> str:
+        got = ", ".join(self.supported()) or "nothing"
+        return (f"configurable: {got}\n"
+                f"  sticks     L={self.has_left_stick} R={self.has_right_stick}\n"
+                f"  triggers   L={self.has_left_trigger} R={self.has_right_trigger}\n"
+                f"  motors     {self.motor_count}\n"
+                f"  macros     {', '.join(self.macro_slots) or 'none'}\n"
+                f"  lighting   {self.lighting_zones} zone(s)")
+
+
+def parse_capabilities(body: "Body") -> Capabilities:
+    """Decode the HOST_MENU kind 1 reply.
+
+    `body` is the payload with the length prefix already stripped, so index 0
+    here is the app's iArr[1].
+    """
+    if len(body.data) < 10:
+        raise ValueError(f"capability record needs 10 bytes, got {len(body.data)}")
+    d = body.data
+    return Capabilities(
+        sticks=d[0], triggers=d[1], motors=d[2], turbo=d[3], macros=d[4],
+        changekey=d[5], lighting=d[6], eq=d[7], nfc=d[8], sensor=d[9],
+    )
+
+
 LIGHTING_ENTRY_SIZE = 6
 
 
