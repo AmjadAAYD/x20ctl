@@ -289,6 +289,56 @@ def build_write(
     )
 
 
+@dataclass
+class DeviceInfo:
+    """Decoded reply to READ_VID_PID_VERSION.
+
+    Field extraction follows ZXBTHelper.parsingVidAndPidAndVersion exactly. Note
+    that `vid` and `pid` are the vendor's own identifiers rendered as hex strings,
+    not USB ids; the USB descriptor advertises a cloned Microsoft identity that
+    has nothing to do with these.
+    """
+
+    vid: str
+    pid: str
+    version: str
+    device_id: int
+    model: int | None = None
+    sensor: int | None = None
+    version_family: int | None = None
+
+    def __str__(self) -> str:
+        parts = [f"vid={self.vid} pid={self.pid} version={self.version} device_id={self.device_id}"]
+        if self.model is not None:
+            parts.append(f"model={self.model} sensor={self.sensor} family={self.version_family}")
+        return "  ".join(parts)
+
+
+def parse_device_info(payload: bytes) -> DeviceInfo:
+    """Decode the payload of a RESPONSE to READ_VID_PID_VERSION.
+
+    The trailing bitfield is only decoded when the payload is exactly 7 bytes.
+    The app explicitly skips it otherwise, and we do not guess in its place.
+    """
+    if len(payload) < 6:
+        raise ValueError(f"device info payload too short: {len(payload)} bytes")
+
+    vid = f"{payload[0]:02x}{payload[1]:02x}"
+    pid = f"{payload[2]:02x}{payload[3]:02x}"
+    # Version is major in bare hex, minor zero-padded to two hex digits.
+    version = f"{payload[4]:x}.{payload[5]:02x}"
+    device_id = int(pid, 16) >> 12  # top 4 bits of the 16-bit pid
+
+    info = DeviceInfo(vid=vid, pid=pid, version=version, device_id=device_id)
+
+    if len(payload) == 7:
+        bits = payload[6]
+        info.model = bits & 0x0F
+        info.sensor = (bits >> 4) & 0x01
+        info.version_family = (bits >> 5) & 0x07
+    return info
+
+
 # Factory reset, guarded by a magic payload. Restores settings only; it does not
 # touch firmware. This is the documented recovery path.
 RECOVER_MAGIC = bytes([0x03, 0xDF, 0xA9])

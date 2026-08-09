@@ -99,6 +99,48 @@ def test_recover_carries_the_magic_guard():
     assert host.payload == p.RECOVER_MAGIC + b"\x02"
 
 
+# --- captured from real hardware -------------------------------------------
+# EasySMX X20, BLE address 98:B6:ED:E3:15:C4, reply to READ_VID_PID_VERSION.
+# Kept verbatim so any regression in the framing shows up immediately.
+CAPTURED_REPLY = bytes.fromhex("268cb68ef74c7e10bfc1fddf62")
+
+
+def test_real_hardware_reply_decodes():
+    pkt = p.parse(CAPTURED_REPLY)
+    assert pkt.opcode == p.Op.RESPONSE
+    assert pkt.crc_valid, "CRC failed on a reply the hardware actually sent"
+    assert pkt.serial == 0x01, "reply serial should echo the request serial"
+    assert pkt.payload == bytes.fromhex("0710132009012352")
+    assert pkt.declared_length == len(pkt.payload) + 5
+
+
+def test_device_info_from_real_hardware():
+    info = p.parse_device_info(p.parse(CAPTURED_REPLY).payload)
+    assert info.vid == "0710"
+    assert info.pid == "1320"
+    assert info.version == "9.01"
+    assert info.device_id == 0x1
+    # 8-byte payload: the app does not decode the trailing bitfield, nor do we
+    assert info.model is None
+    assert info.sensor is None
+
+
+def test_device_info_decodes_bitfield_only_at_seven_bytes():
+    seven = bytes([0x07, 0x10, 0x13, 0x20, 0x09, 0x01, 0b010_1_0011])
+    info = p.parse_device_info(seven)
+    assert info.model == 0b0011
+    assert info.sensor == 1
+    assert info.version_family == 0b010
+
+
+def test_device_info_rejects_short_payload():
+    try:
+        p.parse_device_info(b"\x01\x02\x03")
+    except ValueError:
+        return
+    raise AssertionError("expected ValueError for a short payload")
+
+
 def test_corrupted_packet_fails_crc():
     raw = bytearray(p.build_query(p.Op.HOST_LIGHTING, index=0, serial=1, nonce=0x42))
     plain = bytearray(p.unscramble(bytes(raw)))
