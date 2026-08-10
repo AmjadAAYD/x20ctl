@@ -42,6 +42,16 @@ class MainWindow(QWidget):
         self._loaded_name: str | None = None
         self._busy = False
         self._closing = False
+        # What each slot held when this profile was opened. Used to notice a
+        # macro being destroyed, which is the only case worth interrupting for.
+        self._session_baseline: dict[str, object] = {}
+
+        # Edits write themselves. Debounced so typing a macro does not hit the
+        # disk on every keystroke.
+        self._autosave_timer = QTimer(self)
+        self._autosave_timer.setSingleShot(True)
+        self._autosave_timer.setInterval(400)
+        self._autosave_timer.timeout.connect(self._autosave_now)
         # A modal question needs somebody to answer it. Headless runs have
         # nobody, so they would hang on the dialog forever.
         self.ask_before_discarding = (
@@ -105,8 +115,10 @@ class MainWindow(QWidget):
             "That includes assignments you made with button combinations on the "
             "pad itself: software cannot read those back, so it cannot preserve "
             "them. If you rely on one, define it in the save file too.\n\n"
-            "Edits save by themselves. Recording a macro, or switching to "
-            "another save file, writes your changes to disk first.")))
+            "Edits save themselves as you make them, so there is no Save "
+            "button. The one time the app interrupts is when you clear a slot "
+            "that held a macro, since that cannot be undone: a macro already "
+            "on the controller can't be read back off it.")))
         layout.addWidget(holder)
 
         self.profile_list = QListWidget()
@@ -252,14 +264,10 @@ class MainWindow(QWidget):
         footer.setSpacing(10)
         self.status = QLabel("")
         self.status.setObjectName("Muted")
-        self.save_button = QPushButton("Save")
-        self.save_button.setObjectName("Ghost")
-        self.save_button.clicked.connect(self.save_profile)
         self.apply_button = QPushButton("Apply to controller")
         self.apply_button.setObjectName("Primary")
         self.apply_button.clicked.connect(self.apply_profile)
         footer.addWidget(self.status, 1)
-        footer.addWidget(self.save_button)
         footer.addWidget(self.apply_button)
         layout.addLayout(footer)
         return page
@@ -327,6 +335,7 @@ class MainWindow(QWidget):
             self.profile = self.collect()
         except ValueError:
             pass        # a profile that will not build stays dirty, correctly
+        self._session_baseline = dict(self.profile.macros)
         self._sync_apply_state()
 
     def collect(self) -> Profile:
@@ -351,29 +360,52 @@ class MainWindow(QWidget):
         return (current.macros != stored.macros
                 or current.vibration != stored.vibration)
 
+    def emptied_slots(self) -> list[str]:
+        """Slots that held a macro when this profile opened and now do not."""
+        try:
+            current = self.collect()
+        except ValueError:
+            return []
+        return [slot for slot in SLOTS
+                if self._session_baseline.get(slot) is not None
+                and current.macros.get(slot) is None]
+
     def confirm_discard(self, what: str) -> bool:
-        """Ask before losing edits. False means the user wants to stay put."""
-        if not self._loaded_name or not self.has_unsaved_changes():
-            return True
-        if not self.ask_before_discarding:
+        """Only interrupt when a macro was destroyed. False means stay put.
+
+        Ordinary edits save themselves, so there is nothing to ask about. A
+        cleared slot is different: it is easy to do by accident and impossible
+        to get back, since the app cannot read a macro off the controller.
+        """
+        self._autosave_timer.stop()
+        self._autosave_now()
+
+        lost = self.emptied_slots()
+        if not lost or not self.ask_before_discarding:
             return True
 
+        names = ", ".join(lost)
         box = QMessageBox(self)
-        box.setWindowTitle("Unsaved changes")
-        box.setText(f"Save changes to “{self._loaded_name}”?")
+        box.setWindowTitle("Macro cleared")
+        box.setText(f"{names} was cleared. Keep it cleared?")
         box.setInformativeText(
-            f"You have edits that are not saved. Discarding them puts "
-            f"“{self._loaded_name}” back to how it was on disk.")
-        box.setStandardButtons(QMessageBox.Save | QMessageBox.Discard
-                               | QMessageBox.Cancel)
-        box.setDefaultButton(QMessageBox.Save)
-        choice = box.exec()
+            "Everything else has been saved already. Restoring puts "
+            f"{names} back to what it held when you opened "
+            f"“{self._loaded_name}”.")
+        keep = box.addButton("Keep cleared", QMessageBox.AcceptRole)
+        box.addButton("Restore", QMessageBox.DestructiveRole)
+        cancel = box.addButton(QMessageBox.Cancel)
+        box.setDefaultButton(keep)
+        box.exec()
 
-        if choice == QMessageBox.Cancel:
+        if box.clickedButton() is cancel:
             return False
-        if choice == QMessageBox.Save:
-            return self.autosave(f"saved before {what}")
-        return True     # Discard: leave the file on disk alone
+        if box.clickedButton() is not keep:
+            for slot in lost:
+                self.cards[slot].set_spec(self._session_baseline.get(slot))
+            self.autosave()
+            self._session_baseline = dict(self.collect().macros)
+        return True
 
     def autosave(self, reason: str = "") -> bool:
         """Persist the form if it's valid. Returns whether it saved.
@@ -480,7 +512,6 @@ class MainWindow(QWidget):
             return
         self.profile = profile
         self._loaded_name = profile.name
-        self.save_button.setText("Save")
         self.set_status(f"saved “{profile.name}”", "Success")
 
     # -- controller ------------------------------------------------------
@@ -496,10 +527,16 @@ class MainWindow(QWidget):
         self.apply_button.setEnabled(valid and self.pad is not None and not self._busy)
 
         dirty = valid and bool(self._loaded_name) and self.has_unsaved_changes()
-        self.save_button.setEnabled(valid and not self._busy)
-        self.save_button.setText("Save *" if dirty else "Save")
-        if dirty and not self._busy:
-            self.set_status("unsaved changes", "Warning")
+        if dirty and not self._busy and not self._closing:
+            self._autosave_timer.start()
+
+    def _autosave_now(self) -> None:
+        if self._closing or self._busy or not self._loaded_name:
+            return
+        if not self.has_unsaved_changes():
+            return
+        if self.autosave():
+            self.set_status("saved", "Muted")
 
     def connect_controller(self) -> None:
         if self._busy:
@@ -605,8 +642,9 @@ class MainWindow(QWidget):
             self.set_status(f"cannot apply: {exc}", "Danger")
             return
 
-        # Save before writing, so the file on disk always matches what the
-        # controller was last given.
+        # Flush any pending edit first, so the file on disk always matches what
+        # the controller was last given.
+        self._autosave_timer.stop()
         self.store.save(profile)
         self.profile = profile
 
