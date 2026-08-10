@@ -326,6 +326,74 @@ def test_restoring_a_cleared_slot_puts_it_back():
             window.bridge.shutdown()
 
 
+# --- the intro ---------------------------------------------------------------
+
+def test_the_intro_covers_the_window_and_gets_out_of_the_way():
+    from x20ctl.gui.splash import SplashOverlay
+    from x20ctl.gui.window import MainWindow
+
+    window = MainWindow(auto_connect=False)
+    try:
+        window.resize(1000, 700)
+        overlay = SplashOverlay(window)
+        assert overlay.size() == window.size(), "it has to cover the interface"
+
+        seen = []
+        overlay.finished.connect(lambda: seen.append(True))
+        overlay.start()
+
+        # Skipping must finish it, not leave the window under a dead overlay.
+        overlay.skip()
+        _app.processEvents()
+        assert overlay._retired
+        assert overlay.isHidden()
+        assert seen == [True], "finished must fire so the caller can move on"
+    finally:
+        window.bridge.shutdown()
+
+
+def test_skipping_twice_is_harmless():
+    """The intro can be clicked, keyed and time out at nearly the same moment,
+    and a second reveal would start a fade on a widget already being deleted."""
+    from x20ctl.gui.splash import SplashOverlay
+    from x20ctl.gui.window import MainWindow
+
+    window = MainWindow(auto_connect=False)
+    try:
+        overlay = SplashOverlay(window)
+        overlay.start()
+        seen = []
+        overlay.finished.connect(lambda: seen.append(True))
+        overlay.skip()
+        overlay.skip()
+        overlay._reveal()
+        _app.processEvents()
+        assert len(seen) == 1, "the intro must only finish once"
+    finally:
+        window.bridge.shutdown()
+
+
+def test_the_intro_can_be_turned_off():
+    import os
+
+    from x20ctl.gui.splash import play
+    from x20ctl.gui.window import MainWindow
+
+    window = MainWindow(auto_connect=False)
+    try:
+        os.environ["X20CTL_NO_SPLASH"] = "1"
+        try:
+            assert play(window) is None, "the environment switch must win"
+        finally:
+            del os.environ["X20CTL_NO_SPLASH"]
+        overlay = play(window)
+        assert overlay is not None
+        overlay.skip()
+        _app.processEvents()
+    finally:
+        window.bridge.shutdown()
+
+
 # --- connection state and the battery meter ---------------------------------
 
 def test_the_header_and_the_footer_never_disagree_about_connecting():
