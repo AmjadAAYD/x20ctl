@@ -320,7 +320,21 @@ class MainWindow(QWidget):
                 or current.vibration != stored.vibration)
 
     def autosave(self, reason: str = "") -> bool:
-        """Persist the form if it is valid. Returns whether it saved."""
+        """Persist the form if it is valid. Returns whether it saved.
+
+        Refuses to recreate a profile whose file has gone: if it was removed,
+        here or elsewhere, silently writing it back would be the wrong answer.
+        """
+        if self._loaded_name is None:
+            return False
+        try:
+            self.store.load(self._loaded_name)
+        except FileNotFoundError:
+            self._loaded_name = None
+            return False
+        except ValueError:
+            pass        # corrupt on disk; overwriting it with valid data is fine
+
         try:
             profile = self.collect()
             self.store.save(profile)
@@ -384,7 +398,13 @@ class MainWindow(QWidget):
             "It does not change anything on the controller.")
         if confirm == QMessageBox.Yes:
             self.store.delete(name)
+            # Forget what is loaded before reloading. Otherwise selecting the
+            # next profile triggers an autosave of the one just deleted, which
+            # writes the file straight back.
+            self._loaded_name = None
+            self.profile = Profile(name=name)
             self.reload_profiles()
+            self.set_status(f"removed “{name}”", "Muted")
 
     def save_profile(self) -> None:
         try:
