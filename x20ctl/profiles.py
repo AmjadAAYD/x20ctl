@@ -80,13 +80,18 @@ class Profile:
         default_factory=lambda: {slot: None for slot in SLOTS})
     vibration: int | None = None
     updated: str = ""
-    # When false, applying leaves slots this profile does not define alone.
+    # When true, applying clears any slot this profile does not define, so the
+    # controller ends up matching the save file exactly.
     #
-    # Defaults to false because on-pad assignments are invisible to the
-    # protocol: a slot that reads as empty may still have a mapping the user
-    # made with button combos, and clearing it would destroy work we cannot
-    # see, let alone restore.
-    clear_undefined: bool = False
+    # This defaults to true because that is what a save file means. An earlier
+    # version defaulted to false, to avoid disturbing assignments made with
+    # button combinations on the pad, which are invisible to the protocol. That
+    # was the wrong trade: it meant switching profiles left the previous
+    # profile's macros on the controller, so the pad silently disagreed with
+    # what the app displayed.
+    #
+    # Set it false per-profile if you have on-pad assignments to preserve.
+    clear_undefined: bool = True
 
     # -- serialisation ---------------------------------------------------
 
@@ -114,7 +119,7 @@ class Profile:
             macros=macros,
             vibration=data.get("vibration"),
             updated=data.get("updated", ""),
-            clear_undefined=bool(data.get("clear_undefined", False)),
+            clear_undefined=bool(data.get("clear_undefined", True)),
         )
 
     def validate(self) -> None:

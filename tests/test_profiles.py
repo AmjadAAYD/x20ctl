@@ -128,6 +128,72 @@ def test_store_skips_malformed_files_rather_than_failing():
         assert names == ["good"], "one bad file must not break the listing"
 
 
+class FakePad:
+    """Records what a profile asks the controller to do."""
+
+    def __init__(self, motors=3, macros=0x0F):
+        self._caps = p.Capabilities(
+            sticks=3, triggers=3, motors=motors, turbo=0, macros=macros,
+            changekey=1, lighting=0, eq=0, nfc=0, sensor=0)
+        self.calls = []
+
+    async def capabilities(self):
+        return self._caps
+
+    async def set_vibration(self, percent):
+        self.calls.append(("vibration", percent))
+
+    async def set_macro(self, slot, keys, **kw):
+        self.calls.append(("set", slot, keys))
+
+    async def clear_macro(self, slot):
+        self.calls.append(("clear", slot))
+
+
+def _run(coro):
+    import asyncio
+    return asyncio.run(coro)
+
+
+def test_applying_makes_the_pad_match_the_save_file():
+    """The bug this guards: switching save files must switch the controller.
+
+    A profile that defines only M1 has to clear M2-M4, otherwise the previous
+    profile's macros stay live on the pad while the app shows the new file."""
+    profile = Profile(name="two")
+    profile.macros["M1"] = MacroSpec(keys="X")
+    pad = FakePad()
+    _run(profile.apply(pad))
+
+    assert ("set", 1, "X") in pad.calls
+    for slot in (2, 3, 4):
+        assert ("clear", slot) in pad.calls, f"M{slot} was left holding stale data"
+
+
+def test_clear_undefined_can_be_turned_off():
+    profile = Profile(name="keep", clear_undefined=False)
+    profile.macros["M1"] = MacroSpec(keys="X")
+    pad = FakePad()
+    _run(profile.apply(pad))
+    assert not any(call[0] == "clear" for call in pad.calls)
+
+
+def test_clear_undefined_defaults_on_for_old_files_without_the_field():
+    """Files written before the field existed must still behave correctly."""
+    profile = Profile.from_dict({"name": "old", "macros": {"M1": {"keys": "A"}}})
+    assert profile.clear_undefined is True
+
+
+def test_apply_skips_settings_the_pad_does_not_expose():
+    profile = Profile(name="x", vibration=50)
+    profile.macros["M1"] = MacroSpec(keys="A")
+    pad = FakePad(motors=0, macros=0)
+    report = _run(profile.apply(pad))
+    assert not pad.calls
+    assert any("vibration skipped" in line for line in report)
+    assert any("macros skipped" in line for line in report)
+
+
 def test_slugify_keeps_filenames_sane():
     assert slugify("Save file 1") == "save-file-1"
     assert slugify("  ???  ") == "profile"
