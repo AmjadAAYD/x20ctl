@@ -13,6 +13,8 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
+*-debug.spec
+app.spec
 build/
 dist/
 *.egg-info/

@@ -199,6 +199,30 @@ def test_choosing_a_save_file_leaves_the_tester():
             window.bridge.shutdown()
 
 
+def test_repeated_easing_does_not_touch_a_deleted_animation():
+    """Regression: ease_to kept a reference to an animation started with
+    DeleteWhenStopped, so the second call stopped an object Qt had destroyed.
+    Hovering a card twice triggered it, and pythonw has no console to show it."""
+    from x20ctl.gui.motion import Animatable, ease_to
+
+    value = Animatable(0.0)
+    for _ in range(30):
+        ease_to(value, 1.0)
+        ease_to(value, 0.0)
+    assert value.get_value() is not None
+
+
+def test_hovering_a_card_repeatedly_is_safe():
+    """The same fault reached through the card's own hover animation."""
+    from x20ctl.gui.motion import ease_to
+
+    card = MacroCard("M1")
+    for _ in range(20):
+        ease_to(card._hover, 1.0)
+        ease_to(card._hover, 0.0)
+    assert card.is_valid()
+
+
 if __name__ == "__main__":
     failures = 0
     for name, fn in sorted(globals().items()):

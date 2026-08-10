@@ -486,34 +486,87 @@ class Key(IntEnum):
     RSTICK_ANALOG = 19
 
 
-# Bit position of each key inside a macro step's 24-bit mask.
-#
-# writeMacroData walks the device's macro key list and prepends each key's bits
-# to a string, so the list order reverses into the mask. The list from this X20
-# is [18, 19, 13, 14, 15, 16, 1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 93, 94], and codes
-# 18 and 19 take four bits each because they are analog. That accounts for
-# exactly 24 bits with nothing left over, which is the check that this layout is
-# right.
-MACRO_MASK_BIT = {
-    Key.DPAD_DOWN: 8,
-    Key.DPAD_UP: 9,
-    Key.DPAD_RIGHT: 10,
-    Key.DPAD_LEFT: 11,
-    Key.A: 12,
-    Key.B: 13,
-    Key.X: 14,
-    Key.Y: 15,
-    Key.LB: 16,
-    Key.RB: 17,
-    Key.LT: 18,
-    Key.RT: 19,
-    Key.L3: 20,
-    Key.R3: 21,
-}
+# Analog entries occupy a nibble each rather than a single bit.
+ANALOG_KEYS = (Key.LSTICK_ANALOG, Key.RSTICK_ANALOG)
+ANALOG_WIDTH = 4
+MASK_WIDTH = 24
 
-# Analog entries occupy nibbles rather than single bits and are not supported
-# by mask_for() yet.
-MACRO_ANALOG_BITS = {Key.LSTICK_ANALOG: (0, 4), Key.RSTICK_ANALOG: (4, 4)}
+# Editor pseudo-keys, present in the key list but not physical buttons.
+PSEUDO_KEYS = (93, 94)
+
+
+@dataclass(frozen=True)
+class MaskLayout:
+    """Where each key sits inside a macro step's mask, for one device.
+
+    This is NOT fixed across hardware. writeMacroData walks whatever macro key
+    list the pad reports and prepends each key's bits, so the list order decides
+    the layout. A pad that reports a different list, in a different order, or
+    with a different set of keys, produces a different mask entirely.
+
+    Deriving it from the device is the difference between working on one
+    controller and working on the family.
+    """
+
+    digital: dict            # Key -> bit position
+    analog: dict             # Key -> shift of its nibble
+    width: int
+    key_list: tuple
+
+    @property
+    def neutral(self) -> int:
+        """A mask with nothing pressed and both sticks idle."""
+        mask = 0
+        for shift in self.analog.values():
+            mask |= ANALOG_IDLE_NIBBLE << shift
+        return mask
+
+    def supported_names(self) -> list[str]:
+        return [k.name for k in self.digital]
+
+
+def layout_from_key_list(keys) -> MaskLayout:
+    """Work out the mask layout from a device's macro key list.
+
+    The encoder prepends each key's bits as it walks the list, so the first key
+    ends up in the lowest bits and the last in the highest.
+    """
+    digital: dict = {}
+    analog: dict = {}
+    position = 0
+
+    for code in keys:
+        if code in PSEUDO_KEYS:
+            position += 1           # occupies a bit but is not a button
+            continue
+        try:
+            key = Key(code)
+        except ValueError:
+            position += 1           # unknown to us, but still takes its space
+            continue
+
+        if key in ANALOG_KEYS:
+            analog[key] = position
+            position += ANALOG_WIDTH
+        else:
+            digital[key] = position
+            position += 1
+
+    return MaskLayout(digital=digital, analog=analog,
+                      width=max(MASK_WIDTH, position), key_list=tuple(keys))
+
+
+# The list reported by an EasySMX X20 on firmware 9.01. Used when no device has
+# been consulted yet, so offline work has something sensible to validate
+# against. A connected controller always supplies its own.
+X20_MACRO_KEYS = (18, 19, 13, 14, 15, 16, 1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 93, 94)
+
+DEFAULT_LAYOUT = layout_from_key_list(X20_MACRO_KEYS)
+
+# Kept so callers that only want "which buttons can I use" need not know about
+# layouts. Always the default; a connected device supplies its own.
+MACRO_MASK_BIT = DEFAULT_LAYOUT.digital
+STICK_NIBBLE = DEFAULT_LAYOUT.analog
 
 
 # Neutral value for the two analog nibbles.
@@ -524,7 +577,7 @@ MACRO_ANALOG_BITS = {Key.LSTICK_ANALOG: (0, 4), Key.RSTICK_ANALOG: (4, 4)}
 # therefore does not mean "stick centred", it selects direction 0 and drives the
 # stick continuously. Verified the hard way on real hardware, where a macro with
 # zeroed nibbles swept both sticks up and down until the macro was interrupted.
-MACRO_ANALOG_NEUTRAL = 0x88
+MACRO_ANALOG_NEUTRAL = 0x88   # both nibbles idle, for the X20 layout
 
 # What writeMacroData sends to empty a slot: a bare zero, not an empty header.
 MACRO_CLEAR = bytes([0])
@@ -546,12 +599,6 @@ class Direction(IntEnum):
     LEFT = 7
     UP_LEFT = 8
 
-
-# Which nibble of the mask each stick occupies, as (shift, neutral_value).
-STICK_NIBBLE = {
-    Key.LSTICK_ANALOG: 0,     # low nibble  of the mask's first byte
-    Key.RSTICK_ANALOG: 4,     # high nibble of the mask's first byte
-}
 
 STICK_PREFIX = {"LS": Key.LSTICK_ANALOG, "RS": Key.RSTICK_ANALOG}
 
@@ -600,46 +647,54 @@ def parse_token(text: str):
         raise ValueError(f"unknown key {token!r}") from None
 
 
-def mask_for(items) -> int:
+def mask_for(items, layout: MaskLayout | None = None) -> int:
     """Build a macro step mask from buttons and stick directions.
+
+    Pass the layout a connected device reported. Without one this falls back to
+    the X20's, which is right for that model and a reasonable default for
+    offline validation.
 
     Both analog nibbles start neutral, so a mask built here never commands stick
     movement unless a StickInput asks for it.
     """
-    mask = MACRO_ANALOG_NEUTRAL
-    seen_sticks: dict[Key, Direction] = {}
+    layout = layout or DEFAULT_LAYOUT
+    mask = layout.neutral
+    seen_sticks: dict = {}
 
     for item in items:
         if isinstance(item, StickInput):
+            if item.stick not in layout.analog:
+                raise ValueError(
+                    f"{item.stick.name} is not available on this controller")
             if item.stick in seen_sticks and seen_sticks[item.stick] != item.direction:
                 raise ValueError(
                     f"{item.stick.name} given two directions in one step; a stick "
                     "can only point one way at a time")
             seen_sticks[item.stick] = item.direction
-            shift = STICK_NIBBLE[item.stick]
+            shift = layout.analog[item.stick]
             mask &= ~(0xF << shift)                       # clear the idle bits
             mask |= ((item.direction - 1) & 0x7) << shift
             continue
 
         k = Key(item)
-        if k in STICK_NIBBLE:
+        if k in layout.analog:
             raise ValueError(
                 f"{k.name} needs a direction; write LS_UP or RS_LEFT rather than "
                 "the bare stick name")
-        if k not in MACRO_MASK_BIT:
+        if k not in layout.digital:
             raise ValueError(
-                f"{k.name} is not macro-capable on this device. The pad's macro key "
-                "list omits Select, Start and Home, so they cannot be placed in a "
-                "macro. Supported: " + ", ".join(x.name for x in MACRO_MASK_BIT) +
-                ", and stick directions such as LS_UP")
-        mask |= 1 << MACRO_MASK_BIT[k]
+                f"{k.name} is not macro-capable on this controller. Supported: "
+                + ", ".join(layout.supported_names())
+                + ", and stick directions such as LS_UP")
+        mask |= 1 << layout.digital[k]
     return mask
 
 
-def describe_mask(mask: int) -> list[str]:
+def describe_mask(mask: int, layout: MaskLayout | None = None) -> list[str]:
     """Names of everything a mask holds down. The inverse of mask_for."""
-    out = [k.name for k, bit in MACRO_MASK_BIT.items() if mask >> bit & 1]
-    for stick, shift in STICK_NIBBLE.items():
+    layout = layout or DEFAULT_LAYOUT
+    out = [k.name for k, bit in layout.digital.items() if mask >> bit & 1]
+    for stick, shift in layout.analog.items():
         nibble = mask >> shift & 0xF
         if nibble != ANALOG_IDLE_NIBBLE:
             out.append(StickInput(stick, Direction((nibble & 0x7) + 1)).name)
