@@ -280,6 +280,9 @@ class MainWindow(QWidget):
         if self._loaded_name and self.has_unsaved_changes():
             self.autosave()
 
+        # Picking a save file means you want to edit it, so leave the tester.
+        self.show_tester(False)
+
         name = current.data(Qt.UserRole) or current.text()
         try:
             self.load_into_form(self.store.load(name))
@@ -378,11 +381,19 @@ class MainWindow(QWidget):
         self.set_status(f"renamed to “{name}”", "Success")
 
     def toggle_tester(self) -> None:
-        showing_tester = self.tester_button.isChecked()
-        self.pages.setCurrentIndex(1 if showing_tester else 0)
-        self.tester_button.setText("Back to settings" if showing_tester
+        self.show_tester(self.tester_button.isChecked())
+
+    def show_tester(self, showing: bool) -> None:
+        """Switch between the settings page and the tester.
+
+        The tester polls every millisecond, so it is stopped whenever it is not
+        the visible page.
+        """
+        self.pages.setCurrentIndex(1 if showing else 0)
+        self.tester_button.setChecked(showing)
+        self.tester_button.setText("Back to settings" if showing
                                    else "Input tester")
-        if showing_tester:
+        if showing:
             self.tester.start()
         else:
             self.tester.stop()
