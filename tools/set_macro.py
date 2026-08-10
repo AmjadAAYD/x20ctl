@@ -40,7 +40,7 @@ RESET = "\033[0m"
 
 
 def build_payload(key_names: list[str], hold_ms: int, gap_ms: int,
-                  total_ms: int | None = None) -> bytes:
+                  loop_ms: int = 0) -> bytes:
     steps: list[p.MacroStep] = []
     for name in key_names:
         try:
@@ -51,11 +51,9 @@ def build_payload(key_names: list[str], hold_ms: int, gap_ms: int,
         steps.append(p.MacroStep(mask=p.mask_for([key]), duration_ms=hold_ms))
         # Must be released(), not mask=0. A zero mask commands both sticks.
         steps.append(p.MacroStep.released(gap_ms))
-    # The header duration is separate from the step durations. It appears to
-    # bound the overall run while the steps supply the repeating pattern, but
-    # that is a hypothesis and not yet confirmed on hardware.
-    total = total_ms if total_ms is not None else sum(s.duration_ms for s in steps)
-    return p.build_macro_payload(steps, total_ms=total)
+    # loop_ms is the loop INTERVAL, not a total duration. Zero means the
+    # macro fires once. Anything else makes it repeat forever.
+    return p.build_macro_payload(steps, loop_interval_ms=loop_ms)
 
 
 def describe(packet: bytes, payload: bytes, slot0: int, key_names: list[str]) -> None:
@@ -146,8 +144,8 @@ def main() -> None:
     parser.add_argument("--clear", action="store_true", help="write an empty macro")
     parser.add_argument("--hold", type=int, default=50, help="press duration ms")
     parser.add_argument("--gap", type=int, default=50, help="release duration ms")
-    parser.add_argument("--total-ms", type=int, default=None,
-                        help="header duration; hypothesised to bound the overall run")
+    parser.add_argument("--loop-ms", type=int, default=0,
+                        help="loop interval in ms; 0 fires once, >0 repeats forever")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
@@ -161,7 +159,7 @@ def main() -> None:
     # Clearing sends a bare [0], which is what writeMacroData emits when the
     # step list is empty. An empty header is not the same thing.
     payload = p.MACRO_CLEAR if args.clear else \
-        build_payload(names, args.hold, args.gap, args.total_ms)
+        build_payload(names, args.hold, args.gap, args.loop_ms)
 
     if args.dry_run:
         describe(p.build_macro_write(payload, slot=slot0), payload, slot0, names)

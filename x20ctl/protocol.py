@@ -561,27 +561,41 @@ class MacroStep:
         return cls(mask=mask, duration_ms=ticks * 5)
 
 
-def build_macro_payload(steps: list[MacroStep], total_ms: int, flag: int = 0) -> bytes:
+def build_macro_payload(
+    steps: list[MacroStep],
+    loop_interval_ms: int = 0,
+    trigger: int = 0,
+) -> bytes:
     """Assemble a macro payload: a three-byte header then five bytes per step.
 
-    Header layout from writeMacroData: byte 0 is (len(steps) * 5) + 2, bytes 1
-    and 2 carry a 12-bit total duration in 5 ms units, split as the low 8 bits
-    then a packed byte holding `flag` in its top bits and the remaining 4 bits
-    of the duration in its low nibble.
+    The app passes writeMacroData a list it names `pos_loopTime_trigger`, so the
+    three header inputs are the slot, a **loop interval**, and a trigger mode.
 
-    Untested against hardware. The step encoding is well evidenced; the header
-    packing is read from source but has never been sent.
+    `loop_interval_ms` is NOT a total duration. The app's UI binds it to a
+    checkbox as `loop_checkbox.setChecked(loopTime > 0)` and labels the slider
+    "loop interval time".
+
+        0   loop disabled, the macro fires once
+        >0  the macro repeats with this interval between runs
+
+    Passing a non-zero value here is what made an early macro fire endlessly.
+    Zero is the default for that reason.
+
+    Header layout: byte 0 is (len(steps) * 5) + 2; bytes 1 and 2 carry the
+    interval as a 12-bit count of 5 ms units, low 8 bits first, then a packed
+    byte holding `trigger` in the top bit and the remaining 4 bits in the low
+    nibble.
     """
-    if total_ms % 5:
-        raise ValueError("total duration must be a multiple of 5 ms")
-    ticks = total_ms // 5
+    if loop_interval_ms % 5:
+        raise ValueError("loop interval must be a multiple of 5 ms")
+    ticks = loop_interval_ms // 5
     if not 0 <= ticks < 1 << 12:
-        raise ValueError("total duration out of range for 12 bits")
+        raise ValueError("loop interval out of range for 12 bits")
 
     header = bytes([
         (len(steps) * MACRO_STEP_SIZE) + 2,
         ticks & 0xFF,
-        (flag << 7 | 0b000 << 4 | ticks >> 8 & 0x0F) & 0xFF,
+        (trigger << 7 | 0b000 << 4 | ticks >> 8 & 0x0F) & 0xFF,
     ])
     return header + b"".join(step.to_bytes() for step in steps)
 
