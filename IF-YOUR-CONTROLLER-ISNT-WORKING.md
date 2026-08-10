@@ -41,8 +41,9 @@ Run this and see what comes back:
 x20 scan
 ```
 
-It looks for a Bluetooth peripheral advertising as `Xpert2`, or a MAC in the vendor's
-range. If it finds nothing at all, go back to step 1.
+It looks for a Bluetooth peripheral advertising as `Xpert2`, or one with a MAC in the
+vendor's range. If it finds nothing at all, the pad isn't advertising, so go back to
+step 1.
 
 If you know the address already, skip the search:
 
