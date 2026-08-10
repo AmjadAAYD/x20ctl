@@ -40,6 +40,20 @@ def icon_path() -> str | None:
     return None
 
 
+def logo_path() -> str | None:
+    """The PNG mark, for drawing inside the window.
+
+    Same search as the icon, since they sit side by side. Falls back to the
+    .ico, which QPixmap can also load, so the intro still has a mark if only
+    one of the two shipped.
+    """
+    for candidate in icon_candidates():
+        png = candidate.replace(".ico", ".png")
+        if os.path.exists(png):
+            return png
+    return icon_path()
+
+
 def _write_diagnostic(resolved: str | None) -> None:
     """Record how startup went, for when the app has no console to say it on.
 
@@ -100,6 +114,11 @@ def main() -> int:
     if not icon.isNull():
         window.setWindowIcon(icon)
     window.show()
+
+    # After show(), so the overlay is created against the window's real size.
+    from .splash import play
+    play(window, logo_path())
+
     return app.exec()
 
 
