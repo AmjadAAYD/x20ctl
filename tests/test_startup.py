@@ -61,6 +61,34 @@ def test_gui_does_not_import_the_cli():
     assert "x20ctl.ui" not in sys.modules, "the GUI should not import terminal UI"
 
 
+def test_save_files_live_with_the_user_not_with_the_executable():
+    """Replacing x20ctl.exe must not take somebody's save files with it.
+
+    A one-file PyInstaller build unpacks to a temporary directory that is
+    deleted on exit, so anything derived from sys.executable, __file__ or the
+    working directory would look like it worked and then vanish. The store is
+    anchored to APPDATA instead, which survives a new download and an upgrade.
+    """
+    profiles = _fresh_import("x20ctl.profiles")
+    config = _fresh_import("x20ctl.config")
+
+    appdata = os.environ.get("APPDATA") or os.path.expanduser("~")
+    for path in (profiles.DEFAULT_DIR, config.CONFIG_PATH):
+        assert os.path.commonpath([appdata, path]) == os.path.normpath(appdata), \
+            f"{path} is not under the user's own directory"
+
+    # The three roots that move when the executable is replaced.
+    for moving in (os.path.dirname(os.path.abspath(sys.executable)),
+                   os.path.dirname(os.path.abspath(profiles.__file__)),
+                   os.getcwd()):
+        assert not profiles.DEFAULT_DIR.startswith(moving), \
+            f"save files must not sit under {moving}"
+
+    # sys._MEIPASS only exists in a frozen build, and is the temp unpack dir.
+    assert not hasattr(sys, "_MEIPASS") or not \
+        profiles.DEFAULT_DIR.startswith(sys._MEIPASS)
+
+
 def test_config_survives_an_unwritable_location():
     """Remembering the address is a convenience and must never be fatal."""
     config = _fresh_import("x20ctl.config")

@@ -326,6 +326,100 @@ def test_restoring_a_cleared_slot_puts_it_back():
             window.bridge.shutdown()
 
 
+# --- connection state and the battery meter ---------------------------------
+
+def test_the_header_and_the_footer_never_disagree_about_connecting():
+    """The bug: the header said "Connecting…" while the footer still read
+    "connected", because only the header was updated when a reconnect began."""
+    from x20ctl.gui.window import MainWindow
+
+    window = MainWindow(auto_connect=False)
+    try:
+        window.address = "98:B6:ED:E3:15:C4"
+        window.bridge.run = lambda *a, **k: None    # no radio in a test
+        window.set_status("connected", "Success")
+
+        window.connect_controller()
+        assert window.device_name.text() == "Connecting…"
+        assert "connect" in window.status.text().lower()
+        assert window.status.text() != "connected", "the footer went stale"
+    finally:
+        window.bridge.shutdown()
+
+
+def test_a_missed_battery_reading_keeps_the_last_one():
+    """One unanswered poll is not news, and blanking the gauge over it would
+    say less than leaving the last thing the pad actually reported."""
+    from x20ctl import protocol as p
+    from x20ctl.gui.window import MainWindow
+
+    window = MainWindow(auto_connect=False)
+    try:
+        window.show_battery(p.Battery(level=3, charging=False))
+        assert "3/4" in window.battery_label.text()
+
+        window.show_battery(None)
+        assert "3/4" in window.battery_label.text(), "a missed poll wiped it"
+
+        window.show_battery(p.Battery(level=4, charging=True))
+        assert "4/4" in window.battery_label.text()
+        assert "⚡" in window.battery_label.text(), "charging has its own icon"
+    finally:
+        window.bridge.shutdown()
+
+
+def test_battery_polling_stays_off_the_link_when_something_else_owns_it():
+    from types import SimpleNamespace
+
+    from x20ctl.gui.window import MainWindow
+
+    window = MainWindow(auto_connect=False)
+    try:
+        calls = []
+        window.bridge.run = lambda *a, **k: calls.append(a)
+
+        window.pad = None
+        window.poll_battery()
+        assert calls == [], "nothing to poll while disconnected"
+
+        window.pad = SimpleNamespace(battery=lambda: None)
+        window._busy = True
+        window.poll_battery()
+        assert calls == [], "a write owns the link, so the poll must wait"
+
+        window._busy = False
+        window.poll_battery()
+        assert len(calls) == 1
+        window.poll_battery()
+        assert len(calls) == 1, "one read in flight at a time"
+    finally:
+        window.bridge.shutdown()
+
+
+def test_a_failed_battery_read_reports_the_link_as_gone():
+    """Polling is what notices the pad walking away; without this the window
+    would keep showing a controller that left twenty minutes ago."""
+    from types import SimpleNamespace
+
+    from x20ctl import protocol as p
+    from x20ctl.gui.window import MainWindow
+
+    window = MainWindow(auto_connect=False)
+    try:
+        window.pad = SimpleNamespace(battery=lambda: None)
+        window.battery_timer.start()
+        window.show_battery(p.Battery(level=3, charging=False))
+
+        window._on_battery_failed("disconnected")
+        assert window.pad is None
+        assert not window.battery_timer.isActive(), "stop polling a dead link"
+        assert window.battery_label.text() == ""
+        assert window.connect_button.text() == "Connect"
+        assert not window.apply_button.isEnabled()
+    finally:
+        window.bridge.shutdown()
+
+
 def test_the_header_names_the_product_and_both_versions():
     """The screenshot tool once hardcoded "Xpert2" here and went stale.
 

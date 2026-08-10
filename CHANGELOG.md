@@ -36,9 +36,14 @@ hardware. Full detail in [docs/01-protocol.md](docs/01-protocol.md).
   with the timing you actually played.
 - **Vibration strength**, 0 to 100 percent. The pad's own controls can't set
   this, and can't silence rumble at all.
-- **Battery level**, a four step gauge with a charging flag.
-- **Save files.** Named sets of macros and vibration, stored as JSON. Applying
-  one makes the controller match it exactly.
+- **Battery level**, a four step gauge with a charging flag, re-read every 20
+  seconds while connected. Reading it once at connection meant the header
+  showed whatever happened to be true when the app started, and a pad that
+  walked away went unnoticed; a read that fails now says the link is gone
+  instead of leaving a stale reading up.
+- **Save files.** Named sets of macros and vibration, stored as JSON in your own
+  profile directory, so replacing the executable with a newer download leaves
+  them untouched. Applying one makes the controller match it exactly.
 - **Input tester.** Every button lights while held, both sticks draw a position
   trail, triggers show their analog value.
 - **Polling rate meter.** Counts the reports per second that actually reach
@@ -116,5 +121,8 @@ Kept because each one records something learned about the hardware.
 - **The taskbar icon didn't appear.** The app identity was being set after the
   icon, and Windows had already chosen by then.
 - **Clicking a save file did nothing** while the input tester was open.
+- **The header and the footer disagreed.** A reconnect set the header to
+  "Connecting…" and left the footer reading "connected", because only one of
+  the two was being updated.
 - **Bluetooth being off looked like a fault.** Settings need it; playing does
   not.

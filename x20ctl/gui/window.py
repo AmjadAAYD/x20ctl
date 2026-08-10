@@ -28,6 +28,12 @@ from .widgets import (
 
 RECORD_POLL_MS = 5      # matches the protocol's own timing resolution
 
+# How often to re-read charge. The pad reports four steps, so the level itself
+# moves slowly, but the charging flag flips the moment a cable goes in and that
+# is the part worth seeing promptly. Each read briefly puts the pad into its
+# streaming mode and back, so this is a balance rather than as fast as possible.
+BATTERY_POLL_MS = 20_000
+
 # Positions in the page stack, in the order they are added.
 TESTER_PAGE = 1
 CURVES_PAGE = 2
@@ -69,6 +75,14 @@ class MainWindow(QWidget):
         # nobody, so they would hang on the dialog forever.
         self.ask_before_discarding = (
             QApplication.platformName() != "offscreen")
+
+        # Charge is polled rather than read once at connection, so what the
+        # header shows is current instead of whatever was true when the app
+        # happened to connect.
+        self.battery_timer = QTimer(self)
+        self.battery_timer.setInterval(BATTERY_POLL_MS)
+        self.battery_timer.timeout.connect(self.poll_battery)
+        self._battery_in_flight = False
 
         self.reader = XInputReader()
         self.recorder = MacroRecorder(self.reader)
@@ -591,10 +605,15 @@ class MainWindow(QWidget):
         if self._busy:
             return
         self._busy = True
+        self.battery_timer.stop()
         self.dot.set_state("connecting")
         self.device_name.setText("Connecting…")
         self.device_detail.setText(self.address or "scanning for the controller")
         self.connect_button.setEnabled(False)
+        # The footer said "connected" through the whole of a reconnect, because
+        # only the header was being updated. Two places describing one state
+        # have to be set together.
+        self.set_status("connecting…")
         self._sync_apply_state()
 
         async def task():
@@ -624,16 +643,8 @@ class MainWindow(QWidget):
         self.connect_button.setEnabled(True)
         self.vibration.set_value(snapshot.vibration[0])
 
-        if snapshot.battery is not None:
-            battery = snapshot.battery
-            icon = "⚡" if battery.charging else "🔋"
-            self.battery_label.setText(f"{icon} {battery.level}/4")
-            self.battery_label.setObjectName(
-                "Danger" if battery.level == 1 and not battery.charging else "Muted")
-            self.battery_label.style().unpolish(self.battery_label)
-            self.battery_label.style().polish(self.battery_label)
-        else:
-            self.battery_label.setText("")
+        self.show_battery(snapshot.battery)
+        self.battery_timer.start()
 
         caps = snapshot.capabilities
         missing = [n for n, v in (("lighting", caps.lighting),
@@ -726,6 +737,58 @@ class MainWindow(QWidget):
         self.curves.set_status(diagnose(message).headline, "Danger")
         self._sync_apply_state()
 
+    # -- battery ---------------------------------------------------------
+
+    def show_battery(self, battery) -> None:
+        """Paint a charge reading. `None` leaves whatever is already there.
+
+        A pad that doesn't answer one poll hasn't told us anything, and blanking
+        the reading over a single missed reply would be less honest than keeping
+        the last thing it actually said.
+        """
+        if battery is None:
+            return
+        icon = "⚡" if battery.charging else "🔋"
+        self.battery_label.setText(f"{icon} {battery.level}/4")
+        self.battery_label.setObjectName(
+            "Danger" if battery.level == 1 and not battery.charging else "Muted")
+        self.battery_label.style().unpolish(self.battery_label)
+        self.battery_label.style().polish(self.battery_label)
+
+    def poll_battery(self) -> None:
+        """Re-read charge, unless something else owns the link right now."""
+        if (self.pad is None or self._busy or self._closing
+                or self._battery_in_flight):
+            return
+        self._battery_in_flight = True
+        pad = self.pad
+        self.bridge.run(pad.battery, on_done=self._on_battery,
+                        on_error=self._on_battery_failed)
+
+    def _on_battery(self, battery) -> None:
+        self._battery_in_flight = False
+        self.show_battery(battery)
+
+    def _on_battery_failed(self, message: str) -> None:
+        """A read that raises means the link is gone, not that charge is unknown.
+
+        Without this the window would sit there showing a controller that walked
+        away twenty minutes ago, which is exactly the sort of stale reading the
+        polling is meant to stop.
+        """
+        self._battery_in_flight = False
+        self.battery_timer.stop()
+        self.pad = None
+        self.dot.set_state("idle")
+        self.device_name.setText("Controller disconnected")
+        self.device_detail.setText("turn it back on, then press Connect")
+        self.battery_label.setText("")
+        self.connect_button.setText("Connect")
+        self.connect_button.setEnabled(True)
+        self.curves.set_available(False, False)
+        self.set_status("lost the connection", "Muted")
+        self._sync_apply_state()
+
     @staticmethod
     def describe_device(firmware: str, address: str) -> str:
         """The line under the controller's name.
@@ -752,6 +815,7 @@ class MainWindow(QWidget):
         finding = diagnose(message)
         self._busy = False
         self.pad = None
+        self.battery_timer.stop()
         # A precondition the user hasn't met isn't an error state. Reserving
         # the error colour for genuine faults keeps it meaningful.
         self.dot.set_state("idle" if finding.expected else "error")
@@ -886,6 +950,7 @@ class MainWindow(QWidget):
             return
         self._closing = True
         self.record_timer.stop()
+        self.battery_timer.stop()
         self.tester.stop()
         pad = self.pad
         if pad is not None:
