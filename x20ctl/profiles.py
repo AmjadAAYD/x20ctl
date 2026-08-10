@@ -56,11 +56,9 @@ class MacroSpec:
             names = [n.strip().upper() for n in group.split("+") if n.strip()]
             if not names:
                 continue
-            unknown = [n for n in names if n not in p.Key.__members__]
-            if unknown:
-                raise ValueError(f"unknown key(s): {', '.join(unknown)}")
             steps.append(p.MacroStep(
-                mask=p.mask_for([p.Key[n] for n in names]), duration_ms=self.hold_ms))
+                mask=p.mask_for([p.parse_token(n) for n in names]),
+                duration_ms=self.hold_ms))
             steps.append(p.MacroStep.released(self.gap_ms))
         if not steps:
             raise ValueError("macro has no keys")
@@ -82,6 +80,13 @@ class Profile:
         default_factory=lambda: {slot: None for slot in SLOTS})
     vibration: int | None = None
     updated: str = ""
+    # When false, applying leaves slots this profile does not define alone.
+    #
+    # Defaults to false because on-pad assignments are invisible to the
+    # protocol: a slot that reads as empty may still have a mapping the user
+    # made with button combos, and clearing it would destroy work we cannot
+    # see, let alone restore.
+    clear_undefined: bool = False
 
     # -- serialisation ---------------------------------------------------
 
@@ -90,6 +95,7 @@ class Profile:
             "name": self.name,
             "vibration": self.vibration,
             "updated": self.updated,
+            "clear_undefined": self.clear_undefined,
             "macros": {
                 slot: (asdict(spec) if spec else None)
                 for slot, spec in self.macros.items()
@@ -108,6 +114,7 @@ class Profile:
             macros=macros,
             vibration=data.get("vibration"),
             updated=data.get("updated", ""),
+            clear_undefined=bool(data.get("clear_undefined", False)),
         )
 
     def validate(self) -> None:
@@ -152,15 +159,17 @@ class Profile:
 
         for index, slot in enumerate(SLOTS, start=1):
             spec = self.macros.get(slot)
-            if spec is None:
-                await pad.clear_macro(index)
-                note(f"{slot} cleared")
-            else:
+            if spec is not None:
                 await pad.set_macro(
                     index, spec.keys, hold_ms=spec.hold_ms,
                     gap_ms=spec.gap_ms, loop_ms=spec.loop_ms,
                 )
                 note(f"{slot} set to {spec.describe()}")
+            elif self.clear_undefined:
+                await pad.clear_macro(index)
+                note(f"{slot} cleared")
+            else:
+                note(f"{slot} left as it was")
         return report
 
 
