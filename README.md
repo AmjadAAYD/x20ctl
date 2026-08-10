@@ -403,7 +403,7 @@ Get-FileHash .\x20ctl.exe -Algorithm SHA256
 
 | Release | SHA-256 |
 |---|---|
-| 0.2.0 | `611207f6b7605c04d20402e05f2bf34d368fbf66d681644a95730c44ee3ee4e5` |
+| 0.2.0 | `d5f3fb1842df7089cdaa3b6260714770ef85815f7ac0cad7a725aa3b82d8efb6` |
 
 **2. Scan it yourself.** Upload it to [VirusTotal](https://www.virustotal.com/)
 and read which engines object and what they claim to have found.
