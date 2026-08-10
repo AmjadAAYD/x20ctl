@@ -618,6 +618,28 @@ mask must start from `0x88`, including release steps, which is why
   120 ms is closer to a deliberate human press.
 - **Clearing a slot** sends a bare `[0]`, not an empty header.
 
+## 4i. Do settings survive a power cycle?
+
+Open question, and an important one for any profile system.
+
+Vibration was written to 0% and confirmed by feel. The pad was then powered off
+overnight. On the next session it read back **50%** (`0x80`), which is neither the
+written value nor the factory default of `0x4c` (30%) observed at the very first
+read.
+
+Three candidate explanations, untested:
+
+1. Settings are volatile and revert to a power-on default of `0x80`.
+2. Something else reset the pad between sessions.
+3. There is a separate commit or save step, and writes without it are transient.
+
+If (1) or (3), a profile would need reapplying every time the pad powers on, and
+the software should either detect that or offer to reapply on connect. Worth
+resolving before building anything that assumes persistence.
+
+Suggested test: write a distinctive value such as 90%, read it back, power cycle
+the pad, and read again.
+
 ## 5. What is still unknown
 
 - Byte layout **inside** the payloads. The opcodes are certain; the field meanings
