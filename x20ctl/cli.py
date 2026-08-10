@@ -28,25 +28,8 @@ from . import protocol as p
 from . import transport
 from . import ui
 from .client import X20, ControllerError, NotSupported, find_controller
-from .profiles import DEFAULT_DIR, MacroSpec, Profile, ProfileStore, SLOTS
-
-CONFIG_PATH = os.path.join(os.path.dirname(DEFAULT_DIR), "config.json")
-
-
-# -- remembered address ---------------------------------------------------
-
-def load_address() -> str | None:
-    try:
-        with open(CONFIG_PATH, encoding="utf-8") as fh:
-            return json.load(fh).get("address")
-    except (OSError, ValueError):
-        return None
-
-
-def save_address(address: str) -> None:
-    os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
-    with open(CONFIG_PATH, "w", encoding="utf-8") as fh:
-        json.dump({"address": address}, fh, indent=2)
+from .config import load_address, save_address
+from .profiles import MacroSpec, Profile, ProfileStore, SLOTS
 
 
 async def resolve(explicit: str | None) -> str:

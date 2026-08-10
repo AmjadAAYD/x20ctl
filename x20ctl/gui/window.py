@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
 )
 
 from .. import transport
-from ..cli import load_address, save_address
+from ..config import load_address, save_address
 from ..client import X20, find_controller
 from ..input import MacroRecorder, XInputReader
 from ..profiles import MacroSpec, Profile, ProfileStore, SLOTS
