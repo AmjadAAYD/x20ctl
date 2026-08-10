@@ -33,6 +33,7 @@ class MainWindow(QWidget):
         self.address: str | None = load_address()
         self.pad: X20 | None = None
         self.profile = Profile(name="Save file 1")
+        self._loaded_name: str | None = None
         self._busy = False
 
         self.reader = XInputReader()
@@ -86,10 +87,14 @@ class MainWindow(QWidget):
             "The controller has four fixed slots and knows nothing about save "
             "files: switching between them rewrites those slots. So a save file "
             "lives on this computer, not on the pad.\n\n"
-            "Applying leaves any slot the save file does not define exactly as "
-            "it was. Assignments you made with button combinations on the pad "
-            "itself are invisible to software, so clearing a slot could destroy "
-            "work that cannot be read back or restored.")))
+            "Applying makes the controller match the save file exactly. Any "
+            "slot this file leaves empty is cleared on the pad, so switching "
+            "between save files really switches.\n\n"
+            "That includes assignments you made with button combinations on the "
+            "pad itself: software cannot read those back, so it cannot preserve "
+            "them. If you rely on one, define it in the save file too.\n\n"
+            "Edits save by themselves. Recording a macro, or switching to "
+            "another save file, writes your changes to disk first.")))
         layout.addWidget(holder)
 
         self.profile_list = QListWidget()
@@ -270,6 +275,11 @@ class MainWindow(QWidget):
     def _profile_selected(self, current, _previous) -> None:
         if current is None:
             return
+        # Persist edits to the profile being left, so switching away never
+        # silently discards a recording or a tweak.
+        if self._loaded_name and self.has_unsaved_changes():
+            self.autosave()
+
         name = current.data(Qt.UserRole) or current.text()
         try:
             self.load_into_form(self.store.load(name))
@@ -281,17 +291,46 @@ class MainWindow(QWidget):
 
     def load_into_form(self, profile: Profile) -> None:
         self.profile = profile
+        self._loaded_name = profile.name
         for slot in SLOTS:
             self.cards[slot].set_spec(profile.macros.get(slot))
         self.vibration.set_value(profile.vibration or 0)
         self._sync_apply_state()
 
     def collect(self) -> Profile:
-        profile = Profile(name=self.profile.name)
+        """The form's current contents as a Profile.
+
+        Carries clear_undefined through from the loaded profile; dropping it
+        would silently reset the setting every time the form was read.
+        """
+        profile = Profile(name=self.profile.name,
+                          clear_undefined=self.profile.clear_undefined)
         for slot in SLOTS:
             profile.macros[slot] = self.cards[slot].spec()
         profile.vibration = self.vibration.value()
         return profile
+
+    def has_unsaved_changes(self) -> bool:
+        try:
+            current = self.collect()
+        except ValueError:
+            return True     # an invalid edit is still an edit
+        stored = self.profile
+        return (current.macros != stored.macros
+                or current.vibration != stored.vibration)
+
+    def autosave(self, reason: str = "") -> bool:
+        """Persist the form if it is valid. Returns whether it saved."""
+        try:
+            profile = self.collect()
+            self.store.save(profile)
+        except ValueError as exc:
+            self.set_status(f"not saved: {exc}", "Danger")
+            return False
+        self.profile = profile
+        if reason:
+            self.set_status(reason, "Success")
+        return True
 
     def new_profile(self) -> None:
         name, accepted = QInputDialog.getText(
@@ -461,6 +500,11 @@ class MainWindow(QWidget):
             self.set_status(f"cannot apply: {exc}", "Danger")
             return
 
+        # Save before writing, so the file on disk always matches what the
+        # controller was last given.
+        self.store.save(profile)
+        self.profile = profile
+
         self._busy = True
         self._sync_apply_state()
         self.set_status("applying…")
@@ -475,12 +519,16 @@ class MainWindow(QWidget):
         self._busy = False
         looping = [s for s in SLOTS
                    if (spec := self.cards[s].spec()) and spec.loop_ms]
+        written = sum(1 for line in report if "left as it was" not in line)
+        name = self.profile.name
         if looping:
             self.set_status(
-                f"applied · {', '.join(looping)} will repeat until interrupted",
-                "Warning")
+                f"“{name}” applied · {', '.join(looping)} will repeat until "
+                "interrupted", "Warning")
         else:
-            self.set_status(f"applied {len(report)} settings", "Success")
+            self.set_status(
+                f"“{name}” applied · the controller now matches this save file "
+                f"({written} settings written)", "Success")
         self._sync_apply_state()
 
     def _on_apply_failed(self, message: str) -> None:
@@ -535,13 +583,19 @@ class MainWindow(QWidget):
             return
         card.set_spec(spec)
 
+        # Save immediately. A recording is work the user just performed by hand
+        # and should not be lost by clicking somewhere else.
+        saved = self.autosave()
+
         message = f"{slot} recorded: {spec.describe()}"
+        if saved:
+            message += f" · saved to “{self.profile.name}”"
         if self.recorder.ignored:
             message += (f" · ignored {', '.join(sorted(self.recorder.ignored))}, "
                         "which this pad cannot put in a macro")
             self.set_status(message, "Warning")
         else:
-            self.set_status(message, "Success")
+            self.set_status(message, "Success" if saved else "Danger")
 
     # -- lifecycle -------------------------------------------------------
 
