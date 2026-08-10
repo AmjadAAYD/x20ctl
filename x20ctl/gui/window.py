@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
 )
 
 from .. import transport
+from ..diagnose import diagnose
 from ..config import load_address, save_address
 from ..client import X20, find_controller
 from ..input import MacroRecorder, XInputReader
@@ -458,7 +459,7 @@ class MainWindow(QWidget):
         async def task():
             address = self.address or await find_controller()
             if not address:
-                raise RuntimeError("no controller found; is it on and paired?")
+                raise RuntimeError("no controller found")
             pad = X20(address)
             await pad.connect()
             snapshot = await pad.snapshot()
@@ -516,14 +517,18 @@ class MainWindow(QWidget):
         self.link_label.setText(f"playing over {connection.link.value}")
 
     def _on_connect_failed(self, message: str) -> None:
+        # Library exception text is written for whoever wrote the library. Show
+        # what happened and what to do about it instead.
+        finding = diagnose(message)
         self._busy = False
         self.pad = None
         self.dot.set_state("error")
-        self.device_name.setText("Not connected")
-        self.device_detail.setText(message)
+        self.device_name.setText(finding.headline)
+        self.device_detail.setText(finding.advice)
+        self.battery_label.setText("")
         self.connect_button.setText("Connect")
         self.connect_button.setEnabled(True)
-        self.set_status(message, "Danger")
+        self.set_status(finding.headline, "Danger")
         self._sync_apply_state()
 
     def apply_profile(self) -> None:
@@ -569,7 +574,7 @@ class MainWindow(QWidget):
 
     def _on_apply_failed(self, message: str) -> None:
         self._busy = False
-        self.set_status(f"apply failed: {message}", "Danger")
+        self.set_status(f"could not apply: {diagnose(message).headline}", "Danger")
         self._sync_apply_state()
 
     # -- recording -------------------------------------------------------

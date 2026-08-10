@@ -102,15 +102,25 @@ class Animatable(QObject):
 
 def ease_to(animatable: Animatable, target: float, duration: int = FAST,
             curve=EASE_OUT) -> QPropertyAnimation:
-    """Animate an Animatable towards a target, replacing any run in progress."""
-    existing = getattr(animatable, "_animation", None)
-    if existing is not None:
-        existing.stop()
-    animation = QPropertyAnimation(animatable, b"value", animatable)
+    """Animate an Animatable towards a target, replacing any run in progress.
+
+    One animation is created per Animatable and reused. An earlier version made
+    a fresh one each call and started it with DeleteWhenStopped, then kept the
+    reference: the next call reached for an object Qt had already destroyed and
+    raised. Hovering a card twice was enough to hit it, and under pythonw there
+    is no console for the error to appear on.
+    """
+    animation = getattr(animatable, "_animation", None)
+    if animation is None:
+        # Parented to the Animatable, which is parented to the widget, so the
+        # whole chain is torn down together.
+        animation = QPropertyAnimation(animatable, b"value", animatable)
+        animatable._animation = animation
+
+    animation.stop()
     animation.setDuration(duration)
     animation.setStartValue(animatable.get_value())
     animation.setEndValue(target)
     animation.setEasingCurve(curve)
-    animatable._animation = animation
-    animation.start(QPropertyAnimation.DeleteWhenStopped)
+    animation.start()
     return animation

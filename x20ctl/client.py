@@ -97,6 +97,7 @@ class X20:
         self._save_counter = 0       # matches CodeHelper.countSaveButtons
         self._waiters: dict[int, asyncio.Future] = {}
         self._caps: p.Capabilities | None = None
+        self._layout: p.MaskLayout | None = None
 
     # -- connection ------------------------------------------------------
 
@@ -201,6 +202,27 @@ class X20:
             self._caps = p.parse_capabilities(body)
         return self._caps
 
+    async def macro_layout(self, *, refresh: bool = False) -> p.MaskLayout:
+        """The mask layout this particular controller uses.
+
+        Bit positions are decided by the pad's own macro key list, so they are
+        a property of the device rather than of the model. Reading it means a
+        controller that reports a different list still gets correct macros.
+        Falls back to the X20 layout if the pad will not say.
+        """
+        if self._layout is None or refresh:
+            body = await self.read_body(
+                p.Op.HOST_MENU, bytes([0, p.MenuKind.MACRO_SUPPORT]))
+            if body is None:
+                self._layout = p.DEFAULT_LAYOUT
+            else:
+                try:
+                    keys = p.decode_key_list(bytes([body.declared]) + body.data)
+                    self._layout = p.layout_from_key_list(keys)
+                except ValueError:
+                    self._layout = p.DEFAULT_LAYOUT
+        return self._layout
+
     async def name(self) -> str:
         body = await self.read_body(p.Op.READ_NAME, bytes([0]))
         return body.as_text() if body else ""
@@ -303,15 +325,16 @@ class X20:
         if not caps.macros:
             raise NotSupported("this pad does not expose macros")
 
+        layout = await self.macro_layout()
         steps: list[p.MacroStep] = []
         for group in keys.split(","):
             names = [n.strip().upper() for n in group.split("+") if n.strip()]
             if not names:
                 continue
             steps.append(p.MacroStep(
-                mask=p.mask_for([p.parse_token(n) for n in names]),
+                mask=p.mask_for([p.parse_token(n) for n in names], layout),
                 duration_ms=hold_ms))
-            steps.append(p.MacroStep.released(gap_ms))
+            steps.append(p.MacroStep(mask=layout.neutral, duration_ms=gap_ms))
         if not steps:
             raise ValueError("no keys given")
 
