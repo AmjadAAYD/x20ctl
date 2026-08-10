@@ -103,15 +103,21 @@ gates on that descriptor, so it will simply work.
 
 ## Install
 
-Python 3.10 or newer.
+**Windows, and Python 3.10 or newer.** The Windows requirement is real rather
+than incidental: the input tester and the polling meter read the pad through
+`XInput1_4.dll` directly, save files go to `%APPDATA%`, and the taskbar icon is
+set through a Windows shell call. It won't run elsewhere as it stands.
+
+Two parts of it aren't Windows-bound, if you want to port it. The protocol
+library is pure computation with no I/O at all, and the BLE transport goes
+through [bleak](https://github.com/hbldh/bleak), which supports Linux and macOS.
+What would need writing is a replacement for the XInput reader, since that's
+where the platform is baked in.
 
 **Pair the controller over Bluetooth.** Settings travel over a Bluetooth LE link
 that the pad exposes separately from however you play, so Bluetooth is needed to
 change anything even when you are on a cable or the 2.4GHz receiver. Playing is
 unaffected, and the input tester works without it.
-
-The library core (`x20ctl/protocol.py`) is pure computation with no dependencies
-and no I/O, so the whole packet layer can be exercised without a controller.
 
 ```bash
 pip install -e ".[gui]"
