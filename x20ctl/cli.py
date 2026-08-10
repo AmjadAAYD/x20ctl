@@ -68,7 +68,9 @@ async def cmd_status(args) -> None:
         snap = await pad.snapshot()
 
     print(ui.header("Controller", snap.device.vid + " / " + snap.device.pid))
-    print(ui.field("name", snap.name or "unknown"))
+    print(ui.field("controller", p.product_name(
+        snap.name, snap.device.vid, snap.device.pid)))
+    print(ui.field("reports as", snap.name or "unknown"))
     print(ui.field("firmware", snap.device.version))
     print(ui.field("address", address))
     if snap.battery is not None:
@@ -101,14 +103,21 @@ async def cmd_status(args) -> None:
     print(f"  {ui.label('motor 1'.ljust(10))}{ui.bar(left)}")
     print(f"  {ui.label('motor 2'.ljust(10))}{ui.bar(right)}")
 
-    if snap.sticks:
-        print(ui.header("Sticks", "raw response curve, not yet decoded"))
-        for side, data in zip(("left", "right"), snap.sticks):
-            print(ui.field(side, data.hex(" ")))
-    if snap.triggers:
-        print(ui.header("Triggers", "raw response curve, not yet decoded"))
-        for side, data in zip(("left", "right"), snap.triggers):
-            print(ui.field(side, data.hex(" ")))
+    for title, channels, scale in (
+            ("Sticks", snap.sticks, p.STICK_MAX_PROGRESS),
+            ("Triggers", snap.triggers, p.TRIGGER_MAX_PROGRESS)):
+        if not channels:
+            continue
+        print(ui.header(title, "response curve"))
+        for side, data in zip(("left", "right"), channels):
+            try:
+                curve = p.Curve.parse(data, scale)
+            except ValueError:
+                print(ui.field(side, data.hex(" ")))
+                continue
+            shape = "linear" if curve.is_linear else "curved"
+            print(ui.field(side, f"deadzone {curve.inner_deadzone}, "
+                                 f"points {curve.point1} {curve.point2}, {shape}"))
     print()
 
 

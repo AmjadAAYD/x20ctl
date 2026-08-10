@@ -75,8 +75,8 @@ you're behind.
 | Save files | working |
 | Recording from live input | working |
 | Input tester and polling meter | working |
-| Stick curves | format known, **untested** |
-| Trigger curves | format known, **untested** |
+| Stick curves | **decoded**: deadzones, two curve points, invert and swap flags. Reading verified, writing untested |
+| Trigger curves | **decoded**, same layout. Reading verified, writing untested |
 | RGB lighting | **not exposed by the X20** |
 | Turbo | **not exposed by the X20** |
 | Gyro | **not exposed by the X20** |
@@ -97,7 +97,12 @@ gates on that descriptor, so it will simply work.
 
 ## Install
 
-Python 3.10 or newer, and the pad paired over Bluetooth.
+Python 3.10 or newer.
+
+**Pair the controller over Bluetooth.** Settings travel over a Bluetooth LE link
+that the pad exposes separately from however you play, so Bluetooth is needed to
+change anything even when you are on a cable or the 2.4GHz receiver. Playing is
+unaffected, and the input tester works without it.
 
 The library core (`x20ctl/protocol.py`) is pure computation with no dependencies
 and no I/O, so the whole packet layer can be exercised without a controller.

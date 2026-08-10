@@ -656,6 +656,57 @@ def test_battery_rejects_short_body():
     raise AssertionError("a short power reply must be rejected")
 
 
+# --- stick and trigger curves, captured from a real X20 ---------------------
+
+def test_stick_curve_from_real_hardware_is_linear():
+    """Control points on the diagonal are an untouched response."""
+    body = p.unwrap(bytes.fromhex("0e08085555aaaa0008085555aaaa00"))
+    left, right = p.parse_curves(body)
+    assert left == right, "both sticks ship identical"
+    assert left.inner_deadzone == 8
+    assert left.point1 == (85, 85) and left.point2 == (170, 170)
+    assert left.is_linear
+    assert not (left.invert_x or left.invert_y or left.swapped)
+
+
+def test_trigger_curve_from_real_hardware_is_not_linear():
+    """The X20 ships triggers with a curve that ramps faster than linear."""
+    body = p.unwrap(bytes.fromhex("0e04225285e5eb0004225285e5eb00"))
+    left, right = p.parse_curves(body, p.TRIGGER_MAX_PROGRESS)
+    assert left == right
+    assert left.point1 == (82, 133), "y above x means a faster ramp"
+    assert left.point2 == (229, 235)
+    assert not left.is_linear
+
+
+def test_curves_round_trip():
+    for raw, scale in (("0e08085555aaaa0008085555aaaa00", p.STICK_MAX_PROGRESS),
+                       ("0e04225285e5eb0004225285e5eb00", p.TRIGGER_MAX_PROGRESS)):
+        body = p.unwrap(bytes.fromhex(raw))
+        assert p.build_curves(p.parse_curves(body, scale)) == bytes.fromhex(raw)
+
+
+def test_curve_flags_decode():
+    curve = p.Curve.parse(bytes([8, 8, 85, 85, 170, 170,
+                                 p.FLAG_INVERT_X | p.FLAG_SWAP]))
+    assert curve.invert_x and curve.swapped and not curve.invert_y
+
+
+def test_outer_deadzone_is_stored_subtracted():
+    """The wire holds (max - outer), which the app shows the other way round."""
+    curve = p.Curve.parse(bytes([8, 8, 85, 85, 170, 170, 0]))
+    assert curve.outer_raw == 8
+    assert curve.outer_deadzone == p.STICK_MAX_PROGRESS - 8
+
+
+def test_curve_rejects_a_wrong_sized_channel():
+    try:
+        p.Curve.parse(bytes(5))
+    except ValueError:
+        return
+    raise AssertionError("a channel must be exactly 7 bytes")
+
+
 def test_corrupted_packet_fails_crc():
     raw = bytearray(p.build_query(p.Op.HOST_LIGHTING, index=0, serial=1, nonce=0x42))
     plain = bytearray(p.unscramble(bytes(raw)))

@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout, QWidget,
 )
 
+from .. import protocol as p
 from .. import transport
 from ..diagnose import diagnose
 from ..config import load_address, save_address
@@ -529,7 +530,8 @@ class MainWindow(QWidget):
         self._busy = False
 
         self.dot.set_state("connected")
-        self.device_name.setText(snapshot.name or "Controller")
+        self.device_name.setText(p.product_name(
+            snapshot.name, snapshot.device.vid, snapshot.device.pid))
         self.device_detail.setText(
             f"firmware {snapshot.device.version}   ·   {address}")
         self.connect_button.setText("Reconnect")
