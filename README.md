@@ -77,7 +77,7 @@ you're behind.
 | ... sequences, chords, stick directions | working |
 | ... multi-packet macros via chunked writes | working |
 | **Vibration strength** | **working**, verified by feel at 0%, 30%, 100% |
-| **Battery level** | **working**, four-step gauge plus charging flag |
+| **Battery level** | **working**, four-step gauge plus charging flag, re-read on a timer rather than once at connection |
 | Save files | working |
 | Recording from live input | working |
 | Input tester and polling meter | working |
@@ -215,6 +215,12 @@ arithmetic.
 A save file is a set of up to four macros and a vibration level, stored as JSON
 in `%APPDATA%\x20ctl\profiles`. The controller has four fixed macro slots and
 knows nothing about save files; switching files rewrites those slots.
+
+**Save files belong to you, not to the app.** They live in your own profile
+directory, nowhere near the executable, so replacing `x20ctl.exe` with a newer
+download leaves every save file exactly where it was. That matters more than it
+sounds for a single-file build: anything stored beside the executable would
+land in a temporary folder that's deleted the moment the app closes.
 
 ```json
 {
