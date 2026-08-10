@@ -1,48 +1,134 @@
-"""Reusable pieces of the interface."""
+"""Reusable pieces of the interface.
+
+Cards and indicators paint themselves rather than relying on stylesheets,
+because Qt stylesheets cannot animate. Anything that changes state smoothly is
+drawn by hand against an eased value.
+"""
 
 from __future__ import annotations
 
-from PySide6.QtCore import QPoint, QRectF, Qt, Signal
-from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPen
+import math
+
+from PySide6.QtCore import QPoint, QRectF, Qt, QTimer, Signal
+from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (
-    QFrame, QHBoxLayout, QLabel, QLineEdit, QPushButton, QSizePolicy,
-    QSlider, QSpinBox, QToolButton, QToolTip, QVBoxLayout, QWidget,
+    QFrame, QHBoxLayout, QLabel, QLineEdit, QPushButton, QSlider, QSpinBox,
+    QToolButton, QToolTip, QVBoxLayout, QWidget,
 )
 
 from .. import protocol as p
 from . import theme
+from .motion import Animatable, ease_to
+
+
+def _mix(a: str, b: str, t: float) -> QColor:
+    """Blend two hex colours. Used for eased state changes."""
+    ca, cb = QColor(a), QColor(b)
+    return QColor(
+        round(ca.red() + (cb.red() - ca.red()) * t),
+        round(ca.green() + (cb.green() - ca.green()) * t),
+        round(ca.blue() + (cb.blue() - ca.blue()) * t),
+    )
 
 
 class StatusDot(QWidget):
-    """A small coloured dot showing connection state."""
+    """Connection state, with a breathing ring while it is working.
+
+    The pulse exists so a slow Bluetooth connection does not look like a frozen
+    app. It stops the moment the state resolves.
+    """
 
     def __init__(self) -> None:
         super().__init__()
-        self.setFixedSize(9, 9)
-        self._colour = theme.TEXT_FAINT
+        self.setFixedSize(22, 22)
+        self._state = "idle"
+        self._phase = 0.0
+        self._timer = QTimer(self)
+        self._timer.setInterval(33)
+        self._timer.timeout.connect(self._advance)
 
     def set_state(self, state: str) -> None:
-        self._colour = {
-            "connected": theme.SUCCESS,
-            "connecting": theme.WARNING,
-            "error": theme.DANGER,
-        }.get(state, theme.TEXT_FAINT)
+        self._state = state
+        if state == "connecting":
+            self._timer.start()
+        else:
+            self._timer.stop()
+            self._phase = 0.0
         self.update()
+
+    def _advance(self) -> None:
+        self._phase = (self._phase + 0.05) % 1.0
+        self.update()
+
+    def _colour(self) -> str:
+        return {
+            "connected": theme.SAGE,
+            "connecting": theme.GOLD,
+            "error": theme.ROSE,
+        }.get(self._state, theme.TEXT_FAINT)
 
     def paintEvent(self, _event) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
-        painter.setBrush(QColor(self._colour))
+        centre = QRectF(self.rect()).center()
+        colour = QColor(self._colour())
+
+        if self._state == "connecting":
+            # expanding ring that fades as it grows
+            spread = 4 + self._phase * 7
+            halo = QColor(colour)
+            halo.setAlphaF(max(0.0, 0.45 * (1 - self._phase)))
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(halo)
+            painter.drawEllipse(centre, spread, spread)
+        elif self._state == "connected":
+            halo = QColor(colour)
+            halo.setAlphaF(0.18)
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(halo)
+            painter.drawEllipse(centre, 8, 8)
+
+        painter.setBrush(colour)
         painter.setPen(Qt.NoPen)
-        painter.drawEllipse(0, 0, 9, 9)
+        painter.drawEllipse(centre, 4, 4)
+
+
+class Wordmark(QWidget):
+    """The app mark: a small drawn glyph beside the name."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.setFixedHeight(30)
+        self.setMinimumWidth(150)
+
+    def paintEvent(self, _event) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+
+        # a rounded pad silhouette with two sticks, drawn rather than shipped
+        body = QRectF(0, 7, 26, 16)
+        path = QPainterPath()
+        path.addRoundedRect(body, 7, 7)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QColor(theme.EMBER))
+        painter.drawPath(path)
+
+        painter.setBrush(QColor(theme.INK))
+        painter.drawEllipse(QRectF(5.5, 12.5, 5, 5))
+        painter.drawEllipse(QRectF(15.5, 12.5, 5, 5))
+
+        font = QFont(painter.font())
+        font.setPointSizeF(11.5)
+        font.setWeight(QFont.Bold)
+        font.setLetterSpacing(QFont.AbsoluteSpacing, 0.6)
+        painter.setFont(font)
+        painter.setPen(QColor(theme.TEXT))
+        painter.drawText(QRectF(34, 0, self.width() - 34, self.height()),
+                         Qt.AlignLeft | Qt.AlignVCenter, "x20ctl")
 
 
 class InfoButton(QToolButton):
-    """A small 'i' that explains a control when clicked or hovered.
-
-    Uses a tooltip rather than a dialog so reading an explanation never
-    interrupts what you were doing.
-    """
+    """A small 'i' that explains a control on click or hover."""
 
     def __init__(self, explanation: str) -> None:
         super().__init__()
@@ -55,20 +141,19 @@ class InfoButton(QToolButton):
         self.clicked.connect(self._show)
 
     def _show(self) -> None:
-        QToolTip.showText(self.mapToGlobal(QPoint(18, 0)), self.explanation, self)
+        QToolTip.showText(self.mapToGlobal(QPoint(20, 0)), self.explanation, self)
 
 
 def section_label(text: str, explanation: str | None = None) -> QWidget:
-    """A section heading, optionally with an info button beside it."""
     label = QLabel(text.upper())
-    label.setObjectName("SectionTitle")
+    label.setObjectName("Section")
     if explanation is None:
         return label
 
     holder = QWidget()
     row = QHBoxLayout(holder)
     row.setContentsMargins(0, 0, 0, 0)
-    row.setSpacing(6)
+    row.setSpacing(7)
     row.addWidget(label)
     row.addWidget(InfoButton(explanation))
     row.addStretch(1)
@@ -77,13 +162,13 @@ def section_label(text: str, explanation: str | None = None) -> QWidget:
 
 def divider() -> QFrame:
     line = QFrame()
-    line.setObjectName("Divider")
+    line.setObjectName("Rule")
     line.setFixedHeight(1)
     return line
 
 
 class VibrationRow(QWidget):
-    """Slider plus live percentage."""
+    """Slider plus a readout that eases between values."""
 
     changed = Signal(int)
 
@@ -91,7 +176,7 @@ class VibrationRow(QWidget):
         super().__init__()
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(12)
+        layout.setSpacing(14)
 
         self.slider = QSlider(Qt.Horizontal)
         self.slider.setRange(0, 100)
@@ -99,8 +184,10 @@ class VibrationRow(QWidget):
         self.slider.setPageStep(10)
 
         self.readout = QLabel("0%")
-        self.readout.setFixedWidth(42)
+        self.readout.setFixedWidth(50)
         self.readout.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.readout.setStyleSheet(
+            f"font-size:15px; font-weight:600; color:{theme.TEXT};")
 
         self.slider.valueChanged.connect(self._on_change)
         layout.addWidget(self.slider, 1)
@@ -108,6 +195,9 @@ class VibrationRow(QWidget):
 
     def _on_change(self, value: int) -> None:
         self.readout.setText(f"{value}%")
+        colour = theme.TEXT_FAINT if value == 0 else theme.TEXT
+        self.readout.setStyleSheet(
+            f"font-size:15px; font-weight:600; color:{colour};")
         self.changed.emit(value)
 
     def value(self) -> int:
@@ -116,12 +206,17 @@ class VibrationRow(QWidget):
     def set_value(self, value: int) -> None:
         self.slider.blockSignals(True)
         self.slider.setValue(value)
-        self.readout.setText(f"{value}%")
         self.slider.blockSignals(False)
+        self._on_change(value)
 
 
 class MacroCard(QFrame):
-    """One M-slot: the key sequence and its timing."""
+    """One M-slot.
+
+    Painted by hand so filling a slot, hovering it, or arming it for recording
+    can ease rather than snap. A card that is holding a macro sits visibly
+    higher than an empty one, which is the fastest way to read the four slots.
+    """
 
     changed = Signal()
     record_requested = Signal(str)
@@ -130,23 +225,30 @@ class MacroCard(QFrame):
         super().__init__()
         self.slot = slot
         self.recording = False
-        self.setObjectName("Card")
+        self.setAttribute(Qt.WA_Hover, True)
+        self.setMinimumHeight(70)
+
+        self._fill = Animatable(0.0, self)     # 0 empty, 1 holding a macro
+        self._hover = Animatable(0.0, self)
+        self._alarm = Animatable(0.0, self)    # recording or invalid
+        for value in (self._fill, self._hover, self._alarm):
+            value.changed.connect(lambda _v: self.update())
 
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(14, 10, 14, 10)
-        outer.setSpacing(6)
+        outer.setContentsMargins(16, 9, 16, 9)
+        outer.setSpacing(5)
 
         row = QHBoxLayout()
-        row.setSpacing(8)
+        row.setSpacing(9)
 
-        name = QLabel(slot)
-        name.setFixedWidth(26)
-        name.setStyleSheet(
-            f"font-size:14px; font-weight:700; color:{theme.ACCENT};")
-        row.addWidget(name)
+        self.tag = QLabel(slot)
+        self.tag.setFixedWidth(30)
+        self.tag.setStyleSheet(
+            f"font-size:14px; font-weight:700; color:{theme.TEXT_FAINT};")
+        row.addWidget(self.tag)
 
         self.keys = QLineEdit()
-        self.keys.setPlaceholderText("A+B    A,B    LS_UP+A")
+        self.keys.setPlaceholderText("A+B     A,B     LS_UP+A")
         self.keys.setMinimumWidth(150)
         self.keys.setToolTip(
             "'+' presses keys together, ',' plays them one after another.\n\n"
@@ -165,7 +267,7 @@ class MacroCard(QFrame):
 
         self.record_button = QPushButton("Record")
         self.record_button.setObjectName("Ghost")
-        self.record_button.setFixedWidth(76)
+        self.record_button.setFixedWidth(78)
         self.record_button.setToolTip(
             "Press buttons on the controller and they are captured here,\n"
             "with the real timing between them.")
@@ -175,47 +277,82 @@ class MacroCard(QFrame):
 
         self.clear_button = QPushButton("Clear")
         self.clear_button.setObjectName("Ghost")
-        self.clear_button.setFixedWidth(58)
+        self.clear_button.setFixedWidth(60)
         self.clear_button.clicked.connect(self.clear)
         row.addWidget(self.clear_button)
         outer.addLayout(row)
 
-        # summary and errors share the second line, indented under the field
         self.summary = QLabel("empty")
         self.summary.setObjectName("Faint")
-        self.summary.setContentsMargins(34, 0, 0, 0)
-        self.summary.setStyleSheet("font-size:11px;")
+        self.summary.setContentsMargins(39, 0, 0, 0)
+        self.summary.setStyleSheet(f"font-size:11px; color:{theme.TEXT_FAINT};")
         outer.addWidget(self.summary)
-
-        self.error = QLabel("")
-        self.error.setObjectName("Danger")
-        self.error.setContentsMargins(34, 0, 0, 0)
-        self.error.setStyleSheet("font-size:11px;")
-        self.error.setWordWrap(True)
-        self.error.hide()
-        outer.addWidget(self.error)
 
     def _spin(self, caption: str, default: int, layout: QHBoxLayout) -> QSpinBox:
         spin = QSpinBox()
         spin.setRange(0, 4000)
         spin.setSingleStep(5)
         spin.setValue(default)
-        spin.setFixedWidth(84)
+        spin.setFixedWidth(82)
         spin.setSuffix(" ms")
-        spin.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        spin.setAlignment(Qt.AlignCenter)
         spin.setToolTip(f"{caption} duration in milliseconds")
         spin.valueChanged.connect(self._refresh)
         layout.addWidget(spin)
         return spin
 
-    # -- state ----------------------------------------------------------
+    # -- painting --------------------------------------------------------
+
+    def paintEvent(self, _event) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        box = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
+
+        fill = self._fill.get_value()
+        hover = self._hover.get_value()
+        alarm = self._alarm.get_value()
+
+        surface = _mix(theme.SURFACE, theme.SURFACE_HI, max(fill, hover))
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(surface)
+        painter.drawRoundedRect(box, 10, 10)
+
+        edge = _mix(theme.LINE, theme.EMBER_DEEP, fill)
+        if hover:
+            edge = _mix(edge.name(), theme.EMBER, hover * 0.6)
+        if alarm:
+            edge = _mix(edge.name(), theme.ROSE, alarm)
+        painter.setPen(QPen(edge, 1))
+        painter.setBrush(Qt.NoBrush)
+        painter.drawRoundedRect(box, 10, 10)
+
+        # A filled slot gets a marker down its left edge. Reading four slots at
+        # a glance is easier from a bar than from text.
+        strength = max(fill, alarm)
+        if strength > 0.01:
+            colour = _mix(theme.EMBER, theme.ROSE, alarm)
+            colour.setAlphaF(min(1.0, strength))
+            marker = QRectF(box.left() + 1, box.top() + 12,
+                            3, max(0.0, box.height() - 24))
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(colour)
+            painter.drawRoundedRect(marker, 1.5, 1.5)
+
+    def enterEvent(self, event) -> None:
+        ease_to(self._hover, 1.0)
+        super().enterEvent(event)
+
+    def leaveEvent(self, event) -> None:
+        ease_to(self._hover, 0.0)
+        super().leaveEvent(event)
+
+    # -- state -----------------------------------------------------------
 
     def clear(self) -> None:
         self.keys.clear()
         self._refresh()
 
     def spec(self):
-        """A validated MacroSpec, or None if the slot is empty."""
         from ..profiles import MacroSpec
 
         text = self.keys.text().strip()
@@ -240,29 +377,32 @@ class MacroCard(QFrame):
         try:
             spec = self.spec()
         except ValueError as exc:
-            self.summary.setText("invalid")
-            self.summary.setObjectName("Danger")
-            self.error.setText(str(exc))
-            self.error.show()
-            self.setObjectName("Card")
+            self.summary.setText(str(exc))
+            self.summary.setStyleSheet(f"font-size:11px; color:{theme.ROSE};")
+            self.tag.setStyleSheet(
+                f"font-size:14px; font-weight:700; color:{theme.ROSE};")
+            ease_to(self._fill, 0.0)
+            ease_to(self._alarm, 1.0)
         else:
-            self.error.hide()
+            if not self.recording:
+                ease_to(self._alarm, 0.0)
             if spec is None:
                 self.summary.setText("empty")
-                self.summary.setObjectName("Faint")
-                self.setObjectName("Card")
+                self.summary.setStyleSheet(
+                    f"font-size:11px; color:{theme.TEXT_FAINT};")
+                self.tag.setStyleSheet(
+                    f"font-size:14px; font-weight:700; color:{theme.TEXT_FAINT};")
+                ease_to(self._fill, 0.0)
             else:
                 text = spec.describe()
+                colour = theme.GOLD if spec.loop_ms else theme.TEXT_MUTED
                 if spec.loop_ms:
                     text += "  ·  repeats until interrupted"
                 self.summary.setText(text)
-                self.summary.setObjectName("Warning" if spec.loop_ms else "Muted")
-                self.setObjectName("CardActive")
-        # re-apply the stylesheet so the objectName change takes effect
-        self.summary.style().unpolish(self.summary)
-        self.summary.style().polish(self.summary)
-        self.style().unpolish(self)
-        self.style().polish(self)
+                self.summary.setStyleSheet(f"font-size:11px; color:{colour};")
+                self.tag.setStyleSheet(
+                    f"font-size:14px; font-weight:700; color:{theme.EMBER};")
+                ease_to(self._fill, 1.0)
         self.changed.emit()
 
     def is_valid(self) -> bool:
@@ -277,20 +417,20 @@ class MacroCard(QFrame):
     def set_recording(self, active: bool) -> None:
         self.recording = active
         self.record_button.setText("Stop" if active else "Record")
-        self.record_button.setObjectName("Danger" if active else "Ghost")
+        self.record_button.setObjectName("Recording" if active else "Ghost")
         self.record_button.style().unpolish(self.record_button)
         self.record_button.style().polish(self.record_button)
         self.keys.setEnabled(not active)
         self.clear_button.setEnabled(not active)
+        ease_to(self._alarm, 1.0 if active else 0.0)
         if active:
-            self.error.hide()
-            self.summary.setText("recording · press buttons on the controller")
-            self.summary.setObjectName("Warning")
+            self.tag.setStyleSheet(
+                f"font-size:14px; font-weight:700; color:{theme.ROSE};")
+            self.summary.setText("recording, press buttons on the controller")
+            self.summary.setStyleSheet(f"font-size:11px; color:{theme.ROSE};")
         else:
             self._refresh()
-        self.summary.style().unpolish(self.summary)
-        self.summary.style().polish(self.summary)
 
     def show_recording_progress(self, text: str) -> None:
         if self.recording:
-            self.summary.setText(f"recording · {text}")
+            self.summary.setText(f"recording   {text}")
