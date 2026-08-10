@@ -328,7 +328,7 @@ class MainWindow(QWidget):
                 or current.vibration != stored.vibration)
 
     def autosave(self, reason: str = "") -> bool:
-        """Persist the form if it is valid. Returns whether it saved.
+        """Persist the form if it's valid. Returns whether it saved.
 
         Refuses to recreate a profile whose file has gone: if it was removed,
         here or elsewhere, silently writing it back would be the wrong answer.
@@ -391,7 +391,7 @@ class MainWindow(QWidget):
     def show_tester(self, showing: bool) -> None:
         """Switch between the settings page and the tester.
 
-        The tester polls every millisecond, so it is stopped whenever it is not
+        The tester polls every millisecond, so it's stopped whenever it isn't
         the visible page.
         """
         self.pages.setCurrentIndex(1 if showing else 0)
@@ -522,7 +522,7 @@ class MainWindow(QWidget):
         finding = diagnose(message)
         self._busy = False
         self.pad = None
-        # A precondition the user has not met is not an error state. Reserving
+        # A precondition the user hasn't met isn't an error state. Reserving
         # the error colour for genuine faults keeps it meaningful.
         self.dot.set_state("idle" if finding.expected else "error")
         self.device_name.setText(finding.headline)

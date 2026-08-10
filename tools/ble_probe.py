@@ -4,7 +4,7 @@ This is the core of the mapping loop: read a setting, change one thing on the
 controller, read it again, and see exactly which bytes moved. Every reading is
 appended to captures/probe_log.jsonl so the history is reproducible.
 
-Only read-only opcodes are accepted. This tool cannot write settings.
+Only read-only opcodes are accepted. This tool can't write settings.
 
 Usage:
     python ble_probe.py 98:B6:ED:E3:15:C4 HOST_LIGHTING --label "baseline"

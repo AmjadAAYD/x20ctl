@@ -96,7 +96,7 @@ The shipped table is **reflected (LSB-first) CRC-8, polynomial `0xEB`, init `0x0
 no final xor**, equivalent to normal-form polynomial `0xD7`. Confirmed two ways:
 generating the table from that polynomial reproduces all 256 entries exactly, and
 the table satisfies `T[a ^ b] == T[a] ^ T[b]` for every pair, which is the defining
-xor-linearity of a genuine CRC rather than an arbitrary substitution box.
+xor-linearity of a genuine CRC instead of an arbitrary substitution box.
 
 `x20ctl/protocol.py` generates the table and asserts equality against the literal
 one from the app, so the claim is checked on every test run.
@@ -201,7 +201,7 @@ white-LED command.
 | 39 | `0x27` | `CODE_WITER_MACRO` |
 | 41 | `0x29` | `CODE_CAST_CALIBRATION_XY` |
 
-**"TOOBLE" means turbo.** It is a transliteration that appears throughout.
+**"TOOBLE" means turbo.** It's a transliteration that appears throughout.
 
 ---
 
@@ -226,7 +226,7 @@ writeHostLightingData(int[] data, int slot)
 ```
 
 Every `writeHost*Data` is identical apart from the opcode. Payload layout inside
-`data` is not yet known and must come from capture.
+`data` isn't yet known and must come from capture.
 
 ### Factory reset
 
@@ -283,7 +283,7 @@ d7f010e0-660d-46e9-96c3-19c4148bdab5     configuration service
 ```
 
 The OTA service `2de516f0-...` was **not present** on this peripheral, so the
-firmware path is not even reachable in this mode.
+firmware path isn't even reachable in this mode.
 
 ### Device info payload
 
@@ -351,19 +351,19 @@ entry and prefixes the run with `entry_count * 6`:
 | 4 | `80` | `80` | `80` | `a0` | `80` | `ff` |
 
 `data4` and `data5` are the app's own field names and their meaning is genuinely
-undocumented. They are preserved verbatim rather than guessed at.
+undocumented. They are preserved verbatim over guessed at.
 
-Crucially, this record **did not change** when the pad's lighting was switched
+Crucially, this record **didn't change** when the pad's lighting was switched
 from off to brightness 1 and set to green, and no `00 ff 00` appears anywhere in
 it. So this is a stored palette, not the active lighting state. The live state is
 somewhere else and is still unlocated.
 
 This is a useful negative result: it rules out the obvious reading of
-`HOST_LIGHTING` and means writes to it would not have done what we expected.
+`HOST_LIGHTING` and means writes to it wouldn't have done what we expected.
 
 ## 4c. HOST_MENU is multiplexed
 
-`0xB0` is not a single query. Its payload is **two bytes, `[position, kind]`**,
+`0xB0` isn't a single query. Its payload is **two bytes, `[position, kind]`**,
 where `position` is the chunk index and `kind` selects a sub-query. This was
 missed initially, and sending a single byte produced silence that looked like an
 unsupported opcode. It was a malformed request.
@@ -431,14 +431,14 @@ configurable: sticks, triggers, vibration, macros, button remapping, eq, nfc
 
 The decode cross-checks against the physical hardware on four independent
 counts: two hall sticks, two triggers, two rumble motors, four rear buttons. A
-wrong bit order would not produce four correct answers at once.
+wrong bit order wouldn't produce four correct answers at once.
 
 ### The headline result
 
-**The X20 does not expose lighting, turbo, or gyro to this protocol.** Offsets
+**The X20 doesn't expose lighting, turbo, or gyro to this protocol.** Offsets
 6, 3 and 9 are all zero.
 
-This is not a limitation of our client. It is what the pad reports about itself,
+This isn't a limitation of our client. It's what the pad reports about itself,
 and the official app honours it by never showing those pages for this model.
 Those three features exist in the hardware and are driven entirely by on-pad
 button combinations, which is exactly how the manual documents them:
@@ -457,8 +457,8 @@ earlier negative result was correct, and this is why.
 - Trigger response curves, per side
 - Vibration strength, two motors
 
-That is a genuinely useful configuration tool, and it is more than the vendor
-offers on the desktop, which is nothing. It is not RGB control.
+That is a genuinely useful configuration tool, and it's more than the vendor
+offers on the desktop, which is nothing. It isn't RGB control.
 
 ## 4e. Writes are accepted
 
@@ -480,13 +480,13 @@ before    HOST_CHANGEKEY -> 00
 after     HOST_CHANGEKEY -> 00
 ```
 
-This confirms the two encodings that could not be checked any other way:
+This confirms the two encodings that couldn't be checked any other way:
 
 - **Length field** `0xE6`: top 3 bits carry the rotating `countHost` value (7),
   low 5 bits carry `len(payload) + 5` (6). Accepted.
 - **Serial** `0x81`: `getSaveButtonSerial` packs parity, a 4-bit slot index and a
   3-bit counter into one byte. The acknowledgement **echoed 0x81 exactly**, so the
-  packing is right rather than merely self-consistent.
+  packing is right instead of merely self-consistent.
 
 ### The two write counters are independent
 
@@ -500,7 +500,7 @@ They are separate fields and must not share a counter.
 The ack payload is `02 df aa`, byte-identical to what `TWO_IN_ONE_STATE` returned
 in the earlier sweep. So `df aa` is very likely a generic acknowledgement, and the
 earlier table entry treating it as two-in-one device state is probably wrong.
-Corrected here rather than left standing.
+Corrected here over left standing.
 
 ## 4f. On-pad assignments are invisible to the protocol
 
@@ -525,11 +525,11 @@ So the pad keeps two separate stores:
 | Protocol macro slots M1-M4 | KeyLinker | yes, and currently empty |
 
 The capability record reports macros as supported (`0f`, M1-M4) and the macro
-slots read back empty, so the protocol side is a real but unused feature. It is
+slots read back empty, so the protocol side is a real but unused feature. It's
 not simply a second view of the same assignment.
 
-The practical consequence is that **read-back cannot verify a rear-button change
-made on the pad**, and any plan relying on that is unsound.
+The practical consequence is that **read-back can't verify a rear-button change
+made on the pad**, and any plan relying on that's unsound.
 
 ### Where the protocol's unique value actually lies
 
@@ -556,7 +556,7 @@ These are the settings a desktop tool could offer that nothing else can.
 
 The dongle remains untested. Expectation is that it presents as another plain
 HID gamepad with no vendor collection, matching wired and Bluetooth Classic, but
-it is a distinct USB device with its own VID/PID and is worth enumerating.
+it's a distinct USB device with its own VID/PID and is worth enumerating.
 
 Note that link speed is irrelevant to configuration. The dongle's 1000 Hz polling
 matters for input latency during play; a configuration write is a single packet
@@ -606,11 +606,11 @@ an untouched analog input encodes as `0b1000`, not `0b0000`. The top bit means
 A mask of zero therefore commands **direction 0 on both sticks**. Observed on
 hardware: both sticks swept continuously until the macro was interrupted. Every
 mask must start from `0x88`, including release steps, which is why
-`MacroStep.released()` exists rather than callers writing `mask=0`.
+`MacroStep.released()` exists instead of callers writing `mask=0`.
 
 ### Practical notes
 
-- **Read-back cannot verify a macro.** `READ_MACRO` returns zeros before, during
+- **Read-back can't verify a macro.** `READ_MACRO` returns zeros before, during
   and after. Only observed behaviour confirms a write.
 - **Only one macro runs at a time.** Triggering another interrupts the first,
   which is the recovery route for a runaway loop.
@@ -643,7 +643,7 @@ the pad, and read again.
 ## 5. What is still unknown
 
 - Byte layout **inside** the payloads. The opcodes are certain; the field meanings
-  are not. Colour ordering, brightness scale, effect enumeration, gyro flags and
+  aren't. Colour ordering, brightness scale, effect enumeration, gyro flags and
   deadzone encoding all need capture to confirm.
 - Whether `CODE_HOST_GUID` (147) is gyro or a device identifier.
 - Whether the pad requires a `CODE_HOST_MENU` capability handshake before it will

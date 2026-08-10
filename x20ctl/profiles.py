@@ -46,7 +46,7 @@ class MacroSpec:
     loop_ms: int = 0
 
     def steps(self):
-        """The macro as protocol steps. Raises ValueError if it will not build."""
+        """The macro as protocol steps. Raises ValueError if it won't build."""
         if self.hold_ms <= 0 or self.gap_ms < 0:
             raise ValueError("durations must be positive")
         if self.hold_ms % 5 or self.gap_ms % 5 or self.loop_ms % 5:
@@ -56,7 +56,7 @@ class MacroSpec:
     def validate(self) -> None:
         """Check the spec builds before anything is sent to hardware."""
         steps = self.steps()
-        # Round-trips through the real builder, so a saved profile cannot hold
+        # Round-trips through the real builder, so a saved profile can't hold
         # something that would fail at apply time, including one too long to fit.
         p.build_macro_writes(
             p.build_macro_payload(steps, loop_interval_ms=self.loop_ms), slot=0)
@@ -78,10 +78,10 @@ class Profile:
         default_factory=lambda: {slot: None for slot in SLOTS})
     vibration: int | None = None
     updated: str = ""
-    # When true, applying clears any slot this profile does not define, so the
+    # When true, applying clears any slot this profile doesn't define, so the
     # controller ends up matching the save file exactly.
     #
-    # This defaults to true because that is what a save file means. An earlier
+    # This defaults to true because that's what a save file means. An earlier
     # version defaulted to false, to avoid disturbing assignments made with
     # button combinations on the pad, which are invisible to the protocol. That
     # was the wrong trade: it meant switching profiles left the previous
@@ -136,7 +136,7 @@ class Profile:
     async def apply(self, pad, *, on_step=None) -> list[str]:
         """Write this profile to a connected controller.
 
-        Settings the pad does not expose are skipped rather than attempted, so
+        Settings the pad doesn't expose are skipped rather than attempted, so
         the same profile is safe across different hardware. Returns a list of
         human-readable lines describing what happened.
         """

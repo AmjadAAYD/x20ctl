@@ -1,10 +1,10 @@
 """Working on more than one controller.
 
-The mask layout is not a constant. It is decided by whatever macro key list a
+The mask layout isn't a constant. It's decided by whatever macro key list a
 pad reports, so hardcoding the positions observed on one unit would silently
 produce wrong macros on any device that reports a different list.
 
-Also covers turning failures into advice rather than library exception text.
+Also covers turning failures into advice not library exception text.
 """
 
 from __future__ import annotations

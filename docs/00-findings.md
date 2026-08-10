@@ -73,7 +73,7 @@ deviceUsb_Request
 
 Imports: `KERNEL32.dll` (`CreateFileW`, `DeviceIoControl`, `CloseHandle`, `Sleep`,
 `GetLastError`, `MultiByteToWideChar`) and `MSVCR90.dll`. Notably **no `hid.dll`
-and no `setupapi.dll`**, so it does not speak HID and does not enumerate devices
+and no `setupapi.dll`**, so it doesn't speak HID and doesn't enumerate devices
 itself.
 
 Leaked PDB path:
@@ -97,8 +97,8 @@ pad enumerates as a **removable disk** in upgrade mode and the tool writes
 firmware through SCSI pass-through. `deviceUsb_GetDrvID` locates the drive letter;
 `deviceUsb_Request` issues the commands.
 
-**This channel is out of scope and must never be touched.** It is the only path
-that can brick the device. It is also not where configuration lives.
+**This channel is out of scope and must never be touched.** It's the only path
+that can brick the device. It's also not where configuration lives.
 
 The generic project name `Downloader` and the absence of EasySMX branding show
 this is a chip-vendor tool reused across brands.
@@ -179,7 +179,7 @@ main reason this project is worth more than one controller.
 
 ### Key deduction
 
-KeyLinker ships on iOS. iOS cannot speak USB HID to a gamepad. Therefore the
+KeyLinker ships on iOS. iOS can't speak USB HID to a gamepad. Therefore the
 protocol **must be reachable over Bluetooth LE**, against a custom GATT service,
 on a peripheral advertising as `Xpert2`.
 

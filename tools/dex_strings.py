@@ -1,6 +1,6 @@
 """Extract the string table from the dex files inside an APK.
 
-Parses the dex string_ids table directly rather than scraping printable runs, so
+Parses the dex string_ids table directly not scraping printable runs, so
 the output is exactly the constants and identifiers the app was compiled with.
 Useful as a first pass: it reveals BLE UUIDs, command names and obfuscation level
 in seconds, before committing to a full decompile.

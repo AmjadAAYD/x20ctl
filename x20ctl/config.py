@@ -1,6 +1,6 @@
 """Small persistent settings, kept beside the profiles.
 
-Separate from the CLI so the GUI does not have to import it. A windowed entry
+Separate from the CLI so the GUI doesn't have to import it. A windowed entry
 point runs under pythonw, where importing terminal-oriented code has bitten us
 once already.
 """

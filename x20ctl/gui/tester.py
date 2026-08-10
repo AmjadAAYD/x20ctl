@@ -4,8 +4,8 @@ Both read XInput only. Nothing here writes to the controller.
 
 The polling meter measures how often the controller's state actually changes,
 using XInput's packet counter, which increments on every new report. At rest the
-counter does not move, so a measurement is only meaningful while something is
-moving; the meter says so rather than reporting a misleading zero.
+counter doesn't move, so a measurement is only meaningful while something is
+moving; the meter says so not reporting a misleading zero.
 """
 
 from __future__ import annotations
@@ -373,7 +373,7 @@ class TesterPage(QWidget):
         if state is None:
             if self._had_controller:
                 # It just went away. Whatever comes back may be on a different
-                # link, so re-check rather than showing the old one.
+                # link, so re-check not showing the old one.
                 self._had_controller = False
                 self.link_label.setText("checking connection...")
                 self._samples.clear()

@@ -2,7 +2,7 @@
 
 Guarded by design: only opcodes on the read-only allowlist can be sent. Anything
 that writes settings is refused unless --i-know-what-im-doing is passed, so this
-tool cannot casually change the controller's configuration.
+tool can't casually change the controller's configuration.
 
 Usage:
     python ble_query.py 98:B6:ED:E3:15:C4 READ_VID_PID_VERSION

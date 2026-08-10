@@ -16,7 +16,7 @@ def _enable_ansi() -> bool:
     """Turn on virtual terminal processing on Windows; no-op elsewhere.
 
     Under pythonw.exe, which is what a windowed entry point runs, sys.stdout is
-    None rather than a stream. Touching it raises and takes the whole app down
+    None, not a stream. Touching it raises and takes the whole app down
     before it draws anything, so guard before asking about the terminal.
     """
     stream = getattr(sys, "stdout", None)
@@ -112,7 +112,7 @@ def field(name: str, val: str, width: int = 16) -> str:
 
 
 def bar(percent: int, width: int = 24) -> str:
-    """A proportion bar. Colour tracks magnitude rather than good/bad."""
+    """A proportion bar. Colour tracks magnitude over good/bad."""
     percent = max(0, min(100, percent))
     filled = round(width * percent / 100)
     colour = GREY if percent == 0 else (GREEN if percent < 67 else YELLOW)

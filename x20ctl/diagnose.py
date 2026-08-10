@@ -16,8 +16,8 @@ from dataclasses import dataclass
 class Diagnosis:
     headline: str
     advice: str
-    # A precondition the user has simply not met is not a fault. Marking those
-    # calmly keeps genuine failures visually distinct from "you are not using
+    # A precondition the user has simply not met isn't a fault. Marking those
+    # calmly keeps genuine failures visually distinct from "you aren't using
     # this part right now".
     expected: bool = False
 

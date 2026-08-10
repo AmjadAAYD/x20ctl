@@ -14,7 +14,7 @@ from x20ctl.profiles import MacroSpec, Profile, ProfileStore, SLOTS, slugify
 
 
 def test_macro_spec_validates_against_the_real_builder():
-    """A saved spec must be buildable, so apply cannot fail on something the
+    """A saved spec must be buildable, so apply can't fail on something the
     store already accepted."""
     MacroSpec(keys="A+B").validate()
     MacroSpec(keys="A,B,X").validate()

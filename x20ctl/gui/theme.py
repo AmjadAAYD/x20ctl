@@ -1,24 +1,12 @@
-"""Visual language.
+"""Colours and stylesheet.
 
-The palette is deliberately warm. Almost every piece of controller software
-reaches for a cold near-black with a saturated blue or green accent, which is
-why they all look alike. Warming the greys and using an ember accent gives the
-same legibility while reading as something made rather than generated.
-
-Rules the rest of the interface follows:
-
-- One accent. EMBER marks what you can act on, nothing else. If everything
-  glows, nothing is emphasised.
-- State colours are muted, not neon. SAGE and ROSE sit at similar lightness to
-  the text so they never shout over content.
-- Depth comes from surface lightness and a single hairline, not from heavy
-  borders or drop shadows on everything.
-- Type carries the hierarchy. Four sizes, two weights, generous line height.
+Warm greys with an ember accent. EMBER is only used for things you can click,
+so it stays meaningful. State colours are muted so they don't shout.
 """
 
 from __future__ import annotations
 
-# -- surfaces, warm rather than blue-black ---------------------------------
+# -- surfaces, warm over blue-black ---------------------------------
 BG = "#131110"
 SURFACE = "#1B1817"
 SURFACE_HI = "#241F1D"

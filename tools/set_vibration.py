@@ -5,7 +5,7 @@ Format from HostActivity's call to writeMotroData:
     [8, m1, m2, m3, m4, b5, b6, b7, b8]
 
 where each motor byte is a UI percentage scaled to 0-255, and bytes 5 to 8 are
-copied verbatim out of the preceding read rather than interpreted. This tool does
+copied verbatim out of the preceding read not interpreted. This tool does
 the same: it always reads first and reuses those trailing bytes, so it can never
 invent a value for a field nobody has decoded.
 

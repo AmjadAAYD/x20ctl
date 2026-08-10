@@ -10,7 +10,7 @@ protocol and makes it usable from a PC.
 
 **Working today:** macros on all four rear buttons, vibration strength, battery
 level, a live input tester and a polling-rate meter, driven from a desktop app or
-the command line. See [status](#status) for exactly what is and is not proven.
+the command line. See [status](#status) for exactly what is and isn't proven.
 
 The protocol was reverse engineered from scratch. No prior documentation of
 KeyLinker, `Xpert2`, or `com.pulsenet.inputset` appears to exist publicly.
@@ -46,18 +46,18 @@ The controller has two entirely separate command channels:
 4. **Tools refuse unsafe opcodes by default.** `ble_query.py` and `ble_probe.py`
    accept only read-only opcodes. `verify_write.py` can construct exactly one
    packet, a provable no-op. `set_vibration.py` always reads first and reuses
-   undecoded bytes verbatim rather than inventing values.
+   undecoded bytes verbatim instead of inventing values.
 
 **Recovery from any settings-level mistake: hold `C` for 5 seconds** for a
 factory reset. Settings live separately from firmware.
 
 ### On firmware updates
 
-This project will not flash firmware, and that is deliberate rather than
+This project won't flash firmware, and that's deliberate instead of
 unfinished. Flashing runs through the mass-storage bootloader, which is the one
 path that can destroy the controller. Use the manufacturer's own updater for
 that. `x20 status` reports the installed firmware version so you can tell when
-you are behind.
+you're behind.
 
 ---
 
@@ -87,7 +87,7 @@ you are behind.
 The pad reports its own capabilities in a descriptor that the official app uses to
 decide which settings pages to show. An X20 reports zero for lighting, turbo and
 gyro. Those features exist in the hardware but are driven entirely by on-pad
-button combinations, and are not reachable through this protocol on this model.
+button combinations, and aren't reachable through this protocol on this model.
 
 This is a property of the controller, not a limitation of this software. Another
 brand's pad on the same chip may well report them as available, and this library
@@ -129,13 +129,13 @@ Save files down the left, the four macro slots and vibration on the right. The
 header shows battery, and which link the pad is being played over.
 
 Editing a slot validates as you type, and a macro set to loop is marked, since
-that is the one setting that can surprise you. Every section has an info button
+that's the one setting that can surprise you. Every section has an info button
 explaining what its controls do and why.
 
 **Record** on any slot captures what you press on the controller, with the real
 timing between presses, and fills the slot in.
 
-**Input tester** shows every button lighting as it is held, both sticks with a
+**Input tester** shows every button lighting as it's held, both sticks with a
 position trail, and the triggers' analog values, alongside a meter counting how
 many reports per second actually reach Windows. The trail is what makes stick
 behaviour visible: rolling around the edge should trace a clean circle, and a
@@ -143,7 +143,7 @@ released stick should settle dead centre.
 
 Applying makes the controller match the save file exactly, so switching between
 save files really switches. Any slot the file leaves empty is cleared on the pad.
-Settings the controller does not expose are skipped rather than attempted, and
+Settings the controller doesn't expose are skipped over attempted, and
 the app says which.
 
 ---
@@ -173,7 +173,7 @@ direction, `LS_UP` or `RS_DOWN_LEFT`, and compose with the rest: `LS_UP+A` pushe
 the left stick up while holding A.
 
 Fourteen buttons can appear in a macro: A, B, X, Y, LB, RB, LT, RT, L3, R3 and
-the four d-pad directions, plus both sticks. Select, Start and Home cannot: the
+the four d-pad directions, plus both sticks. Select, Start and Home can't: the
 pad's own macro key list omits them.
 
 Each step can carry its own timing, which is what the hardware stores:
@@ -294,10 +294,10 @@ The protocol belongs to the chip vendor (ShenZhen ZhiXu, package
 `com.pulsenet.inputset`), not to EasySMX, so it likely covers controllers from
 several brands. Two things to know before pointing this at other hardware:
 
-- **Do not identify a pad by USB VID/PID.** The X20 clones Microsoft's
+- **Don't identify a pad by USB VID/PID.** The X20 clones Microsoft's
   `045E:028E` when wired and `045E:02FD` over Bluetooth Classic. Matching on those
   would target genuine Xbox controllers. Identify by the BLE peripheral instead.
-- **Always read the capability descriptor first** and honour it. It is how the pad
+- **Always read the capability descriptor first** and honour it. It's how the pad
   tells you which settings it will accept.
 
 ---

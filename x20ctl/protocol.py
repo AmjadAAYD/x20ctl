@@ -35,7 +35,7 @@ def _build_crc_table() -> tuple[int, ...]:
     """CRC-8, LSB-first (reflected), polynomial 0xEB, init 0, no final xor.
 
     Verified against the literal table shipped in the app, and the table is
-    xor-linear, which confirms this is a real CRC rather than an arbitrary
+    xor-linear, which confirms this is a real CRC instead of an arbitrary
     substitution box.
     """
     table = []
@@ -50,7 +50,7 @@ def _build_crc_table() -> tuple[int, ...]:
 CRC_TABLE = _build_crc_table()
 
 # Verbatim from CodeHelper. Kept so the generated table can be proven equivalent
-# rather than merely assumed; see tests/test_protocol.py.
+# instead of merely assumed; see tests/test_protocol.py.
 CRC_TABLE_FROM_APP = (
     0, 121, 242, 139, 51, 74, 193, 184, 102, 31, 148, 237, 85, 44, 167, 222,
     204, 181, 62, 71, 255, 134, 13, 116, 170, 211, 88, 33, 153, 224, 107, 18,
@@ -283,7 +283,7 @@ def build_macro_write(
 
     From CodeHelper.writeHostMacroData: the length byte is
     getHostMacroLength(slot, payload), which places the **macro slot** in the top
-    three bits rather than the rotating counter used by other writes. The serial
+    three bits, where other writes put the rotating counter. The serial
     is getSaveButtonSerial over the chunk index.
 
     Slots are zero-based: M1 is 0.
@@ -305,7 +305,7 @@ def parse_sequence(text: str, default_hold: int = 100,
     """Build macro steps from a written sequence.
 
     The hardware stores a duration per step, so the syntax allows one per step
-    rather than a single timing for the whole macro:
+    so the syntax allows one per step:
 
         A                 default hold, default gap
         A+B               chord, default timing
@@ -537,7 +537,7 @@ class Key(IntEnum):
 
     Recovered from ButtonUtil's parallel BUTTON_CODE / BIG_BUTTON_RES arrays,
     resolved through the resource table. The drawable names carry both the code
-    and the name, e.g. `ic_big_code_0x01_a1`, so this mapping is not inferred.
+    and the name, e.g. `ic_big_code_0x01_a1`, so this mapping isn't inferred.
     """
 
     A = 1
@@ -561,7 +561,7 @@ class Key(IntEnum):
     RSTICK_ANALOG = 19
 
 
-# Analog entries occupy a nibble each rather than a single bit.
+# Analog entries take a nibble each, not a single bit.
 ANALOG_KEYS = (Key.LSTICK_ANALOG, Key.RSTICK_ANALOG)
 ANALOG_WIDTH = 4
 MASK_WIDTH = 24
@@ -612,7 +612,7 @@ def layout_from_key_list(keys) -> MaskLayout:
 
     for code in keys:
         if code in PSEUDO_KEYS:
-            position += 1           # occupies a bit but is not a button
+            position += 1           # occupies a bit but isn't a button
             continue
         try:
             key = Key(code)
@@ -649,7 +649,7 @@ STICK_NIBBLE = DEFAULT_LAYOUT.analog
 # This bit an early write badly. writeMacroData encodes an untouched analog
 # entry as "1000", not "0000": the top bit of the nibble means "no input", and
 # the low three bits are a direction minus one. Leaving the nibbles at zero
-# therefore does not mean "stick centred", it selects direction 0 and drives the
+# therefore doesn't mean "stick centred", it selects direction 0 and drives the
 # stick continuously. Verified the hard way on real hardware, where a macro with
 # zeroed nibbles swept both sticks up and down until the macro was interrupted.
 MACRO_ANALOG_NEUTRAL = 0x88   # both nibbles idle, for the X20 layout
@@ -811,8 +811,8 @@ class MacroStep:
     def released(cls, duration_ms: int) -> "MacroStep":
         """A step with nothing pressed.
 
-        Use this rather than `MacroStep(mask=0, ...)`. A zero mask leaves both
-        analog nibbles at 0b0000, which is direction 0 rather than idle, and
+        Use this not `MacroStep(mask=0, ...)`. A zero mask leaves both
+        analog nibbles at 0b0000, which is direction 0 over idle, and
         drives the sticks. That mistake reached hardware once already.
         """
         return cls(mask=MACRO_ANALOG_NEUTRAL, duration_ms=duration_ms)
@@ -983,7 +983,7 @@ class LightingEntry:
     r, g, b, data4, data5, light per entry and prefixes the whole run with
     entry_count * 6. The two middle bytes are named data4/data5 in the app
     itself and their meaning is genuinely undocumented; they are preserved
-    verbatim rather than guessed at.
+    verbatim instead of guessed at.
     """
 
     r: int
@@ -1035,7 +1035,7 @@ def parse_lighting(body: "Body") -> list[LightingEntry]:
 #
 # It has a side effect: the pad begins streaming live input on opcode 0x1F until
 # NORMAL_MODE is sent or the link drops. Callers should send NORMAL_MODE_PAYLOAD
-# afterwards rather than leaving it running.
+# afterwards instead of leaving it running.
 POWER_QUERY_PAYLOAD = bytes([0x02, 0xDF, 0xAB])
 NORMAL_MODE_PAYLOAD = bytes([0x02, 0xDF, 0xAB])
 
@@ -1044,7 +1044,7 @@ BATTERY_LEVELS = 4
 
 @dataclass
 class Battery:
-    """Charge state, as a four-step gauge rather than a percentage.
+    """Charge state, as a four-step gauge. There is no percentage available.
 
     The pad reports level in bits 5 to 7 of the status byte and charging in
     bit 4. There is no finer resolution available: the official app draws one of
@@ -1056,7 +1056,7 @@ class Battery:
 
     @property
     def approximate_percent(self) -> int:
-        """A rough percentage for display. The device does not report one."""
+        """A rough percentage for display. The device doesn't report one."""
         return round(self.level * 100 / BATTERY_LEVELS)
 
     def __str__(self) -> str:
@@ -1116,7 +1116,7 @@ def parse_device_info(payload: bytes) -> DeviceInfo:
     """Decode the payload of a RESPONSE to READ_VID_PID_VERSION.
 
     The trailing bitfield is only decoded when the payload is exactly 7 bytes.
-    The app explicitly skips it otherwise, and we do not guess in its place.
+    The app explicitly skips it otherwise, and we don't guess in its place.
     """
     if len(payload) < 6:
         raise ValueError(f"device info payload too short: {len(payload)} bytes")
@@ -1137,7 +1137,7 @@ def parse_device_info(payload: bytes) -> DeviceInfo:
     return info
 
 
-# Factory reset, guarded by a magic payload. Restores settings only; it does not
+# Factory reset, guarded by a magic payload. Restores settings only; it doesn't
 # touch firmware. This is the documented recovery path.
 RECOVER_MAGIC = bytes([0x03, 0xDF, 0xA9])
 

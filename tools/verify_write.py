@@ -6,11 +6,11 @@ itself emits when the user changed nothing:
     CodeHelper.writeHostChangeKeyData(new int[]{0}, 0)   ->  payload [0]
 
 A count of zero means "no remaps". The pad already reports zero remaps, so this
-cannot alter its configuration. What it does prove is that our write framing,
+can't alter its configuration. What it does prove is that our write framing,
 bit-packed length field and serial encoding are accepted.
 
 The procedure is read, write, read, compare. If the two reads differ, the write
-was not the no-op we believed and that is reported loudly.
+wasn't the no-op we believed and that's reported loudly.
 
 Usage:
     python verify_write.py 98:B6:ED:E3:15:C4 --dry-run
