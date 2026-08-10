@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor, QPainter
+from PySide6.QtCore import QPoint, QRectF, Qt, Signal
+from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import (
     QFrame, QHBoxLayout, QLabel, QLineEdit, QPushButton, QSizePolicy,
-    QSlider, QSpinBox, QVBoxLayout, QWidget,
+    QSlider, QSpinBox, QToolButton, QToolTip, QVBoxLayout, QWidget,
 )
 
 from .. import protocol as p
@@ -37,10 +37,42 @@ class StatusDot(QWidget):
         painter.drawEllipse(0, 0, 9, 9)
 
 
-def section_label(text: str) -> QLabel:
+class InfoButton(QToolButton):
+    """A small 'i' that explains a control when clicked or hovered.
+
+    Uses a tooltip rather than a dialog so reading an explanation never
+    interrupts what you were doing.
+    """
+
+    def __init__(self, explanation: str) -> None:
+        super().__init__()
+        self.explanation = explanation.strip()
+        self.setObjectName("Info")
+        self.setText("i")
+        self.setFixedSize(16, 16)
+        self.setCursor(Qt.WhatsThisCursor)
+        self.setToolTip(self.explanation)
+        self.clicked.connect(self._show)
+
+    def _show(self) -> None:
+        QToolTip.showText(self.mapToGlobal(QPoint(18, 0)), self.explanation, self)
+
+
+def section_label(text: str, explanation: str | None = None) -> QWidget:
+    """A section heading, optionally with an info button beside it."""
     label = QLabel(text.upper())
     label.setObjectName("SectionTitle")
-    return label
+    if explanation is None:
+        return label
+
+    holder = QWidget()
+    row = QHBoxLayout(holder)
+    row.setContentsMargins(0, 0, 0, 0)
+    row.setSpacing(6)
+    row.addWidget(label)
+    row.addWidget(InfoButton(explanation))
+    row.addStretch(1)
+    return holder
 
 
 def divider() -> QFrame:

@@ -5,7 +5,7 @@ from __future__ import annotations
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QFrame, QHBoxLayout, QInputDialog, QLabel, QListWidget, QListWidgetItem,
-    QMessageBox, QPushButton, QScrollArea, QVBoxLayout, QWidget,
+    QMessageBox, QPushButton, QScrollArea, QStackedWidget, QVBoxLayout, QWidget,
 )
 
 from .. import transport
@@ -15,6 +15,7 @@ from ..input import MacroRecorder, XInputReader
 from ..profiles import MacroSpec, Profile, ProfileStore, SLOTS
 from . import theme
 from .bridge import AsyncBridge
+from .tester import TesterPage
 from .widgets import MacroCard, StatusDot, VibrationRow, divider, section_label
 
 RECORD_POLL_MS = 5      # matches the protocol's own timing resolution
@@ -45,7 +46,12 @@ class MainWindow(QWidget):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
         root.addWidget(self._build_sidebar())
-        root.addWidget(self._build_main(), 1)
+
+        self.pages = QStackedWidget()
+        self.pages.addWidget(self._build_main())
+        self.tester = TesterPage()
+        self.pages.addWidget(self.tester)
+        root.addWidget(self.pages, 1)
 
         self.reload_profiles()
         QTimer.singleShot(200, self.connect_controller)
@@ -75,7 +81,15 @@ class MainWindow(QWidget):
         holder = QWidget()
         holder_layout = QVBoxLayout(holder)
         holder_layout.setContentsMargins(16, 0, 16, 0)
-        holder_layout.addWidget(section_label("save files"))
+        holder_layout.addWidget(section_label("save files", (
+            "A save file is a complete set of macros plus a vibration level.\n\n"
+            "The controller has four fixed slots and knows nothing about save "
+            "files: switching between them rewrites those slots. So a save file "
+            "lives on this computer, not on the pad.\n\n"
+            "Applying leaves any slot the save file does not define exactly as "
+            "it was. Assignments you made with button combinations on the pad "
+            "itself are invisible to software, so clearing a slot could destroy "
+            "work that cannot be read back or restored.")))
         layout.addWidget(holder)
 
         self.profile_list = QListWidget()
@@ -83,18 +97,38 @@ class MainWindow(QWidget):
         layout.addWidget(self.profile_list, 1)
 
         buttons = QWidget()
-        row = QHBoxLayout(buttons)
-        row.setContentsMargins(16, 0, 16, 0)
-        row.setSpacing(8)
-        new_button = QPushButton("New")
-        new_button.setObjectName("Ghost")
-        new_button.clicked.connect(self.new_profile)
-        delete_button = QPushButton("Delete")
-        delete_button.setObjectName("Danger")
-        delete_button.clicked.connect(self.delete_profile)
-        row.addWidget(new_button)
-        row.addWidget(delete_button)
+        column = QVBoxLayout(buttons)
+        column.setContentsMargins(16, 0, 16, 0)
+        column.setSpacing(6)
+
+        add_button = QPushButton("Add save file")
+        add_button.setObjectName("Ghost")
+        add_button.clicked.connect(self.new_profile)
+        column.addWidget(add_button)
+
+        row = QHBoxLayout()
+        row.setSpacing(6)
+        rename_button = QPushButton("Rename")
+        rename_button.setObjectName("Ghost")
+        rename_button.clicked.connect(self.rename_profile)
+        remove_button = QPushButton("Remove")
+        remove_button.setObjectName("Danger")
+        remove_button.clicked.connect(self.delete_profile)
+        row.addWidget(rename_button)
+        row.addWidget(remove_button)
+        column.addLayout(row)
         layout.addWidget(buttons)
+
+        layout.addSpacing(4)
+        nav = QWidget()
+        nav_layout = QVBoxLayout(nav)
+        nav_layout.setContentsMargins(16, 0, 16, 0)
+        self.tester_button = QPushButton("Input tester")
+        self.tester_button.setObjectName("Ghost")
+        self.tester_button.setCheckable(True)
+        self.tester_button.clicked.connect(self.toggle_tester)
+        nav_layout.addWidget(self.tester_button)
+        layout.addWidget(nav)
         return panel
 
     def _build_main(self) -> QWidget:
@@ -145,7 +179,26 @@ class MainWindow(QWidget):
         layout.addWidget(self.notice)
 
         # macro cards ----------------------------------------------------
-        layout.addWidget(section_label("macros"))
+        layout.addWidget(section_label("macros", (
+            "Each of the four rear buttons can replay a sequence.\n\n"
+            "WRITING A SEQUENCE\n"
+            "  '+' presses keys together:  A+B is a chord\n"
+            "  ',' plays them in turn:     A,B is A then B\n"
+            "  Combine them:               A+B,X\n\n"
+            "Sticks work too, as a direction: LS_UP, RS_DOWN_LEFT.\n"
+            "So LS_UP+A pushes the stick up while holding A.\n\n"
+            "THE THREE TIMING FIELDS\n"
+            "  hold — how long each press is held down. 50ms is faster than a "
+            "human can press, and some games poll slowly enough to miss it. "
+            "80 to 120ms behaves like a deliberate press.\n\n"
+            "  gap — the pause between one press and the next. Games that "
+            "debounce input need a real gap or they treat two presses as one.\n\n"
+            "  loop — an interval, not a duration. Zero means the macro fires "
+            "once. Anything else makes it repeat forever with that gap between "
+            "runs, until you press a different macro button. There is no "
+            "'repeat for N seconds' setting on this hardware.\n\n"
+            "All three are stored in units of 5ms, which is the controller's own "
+            "resolution, so values snap to multiples of five.")))
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
@@ -165,7 +218,13 @@ class MainWindow(QWidget):
         layout.addWidget(scroll, 1)
 
         # vibration ------------------------------------------------------
-        layout.addWidget(section_label("vibration"))
+        layout.addWidget(section_label("vibration", (
+            "Rumble strength for both motors, 0 to 100 percent.\n\n"
+            "The controller stores this as a single byte per motor, so the "
+            "percentage is converted on the way in. Zero silences rumble "
+            "entirely, which the pad's own button combinations cannot do.\n\n"
+            "This is one of the few settings with no on-pad equivalent, so "
+            "software is the only way to reach it.")))
         self.vibration = VibrationRow()
         layout.addWidget(self.vibration)
 
@@ -243,6 +302,37 @@ class MainWindow(QWidget):
         profile = Profile(name=name.strip())
         self.store.save(profile)
         self.reload_profiles(select=profile.name)
+
+    def rename_profile(self) -> None:
+        item = self.profile_list.currentItem()
+        if item is None:
+            return
+        old = item.data(Qt.UserRole) or item.text()
+        name, accepted = QInputDialog.getText(self, "Rename save file", "Name:",
+                                              text=old)
+        name = name.strip()
+        if not accepted or not name or name == old:
+            return
+        try:
+            profile = self.store.load(old)
+        except (FileNotFoundError, ValueError) as exc:
+            self.set_status(f"could not rename: {exc}", "Danger")
+            return
+        profile.name = name
+        self.store.save(profile)
+        self.store.delete(old)          # remove the file under the old slug
+        self.reload_profiles(select=name)
+        self.set_status(f"renamed to “{name}”", "Success")
+
+    def toggle_tester(self) -> None:
+        showing_tester = self.tester_button.isChecked()
+        self.pages.setCurrentIndex(1 if showing_tester else 0)
+        self.tester_button.setText("Back to settings" if showing_tester
+                                   else "Input tester")
+        if showing_tester:
+            self.tester.start()
+        else:
+            self.tester.stop()
 
     def delete_profile(self) -> None:
         item = self.profile_list.currentItem()
@@ -457,6 +547,7 @@ class MainWindow(QWidget):
 
     def closeEvent(self, event) -> None:
         self.record_timer.stop()
+        self.tester.stop()
         pad = self.pad
         if pad is not None:
             self.bridge.run(lambda: pad.disconnect())
