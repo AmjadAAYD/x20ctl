@@ -16,9 +16,9 @@ from x20ctl import protocol as p
 
 
 def test_generated_crc_table_matches_the_app():
-    """The app ships a literal 256-entry table. If our polynomial guess is right,
-    the generated table is identical, which proves the checksum is plain CRC-8
-    with polynomial 0x79 rather than an arbitrary permutation."""
+    """The app ships a literal 256-entry table. Generating it from the
+    polynomial reproduces it exactly, which proves the checksum is plain
+    reflected CRC-8 with polynomial 0xEB rather than an arbitrary permutation."""
     assert len(p.CRC_TABLE_FROM_APP) == 256
     assert p.CRC_TABLE == p.CRC_TABLE_FROM_APP
 
@@ -406,7 +406,7 @@ def test_macro_step_rejects_unrepresentable_duration():
 
 def test_macro_payload_header_sizes_the_steps():
     steps = [p.MacroStep(mask=1, duration_ms=50), p.MacroStep(mask=0, duration_ms=50)]
-    payload = p.build_macro_payload(steps, total_ms=100)
+    payload = p.build_macro_payload(steps, loop_interval_ms=0)
     assert payload[0] == len(steps) * 5 + 2
     assert len(payload) == 3 + len(steps) * p.MACRO_STEP_SIZE
     assert p.MacroStep.parse(payload[3:8]) == steps[0]
@@ -463,7 +463,7 @@ def test_a_full_tap_sequence_never_zeroes_the_nibbles():
         p.MacroStep(mask=p.mask_for([p.Key.A]), duration_ms=50),
         p.MacroStep.released(50),
     ]
-    payload = p.build_macro_payload(steps, total_ms=3000)
+    payload = p.build_macro_payload(steps, loop_interval_ms=0)
     for i in range(3, len(payload), p.MACRO_STEP_SIZE):
         assert payload[i] == 0x88, f"step at {i} has non-neutral analog nibbles"
 
