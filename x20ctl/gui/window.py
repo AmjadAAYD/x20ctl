@@ -619,7 +619,7 @@ class MainWindow(QWidget):
         self.device_name.setText(p.product_name(
             snapshot.name, snapshot.device.vid, snapshot.device.pid))
         self.device_detail.setText(
-            f"firmware {snapshot.device.version}   ·   {address}")
+            self.describe_device(snapshot.device.version, address))
         self.connect_button.setText("Reconnect")
         self.connect_button.setEnabled(True)
         self.vibration.set_value(snapshot.vibration[0])
@@ -725,6 +725,17 @@ class MainWindow(QWidget):
         self.curves.set_busy(False)
         self.curves.set_status(diagnose(message).headline, "Danger")
         self._sync_apply_state()
+
+    @staticmethod
+    def describe_device(firmware: str, address: str) -> str:
+        """The line under the controller's name.
+
+        Both versions belong here and they are different things, so each is
+        labelled. The controller's firmware is the pad's; x20ctl's is this
+        app's, and having the two side by side is what makes a bug report
+        useful.
+        """
+        return f"firmware {firmware}   ·   x20ctl {__version__}   ·   {address}"
 
     def refresh_link(self) -> None:
         """Show how the pad is attached for play, which is separate from the
