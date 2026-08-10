@@ -141,9 +141,10 @@ many reports per second actually reach Windows. The trail is what makes stick
 behaviour visible: rolling around the edge should trace a clean circle, and a
 released stick should settle dead centre.
 
-Applying writes every setting in the save file to the controller. Settings the
-pad does not expose are skipped rather than attempted, and slots the save file
-does not define are left exactly as they were.
+Applying makes the controller match the save file exactly, so switching between
+save files really switches. Any slot the file leaves empty is cleared on the pad.
+Settings the controller does not expose are skipped rather than attempted, and
+the app says which.
 
 ---
 
@@ -175,7 +176,13 @@ Fourteen buttons can appear in a macro: A, B, X, Y, LB, RB, LT, RT, L3, R3 and
 the four d-pad directions, plus both sticks. Select, Start and Home cannot: the
 pad's own macro key list omits them.
 
-The three timings:
+Each step can carry its own timing, which is what the hardware stores:
+
+- `A:150` holds A for 150 ms
+- `A:150/40` holds 150 ms, then waits 40 ms before the next step
+- `A:150, B` times each step independently
+
+Steps without their own timing fall back to the three defaults:
 
 - `hold_ms`: how long each press lasts. 50 ms is faster than a human can press
   and some games poll slowly enough to miss it; 80 to 120 ms is more reliable.
