@@ -182,7 +182,7 @@ def main() -> None:
     slot0 = args.slot - 1
     names = [] if args.clear else [k for k in args.keys.split(",") if k.strip()]
     # Clearing sends a bare [0], which is what writeMacroData emits when the
-    # step list is empty. An empty header is not the same thing.
+    # step list is empty. An empty header isn't the same thing.
     payload = p.MACRO_CLEAR if args.clear else \
         build_payload(names, args.hold, args.gap, args.loop_ms)
 

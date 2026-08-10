@@ -2,7 +2,7 @@
 KeyLinker configuration endpoint.
 
 This tool is receive-only. It never connects, pairs, or writes. It just reports
-what the air already carries, so it is safe to leave running while the controller
+what the air already carries, so it's safe to leave running while the controller
 is cycled through its modes.
 
 Usage:

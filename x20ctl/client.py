@@ -9,7 +9,7 @@ echoes.
         await pad.set_vibration(60)
         await pad.set_macro(1, "A+B", hold_ms=100)
 
-Discovery, if the address is not known:
+Discovery, if the address isn't known:
 
     address = await find_controller()
 """
@@ -41,7 +41,7 @@ class ControllerError(RuntimeError):
 
 
 class NotSupported(ControllerError):
-    """The pad's capability descriptor says it does not expose this setting."""
+    """The pad's capability descriptor says it doesn't expose this setting."""
 
 
 async def find_controller(timeout: float = 8.0) -> str | None:
@@ -206,9 +206,9 @@ class X20:
         """The mask layout this particular controller uses.
 
         Bit positions are decided by the pad's own macro key list, so they are
-        a property of the device rather than of the model. Reading it means a
+        a property of the device instead of of the model. Reading it means a
         controller that reports a different list still gets correct macros.
-        Falls back to the X20 layout if the pad will not say.
+        Falls back to the X20 layout if the pad won't say.
         """
         if self._layout is None or refresh:
             body = await self.read_body(
@@ -340,7 +340,7 @@ class X20:
         """Empty a macro slot.
 
         Sends a bare [0], which is what the app emits for an empty step list.
-        An empty header is a different thing and does not clear.
+        An empty header is a different thing and doesn't clear.
         """
         if not 1 <= slot <= 4:
             raise ValueError("slot must be 1-4")

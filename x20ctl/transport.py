@@ -1,28 +1,21 @@
 """Work out how the controller is physically connected.
 
-The pad presents a different identity on each transport, so the way to tell them
-apart is to enumerate what Windows sees and match on the interface rather than
-on the USB ids, which are cloned from Microsoft on every link.
+Matches on the interface Windows reports, since the USB ids are cloned from
+Microsoft on every link and tell you nothing.
 
-Observed on an EasySMX X20:
+What an X20 looks like:
 
-    wired USB          USB\\VID_045E&PID_028E   REV_0110, xusb22 + HID
-    2.4 GHz receiver   USB\\VID_045E&PID_028E   REV_0110, xusb22 + HID
-    Bluetooth Classic  BTHENUM\\...045E&02FD    BR/EDR HID profile
+    wired USB          USB\VID_045E&PID_028E   REV_0110, xusb22 + HID
+    2.4 GHz receiver   USB\VID_045E&PID_028E   REV_0110, xusb22 + HID
+    Bluetooth Classic  BTHENUM\...045E&02FD    BR/EDR HID profile
 
-**Wired and the receiver are indistinguishable.** They present the same vendor
-id, the same product id, the same revision, the same driver, and the same device
-tree shape. The receiver is completely transparent: it makes the pad look like a
-wired Xbox 360 controller. Compared side by side on the same machine, the only
-difference was the interface group number, which is an enumeration artefact
-rather than a property of the link.
+Note the first two are identical. The receiver is transparent: same ids, same
+revision, same driver, same device tree. Side by side the only difference was
+the interface group number, which is an enumeration artefact. So both report as
+Link.USB and the label says so.
 
-So this module reports Link.USB for both and says so, rather than picking one.
-An earlier version claimed "wired" while the pad was on the receiver, which is
-worse than admitting the ambiguity.
-
-Bluetooth is checked last, because the pad remains listed as a present Bluetooth
-device while its configuration link is up, even when you are playing over USB.
+Bluetooth is checked last. The pad stays listed as present over Bluetooth while
+its config link is up, even while you play over USB.
 """
 
 from __future__ import annotations
@@ -35,7 +28,7 @@ from enum import Enum
 
 class Link(Enum):
     # Wired and the 2.4 GHz receiver are indistinguishable on this hardware,
-    # so they share one value rather than pretending we can tell.
+    # so they share one value not pretending we can tell.
     USB = "USB or 2.4 GHz receiver"
     DONGLE = "2.4 GHz receiver"
     BLUETOOTH = "Bluetooth"
@@ -89,7 +82,7 @@ def detect(ids: list[str] | None = None) -> Connection:
 
     USB is checked before Bluetooth, which is the opposite of the obvious
     order. The reason is that this pad stays listed as a present Bluetooth
-    device while its configuration link is up, even when you are playing over
+    device while its configuration link is up, even when you're playing over
     the 2.4 GHz receiver. A gamepad physically present on USB is much stronger
     evidence of the active link than a Bluetooth entry that may only reflect
     pairing.
@@ -98,7 +91,7 @@ def detect(ids: list[str] | None = None) -> Connection:
     if not ids:
         return Connection(Link.UNKNOWN, "could not enumerate devices")
 
-    # 1. The pad's USB identity. Cannot tell a cable from the receiver here.
+    # 1. The pad's USB identity. Can't tell a cable from the receiver here.
     for entry in ids:
         if WIRED_ID.search(entry):
             return Connection(
@@ -131,7 +124,7 @@ def describe_for_config() -> str:
     """A note about which link carries configuration.
 
     Configuration always runs over the BLE peripheral regardless of how the pad
-    is being played, so a wired or dongle connection is not a problem.
+    is being played, so a wired or dongle connection isn't a problem.
     """
     return ("Configuration always runs over the separate Bluetooth LE peripheral, "
             "whichever link you play on. Both can be live at once.")

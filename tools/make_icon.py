@@ -68,7 +68,7 @@ def draw(size: int) -> QImage:
     painter.drawRoundedRect(body, 40 * s, 40 * s)
 
     # -- two stick wells --------------------------------------------------
-    # Filled with the tile colour rather than punched through the alpha. A
+    # Filled with the tile colour over punched through the alpha. A
     # destination-out punch would make them transparent all the way through the
     # icon, so they would show the desktop rather than the tile.
     #

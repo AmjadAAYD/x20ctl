@@ -1,11 +1,6 @@
-"""Motion.
+"""Animation helpers.
 
-Animation earns its place when it explains something: where a page came from,
-that a value changed, that the app is waiting on hardware. Decoration that moves
-for its own sake is noise, so there is not much here and each piece has a reason.
-
-Durations are short. Anything past about 250ms starts to feel like the interface
-is arguing with you.
+Kept short on purpose. Past ~250ms it starts to feel sluggish.
 """
 
 from __future__ import annotations
@@ -44,7 +39,7 @@ def fade_in(widget, duration: int = NORMAL, start: float = 0.0):
 def slide_in(widget, distance: int = 14, duration: int = NORMAL):
     """Fade in while rising slightly, so a new page reads as arriving.
 
-    Does nothing if the widget is not on screen. An animation that never gets
+    Does nothing if the widget isn't on screen. An animation that never gets
     to run would otherwise leave the widget stuck at zero opacity, which is a
     blank page rather than a missing flourish.
     """

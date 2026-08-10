@@ -120,7 +120,7 @@ def test_device_info_from_real_hardware():
     assert info.pid == "1320"
     assert info.version == "9.01"
     assert info.device_id == 0x1
-    # 8-byte payload: the app does not decode the trailing bitfield, nor do we
+    # 8-byte payload: the app doesn't decode the trailing bitfield, nor do we
     assert info.model is None
     assert info.sensor is None
 
@@ -278,7 +278,7 @@ CAPABILITY_RECORD = bytes.fromhex("0a03030300 0f01000 2c000".replace(" ", ""))
 def test_capabilities_match_the_physical_x20():
     """Cross-check: the decoded record must agree with the hardware in hand.
     The X20 has two hall sticks, two triggers, two rumble motors and four rear
-    buttons. If the bit order were wrong these would not all line up."""
+    buttons. If the bit order were wrong these wouldn't all line up."""
     caps = p.parse_capabilities(p.unwrap(CAPABILITY_RECORD))
     assert caps.has_left_stick and caps.has_right_stick
     assert caps.has_left_trigger and caps.has_right_trigger
@@ -321,8 +321,8 @@ def test_capabilities_rejects_short_record():
 def test_noop_changekey_write_matches_the_bytes_hardware_accepted():
     """The first write ever accepted by the controller, pinned exactly.
 
-    Payload [0] means zero remaps. It is the packet the official app emits when
-    the user changed nothing, so it is a no-op by construction. The pad
+    Payload [0] means zero remaps. It's the packet the official app emits when
+    the user changed nothing, so it's a no-op by construction. The pad
     acknowledged it with a RESPONSE echoing serial 0x81, which is what proves
     the bit-packed serial and length encodings are right.
     """
@@ -447,7 +447,7 @@ def test_analog_keys_rejected_from_mask():
 def test_release_step_keeps_analog_neutral():
     """Second regression for the same bug, one line further along.
 
-    Fixing mask_for() was not enough: a release step built as MacroStep(mask=0)
+    Fixing mask_for() wasn't enough: a release step built as MacroStep(mask=0)
     bypasses it and re-creates the fault. MacroStep.released() exists so the
     safe form is the obvious one.
     """
@@ -515,7 +515,7 @@ def test_macro_writes_rejects_empty_payload():
 
 
 def test_all_fourteen_digital_buttons_are_macro_capable():
-    """Every key in the pad's macro list that is a single-bit digital button
+    """Every key in the pad's macro list that's a single-bit digital button
     must be usable. 18 and 19 are analog, 93 and 94 are editor pseudo-keys."""
     pad_list = p.decode_key_list(bytes.fromhex("1212130d8401880b825d82"))
     digital = [k for k in pad_list if k not in (18, 19, 93, 94)]
@@ -527,7 +527,7 @@ def test_all_fourteen_digital_buttons_are_macro_capable():
 
 def test_select_start_home_are_rejected_with_a_clear_reason():
     """These are absent from the pad's macro list, so they must fail loudly
-    rather than silently producing a mask that does nothing."""
+    instead of silently producing a mask that does nothing."""
     for key in (p.Key.SELECT, p.Key.START, p.Key.HOME):
         try:
             p.mask_for([key])
@@ -643,7 +643,7 @@ def test_battery_bit_layout():
 
 def test_battery_precedence_follows_the_app():
     """The app tests bit 5 first, so a lower bit wins when several are set.
-    Reproduced rather than 'corrected', since the device's meaning is unknown."""
+    Reproduced over 'corrected', since the device's meaning is unknown."""
     both = p.parse_battery(p.Body(declared=9, data=bytes([0, 0, 0, 0b1010_0000, 0])))
     assert both.level == 2
 

@@ -4,7 +4,7 @@ Builds the window offscreen and exercises the pure-logic paths: the form
 round-trip, validation feedback, and that a malformed macro disables Apply. No
 event loop is run, so no BLE connection is attempted.
 
-Skips cleanly if PySide6 is not installed.
+Skips cleanly if PySide6 isn't installed.
 """
 
 from __future__ import annotations
@@ -55,7 +55,7 @@ def test_invalid_keys_are_flagged_not_crashed():
     card = MacroCard("M3")
     card.keys.setText("NOT_A_BUTTON")
     assert not card.is_valid()
-    # the reason is shown in place of the summary rather than in a second label
+    # the reason is shown in place of the summary not in a second label
     assert "unknown key" in card.summary.text().lower()
 
 
@@ -169,7 +169,7 @@ def test_autosave_refuses_to_recreate_a_missing_profile():
 
 def test_choosing_a_save_file_leaves_the_tester():
     """Clicking a save file while the tester is open should return to the
-    settings, not strand you on a page that cannot show it."""
+    settings, not strand you on a page that can't show it."""
     import tempfile
 
     from x20ctl.gui.window import MainWindow

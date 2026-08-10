@@ -1,7 +1,7 @@
 """Read the controller's live input, and record it into a macro.
 
-The pad presents itself as an Xbox controller, so XInput gives a documented
-button bitmask rather than a HID report whose bit layout we would have to guess.
+The pad presents itself as an Xbox controller, so XInput gives us a documented
+button bitmask. A raw HID report would mean guessing at the bit layout.
 Entirely read-only: XInputGetState asks the driver for the current state and
 changes nothing.
 
@@ -161,7 +161,7 @@ class MacroRecorder:
     """Turns live button presses into macro steps.
 
     Only buttons the pad can put in a macro are captured; pressing Start or Home
-    while recording is ignored rather than producing a macro that cannot be
+    while recording is ignored rather than producing a macro that can't be
     written.
     """
 

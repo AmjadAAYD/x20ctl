@@ -34,8 +34,8 @@ hardware. Full detail in [docs/01-protocol.md](docs/01-protocol.md).
   automatically.
 - **Macro recording.** Press buttons on the controller and the app captures them
   with the timing you actually played.
-- **Vibration strength**, 0 to 100 percent. The pad's own controls cannot set
-  this, and cannot silence rumble at all.
+- **Vibration strength**, 0 to 100 percent. The pad's own controls can't set
+  this, and can't silence rumble at all.
 - **Battery level**, a four step gauge with a charging flag.
 - **Save files.** Named sets of macros and vibration, stored as JSON. Applying
   one makes the controller match it exactly.
@@ -44,7 +44,7 @@ hardware. Full detail in [docs/01-protocol.md](docs/01-protocol.md).
 - **Polling rate meter.** Counts the reports per second that actually reach
   Windows, so comparing links is meaningful. Reads 1002 peak on a 2.4GHz
   receiver, matching an independent tool on the same hardware.
-- **Transport detection.** Reports whether you are playing over Bluetooth or
+- **Transport detection.** Reports whether you're playing over Bluetooth or
   USB.
 - **Command line interface** alongside the app, and a **standalone executable**
   that needs no Python.
@@ -55,7 +55,7 @@ hardware. Full detail in [docs/01-protocol.md](docs/01-protocol.md).
 
 The pad publishes a capability descriptor stating what it will accept, and an
 X20 reports zero for these. They exist in the hardware but are driven by button
-combinations on the pad and are not reachable through this protocol. Another
+combinations on the pad and aren't reachable through this protocol. Another
 controller on the same chip may report them as available, and the library gates
 on the descriptor, so it will simply work.
 
@@ -67,7 +67,7 @@ on the descriptor, so it will simply work.
 
 - **Firmware flashing.** That runs through the mass storage bootloader, which is
   the only path that can destroy the controller. Use the manufacturer's updater.
-  `x20 status` reports the installed version so you can tell when you are behind.
+  `x20 status` reports the installed version so you can tell when you're behind.
 
 ### Fixed during development
 
@@ -76,12 +76,12 @@ Kept because each one records something learned about the hardware.
 - **Macros drove both thumbsticks.** An untouched analog entry encodes as
   `0b1000`, not `0b0000`. A zeroed nibble is direction *up*, not centre, so an
   early macro swept both sticks until it was interrupted.
-- **The same fault, one line later.** Fixing the mask builder was not enough;
+- **The same fault, one line later.** Fixing the mask builder wasn't enough;
   release steps were built with a bare zero mask and recreated it.
 - **Macros repeated forever.** The header field is a loop *interval*, not a
   duration. Zero disables looping; anything else repeats until another macro
   button is pressed.
-- **Save files did not switch.** Applying left slots the file did not define
+- **Save files didn't switch.** Applying left slots the file didn't define
   alone, so the previous file's macros stayed live while the app showed the new
   one.
 - **Recordings were lost.** Recording filled the card but saved nothing, so
@@ -91,14 +91,14 @@ Kept because each one records something learned about the hardware.
 - **The recorder discarded its own timing**, averaging every step into a single
   hold and gap.
 - **The polling meter undercounted**, reading about 900Hz where the true figure
-  was 1002. It counted whether the packet number changed rather than by how
-  much.
+  was 1002. It counted whether the packet number changed, not by how
+  much it changed.
 - **Transport detection claimed "wired" on a receiver.** The receiver is
   transparent: same ids, same revision, same driver as a cable. The two are
   indistinguishable, and the app now says so instead of guessing.
-- **The windowed launcher died silently.** Under `pythonw` there is no
+- **The windowed launcher died silently.** Under `pythonw` there's no
   `sys.stdout`, and terminal code was being imported during startup.
-- **The taskbar icon did not appear.** The app identity was being set after the
+- **The taskbar icon didn't appear.** The app identity was being set after the
   icon, and Windows had already chosen by then.
 - **Clicking a save file did nothing** while the input tester was open.
 - **Bluetooth being off looked like a fault.** Settings need it; playing does

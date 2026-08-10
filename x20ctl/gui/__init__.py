@@ -43,7 +43,7 @@ def icon_path() -> str | None:
 def _write_diagnostic(resolved: str | None) -> None:
     """Record how startup went, for when the app has no console to say it on.
 
-    A windowed build cannot print, so a problem like a missing icon is silent.
+    A windowed build can't print, so a problem like a missing icon is silent.
     Set X20CTL_DIAGNOSE=1 to have it leave a note.
     """
     if not os.environ.get("X20CTL_DIAGNOSE"):
@@ -95,7 +95,7 @@ def main() -> int:
         app.setWindowIcon(icon)
 
     window = MainWindow()
-    # Also set it on the window. The application icon alone is not always what
+    # Also set it on the window. The application icon alone isn't always what
     # the taskbar picks up.
     if not icon.isNull():
         window.setWindowIcon(icon)

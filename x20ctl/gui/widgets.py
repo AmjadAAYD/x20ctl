@@ -1,7 +1,7 @@
 """Reusable pieces of the interface.
 
 Cards and indicators paint themselves rather than relying on stylesheets,
-because Qt stylesheets cannot animate. Anything that changes state smoothly is
+because Qt stylesheets can't animate. Anything that changes state smoothly is
 drawn by hand against an eased value.
 """
 
@@ -32,9 +32,9 @@ def _mix(a: str, b: str, t: float) -> QColor:
 
 
 class StatusDot(QWidget):
-    """Connection state, with a breathing ring while it is working.
+    """Connection state, with a breathing ring while it's working.
 
-    The pulse exists so a slow Bluetooth connection does not look like a frozen
+    The pulse exists so a slow Bluetooth connection doesn't look like a frozen
     app. It stops the moment the state resolves.
     """
 
@@ -105,7 +105,7 @@ class Wordmark(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
 
-        # a rounded pad silhouette with two sticks, drawn rather than shipped
+        # a rounded pad silhouette with two sticks, drawn over shipped
         body = QRectF(0, 7, 26, 16)
         path = QPainterPath()
         path.addRoundedRect(body, 7, 7)
@@ -214,7 +214,7 @@ class MacroCard(QFrame):
     """One M-slot.
 
     Painted by hand so filling a slot, hovering it, or arming it for recording
-    can ease rather than snap. A card that is holding a macro sits visibly
+    can ease rather than snap. A card that's holding a macro sits visibly
     higher than an empty one, which is the fastest way to read the four slots.
     """
 
