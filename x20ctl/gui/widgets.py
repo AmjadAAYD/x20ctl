@@ -92,10 +92,12 @@ class MacroCard(QFrame):
     """One M-slot: the key sequence and its timing."""
 
     changed = Signal()
+    record_requested = Signal(str)
 
     def __init__(self, slot: str) -> None:
         super().__init__()
         self.slot = slot
+        self.recording = False
         self.setObjectName("Card")
 
         outer = QVBoxLayout(self)
@@ -112,10 +114,13 @@ class MacroCard(QFrame):
         row.addWidget(name)
 
         self.keys = QLineEdit()
-        self.keys.setPlaceholderText("A+B   or   A,B   or   LT+RB,Y")
+        self.keys.setPlaceholderText("A+B    A,B    LS_UP+A")
+        self.keys.setMinimumWidth(150)
         self.keys.setToolTip(
-            "'+' presses keys together, ',' plays them one after another.\n"
-            "Available: " + ", ".join(k.name for k in p.MACRO_MASK_BIT))
+            "'+' presses keys together, ',' plays them one after another.\n\n"
+            "Buttons: " + ", ".join(k.name for k in p.MACRO_MASK_BIT) + "\n\n"
+            "Sticks: LS_ or RS_ plus a direction, e.g. LS_UP, RS_DOWN_LEFT.\n"
+            "Directions: " + ", ".join(d.name for d in p.Direction))
         self.keys.textChanged.connect(self._refresh)
         row.addWidget(self.keys, 1)
 
@@ -125,6 +130,16 @@ class MacroCard(QFrame):
         self.loop.setToolTip(
             "0 fires once. Any other value repeats forever with this interval,\n"
             "until you press a different macro button.")
+
+        self.record_button = QPushButton("Record")
+        self.record_button.setObjectName("Ghost")
+        self.record_button.setFixedWidth(76)
+        self.record_button.setToolTip(
+            "Press buttons on the controller and they are captured here,\n"
+            "with the real timing between them.")
+        self.record_button.clicked.connect(
+            lambda: self.record_requested.emit(self.slot))
+        row.addWidget(self.record_button)
 
         self.clear_button = QPushButton("Clear")
         self.clear_button.setObjectName("Ghost")
@@ -153,7 +168,7 @@ class MacroCard(QFrame):
         spin.setRange(0, 4000)
         spin.setSingleStep(5)
         spin.setValue(default)
-        spin.setFixedWidth(96)
+        spin.setFixedWidth(84)
         spin.setSuffix(" ms")
         spin.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         spin.setToolTip(f"{caption} duration in milliseconds")
@@ -224,3 +239,26 @@ class MacroCard(QFrame):
         except ValueError:
             return False
         return True
+
+    # -- recording -------------------------------------------------------
+
+    def set_recording(self, active: bool) -> None:
+        self.recording = active
+        self.record_button.setText("Stop" if active else "Record")
+        self.record_button.setObjectName("Danger" if active else "Ghost")
+        self.record_button.style().unpolish(self.record_button)
+        self.record_button.style().polish(self.record_button)
+        self.keys.setEnabled(not active)
+        self.clear_button.setEnabled(not active)
+        if active:
+            self.error.hide()
+            self.summary.setText("recording · press buttons on the controller")
+            self.summary.setObjectName("Warning")
+        else:
+            self._refresh()
+        self.summary.style().unpolish(self.summary)
+        self.summary.style().polish(self.summary)
+
+    def show_recording_progress(self, text: str) -> None:
+        if self.recording:
+            self.summary.setText(f"recording · {text}")

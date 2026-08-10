@@ -8,12 +8,16 @@ from PySide6.QtWidgets import (
     QMessageBox, QPushButton, QScrollArea, QVBoxLayout, QWidget,
 )
 
+from .. import transport
 from ..cli import load_address, save_address
 from ..client import X20, find_controller
+from ..input import MacroRecorder, XInputReader
 from ..profiles import MacroSpec, Profile, ProfileStore, SLOTS
 from . import theme
 from .bridge import AsyncBridge
 from .widgets import MacroCard, StatusDot, VibrationRow, divider, section_label
+
+RECORD_POLL_MS = 5      # matches the protocol's own timing resolution
 
 
 class MainWindow(QWidget):
@@ -29,6 +33,13 @@ class MainWindow(QWidget):
         self.pad: X20 | None = None
         self.profile = Profile(name="Save file 1")
         self._busy = False
+
+        self.reader = XInputReader()
+        self.recorder = MacroRecorder(self.reader)
+        self.recording_slot: str | None = None
+        self.record_timer = QTimer(self)
+        self.record_timer.setInterval(RECORD_POLL_MS)
+        self.record_timer.timeout.connect(self._record_tick)
 
         root = QHBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -100,6 +111,9 @@ class MainWindow(QWidget):
         self.device_name.setObjectName("Title")
         self.device_detail = QLabel("")
         self.device_detail.setObjectName("Faint")
+        self.link_label = QLabel("")
+        self.link_label.setObjectName("Faint")
+        self.link_label.setToolTip(transport.describe_for_config())
 
         stack = QVBoxLayout()
         stack.setSpacing(1)
@@ -113,6 +127,7 @@ class MainWindow(QWidget):
         header.addWidget(self.dot)
         header.addLayout(stack)
         header.addStretch(1)
+        header.addWidget(self.link_label)
         header.addWidget(self.connect_button)
         layout.addLayout(header)
         layout.addWidget(divider())
@@ -137,6 +152,7 @@ class MainWindow(QWidget):
         for slot in SLOTS:
             card = MacroCard(slot)
             card.changed.connect(self._sync_apply_state)
+            card.record_requested.connect(self.toggle_recording)
             self.cards[slot] = card
             cards.addWidget(card)
         cards.addStretch(1)
@@ -305,8 +321,18 @@ class MainWindow(QWidget):
                 " to the configuration protocol, so they are not shown. "
                 "They are controlled by button combinations on the pad itself.")
             self.notice.show()
+        self.refresh_link()
         self.set_status("connected", "Success")
         self._sync_apply_state()
+
+    def refresh_link(self) -> None:
+        """Show how the pad is attached for play, which is separate from the
+        configuration link this app uses."""
+        connection = transport.detect()
+        if connection.link is transport.Link.ABSENT:
+            self.link_label.setText("")
+            return
+        self.link_label.setText(f"playing over {connection.link.value}")
 
     def _on_connect_failed(self, message: str) -> None:
         self._busy = False
@@ -356,9 +382,65 @@ class MainWindow(QWidget):
         self.set_status(f"apply failed: {message}", "Danger")
         self._sync_apply_state()
 
+    # -- recording -------------------------------------------------------
+
+    def toggle_recording(self, slot: str) -> None:
+        if self.recording_slot == slot:
+            self.finish_recording()
+            return
+        if self.recording_slot is not None:
+            self.finish_recording()
+
+        if not self.reader.available:
+            self.set_status("XInput is unavailable, so recording cannot run",
+                            "Danger")
+            return
+        if self.reader.poll() is None:
+            self.set_status(
+                "no controller on XInput. The pad must also be connected as a "
+                "gamepad, not only over the configuration link.", "Danger")
+            return
+
+        self.recording_slot = slot
+        self.recorder.start()
+        self.cards[slot].set_recording(True)
+        self.set_status(f"recording {slot} · press buttons, then Stop", "Warning")
+        self.record_timer.start()
+
+    def _record_tick(self) -> None:
+        self.recorder.poll()
+        if self.recording_slot:
+            self.cards[self.recording_slot].show_recording_progress(
+                self.recorder.summary())
+
+    def finish_recording(self) -> None:
+        if self.recording_slot is None:
+            return
+        self.record_timer.stop()
+        slot = self.recording_slot
+        self.recording_slot = None
+
+        spec = self.recorder.stop()
+        card = self.cards[slot]
+        card.set_recording(False)
+
+        if spec is None:
+            self.set_status(f"nothing recorded for {slot}", "Muted")
+            return
+        card.set_spec(spec)
+
+        message = f"{slot} recorded: {spec.describe()}"
+        if self.recorder.ignored:
+            message += (f" · ignored {', '.join(sorted(self.recorder.ignored))}, "
+                        "which this pad cannot put in a macro")
+            self.set_status(message, "Warning")
+        else:
+            self.set_status(message, "Success")
+
     # -- lifecycle -------------------------------------------------------
 
     def closeEvent(self, event) -> None:
+        self.record_timer.stop()
         pad = self.pad
         if pad is not None:
             self.bridge.run(lambda: pad.disconnect())
