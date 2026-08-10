@@ -68,8 +68,11 @@ def main() -> int:
     settle(app, 300)
 
     window.dot.set_state("connected")
-    window.device_name.setText("Xpert2")
-    window.device_detail.setText("firmware 9.01   ·   98:B6:ED:E3:15:C4")
+    # Through the same call the app uses, so the picture can't claim a name the
+    # app would never show. It said "Xpert2" for a while after product_name
+    # landed, purely because it was typed in here.
+    window.device_name.setText(p.product_name("Xpert2", "0710", "1320"))
+    window.device_detail.setText(window.describe_device("9.01", "98:B6:ED:E3:15:C4"))
     window.connect_button.setText("Reconnect")
     window.battery_label.setText("🔋 4/4")
     window.link_label.setText("playing over USB or 2.4 GHz receiver")

@@ -326,6 +326,24 @@ def test_restoring_a_cleared_slot_puts_it_back():
             window.bridge.shutdown()
 
 
+def test_the_header_names_the_product_and_both_versions():
+    """The screenshot tool once hardcoded "Xpert2" here and went stale.
+
+    Anything showing this line has to derive the name, so a mapping added to
+    PRODUCT_NAMES reaches every place it's shown.
+    """
+    from x20ctl import __version__, protocol as p
+    from x20ctl.gui.window import MainWindow
+
+    assert p.product_name("Xpert2", "0710", "1320") == "EasySMX X20"
+    assert p.product_name("Xpert2") == "EasySMX X20", "by reported name alone"
+
+    line = MainWindow.describe_device("9.01", "98:B6:ED:E3:15:C4")
+    assert "firmware 9.01" in line
+    assert f"x20ctl {__version__}" in line, "the app's version, labelled"
+    assert "98:B6:ED:E3:15:C4" in line
+
+
 # --- the curves page --------------------------------------------------------
 
 def _stick_curves():
