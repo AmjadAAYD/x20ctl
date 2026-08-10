@@ -35,6 +35,19 @@ VENDOR_MAC_PREFIX = "98:B6:E"
 
 DEFAULT_TIMEOUT = 4.0
 
+# The two records that hold response curves, each two channels of seven bytes.
+# Same shape, different opcodes and a different scale for the deadzones.
+CURVE_KINDS = {
+    "sticks": (p.Op.HOST_STICK, p.Op.WRITE_STICK, p.STICK_MAX_PROGRESS),
+    "triggers": (p.Op.HOST_TRIGGER, p.Op.WRITE_TRIGGER, p.TRIGGER_MAX_PROGRESS),
+}
+
+
+def _curve_kind(kind: str) -> tuple[int, int, int]:
+    if kind not in CURVE_KINDS:
+        raise ValueError(f"kind must be one of {', '.join(CURVE_KINDS)}, got {kind!r}")
+    return CURVE_KINDS[kind]
+
 
 class ControllerError(RuntimeError):
     pass
@@ -234,6 +247,17 @@ class X20:
             raise ControllerError("no reply to the vibration query")
         return (round(body.data[0] * 100 / 255), round(body.data[1] * 100 / 255))
 
+    async def curves(self, kind: str) -> list[p.Curve]:
+        """Read a stick or trigger record, left channel first.
+
+        `kind` is "sticks" or "triggers".
+        """
+        read_op, _write_op, scale = _curve_kind(kind)
+        body = await self.read_body(read_op, bytes([0]))
+        if body is None:
+            raise ControllerError(f"no reply to the {kind} query")
+        return p.parse_curves(body, scale)
+
     async def battery(self) -> p.Battery | None:
         """Read charge state.
 
@@ -304,6 +328,47 @@ class X20:
         )
         await self._send(packet, serial)
         return await self.vibration()
+
+    async def set_curves(self, kind: str, channels: list[p.Curve]) -> list[p.Curve]:
+        """Write a whole stick or trigger record, then read it back.
+
+        The record carries every channel at once, so a caller changing one side
+        passes the other side through unchanged. Returns what the pad reports
+        afterwards rather than what was sent, which is the only way to tell a
+        write that took from one that was ignored.
+        """
+        _read_op, write_op, _scale = _curve_kind(kind)
+        caps = await self.capabilities()
+        if not (caps.sticks if kind == "sticks" else caps.triggers):
+            raise NotSupported(f"this pad does not expose {kind} settings")
+
+        current = await self.curves(kind)
+        if len(channels) != len(current):
+            raise ValueError(
+                f"this pad reports {len(current)} {kind} channels and the record "
+                f"is written whole, so all {len(current)} have to be supplied")
+        for channel in channels:
+            channel.validate()
+
+        payload = p.build_curves(channels)
+        # Two channels come to exactly 20 bytes on the wire, which is the whole
+        # cap. A pad reporting a third would not fit, and no chunked form of
+        # this write has been observed, so say so rather than failing inside the
+        # packet builder.
+        if len(payload) + p.FRAME_OVERHEAD > p.MAX_PACKET:
+            raise ControllerError(
+                f"this pad's {kind} record is {len(payload)} bytes, which does "
+                f"not fit the {p.MAX_PACKET}-byte packet cap. Writing a record "
+                "that large would need chunking, and nothing has been observed "
+                "doing it.")
+
+        serial = p.save_button_serial(slot=0, counter=self._next_save_counter())
+        packet = p.build(
+            write_op, payload, serial=serial,
+            length_field=p.host_length(len(payload), self._next_host_counter()),
+        )
+        await self._send(packet, serial)
+        return await self.curves(kind)
 
     async def set_macro(
         self,

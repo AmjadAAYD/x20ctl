@@ -10,7 +10,8 @@ protocol and makes it usable from a PC.
 
 **Working today:** macros on all four rear buttons, vibration strength, battery
 level, a live input tester and a polling-rate meter, driven from a desktop app or
-the command line. See [status](#status) for exactly what is and isn't proven.
+the command line, plus stick deadzones and response curves. See
+[status](#status) for exactly what is and isn't proven.
 
 The protocol was reverse engineered from scratch. No prior documentation of
 KeyLinker, `Xpert2`, or `com.pulsenet.inputset` appears to exist publicly.
@@ -24,6 +25,11 @@ Macros on the four rear buttons, with per-step timing, save files, and vibration
 The input tester: every button, both sticks with a position trail, the analog
 triggers, and a meter counting the reports per second that actually reach
 Windows.
+
+![Sticks and triggers](assets/screenshots/curves.png)
+
+Deadzones and response curves, one editor per channel. The dotted diagonal is a
+linear response, and both control points are dragged directly.
 
 ---
 
@@ -75,8 +81,8 @@ you're behind.
 | Save files | working |
 | Recording from live input | working |
 | Input tester and polling meter | working |
-| Stick curves | **decoded**: deadzones, two curve points, invert and swap flags. Reading verified, writing untested |
-| Trigger curves | **decoded**, same layout. Reading verified, writing untested |
+| **Stick deadzones and curves** | **working**, verified by writing a deadzone and reading it back changed, then restoring it |
+| Trigger deadzones and curves | **decoded**, identical record layout, reading verified. Writing uses the same proven packet shape but has not been tested on a trigger |
 | RGB lighting | **not exposed by the X20** |
 | Turbo | **not exposed by the X20** |
 | Gyro | **not exposed by the X20** |
@@ -145,6 +151,11 @@ because a macro already written to the controller can't be read off it again.
 **Record** on any slot captures what you press on the controller, with the real
 timing between presses, and fills the slot in.
 
+**Sticks and triggers** is a page of its own, with a deadzone pair and a
+draggable response curve for each of the four channels. Nothing is written until
+you press Write, and what the controller reports afterwards is what the page then
+shows. See [sticks and triggers](#sticks-and-triggers).
+
 **Input tester** shows every button lighting as it's held, both sticks with a
 position trail, and the triggers' analog values, alongside a meter counting how
 many reports per second actually reach Windows. The trail is what makes stick
@@ -153,8 +164,50 @@ released stick should settle dead centre.
 
 Applying makes the controller match the save file exactly, so switching between
 save files really switches. Any slot the file leaves empty is cleared on the pad.
-Settings the controller doesn't expose are skipped over attempted, and
+Settings the controller doesn't expose are skipped rather than attempted, and
 the app says which.
+
+---
+
+## Sticks and triggers
+
+Four channels, each with two deadzones and a response curve.
+
+The **inner deadzone** is the slack around the centre the controller ignores,
+which is what to raise if a released stick drifts and what to lower for finer
+aim. The **outer deadzone** is where travel starts counting as fully pressed. An
+X20 ships with 8 and 92 out of 100 on both sticks.
+
+The **curve** is two control points. On the diagonal the response is linear:
+output matches movement. Above it the controller moves faster than your thumb,
+below it more gently. An X20's sticks are linear out of the box and its triggers
+are not, sitting at `(82,133)` and `(229,235)`, ramping faster than linear.
+
+Drag either point in the app, or set them exactly from the command line:
+
+```bash
+x20 curve                              show both records
+x20 curve sticks --inner 4             widen the usable travel
+x20 curve triggers --linear            straighten the response
+x20 curve sticks --side left --invert-y
+```
+
+Two things are worth being straight about.
+
+**Stick writes are confirmed; trigger writes aren't.** A left-stick deadzone was
+written from 8 to 10, read back changed, and restored, with the right stick
+untouched throughout. The trigger record has the identical layout and uses the
+same packet shape, but nothing has been written to it. Either way, every write
+reads the record back and tells you whether the controller reports what it was
+sent, and says the controller kept its own values rather than claiming success
+if it doesn't. Anything changed can be put back: the app keeps the values read
+at connection, and the command line prints a `--restore` line before each write.
+
+**The line drawn between the control points is this app's own.** The points are
+read and written exactly, but nothing documents how the firmware interpolates
+between them, so the curve is drawn as a smooth monotone interpolation through
+them. It's a faithful picture of the points, not a claim about the hardware's
+arithmetic.
 
 ---
 
@@ -211,13 +264,15 @@ All three snap to multiples of 5 ms, which is the controller's own resolution.
 x20 scan
 x20 status
 x20 vibration 60
+x20 curve sticks --inner 4
 x20 macro M1 "A+B" --hold 100
 x20 profile set "Save file 1" M1 "A+B" --vibration 30
 x20 profile apply "Save file 1"
 ```
 
 The address is remembered after the first successful scan, so most commands need
-no arguments.
+no arguments. `x20 --version` reports this tool's version; `x20 status` reports
+it alongside the controller's firmware, which is a different number.
 
 ---
 
@@ -254,6 +309,15 @@ Read and change vibration strength:
 python tools/set_vibration.py <address>
 python tools/set_vibration.py <address> --percent 60
 python tools/set_vibration.py <address> --restore 4c
+```
+
+Prove the pad accepts a curve write, and put it straight back. This is how the
+stick result in [status](#status) was obtained, and it's what's still owed for
+triggers:
+
+```bash
+python tools/verify_curve_write.py sticks --read-only
+python tools/verify_curve_write.py triggers
 ```
 
 Run the tests, no hardware required:

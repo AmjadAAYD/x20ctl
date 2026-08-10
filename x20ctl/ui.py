@@ -120,6 +120,39 @@ def bar(percent: int, width: int = 24) -> str:
             f"{WHITE}{percent}%{RESET}")
 
 
+def plot(points: list[tuple[float, float]], axis_max: float,
+         width: int = 25, height: int = 9) -> str:
+    """A small plot of a response curve against the linear diagonal.
+
+    One sample per column, so pass `width` samples. The diagonal is drawn
+    underneath as a reference: a curve sitting on it is an untouched response,
+    and any departure from it is the thing worth seeing.
+    """
+    grid = [[" "] * width for _ in range(height)]
+
+    def place(x: float, y: float, mark: str) -> None:
+        col = min(width - 1, max(0, round((width - 1) * x / axis_max)))
+        row = min(height - 1, max(0, round((height - 1) * (1 - y / axis_max))))
+        if grid[row][col] == " " or mark != "diagonal":
+            grid[row][col] = mark
+
+    for col in range(width):
+        x = axis_max * col / (width - 1)
+        place(x, x, "diagonal")
+    for x, y in points:
+        place(x, y, "curve")
+
+    lines = []
+    for row in grid:
+        cells = "".join(
+            f"{CYAN}●{RESET}" if cell == "curve"
+            else (f"{GREY}·{RESET}" if cell == "diagonal" else " ")
+            for cell in row)
+        lines.append(f"  {GREY}│{RESET} {cells}")
+    lines.append(f"  {GREY}└{'─' * (width + 1)}{RESET}")
+    return "\n".join(lines)
+
+
 def bullet(text: str, marker: str = "•") -> str:
     return f"  {CYAN}{marker}{RESET} {text}"
 

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "x20ctl"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Open configuration for the EasySMX X20 and other KeyLinker controllers"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -37,3 +37,7 @@ Homepage = "https://github.com/AmjadAAYD/x20ctl"
 
 [tool.setuptools]
 packages = ["x20ctl", "x20ctl.gui"]
+
+# One source of truth, read straight out of the package.
+[tool.setuptools.dynamic]
+version = { attr = "x20ctl.__version__" }

@@ -502,6 +502,49 @@ in the earlier sweep. So `df aa` is very likely a generic acknowledgement, and t
 earlier table entry treating it as two-in-one device state is probably wrong.
 Corrected here over left standing.
 
+### Stick writes are accepted too
+
+`WRITE_CHANGEKEY` proved the framing. It could not prove that a *settings* write
+changes anything, because the value it wrote was the value already there. A
+stick write, run later against the same pad, settles that.
+
+Three steps in one session, left stick only:
+
+```
+baseline    08 08 55 55 aa aa 00  08 08 55 55 aa aa 00
+
+1. no-op    write the record back byte for byte
+   ack      19 08 81 .. 02 df aa      RESPONSE, crc ok
+   after    08 08 55 55 aa aa 00  08 08 55 55 aa aa 00   unchanged
+
+2. change   left inner deadzone 8 -> 10
+   sent     0a 08 55 55 aa aa 00  08 08 55 55 aa aa 00
+   after    0a 08 55 55 aa aa 00  08 08 55 55 aa aa 00   accepted
+
+3. restore  baseline written back
+   after    08 08 55 55 aa aa 00  08 08 55 55 aa aa 00   as found
+```
+
+What this establishes:
+
+- **The pad takes stick writes**, and the changed byte reads back changed. The
+  no-op step alone could never have shown this: an ignored write and an accepted
+  one leave identical records behind. Only a value that differs distinguishes
+  them.
+- **The record is written whole.** Byte 0 is a length prefix of 14, then two
+  seven-byte channels. Sending one channel is not an option; the untouched side
+  goes along unchanged, and did, verifiably.
+- **A capability read preceded the write** in this run, as it does in the app,
+  so this says nothing about whether a handshake is *required*. That question
+  stays open.
+- **The record is exactly at the packet cap.** 14 bytes of data plus the length
+  prefix plus the five-byte frame is 20, which is the whole MTU-derived limit.
+  A pad reporting three channels could not be written in one packet, and no
+  chunked form of this write has been observed.
+
+Trigger writes use `WRITE_TRIGGER` against an identically shaped record and have
+not been tested.
+
 ## 4f. On-pad assignments are invisible to the protocol
 
 An experiment worth recording, because it invalidates an obvious assumption.
@@ -643,8 +686,15 @@ the pad, and read again.
 ## 5. What is still unknown
 
 - Byte layout **inside** the payloads. The opcodes are certain; the field meanings
-  aren't. Colour ordering, brightness scale, effect enumeration, gyro flags and
-  deadzone encoding all need capture to confirm.
+  aren't. Colour ordering, brightness scale, effect enumeration and gyro flags
+  all need capture to confirm. Deadzones and curve control points are decoded,
+  and a stick write is confirmed accepted on hardware; the trigger record has
+  the same shape but has not been written to.
+- **How the firmware joins the two curve control points.** The points themselves
+  are certain, and both are stored on a 0-255 axis independent of the deadzone
+  scale. Nothing observed so far says whether the response between them is a
+  bezier, a spline, or piecewise linear. Anything drawing that curve is guessing
+  at the shape between two known values.
 - Whether `CODE_HOST_GUID` (147) is gyro or a device identifier.
 - Whether the pad requires a `CODE_HOST_MENU` capability handshake before it will
   accept writes.

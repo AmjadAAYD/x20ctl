@@ -19,13 +19,17 @@ characteristic, and received packets through `unscramble`.
 
 from __future__ import annotations
 
+import math
 import random
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import IntEnum
 
 # Cap comes from SERIAL_ENCRYPT being 40 entries with a 20-byte offset, which is
 # also exactly the payload of a default 23-byte BLE ATT MTU.
 MAX_PACKET = 20
+
+# opcode, length, serial, nonce, and the trailing CRC.
+FRAME_OVERHEAD = 5
 
 # Reflected form. Equivalent to normal-form polynomial 0xD7.
 CRC_POLY = 0xEB
@@ -393,6 +397,13 @@ CHANNEL_SIZE = 7
 STICK_MAX_PROGRESS = 100
 TRIGGER_MAX_PROGRESS = 200
 
+# The control points live on their own 0-255 axis, independent of the progress
+# scale the deadzones are measured in. An untouched pad puts them at a third and
+# two thirds of that axis, which is the diagonal.
+CURVE_AXIS_MAX = 255
+LINEAR_POINT1 = (85, 85)
+LINEAR_POINT2 = (170, 170)
+
 FLAG_INVERT_X = 0x01
 FLAG_INVERT_Y = 0x02
 FLAG_SWAP = 0x04
@@ -440,6 +451,69 @@ class Curve:
                    point1=(raw[2], raw[3]), point2=(raw[4], raw[5]),
                    flags=raw[6], max_progress=max_progress)
 
+    # -- editing ---------------------------------------------------------
+    #
+    # Every one of these returns a new Curve. Nothing here mutates, so the value
+    # read from the pad stays intact and can be written back to undo.
+
+    def with_deadzones(self, inner: int | None = None,
+                       outer: int | None = None) -> "Curve":
+        """A copy with new deadzones, given the way round a person reads them."""
+        return replace(
+            self,
+            inner_deadzone=self.inner_deadzone if inner is None else inner,
+            outer_raw=self.outer_raw if outer is None else self.max_progress - outer,
+        )
+
+    def with_points(self, point1: tuple[int, int] | None = None,
+                    point2: tuple[int, int] | None = None) -> "Curve":
+        return replace(self, point1=point1 or self.point1, point2=point2 or self.point2)
+
+    def with_flags(self, *, invert_x: bool | None = None, invert_y: bool | None = None,
+                   swapped: bool | None = None) -> "Curve":
+        """A copy with some flags changed. Bits this doesn't name are kept."""
+        flags = self.flags
+        for bit, wanted in ((FLAG_INVERT_X, invert_x), (FLAG_INVERT_Y, invert_y),
+                            (FLAG_SWAP, swapped)):
+            if wanted is None:
+                continue
+            flags = (flags | bit) if wanted else (flags & ~bit)
+        return replace(self, flags=flags)
+
+    def straightened(self) -> "Curve":
+        """A copy with the response back on the diagonal, deadzones untouched."""
+        return self.with_points(LINEAR_POINT1, LINEAR_POINT2)
+
+    def validate(self) -> None:
+        """Check this is a curve the pad could have produced itself.
+
+        Reading never calls this. A pad reporting something unexpected should be
+        shown as it is rather than rejected, and an unknown flag bit is written
+        back verbatim for the same reason. Writing does call it, because a value
+        outside these bounds is one nothing has ever been observed to accept.
+        """
+        if not 0 <= self.inner_deadzone <= self.max_progress:
+            raise ValueError(f"inner deadzone {self.inner_deadzone} is outside "
+                             f"0-{self.max_progress}")
+        if not 0 <= self.outer_raw <= self.max_progress:
+            raise ValueError(f"outer deadzone {self.outer_deadzone} is outside "
+                             f"0-{self.max_progress}")
+        if self.inner_deadzone >= self.outer_deadzone:
+            raise ValueError(
+                f"the inner deadzone {self.inner_deadzone} has to stay below the "
+                f"outer deadzone {self.outer_deadzone}, or there is no travel left")
+        for which, point in (("first", self.point1), ("second", self.point2)):
+            if not all(0 <= v <= CURVE_AXIS_MAX for v in point):
+                raise ValueError(f"the {which} curve point {point} is outside "
+                                 f"0-{CURVE_AXIS_MAX}")
+        if self.point1[0] > self.point2[0]:
+            raise ValueError(f"curve points run left to right, so {self.point1} "
+                             f"cannot come before {self.point2}")
+
+    def shape(self, steps: int = 33) -> list[tuple[float, float]]:
+        """Points along the response curve, for drawing. See `curve_shape`."""
+        return curve_shape(self.point1, self.point2, steps)
+
     def to_bytes(self) -> bytes:
         values = [self.inner_deadzone, self.outer_raw,
                   self.point1[0], self.point1[1],
@@ -470,6 +544,80 @@ def build_curves(channels: list[Curve]) -> bytes:
     """Payload for a stick or trigger write, length prefix included."""
     data = b"".join(channel.to_bytes() for channel in channels)
     return bytes([len(data)]) + data
+
+
+def curve_shape(point1: tuple[int, int], point2: tuple[int, int],
+                steps: int = 33) -> list[tuple[float, float]]:
+    """Points along the response curve, for drawing.
+
+    The two control points are certain, and this passes through them exactly.
+    How the firmware interpolates *between* them is not known, so this draws a
+    monotone cubic through (0,0), both points and (255,255): it never overshoots
+    and never doubles back, which a response curve cannot do either. Treat it as
+    a faithful picture of where the control points sit, not as a claim about the
+    pad's own arithmetic.
+    """
+    knots = [(0.0, 0.0), (float(point1[0]), float(point1[1])),
+             (float(point2[0]), float(point2[1])),
+             (float(CURVE_AXIS_MAX), float(CURVE_AXIS_MAX))]
+
+    # Two knots sharing an x would be a vertical step, which has no slope. Keep
+    # the last one at each x so a point dragged onto another still draws.
+    unique: list[tuple[float, float]] = []
+    for x, y in knots:
+        if unique and abs(unique[-1][0] - x) < 1e-9:
+            unique[-1] = (x, y)
+        else:
+            unique.append((x, y))
+    if len(unique) < 2:
+        return [(0.0, 0.0), (float(CURVE_AXIS_MAX), float(CURVE_AXIS_MAX))]
+
+    xs = [x for x, _ in unique]
+    ys = [y for _, y in unique]
+    slopes = _monotone_slopes(xs, ys)
+
+    out = []
+    for i in range(max(steps, 2)):
+        x = CURVE_AXIS_MAX * i / (max(steps, 2) - 1)
+        out.append((x, _hermite(xs, ys, slopes, x)))
+    return out
+
+
+def _monotone_slopes(xs: list[float], ys: list[float]) -> list[float]:
+    """Fritsch-Carlson tangents: the standard way to interpolate without
+    inventing wiggles the data doesn't contain."""
+    deltas = [(ys[i + 1] - ys[i]) / (xs[i + 1] - xs[i]) for i in range(len(xs) - 1)]
+    slopes = [deltas[0]]
+    for i in range(1, len(xs) - 1):
+        slopes.append(0.0 if deltas[i - 1] * deltas[i] <= 0
+                      else (deltas[i - 1] + deltas[i]) / 2)
+    slopes.append(deltas[-1])
+
+    for i, delta in enumerate(deltas):
+        if delta == 0:
+            slopes[i] = slopes[i + 1] = 0.0
+            continue
+        a, b = slopes[i] / delta, slopes[i + 1] / delta
+        if a * a + b * b > 9:
+            scale = 3.0 / math.sqrt(a * a + b * b)
+            slopes[i] = scale * a * delta
+            slopes[i + 1] = scale * b * delta
+    return slopes
+
+
+def _hermite(xs: list[float], ys: list[float], slopes: list[float], x: float) -> float:
+    if x <= xs[0]:
+        return ys[0]
+    if x >= xs[-1]:
+        return ys[-1]
+    i = max(j for j in range(len(xs) - 1) if xs[j] <= x)
+    span = xs[i + 1] - xs[i]
+    t = (x - xs[i]) / span
+    t2, t3 = t * t, t * t * t
+    return ((2 * t3 - 3 * t2 + 1) * ys[i]
+            + (t3 - 2 * t2 + t) * span * slopes[i]
+            + (-2 * t3 + 3 * t2) * ys[i + 1]
+            + (t3 - t2) * span * slopes[i + 1])
 
 
 MACRO_CHUNK_SIZE = 15

@@ -6,6 +6,10 @@
     x20 macro M1 "A+B"                write a macro
     x20 macro M1 --clear              empty a slot
 
+    x20 curve                         show stick and trigger response
+    x20 curve sticks --inner 5        set the inner deadzone
+    x20 curve triggers --linear       straighten the response
+
     x20 profile list
     x20 profile show  "Save file 1"
     x20 profile apply "Save file 1"
@@ -24,10 +28,14 @@ import json
 import os
 import sys
 
+from bleak.exc import BleakError
+
+from . import __version__
 from . import protocol as p
 from . import transport
 from . import ui
-from .client import X20, ControllerError, NotSupported, find_controller
+from .client import CURVE_KINDS, X20, ControllerError, NotSupported, find_controller
+from .diagnose import diagnose
 from .config import load_address, save_address
 from .profiles import MacroSpec, Profile, ProfileStore, SLOTS
 
@@ -73,6 +81,7 @@ async def cmd_status(args) -> None:
     print(ui.field("reports as", snap.name or "unknown"))
     print(ui.field("firmware", snap.device.version))
     print(ui.field("address", address))
+    print(ui.field("x20ctl", __version__))
     if snap.battery is not None:
         state = "charging" if snap.battery.charging else "on battery"
         print(ui.field("battery", f"{snap.battery} · {state}"))
@@ -136,6 +145,103 @@ async def cmd_vibration(args) -> None:
         print(f"  {ui.label('motor 1'.ljust(10))}{ui.bar(left)}")
         print(f"  {ui.label('motor 2'.ljust(10))}{ui.bar(right)}")
         print(ui.ok("\n  written and read back\n"))
+
+
+# -- response curves ------------------------------------------------------
+
+SIDES = ("left", "right")
+
+
+def print_curves(kind: str, channels: list[p.Curve]) -> None:
+    print(ui.header(kind.title(), "deadzones and response curve"))
+    for index, curve in enumerate(channels):
+        side = SIDES[index] if index < len(SIDES) else f"channel {index}"
+        shape = "linear" if curve.is_linear else "curved"
+        flags = ", ".join(name for name, on in (
+            ("invert X", curve.invert_x), ("invert Y", curve.invert_y),
+            ("sticks swapped", curve.swapped)) if on)
+        print(ui.field(side, f"deadzone {curve.inner_deadzone} to "
+                             f"{curve.outer_deadzone} of {curve.max_progress}"))
+        print(ui.field("", f"points {curve.point1} {curve.point2}, {shape}"))
+        if flags:
+            print(ui.field("", flags))
+        print(ui.plot(curve.shape(steps=25), p.CURVE_AXIS_MAX))
+        print(ui.field("", curve.to_bytes().hex(" ")))
+        print()
+
+
+def _parse_points(text: str) -> tuple[tuple[int, int], tuple[int, int]]:
+    """Two control points, written as "82,133 229,235"."""
+    try:
+        pairs = [tuple(int(v) for v in part.split(",")) for part in text.split()]
+    except ValueError:
+        raise SystemExit(ui.bad('  points look like: --points "82,133 229,235"')) from None
+    if len(pairs) != 2 or any(len(pair) != 2 for pair in pairs):
+        raise SystemExit(ui.bad('  two points are needed: --points "82,133 229,235"'))
+    return pairs[0], pairs[1]
+
+
+def _edited(kind: str, channels: list[p.Curve], args) -> list[p.Curve]:
+    """Apply the command line's changes, leaving untouched sides alone."""
+    if args.restore:
+        scale = CURVE_KINDS[kind][2]
+        raw = bytes.fromhex(args.restore.replace(",", " "))
+        if len(raw) != len(channels) * p.CHANNEL_SIZE:
+            raise SystemExit(ui.bad(
+                f"  --restore wants {len(channels) * p.CHANNEL_SIZE} bytes for "
+                f"{kind}, got {len(raw)}"))
+        return [p.Curve.parse(raw[i:i + p.CHANNEL_SIZE], scale)
+                for i in range(0, len(raw), p.CHANNEL_SIZE)]
+
+    out = []
+    for index, curve in enumerate(channels):
+        side = SIDES[index] if index < len(SIDES) else str(index)
+        if args.side != "both" and args.side != side:
+            out.append(curve)
+            continue
+        if args.linear:
+            curve = curve.straightened()
+        if args.points:
+            curve = curve.with_points(*_parse_points(args.points))
+        if args.inner is not None or args.outer is not None:
+            curve = curve.with_deadzones(args.inner, args.outer)
+        out.append(curve.with_flags(invert_x=args.invert_x, invert_y=args.invert_y,
+                                    swapped=args.swap))
+    return out
+
+
+async def cmd_curve(args) -> None:
+    changes = (args.inner, args.outer, args.points, args.invert_x, args.invert_y,
+               args.swap, args.restore)
+    editing = args.linear or any(change is not None for change in changes)
+    if editing and not args.kind:
+        raise SystemExit(ui.bad(
+            "  say which to change: x20 curve sticks --inner 5"))
+
+    address = await resolve(args.address)
+    kinds = [args.kind] if args.kind else list(CURVE_KINDS)
+
+    async with X20(address) as pad:
+        for kind in kinds:
+            channels = await pad.curves(kind)
+            if not editing:
+                print_curves(kind, channels)
+                continue
+
+            before = p.build_curves(channels)[1:]
+            wanted = _edited(kind, channels, args)
+            print(ui.label(f"\n  writing {kind}..."))
+            reported = await pad.set_curves(kind, wanted)
+            print_curves(kind, reported)
+
+            if p.build_curves(reported) == p.build_curves(wanted):
+                print(ui.ok("  written, and the pad reads back exactly that"))
+            else:
+                print(ui.warn("  the pad reports something other than what was sent"))
+                print(ui.field("sent", p.build_curves(wanted)[1:].hex(" ")))
+            print(ui.label(f"  to put it back: x20 curve {kind} "
+                           f'--restore "{before.hex(" ")}"'))
+    print()
 
 
 async def cmd_macro(args) -> None:
@@ -263,6 +369,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="x20", description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--address", help="BLE address; remembered after first scan")
+    parser.add_argument("--version", action="version", version=f"x20ctl {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
 
     sub.add_parser("scan", help="find the controller").set_defaults(fn=cmd_scan)
@@ -271,6 +378,22 @@ def build_parser() -> argparse.ArgumentParser:
     vib = sub.add_parser("vibration", help="read or set motor strength")
     vib.add_argument("percent", nargs="?", type=int, help="0-100; omit to read")
     vib.set_defaults(fn=cmd_vibration)
+
+    crv = sub.add_parser("curve", help="read or set stick and trigger response")
+    crv.add_argument("kind", nargs="?", choices=sorted(CURVE_KINDS),
+                     help="omit to show both")
+    crv.add_argument("--side", choices=["left", "right", "both"], default="both")
+    crv.add_argument("--inner", type=int, help="inner deadzone, where travel begins")
+    crv.add_argument("--outer", type=int, help="outer deadzone, where it saturates")
+    crv.add_argument("--linear", action="store_true",
+                     help="put the response back on the diagonal")
+    crv.add_argument("--points", help='control points: "82,133 229,235"')
+    crv.add_argument("--invert-x", action=argparse.BooleanOptionalAction)
+    crv.add_argument("--invert-y", action=argparse.BooleanOptionalAction)
+    crv.add_argument("--swap", action=argparse.BooleanOptionalAction,
+                     help="swap the two sticks")
+    crv.add_argument("--restore", help="write a whole record back, as hex")
+    crv.set_defaults(fn=cmd_curve)
 
     mac = sub.add_parser("macro", help="write a macro to a slot")
     mac.add_argument("slot", help="M1, M2, M3 or M4")
@@ -333,6 +456,13 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     except (ControllerError, ValueError) as exc:
         print(ui.bad(f"\n  {exc}\n"))
+        return 1
+    except BleakError as exc:
+        # A pad that is off or out of range is the commonest way to end up here,
+        # and a bleak traceback says nothing about what to do about it.
+        finding = diagnose(exc)
+        print(ui.bad(f"\n  {finding.headline}"))
+        print(ui.label(f"  {finding.advice}\n"))
         return 1
     return 0
 

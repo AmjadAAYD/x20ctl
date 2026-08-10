@@ -47,7 +47,22 @@ hardware. Full detail in [docs/01-protocol.md](docs/01-protocol.md).
 - **Transport detection.** Reports whether you're playing over Bluetooth or
   USB.
 - **Command line interface** alongside the app, and a **standalone executable**
-  that needs no Python.
+  that needs no Python. A controller that is off or out of range explains itself
+  there the same way it does in the app, rather than printing a library
+  traceback.
+- **A version number**, reported by `x20 --version`, by `x20 status` alongside
+  the controller's own firmware version, in the app's sidebar, and in the
+  executable's file properties. All four read the one value in the package, and
+  packaging reads it back out of there too.
+- **Stick and trigger deadzones and response curves.** Both records decode to an
+  inner and outer deadzone, two control points and a flag byte, and both are
+  editable in the app and on the command line. A stick write is **confirmed on
+  hardware**: a deadzone written from 8 to 10 read back changed, with the other
+  stick untouched, and restoring put the record back byte for byte. The trigger
+  record has the identical layout but has not been written to. Every write reads
+  the record back and reports whether the controller took it rather than
+  assuming, and the values read at connection are kept so anything can be put
+  back.
 - **Explanations on every control**, including why there are three millisecond
   fields.
 
