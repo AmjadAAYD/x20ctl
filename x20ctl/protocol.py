@@ -539,8 +539,17 @@ def mask_for(keys) -> int:
     mask = MACRO_ANALOG_NEUTRAL
     for key in keys:
         k = Key(key)
+        if k in MACRO_ANALOG_BITS:
+            raise ValueError(
+                f"{k.name} is an analog entry occupying a nibble, not a single bit; "
+                "analog macro steps are not supported"
+            )
         if k not in MACRO_MASK_BIT:
-            raise ValueError(f"{k.name} is analog or unmapped; not supported in a mask")
+            raise ValueError(
+                f"{k.name} is not macro-capable on this device. The pad's macro key "
+                "list omits Select, Start and Home, so they cannot be placed in a "
+                "macro. Supported: " + ", ".join(x.name for x in MACRO_MASK_BIT)
+            )
         mask |= 1 << MACRO_MASK_BIT[k]
     return mask
 

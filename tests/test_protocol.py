@@ -514,6 +514,39 @@ def test_macro_writes_rejects_empty_payload():
     raise AssertionError("empty payload must be rejected; use MACRO_CLEAR")
 
 
+def test_all_fourteen_digital_buttons_are_macro_capable():
+    """Every key in the pad's macro list that is a single-bit digital button
+    must be usable. 18 and 19 are analog, 93 and 94 are editor pseudo-keys."""
+    pad_list = p.decode_key_list(bytes.fromhex("1212130d8401880b825d82"))
+    digital = [k for k in pad_list if k not in (18, 19, 93, 94)]
+    assert len(digital) == 14
+    for code in digital:
+        mask = p.mask_for([p.Key(code)])
+        assert mask != p.MACRO_ANALOG_NEUTRAL, f"code {code} set no bit"
+
+
+def test_select_start_home_are_rejected_with_a_clear_reason():
+    """These are absent from the pad's macro list, so they must fail loudly
+    rather than silently producing a mask that does nothing."""
+    for key in (p.Key.SELECT, p.Key.START, p.Key.HOME):
+        try:
+            p.mask_for([key])
+        except ValueError as exc:
+            assert "not macro-capable" in str(exc)
+        else:
+            raise AssertionError(f"{key.name} should have been rejected")
+
+
+def test_chord_sets_multiple_bits_in_one_step():
+    mask = p.mask_for([p.Key.A, p.Key.B])
+    assert mask >> 12 & 1 and mask >> 13 & 1
+    assert mask & 0xFF == p.MACRO_ANALOG_NEUTRAL
+    # a chord is one step, so it stays within a single packet
+    payload = p.build_macro_payload([p.MacroStep(mask=mask, duration_ms=100),
+                                     p.MacroStep.released(50)])
+    assert len(p.build_macro_writes(payload, slot=0)) == 1
+
+
 def test_corrupted_packet_fails_crc():
     raw = bytearray(p.build_query(p.Op.HOST_LIGHTING, index=0, serial=1, nonce=0x42))
     plain = bytearray(p.unscramble(bytes(raw)))

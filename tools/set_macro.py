@@ -39,16 +39,35 @@ DIM = "\033[2m"
 RESET = "\033[0m"
 
 
-def build_payload(key_names: list[str], hold_ms: int, gap_ms: int,
-                  loop_ms: int = 0) -> bytes:
-    steps: list[p.MacroStep] = []
-    for name in key_names:
+def parse_group(text: str) -> list[p.Key]:
+    """One comma-separated item, which may be several keys joined by '+'."""
+    keys = []
+    for name in text.split("+"):
+        name = name.strip().upper()
+        if not name:
+            continue
         try:
-            key = p.Key[name.strip().upper()]
+            keys.append(p.Key[name])
         except KeyError:
             valid = ", ".join(k.name for k in p.MACRO_MASK_BIT)
             raise SystemExit(f"unknown key {name!r}. supported: {valid}")
-        steps.append(p.MacroStep(mask=p.mask_for([key]), duration_ms=hold_ms))
+    if not keys:
+        raise SystemExit("empty key group")
+    return keys
+
+
+def build_payload(key_names: list[str], hold_ms: int, gap_ms: int,
+                  loop_ms: int = 0) -> bytes:
+    """Build steps from key groups.
+
+    Commas separate steps in time, '+' joins keys within one step. So
+    "A,B" is A then B, while "A+B" is both at once, and "A+B,X" is the
+    chord followed by X.
+    """
+    steps: list[p.MacroStep] = []
+    for group in key_names:
+        keys = parse_group(group)
+        steps.append(p.MacroStep(mask=p.mask_for(keys), duration_ms=hold_ms))
         # Must be released(), not mask=0. A zero mask commands both sticks.
         steps.append(p.MacroStep.released(gap_ms))
     # loop_ms is the loop INTERVAL, not a total duration. Zero means the
@@ -144,7 +163,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("address")
     parser.add_argument("--slot", type=int, default=1, help="1-4 for M1-M4")
-    parser.add_argument("--keys", help="comma separated, e.g. A or A,B")
+    parser.add_argument("--keys",
+                        help="comma separates steps in time, '+' joins keys in one "
+                             "step. 'A,B' is A then B; 'A+B' is both at once")
     parser.add_argument("--clear", action="store_true", help="write an empty macro")
     parser.add_argument("--hold", type=int, default=50, help="press duration ms")
     parser.add_argument("--gap", type=int, default=50, help="release duration ms")
