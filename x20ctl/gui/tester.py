@@ -10,19 +10,54 @@ moving; the meter says so rather than reporting a misleading zero.
 
 from __future__ import annotations
 
+import threading
 import time
 from collections import deque
 
-from PySide6.QtCore import QPointF, QRectF, Qt, QTimer
+from PySide6.QtCore import QObject, QPointF, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import (
     QFrame, QGridLayout, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget,
 )
 
 from .. import protocol as p
+from .. import transport
 from ..input import XInputReader
 from . import theme
 from .widgets import divider, section_label
+
+
+class TransportProbe(QObject):
+    """Detects the play-time link off the GUI thread.
+
+    Enumerating devices shells out and takes about a second, which would stall
+    a page that repaints every millisecond. Detection therefore runs on a worker
+    thread and reports back through a signal, which Qt queues onto the GUI
+    thread for us.
+    """
+
+    detected = Signal(object)
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._running = False
+
+    def probe(self) -> None:
+        if self._running:
+            return
+        self._running = True
+
+        def work() -> None:
+            try:
+                result = transport.detect()
+            except Exception:
+                result = None
+            finally:
+                self._running = False
+            self.detected.emit(result)
+
+        threading.Thread(target=work, daemon=True,
+                         name="x20ctl-transport").start()
 
 POLL_MS = 1                 # as fast as Qt will run us
 WINDOW_SECONDS = 1.0        # averaging window for the rate
@@ -183,12 +218,28 @@ class TesterPage(QWidget):
         stack.addWidget(self.state)
         heading.addLayout(stack)
         heading.addStretch(1)
+
+        self.link_label = QLabel("checking connection...")
+        self.link_label.setObjectName("Muted")
+        self.link_label.setToolTip(
+            "How the controller is attached for play.\n\n"
+            "This is what the report rate below is measuring, so switching "
+            "between wired, the 2.4 GHz receiver and Bluetooth and comparing "
+            "the numbers is meaningful.\n\n"
+            "Configuration always runs over the separate Bluetooth LE link "
+            "whichever of these you play on.")
+        heading.addWidget(self.link_label)
+
         self.reset_button = QPushButton("Reset")
         self.reset_button.setObjectName("Ghost")
         self.reset_button.clicked.connect(self.reset)
         heading.addWidget(self.reset_button)
         layout.addLayout(heading)
         layout.addWidget(divider())
+
+        self.probe = TransportProbe()
+        self.probe.detected.connect(self._on_transport)
+        self._had_controller = False
 
         # -- polling rate -------------------------------------------------
         layout.addWidget(section_label("report rate", (
@@ -273,6 +324,7 @@ class TesterPage(QWidget):
         if not self.reader.available:
             self.state.setText("XInput is unavailable on this system")
             return
+        self.probe.probe()
         self.timer.start()
 
     def stop(self) -> None:
@@ -284,15 +336,46 @@ class TesterPage(QWidget):
         self.peak_label.setText("")
         self.left_stick.clear_trail()
         self.right_stick.clear_trail()
+        # Re-check the link too: Reset is what you press after switching cables.
+        self.link_label.setText("checking connection...")
+        self.probe.probe()
+
+    def _on_transport(self, connection) -> None:
+        if connection is None:
+            self.link_label.setText("connection unknown")
+            self.link_label.setObjectName("Faint")
+        elif connection.link is transport.Link.ABSENT:
+            self.link_label.setText("not detected")
+            self.link_label.setObjectName("Faint")
+        else:
+            icons = {
+                transport.Link.WIRED: "wired USB",
+                transport.Link.DONGLE: "2.4 GHz receiver",
+                transport.Link.BLUETOOTH: "Bluetooth",
+            }
+            self.link_label.setText(icons.get(connection.link, connection.link.value))
+            self.link_label.setObjectName("Success")
+        self.link_label.style().unpolish(self.link_label)
+        self.link_label.style().polish(self.link_label)
 
     # -- sampling --------------------------------------------------------
 
     def _tick(self) -> None:
         state = self.reader.poll()
         if state is None:
+            if self._had_controller:
+                # It just went away. Whatever comes back may be on a different
+                # link, so re-check rather than showing the old one.
+                self._had_controller = False
+                self.link_label.setText("checking connection...")
+                self._samples.clear()
             self.state.setText("no controller on XInput")
             self.rate_label.setText("...")
             return
+
+        if not self._had_controller:
+            self._had_controller = True
+            self.probe.probe()      # reappeared, possibly on another transport
 
         self.state.setText(f"XInput slot {state.slot}")
 
