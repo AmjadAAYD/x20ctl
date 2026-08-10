@@ -381,6 +381,43 @@ several brands. Two things to know before pointing this at other hardware:
 
 ---
 
+## Is the executable safe
+
+You don't have to take my word for it, and you shouldn't have to.
+
+`x20ctl.exe` is a PyInstaller one-file build of the source in this repository,
+produced by [tools/build_exe.py](tools/build_exe.py). Three ways to check it,
+in increasing order of how little you have to trust me:
+
+**1. Verify you got what was published.** Every release lists a SHA-256.
+
+```powershell
+Get-FileHash .\x20ctl.exe -Algorithm SHA256
+```
+
+| Release | SHA-256 |
+|---|---|
+| 0.2.0 | `611207f6b7605c04d20402e05f2bf34d368fbf66d681644a95730c44ee3ee4e5` |
+
+**2. Scan it yourself.** Upload it to [VirusTotal](https://www.virustotal.com/)
+and read which engines object and what they claim to have found.
+
+**3. Don't use the binary at all.** `pip install -e ".[gui]"` runs the same
+application from source, which you can read.
+
+**On antivirus warnings.** A one-file PyInstaller build carries a Python
+interpreter inside it and unpacks itself to a temporary folder when it starts.
+Several engines flag that shape by itself, and the binary is unsigned because
+code-signing certificates cost money this project doesn't have. So a generic
+heuristic detection here is common and isn't evidence of much. A detection
+naming specific behaviour would be, and I'd want to hear about it — see
+[SECURITY.md](SECURITY.md).
+
+What the program actually does is bounded and documented: it speaks BLE GATT to
+the controller's configuration service, reads and writes gamepad settings, and
+reads XInput for the input tester. It has no network code, and no path to the
+controller's bootloader. See [Safety](#safety).
+
 ## Licence
 
 MIT, see [LICENSE](LICENSE).
