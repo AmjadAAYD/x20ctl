@@ -223,6 +223,62 @@ def test_hovering_a_card_repeatedly_is_safe():
     assert card.is_valid()
 
 
+def test_unsaved_edits_are_detected():
+    """The bug: clearing a field and closing lost the macro without asking."""
+    import tempfile
+
+    from x20ctl.gui.window import MainWindow
+    from x20ctl.profiles import ProfileStore
+
+    with tempfile.TemporaryDirectory() as tmp:
+        store = ProfileStore(tmp)
+        saved = Profile(name="one")
+        saved.macros["M1"] = MacroSpec(keys="A+B")
+        store.save(saved)
+
+        window = MainWindow()
+        try:
+            window.store = store
+            window.reload_profiles(select="one")
+            assert not window.has_unsaved_changes()
+
+            window.cards["M1"].keys.clear()          # the backspace case
+            assert window.has_unsaved_changes()
+            assert window.save_button.text().endswith("*")
+
+            # Discarding must leave the file on disk untouched
+            window.ask_before_discarding = False
+            window.close()
+            assert store.load("one").macros["M1"].keys == "A+B"
+        finally:
+            window.bridge.shutdown()
+
+
+def test_a_saved_edit_is_no_longer_dirty():
+    import tempfile
+
+    from x20ctl.gui.window import MainWindow
+    from x20ctl.profiles import ProfileStore
+
+    with tempfile.TemporaryDirectory() as tmp:
+        store = ProfileStore(tmp)
+        store.save(Profile(name="one"))
+
+        window = MainWindow()
+        try:
+            window.store = store
+            window.reload_profiles(select="one")
+            window.cards["M2"].keys.setText("X,Y")
+            assert window.has_unsaved_changes()
+
+            window.save_profile()
+            assert not window.has_unsaved_changes()
+            assert window.save_button.text() == "Save"
+            assert store.load("one").macros["M2"].keys == "X,Y"
+        finally:
+            window.bridge.shutdown()
+
+
 if __name__ == "__main__":
     failures = 0
     for name, fn in sorted(globals().items()):
