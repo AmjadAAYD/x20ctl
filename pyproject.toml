@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "x20ctl"
+version = "0.1.0"
+description = "Open configuration for the EasySMX X20 and other KeyLinker controllers"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [{ name = "Amjad AAYD" }]
+keywords = ["gamepad", "controller", "easysmx", "keylinker", "bluetooth", "ble"]
+classifiers = [
+    "Environment :: Win32 (MS Windows)",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: System :: Hardware",
+]
+
+# The protocol layer itself has no dependencies; bleak is needed to reach a
+# controller, and the GUI is optional.
+dependencies = ["bleak>=0.22"]
+
+[project.optional-dependencies]
+gui = ["PySide6>=6.6"]
+
+[project.scripts]
+x20 = "x20ctl.cli:main"
+
+[project.gui-scripts]
+x20ctl = "x20ctl.gui:main"
+
+[project.urls]
+Homepage = "https://github.com/AmjadAAYD/x20ctl"
+
+[tool.setuptools]
+packages = ["x20ctl", "x20ctl.gui"]

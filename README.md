@@ -81,10 +81,29 @@ and no I/O, so the whole packet layer can be exercised without a controller.
 
 ---
 
+## Install
+
+```bash
+pip install -e ".[gui]"
+```
+
+That puts two commands on your PATH, so neither needs you to be in this
+directory:
+
+| Command | What it does |
+|---|---|
+| `x20ctl` | opens the desktop app |
+| `x20` | the command line interface |
+
+Without installing, run them as `python -m x20ctl.gui` and `python -m x20ctl`
+from the project directory.
+
+---
+
 ## The desktop app
 
 ```bash
-python -m x20ctl.gui
+x20ctl
 ```
 
 Save files down the left, the four macro slots and vibration on the right.
@@ -135,8 +154,8 @@ x20 profile set "Save file 1" M1 "A+B" --vibration 30
 x20 profile apply "Save file 1"
 ```
 
-Run as `python -m x20ctl <command>`. The address is remembered after the first
-successful scan.
+The address is remembered after the first successful scan, so most commands need
+no arguments.
 
 ---
 
