@@ -117,9 +117,7 @@ class MainWindow(QWidget):
             "them. If you rely on one, define it in the save file too.\n\n"
             "Edits save themselves as you make them. The Save button is there "
             "when you want to be certain, and shows whether anything is "
-            "pending.
-
-"
+            "pending. "
             "The one time the app interrupts is when you clear a slot that held "
             "a macro, since that can't be undone: a macro already on the "
             "controller can't be read back off it.")))
