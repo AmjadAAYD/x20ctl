@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
-    QFrame, QHBoxLayout, QInputDialog, QLabel, QListWidget, QListWidgetItem,
-    QMessageBox, QPushButton, QScrollArea, QStackedWidget, QVBoxLayout, QWidget,
+    QApplication, QFrame, QHBoxLayout, QInputDialog, QLabel, QListWidget,
+    QListWidgetItem, QMessageBox, QPushButton, QScrollArea, QStackedWidget,
+    QVBoxLayout, QWidget,
 )
 
 from .. import transport
@@ -39,6 +40,11 @@ class MainWindow(QWidget):
         self.profile = Profile(name="Save file 1")
         self._loaded_name: str | None = None
         self._busy = False
+        self._closing = False
+        # A modal question needs somebody to answer it. Headless runs have
+        # nobody, so they would hang on the dialog forever.
+        self.ask_before_discarding = (
+            QApplication.platformName() != "offscreen")
 
         self.reader = XInputReader()
         self.recorder = MacroRecorder(self.reader)
@@ -236,6 +242,7 @@ class MainWindow(QWidget):
             "This is one of the few settings with no on-pad equivalent, so "
             "software is the only way to reach it.")))
         self.vibration = VibrationRow()
+        self.vibration.changed.connect(lambda _v: self._sync_apply_state())
         layout.addWidget(self.vibration)
 
         # footer ---------------------------------------------------------
@@ -278,12 +285,20 @@ class MainWindow(QWidget):
             self.load_into_form(Profile(name="Save file 1"))
 
     def _profile_selected(self, current, _previous) -> None:
-        if current is None:
+        if current is None or self._closing:
             return
-        # Persist edits to the profile being left, so switching away never
-        # silently discards a recording or a tweak.
-        if self._loaded_name and self.has_unsaved_changes():
-            self.autosave()
+        # Qt emits this while widgets tear down, which used to autosave the form
+        # on the way out. Guarded above.
+        if not self.confirm_discard("switching save file"):
+            # Put the selection back without re-entering this handler.
+            self.profile_list.blockSignals(True)
+            for row in range(self.profile_list.count()):
+                item = self.profile_list.item(row)
+                if (item.data(Qt.UserRole) or item.text()) == self._loaded_name:
+                    self.profile_list.setCurrentRow(row)
+                    break
+            self.profile_list.blockSignals(False)
+            return
 
         # Picking a save file means you want to edit it, so leave the tester.
         self.show_tester(False)
@@ -303,6 +318,14 @@ class MainWindow(QWidget):
         for slot in SLOTS:
             self.cards[slot].set_spec(profile.macros.get(slot))
         self.vibration.set_value(profile.vibration or 0)
+
+        # Take what the form now shows as the baseline. A profile with no
+        # vibration stores None while the slider shows 0, so without this every
+        # profile looked edited the instant it opened.
+        try:
+            self.profile = self.collect()
+        except ValueError:
+            pass        # a profile that will not build stays dirty, correctly
         self._sync_apply_state()
 
     def collect(self) -> Profile:
@@ -326,6 +349,30 @@ class MainWindow(QWidget):
         stored = self.profile
         return (current.macros != stored.macros
                 or current.vibration != stored.vibration)
+
+    def confirm_discard(self, what: str) -> bool:
+        """Ask before losing edits. False means the user wants to stay put."""
+        if not self._loaded_name or not self.has_unsaved_changes():
+            return True
+        if not self.ask_before_discarding:
+            return True
+
+        box = QMessageBox(self)
+        box.setWindowTitle("Unsaved changes")
+        box.setText(f"Save changes to “{self._loaded_name}”?")
+        box.setInformativeText(
+            f"You have edits that are not saved. Discarding them puts "
+            f"“{self._loaded_name}” back to how it was on disk.")
+        box.setStandardButtons(QMessageBox.Save | QMessageBox.Discard
+                               | QMessageBox.Cancel)
+        box.setDefaultButton(QMessageBox.Save)
+        choice = box.exec()
+
+        if choice == QMessageBox.Cancel:
+            return False
+        if choice == QMessageBox.Save:
+            return self.autosave(f"saved before {what}")
+        return True     # Discard: leave the file on disk alone
 
     def autosave(self, reason: str = "") -> bool:
         """Persist the form if it's valid. Returns whether it saved.
@@ -431,6 +478,8 @@ class MainWindow(QWidget):
             self.set_status(f"cannot save: {exc}", "Danger")
             return
         self.profile = profile
+        self._loaded_name = profile.name
+        self.save_button.setText("Save")
         self.set_status(f"saved “{profile.name}”", "Success")
 
     # -- controller ------------------------------------------------------
@@ -444,7 +493,12 @@ class MainWindow(QWidget):
     def _sync_apply_state(self) -> None:
         valid = all(card.is_valid() for card in self.cards.values())
         self.apply_button.setEnabled(valid and self.pad is not None and not self._busy)
+
+        dirty = valid and bool(self._loaded_name) and self.has_unsaved_changes()
         self.save_button.setEnabled(valid and not self._busy)
+        self.save_button.setText("Save *" if dirty else "Save")
+        if dirty and not self._busy:
+            self.set_status("unsaved changes", "Warning")
 
     def connect_controller(self) -> None:
         if self._busy:
@@ -649,6 +703,10 @@ class MainWindow(QWidget):
     # -- lifecycle -------------------------------------------------------
 
     def closeEvent(self, event) -> None:
+        if not self.confirm_discard("closing"):
+            event.ignore()
+            return
+        self._closing = True
         self.record_timer.stop()
         self.tester.stop()
         pad = self.pad
