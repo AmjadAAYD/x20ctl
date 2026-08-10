@@ -15,6 +15,16 @@ the command line. See [status](#status) for exactly what is and is not proven.
 The protocol was reverse engineered from scratch. No prior documentation of
 KeyLinker, `Xpert2`, or `com.pulsenet.inputset` appears to exist publicly.
 
+![The settings window](assets/screenshots/settings.png)
+
+Macros on the four rear buttons, with per-step timing, save files, and vibration.
+
+![The input tester](assets/screenshots/tester.png)
+
+The input tester: every button, both sticks with a position trail, the analog
+triggers, and a meter counting the reports per second that actually reach
+Windows.
+
 ---
 
 ## Safety
