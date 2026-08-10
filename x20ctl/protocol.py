@@ -1023,6 +1023,11 @@ def describe_mask(mask: int, layout: MaskLayout | None = None) -> list[str]:
 
 MACRO_STEP_SIZE = 5
 
+# The header states the record's length in byte 0 as (entries * 5) + 2, so the
+# record cannot describe more entries than fit in a byte. A press and its
+# release are separate entries, which halves it in practice.
+MAX_MACRO_ENTRIES = (255 - 2) // MACRO_STEP_SIZE        # 50
+
 
 @dataclass
 class MacroStep:
@@ -1101,6 +1106,17 @@ def build_macro_payload(
     ticks = loop_interval_ms // 5
     if not 0 <= ticks < 1 << 12:
         raise ValueError("loop interval out of range for 12 bits")
+
+    # Byte 0 states the record's own length, so the whole macro has to fit in
+    # one byte. Checked here because the alternative is bytes() raising "bytes
+    # must be in range(0, 256)" from inside the header builder, which says
+    # nothing about macros being too long.
+    if len(steps) > MAX_MACRO_ENTRIES:
+        raise ValueError(
+            f"a macro holds at most {MAX_MACRO_ENTRIES} entries and this has "
+            f"{len(steps)}. That is the hardware's ceiling, not this library's: "
+            "the record declares its length in a single byte. A press and its "
+            f"release are two entries, so roughly {MAX_MACRO_ENTRIES // 2} steps.")
 
     header = bytes([
         (len(steps) * MACRO_STEP_SIZE) + 2,

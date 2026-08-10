@@ -331,6 +331,19 @@ python tools/verify_curve_write.py sticks --read-only
 python tools/verify_curve_write.py triggers
 ```
 
+Turn a stick movement in a gamepad-overlay video into a macro. Needs
+`opencv-python`, and `--debug` writes annotated frames so you can check the
+tracking before trusting the result:
+
+```bash
+python tools/macro_from_video.py clip.mp4 --hue 5 25 --debug
+```
+
+It can't be one to one, and that's the hardware: a macro step stores a stick as
+one of eight compass directions, so how far it was pushed isn't recorded and
+can't be replayed. A macro also holds about 25 steps, since the record states
+its own length in a single byte, so the tool merges runs and keeps the longest.
+
 Run the tests, no hardware required:
 
 ```bash

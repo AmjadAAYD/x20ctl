@@ -707,6 +707,24 @@ def test_curve_rejects_a_wrong_sized_channel():
     raise AssertionError("a channel must be exactly 7 bytes")
 
 
+def test_a_macro_that_is_too_long_says_so():
+    """The header declares its own length in one byte, so 50 entries is the
+    hardware's ceiling. Past it, bytes() raised "must be in range(0, 256)" from
+    inside the header builder, which tells you nothing about macros."""
+    fits = p.parse_sequence(",".join(["LS_UP:50/50"] * 25), 100, 60)
+    assert len(fits) == p.MAX_MACRO_ENTRIES, "a press and a release each count"
+    payload = p.build_macro_payload(fits, loop_interval_ms=0)
+    assert payload[0] == 252, "the length byte is right at the top of its range"
+
+    too_long = p.parse_sequence(",".join(["LS_UP:50/50"] * 26), 100, 60)
+    try:
+        p.build_macro_payload(too_long, loop_interval_ms=0)
+        raise AssertionError("a macro past the ceiling must be refused")
+    except ValueError as exc:
+        assert "at most 50 entries" in str(exc)
+        assert "hardware" in str(exc), "say whose limit it is"
+
+
 def test_a_two_channel_curve_write_exactly_fills_a_packet():
     """Confirmed on hardware: 20 bytes on the wire, the whole cap.
 
