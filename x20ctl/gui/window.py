@@ -115,10 +115,14 @@ class MainWindow(QWidget):
             "That includes assignments you made with button combinations on the "
             "pad itself: software cannot read those back, so it cannot preserve "
             "them. If you rely on one, define it in the save file too.\n\n"
-            "Edits save themselves as you make them, so there is no Save "
-            "button. The one time the app interrupts is when you clear a slot "
-            "that held a macro, since that cannot be undone: a macro already "
-            "on the controller can't be read back off it.")))
+            "Edits save themselves as you make them. The Save button is there "
+            "when you want to be certain, and shows whether anything is "
+            "pending.
+
+"
+            "The one time the app interrupts is when you clear a slot that held "
+            "a macro, since that can't be undone: a macro already on the "
+            "controller can't be read back off it.")))
         layout.addWidget(holder)
 
         self.profile_list = QListWidget()
@@ -264,10 +268,17 @@ class MainWindow(QWidget):
         footer.setSpacing(10)
         self.status = QLabel("")
         self.status.setObjectName("Muted")
+        self.save_button = QPushButton("Save")
+        self.save_button.setObjectName("Ghost")
+        self.save_button.setToolTip(
+            "Edits save on their own, so this is here when you want to be sure.")
+        self.save_button.clicked.connect(self.save_profile)
+
         self.apply_button = QPushButton("Apply to controller")
         self.apply_button.setObjectName("Primary")
         self.apply_button.clicked.connect(self.apply_profile)
         footer.addWidget(self.status, 1)
+        footer.addWidget(self.save_button)
         footer.addWidget(self.apply_button)
         layout.addLayout(footer)
         return page
@@ -504,6 +515,7 @@ class MainWindow(QWidget):
             self.set_status(f"removed “{name}”", "Muted")
 
     def save_profile(self) -> None:
+        self._autosave_timer.stop()
         try:
             profile = self.collect()
             self.store.save(profile)
@@ -512,6 +524,7 @@ class MainWindow(QWidget):
             return
         self.profile = profile
         self._loaded_name = profile.name
+        self.save_button.setText("Saved")
         self.set_status(f"saved “{profile.name}”", "Success")
 
     # -- controller ------------------------------------------------------
@@ -527,6 +540,8 @@ class MainWindow(QWidget):
         self.apply_button.setEnabled(valid and self.pad is not None and not self._busy)
 
         dirty = valid and bool(self._loaded_name) and self.has_unsaved_changes()
+        self.save_button.setEnabled(valid and not self._busy)
+        self.save_button.setText("Save *" if dirty else "Saved")
         if dirty and not self._busy and not self._closing:
             self._autosave_timer.start()
 
@@ -536,6 +551,7 @@ class MainWindow(QWidget):
         if not self.has_unsaved_changes():
             return
         if self.autosave():
+            self.save_button.setText("Saved")
             self.set_status("saved", "Muted")
 
     def connect_controller(self) -> None:
