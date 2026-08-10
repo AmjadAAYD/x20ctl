@@ -1,0 +1,105 @@
+# Changelog
+
+## 0.1.0
+
+First release. The protocol was reverse engineered from scratch; no public
+documentation of KeyLinker, `Xpert2`, or `com.pulsenet.inputset` appears to
+exist.
+
+### The protocol
+
+Recovered by decompiling the vendor's Android app and confirmed against
+hardware. Full detail in [docs/01-protocol.md](docs/01-protocol.md).
+
+- **Transport.** BLE GATT on a peripheral advertising as `Xpert2`, separate from
+  the gamepad interface, so both are live at once.
+- **Framing.** `[opcode][length][serial][nonce][payload][crc8]`, capped at 20
+  bytes, then passed through a scrambling pass.
+- **Checksum.** Reflected CRC-8, polynomial `0xEB`. The table is generated from
+  the polynomial and asserted equal to the one shipped in the vendor app on
+  every test run.
+- **Payloads.** Byte 0 is a length prefix. Records longer than one packet are
+  chunked and fetched by index.
+- **Identification.** The pad clones Microsoft controller ids on every link, so
+  nothing here matches on VID/PID.
+
+### Added
+
+- **Macros on M1 to M4.** Sequences, chords, and thumbstick directions.
+  `A,B` plays in turn, `A+B` presses together, `LS_UP+A` pushes the stick while
+  holding a button. Fourteen buttons plus both sticks.
+- **Per-step timing.** `A:150` holds for 150ms, `A:150/40` waits 40ms
+  afterwards. The hardware stores a duration per step and this exposes it.
+- **Multi-packet macros.** Sequences too long for one packet are chunked
+  automatically.
+- **Macro recording.** Press buttons on the controller and the app captures them
+  with the timing you actually played.
+- **Vibration strength**, 0 to 100 percent. The pad's own controls cannot set
+  this, and cannot silence rumble at all.
+- **Battery level**, a four step gauge with a charging flag.
+- **Save files.** Named sets of macros and vibration, stored as JSON. Applying
+  one makes the controller match it exactly.
+- **Input tester.** Every button lights while held, both sticks draw a position
+  trail, triggers show their analog value.
+- **Polling rate meter.** Counts the reports per second that actually reach
+  Windows, so comparing links is meaningful. Reads 1002 peak on a 2.4GHz
+  receiver, matching an independent tool on the same hardware.
+- **Transport detection.** Reports whether you are playing over Bluetooth or
+  USB.
+- **Command line interface** alongside the app, and a **standalone executable**
+  that needs no Python.
+- **Explanations on every control**, including why there are three millisecond
+  fields.
+
+### Not available on the X20
+
+The pad publishes a capability descriptor stating what it will accept, and an
+X20 reports zero for these. They exist in the hardware but are driven by button
+combinations on the pad and are not reachable through this protocol. Another
+controller on the same chip may report them as available, and the library gates
+on the descriptor, so it will simply work.
+
+- RGB lighting
+- Turbo
+- Gyro
+
+### Deliberately out of scope
+
+- **Firmware flashing.** That runs through the mass storage bootloader, which is
+  the only path that can destroy the controller. Use the manufacturer's updater.
+  `x20 status` reports the installed version so you can tell when you are behind.
+
+### Fixed during development
+
+Kept because each one records something learned about the hardware.
+
+- **Macros drove both thumbsticks.** An untouched analog entry encodes as
+  `0b1000`, not `0b0000`. A zeroed nibble is direction *up*, not centre, so an
+  early macro swept both sticks until it was interrupted.
+- **The same fault, one line later.** Fixing the mask builder was not enough;
+  release steps were built with a bare zero mask and recreated it.
+- **Macros repeated forever.** The header field is a loop *interval*, not a
+  duration. Zero disables looping; anything else repeats until another macro
+  button is pressed.
+- **Save files did not switch.** Applying left slots the file did not define
+  alone, so the previous file's macros stayed live while the app showed the new
+  one.
+- **Recordings were lost.** Recording filled the card but saved nothing, so
+  clicking elsewhere discarded it.
+- **Removing a save file put it back.** Deleting reloaded the list, which fired
+  the selection handler, which autosaved the deleted profile to disk.
+- **The recorder discarded its own timing**, averaging every step into a single
+  hold and gap.
+- **The polling meter undercounted**, reading about 900Hz where the true figure
+  was 1002. It counted whether the packet number changed rather than by how
+  much.
+- **Transport detection claimed "wired" on a receiver.** The receiver is
+  transparent: same ids, same revision, same driver as a cable. The two are
+  indistinguishable, and the app now says so instead of guessing.
+- **The windowed launcher died silently.** Under `pythonw` there is no
+  `sys.stdout`, and terminal code was being imported during startup.
+- **The taskbar icon did not appear.** The app identity was being set after the
+  icon, and Windows had already chosen by then.
+- **Clicking a save file did nothing** while the input tester was open.
+- **Bluetooth being off looked like a fault.** Settings need it; playing does
+  not.
