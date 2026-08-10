@@ -233,17 +233,27 @@ class MacroRecorder:
         if not steps:
             return None
 
-        # The wire format alternates press and release, so collapse the
-        # recording to the pressed groups and take a representative timing.
-        pressed = [s for s in steps if s.keys]
-        if not pressed:
-            return None
-        gaps = [s.duration_ms for s in steps if not s.keys]
+        # Keep the timing that was actually played. The protocol stores a
+        # duration per step, so averaging them into a single hold and gap, which
+        # an earlier version did, threw away the whole point of recording.
+        parts: list[str] = []
+        index = 0
+        while index < len(steps):
+            step = steps[index]
+            if not step.keys:
+                index += 1
+                continue
+            names = "+".join(k.name for k in step.keys)
+            gap = 0
+            if index + 1 < len(steps) and not steps[index + 1].keys:
+                gap = steps[index + 1].duration_ms
+            parts.append(f"{names}:{step.duration_ms}/{gap}" if gap
+                         else f"{names}:{step.duration_ms}")
+            index += 2
 
-        keys = ",".join("+".join(k.name for k in s.keys) for s in pressed)
-        hold = _quantise(sum(s.duration_ms for s in pressed) / len(pressed))
-        gap = _quantise(sum(gaps) / len(gaps)) if gaps else 60
-        return MacroSpec(keys=keys, hold_ms=hold, gap_ms=gap, loop_ms=0)
+        if not parts:
+            return None
+        return MacroSpec(keys=",".join(parts), hold_ms=100, gap_ms=60, loop_ms=0)
 
     def summary(self) -> str:
         if not self.steps:

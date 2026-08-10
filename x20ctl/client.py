@@ -326,17 +326,7 @@ class X20:
             raise NotSupported("this pad does not expose macros")
 
         layout = await self.macro_layout()
-        steps: list[p.MacroStep] = []
-        for group in keys.split(","):
-            names = [n.strip().upper() for n in group.split("+") if n.strip()]
-            if not names:
-                continue
-            steps.append(p.MacroStep(
-                mask=p.mask_for([p.parse_token(n) for n in names], layout),
-                duration_ms=hold_ms))
-            steps.append(p.MacroStep(mask=layout.neutral, duration_ms=gap_ms))
-        if not steps:
-            raise ValueError("no keys given")
+        steps = p.parse_sequence(keys, hold_ms, gap_ms)
 
         payload = p.build_macro_payload(steps, loop_interval_ms=loop_ms)
         for packet in p.build_macro_writes(

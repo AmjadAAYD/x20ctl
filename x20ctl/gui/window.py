@@ -522,13 +522,21 @@ class MainWindow(QWidget):
         finding = diagnose(message)
         self._busy = False
         self.pad = None
-        self.dot.set_state("error")
+        # A precondition the user has not met is not an error state. Reserving
+        # the error colour for genuine faults keeps it meaningful.
+        self.dot.set_state("idle" if finding.expected else "error")
         self.device_name.setText(finding.headline)
         self.device_detail.setText(finding.advice)
         self.battery_label.setText("")
         self.connect_button.setText("Connect")
         self.connect_button.setEnabled(True)
-        self.set_status(finding.headline, "Danger")
+        self.set_status(finding.headline, "Muted" if finding.expected else "Danger")
+        # Editing and the tester work offline, so say so rather than leaving the
+        # window looking broken.
+        self.notice.setText(
+            "You can still edit save files and use the input tester. "
+            "Only writing settings to the controller needs Bluetooth.")
+        self.notice.show()
         self._sync_apply_state()
 
     def apply_profile(self) -> None:

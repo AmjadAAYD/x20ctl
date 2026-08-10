@@ -248,7 +248,7 @@ class MacroCard(QFrame):
         row.addWidget(self.tag)
 
         self.keys = QLineEdit()
-        self.keys.setPlaceholderText("A+B     A,B     LS_UP+A")
+        self.keys.setPlaceholderText("A+B     A,B     A:150/40     LS_UP+A")
         self.keys.setMinimumWidth(150)
         self.keys.setToolTip(
             "'+' presses keys together, ',' plays them one after another.\n\n"
