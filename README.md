@@ -58,8 +58,8 @@ you are behind.
 | BLE transport, framing, CRC, scrambling | confirmed against hardware |
 | Reading device info, capabilities, every setting | working |
 | **Macros on M1-M4** | **working**, verified by behaviour |
-| — sequences, chords, stick directions | working |
-| — multi-packet macros via chunked writes | working |
+| ... sequences, chords, stick directions | working |
+| ... multi-packet macros via chunked writes | working |
 | **Vibration strength** | **working**, verified by feel at 0%, 30%, 100% |
 | **Battery level** | **working**, four-step gauge plus charging flag |
 | Save files | working |
@@ -167,10 +167,10 @@ pad's own macro key list omits them.
 
 The three timings:
 
-- `hold_ms` — how long each press lasts. 50 ms is faster than a human can press
+- `hold_ms`: how long each press lasts. 50 ms is faster than a human can press
   and some games poll slowly enough to miss it; 80 to 120 ms is more reliable.
-- `gap_ms` — the pause between presses, which games that debounce input need.
-- `loop_ms` — an **interval, not a duration**. `0` fires the macro once; anything
+- `gap_ms`: the pause between presses, which games that debounce input need.
+- `loop_ms`: an **interval, not a duration**. `0` fires the macro once; anything
   else repeats it forever until another macro button is pressed. The hardware has
   no "repeat for N seconds" setting.
 

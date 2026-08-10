@@ -294,7 +294,7 @@ Decoded per `ZXBTHelper.parsingVidAndPidAndVersion`:
 | 0-1 | vendor id, hex string | `0710` |
 | 2-3 | product id, hex string | `1320` |
 | 4-5 | version, `major.minor` in hex | `9.01` |
-| — | device_id, top 4 bits of pid | `1` |
+| n/a | device_id, top 4 bits of pid | `1` |
 | 6 | bitfield: model (low 4), sensor (bit 4), family (bits 5-7) | **only parsed when the payload is exactly 7 bytes** |
 
 These are the vendor's own identifiers and are unrelated to the cloned USB

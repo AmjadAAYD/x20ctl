@@ -202,7 +202,7 @@ class TesterPage(QWidget):
             "and Bluetooth here is meaningful.")))
 
         rate_row = QHBoxLayout()
-        self.rate_label = QLabel("—")
+        self.rate_label = QLabel("...")
         self.rate_label.setStyleSheet(
             f"font-size:30px; font-weight:700; color:{theme.TEXT};")
         unit = QLabel("reports / second")
@@ -291,7 +291,7 @@ class TesterPage(QWidget):
         state = self.reader.poll()
         if state is None:
             self.state.setText("no controller on XInput")
-            self.rate_label.setText("—")
+            self.rate_label.setText("...")
             return
 
         self.state.setText(f"XInput slot {state.slot}")
