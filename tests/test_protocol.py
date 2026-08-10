@@ -547,6 +547,73 @@ def test_chord_sets_multiple_bits_in_one_step():
     assert len(p.build_macro_writes(payload, slot=0)) == 1
 
 
+# --- thumbstick directions in macros ----------------------------------------
+
+def test_idle_nibble_is_not_a_direction():
+    """The trap that drove both sticks: 0b1000 is idle, 0b0000 is direction UP."""
+    assert p.ANALOG_IDLE_NIBBLE == 0b1000
+    assert p.MACRO_ANALOG_NEUTRAL == (0b1000 | 0b1000 << 4)
+    assert p.describe_mask(p.mask_for([])) == []
+
+
+def test_stick_direction_occupies_the_right_nibble():
+    left = p.mask_for([p.StickInput(p.Key.LSTICK_ANALOG, p.Direction.UP)])
+    assert left & 0x0F == 0            # UP is direction 1, encoded as 0
+    assert left >> 4 & 0x0F == 0b1000  # the other stick stays idle
+
+    right = p.mask_for([p.StickInput(p.Key.RSTICK_ANALOG, p.Direction.LEFT)])
+    assert right >> 4 & 0x0F == p.Direction.LEFT - 1
+    assert right & 0x0F == 0b1000
+
+
+def test_all_eight_directions_round_trip():
+    for stick in (p.Key.LSTICK_ANALOG, p.Key.RSTICK_ANALOG):
+        for direction in p.Direction:
+            item = p.StickInput(stick, direction)
+            assert p.describe_mask(p.mask_for([item])) == [item.name]
+
+
+def test_parse_token_handles_buttons_and_sticks():
+    assert p.parse_token("a") is p.Key.A
+    assert p.parse_token("LS_UP") == p.StickInput(p.Key.LSTICK_ANALOG, p.Direction.UP)
+    assert p.parse_token("rs-down-left") == p.StickInput(
+        p.Key.RSTICK_ANALOG, p.Direction.DOWN_LEFT)
+
+
+def test_parse_token_rejects_nonsense():
+    for bad in ("", "NOPE", "LS_SIDEWAYS", "LS"):
+        try:
+            p.parse_token(bad)
+        except ValueError:
+            continue
+        raise AssertionError(f"{bad!r} should have been rejected")
+
+
+def test_button_and_stick_combine_in_one_step():
+    mask = p.mask_for([p.Key.A,
+                       p.StickInput(p.Key.LSTICK_ANALOG, p.Direction.LEFT),
+                       p.StickInput(p.Key.RSTICK_ANALOG, p.Direction.RIGHT)])
+    assert set(p.describe_mask(mask)) == {"A", "LS_LEFT", "RS_RIGHT"}
+
+
+def test_a_stick_cannot_point_two_ways_at_once():
+    try:
+        p.mask_for([p.StickInput(p.Key.LSTICK_ANALOG, p.Direction.UP),
+                    p.StickInput(p.Key.LSTICK_ANALOG, p.Direction.DOWN)])
+    except ValueError:
+        return
+    raise AssertionError("conflicting directions must be rejected")
+
+
+def test_bare_stick_name_asks_for_a_direction():
+    try:
+        p.mask_for([p.Key.LSTICK_ANALOG])
+    except ValueError as exc:
+        assert "needs a direction" in str(exc)
+        return
+    raise AssertionError("a bare stick name must be rejected")
+
+
 def test_corrupted_packet_fails_crc():
     raw = bytearray(p.build_query(p.Op.HOST_LIGHTING, index=0, serial=1, nonce=0x42))
     plain = bytearray(p.unscramble(bytes(raw)))

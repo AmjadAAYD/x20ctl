@@ -530,28 +530,120 @@ MACRO_ANALOG_NEUTRAL = 0x88
 MACRO_CLEAR = bytes([0])
 
 
-def mask_for(keys) -> int:
-    """Build a macro step mask from digital keys.
+class Direction(IntEnum):
+    """Stick directions, an eight-way compass clockwise from up.
 
-    The analog nibbles are set to their neutral encoding, so a mask built here
-    never accidentally commands stick movement.
+    Values come from ButtonUtil.getDirectionBycoordinateXY, which buckets a
+    0-255 x/y pair into these numbers.
+    """
+
+    UP = 1
+    UP_RIGHT = 2
+    RIGHT = 3
+    DOWN_RIGHT = 4
+    DOWN = 5
+    DOWN_LEFT = 6
+    LEFT = 7
+    UP_LEFT = 8
+
+
+# Which nibble of the mask each stick occupies, as (shift, neutral_value).
+STICK_NIBBLE = {
+    Key.LSTICK_ANALOG: 0,     # low nibble  of the mask's first byte
+    Key.RSTICK_ANALOG: 4,     # high nibble of the mask's first byte
+}
+
+STICK_PREFIX = {"LS": Key.LSTICK_ANALOG, "RS": Key.RSTICK_ANALOG}
+
+# An idle analog entry encodes as 0b1000: the top bit means "no input" and the
+# low three bits are a direction minus one. Zero is therefore direction UP, not
+# centre, which is the trap that drove both sticks on an early macro.
+ANALOG_IDLE_NIBBLE = 0b1000
+
+
+@dataclass(frozen=True)
+class StickInput:
+    """One stick held in one direction for a macro step."""
+
+    stick: Key
+    direction: Direction
+
+    @property
+    def name(self) -> str:
+        prefix = "LS" if self.stick is Key.LSTICK_ANALOG else "RS"
+        return f"{prefix}_{self.direction.name}"
+
+
+def parse_token(text: str):
+    """Turn one key name into a Key or a StickInput.
+
+    Buttons are their own names; stick directions are `LS_UP`, `RS_DOWN_LEFT`
+    and so on.
+    """
+    token = text.strip().upper().replace("-", "_")
+    if not token:
+        raise ValueError("empty key name")
+
+    prefix, _, rest = token.partition("_")
+    if prefix in STICK_PREFIX and rest:
+        try:
+            direction = Direction[rest]
+        except KeyError:
+            valid = ", ".join(d.name for d in Direction)
+            raise ValueError(
+                f"unknown stick direction {rest!r}. Valid: {valid}") from None
+        return StickInput(stick=STICK_PREFIX[prefix], direction=direction)
+
+    try:
+        return Key[token]
+    except KeyError:
+        raise ValueError(f"unknown key {token!r}") from None
+
+
+def mask_for(items) -> int:
+    """Build a macro step mask from buttons and stick directions.
+
+    Both analog nibbles start neutral, so a mask built here never commands stick
+    movement unless a StickInput asks for it.
     """
     mask = MACRO_ANALOG_NEUTRAL
-    for key in keys:
-        k = Key(key)
-        if k in MACRO_ANALOG_BITS:
+    seen_sticks: dict[Key, Direction] = {}
+
+    for item in items:
+        if isinstance(item, StickInput):
+            if item.stick in seen_sticks and seen_sticks[item.stick] != item.direction:
+                raise ValueError(
+                    f"{item.stick.name} given two directions in one step; a stick "
+                    "can only point one way at a time")
+            seen_sticks[item.stick] = item.direction
+            shift = STICK_NIBBLE[item.stick]
+            mask &= ~(0xF << shift)                       # clear the idle bits
+            mask |= ((item.direction - 1) & 0x7) << shift
+            continue
+
+        k = Key(item)
+        if k in STICK_NIBBLE:
             raise ValueError(
-                f"{k.name} is an analog entry occupying a nibble, not a single bit; "
-                "analog macro steps are not supported"
-            )
+                f"{k.name} needs a direction; write LS_UP or RS_LEFT rather than "
+                "the bare stick name")
         if k not in MACRO_MASK_BIT:
             raise ValueError(
                 f"{k.name} is not macro-capable on this device. The pad's macro key "
                 "list omits Select, Start and Home, so they cannot be placed in a "
-                "macro. Supported: " + ", ".join(x.name for x in MACRO_MASK_BIT)
-            )
+                "macro. Supported: " + ", ".join(x.name for x in MACRO_MASK_BIT) +
+                ", and stick directions such as LS_UP")
         mask |= 1 << MACRO_MASK_BIT[k]
     return mask
+
+
+def describe_mask(mask: int) -> list[str]:
+    """Names of everything a mask holds down. The inverse of mask_for."""
+    out = [k.name for k, bit in MACRO_MASK_BIT.items() if mask >> bit & 1]
+    for stick, shift in STICK_NIBBLE.items():
+        nibble = mask >> shift & 0xF
+        if nibble != ANALOG_IDLE_NIBBLE:
+            out.append(StickInput(stick, Direction((nibble & 0x7) + 1)).name)
+    return out
 
 
 MACRO_STEP_SIZE = 5

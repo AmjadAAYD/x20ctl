@@ -285,7 +285,8 @@ class X20:
             if not names:
                 continue
             steps.append(p.MacroStep(
-                mask=p.mask_for([p.Key[n] for n in names]), duration_ms=hold_ms))
+                mask=p.mask_for([p.parse_token(n) for n in names]),
+                duration_ms=hold_ms))
             steps.append(p.MacroStep.released(gap_ms))
         if not steps:
             raise ValueError("no keys given")
