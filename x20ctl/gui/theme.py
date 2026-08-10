@@ -118,6 +118,17 @@ QLineEdit, QSpinBox, QComboBox {{
 QLineEdit:focus, QSpinBox:focus, QComboBox:focus {{ border-color: {ACCENT}; }}
 QLineEdit::placeholder {{ color: {TEXT_FAINT}; }}
 
+QToolButton#Info {{
+    background: {BORDER};
+    color: {TEXT_MUTED};
+    border: none;
+    border-radius: 8px;
+    font-size: 10px;
+    font-weight: 700;
+    font-style: italic;
+}}
+QToolButton#Info:hover {{ background: {ACCENT}; color: #0b1220; }}
+
 QSpinBox::up-button, QSpinBox::down-button {{
     width: 14px;
     background: transparent;
