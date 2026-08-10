@@ -244,12 +244,8 @@ def test_unsaved_edits_are_detected():
 
             window.cards["M1"].keys.clear()          # the backspace case
             assert window.has_unsaved_changes()
-            assert window.save_button.text().endswith("*")
-
-            # Discarding must leave the file on disk untouched
-            window.ask_before_discarding = False
-            window.close()
-            assert store.load("one").macros["M1"].keys == "A+B"
+            # clearing a slot is the one thing worth interrupting for
+            assert window.emptied_slots() == ["M1"]
         finally:
             window.bridge.shutdown()
 
@@ -270,11 +266,62 @@ def test_a_saved_edit_is_no_longer_dirty():
             window.reload_profiles(select="one")
             window.cards["M2"].keys.setText("X,Y")
             assert window.has_unsaved_changes()
+            assert window.emptied_slots() == [], "adding a macro is not destruction"
 
-            window.save_profile()
+            window._autosave_now()          # what the debounce timer would do
             assert not window.has_unsaved_changes()
-            assert window.save_button.text() == "Save"
             assert store.load("one").macros["M2"].keys == "X,Y"
+        finally:
+            window.bridge.shutdown()
+
+
+def test_edits_save_themselves():
+    """No Save button: typing a macro and waiting is enough."""
+    import tempfile
+
+    from x20ctl.gui.window import MainWindow
+    from x20ctl.profiles import ProfileStore
+
+    with tempfile.TemporaryDirectory() as tmp:
+        store = ProfileStore(tmp)
+        store.save(Profile(name="auto"))
+
+        window = MainWindow()
+        try:
+            window.store = store
+            window.reload_profiles(select="auto")
+            window.cards["M1"].keys.setText("A+B")
+            window._autosave_now()
+            assert store.load("auto").macros["M1"].keys == "A+B"
+        finally:
+            window.bridge.shutdown()
+
+
+def test_restoring_a_cleared_slot_puts_it_back():
+    import tempfile
+
+    from x20ctl.gui.window import MainWindow
+    from x20ctl.profiles import ProfileStore
+
+    with tempfile.TemporaryDirectory() as tmp:
+        store = ProfileStore(tmp)
+        profile = Profile(name="one")
+        profile.macros["M1"] = MacroSpec(keys="A+B")
+        store.save(profile)
+
+        window = MainWindow()
+        try:
+            window.store = store
+            window.reload_profiles(select="one")
+            window.cards["M1"].keys.clear()
+            window._autosave_now()
+            assert store.load("one").macros["M1"] is None, "autosave applies"
+
+            # what the Restore button does
+            for slot in window.emptied_slots():
+                window.cards[slot].set_spec(window._session_baseline.get(slot))
+            window.autosave()
+            assert store.load("one").macros["M1"].keys == "A+B"
         finally:
             window.bridge.shutdown()
 

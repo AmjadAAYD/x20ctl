@@ -137,6 +137,10 @@ Editing a slot validates as you type, and a macro set to loop is marked, since
 that's the one setting that can surprise you. Every section has an info button
 explaining what its controls do and why.
 
+**Edits save themselves.** There is no Save button. The app only interrupts when
+you clear a slot that held a macro, and then it offers to put it back, because
+a macro already written to the controller can't be read off it again.
+
 **Record** on any slot captures what you press on the controller, with the real
 timing between presses, and fills the slot in.
 
