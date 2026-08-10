@@ -502,13 +502,13 @@ in the earlier sweep. So `df aa` is very likely a generic acknowledgement, and t
 earlier table entry treating it as two-in-one device state is probably wrong.
 Corrected here over left standing.
 
-### Stick writes are accepted too
+### Stick and trigger writes are accepted too
 
 `WRITE_CHANGEKEY` proved the framing. It could not prove that a *settings* write
-changes anything, because the value it wrote was the value already there. A
-stick write, run later against the same pad, settles that.
+changes anything, because the value it wrote was the value already there. Stick
+and trigger writes, run later against the same pad, settle that.
 
-Three steps in one session, left stick only:
+Three steps in one session, left channel only. Sticks first:
 
 ```
 baseline    08 08 55 55 aa aa 00  08 08 55 55 aa aa 00
@@ -525,12 +525,28 @@ baseline    08 08 55 55 aa aa 00  08 08 55 55 aa aa 00
    after    08 08 55 55 aa aa 00  08 08 55 55 aa aa 00   as found
 ```
 
+Then the same procedure against `WRITE_TRIGGER`, on a record that starts out
+curved rather than linear:
+
+```
+baseline    04 22 52 85 e5 eb 00  04 22 52 85 e5 eb 00
+
+1. no-op    ack 19 08 81 .. 02 df aa, record unchanged
+2. change   left inner deadzone 4 -> 6
+   after    06 22 52 85 e5 eb 00  04 22 52 85 e5 eb 00   accepted
+3. restore  04 22 52 85 e5 eb 00  04 22 52 85 e5 eb 00   as found
+```
+
 What this establishes:
 
-- **The pad takes stick writes**, and the changed byte reads back changed. The
-  no-op step alone could never have shown this: an ignored write and an accepted
-  one leave identical records behind. Only a value that differs distinguishes
-  them.
+- **The pad takes stick and trigger writes**, and the changed byte reads back
+  changed in both records. The no-op step alone could never have shown this: an
+  ignored write and an accepted one leave identical records behind. Only a value
+  that differs distinguishes them.
+- **The two records behave identically**, which the shared layout suggested but
+  did not establish. The trigger record starts out curved and on a 200-unit
+  scale where the stick record is linear on a 100-unit one, and both took the
+  write the same way.
 - **The record is written whole.** Byte 0 is a length prefix of 14, then two
   seven-byte channels. Sending one channel is not an option; the untouched side
   goes along unchanged, and did, verifiably.
@@ -542,8 +558,8 @@ What this establishes:
   A pad reporting three channels could not be written in one packet, and no
   chunked form of this write has been observed.
 
-Trigger writes use `WRITE_TRIGGER` against an identically shaped record and have
-not been tested.
+`tools/verify_curve_write.py` is this procedure, kept so it can be repeated on
+another pad rather than taken on trust.
 
 ## 4f. On-pad assignments are invisible to the protocol
 
@@ -688,8 +704,8 @@ the pad, and read again.
 - Byte layout **inside** the payloads. The opcodes are certain; the field meanings
   aren't. Colour ordering, brightness scale, effect enumeration and gyro flags
   all need capture to confirm. Deadzones and curve control points are decoded,
-  and a stick write is confirmed accepted on hardware; the trigger record has
-  the same shape but has not been written to.
+  and writes to both the stick and trigger records are confirmed accepted on
+  hardware.
 - **How the firmware joins the two curve control points.** The points themselves
   are certain, and both are stored on a 0-255 axis independent of the deadzone
   scale. Nothing observed so far says whether the response between them is a

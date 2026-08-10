@@ -97,7 +97,7 @@ async def run(kind: str, address: str, read_only: bool) -> int:
         print(ui.field("sent", record(wanted)))
         print(ui.field("read back", record(reported)))
         took = reported[0].inner_deadzone == probe
-        print(ui.ok(f"  the pad accepts {kind} writes") if took
+        print(ui.ok(f"  the pad accepts {kind[:-1]} writes") if took
               else ui.warn("  the pad ignored it and kept its own value"))
         print(ui.field("right untouched", str(reported[1:] == baseline[1:])))
 
