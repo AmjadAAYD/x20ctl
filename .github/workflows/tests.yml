@@ -1,0 +1,47 @@
+name: tests
+
+# Windows only, because the application is. The input tester loads XInput
+# through ctypes and the window sets a Windows shell app id, so a Linux runner
+# would only be able to exercise the protocol half and would report green while
+# saying nothing about the part people actually run.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  tests:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The oldest version the project claims to support, and the newest it
+        # is developed on. A break in either is worth knowing about.
+        python: ["3.10", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+
+      - name: Install
+        run: pip install -e ".[gui]"
+
+      - name: Run every suite
+        # Each file is its own runner that exits non-zero on failure, so this
+        # stops at the first suite that breaks rather than reporting green.
+        run: |
+          python tests/test_protocol.py
+          python tests/test_profiles.py
+          python tests/test_compatibility.py
+          python tests/test_startup.py
+          python tests/test_gui_smoke.py
+
+      - name: Check the version is readable the way packaging reads it
+        run: |
+          python -c "import x20ctl; print(x20ctl.__version__)"
+          python -m x20ctl --version
