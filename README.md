@@ -8,8 +8,9 @@ manual, a driver, and a firmware updater. Everything else lives in a mobile-only
 app or behind button combinations on the pad itself. This project documents the
 protocol and makes it usable from a PC.
 
-**Working today:** vibration strength, verified against hardware across its full
-range. See [status](#status) for exactly what is and is not proven.
+**Working today:** macros on all four rear buttons, vibration strength, battery
+level, a live input tester and a polling-rate meter, driven from a desktop app or
+the command line. See [status](#status) for exactly what is and is not proven.
 
 The protocol was reverse engineered from scratch. No prior documentation of
 KeyLinker, `Xpert2`, or `com.pulsenet.inputset` appears to exist publicly.
@@ -40,6 +41,14 @@ The controller has two entirely separate command channels:
 **Recovery from any settings-level mistake: hold `C` for 5 seconds** for a
 factory reset. Settings live separately from firmware.
 
+### On firmware updates
+
+This project will not flash firmware, and that is deliberate rather than
+unfinished. Flashing runs through the mass-storage bootloader, which is the one
+path that can destroy the controller. Use the manufacturer's own updater for
+that. `x20 status` reports the installed firmware version so you can tell when
+you are behind.
+
 ---
 
 ## Status
@@ -47,14 +56,21 @@ factory reset. Settings live separately from firmware.
 | Feature | State |
 |---|---|
 | BLE transport, framing, CRC, scrambling | confirmed against hardware |
-| Reading device info, capabilities, all settings | working |
-| **Vibration strength** | **working, verified by feel at 0%, 30%, 100%** |
+| Reading device info, capabilities, every setting | working |
+| **Macros on M1-M4** | **working**, verified by behaviour |
+| — sequences, chords, stick directions | working |
+| — multi-packet macros via chunked writes | working |
+| **Vibration strength** | **working**, verified by feel at 0%, 30%, 100% |
+| **Battery level** | **working**, four-step gauge plus charging flag |
+| Save files | working |
+| Recording from live input | working |
+| Input tester and polling meter | working |
 | Stick curves | format known, **untested** |
 | Trigger curves | format known, **untested** |
-| Macros | capability supported, payload format not yet traced |
 | RGB lighting | **not exposed by the X20** |
 | Turbo | **not exposed by the X20** |
 | Gyro | **not exposed by the X20** |
+| Firmware update | **deliberately out of scope**, see Safety |
 
 ### About the three "not exposed" rows
 
@@ -69,19 +85,12 @@ gates on that descriptor, so it will simply work.
 
 ---
 
-## Requirements
+## Install
 
-- Python 3.10+
-- `bleak` for anything that talks to the controller: `pip install bleak`
-- `PySide6` for the desktop app: `pip install PySide6`
-- The pad paired over Bluetooth
+Python 3.10 or newer, and the pad paired over Bluetooth.
 
 The library core (`x20ctl/protocol.py`) is pure computation with no dependencies
 and no I/O, so the whole packet layer can be exercised without a controller.
-
----
-
-## Install
 
 ```bash
 pip install -e ".[gui]"
@@ -106,13 +115,25 @@ from the project directory.
 x20ctl
 ```
 
-Save files down the left, the four macro slots and vibration on the right.
+Save files down the left, the four macro slots and vibration on the right. The
+header shows battery, and which link the pad is being played over.
+
 Editing a slot validates as you type, and a macro set to loop is marked, since
-that is the one setting that can surprise you.
+that is the one setting that can surprise you. Every section has an info button
+explaining what its controls do and why.
+
+**Record** on any slot captures what you press on the controller, with the real
+timing between presses, and fills the slot in.
+
+**Input tester** shows every button lighting as it is held, both sticks with a
+position trail, and the triggers' analog values, alongside a meter counting how
+many reports per second actually reach Windows. The trail is what makes stick
+behaviour visible: rolling around the edge should trace a clean circle, and a
+released stick should settle dead centre.
 
 Applying writes every setting in the save file to the controller. Settings the
-pad does not expose are skipped rather than attempted, and the app says so
-rather than silently omitting them.
+pad does not expose are skipped rather than attempted, and slots the save file
+does not define are left exactly as they were.
 
 ---
 
@@ -136,10 +157,24 @@ knows nothing about save files; switching files rewrites those slots.
 ```
 
 In a key sequence, `+` presses keys together and `,` plays them one after
-another, so `A+B` is a chord and `A,B` is a sequence.
+another, so `A+B` is a chord and `A,B` is a sequence. Sticks are written as a
+direction, `LS_UP` or `RS_DOWN_LEFT`, and compose with the rest: `LS_UP+A` pushes
+the left stick up while holding A.
 
-`loop_ms` is an interval, not a duration: `0` fires the macro once, and anything
-else repeats it forever until another macro button is pressed.
+Fourteen buttons can appear in a macro: A, B, X, Y, LB, RB, LT, RT, L3, R3 and
+the four d-pad directions, plus both sticks. Select, Start and Home cannot: the
+pad's own macro key list omits them.
+
+The three timings:
+
+- `hold_ms` — how long each press lasts. 50 ms is faster than a human can press
+  and some games poll slowly enough to miss it; 80 to 120 ms is more reliable.
+- `gap_ms` — the pause between presses, which games that debounce input need.
+- `loop_ms` — an **interval, not a duration**. `0` fires the macro once; anything
+  else repeats it forever until another macro button is pressed. The hardware has
+  no "repeat for N seconds" setting.
+
+All three snap to multiples of 5 ms, which is the controller's own resolution.
 
 ---
 
