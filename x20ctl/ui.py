@@ -13,8 +13,19 @@ _ENABLED = False
 
 
 def _enable_ansi() -> bool:
-    """Turn on virtual terminal processing on Windows; no-op elsewhere."""
-    if not sys.stdout.isatty():
+    """Turn on virtual terminal processing on Windows; no-op elsewhere.
+
+    Under pythonw.exe, which is what a windowed entry point runs, sys.stdout is
+    None rather than a stream. Touching it raises and takes the whole app down
+    before it draws anything, so guard before asking about the terminal.
+    """
+    stream = getattr(sys, "stdout", None)
+    if stream is None or not hasattr(stream, "isatty"):
+        return False
+    try:
+        if not stream.isatty():
+            return False
+    except (ValueError, OSError):
         return False
     if os.name != "nt":
         return True
