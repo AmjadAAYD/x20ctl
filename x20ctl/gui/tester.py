@@ -59,8 +59,13 @@ class TransportProbe(QObject):
         threading.Thread(target=work, daemon=True,
                          name="x20ctl-transport").start()
 
+
 POLL_MS = 1                 # as fast as Qt will run us
 WINDOW_SECONDS = 1.0        # averaging window for the rate
+
+# A gap this large means the controller reconnected or the app was suspended,
+# not that thousands of reports genuinely arrived between two polls.
+MAX_PLAUSIBLE_DELTA = 64
 
 # Layout of the button lamps: rows of (label, Key)
 LAMP_ROWS = [
@@ -316,6 +321,9 @@ class TesterPage(QWidget):
 
         self.timer = QTimer(self)
         self.timer.setInterval(POLL_MS)
+        # Windows gives coarse timers by default, which would make a 1 ms
+        # interval fire far less often than asked.
+        self.timer.setTimerType(Qt.PreciseTimer)
         self.timer.timeout.connect(self._tick)
 
     # -- lifecycle -------------------------------------------------------
@@ -348,12 +356,12 @@ class TesterPage(QWidget):
             self.link_label.setText("not detected")
             self.link_label.setObjectName("Faint")
         else:
-            icons = {
-                transport.Link.WIRED: "wired USB",
+            labels = {
+                transport.Link.USB: "USB or 2.4 GHz receiver",
                 transport.Link.DONGLE: "2.4 GHz receiver",
                 transport.Link.BLUETOOTH: "Bluetooth",
             }
-            self.link_label.setText(icons.get(connection.link, connection.link.value))
+            self.link_label.setText(labels.get(connection.link, connection.link.value))
             self.link_label.setObjectName("Success")
         self.link_label.style().unpolish(self.link_label)
         self.link_label.style().polish(self.link_label)
@@ -388,14 +396,20 @@ class TesterPage(QWidget):
 
         now = time.perf_counter()
         if self._last_packet is not None and state.packet != self._last_packet:
-            self._samples.append(now)
+            # dwPacketNumber is a counter, so the delta is how many reports
+            # arrived since the last poll. Counting "it changed" as one report
+            # undercounts whenever two land between polls, which at 1000 Hz is
+            # most of the time given timer jitter.
+            delta = (state.packet - self._last_packet) & 0xFFFFFFFF
+            if delta <= MAX_PLAUSIBLE_DELTA:
+                self._samples.append((now, delta))
         self._last_packet = state.packet
 
         cutoff = now - WINDOW_SECONDS
-        while self._samples and self._samples[0] < cutoff:
+        while self._samples and self._samples[0][0] < cutoff:
             self._samples.popleft()
 
-        rate = len(self._samples) / WINDOW_SECONDS
+        rate = sum(delta for _, delta in self._samples) / WINDOW_SECONDS
         if rate <= 0:
             self.rate_label.setText("0")
             self.hint.setText("idle · move a stick in circles to measure")
