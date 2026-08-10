@@ -109,6 +109,64 @@ def test_window_builds_and_loads_a_profile():
         window.bridge.shutdown()
 
 
+def test_removing_a_profile_does_not_write_it_back():
+    """Regression: deleting reloaded the list, which fired the selection
+    handler, which autosaved the still-loaded profile back to disk."""
+    import tempfile
+
+    from x20ctl.gui.window import MainWindow
+    from x20ctl.profiles import ProfileStore
+
+    with tempfile.TemporaryDirectory() as tmp:
+        store = ProfileStore(tmp)
+        keep = Profile(name="keep")
+        keep.macros["M1"] = MacroSpec(keys="A")
+        store.save(keep)
+        doomed = Profile(name="doomed")
+        doomed.macros["M1"] = MacroSpec(keys="B")
+        store.save(doomed)
+
+        window = MainWindow()
+        try:
+            window.store = store
+            window.reload_profiles(select="doomed")
+            assert window.profile.name == "doomed"
+
+            # simulate the deletion path without the confirmation dialog
+            store.delete("doomed")
+            window._loaded_name = None
+            window.profile = Profile(name="doomed")
+            window.reload_profiles()
+
+            names = [x.name for x in store.list()]
+            assert "doomed" not in names, "the deleted profile came back"
+            assert "keep" in names
+        finally:
+            window.bridge.shutdown()
+
+
+def test_autosave_refuses_to_recreate_a_missing_profile():
+    import tempfile
+
+    from x20ctl.gui.window import MainWindow
+    from x20ctl.profiles import ProfileStore
+
+    with tempfile.TemporaryDirectory() as tmp:
+        store = ProfileStore(tmp)
+        store.save(Profile(name="gone"))
+
+        window = MainWindow()
+        try:
+            window.store = store
+            window.reload_profiles(select="gone")
+            store.delete("gone")            # vanishes underneath the app
+            window.cards["M1"].keys.setText("A")
+            assert window.autosave() is False
+            assert store.list() == [], "autosave resurrected a deleted profile"
+        finally:
+            window.bridge.shutdown()
+
+
 if __name__ == "__main__":
     failures = 0
     for name, fn in sorted(globals().items()):
