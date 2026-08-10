@@ -563,6 +563,61 @@ matters for input latency during play; a configuration write is a single packet
 of under 20 bytes. The likely workflow is to configure over BLE and play over the
 dongle, since both links are live simultaneously.
 
+## 4h. Macros, confirmed working
+
+Verified on hardware: a single press of M1 produces exactly one A, with no
+repetition and no stick movement.
+
+### Payload
+
+```
+header   [ (steps*5)+2 , interval_lo , packed ]
+step     [ mask_lo, mask_mid, mask_hi, dur_lo, dur_hi ]   x N
+```
+
+Working example, one A tap on M1:
+
+```
+0c 00 00 | 88 10 00 0a 00 | 88 00 00 0a 00
+   ^loop     ^A, 50ms         ^released, 50ms
+```
+
+### The loop field
+
+The header's 12-bit value is a **loop interval**, not a total duration. The app
+names its parameter list `pos_loopTime_trigger` and binds the field to a checkbox
+as `loop_checkbox.setChecked(loopTime > 0)`, with the slider labelled "loop
+interval time".
+
+| Value | Behaviour |
+|---|---|
+| `0` | loop disabled, fires once |
+| `> 0` | repeats forever with this interval |
+
+There is no "run for N seconds" setting. A bounded burst must be expressed as
+explicit repeated steps.
+
+### The analog trap
+
+Each of the two analog entries occupies four bits at the bottom of the mask, and
+an untouched analog input encodes as `0b1000`, not `0b0000`. The top bit means
+"no input"; the low three bits are a direction minus one.
+
+A mask of zero therefore commands **direction 0 on both sticks**. Observed on
+hardware: both sticks swept continuously until the macro was interrupted. Every
+mask must start from `0x88`, including release steps, which is why
+`MacroStep.released()` exists rather than callers writing `mask=0`.
+
+### Practical notes
+
+- **Read-back cannot verify a macro.** `READ_MACRO` returns zeros before, during
+  and after. Only observed behaviour confirms a write.
+- **Only one macro runs at a time.** Triggering another interrupts the first,
+  which is the recovery route for a runaway loop.
+- **50 ms is a very short press.** Some games poll input and may miss it; 80 to
+  120 ms is closer to a deliberate human press.
+- **Clearing a slot** sends a bare `[0]`, not an empty header.
+
 ## 5. What is still unknown
 
 - Byte layout **inside** the payloads. The opcodes are certain; the field meanings
