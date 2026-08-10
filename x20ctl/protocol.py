@@ -899,6 +899,64 @@ def parse_lighting(body: "Body") -> list[LightingEntry]:
     return [LightingEntry.parse(g) for g in body.groups(LIGHTING_ENTRY_SIZE)]
 
 
+# Payload that asks the pad for its power/mode status. The app builds this as
+# setMode(0): an argument count of 2 followed by the 0xDF namespace byte and the
+# 0xAB subcommand, carrying no arguments.
+#
+# It has a side effect: the pad begins streaming live input on opcode 0x1F until
+# NORMAL_MODE is sent or the link drops. Callers should send NORMAL_MODE_PAYLOAD
+# afterwards rather than leaving it running.
+POWER_QUERY_PAYLOAD = bytes([0x02, 0xDF, 0xAB])
+NORMAL_MODE_PAYLOAD = bytes([0x02, 0xDF, 0xAB])
+
+BATTERY_LEVELS = 4
+
+
+@dataclass
+class Battery:
+    """Charge state, as a four-step gauge rather than a percentage.
+
+    The pad reports level in bits 5 to 7 of the status byte and charging in
+    bit 4. There is no finer resolution available: the official app draws one of
+    four battery icons from exactly these bits.
+    """
+
+    level: int          # 1 to 4
+    charging: bool
+
+    @property
+    def approximate_percent(self) -> int:
+        """A rough percentage for display. The device does not report one."""
+        return round(self.level * 100 / BATTERY_LEVELS)
+
+    def __str__(self) -> str:
+        bar = "▮" * self.level + "▯" * (BATTERY_LEVELS - self.level)
+        return f"{bar} {self.level}/{BATTERY_LEVELS}" + (" charging" if self.charging else "")
+
+
+def parse_battery(body: "Body") -> Battery:
+    """Decode the power status byte from a mode-query reply.
+
+    Follows ButtonTestActivity.onDeviceHostMacroPower, including its precedence:
+    it tests bit 5, then bit 6, then bit 7, so a lower bit wins if several are
+    set.
+    """
+    if len(body.data) < 4:
+        raise ValueError(f"power reply too short: {len(body.data)} bytes")
+    status = body.data[3]
+
+    charging = bool(status >> 4 & 1)
+    if status >> 5 & 1:
+        level = 2
+    elif status >> 6 & 1:
+        level = 3
+    elif status >> 7 & 1:
+        level = 4
+    else:
+        level = 1
+    return Battery(level=level, charging=charging)
+
+
 @dataclass
 class DeviceInfo:
     """Decoded reply to READ_VID_PID_VERSION.

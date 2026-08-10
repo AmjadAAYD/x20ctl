@@ -25,6 +25,7 @@ import os
 import sys
 
 from . import protocol as p
+from . import transport
 from . import ui
 from .client import X20, ControllerError, NotSupported, find_controller
 from .profiles import DEFAULT_DIR, MacroSpec, Profile, ProfileStore, SLOTS
@@ -87,6 +88,13 @@ async def cmd_status(args) -> None:
     print(ui.field("name", snap.name or "unknown"))
     print(ui.field("firmware", snap.device.version))
     print(ui.field("address", address))
+    if snap.battery is not None:
+        state = "charging" if snap.battery.charging else "on battery"
+        print(ui.field("battery", f"{snap.battery} · {state}"))
+
+    link = transport.detect()
+    if link.connected:
+        print(ui.field("playing over", str(link)))
 
     caps = snap.capabilities
     print(ui.header("Configurable"))

@@ -614,6 +614,48 @@ def test_bare_stick_name_asks_for_a_direction():
     raise AssertionError("a bare stick name must be rejected")
 
 
+# --- battery, captured from a real X20 --------------------------------------
+# reply to the mode query: 19 0f 01 32 | 09 df aa 94 80 bd 93 01 00 5e | crc
+POWER_BODY = p.Body(declared=9, data=bytes.fromhex("dfaa9480bd9301005e"))
+
+
+def test_battery_from_real_hardware():
+    """The pad was on mains-free full charge when this was captured."""
+    battery = p.parse_battery(POWER_BODY)
+    assert battery.level == 4
+    assert battery.charging is False
+    assert battery.approximate_percent == 100
+    assert "4/4" in str(battery)
+
+
+def test_battery_bit_layout():
+    def status(byte):
+        return p.parse_battery(p.Body(declared=9, data=bytes([0, 0, 0, byte, 0])))
+
+    assert status(0b0000_0000).level == 1
+    assert status(0b0010_0000).level == 2
+    assert status(0b0100_0000).level == 3
+    assert status(0b1000_0000).level == 4
+    assert status(0b0001_0000).charging is True
+    assert status(0b0000_0000).charging is False
+    assert status(0b1001_0000) == p.Battery(level=4, charging=True)
+
+
+def test_battery_precedence_follows_the_app():
+    """The app tests bit 5 first, so a lower bit wins when several are set.
+    Reproduced rather than 'corrected', since the device's meaning is unknown."""
+    both = p.parse_battery(p.Body(declared=9, data=bytes([0, 0, 0, 0b1010_0000, 0])))
+    assert both.level == 2
+
+
+def test_battery_rejects_short_body():
+    try:
+        p.parse_battery(p.Body(declared=2, data=b"\x01\x02"))
+    except ValueError:
+        return
+    raise AssertionError("a short power reply must be rejected")
+
+
 def test_corrupted_packet_fails_crc():
     raw = bytearray(p.build_query(p.Op.HOST_LIGHTING, index=0, serial=1, nonce=0x42))
     plain = bytearray(p.unscramble(bytes(raw)))

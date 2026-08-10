@@ -77,6 +77,7 @@ class Snapshot:
     vibration: tuple[int, int]
     sticks: list[bytes]
     triggers: list[bytes]
+    battery: p.Battery | None = None
     raw: dict[str, bytes] = field(default_factory=dict)
 
 
@@ -211,6 +212,28 @@ class X20:
             raise ControllerError("no reply to the vibration query")
         return (round(body.data[0] * 100 / 255), round(body.data[1] * 100 / 255))
 
+    async def battery(self) -> p.Battery | None:
+        """Read charge state.
+
+        The query puts the pad into a live-input streaming mode, so this always
+        sends NORMAL_MODE afterwards to stop it. Returns None if the pad does
+        not answer, which some models may not.
+        """
+        pkt = await self.query(p.Op.SET_MODE, p.POWER_QUERY_PAYLOAD)
+        try:
+            if pkt is None or not pkt.crc_valid:
+                return None
+            return p.parse_battery(p.unwrap(pkt.payload))
+        except ValueError:
+            return None
+        finally:
+            # Leave the pad as we found it whether or not the read worked.
+            serial = self._serial.next()
+            await self._send(
+                p.build(p.Op.NORMAL_MODE, p.NORMAL_MODE_PAYLOAD, serial=serial),
+                serial, expect_reply=False,
+            )
+
     async def snapshot(self) -> Snapshot:
         caps = await self.capabilities()
         sticks = await self.read_body(p.Op.HOST_STICK, bytes([0]))
@@ -229,6 +252,7 @@ class X20:
             vibration=await self.vibration(),
             sticks=sticks.groups(7) if sticks else [],
             triggers=triggers.groups(7) if triggers else [],
+            battery=await self.battery(),
             raw=raw,
         )
 

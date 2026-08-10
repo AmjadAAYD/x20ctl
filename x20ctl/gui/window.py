@@ -114,6 +114,10 @@ class MainWindow(QWidget):
         self.link_label = QLabel("")
         self.link_label.setObjectName("Faint")
         self.link_label.setToolTip(transport.describe_for_config())
+        self.battery_label = QLabel("")
+        self.battery_label.setObjectName("Muted")
+        self.battery_label.setToolTip(
+            "The controller reports charge as four steps, not a percentage.")
 
         stack = QVBoxLayout()
         stack.setSpacing(1)
@@ -127,6 +131,7 @@ class MainWindow(QWidget):
         header.addWidget(self.dot)
         header.addLayout(stack)
         header.addStretch(1)
+        header.addWidget(self.battery_label)
         header.addWidget(self.link_label)
         header.addWidget(self.connect_button)
         layout.addLayout(header)
@@ -310,6 +315,17 @@ class MainWindow(QWidget):
         self.connect_button.setText("Reconnect")
         self.connect_button.setEnabled(True)
         self.vibration.set_value(snapshot.vibration[0])
+
+        if snapshot.battery is not None:
+            battery = snapshot.battery
+            icon = "⚡" if battery.charging else "🔋"
+            self.battery_label.setText(f"{icon} {battery.level}/4")
+            self.battery_label.setObjectName(
+                "Danger" if battery.level == 1 and not battery.charging else "Muted")
+            self.battery_label.style().unpolish(self.battery_label)
+            self.battery_label.style().polish(self.battery_label)
+        else:
+            self.battery_label.setText("")
 
         caps = snapshot.capabilities
         missing = [n for n, v in (("lighting", caps.lighting),
