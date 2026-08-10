@@ -56,10 +56,10 @@ hardware. Full detail in [docs/01-protocol.md](docs/01-protocol.md).
   packaging reads it back out of there too.
 - **Stick and trigger deadzones and response curves.** Both records decode to an
   inner and outer deadzone, two control points and a flag byte, and both are
-  editable in the app and on the command line. A stick write is **confirmed on
-  hardware**: a deadzone written from 8 to 10 read back changed, with the other
-  stick untouched, and restoring put the record back byte for byte. The trigger
-  record has the identical layout but has not been written to. Every write reads
+  editable in the app and on the command line. Writing is **confirmed on
+  hardware for both records**: a stick deadzone written from 8 to 10 and a
+  trigger deadzone from 4 to 6 each read back changed, with the other channel
+  untouched, and restoring put each record back byte for byte. Every write reads
   the record back and reports whether the controller took it rather than
   assuming, and the values read at connection are kept so anything can be put
   back.

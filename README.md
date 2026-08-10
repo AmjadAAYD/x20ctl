@@ -10,7 +10,7 @@ protocol and makes it usable from a PC.
 
 **Working today:** macros on all four rear buttons, vibration strength, battery
 level, a live input tester and a polling-rate meter, driven from a desktop app or
-the command line, plus stick deadzones and response curves. See
+the command line, plus stick and trigger deadzones and response curves. See
 [status](#status) for exactly what is and isn't proven.
 
 The protocol was reverse engineered from scratch. No prior documentation of
@@ -82,7 +82,7 @@ you're behind.
 | Recording from live input | working |
 | Input tester and polling meter | working |
 | **Stick deadzones and curves** | **working**, verified by writing a deadzone and reading it back changed, then restoring it |
-| Trigger deadzones and curves | **decoded**, identical record layout, reading verified. Writing uses the same proven packet shape but has not been tested on a trigger |
+| **Trigger deadzones and curves** | **working**, same record layout, verified the same way |
 | RGB lighting | **not exposed by the X20** |
 | Turbo | **not exposed by the X20** |
 | Gyro | **not exposed by the X20** |
@@ -194,14 +194,13 @@ x20 curve sticks --side left --invert-y
 
 Two things are worth being straight about.
 
-**Stick writes are confirmed; trigger writes aren't.** A left-stick deadzone was
-written from 8 to 10, read back changed, and restored, with the right stick
-untouched throughout. The trigger record has the identical layout and uses the
-same packet shape, but nothing has been written to it. Either way, every write
-reads the record back and tells you whether the controller reports what it was
-sent, and says the controller kept its own values rather than claiming success
-if it doesn't. Anything changed can be put back: the app keeps the values read
-at connection, and the command line prints a `--restore` line before each write.
+**Writing is confirmed on both records.** A left-stick deadzone was written from
+8 to 10 and a left-trigger deadzone from 4 to 6, each read back changed with the
+right channel untouched, and each restored byte for byte. Every write reads the
+record back and tells you whether the controller reports what it was sent,
+saying the controller kept its own values rather than claiming success if it
+doesn't. Anything changed can be put back: the app keeps the values read at
+connection, and the command line prints a `--restore` line before each write.
 
 **The line drawn between the control points is this app's own.** The points are
 read and written exactly, but nothing documents how the firmware interpolates
@@ -312,8 +311,8 @@ python tools/set_vibration.py <address> --restore 4c
 ```
 
 Prove the pad accepts a curve write, and put it straight back. This is how the
-stick result in [status](#status) was obtained, and it's what's still owed for
-triggers:
+results in [status](#status) were obtained, and it's worth running on any
+controller that isn't an X20:
 
 ```bash
 python tools/verify_curve_write.py sticks --read-only
