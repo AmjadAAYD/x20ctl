@@ -6,11 +6,43 @@
 # and bundled data are reviewable, and so a build is reproducible.
 
 import os
+import sys
 
 block_cipher = None
 
 ROOT = os.path.abspath(os.getcwd())
 ICON = os.path.join(ROOT, "assets", "x20ctl.ico")
+
+sys.path.insert(0, ROOT)
+from x20ctl import __version__ as VERSION
+
+# Windows reads a file's version out of a resource compiled into the executable,
+# so it is generated here from the package's own number. Typing it twice is how
+# the properties dialog ends up disagreeing with the app.
+NUMERIC = tuple((list(int(part) for part in VERSION.split(".")) + [0, 0, 0, 0])[:4])
+VERSION_FILE = os.path.join(ROOT, "build", "version_info.txt")
+os.makedirs(os.path.dirname(VERSION_FILE), exist_ok=True)
+with open(VERSION_FILE, "w", encoding="utf-8") as handle:
+    handle.write(f"""VSVersionInfo(
+  ffi=FixedFileInfo(
+    filevers={NUMERIC}, prodvers={NUMERIC},
+    mask=0x3f, flags=0x0, OS=0x40004, fileType=0x1, subtype=0x0, date=(0, 0)),
+  kids=[
+    StringFileInfo([StringTable('040904B0', [
+      StringStruct('CompanyName', 'x20ctl'),
+      StringStruct('FileDescription',
+                   'Open configuration for the EasySMX X20'),
+      StringStruct('FileVersion', '{VERSION}'),
+      StringStruct('InternalName', 'x20ctl'),
+      StringStruct('LegalCopyright', 'MIT licence. Not affiliated with any manufacturer.'),
+      StringStruct('OriginalFilename', 'x20ctl.exe'),
+      StringStruct('ProductName', 'x20ctl'),
+      StringStruct('ProductVersion', '{VERSION}'),
+    ])]),
+    VarFileInfo([VarStruct('Translation', [1033, 1200])]),
+  ],
+)
+""")
 
 a = Analysis(
     ["app.py"],
@@ -71,4 +103,5 @@ exe = EXE(
     console=False,
     disable_windowed_traceback=False,
     icon=ICON,
+    version=VERSION_FILE,
 )

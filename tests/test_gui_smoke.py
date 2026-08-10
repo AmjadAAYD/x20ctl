@@ -90,7 +90,7 @@ def test_vibration_row_reports_its_value():
 def test_window_builds_and_loads_a_profile():
     from x20ctl.gui.window import MainWindow
 
-    window = MainWindow()
+    window = MainWindow(auto_connect=False)
     try:
         profile = Profile(name="test")
         profile.macros["M1"] = MacroSpec(keys="A+B", hold_ms=100)
@@ -126,7 +126,7 @@ def test_removing_a_profile_does_not_write_it_back():
         doomed.macros["M1"] = MacroSpec(keys="B")
         store.save(doomed)
 
-        window = MainWindow()
+        window = MainWindow(auto_connect=False)
         try:
             window.store = store
             window.reload_profiles(select="doomed")
@@ -155,7 +155,7 @@ def test_autosave_refuses_to_recreate_a_missing_profile():
         store = ProfileStore(tmp)
         store.save(Profile(name="gone"))
 
-        window = MainWindow()
+        window = MainWindow(auto_connect=False)
         try:
             window.store = store
             window.reload_profiles(select="gone")
@@ -180,7 +180,7 @@ def test_choosing_a_save_file_leaves_the_tester():
         store.save(Profile(name="one"))
         store.save(Profile(name="two"))
 
-        window = MainWindow()
+        window = MainWindow(auto_connect=False)
         try:
             window.store = store
             window.reload_profiles(select="one")
@@ -236,7 +236,7 @@ def test_unsaved_edits_are_detected():
         saved.macros["M1"] = MacroSpec(keys="A+B")
         store.save(saved)
 
-        window = MainWindow()
+        window = MainWindow(auto_connect=False)
         try:
             window.store = store
             window.reload_profiles(select="one")
@@ -260,7 +260,7 @@ def test_a_saved_edit_is_no_longer_dirty():
         store = ProfileStore(tmp)
         store.save(Profile(name="one"))
 
-        window = MainWindow()
+        window = MainWindow(auto_connect=False)
         try:
             window.store = store
             window.reload_profiles(select="one")
@@ -286,7 +286,7 @@ def test_edits_save_themselves():
         store = ProfileStore(tmp)
         store.save(Profile(name="auto"))
 
-        window = MainWindow()
+        window = MainWindow(auto_connect=False)
         try:
             window.store = store
             window.reload_profiles(select="auto")
@@ -309,7 +309,7 @@ def test_restoring_a_cleared_slot_puts_it_back():
         profile.macros["M1"] = MacroSpec(keys="A+B")
         store.save(profile)
 
-        window = MainWindow()
+        window = MainWindow(auto_connect=False)
         try:
             window.store = store
             window.reload_profiles(select="one")
@@ -322,6 +322,112 @@ def test_restoring_a_cleared_slot_puts_it_back():
                 window.cards[slot].set_spec(window._session_baseline.get(slot))
             window.autosave()
             assert store.load("one").macros["M1"].keys == "A+B"
+        finally:
+            window.bridge.shutdown()
+
+
+# --- the curves page --------------------------------------------------------
+
+def _stick_curves():
+    from x20ctl import protocol as p
+    return [p.Curve.parse(bytes.fromhex("08085555aaaa00"), p.STICK_MAX_PROGRESS)
+            for _ in range(2)]
+
+
+def test_curves_page_reports_nothing_pending_until_something_moves():
+    from x20ctl.gui.curves import CurvesPage
+
+    page = CurvesPage()
+    page.set_available(True, True)
+    page.load("sticks", _stick_curves(), baseline=True)
+    assert page.changed_kinds() == []
+    assert not page.write_button.isEnabled(), "nothing to write yet"
+
+    editor = page.editors[("sticks", 0)]
+    editor.inner.setValue(20)
+    assert page.changed_kinds() == ["sticks"]
+    assert page.write_button.isEnabled()
+    assert page.values("sticks")[0].inner_deadzone == 20
+    assert page.values("sticks")[1].inner_deadzone == 8, "only one side moved"
+
+
+def test_curves_page_keeps_the_pads_own_values_to_go_back_to():
+    from x20ctl.gui.curves import CurvesPage
+
+    page = CurvesPage()
+    page.set_available(True, True)
+    page.load("sticks", _stick_curves(), baseline=True)
+    page.editors[("sticks", 0)].straighten.click()      # already linear, no change
+    page.editors[("sticks", 1)].inner.setValue(30)
+    assert page.baseline("sticks")[1].inner_deadzone == 8
+
+
+def test_deadzone_sliders_cannot_be_pushed_past_each_other():
+    """Inner at or beyond outer would leave the stick no travel at all."""
+    from x20ctl.gui.curves import CurvesPage
+
+    page = CurvesPage()
+    page.set_available(True, True)
+    page.load("sticks", _stick_curves(), baseline=True)
+    editor = page.editors[("sticks", 0)]
+
+    editor.inner.setValue(100)
+    assert editor.inner.value() < editor.outer.value()
+    editor.curve().validate()
+
+    editor.outer.setValue(0)
+    assert editor.inner.value() < editor.outer.value()
+    editor.curve().validate()
+
+
+def test_dragging_a_control_point_cannot_make_it_overtake_the_other():
+    from PySide6.QtCore import QPointF
+
+    from x20ctl.gui.curves import CurvePlot
+
+    plot = CurvePlot()
+    plot.resize(200, 200)
+    plot.set_curve(_stick_curves()[0])
+
+    plot._dragging = 0                       # as if the first point were grabbed
+    plot._drag_to(QPointF(199.0, 4.0))       # dragged past the second, top right
+    assert plot.curve().point1[0] <= plot.curve().point2[0]
+    plot.curve().validate()
+
+    plot._dragging = 1
+    plot._drag_to(QPointF(0.0, 199.0))       # and the second past the first
+    assert plot.curve().point1[0] <= plot.curve().point2[0]
+    plot.curve().validate()
+
+
+def test_trigger_channels_hide_flags_that_are_only_decoded_for_sticks():
+    from x20ctl.gui.curves import CurvesPage
+
+    page = CurvesPage()
+    assert page.editors[("sticks", 0)].invert_x.isHidden() is False
+    assert page.editors[("triggers", 0)].invert_x.isHidden() is True
+
+
+def test_curves_page_is_reachable_and_leaves_the_tester_stopped():
+    import tempfile
+
+    from x20ctl.gui.window import CURVES_PAGE, MainWindow
+    from x20ctl.profiles import ProfileStore
+
+    with tempfile.TemporaryDirectory() as tmp:
+        window = MainWindow(auto_connect=False)
+        try:
+            window.store = ProfileStore(tmp)
+            window.tester_button.setChecked(True)
+            window.toggle_tester()
+            assert window.tester.timer.isActive()
+
+            window.curves_button.setChecked(True)
+            window.toggle_curves()
+            assert window.pages.currentIndex() == CURVES_PAGE
+            assert not window.tester.timer.isActive(), "the tester must stop"
+            assert not window.tester_button.isChecked()
+            assert window.tester_button.text() == "Input tester"
         finally:
             window.bridge.shutdown()
 

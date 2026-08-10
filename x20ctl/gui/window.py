@@ -9,15 +9,17 @@ from PySide6.QtWidgets import (
     QVBoxLayout, QWidget,
 )
 
+from .. import __version__
 from .. import protocol as p
 from .. import transport
 from ..diagnose import diagnose
 from ..config import load_address, save_address
-from ..client import X20, find_controller
+from ..client import CURVE_KINDS, X20, find_controller
 from ..input import MacroRecorder, XInputReader
 from ..profiles import MacroSpec, Profile, ProfileStore, SLOTS
 from . import theme
 from .bridge import AsyncBridge
+from .curves import CurvesPage
 from .tester import TesterPage
 from .motion import slide_in
 from .widgets import (
@@ -26,9 +28,20 @@ from .widgets import (
 
 RECORD_POLL_MS = 5      # matches the protocol's own timing resolution
 
+# Positions in the page stack, in the order they are added.
+TESTER_PAGE = 1
+CURVES_PAGE = 2
+
 
 class MainWindow(QWidget):
-    def __init__(self) -> None:
+    def __init__(self, *, auto_connect: bool = True) -> None:
+        """`auto_connect` is off for screenshots and tests.
+
+        The window reaches for the controller shortly after opening, and a
+        connection landing mid-render replaces whatever was staged for the
+        picture with the pad's real values. Which is right in the app and a race
+        anywhere that needs a predictable result.
+        """
         super().__init__()
         self.setWindowTitle("x20ctl")
         self.resize(940, 660)
@@ -73,10 +86,15 @@ class MainWindow(QWidget):
         self.pages.addWidget(self._build_main())
         self.tester = TesterPage()
         self.pages.addWidget(self.tester)
+        self.curves = CurvesPage()
+        self.curves.write_requested.connect(self.write_curves)
+        self.curves.revert_requested.connect(self.revert_curves)
+        self.pages.addWidget(self.curves)
         root.addWidget(self.pages, 1)
 
         self.reload_profiles()
-        QTimer.singleShot(200, self.connect_controller)
+        if auto_connect:
+            QTimer.singleShot(200, self.connect_controller)
 
     # -- layout ----------------------------------------------------------
 
@@ -94,9 +112,12 @@ class MainWindow(QWidget):
         brand_layout.setContentsMargins(18, 0, 16, 0)
         brand_layout.setSpacing(2)
         brand_layout.addWidget(Wordmark())
-        caption = QLabel("controller configuration")
+        caption = QLabel(f"controller configuration  ·  {__version__}")
         caption.setObjectName("Faint")
         caption.setContentsMargins(1, 0, 0, 0)
+        caption.setToolTip("The version of this app. The controller's own "
+                           "firmware version is a different number, shown in "
+                           "the header and by x20 status.")
         brand_layout.addWidget(caption)
         layout.addWidget(brand)
 
@@ -154,6 +175,12 @@ class MainWindow(QWidget):
         nav = QWidget()
         nav_layout = QVBoxLayout(nav)
         nav_layout.setContentsMargins(16, 0, 16, 0)
+        nav_layout.setSpacing(6)
+        self.curves_button = QPushButton("Sticks and triggers")
+        self.curves_button.setObjectName("Ghost")
+        self.curves_button.setCheckable(True)
+        self.curves_button.clicked.connect(self.toggle_curves)
+        nav_layout.addWidget(self.curves_button)
         self.tester_button = QPushButton("Input tester")
         self.tester_button.setObjectName("Ghost")
         self.tester_button.setCheckable(True)
@@ -477,18 +504,26 @@ class MainWindow(QWidget):
     def toggle_tester(self) -> None:
         self.show_tester(self.tester_button.isChecked())
 
+    def toggle_curves(self) -> None:
+        self.show_page(CURVES_PAGE if self.curves_button.isChecked() else 0)
+
     def show_tester(self, showing: bool) -> None:
-        """Switch between the settings page and the tester.
+        self.show_page(TESTER_PAGE if showing else 0)
+
+    def show_page(self, index: int) -> None:
+        """Switch pages, and leave every nav button agreeing with the result.
 
         The tester polls every millisecond, so it's stopped whenever it isn't
         the visible page.
         """
-        self.pages.setCurrentIndex(1 if showing else 0)
+        self.pages.setCurrentIndex(index)
         slide_in(self.pages.currentWidget())
-        self.tester_button.setChecked(showing)
-        self.tester_button.setText("Back to settings" if showing
-                                   else "Input tester")
-        if showing:
+        for button, page, caption in (
+                (self.tester_button, TESTER_PAGE, "Input tester"),
+                (self.curves_button, CURVES_PAGE, "Sticks and triggers")):
+            button.setChecked(index == page)
+            button.setText("Back to settings" if index == page else caption)
+        if index == TESTER_PAGE:
             self.tester.start()
         else:
             self.tester.stop()
@@ -610,8 +645,85 @@ class MainWindow(QWidget):
                 " to the configuration protocol, so they are not shown. "
                 "They are controlled by button combinations on the pad itself.")
             self.notice.show()
+        self._load_curves(snapshot)
         self.refresh_link()
         self.set_status("connected", "Success")
+        self._sync_apply_state()
+
+    def _load_curves(self, snapshot) -> None:
+        """Seed the curves page from the snapshot taken at connection.
+
+        The snapshot already read both records, so this costs no extra traffic,
+        and it doubles as the undo point for anything written afterwards.
+        """
+        caps = snapshot.capabilities
+        self.curves.set_available(bool(caps.sticks), bool(caps.triggers))
+        for kind, raw in (("sticks", snapshot.sticks),
+                          ("triggers", snapshot.triggers)):
+            scale = CURVE_KINDS[kind][2]
+            try:
+                channels = [p.Curve.parse(chunk, scale) for chunk in raw]
+            except ValueError:
+                continue        # a pad reporting an odd record just shows nothing
+            if channels:
+                self.curves.load(kind, channels, baseline=True)
+
+    # -- response curves -------------------------------------------------
+
+    def write_curves(self) -> None:
+        pending = self.curves.changed_kinds()
+        if pending:
+            self._write_curves({kind: self.curves.values(kind) for kind in pending},
+                               "written")
+
+    def revert_curves(self) -> None:
+        pending = self.curves.changed_kinds()
+        if pending:
+            self._write_curves({kind: self.curves.baseline(kind) for kind in pending},
+                               "put back")
+
+    def _write_curves(self, wanted: dict, verb: str) -> None:
+        if self.pad is None or self._busy:
+            self.curves.set_status("connect the controller first", "Muted")
+            return
+        self._busy = True
+        self.curves.set_busy(True)
+        self.curves.set_status("writing…")
+        self._sync_apply_state()
+        pad = self.pad
+
+        async def task():
+            return {kind: await pad.set_curves(kind, channels)
+                    for kind, channels in wanted.items()}
+
+        self.bridge.run(
+            task,
+            on_done=lambda reported: self._on_curves_written(reported, wanted, verb),
+            on_error=self._on_curves_failed,
+        )
+
+    def _on_curves_written(self, reported: dict, wanted: dict, verb: str) -> None:
+        self._busy = False
+        self.curves.set_busy(False)
+        # What the pad reports back is the only evidence a write landed, so the
+        # page shows that rather than what it hoped for.
+        ignored = [kind for kind, channels in reported.items()
+                   if p.build_curves(channels) != p.build_curves(wanted[kind])]
+        for kind, channels in reported.items():
+            self.curves.load(kind, channels, baseline=True)
+        if ignored:
+            self.curves.set_status(
+                "the controller kept its own values for " + " and ".join(ignored),
+                "Warning")
+        else:
+            self.curves.set_status(
+                f"{verb}, and the controller reads back exactly that", "Success")
+        self._sync_apply_state()
+
+    def _on_curves_failed(self, message: str) -> None:
+        self._busy = False
+        self.curves.set_busy(False)
+        self.curves.set_status(diagnose(message).headline, "Danger")
         self._sync_apply_state()
 
     def refresh_link(self) -> None:
@@ -637,6 +749,7 @@ class MainWindow(QWidget):
         self.battery_label.setText("")
         self.connect_button.setText("Connect")
         self.connect_button.setEnabled(True)
+        self.curves.set_available(False, False)
         self.set_status(finding.headline, "Muted" if finding.expected else "Danger")
         # Editing and the tester work offline, so say so rather than leaving the
         # window looking broken.

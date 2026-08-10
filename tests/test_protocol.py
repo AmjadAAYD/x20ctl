@@ -707,6 +707,121 @@ def test_curve_rejects_a_wrong_sized_channel():
     raise AssertionError("a channel must be exactly 7 bytes")
 
 
+def test_a_two_channel_curve_write_exactly_fills_a_packet():
+    """Confirmed on hardware: 20 bytes on the wire, the whole cap.
+
+    Two channels leave nothing spare, so a pad reporting a third could not be
+    written in one packet. Worth pinning: a byte added to this record silently
+    breaks every stick and trigger write.
+    """
+    body = p.unwrap(bytes.fromhex("0e08085555aaaa0008085555aaaa00"))
+    payload = p.build_curves(p.parse_curves(body))
+    assert len(payload) == 15
+    packet = p.build(p.Op.WRITE_STICK, payload, serial=0x81,
+                     length_field=p.host_length(len(payload), 7), nonce=0x5A)
+    assert len(packet) == p.MAX_PACKET
+    assert len(payload) + p.FRAME_OVERHEAD == p.MAX_PACKET
+
+
+def test_the_deadzone_change_confirmed_on_hardware_round_trips():
+    """The exact bytes the pad accepted, and read back, for inner 8 -> 10."""
+    body = p.unwrap(bytes.fromhex("0e08085555aaaa0008085555aaaa00"))
+    left, right = p.parse_curves(body)
+    changed = p.build_curves([left.with_deadzones(inner=10), right])
+    assert changed.hex(" ") == "0e 0a 08 55 55 aa aa 00 08 08 55 55 aa aa 00"
+    assert p.build_curves([left, right]).hex(" ") == \
+        "0e 08 08 55 55 aa aa 00 08 08 55 55 aa aa 00", "restoring is exact"
+
+
+# --- editing a curve --------------------------------------------------------
+
+def test_deadzones_are_set_in_the_units_a_person_reads():
+    """`outer` goes in the way the UI shows it and comes out subtracted."""
+    curve = p.Curve.parse(bytes([8, 8, 85, 85, 170, 170, 0]))
+    edited = curve.with_deadzones(inner=5, outer=95)
+    assert edited.inner_deadzone == 5
+    assert edited.outer_deadzone == 95
+    assert edited.to_bytes()[1] == p.STICK_MAX_PROGRESS - 95
+    assert curve.inner_deadzone == 8, "editing returns a copy, it doesn't mutate"
+
+
+def test_editing_one_field_leaves_the_rest_alone():
+    curve = p.Curve.parse(bytes([4, 34, 82, 133, 229, 235, 0]),
+                          p.TRIGGER_MAX_PROGRESS)
+    edited = curve.with_deadzones(inner=10)
+    assert edited.outer_raw == 34
+    assert edited.point1 == (82, 133) and edited.point2 == (229, 235)
+    assert edited.max_progress == p.TRIGGER_MAX_PROGRESS
+
+
+def test_straightening_moves_the_points_and_keeps_the_deadzones():
+    curve = p.Curve.parse(bytes([4, 34, 82, 133, 229, 235, 0]),
+                          p.TRIGGER_MAX_PROGRESS)
+    straight = curve.straightened()
+    assert straight.is_linear
+    assert straight.inner_deadzone == 4 and straight.outer_raw == 34
+
+
+def test_flags_keep_bits_nobody_has_decoded():
+    """An unknown bit is preserved, the same as the vibration write does."""
+    curve = p.Curve.parse(bytes([8, 8, 85, 85, 170, 170, 0x80]))
+    edited = curve.with_flags(invert_y=True)
+    assert edited.flags == 0x80 | p.FLAG_INVERT_Y
+    assert edited.with_flags(invert_y=False).flags == 0x80
+
+
+def test_validate_rejects_deadzones_that_leave_no_travel():
+    for inner, outer in ((60, 40), (0, 0)):
+        curve = p.Curve.parse(bytes([8, 8, 85, 85, 170, 170, 0])) \
+            .with_deadzones(inner=inner, outer=outer)
+        try:
+            curve.validate()
+        except ValueError:
+            continue
+        raise AssertionError(f"inner {inner} past outer {outer} must be rejected")
+
+
+def test_validate_rejects_points_out_of_order():
+    curve = p.Curve.parse(bytes([8, 8, 85, 85, 170, 170, 0])) \
+        .with_points((200, 100), (50, 100))
+    try:
+        curve.validate()
+    except ValueError:
+        return
+    raise AssertionError("control points have to run left to right")
+
+
+def test_validate_accepts_everything_the_hardware_ships_with():
+    for raw, scale in (("08085555aaaa00", p.STICK_MAX_PROGRESS),
+                       ("04225285e5eb00", p.TRIGGER_MAX_PROGRESS)):
+        p.Curve.parse(bytes.fromhex(raw), scale).validate()
+
+
+def test_curve_shape_passes_through_the_control_points():
+    """The drawing is an interpolation, but it may not move the known values."""
+    point1, point2 = (82, 133), (229, 235)
+    shape = dict(p.curve_shape(point1, point2, steps=256))
+    for x, y in (point1, point2):
+        nearest = min(shape, key=lambda sx: abs(sx - x))
+        assert abs(shape[nearest] - y) < 1.0, f"the curve misses {(x, y)}"
+    assert shape[0.0] == 0.0
+    assert abs(shape[float(p.CURVE_AXIS_MAX)] - p.CURVE_AXIS_MAX) < 1e-6
+
+
+def test_curve_shape_never_doubles_back():
+    """A response curve is monotone, so the interpolation has to be too."""
+    for point1, point2 in (((85, 85), (170, 170)), ((82, 133), (229, 235)),
+                           ((10, 240), (250, 245)), ((120, 5), (130, 250))):
+        shape = p.curve_shape(point1, point2, steps=64)
+        for (_, previous), (_, current) in zip(shape, shape[1:]):
+            assert current >= previous - 1e-9, f"{point1}->{point2} dips"
+
+
+def test_curve_shape_survives_two_points_stacked():
+    shape = p.curve_shape((100, 60), (100, 200), steps=16)
+    assert len(shape) == 16
+
+
 def test_corrupted_packet_fails_crc():
     raw = bytearray(p.build_query(p.Op.HOST_LIGHTING, index=0, serial=1, nonce=0x42))
     plain = bytearray(p.unscramble(bytes(raw)))

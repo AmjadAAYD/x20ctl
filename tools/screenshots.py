@@ -41,7 +41,10 @@ def main() -> int:
     app = QApplication([])
     app.setStyleSheet(theme.STYLESHEET)
 
-    window = MainWindow()
+    # No auto-connect: a real controller answering mid-render would replace the
+    # staged values with its own, and the picture would depend on whether the
+    # pad happened to be switched on.
+    window = MainWindow(auto_connect=False)
     window.resize(1000, 700)
     window.setAttribute(Qt.WA_DontShowOnScreen, True)
     window.show()
@@ -62,9 +65,7 @@ def main() -> int:
     window.profile_list.setCurrentRow(0)
     window.load_into_form(profile)
 
-    # The window auto-connects shortly after opening, so let that attempt
-    # finish before dressing the header, or it overwrites what we set.
-    settle(app, 900)
+    settle(app, 300)
 
     window.dot.set_state("connected")
     window.device_name.setText("Xpert2")
@@ -109,6 +110,26 @@ def main() -> int:
     settle(app, 400)
     window.grab().save(os.path.join(OUT, "tester.png"))
     print("wrote tester.png")
+
+    # sticks and triggers, using the records a real X20 reports
+    window.curves_button.setChecked(True)
+    window.toggle_curves()
+    window.curves.set_available(True, True)
+    for kind, raw, scale in (
+            ("sticks", "08085555aaaa00", p.STICK_MAX_PROGRESS),
+            ("triggers", "04225285e5eb00", p.TRIGGER_MAX_PROGRESS)):
+        curve = p.Curve.parse(bytes.fromhex(raw), scale)
+        window.curves.load(kind, [curve, curve], baseline=True)
+    # One channel edited, so the page shows both states side by side.
+    window.curves.editors[("sticks", 0)].set_curve(
+        p.Curve.parse(bytes.fromhex("08085555aaaa00"), p.STICK_MAX_PROGRESS)
+        .with_deadzones(inner=4).with_points((100, 70), (190, 195)))
+    window.curves._sync()
+    window.curves.set_status("edited, not yet written", "Muted")
+
+    settle(app, 400)
+    window.grab().save(os.path.join(OUT, "curves.png"))
+    print("wrote curves.png")
 
     window.bridge.shutdown()
     return 0

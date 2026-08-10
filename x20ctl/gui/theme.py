@@ -83,6 +83,11 @@ QFrame#Rule {{
     max-height: 1px;
     border: none;
 }}
+QFrame#Card {{
+    background: {SURFACE};
+    border: 1px solid {LINE};
+    border-radius: {RADIUS};
+}}
 
 /* -- buttons ---------------------------------------------------------- */
 QPushButton {{
