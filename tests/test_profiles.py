@@ -194,6 +194,58 @@ def test_apply_skips_settings_the_pad_does_not_expose():
     assert any("macros skipped" in line for line in report)
 
 
+def test_per_step_timing_is_parsed():
+    """The hardware stores a duration per step, so the syntax exposes one."""
+    steps = MacroSpec(keys="A:150/40, B:80").steps()
+    # press, release, press, release
+    assert len(steps) == 4
+    assert steps[0].duration_ms == 150
+    assert steps[1].duration_ms == 40
+    assert steps[2].duration_ms == 80
+
+
+def test_steps_without_timing_use_the_defaults():
+    steps = MacroSpec(keys="A:150, B", hold_ms=100, gap_ms=60).steps()
+    assert steps[0].duration_ms == 150      # stated
+    assert steps[1].duration_ms == 60       # default gap
+    assert steps[2].duration_ms == 100      # default hold
+
+
+def test_timing_syntax_errors_are_explained():
+    for bad, expect in (("A:abc", "timing"), ("A:33", "multiples of 5"),
+                        ("A:0", "positive"), (":150", "no keys")):
+        try:
+            MacroSpec(keys=bad).validate()
+        except ValueError as exc:
+            assert expect in str(exc), f"{bad!r} gave {exc}"
+        else:
+            raise AssertionError(f"{bad!r} should have been rejected")
+
+
+def test_recorded_macro_keeps_the_timing_it_captured():
+    """Regression: the recorder used to average every step into one hold and
+    one gap, which discarded the performance it had just captured."""
+    from x20ctl import protocol as p
+    from x20ctl.input import MacroRecorder, RecordedStep, XInputReader
+
+    recorder = MacroRecorder(XInputReader())
+    recorder.steps = [
+        RecordedStep(keys=[p.Key.A], duration_ms=145),
+        RecordedStep(keys=[], duration_ms=35),
+        RecordedStep(keys=[p.Key.B], duration_ms=90),
+    ]
+    recorder._last = None
+    recorder._recording = True
+    spec = recorder.stop()
+
+    assert "A:145/35" in spec.keys
+    assert "B:90" in spec.keys
+    steps = spec.steps()
+    assert steps[0].duration_ms == 145
+    assert steps[1].duration_ms == 35
+    assert steps[2].duration_ms == 90
+
+
 def test_slugify_keeps_filenames_sane():
     assert slugify("Save file 1") == "save-file-1"
     assert slugify("  ???  ") == "profile"

@@ -9,16 +9,58 @@ import os
 import sys
 
 
-def icon_path() -> str | None:
-    """Locate the icon, whether running from source or from a frozen build.
+def icon_candidates() -> list[str]:
+    """Every place the icon might reasonably live.
 
-    PyInstaller unpacks bundled data to a temporary directory it advertises as
-    sys._MEIPASS, so the path differs between the two cases.
+    A frozen build unpacks bundled data to sys._MEIPASS, a source checkout has
+    it beside the package, and an installed copy may have it next to the
+    executable. Checking all of them is cheaper than being wrong in one of them.
     """
-    root = getattr(sys, "_MEIPASS", None) or os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "..", "..")
-    candidate = os.path.join(root, "assets", "x20ctl.ico")
-    return candidate if os.path.exists(candidate) else None
+    here = os.path.dirname(os.path.abspath(__file__))
+    roots = [
+        getattr(sys, "_MEIPASS", None),
+        os.path.join(here, "..", ".."),          # source checkout
+        os.path.join(here, ".."),                # inside the package
+        os.path.dirname(os.path.abspath(sys.argv[0])),
+        os.getcwd(),
+    ]
+    out = []
+    for root in roots:
+        if not root:
+            continue
+        for relative in ("assets/x20ctl.ico", "x20ctl.ico"):
+            out.append(os.path.normpath(os.path.join(root, relative)))
+    return out
+
+
+def icon_path() -> str | None:
+    for candidate in icon_candidates():
+        if os.path.exists(candidate):
+            return candidate
+    return None
+
+
+def _write_diagnostic(resolved: str | None) -> None:
+    """Record how startup went, for when the app has no console to say it on.
+
+    A windowed build cannot print, so a problem like a missing icon is silent.
+    Set X20CTL_DIAGNOSE=1 to have it leave a note.
+    """
+    if not os.environ.get("X20CTL_DIAGNOSE"):
+        return
+    try:
+        import tempfile
+
+        path = os.path.join(tempfile.gettempdir(), "x20ctl-diagnose.txt")
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(f"frozen: {hasattr(sys, '_MEIPASS')}\n")
+            fh.write(f"meipass: {getattr(sys, '_MEIPASS', None)}\n")
+            fh.write(f"argv0: {sys.argv[0]}\n")
+            fh.write(f"resolved icon: {resolved}\n\ncandidates:\n")
+            for candidate in icon_candidates():
+                fh.write(f"  [{'x' if os.path.exists(candidate) else ' '}] {candidate}\n")
+    except Exception:
+        pass
 
 
 def main() -> int:
@@ -34,12 +76,9 @@ def main() -> int:
     app.setOrganizationName("x20ctl")
     app.setStyleSheet(theme.STYLESHEET)
 
-    path = icon_path()
-    if path:
-        app.setWindowIcon(QIcon(path))
-
-    # Windows groups taskbar buttons by this id. Without it a pythonw-hosted
-    # app inherits Python's own identity and shows Python's icon instead.
+    # Windows groups taskbar buttons by this id, and decides which icon to show
+    # from it. It has to be set before the first window is created, or the
+    # taskbar keeps whatever it decided first.
     if os.name == "nt":
         try:
             import ctypes
@@ -49,7 +88,17 @@ def main() -> int:
         except Exception:
             pass
 
+    path = icon_path()
+    _write_diagnostic(path)
+    icon = QIcon(path) if path else QIcon()
+    if not icon.isNull():
+        app.setWindowIcon(icon)
+
     window = MainWindow()
+    # Also set it on the window. The application icon alone is not always what
+    # the taskbar picks up.
+    if not icon.isNull():
+        window.setWindowIcon(icon)
     window.show()
     return app.exec()
 

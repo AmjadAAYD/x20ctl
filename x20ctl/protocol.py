@@ -300,6 +300,81 @@ def build_macro_write(
     )
 
 
+def parse_sequence(text: str, default_hold: int = 100,
+                   default_gap: int = 60) -> list["MacroStep"]:
+    """Build macro steps from a written sequence.
+
+    The hardware stores a duration per step, so the syntax allows one per step
+    rather than a single timing for the whole macro:
+
+        A                 default hold, default gap
+        A+B               chord, default timing
+        A:150             held for 150ms
+        A:150/40          held 150ms, then 40ms before the next step
+        A:150, B, X:80    each step timed independently
+
+    Commas separate steps in time, '+' joins keys within a step, ':' gives the
+    hold and '/' the gap that follows it. Durations are in milliseconds and
+    snap to the controller's 5ms grid.
+    """
+    steps: list[MacroStep] = []
+    for raw in text.split(","):
+        group = raw.strip()
+        if not group:
+            continue
+
+        keys_part, _, timing = group.partition(":")
+        hold, gap = default_hold, default_gap
+        if timing.strip():
+            hold_text, _, gap_text = timing.partition("/")
+            try:
+                hold = int(hold_text.strip())
+                if gap_text.strip():
+                    gap = int(gap_text.strip())
+            except ValueError:
+                raise ValueError(
+                    f"could not read the timing in {group!r}. Write it as "
+                    "A:150 or A:150/40, in milliseconds") from None
+
+        tokens = [t for t in keys_part.split("+") if t.strip()]
+        if not tokens:
+            raise ValueError(f"no keys in {group!r}")
+        if hold <= 0:
+            raise ValueError(f"hold must be positive in {group!r}")
+        if gap < 0:
+            raise ValueError(f"gap cannot be negative in {group!r}")
+        if hold % 5 or gap % 5:
+            raise ValueError(
+                f"durations must be multiples of 5ms in {group!r}, which is the "
+                "controller's own resolution")
+
+        steps.append(MacroStep(mask=mask_for([parse_token(t) for t in tokens]),
+                               duration_ms=hold))
+        steps.append(MacroStep.released(gap))
+
+    if not steps:
+        raise ValueError("no steps in the sequence")
+    return steps
+
+
+def describe_sequence(text: str, default_hold: int, default_gap: int) -> str:
+    """A readable rendering of a sequence, timings included where given."""
+    parts = []
+    for raw in text.split(","):
+        group = raw.strip()
+        if not group:
+            continue
+        keys_part, _, timing = group.partition(":")
+        label = " + ".join(t.strip().upper() for t in keys_part.split("+") if t.strip())
+        if timing.strip():
+            hold, _, gap = timing.partition("/")
+            label += f" {hold.strip()}ms"
+            if gap.strip():
+                label += f" then wait {gap.strip()}ms"
+        parts.append(label)
+    return " then ".join(parts)
+
+
 MACRO_CHUNK_SIZE = 15
 
 

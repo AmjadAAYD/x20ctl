@@ -45,32 +45,30 @@ class MacroSpec:
     gap_ms: int = 60
     loop_ms: int = 0
 
-    def validate(self) -> None:
-        """Check the spec builds before anything is sent to hardware."""
+    def steps(self):
+        """The macro as protocol steps. Raises ValueError if it will not build."""
         if self.hold_ms <= 0 or self.gap_ms < 0:
             raise ValueError("durations must be positive")
         if self.hold_ms % 5 or self.gap_ms % 5 or self.loop_ms % 5:
             raise ValueError("durations must be multiples of 5 ms")
-        steps = []
-        for group in self.keys.split(","):
-            names = [n.strip().upper() for n in group.split("+") if n.strip()]
-            if not names:
-                continue
-            steps.append(p.MacroStep(
-                mask=p.mask_for([p.parse_token(n) for n in names]),
-                duration_ms=self.hold_ms))
-            steps.append(p.MacroStep.released(self.gap_ms))
-        if not steps:
-            raise ValueError("macro has no keys")
+        return p.parse_sequence(self.keys, self.hold_ms, self.gap_ms)
+
+    def validate(self) -> None:
+        """Check the spec builds before anything is sent to hardware."""
+        steps = self.steps()
         # Round-trips through the real builder, so a saved profile cannot hold
-        # something that would fail at apply time.
+        # something that would fail at apply time, including one too long to fit.
         p.build_macro_writes(
             p.build_macro_payload(steps, loop_interval_ms=self.loop_ms), slot=0)
 
     def describe(self) -> str:
-        parts = self.keys.replace(",", " then ").replace("+", " + ")
-        extra = f", loops every {self.loop_ms}ms" if self.loop_ms else ""
-        return f"{parts}  ({self.hold_ms}ms hold{extra})"
+        body = p.describe_sequence(self.keys, self.hold_ms, self.gap_ms)
+        bits = []
+        if ":" not in self.keys:
+            bits.append(f"{self.hold_ms}ms hold")
+        if self.loop_ms:
+            bits.append(f"loops every {self.loop_ms}ms")
+        return f"{body}  ({', '.join(bits)})" if bits else body
 
 
 @dataclass

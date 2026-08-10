@@ -16,18 +16,29 @@ from dataclasses import dataclass
 class Diagnosis:
     headline: str
     advice: str
+    # A precondition the user has simply not met is not a fault. Marking those
+    # calmly keeps genuine failures visually distinct from "you are not using
+    # this part right now".
+    expected: bool = False
 
     def __str__(self) -> str:
         return f"{self.headline}. {self.advice}" if self.advice else self.headline
 
 
 NO_CONTROLLER = Diagnosis(
-    "No controller detected",
-    "Turn the controller on and make sure it is paired over Bluetooth.")
+    "Controller not found over Bluetooth",
+    "Settings are configured over a separate Bluetooth link, whichever way you "
+    "play. Turn the pad on and pair it if you want to change settings. "
+    "The input tester works without it.",
+    expected=True)
 
 BLUETOOTH_OFF = Diagnosis(
-    "Bluetooth is turned off",
-    "Switch Bluetooth on, then press Connect.")
+    "Bluetooth is off",
+    "Only settings need it. The controller exposes its configuration on a "
+    "separate Bluetooth link, so playing over USB or the receiver is "
+    "unaffected. Turn Bluetooth on to change settings, or use the input "
+    "tester, which does not need it.",
+    expected=True)
 
 OUT_OF_RANGE = Diagnosis(
     "Controller is not responding",
