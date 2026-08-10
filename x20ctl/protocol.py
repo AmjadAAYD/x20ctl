@@ -375,6 +375,103 @@ def describe_sequence(text: str, default_hold: int, default_gap: int) -> str:
     return " then ".join(parts)
 
 
+# Stick and trigger records, from HostActivity.applyRockData and
+# applyTriggerData. Both are two 7-byte channels behind a length prefix.
+#
+#   0  inner deadzone
+#   1  outer deadzone, stored as (max_progress - outer)
+#   2  first curve point, x
+#   3  first curve point, y
+#   4  second curve point, x
+#   5  second curve point, y
+#   6  flags
+#
+# The curve points are control points on the response curve. Sitting them on
+# the diagonal, (85,85) and (170,170), gives a linear response, which is what
+# an untouched X20 ships with.
+CHANNEL_SIZE = 7
+STICK_MAX_PROGRESS = 100
+TRIGGER_MAX_PROGRESS = 200
+
+FLAG_INVERT_X = 0x01
+FLAG_INVERT_Y = 0x02
+FLAG_SWAP = 0x04
+
+
+@dataclass
+class Curve:
+    """One stick or trigger channel."""
+
+    inner_deadzone: int
+    outer_raw: int
+    point1: tuple[int, int]
+    point2: tuple[int, int]
+    flags: int = 0
+    max_progress: int = STICK_MAX_PROGRESS
+
+    @property
+    def outer_deadzone(self) -> int:
+        """The value the UI shows, which the wire stores subtracted."""
+        return self.max_progress - self.outer_raw
+
+    @property
+    def invert_x(self) -> bool:
+        return bool(self.flags & FLAG_INVERT_X)
+
+    @property
+    def invert_y(self) -> bool:
+        return bool(self.flags & FLAG_INVERT_Y)
+
+    @property
+    def swapped(self) -> bool:
+        return bool(self.flags & FLAG_SWAP)
+
+    @property
+    def is_linear(self) -> bool:
+        """Control points on the diagonal mean an untouched response."""
+        return (abs(self.point1[0] - self.point1[1]) <= 1
+                and abs(self.point2[0] - self.point2[1]) <= 1)
+
+    @classmethod
+    def parse(cls, raw: bytes, max_progress: int = STICK_MAX_PROGRESS) -> "Curve":
+        if len(raw) != CHANNEL_SIZE:
+            raise ValueError(f"a channel is {CHANNEL_SIZE} bytes, got {len(raw)}")
+        return cls(inner_deadzone=raw[0], outer_raw=raw[1],
+                   point1=(raw[2], raw[3]), point2=(raw[4], raw[5]),
+                   flags=raw[6], max_progress=max_progress)
+
+    def to_bytes(self) -> bytes:
+        values = [self.inner_deadzone, self.outer_raw,
+                  self.point1[0], self.point1[1],
+                  self.point2[0], self.point2[1], self.flags]
+        for value in values:
+            if not 0 <= value <= 255:
+                raise ValueError(f"curve value {value} out of range")
+        return bytes(values)
+
+    def __repr__(self) -> str:
+        shape = "linear" if self.is_linear else "custom"
+        extra = "".join(x for x, on in (
+            (" invX", self.invert_x), (" invY", self.invert_y),
+            (" swap", self.swapped)) if on)
+        return (f"Curve(deadzone {self.inner_deadzone}/{self.outer_raw}, "
+                f"{self.point1}->{self.point2}, {shape}{extra})")
+
+
+def parse_curves(body: "Body", max_progress: int = STICK_MAX_PROGRESS) -> list[Curve]:
+    """Split a stick or trigger record into its two channels, left then right."""
+    if body.declared % CHANNEL_SIZE:
+        raise ValueError(
+            f"curve record of {body.declared} is not a multiple of {CHANNEL_SIZE}")
+    return [Curve.parse(chunk, max_progress) for chunk in body.groups(CHANNEL_SIZE)]
+
+
+def build_curves(channels: list[Curve]) -> bytes:
+    """Payload for a stick or trigger write, length prefix included."""
+    data = b"".join(channel.to_bytes() for channel in channels)
+    return bytes([len(data)]) + data
+
+
 MACRO_CHUNK_SIZE = 15
 
 
@@ -1085,6 +1182,27 @@ def parse_battery(body: "Body") -> Battery:
     else:
         level = 1
     return Battery(level=level, charging=charging)
+
+
+# The pad reports its internal name, not the one on the box. Map the ones we
+# know so the app shows what the user actually owns.
+PRODUCT_NAMES = {
+    ("0710", "1320"): "EasySMX X20",
+}
+
+# Fallback by reported name, for units whose ids we have not seen.
+NAME_ALIASES = {
+    "xpert2": "EasySMX X20",
+}
+
+
+def product_name(reported: str, vid: str = "", pid: str = "") -> str:
+    """A human name for the controller, falling back to whatever it reported."""
+    known = PRODUCT_NAMES.get((vid.lower(), pid.lower()))
+    if known:
+        return known
+    alias = NAME_ALIASES.get((reported or "").strip().lower())
+    return alias or reported or "Controller"
 
 
 @dataclass
