@@ -1,5 +1,84 @@
 # Changelog
 
+## 0.2.0
+
+Deadzones and response curves, which were decoded but unreachable in 0.1.0, and
+a controller header that tells the truth while you watch it.
+
+### Added
+
+- **Stick and trigger deadzones and response curves.** Each of the four channels
+  has an inner deadzone, an outer deadzone and two response-curve control
+  points. They get a page of their own in the app, where the points are dragged
+  directly, and an `x20 curve` command for exact values.
+
+  **Writing is confirmed on hardware for both records.** A stick deadzone was
+  written from 8 to 10 and a trigger deadzone from 4 to 6, each read back
+  changed with the other channel untouched, and each restored byte for byte.
+  This is worth stating precisely because the earlier changekey proof wrote a
+  value that was already there, so it could show the framing was right but never
+  that a write changes anything. `tools/verify_curve_write.py` is that
+  procedure, kept so it can be repeated on another pad.
+
+  Every write re-reads the record and reports whether the controller took it,
+  saying the pad kept its own values rather than claiming success. The app holds
+  the values read at connection so anything can be put back, and the command
+  line prints a `--restore` line before each write.
+
+  The line drawn between the two control points is this app's own smooth
+  interpolation. The points are read and written exactly, but nothing documents
+  how the firmware joins them, and both the app and the docs say so rather than
+  implying the curve is the hardware's.
+
+- **A version number**, from one place in the package: `x20 --version`,
+  `x20 status` beside the controller's own firmware version, the app header and
+  sidebar, and the executable's file properties. Packaging reads it back out of
+  the same module.
+
+### Changed
+
+- **Edits save themselves.** Typing, recording, clearing and vibration changes
+  are written to disk on a short debounce. The Save button stayed, showing
+  whether anything is pending, since a control that reports state is worth more
+  than one that's merely the only way to act.
+
+- **The one interruption left is destructive.** Clearing a slot that held a
+  macro asks first and offers to put it back, because a macro already written to
+  the controller can't be read off it again. Everything else is silent.
+
+- **Battery is re-read every 20 seconds** rather than once at connection, so the
+  gauge and the charging flag reflect the pad rather than whatever was true when
+  the app started. A poll that comes back empty leaves the last reading alone,
+  since one unanswered reply isn't news. A poll that fails means the link is
+  gone, and the window now says so instead of showing a controller that walked
+  away.
+
+- **The controller is named**, mapped by vendor and product id and falling back
+  to the reported name, so the header reads EasySMX X20 rather than `Xpert2`.
+
+- **Save files are confirmed to live with you, not with the app**, in
+  `%APPDATA%\x20ctl\profiles`. Replacing the executable with a newer download
+  leaves them untouched. There's a test naming the three paths that would break
+  that, because a one-file build unpacks to a temporary directory that's deleted
+  on exit: anything stored beside the executable would appear to work and then
+  lose the lot.
+
+### Fixed
+
+- **The header and the footer disagreed.** A reconnect set the header to
+  "Connecting…" and left the footer still reading "connected", because only one
+  of the two was being updated.
+- **A pad that was off or out of range printed a library traceback** on the
+  command line. It now explains itself the way the app already did.
+- **A help string was broken by an editing slip**, leaving the module unable to
+  import. The test suite caught it and it was committed anyway; that's a process
+  failure worth recording rather than quietly fixing.
+- **The screenshot tool raced the app's auto-connect**, so a real controller
+  answering mid-render replaced the staged values and the pictures depended on
+  whether the pad happened to be switched on. It also still had `Xpert2` typed
+  into it long after the app stopped saying that, so the README showed a name
+  the app would never show.
+
 ## 0.1.0
 
 First release. The protocol was reverse engineered from scratch; no public
@@ -36,14 +115,9 @@ hardware. Full detail in [docs/01-protocol.md](docs/01-protocol.md).
   with the timing you actually played.
 - **Vibration strength**, 0 to 100 percent. The pad's own controls can't set
   this, and can't silence rumble at all.
-- **Battery level**, a four step gauge with a charging flag, re-read every 20
-  seconds while connected. Reading it once at connection meant the header
-  showed whatever happened to be true when the app started, and a pad that
-  walked away went unnoticed; a read that fails now says the link is gone
-  instead of leaving a stale reading up.
-- **Save files.** Named sets of macros and vibration, stored as JSON in your own
-  profile directory, so replacing the executable with a newer download leaves
-  them untouched. Applying one makes the controller match it exactly.
+- **Battery level**, a four step gauge with a charging flag.
+- **Save files.** Named sets of macros and vibration, stored as JSON. Applying
+  one makes the controller match it exactly.
 - **Input tester.** Every button lights while held, both sticks draw a position
   trail, triggers show their analog value.
 - **Polling rate meter.** Counts the reports per second that actually reach
@@ -52,22 +126,7 @@ hardware. Full detail in [docs/01-protocol.md](docs/01-protocol.md).
 - **Transport detection.** Reports whether you're playing over Bluetooth or
   USB.
 - **Command line interface** alongside the app, and a **standalone executable**
-  that needs no Python. A controller that is off or out of range explains itself
-  there the same way it does in the app, rather than printing a library
-  traceback.
-- **A version number**, reported by `x20 --version`, by `x20 status` alongside
-  the controller's own firmware version, in the app's sidebar, and in the
-  executable's file properties. All four read the one value in the package, and
-  packaging reads it back out of there too.
-- **Stick and trigger deadzones and response curves.** Both records decode to an
-  inner and outer deadzone, two control points and a flag byte, and both are
-  editable in the app and on the command line. Writing is **confirmed on
-  hardware for both records**: a stick deadzone written from 8 to 10 and a
-  trigger deadzone from 4 to 6 each read back changed, with the other channel
-  untouched, and restoring put each record back byte for byte. Every write reads
-  the record back and reports whether the controller took it rather than
-  assuming, and the values read at connection are kept so anything can be put
-  back.
+  that needs no Python.
 - **Explanations on every control**, including why there are three millisecond
   fields.
 
@@ -121,8 +180,5 @@ Kept because each one records something learned about the hardware.
 - **The taskbar icon didn't appear.** The app identity was being set after the
   icon, and Windows had already chosen by then.
 - **Clicking a save file did nothing** while the input tester was open.
-- **The header and the footer disagreed.** A reconnect set the header to
-  "Connecting…" and left the footer reading "connected", because only one of
-  the two was being updated.
 - **Bluetooth being off looked like a fault.** Settings need it; playing does
   not.
