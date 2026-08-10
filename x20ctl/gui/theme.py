@@ -1,188 +1,222 @@
-"""Visual theme.
+"""Visual language.
 
-One dark palette, defined once. Colours are chosen for contrast against the
-background rather than for decoration: accent marks interactive things, muted
-marks labels, and the warning colour is reserved for a macro that loops, which
-is the one setting that can surprise a user.
+The palette is deliberately warm. Almost every piece of controller software
+reaches for a cold near-black with a saturated blue or green accent, which is
+why they all look alike. Warming the greys and using an ember accent gives the
+same legibility while reading as something made rather than generated.
+
+Rules the rest of the interface follows:
+
+- One accent. EMBER marks what you can act on, nothing else. If everything
+  glows, nothing is emphasised.
+- State colours are muted, not neon. SAGE and ROSE sit at similar lightness to
+  the text so they never shout over content.
+- Depth comes from surface lightness and a single hairline, not from heavy
+  borders or drop shadows on everything.
+- Type carries the hierarchy. Four sizes, two weights, generous line height.
 """
 
 from __future__ import annotations
 
-BG = "#14161a"
-SURFACE = "#1c1f26"
-SURFACE_HI = "#232733"
-BORDER = "#2c3140"
-BORDER_HI = "#3a4152"
+# -- surfaces, warm rather than blue-black ---------------------------------
+BG = "#131110"
+SURFACE = "#1B1817"
+SURFACE_HI = "#241F1D"
+SURFACE_TOP = "#2C2624"
+LINE = "#332C29"
+LINE_HI = "#453B36"
 
-TEXT = "#e6e9ef"
-TEXT_MUTED = "#8b93a5"
-TEXT_FAINT = "#5c6478"
+# -- type ------------------------------------------------------------------
+TEXT = "#F4F0EB"
+TEXT_MUTED = "#A79C92"
+TEXT_FAINT = "#6B625B"
 
-ACCENT = "#5b9dff"
-ACCENT_DIM = "#2f5fa8"
-SUCCESS = "#4ec9a5"
-WARNING = "#e0b354"
-DANGER = "#e06c75"
+# -- accent and states -----------------------------------------------------
+EMBER = "#FF8A5B"          # the only interactive colour
+EMBER_DEEP = "#C4613A"
+EMBER_GLOW = "rgba(255, 138, 91, 0.14)"
+GOLD = "#F2C14E"           # attention, not danger
+SAGE = "#86C08A"           # success
+ROSE = "#E5645E"           # destructive
+INK = "#171310"            # text on top of the accent
 
-RADIUS = "8px"
+RADIUS = "10px"
+RADIUS_SM = "7px"
 
 STYLESHEET = f"""
 QWidget {{
     background: {BG};
     color: {TEXT};
-    font-family: "Segoe UI", "Inter", sans-serif;
+    font-family: "Segoe UI Variable Text", "Segoe UI", "Inter", sans-serif;
     font-size: 13px;
 }}
 
-/* Labels must not paint the window background, or they show as dark
-   rectangles when they sit on a card. */
+/* Labels must never paint the window colour, or they show as dark
+   rectangles the moment they sit on a raised surface. */
 QLabel {{ background: transparent; }}
 
-QLabel#Title {{
-    font-size: 20px;
-    font-weight: 600;
+QLabel#Display {{
+    font-size: 34px;
+    font-weight: 300;
+    letter-spacing: -1px;
     color: {TEXT};
 }}
-QLabel#Subtitle {{
-    font-size: 12px;
-    color: {TEXT_MUTED};
+QLabel#Title {{
+    font-size: 19px;
+    font-weight: 600;
+    letter-spacing: -0.3px;
 }}
-QLabel#SectionTitle {{
-    font-size: 11px;
+QLabel#Wordmark {{
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: {TEXT};
+}}
+QLabel#Section {{
+    font-size: 10px;
     font-weight: 700;
     color: {TEXT_FAINT};
-    letter-spacing: 1px;
+    letter-spacing: 1.6px;
 }}
 QLabel#Muted   {{ color: {TEXT_MUTED}; }}
 QLabel#Faint   {{ color: {TEXT_FAINT}; }}
-QLabel#Success {{ color: {SUCCESS}; }}
-QLabel#Warning {{ color: {WARNING}; }}
-QLabel#Danger  {{ color: {DANGER}; }}
+QLabel#Success {{ color: {SAGE}; }}
+QLabel#Warning {{ color: {GOLD}; }}
+QLabel#Danger  {{ color: {ROSE}; }}
+QLabel#Accent  {{ color: {EMBER}; }}
 
-QFrame#Card {{
-    background: {SURFACE};
-    border: 1px solid {BORDER};
-    border-radius: {RADIUS};
-}}
-QFrame#CardActive {{
-    background: {SURFACE_HI};
-    border: 1px solid {ACCENT_DIM};
-    border-radius: {RADIUS};
-}}
 QFrame#Sidebar {{
     background: {SURFACE};
-    border-right: 1px solid {BORDER};
+    border: none;
+    border-right: 1px solid {LINE};
 }}
-QFrame#Divider {{
-    background: {BORDER};
+QFrame#Rule {{
+    background: {LINE};
     max-height: 1px;
     border: none;
 }}
 
+/* -- buttons ---------------------------------------------------------- */
 QPushButton {{
     background: {SURFACE_HI};
-    border: 1px solid {BORDER_HI};
-    border-radius: 6px;
-    padding: 7px 14px;
+    border: 1px solid {LINE_HI};
+    border-radius: {RADIUS_SM};
+    padding: 8px 15px;
+    color: {TEXT};
+    font-weight: 500;
+}}
+QPushButton:hover {{
+    background: {SURFACE_TOP};
+    border-color: {EMBER_DEEP};
     color: {TEXT};
 }}
-QPushButton:hover  {{ background: {BORDER}; border-color: {ACCENT_DIM}; }}
-QPushButton:pressed{{ background: {BORDER_HI}; }}
-QPushButton:disabled {{ color: {TEXT_FAINT}; border-color: {BORDER}; background: {SURFACE}; }}
+QPushButton:pressed {{ background: {LINE}; }}
+QPushButton:disabled {{
+    background: {SURFACE};
+    border-color: {LINE};
+    color: {TEXT_FAINT};
+}}
 
 QPushButton#Primary {{
-    background: {ACCENT};
-    border: 1px solid {ACCENT};
-    color: #0b1220;
-    font-weight: 600;
+    background: {EMBER};
+    border: 1px solid {EMBER};
+    color: {INK};
+    font-weight: 650;
+    padding: 9px 20px;
 }}
-QPushButton#Primary:hover    {{ background: #6fabff; border-color: #6fabff; }}
-QPushButton#Primary:disabled {{ background: {ACCENT_DIM}; border-color: {ACCENT_DIM}; color: {TEXT_FAINT}; }}
-
-QPushButton#Ghost {{
-    background: transparent;
-    border: 1px solid {BORDER_HI};
+QPushButton#Primary:hover {{ background: #FF9E75; border-color: #FF9E75; }}
+QPushButton#Primary:pressed {{ background: {EMBER_DEEP}; border-color: {EMBER_DEEP}; }}
+QPushButton#Primary:disabled {{
+    background: {SURFACE_HI}; border-color: {LINE_HI}; color: {TEXT_FAINT};
 }}
-QPushButton#Ghost:hover {{ background: {SURFACE_HI}; }}
 
-QPushButton#Danger {{ background: transparent; border: 1px solid {BORDER_HI}; color: {DANGER}; }}
-QPushButton#Danger:hover {{ background: rgba(224,108,117,0.12); border-color: {DANGER}; }}
+QPushButton#Ghost {{ background: transparent; border: 1px solid {LINE_HI}; }}
+QPushButton#Ghost:hover {{ background: {EMBER_GLOW}; border-color: {EMBER_DEEP}; }}
+QPushButton#Ghost:checked {{
+    background: {EMBER_GLOW}; border-color: {EMBER}; color: {EMBER};
+}}
 
-QLineEdit, QSpinBox, QComboBox {{
+QPushButton#Danger {{ background: transparent; border: 1px solid {LINE_HI}; color: {ROSE}; }}
+QPushButton#Danger:hover {{ background: rgba(229,100,94,0.12); border-color: {ROSE}; }}
+
+QPushButton#Recording {{
+    background: {ROSE}; border: 1px solid {ROSE}; color: {INK}; font-weight: 650;
+}}
+
+/* -- inputs ----------------------------------------------------------- */
+QLineEdit, QSpinBox {{
     background: {BG};
-    border: 1px solid {BORDER_HI};
-    border-radius: 6px;
-    padding: 6px 9px;
-    selection-background-color: {ACCENT_DIM};
+    border: 1px solid {LINE};
+    border-radius: {RADIUS_SM};
+    padding: 7px 10px;
+    selection-background-color: {EMBER_DEEP};
+    selection-color: {TEXT};
 }}
-QLineEdit:focus, QSpinBox:focus, QComboBox:focus {{ border-color: {ACCENT}; }}
-QLineEdit::placeholder {{ color: {TEXT_FAINT}; }}
+QLineEdit:hover, QSpinBox:hover {{ border-color: {LINE_HI}; }}
+QLineEdit:focus, QSpinBox:focus {{ border-color: {EMBER}; background: {SURFACE}; }}
+QLineEdit:disabled, QSpinBox:disabled {{ color: {TEXT_FAINT}; background: {SURFACE}; }}
+
+QSpinBox::up-button, QSpinBox::down-button {{ width: 0; border: none; }}
 
 QToolButton#Info {{
-    background: {BORDER};
-    color: {TEXT_MUTED};
-    border: none;
+    background: transparent;
+    color: {TEXT_FAINT};
+    border: 1px solid {LINE_HI};
     border-radius: 8px;
-    font-size: 10px;
+    font-size: 9px;
     font-weight: 700;
     font-style: italic;
 }}
-QToolButton#Info:hover {{ background: {ACCENT}; color: #0b1220; }}
-
-QSpinBox::up-button, QSpinBox::down-button {{
-    width: 14px;
-    background: transparent;
-    border: none;
-}}
-QSpinBox::up-arrow, QSpinBox::down-arrow {{ width: 7px; height: 7px; }}
-
-QComboBox::drop-down {{ border: none; width: 18px; }}
-QComboBox QAbstractItemView {{
-    background: {SURFACE_HI};
-    border: 1px solid {BORDER_HI};
-    selection-background-color: {ACCENT_DIM};
-    outline: none;
+QToolButton#Info:hover {{
+    background: {EMBER}; color: {INK}; border-color: {EMBER};
 }}
 
-QListWidget {{
-    background: transparent;
-    border: none;
-    outline: none;
-}}
+/* -- lists ------------------------------------------------------------ */
+QListWidget {{ background: transparent; border: none; outline: none; }}
 QListWidget::item {{
-    padding: 9px 10px;
-    border-radius: 6px;
-    margin: 1px 6px;
+    padding: 10px 12px;
+    border-radius: {RADIUS_SM};
+    margin: 2px 10px;
+    color: {TEXT_MUTED};
 }}
-QListWidget::item:hover {{ background: {SURFACE_HI}; }}
-QListWidget::item:selected {{ background: {ACCENT_DIM}; color: {TEXT}; }}
+QListWidget::item:hover {{ background: {SURFACE_HI}; color: {TEXT}; }}
+QListWidget::item:selected {{
+    background: {EMBER_GLOW};
+    color: {EMBER};
+    border-left: 2px solid {EMBER};
+}}
 
-QSlider::groove:horizontal {{
-    height: 5px;
-    background: {BORDER};
+/* -- slider ----------------------------------------------------------- */
+QSlider::groove:horizontal {{ height: 4px; background: {LINE}; border-radius: 2px; }}
+QSlider::sub-page:horizontal {{
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                stop:0 {EMBER_DEEP}, stop:1 {EMBER});
     border-radius: 2px;
 }}
-QSlider::sub-page:horizontal {{ background: {ACCENT}; border-radius: 2px; }}
 QSlider::handle:horizontal {{
     background: {TEXT};
-    width: 15px;
-    height: 15px;
+    width: 14px; height: 14px;
     margin: -5px 0;
     border-radius: 7px;
 }}
-QSlider::handle:horizontal:hover {{ background: #ffffff; }}
+QSlider::handle:horizontal:hover {{ background: #FFFFFF; }}
 
-QScrollBar:vertical {{ background: transparent; width: 9px; margin: 0; }}
-QScrollBar::handle:vertical {{ background: {BORDER_HI}; border-radius: 4px; min-height: 28px; }}
+/* -- scrollbar -------------------------------------------------------- */
+QScrollBar:vertical {{ background: transparent; width: 10px; margin: 0; }}
+QScrollBar::handle:vertical {{
+    background: {LINE_HI}; border-radius: 5px; min-height: 30px;
+}}
 QScrollBar::handle:vertical:hover {{ background: {TEXT_FAINT}; }}
 QScrollBar::add-line, QScrollBar::sub-line {{ height: 0; }}
 QScrollBar::add-page, QScrollBar::sub-page {{ background: none; }}
 
 QToolTip {{
-    background: {SURFACE_HI};
+    background: {SURFACE_TOP};
     color: {TEXT};
-    border: 1px solid {BORDER_HI};
-    padding: 5px 8px;
-    border-radius: 5px;
+    border: 1px solid {LINE_HI};
+    padding: 8px 10px;
+    border-radius: {RADIUS_SM};
 }}
+
+QMessageBox, QInputDialog {{ background: {SURFACE}; }}
 """

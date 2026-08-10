@@ -96,12 +96,12 @@ class Lamp(QLabel):
     def _apply(self) -> None:
         if self._lit:
             self.setStyleSheet(
-                f"background:{theme.ACCENT}; color:#0b1220; border-radius:6px;"
+                f"background:{theme.EMBER}; color:#171310; border-radius:6px;"
                 f"font-weight:700;")
         else:
             self.setStyleSheet(
                 f"background:{theme.BG}; color:{theme.TEXT_FAINT};"
-                f"border:1px solid {theme.BORDER}; border-radius:6px;")
+                f"border:1px solid {theme.LINE}; border-radius:6px;")
 
 
 class StickPad(QWidget):
@@ -134,16 +134,16 @@ class StickPad(QWidget):
         centre = box.center()
         radius = side / 2
 
-        painter.setPen(QPen(QColor(theme.BORDER), 1))
+        painter.setPen(QPen(QColor(theme.LINE), 1))
         painter.setBrush(QColor(theme.BG))
         painter.drawEllipse(box)
-        painter.setPen(QPen(QColor(theme.BORDER), 1, Qt.DotLine))
+        painter.setPen(QPen(QColor(theme.LINE), 1, Qt.DotLine))
         painter.drawLine(box.left(), centre.y(), box.right(), centre.y())
         painter.drawLine(centre.x(), box.top(), centre.x(), box.bottom())
 
         # trail shows the path, which is what makes circularity visible
         if len(self._trail) > 1:
-            painter.setPen(QPen(QColor(theme.ACCENT_DIM), 1))
+            painter.setPen(QPen(QColor(theme.EMBER_DEEP), 1))
             previous = None
             for tx, ty in self._trail:
                 point = QPointF(centre.x() + tx * radius, centre.y() - ty * radius)
@@ -153,7 +153,7 @@ class StickPad(QWidget):
 
         point = QPointF(centre.x() + self._x * radius, centre.y() - self._y * radius)
         painter.setPen(Qt.NoPen)
-        painter.setBrush(QColor(theme.ACCENT))
+        painter.setBrush(QColor(theme.EMBER))
         painter.drawEllipse(point, 5, 5)
 
         painter.setPen(QColor(theme.TEXT_FAINT))
@@ -184,13 +184,13 @@ class TriggerBar(QWidget):
 
         track = QRectF(30, self.height() / 2 - 4, self.width() - 74, 8)
         painter.setPen(Qt.NoPen)
-        painter.setBrush(QColor(theme.BORDER))
+        painter.setBrush(QColor(theme.LINE))
         painter.drawRoundedRect(track, 4, 4)
 
         if self._value:
             filled = QRectF(track)
             filled.setWidth(track.width() * self._value / 255)
-            painter.setBrush(QColor(theme.SUCCESS))
+            painter.setBrush(QColor(theme.SAGE))
             painter.drawRoundedRect(filled, 4, 4)
 
         painter.setPen(QColor(theme.TEXT))

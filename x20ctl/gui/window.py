@@ -16,7 +16,10 @@ from ..profiles import MacroSpec, Profile, ProfileStore, SLOTS
 from . import theme
 from .bridge import AsyncBridge
 from .tester import TesterPage
-from .widgets import MacroCard, StatusDot, VibrationRow, divider, section_label
+from .motion import slide_in
+from .widgets import (
+    MacroCard, StatusDot, VibrationRow, Wordmark, divider, section_label,
+)
 
 RECORD_POLL_MS = 5      # matches the protocol's own timing resolution
 
@@ -68,15 +71,16 @@ class MainWindow(QWidget):
         layout.setContentsMargins(0, 18, 0, 14)
         layout.setSpacing(10)
 
-        heading = QLabel("x20ctl")
-        heading.setObjectName("Title")
-        heading.setContentsMargins(16, 0, 16, 0)
-        layout.addWidget(heading)
-
+        brand = QWidget()
+        brand_layout = QVBoxLayout(brand)
+        brand_layout.setContentsMargins(18, 0, 16, 0)
+        brand_layout.setSpacing(2)
+        brand_layout.addWidget(Wordmark())
         caption = QLabel("controller configuration")
         caption.setObjectName("Faint")
-        caption.setContentsMargins(16, 0, 16, 0)
-        layout.addWidget(caption)
+        caption.setContentsMargins(1, 0, 0, 0)
+        brand_layout.addWidget(caption)
+        layout.addWidget(brand)
 
         layout.addSpacing(14)
         holder = QWidget()
@@ -140,7 +144,7 @@ class MainWindow(QWidget):
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(24, 20, 24, 20)
-        layout.setSpacing(16)
+        layout.setSpacing(14)
 
         # header ---------------------------------------------------------
         header = QHBoxLayout()
@@ -210,7 +214,7 @@ class MainWindow(QWidget):
         holder = QWidget()
         cards = QVBoxLayout(holder)
         cards.setContentsMargins(0, 0, 6, 0)
-        cards.setSpacing(10)
+        cards.setSpacing(8)
         self.cards: dict[str, MacroCard] = {}
         for slot in SLOTS:
             card = MacroCard(slot)
@@ -390,6 +394,7 @@ class MainWindow(QWidget):
         the visible page.
         """
         self.pages.setCurrentIndex(1 if showing else 0)
+        slide_in(self.pages.currentWidget())
         self.tester_button.setChecked(showing)
         self.tester_button.setText("Back to settings" if showing
                                    else "Input tester")

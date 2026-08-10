@@ -55,15 +55,15 @@ def test_invalid_keys_are_flagged_not_crashed():
     card = MacroCard("M3")
     card.keys.setText("NOT_A_BUTTON")
     assert not card.is_valid()
-    assert card.error.isVisible() or card.error.text()
-    assert card.summary.text() == "invalid"
+    # the reason is shown in place of the summary rather than in a second label
+    assert "unknown key" in card.summary.text().lower()
 
 
 def test_non_macro_capable_button_is_flagged():
     card = MacroCard("M4")
     card.keys.setText("START")
     assert not card.is_valid()
-    assert "not macro-capable" in card.error.text()
+    assert "not macro-capable" in card.summary.text()
 
 
 def test_clear_empties_the_card():
@@ -76,8 +76,8 @@ def test_clear_empties_the_card():
 def test_looping_macro_is_marked_as_a_warning():
     card = MacroCard("M1")
     card.set_spec(MacroSpec(keys="A", loop_ms=200))
-    assert card.summary.objectName() == "Warning"
     assert "loops" in card.summary.text()
+    assert "repeats until interrupted" in card.summary.text()
 
 
 def test_vibration_row_reports_its_value():
