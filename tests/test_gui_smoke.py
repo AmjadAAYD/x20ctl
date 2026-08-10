@@ -167,6 +167,38 @@ def test_autosave_refuses_to_recreate_a_missing_profile():
             window.bridge.shutdown()
 
 
+def test_choosing_a_save_file_leaves_the_tester():
+    """Clicking a save file while the tester is open should return to the
+    settings, not strand you on a page that cannot show it."""
+    import tempfile
+
+    from x20ctl.gui.window import MainWindow
+    from x20ctl.profiles import ProfileStore
+
+    with tempfile.TemporaryDirectory() as tmp:
+        store = ProfileStore(tmp)
+        store.save(Profile(name="one"))
+        store.save(Profile(name="two"))
+
+        window = MainWindow()
+        try:
+            window.store = store
+            window.reload_profiles(select="one")
+
+            window.tester_button.setChecked(True)
+            window.toggle_tester()
+            assert window.pages.currentIndex() == 1
+            assert window.tester.timer.isActive()
+
+            window.reload_profiles(select="two")
+            assert window.pages.currentIndex() == 0, "should be back on settings"
+            assert not window.tester.timer.isActive(), "tester must stop polling"
+            assert not window.tester_button.isChecked()
+            assert window.tester_button.text() == "Input tester"
+        finally:
+            window.bridge.shutdown()
+
+
 if __name__ == "__main__":
     failures = 0
     for name, fn in sorted(globals().items()):
