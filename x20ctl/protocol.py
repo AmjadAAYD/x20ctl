@@ -300,6 +300,40 @@ def build_macro_write(
     )
 
 
+MACRO_CHUNK_SIZE = 15
+
+
+def build_macro_writes(
+    payload: bytes,
+    slot: int,
+    *,
+    start_counter: int = 1,
+    nonce: int | None = None,
+) -> list[bytes]:
+    """Split a macro payload across as many packets as it needs.
+
+    writeMacroData walks the payload in 15-byte chunks, incrementing a chunk
+    index that goes into the serial byte's middle nibble, while the counter in
+    the serial's low bits advances once per packet. A 15-byte chunk produces a
+    packet of exactly MAX_PACKET bytes, which is presumably why 15 was chosen.
+
+    Packets must be sent in order.
+    """
+    if not payload:
+        raise ValueError("empty payload; use MACRO_CLEAR to empty a slot")
+
+    packets = []
+    counter = start_counter
+    for chunk_index, offset in enumerate(range(0, len(payload), MACRO_CHUNK_SIZE)):
+        piece = payload[offset:offset + MACRO_CHUNK_SIZE]
+        packets.append(
+            build_macro_write(piece, slot=slot, chunk=chunk_index,
+                              counter=counter, nonce=nonce)
+        )
+        counter += 1
+    return packets
+
+
 class MenuKind(IntEnum):
     """Second payload byte of a HOST_MENU (0xB0) query.
 

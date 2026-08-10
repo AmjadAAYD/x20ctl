@@ -468,6 +468,52 @@ def test_a_full_tap_sequence_never_zeroes_the_nibbles():
         assert payload[i] == 0x88, f"step at {i} has non-neutral analog nibbles"
 
 
+def test_short_macro_needs_only_one_packet():
+    payload = p.build_macro_payload([p.MacroStep(mask=p.mask_for([p.Key.A]), duration_ms=50),
+                                     p.MacroStep.released(50)])
+    assert len(p.build_macro_writes(payload, slot=0)) == 1
+
+
+def test_two_button_macro_is_chunked_and_indexed():
+    steps = []
+    for key in (p.Key.A, p.Key.B):
+        steps.append(p.MacroStep(mask=p.mask_for([key]), duration_ms=100))
+        steps.append(p.MacroStep.released(60))
+    payload = p.build_macro_payload(steps)
+    assert len(payload) == 3 + 4 * p.MACRO_STEP_SIZE == 23
+
+    packets = p.build_macro_writes(payload, slot=0)
+    assert len(packets) == 2, "23 bytes does not fit one packet"
+
+    for i, packet in enumerate(packets):
+        assert len(packet) <= p.MAX_PACKET
+        pkt = p.parse(packet)
+        assert pkt.crc_valid
+        assert pkt.opcode == p.Op.WRITE_MACRO
+        # middle nibble of the serial carries the chunk index
+        assert pkt.serial >> 3 & 0x0F == i
+
+    # first chunk is exactly at the limit, which is why 15 was chosen
+    assert len(packets[0]) == p.MAX_PACKET
+    # reassembling the chunks must reproduce the payload
+    rebuilt = b"".join(p.parse(x).payload for x in packets)
+    assert rebuilt == payload
+
+
+def test_chunks_carry_the_slot_in_every_packet():
+    payload = p.build_macro_payload([p.MacroStep.released(50)] * 6)
+    for packet in p.build_macro_writes(payload, slot=3):
+        assert p.parse(packet).length >> 5 == 3
+
+
+def test_macro_writes_rejects_empty_payload():
+    try:
+        p.build_macro_writes(b"", slot=0)
+    except ValueError:
+        return
+    raise AssertionError("empty payload must be rejected; use MACRO_CLEAR")
+
+
 def test_corrupted_packet_fails_crc():
     raw = bytearray(p.build_query(p.Op.HOST_LIGHTING, index=0, serial=1, nonce=0x42))
     plain = bytearray(p.unscramble(bytes(raw)))

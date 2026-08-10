@@ -56,17 +56,19 @@ def build_payload(key_names: list[str], hold_ms: int, gap_ms: int,
     return p.build_macro_payload(steps, loop_interval_ms=loop_ms)
 
 
-def describe(packet: bytes, payload: bytes, slot0: int, key_names: list[str]) -> None:
-    plain = p.unscramble(packet)
-    print(f"{BOLD}packet{RESET}")
-    print(f"    plain    {plain.hex(' ')}")
-    print(f"    wire     {packet.hex(' ')}")
-    print(f"    opcode   0x{plain[0]:02X}  WRITE_MACRO")
-    print(f"    length   0x{plain[1]:02X}  -> slot {plain[1] >> 5} (M{(plain[1] >> 5) + 1}), "
-          f"length {plain[1] & 0x1F}")
-    print(f"    serial   0x{plain[2]:02X}")
-    print(f"    crc      0x{plain[-1]:02X}  valid={p.parse(packet).crc_valid}")
-    print(f"    size     {len(packet)} bytes (limit {p.MAX_PACKET})")
+def describe(packets: list[bytes], payload: bytes, slot0: int, key_names: list[str]) -> None:
+    plural = "s" if len(packets) > 1 else ""
+    print(f"{BOLD}{len(packets)} packet{plural}{RESET}")
+    for i, packet in enumerate(packets):
+        plain = p.unscramble(packet)
+        print(f"  chunk {i}")
+        print(f"    plain    {plain.hex(' ')}")
+        print(f"    wire     {packet.hex(' ')}")
+        print(f"    length   0x{plain[1]:02X}  -> slot {plain[1] >> 5} (M{(plain[1] >> 5) + 1}), "
+              f"length {plain[1] & 0x1F}")
+        print(f"    serial   0x{plain[2]:02X}  -> chunk {plain[2] >> 3 & 0x0F}")
+        print(f"    size     {len(packet)} bytes (limit {p.MAX_PACKET})  "
+              f"crc valid={p.parse(packet).crc_valid}")
     print(f"\n{BOLD}macro payload{RESET}  {payload.hex(' ')}")
     print(f"    header   {payload[:3].hex(' ')}")
     for i in range(3, len(payload), p.MACRO_STEP_SIZE):
@@ -80,8 +82,8 @@ def describe(packet: bytes, payload: bytes, slot0: int, key_names: list[str]) ->
 
 
 async def run(address: str, slot0: int, payload: bytes, key_names: list[str]) -> None:
-    packet = p.build_macro_write(payload, slot=slot0)
-    describe(packet, payload, slot0, key_names)
+    packets = p.build_macro_writes(payload, slot=slot0)
+    describe(packets, payload, slot0, key_names)
 
     replies: dict[int, list[bytes]] = {}
 
@@ -113,8 +115,10 @@ async def run(address: str, slot0: int, payload: bytes, key_names: list[str]) ->
         print(f"  before   {before.hex(' ') if before else '(no reply)'}")
 
         replies.clear()
-        await client.write_gatt_char(CONFIG_WRITE, packet, response=True)
-        print(f"  {BOLD}write sent{RESET}")
+        for i, packet in enumerate(packets):
+            await client.write_gatt_char(CONFIG_WRITE, packet, response=True)
+            print(f"  {BOLD}chunk {i} sent{RESET} ({len(packet)} bytes)")
+            await asyncio.sleep(0.3)
         await asyncio.sleep(2.5)
         for rs in replies.values():
             for r in rs:
@@ -162,7 +166,7 @@ def main() -> None:
         build_payload(names, args.hold, args.gap, args.loop_ms)
 
     if args.dry_run:
-        describe(p.build_macro_write(payload, slot=slot0), payload, slot0, names)
+        describe(p.build_macro_writes(payload, slot=slot0), payload, slot0, names)
         print(f"\n{DIM}dry run: nothing transmitted{RESET}")
         return
 
