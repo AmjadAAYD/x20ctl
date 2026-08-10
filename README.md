@@ -72,7 +72,8 @@ gates on that descriptor, so it will simply work.
 ## Requirements
 
 - Python 3.10+
-- `bleak` for the BLE tools: `pip install bleak`
+- `bleak` for anything that talks to the controller: `pip install bleak`
+- `PySide6` for the desktop app: `pip install PySide6`
 - The pad paired over Bluetooth
 
 The library core (`x20ctl/protocol.py`) is pure computation with no dependencies
@@ -80,7 +81,66 @@ and no I/O, so the whole packet layer can be exercised without a controller.
 
 ---
 
-## Usage
+## The desktop app
+
+```bash
+python -m x20ctl.gui
+```
+
+Save files down the left, the four macro slots and vibration on the right.
+Editing a slot validates as you type, and a macro set to loop is marked, since
+that is the one setting that can surprise you.
+
+Applying writes every setting in the save file to the controller. Settings the
+pad does not expose are skipped rather than attempted, and the app says so
+rather than silently omitting them.
+
+---
+
+## Save files
+
+A save file is a set of up to four macros and a vibration level, stored as JSON
+in `%APPDATA%\x20ctl\profiles`. The controller has four fixed macro slots and
+knows nothing about save files; switching files rewrites those slots.
+
+```json
+{
+  "name": "Save file 1",
+  "vibration": 30,
+  "macros": {
+    "M1": { "keys": "A+B", "hold_ms": 100, "gap_ms": 60, "loop_ms": 0 },
+    "M2": { "keys": "X,Y", "hold_ms": 120, "gap_ms": 80, "loop_ms": 0 },
+    "M3": null,
+    "M4": null
+  }
+}
+```
+
+In a key sequence, `+` presses keys together and `,` plays them one after
+another, so `A+B` is a chord and `A,B` is a sequence.
+
+`loop_ms` is an interval, not a duration: `0` fires the macro once, and anything
+else repeats it forever until another macro button is pressed.
+
+---
+
+## Command line
+
+```bash
+x20 scan
+x20 status
+x20 vibration 60
+x20 macro M1 "A+B" --hold 100
+x20 profile set "Save file 1" M1 "A+B" --vibration 30
+x20 profile apply "Save file 1"
+```
+
+Run as `python -m x20ctl <command>`. The address is remembered after the first
+successful scan.
+
+---
+
+## Low-level tools
 
 Find the controller. It advertises as `Xpert2`, on a MAC distinct from the one it
 uses for the gamepad interface:
