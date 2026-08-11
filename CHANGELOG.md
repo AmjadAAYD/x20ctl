@@ -2,26 +2,24 @@
 
 ## Unreleased
 
-Small things since 0.2.0, plus the repository going public for testing.
+Small changes since 0.2.0, plus the repo going public for testing.
 
-- **An intro animation.** The mark and wordmark fly in, hold, and leave to the
-  left before the interface appears. A click, a keypress or `X20CTL_NO_SPLASH=1`
-  skips it.
-- **A security policy**, and three ways to check the executable rather than
-  trusting it: the published SHA-256, scanning it yourself, or skipping the
-  binary and running from source. A one-file build trips antivirus heuristics on
-  shape alone, so saying "it's fine" would be worth nothing without a way to
-  verify.
-- **The platform is stated.** Windows only, and the README now says why rather
-  than leaving somebody to install it on Linux and hit a wall.
-- **Tests run on push**, on 3.10 and 3.12, on Windows runners.
+- **An intro animation.** The logo and name fly in, hold, then leave to the left
+  before the interface shows. Click, press a key, or set `X20CTL_NO_SPLASH=1` to
+  skip it.
+- **A security policy**, and three ways to check the executable: the published
+  SHA-256, scanning it yourself, or skipping the binary and running from source.
+  One-file builds set off antivirus heuristics on their own, so there needed to
+  be a way to verify rather than just my word.
+- **Says it's Windows only**, and why. The input tester uses XInput directly,
+  save files go to `%APPDATA%`, and the taskbar icon needs a Windows call.
+- **Tests run on push**, 3.10 and 3.12, on Windows runners.
 - **`tools/macro_from_video.py`**, which turns a stick movement in a
   gamepad-overlay video into a macro.
-- **What the macro format cannot express**, measured against a real game rather
-  than inferred: eight stick headings and no magnitude, so a technique needing a
-  specific stick angle can't be expressed. Includes the one workaround that does
-  exist and where it stops working. See
-  [docs/01-protocol.md](docs/01-protocol.md).
+- **Wrote down what the macro format can't do**, measured against a real game
+  rather than guessed: eight stick headings, no magnitude, so anything needing a
+  specific stick angle won't work. Includes the one partial workaround and where
+  it stops working. See [docs/01-protocol.md](docs/01-protocol.md).
 
 ## 0.2.0
 

@@ -701,70 +701,62 @@ the pad, and read again.
 
 ## 4j. What the macro format cannot express
 
-Everything above describes what the format holds. This section records what it
-**can't**, because that turned out to be the interesting half, and because the
-limits are not obvious from the encoding alone.
+The sections above cover what the format stores. This one covers what it can't,
+which is less obvious from the encoding.
 
-The measurements come from driving a real game with macros and reading its own
-instrumentation back, rather than from inspecting bytes. Rocket League was
-convenient for this: its community has a training plugin that reports the exact
-angle of a dodge in degrees and the exact time between two stick positions in
-milliseconds, so a macro's real effect can be measured instead of estimated.
+These were measured by running macros against a real game and reading its own
+instrumentation, not by reading bytes. Rocket League was convenient because
+there is a community training plugin for it that reports the angle of a dodge in
+degrees and the gap between two stick positions in milliseconds, so a macro's
+actual effect could be measured instead of guessed at.
 
-### Three limits, in order of how much they bite
+### The limits
 
-**Angular resolution is the binding constraint.** A stick is stored as one of
-eight compass headings. There is no ninth. Around forty logged attempts, across
-every arrangement of steering, roll, timing and mirroring that could be
-constructed, produced a dodge angle of either exactly 0 degrees or exactly 45.
-Nothing in between ever appeared. A gamepad technique that calls for 30 degrees
-is therefore not expressible, and no amount of timing work substitutes for it.
+**Stick angle.** A stick is stored as one of eight compass headings. There is no
+ninth. About forty logged attempts, covering every combination of steering, air
+roll, timing and mirroring I could build, gave a dodge angle of either exactly 0
+degrees or exactly 45. Nothing in between showed up once. Anything that needs 30
+degrees can't be done, and no amount of timing work gets around it.
 
-**There is no magnitude.** Every direction is emitted at full deflection.
-Measured on hardware: a diagonal reports `x = 1.0000, y = 1.0000`, driven into
-the corner rather than clamped to a circle. So the format cannot say "half
-right", and a deadzone threshold in the consuming application can never be
-tuned to sit between a macro's two available answers.
+**No magnitude.** Every direction goes out at full deflection. Measured: a
+diagonal reads `x = 1.0000, y = 1.0000`, so the axes are driven into the corner
+rather than clamped to a circle. The format can't say "half right". A deadzone
+setting in the receiving program can't be tuned to land between the two answers
+a macro can give, because one of them is already at the maximum.
 
-**Steps quantise to 5 ms**, which is finer than a 60 Hz frame and has never been
-the limiting factor in practice.
+**Steps snap to 5 ms.** Finer than a 60 Hz frame, and never the limiting factor.
 
-### Duration substitutes for magnitude, but only for sustained inputs
+### Flicking a direction on and off gives partial magnitude, sometimes
 
-This is the useful discovery, and it has a sharp edge.
+Alternating a direction on and off every 5 ms produces a partial input if the
+receiving program averages over time. Tested by steering a car: a 50% duty cycle
+turned about half as far as holding the direction, and 25% turned less again, in
+that order. So a controller with no analog output can still produce proportional
+behaviour, paid for in time.
 
-Alternating a direction on and off every 5 ms produces a **partial** input when
-the consumer integrates over time. Tested by steering a car: a 50% duty cycle
-turned roughly half as far as a solid hold, and a 25% duty cycle turned less
-again, in a clean monotonic order. So a controller with no analog output can
-still deliver proportional analog *behaviour*, bought with time.
+It doesn't work where the program reads the stick once at a single moment. The
+same flick pattern across a dodge, which samples the stick at the button press,
+gave 4 degrees instead of the 22 the duty cycle implied. It just caught whichever
+phase happened to be live at that instant.
 
-It fails where the consumer samples a single instant. The same flicker applied
-across a dodge, which reads the stick once at the moment of a button press,
-produced 4 degrees rather than the ~22 the duty cycle implied. It caught
-whichever phase happened to be live.
-
-> Flicker gives you magnitude for anything integrated over time, and nothing at
-> all for anything sampled at a point.
-
-That distinction is worth carrying to any device driven this way, not just this
-pad.
+So: this works for anything integrated over time, and not at all for anything
+sampled at a point. Worth knowing for any device driven this way.
 
 ### What the format does well
 
-Recorded because the expectation going in was the opposite:
+Listed because I expected the opposite:
 
 - **Held buttons survive across steps.** Every step ends with an all-release
-  entry of zero duration, which looks fatal on paper. It isn't: those releases
-  never reach the host. Confirmed twice, once through the input tester and once
-  in-game by an unbroken boost trail across five step boundaries.
-- **Chords, sequences and per-step timing** are all exact and repeatable to the
-  millisecond. Two independent runs of the same macro produced identical
-  instrument readings.
-- **25 steps** is enough for anything a person would type by hand.
+  entry of zero duration, which looks like it should break holds. It doesn't,
+  because those releases never reach the host. Confirmed twice, once with the
+  input tester and once in game by an unbroken boost trail across five step
+  boundaries.
+- **Chords, sequences and per-step timing** are exact and repeatable to the
+  millisecond. Two runs of the same macro gave identical instrument readings.
+- **25 steps** is plenty for anything written by hand.
 
-The format's weakness is spatial, not temporal. It can say *when* with precision
-and *what* only coarsely.
+The weakness is spatial rather than temporal. It can say when precisely, and
+what only roughly.
 
 ## 5. What is still unknown
 
