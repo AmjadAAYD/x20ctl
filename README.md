@@ -3,20 +3,17 @@
 Open configuration for the EasySMX X20 gamepad, and for other controllers
 speaking the same KeyLinker protocol.
 
-> ### This is a test phase, not an official release
+> ### Test phase
 >
-> Everything here was reverse engineered against **one** controller: mine. It
-> works on that pad. Whether it works on yours is the open question, and it's
-> the thing I most want to find out.
+> I built this against one controller, mine. It works on that pad. I don't know
+> yet whether it works on anyone else's.
 >
-> **If you own an X20, please try it.** If it works, that's genuinely good news
-> and worth telling me. If it doesn't, tell me what happened — the error, or
-> what the app said, or what your pad did — and I'll find a way. That's more
-> useful to this project than anything else right now.
+> If you have an X20, try it and tell me what happens. If it works, good. If it
+> doesn't, tell me the error or what the pad did and I'll look into it. That's
+> the most useful thing anyone can do for this right now.
 >
-> Nothing here touches firmware, and every setting it changes is recoverable:
-> **hold `C` for five seconds** for a factory reset. See [Safety](#safety) for
-> why that's a guarantee rather than a hope.
+> It never touches firmware. Anything it changes is undone by holding `C` for
+> five seconds, which is a factory reset. See [Safety](#safety).
 
 The X20 ships with no desktop configuration software. The vendor provides a
 manual, a driver, and a firmware updater. Everything else lives in a mobile-only
@@ -284,21 +281,20 @@ All three snap to multiples of 5 ms, which is the controller's own resolution.
 
 ### What a macro can't do
 
-Worth knowing before you plan something elaborate, because the limits are
-spatial rather than temporal:
+Worth knowing before planning anything elaborate:
 
-- **Sticks store eight directions, at full deflection only.** A macro can say
-  "up" or "up-right", never the 30° between them, and never "half right". A
-  technique that depends on a specific stick angle can't be expressed.
-- **25 steps**, because the record states its own length in a single byte.
-- **Timing is excellent**: 5 ms resolution, finer than a frame, and a button
-  repeated across consecutive steps reads as one continuous hold.
+- **Sticks store eight directions, always at full deflection.** A macro can say
+  "up" or "up-right", but nothing between them, and it can't say "half right".
+  Anything that needs a specific stick angle won't work.
+- **25 steps maximum.** The record states its own length in one byte.
+- **Timing is fine.** 5 ms resolution, and a button repeated across consecutive
+  steps reads as one continuous hold.
 
-There's a partial way around the magnitude limit. Alternating a direction on and
-off every 5 ms produces a proportional input wherever the receiving program
-averages over time — a 50% duty cycle steers about half as far as a solid hold.
-It does nothing where the program samples a single instant instead. Measured
-both ways in [docs/01-protocol.md](docs/01-protocol.md#4j-what-the-macro-format-cannot-express).
+There is a partial way around the magnitude limit. Flicking a direction on and
+off every 5 ms gives a proportional input if the receiving program averages over
+time. A 50% duty cycle steers about half as far as holding it. This does nothing
+if the program reads the stick at a single instant instead. Both cases measured
+in [docs/01-protocol.md](docs/01-protocol.md#4j-what-the-macro-format-cannot-express).
 
 ---
 
@@ -435,13 +431,11 @@ several brands. Two things to know before pointing this at other hardware:
 
 ## Is the executable safe
 
-You don't have to take my word for it, and you shouldn't have to.
+`x20ctl.exe` is a PyInstaller one-file build of the source here, made by
+[tools/build_exe.py](tools/build_exe.py). Three ways to check it without taking
+my word for anything:
 
-`x20ctl.exe` is a PyInstaller one-file build of the source in this repository,
-produced by [tools/build_exe.py](tools/build_exe.py). Three ways to check it,
-in increasing order of how little you have to trust me:
-
-**1. Verify you got what was published.** Every release lists a SHA-256.
+**1. Check you got what was published.** Every release lists a SHA-256.
 
 ```powershell
 Get-FileHash .\x20ctl.exe -Algorithm SHA256
@@ -457,18 +451,17 @@ and read which engines object and what they claim to have found.
 **3. Don't use the binary at all.** `pip install -e ".[gui]"` runs the same
 application from source, which you can read.
 
-**On antivirus warnings.** A one-file PyInstaller build carries a Python
-interpreter inside it and unpacks itself to a temporary folder when it starts.
-Several engines flag that shape by itself, and the binary is unsigned because
-code-signing certificates cost money this project doesn't have. So a generic
-heuristic detection here is common and isn't evidence of much. A detection
-naming specific behaviour would be, and I'd want to hear about it — see
-[SECURITY.md](SECURITY.md).
+**About antivirus warnings.** A one-file PyInstaller build carries a Python
+interpreter inside it and unpacks itself to a temp folder on startup. Several
+engines flag that shape on its own, and this build is unsigned because I don't
+have a code signing certificate. A generic heuristic detection is common here
+and doesn't mean much. A detection naming specific behaviour would, so tell me
+if you see one. See [SECURITY.md](SECURITY.md).
 
-What the program actually does is bounded and documented: it speaks BLE GATT to
-the controller's configuration service, reads and writes gamepad settings, and
-reads XInput for the input tester. It has no network code, and no path to the
-controller's bootloader. See [Safety](#safety).
+The program talks BLE to the controller's configuration service, reads and
+writes gamepad settings, and reads XInput for the input tester. There is no
+network code in it and no path to the controller's bootloader. See
+[Safety](#safety).
 
 ## Licence
 
