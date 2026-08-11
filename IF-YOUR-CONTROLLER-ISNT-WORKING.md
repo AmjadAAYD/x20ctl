@@ -65,7 +65,8 @@ rejected it. That's worth reporting, and section 7 explains how.
 
 ## 6. Windows or your antivirus blocked the exe
 
-It's an unsigned one-file build, which sets off heuristics on its own. See
+It's an unsigned one-file build, which is enough to trip antivirus heuristics by
+itself, with nothing actually wrong. See
 [SECURITY.md](SECURITY.md) for how to check the download against its published hash, or
 skip the binary entirely:
 
