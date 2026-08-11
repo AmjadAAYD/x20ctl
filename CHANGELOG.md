@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.1
 
 Small changes since 0.2.0, plus the repo going public for testing.
 
@@ -20,6 +20,13 @@ Small changes since 0.2.0, plus the repo going public for testing.
   rather than guessed: eight stick headings, no magnitude, so anything needing a
   specific stick angle won't work. Includes the one partial workaround and where
   it stops working. See [docs/01-protocol.md](docs/01-protocol.md).
+
+### Fixed
+
+- **Closing the window during transport detection crashed a background
+  thread.** Detection runs off the GUI thread and takes a moment. If the window
+  went away first, emitting the result raised "Signal source has been deleted"
+  somewhere nothing could catch it.
 
 ## 0.2.0
 
