@@ -14,6 +14,9 @@ speaking the same KeyLinker protocol.
 >
 > It never touches firmware. Anything it changes is undone by holding `C` for
 > five seconds, which is a factory reset. See [Safety](#safety).
+>
+> **Not working?** Start with
+> [IF-YOUR-CONTROLLER-ISNT-WORKING.md](IF-YOUR-CONTROLLER-ISNT-WORKING.md).
 
 The X20 ships with no desktop configuration software. The vendor provides a
 manual, a driver, and a firmware updater. Everything else lives in a mobile-only
