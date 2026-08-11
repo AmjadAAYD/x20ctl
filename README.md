@@ -373,6 +373,14 @@ one of eight compass directions, so how far it was pushed isn't recorded and
 can't be replayed. A macro also holds about 25 steps, since the record states
 its own length in a single byte, so the tool merges runs and keeps the longest.
 
+Collect a compatibility report from a controller, to see whether this works on
+something other than an X20. It only reads, and it writes the result to a text
+file you can look over before sharing it:
+
+```bash
+python tools/report.py
+```
+
 Run the tests, no hardware required:
 
 ```bash
