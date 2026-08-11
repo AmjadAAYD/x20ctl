@@ -54,7 +54,13 @@ class TransportProbe(QObject):
                 result = None
             finally:
                 self._running = False
-            self.detected.emit(result)
+            try:
+                self.detected.emit(result)
+            except RuntimeError:
+                # Detection takes a moment, and the window can close while it
+                # runs. Emitting then raises "Signal source has been deleted"
+                # from a daemon thread, where nothing is left to catch it.
+                pass
 
         threading.Thread(target=work, daemon=True,
                          name="x20ctl-transport").start()
