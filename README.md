@@ -267,6 +267,24 @@ Steps without their own timing fall back to the three defaults:
 
 All three snap to multiples of 5 ms, which is the controller's own resolution.
 
+### What a macro can't do
+
+Worth knowing before you plan something elaborate, because the limits are
+spatial rather than temporal:
+
+- **Sticks store eight directions, at full deflection only.** A macro can say
+  "up" or "up-right", never the 30° between them, and never "half right". A
+  technique that depends on a specific stick angle can't be expressed.
+- **25 steps**, because the record states its own length in a single byte.
+- **Timing is excellent**: 5 ms resolution, finer than a frame, and a button
+  repeated across consecutive steps reads as one continuous hold.
+
+There's a partial way around the magnitude limit. Alternating a direction on and
+off every 5 ms produces a proportional input wherever the receiving program
+averages over time — a 50% duty cycle steers about half as far as a solid hold.
+It does nothing where the program samples a single instant instead. Measured
+both ways in [docs/01-protocol.md](docs/01-protocol.md#4j-what-the-macro-format-cannot-express).
+
 ---
 
 ## Command line
