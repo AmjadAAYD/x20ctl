@@ -1,5 +1,28 @@
 # Changelog
 
+## Unreleased
+
+Small things since 0.2.0, plus the repository going public for testing.
+
+- **An intro animation.** The mark and wordmark fly in, hold, and leave to the
+  left before the interface appears. A click, a keypress or `X20CTL_NO_SPLASH=1`
+  skips it.
+- **A security policy**, and three ways to check the executable rather than
+  trusting it: the published SHA-256, scanning it yourself, or skipping the
+  binary and running from source. A one-file build trips antivirus heuristics on
+  shape alone, so saying "it's fine" would be worth nothing without a way to
+  verify.
+- **The platform is stated.** Windows only, and the README now says why rather
+  than leaving somebody to install it on Linux and hit a wall.
+- **Tests run on push**, on 3.10 and 3.12, on Windows runners.
+- **`tools/macro_from_video.py`**, which turns a stick movement in a
+  gamepad-overlay video into a macro.
+- **What the macro format cannot express**, measured against a real game rather
+  than inferred: eight stick headings and no magnitude, so a technique needing a
+  specific stick angle can't be expressed. Includes the one workaround that does
+  exist and where it stops working. See
+  [docs/01-protocol.md](docs/01-protocol.md).
+
 ## 0.2.0
 
 Deadzones and response curves, which were decoded but unreachable in 0.1.0, and

@@ -3,6 +3,21 @@
 Open configuration for the EasySMX X20 gamepad, and for other controllers
 speaking the same KeyLinker protocol.
 
+> ### This is a test phase, not an official release
+>
+> Everything here was reverse engineered against **one** controller: mine. It
+> works on that pad. Whether it works on yours is the open question, and it's
+> the thing I most want to find out.
+>
+> **If you own an X20, please try it.** If it works, that's genuinely good news
+> and worth telling me. If it doesn't, tell me what happened — the error, or
+> what the app said, or what your pad did — and I'll find a way. That's more
+> useful to this project than anything else right now.
+>
+> Nothing here touches firmware, and every setting it changes is recoverable:
+> **hold `C` for five seconds** for a factory reset. See [Safety](#safety) for
+> why that's a guarantee rather than a hope.
+
 The X20 ships with no desktop configuration software. The vendor provides a
 manual, a driver, and a firmware updater. Everything else lives in a mobile-only
 app or behind button combinations on the pad itself. This project documents the
