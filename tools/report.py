@@ -47,6 +47,7 @@ from bleak.exc import BleakError
 
 from x20ctl import __version__, protocol as p
 from x20ctl.client import CONFIG_SERVICE, X20
+from x20ctl.diagnose import diagnose
 from tools.ble_probe import READ_ONLY
 
 # Records worth dumping whole. Anything the pad refuses simply reports as no
@@ -238,8 +239,26 @@ async def main() -> int:
 
     address = args.address
     if not address:
-        candidates = await scan(report, args.full_address, args.seconds)
-        if not candidates:
+        # The scan is the most likely thing to fail on a tester's machine, and
+        # a traceback here used to kill the run before the file was written --
+        # losing the XInput section too. Report the reason and carry on.
+        try:
+            candidates = await scan(report, args.full_address, args.seconds)
+        except BleakError as exc:
+            # Distinct from "scanned and found nothing": the radio never
+            # listened, so say that rather than blaming the pad.
+            finding = diagnose(exc)
+            report.add()
+            report.add(f"Bluetooth scan could not run: {finding.headline}.")
+            report.add(finding.advice)
+            report.add()
+            report.add("The XInput section above is still worth sharing; only "
+                       "the Bluetooth sections are missing.")
+            candidates = None
+
+        if candidates is None:
+            address = None
+        elif not candidates:
             report.add()
             report.add("No pad exposing the KeyLinker configuration service was "
                        "found, so there is nothing further to read. The XInput "

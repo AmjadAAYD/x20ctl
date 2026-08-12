@@ -9,6 +9,10 @@ captures/
 *.dex
 jadx-out/
 
+# Default output of tools/report.py. Testers run it inside a clone, and it
+# names their controller, so it should never be committed by accident.
+controller-report.txt
+
 __pycache__/
 *.py[cod]
 .venv/
