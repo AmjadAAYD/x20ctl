@@ -102,6 +102,51 @@ def test_layout_round_trips_through_describe():
             assert p.describe_mask(p.mask_for([key], layout), layout) == [key.name]
 
 
+# The reply an X20 actually sends to HOST_MENU kind 5, captured from hardware.
+# body.declared is 11, the byte count; data[0] is 0x12, the key count. Passing
+# the former to decode_key_list raises, and macro_layout then falls back to
+# DEFAULT_LAYOUT without telling anyone.
+MACRO_SUPPORT_REPLY = bytes.fromhex("1212130d8401880b825d82")
+
+
+def test_live_macro_support_reply_decodes():
+    """Guards a caller bug that made every real pad fall back silently.
+
+    The decode was never wrong; it was being handed a byte count where a key
+    count belongs. This asserts against the captured record, so the unit test
+    and the live path agree on what decode_key_list is fed.
+    """
+    keys = p.decode_key_list(MACRO_SUPPORT_REPLY)
+    assert tuple(keys) == p.X20_MACRO_KEYS, "the pad's own list is the layout"
+
+    with_byte_count = bytes([len(MACRO_SUPPORT_REPLY)]) + MACRO_SUPPORT_REPLY
+    try:
+        p.decode_key_list(with_byte_count)
+    except ValueError:
+        return
+    raise AssertionError("prefixing the byte count must not decode as a key list")
+
+
+def test_macro_layout_uses_the_pad_not_the_fallback():
+    """macro_layout must derive from the reply, not quietly return the default."""
+    import asyncio
+
+    from x20ctl.client import X20
+
+    pad = X20("00:00:00:00:00:00")
+
+    async def fake_read_body(opcode, payload=b""):
+        assert payload == bytes([0, p.MenuKind.MACRO_SUPPORT])
+        return p.Body(declared=len(MACRO_SUPPORT_REPLY), data=MACRO_SUPPORT_REPLY)
+
+    pad.read_body = fake_read_body
+    layout = asyncio.run(pad.macro_layout())
+
+    assert layout is not p.DEFAULT_LAYOUT, "falling back means the decode failed"
+    assert layout.key_list == p.X20_MACRO_KEYS
+    assert len(layout.digital) == 14 and len(layout.analog) == 2
+
+
 # -- diagnoses -------------------------------------------------------------
 
 def test_bluetooth_off_is_recognised():

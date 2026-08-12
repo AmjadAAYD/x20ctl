@@ -361,6 +361,33 @@ somewhere else and is still unlocated.
 This is a useful negative result: it rules out the obvious reading of
 `HOST_LIGHTING` and means writes to it wouldn't have done what we expected.
 
+A third confirmation was later taken with the LEDs fully off at brightness 0:
+the record read back byte-identical again. Off, brightness 1, and green all
+produce the same 24 bytes, so the palette is inert on this model.
+
+#### The lighting write does not fit the transport
+
+Independently of whether the record means anything, it **cannot be written**.
+Four entries are 24 bytes; `writeLightingData` prefixes a length byte for 25, and
+the frame adds five more. That is a 30-byte packet against a `MAX_PACKET` of 20,
+so `scramble` refuses to build it. The 20-byte cap is not arbitrary — it is the
+payload of a default 23-byte BLE ATT MTU.
+
+This is why the read arrives chunked as 14 + 10 bytes. No chunked *write* form
+exists for lighting anywhere: not in the app's opcode constants, not in any
+capture. The only observed write chunking is `build_macro_write`, which carries
+its chunk index in the serial and is specific to macros.
+
+The constraint binds the official app too. With four zones, KeyLinker could not
+have written this record in one packet either, and with the capability byte at
+zero it never draws the page to try. Lighting writes were not intended for this
+model over this transport.
+
+Three independent walls now stand in front of software lighting control: the
+capability byte is zero, the record is inert, and no writable frame exists. Any
+further attempt would mean inventing write framing for a record whose payload
+layout the app's own decompilation leaves unknown.
+
 ## 4c. HOST_MENU is multiplexed
 
 `0xB0` isn't a single query. Its payload is **two bytes, `[position, kind]`**,
@@ -386,9 +413,48 @@ block repeated twice, matching the two-channel pattern already seen in the stick
 and trigger records. Kind 6 repeats `2a 00` exactly four times, which is
 suggestive on a pad with four rear buttons, though nothing yet confirms that.
 
-Recurring 16-bit-looking pairs appear across kinds 2, 3, 4 and 5: `01 88`,
-`0d 84`, `0b 82`, `5d 82`, `85 68`. These are plausibly key identifiers, since
-they cluster in the changekey and macro sub-queries.
+#### The "16-bit pairs" lead was wrong
+
+An earlier note here proposed that recurring pairs across kinds 2, 3, 4 and 5 —
+`01 88`, `0d 84`, `0b 82`, `5d 82`, `85 68` — were 16-bit key identifiers. They
+are not. They are literal-plus-run-marker pairs in the ordinary `decode_key_list`
+RLE, and `85 68` is not a pair at all: `0x85` is a run of five and `0x68` is a
+separate literal, 104.
+
+The reason this went unnoticed is a **caller bug**, not a protocol subtlety.
+`decode_key_list` expects the record itself, whose first byte is the *key* count.
+The macro-layout call site was passing `bytes([body.declared]) + body.data`, and
+`body.declared` is the *byte* count. On a real X20 that is 11 against 18, so the
+count check raised every time and the caller silently fell back to
+`DEFAULT_LAYOUT`. The protocol layer was always correct and its unit tests always
+passed, because they feed it the record directly. Only the live path was broken.
+
+Passing `body.data` decodes cleanly, verified against hardware:
+
+| kind | count | decoded |
+|---|---|---|
+| 2, gamepad all keys | `0x17` = 23 | `1-8, 11-19, 93, 94, 95, 96, 97, 104` |
+| 3, changekey support | `0x10` = 16 | `1-8, 13-16, 11, 12, 93, 94` |
+| 5, macro support | `0x12` = 18 | `18, 19, 13-16, 1-8, 11, 12, 93, 94` |
+
+Kind 5 reproduces `X20_MACRO_KEYS` exactly, so that constant is now confirmed as
+device-reported rather than merely a plausible default.
+
+#### Codes above 19
+
+Kind 2 is the pad's own full key universe, and it contains six codes with no
+entry in `Key`: **93, 94, 95, 96, 97, 104**. `PSEUDO_KEYS` currently names only
+93 and 94. Of the six, only 93 and 94 appear in the macro list, so the other four
+are known to the pad but not macro-capable.
+
+Equally notable is what is **absent**: `SELECT` (9) and `START` (10) are not in
+the pad's all-keys list at all, despite being physical buttons. So the list is
+not simply "every button" — codes 9 and 10 are reachable as inputs yet excluded
+from every support sub-query.
+
+Six unnamed codes against six physical extras — four rear buttons, `C` and `T` —
+is a suggestive fit and nothing more. Recorded as the open thread for `C`/`T`,
+not as an identification.
 
 Opcode `0xB5` also has both a one-byte and a two-byte form in the app
 (`getHostToobleData(i)` on `0xB4` versus `getHostToobleData(i, i2)` on `0xB5`),

@@ -230,7 +230,10 @@ class X20:
                 self._layout = p.DEFAULT_LAYOUT
             else:
                 try:
-                    keys = p.decode_key_list(bytes([body.declared]) + body.data)
+                    # body.declared is a byte count; the key count is the first
+                    # byte of the record itself. Prepending declared made every
+                    # real reply fail the count check and fall back below.
+                    keys = p.decode_key_list(body.data)
                     self._layout = p.layout_from_key_list(keys)
                 except ValueError:
                     self._layout = p.DEFAULT_LAYOUT

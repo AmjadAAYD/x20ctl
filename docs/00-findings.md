@@ -207,6 +207,18 @@ or the `DeviceUsb.dll` interface return nothing. This is unexplored.
 - [ ] Are settings written to volatile RAM or committed to flash, and is there a
       separate commit command?
 - [ ] What is the hardware model id checked by `Upgrade code and hardware mismatch!`?
+- [ ] What are key codes **93, 94, 95, 96, 97 and 104**? They appear in the pad's
+      own all-keys list (`HOST_MENU` kind 2) with no entry in `Key`. Six unnamed
+      codes against six physical extras — four rear buttons, `C`, `T` — is a fit
+      worth testing, not an answer.
+- [ ] Why are `SELECT` (9) and `START` (10) absent from every support sub-query
+      despite being physical buttons? Their exclusion is what makes `Menu` and
+      `C`/`T` combinations impossible to encode as macros.
+- [ ] Is there an on-pad combination for RGB **colour or mode**? Section 1 records
+      "RGB, 3 modes", but only brightness (`C` + `L3`) and the ABXY toggle
+      (`Menu` + `D-pad Right`) are transcribed from the manual. If a mode combo
+      exists it is the only route to colour on this model, since the protocol
+      route is closed three ways over.
 
 ---
 
