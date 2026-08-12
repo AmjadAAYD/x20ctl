@@ -199,26 +199,39 @@ or the `DeviceUsb.dll` interface return nothing. This is unexplored.
 
 ## 5. Open questions
 
-- [ ] Does DInput mode expose a vendor HID collection with feature reports?
-- [ ] Does Switch mode expose one?
+- [x] **Does DInput mode expose a vendor HID collection with feature reports?**
+      **No.** One collection, `0079:181C`, usage page `0x0001` usage `0x05`,
+      `feature=0`. Nothing to probe. See 01-protocol 4g.
+- [x] **Does Switch mode expose one?** **No.** One collection, `057E:2009`,
+      `feature=0`. It is a Pro Controller clone with a 64-byte output report, so
+      there is a real command channel, but not a feature-report one.
 - [ ] What GATT services does `Xpert2` advertise, and what are the characteristic UUIDs?
 - [ ] What is the packet framing: header, opcode, length, payload, checksum?
 - [ ] Is there a handshake or unlock sequence before settings writes are accepted?
 - [ ] Are settings written to volatile RAM or committed to flash, and is there a
       separate commit command?
 - [ ] What is the hardware model id checked by `Upgrade code and hardware mismatch!`?
-- [ ] What are key codes **93, 94, 95, 96, 97 and 104**? They appear in the pad's
-      own all-keys list (`HOST_MENU` kind 2) with no entry in `Key`. Six unnamed
-      codes against six physical extras — four rear buttons, `C`, `T` — is a fit
-      worth testing, not an answer.
+- [x] **What are key codes 93, 94, 95, 96, 97 and 104?** Answered from the app's
+      `ic_big_code_*` drawable table: **95 = `cap`, the `C` button; 96 = `tooble`,
+      the `T` button**; 97 = M-left; 104 = M2. 93 and 94 have no drawable at all,
+      confirming them as genuine pseudo-keys. See 01-protocol 4c.
 - [ ] Why are `SELECT` (9) and `START` (10) absent from every support sub-query
-      despite being physical buttons? Their exclusion is what makes `Menu` and
-      `C`/`T` combinations impossible to encode as macros.
+      despite being physical buttons? `C` (95) and `T` (96) are absent from the
+      changekey and macro lists for the same unexplained reason, which is what
+      makes `Menu`, `C` and `T` combinations impossible to encode as macros.
 - [ ] Is there an on-pad combination for RGB **colour or mode**? Section 1 records
       "RGB, 3 modes", but only brightness (`C` + `L3`) and the ABXY toggle
-      (`Menu` + `D-pad Right`) are transcribed from the manual. If a mode combo
-      exists it is the only route to colour on this model, since the protocol
-      route is closed three ways over.
+      (`Menu` + `D-pad Right`) are transcribed from the manual. A mode combo would
+      only cycle the vendor's presets, so it is not a route to *authoring* colours.
+- [ ] Does the X20 map the Switch Pro LED subcommands (`0x30` player lights,
+      `0x38` HOME light) onto its RGB hardware? The one untested write channel.
+      Ceiling is brightness or on/off, not per-zone colour. Spare hardware only:
+      `0x11`/`0x12` SPI write and erase share that command space.
+- [ ] Do two X20 units report the **same capability descriptor**? The entire
+      lighting conclusion rests on `caps.lighting = 0` read from a single unit.
+      `tools/report.py` on each pad and a diff of the two would settle it, at no
+      risk. A second unit reporting non-zero would invert the conclusion, and per
+      the changelog the library gates on the descriptor, so it would simply work.
 
 ---
 

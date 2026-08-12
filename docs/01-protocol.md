@@ -440,21 +440,47 @@ Passing `body.data` decodes cleanly, verified against hardware:
 Kind 5 reproduces `X20_MACRO_KEYS` exactly, so that constant is now confirmed as
 device-reported rather than merely a plausible default.
 
-#### Codes above 19
+#### Codes above 19, and where `C` and `T` live
 
-Kind 2 is the pad's own full key universe, and it contains six codes with no
-entry in `Key`: **93, 94, 95, 96, 97, 104**. `PSEUDO_KEYS` currently names only
-93 and 94. Of the six, only 93 and 94 appear in the macro list, so the other four
-are known to the pad but not macro-capable.
+Kind 2 is the pad's own full key universe, and it carries six codes above 19:
+**93, 94, 95, 96, 97, 104**.
+
+These are not unknowns. `Key` was recovered from the app's drawable names, which
+carry the code and the name together, and `captures/dex_strings_all.txt` holds
+the complete table. Every one of the six resolves:
+
+| code | drawable | meaning |
+|---|---|---|
+| 93 `0x5d` | *(none)* | no drawable exists; a genuine editor pseudo-key |
+| 94 `0x5e` | *(none)* | likewise |
+| **95 `0x5f`** | `ic_big_code_0x5f_cap` | **`C`, the capture button** |
+| **96 `0x60`** | `ic_big_code_0x60_tooble` | **`T`, turbo** |
+| 97 `0x61` | `ic_big_code_0x61_ml` | M-left |
+| 104 `0x68` | `ic_big_code_0x68_m2` | M2 rear button |
+
+`tooble` is the app's transliteration of turbo throughout, and `T` + `A` is the
+turbo combination in the manual, so 96 is `T` on two independent grounds.
+
+The surrounding range is populated too — `0x62 mr`, `0x63 modle`, `0x64 fn`,
+`0x65 sl`, `0x66 sr`, `0x67 m1`, `0x69 m3`, `0x6a m4`, `0x6b m5`, `0x6c m6` —
+which is the chip vendor's full button vocabulary rather than this pad's. An X20
+reports only the six above.
+
+**This closes the macro question with a reason.** 95 and 96 appear in kind 2 but
+in neither kind 3 (changekey) nor kind 5 (macro). The pad itself excludes `C` and
+`T` from remapping and from macros, so no encoder change could ever have made
+them usable. 93 and 94 remain correctly named as pseudo-keys: they have no
+drawable at all.
 
 Equally notable is what is **absent**: `SELECT` (9) and `START` (10) are not in
-the pad's all-keys list at all, despite being physical buttons. So the list is
-not simply "every button" — codes 9 and 10 are reachable as inputs yet excluded
-from every support sub-query.
+the pad's all-keys list, despite being physical buttons. So the list is not
+simply "every button" — 9 and 10 are reachable as inputs yet excluded from every
+support sub-query, which is why `Menu` combinations are unencodable too.
 
-Six unnamed codes against six physical extras — four rear buttons, `C` and `T` —
-is a suggestive fit and nothing more. Recorded as the open thread for `C`/`T`,
-not as an identification.
+An earlier version of this section offered "six unnamed codes against six
+physical extras" as a suggestive fit. That arithmetic was wrong: 93 and 94 are
+not physical at all, and the real split is two pseudo-keys plus `C`, `T`, ML and
+M2.
 
 Opcode `0xB5` also has both a one-byte and a two-byte form in the app
 (`getHostToobleData(i)` on `0xB4` versus `getHostToobleData(i, i2)` on `0xB5`),
@@ -675,13 +701,67 @@ These are the settings a desktop tool could offer that nothing else can.
 | Transport | Gamepad interface | Config channel |
 |---|---|---|
 | Wired USB, XInput | `045E:028E`, 2 interfaces | **none** |
+| Wired USB, DInput | `0079:181C`, 1 collection | **none**, `feature=0` |
+| Wired USB, Switch | `057E:2009`, 1 collection | **none**, `feature=0` |
 | Bluetooth Classic | `045E:02FD`, BR/EDR HID | **none** |
 | BLE, `Xpert2` peripheral | n/a | **yes**, service `d7f010e0` |
-| 2.4 GHz dongle | not yet tested | not yet tested |
+| 2.4 GHz dongle | `1D57:FA60`, 7 collections | **yes**, see below |
 
-The dongle remains untested. Expectation is that it presents as another plain
-HID gamepad with no vendor collection, matching wired and Bluetooth Classic, but
-it's a distinct USB device with its own VID/PID and is worth enumerating.
+All rows enumerated with `tools/hid_scan.py`, which opens devices at zero access
+and only reads descriptors.
+
+### DInput and Switch both answered: no vendor collection
+
+Two open questions from `00-findings.md` are settled, and both negative.
+
+**DInput** presents one collection: usage page `0x0001`, usage `0x05` Game Pad,
+`input=10 output=5 feature=0`. Generic Desktop, nowhere near the `0xFF00+` vendor
+range, and **no feature reports at all**, so there is nothing to probe. The
+manufacturer string reads `ZhiXu` — ShenZhen ZhiXu, the KeyLinker publisher, which
+corroborates the chip-vendor thesis straight from the USB descriptor.
+
+The 5-byte output report is almost certainly rumble. It is too small to matter for
+lighting regardless: four zones of RGB need twelve bytes.
+
+**Switch mode** presents as a full Pro Controller clone: `057E:2009`, usage
+`0x04`, `input=64 output=64 feature=0`. Again no feature reports, but the 64-byte
+output report is the real Nintendo Switch Pro HID protocol, which is publicly
+reverse-engineered and genuinely bidirectional.
+
+Its LED subcommands are `0x30` set player lights and `0x38` set HOME light —
+on/off/flash and single-LED brightness respectively. Neither carries colour, so
+even if the X20 maps them onto its RGB hardware the ceiling is brightness, not
+per-zone colour. **Untested, and the one remaining write channel worth trying.**
+
+Note that the same command space contains `0x11` SPI flash write and `0x12` SPI
+sector erase. Those are brick vectors sitting beside the LED commands, so this is
+a spare-hardware experiment, not a main-controller one.
+
+### The dongle exposes a firmware channel
+
+The 2.4 GHz receiver is the one transport that does carry a config-shaped channel,
+and `--vendor` misses it because the vendor used a low usage page rather than
+`0xFF00+`:
+
+```
+\\?\hid#vid_1d57&pid_fa60&mi_02&col04
+    usage        : page 0x000B usage 0x00
+    report bytes : input=0 output=0 feature=64
+```
+
+No input and no output reports, only a 64-byte feature report — a collection that
+exists purely to carry feature traffic.
+
+A read-only `HidD_GetFeature` sweep answers on ids `0x04` through `0x22` and
+`0xA0`, and the payloads are **8051 code**: `90` `MOV DPTR`, `12` `LCALL`, `02`
+`LJMP`, `e0` `MOVX A,@DPTR`. Consecutive ids return consecutive bytes, so the
+reads advance an internal pointer into code memory.
+
+Two consequences. First, this channel is stateful and firmware-adjacent, so a
+blind sweep of all 256 ids is not the harmless read it appears to be — an id that
+latches bootloader state cannot be ruled out. Second, and more practically, this
+is the **dongle's** firmware, not the pad's. A spare controller does not insure
+against damaging it, and the dongle is what play depends on.
 
 Note that link speed is irrelevant to configuration. The dongle's 1000 Hz polling
 matters for input latency during play; a configuration write is a single packet
