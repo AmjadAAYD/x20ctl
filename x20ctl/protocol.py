@@ -805,13 +805,27 @@ class Key(IntEnum):
     LSTICK_ANALOG = 18
     RSTICK_ANALOG = 19
 
+    # Codes above 19 that an X20 lists in its all-keys reply. Same drawable
+    # source as the rest: ic_big_code_0x5f_cap, _0x60_tooble, _0x61_ml,
+    # _0x68_m2. "tooble" is the app's spelling of turbo throughout.
+    #
+    # CAPTURE and TURBO are the pad's C and T. Naming them does not make them
+    # usable: the pad omits both from the changekey and macro support lists, so
+    # they are inputs it recognises but will not accept in a macro.
+    CAPTURE = 95
+    TURBO = 96
+    M_LEFT = 97
+    M2 = 104
+
 
 # Analog entries take a nibble each, not a single bit.
 ANALOG_KEYS = (Key.LSTICK_ANALOG, Key.RSTICK_ANALOG)
 ANALOG_WIDTH = 4
 MASK_WIDTH = 24
 
-# Editor pseudo-keys, present in the key list but not physical buttons.
+# Editor pseudo-keys, present in the key list but not physical buttons. Unlike
+# every other code the pad reports, 93 and 94 have no drawable in the app's
+# ic_big_code_* table, which is what distinguishes them from C (95) and T (96).
 PSEUDO_KEYS = (93, 94)
 
 

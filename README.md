@@ -114,6 +114,19 @@ This is a property of the controller, not a limitation of this software. Another
 brand's pad on the same chip may well report them as available, and this library
 gates on that descriptor, so it will simply work.
 
+The three don't fail in the same way, which is worth knowing before anyone spends
+an evening on them. **Gyro** is refused at the device: `READ_3D` is silent across
+every payload shape tried. **Lighting** is not — `HOST_LIGHTING` answers with a
+well-formed four-zone record, so the firmware handler is alive and only the menu
+byte says otherwise. That record turns out to be a stored palette that never
+changes when the LEDs do, and at four zones it is too long to write in one packet
+anyway: 30 bytes against a 20-byte cap, with no chunked lighting write in
+existence. Neither USB mode offers a way round it — DInput and Switch both report
+`feature=0`, no vendor collection at all.
+
+So lighting is closed, but for three specific reasons rather than one blanket one.
+`docs/01-protocol.md` sections 4b and 4g have the evidence.
+
 ---
 
 ## Install
