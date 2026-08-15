@@ -404,6 +404,63 @@ class X20:
             await self._send(packet, serial)
             await asyncio.sleep(0.25)
 
+    async def changekey_sources(self) -> list[int]:
+        """The remappable source list, in the pad's own order."""
+        body = await self.read_body(
+            p.Op.HOST_MENU, bytes([0, p.MenuKind.CHANGEKEY_SUPPORT]))
+        if body is None:
+            return list(p.CHANGEKEY_DEFAULT_SOURCES)
+        try:
+            return p.decode_key_list(body.data)
+        except ValueError:
+            return list(p.CHANGEKEY_DEFAULT_SOURCES)
+
+    async def remappings(self, sources: list[int] | None = None) -> dict[int, int]:
+        """Current button remappings as {source: target}.
+
+        Unchanged sources are omitted, so an empty result means the pad has no
+        remaps configured. Pass `sources` to reuse a list already read.
+        """
+        if sources is None:
+            sources = await self.changekey_sources()
+        body = await self.read_body(p.Op.HOST_CHANGEKEY, bytes([0]))
+        if body is None or body.declared == 0:
+            return {}
+        return p.parse_changekey(sources, body.data)
+
+    async def set_remapping(self, changes: dict[int, int]) -> dict[int, int]:
+        """Apply button remappings, then read back what the pad reports.
+
+        `changes` maps a source key to its new target; sources not mentioned
+        keep their current value. The pad stores the whole record, so every
+        source is written, unchanged ones as 0. What comes back is what the pad
+        actually holds, which is the only way to tell a write that landed from
+        one that was ignored.
+        """
+        caps = await self.capabilities()
+        if not caps.changekey:
+            raise NotSupported("this pad does not expose button remapping")
+
+        sources = await self.changekey_sources()
+        targets = [changes.get(src, src) for src in sources]
+        payload = p.build_changekey_payload(sources, targets)
+
+        for chunk_index, offset in enumerate(
+                range(0, len(payload), p.CHANGEKEY_CHUNK_SIZE)):
+            chunk = payload[offset:offset + p.CHANGEKEY_CHUNK_SIZE]
+            serial = p.save_button_serial(
+                slot=chunk_index, counter=self._next_save_counter())
+            packet = p.build(
+                p.Op.WRITE_CHANGEKEY,
+                chunk,
+                serial=serial,
+                length_field=p.host_length(len(chunk), self._next_host_counter()),
+            )
+            await self._send(packet, serial)
+            await asyncio.sleep(0.25)
+
+        return await self.remappings(sources)
+
     async def read_macro(self, slot: int) -> p.MacroProgram | None:
         """Read one macro slot back off the pad.
 

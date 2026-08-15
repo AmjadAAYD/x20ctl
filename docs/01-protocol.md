@@ -467,9 +467,19 @@ which is the chip vendor's full button vocabulary rather than this pad's. An X20
 reports only the six above.
 
 **This closes the macro question with a reason.** 95 and 96 appear in kind 2 but
-in neither kind 3 (changekey) nor kind 5 (macro). The pad itself excludes `C` and
-`T` from remapping and from macros, so no encoder change could ever have made
-them usable.
+in neither kind 3 (changekey) nor kind 5 (macro), and kind 4 (turbo) excludes
+them too, once that list is decoded correctly. The pad itself excludes `C` and
+`T` from being macro keys or remap **sources**, so no encoder change could ever
+have made them usable there.
+
+**They are reachable as remap targets.** Absence from the source lists says
+nothing about targets: the changekey payload is one target byte per source, and
+the format never requires a target to be a source. Writing `A -> T` (96) is
+accepted, stored, and read back, and the pad acts on it. Held down with the
+remap live, A produces no XInput report at all; with the remap cleared and the
+same button held, A reports normally. `A -> C` (95) is accepted and stored on
+the same path. So `C` and `T` cannot be configured, but they can be **placed**,
+which is the more useful direction anyway.
 
 **93 and 94 are Select and Start.** They were called pseudo-keys here on the
 grounds that they have no drawable in `ic_big_code_*`, which is true and turned

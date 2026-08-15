@@ -514,6 +514,45 @@ def test_macro_writes_rejects_empty_payload():
     raise AssertionError("empty payload must be rejected; use MACRO_CLEAR")
 
 
+def test_changekey_encodes_unchanged_sources_as_zero():
+    sources = [1, 2, 3, 4]
+    payload = p.build_changekey_payload(sources, [2, 2, 3, 4])
+    assert payload == bytes([4, 2, 0, 0, 0]), "only A changed, and it maps to B"
+
+
+def test_changekey_refuses_mismatched_lists():
+    try:
+        p.build_changekey_payload([1, 2], [1])
+    except ValueError:
+        return
+    raise AssertionError("a target per source is the whole format")
+
+
+def test_changekey_round_trips_through_its_own_encoding():
+    sources = list(p.CHANGEKEY_DEFAULT_SOURCES)
+    targets = [2 if s == 1 else s for s in sources]
+    payload = p.build_changekey_payload(sources, targets)
+    assert p.parse_changekey(sources, payload[1:]) == {1: 2}
+
+
+def test_changekey_accepts_c_and_t_as_targets():
+    """C and T are absent from every source list, but nothing in the format
+    restricts a target to being a source. Confirmed on hardware: writing A->T
+    and holding A produces no A at all, so the pad acts on it."""
+    sources = [1, 2]
+    payload = p.build_changekey_payload(sources, [96, 2])
+    assert p.parse_changekey(sources, payload[1:]) == {1: 96}
+
+
+def test_a_short_changekey_record_is_rejected():
+    try:
+        p.parse_changekey([1, 2, 3], b"\x00\x00")
+    except ValueError as exc:
+        assert "2 targets for 3 sources" in str(exc)
+        return
+    raise AssertionError("a record that cannot cover its sources is a bad read")
+
+
 def test_a_list_stops_at_its_count_not_at_the_end_of_the_buffer():
     """The X20 answers kind 4 with its turbo record twice over. Reading to the
     end of the buffer decodes the second copy as a continuation and gives 25
