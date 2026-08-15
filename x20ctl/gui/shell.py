@@ -32,6 +32,7 @@ from .panels import Page, PowerPage, VibrationPage
 from .presence import PresenceWatcher, ask_about_lost
 from .roster import AlreadyAdded, PlayerTaken, Roster, RosterFull
 from .start import StartPage
+from .tester import TesterPage
 from .triggers import TriggersPage
 
 
@@ -160,7 +161,11 @@ class Workspace(QWidget):
             "triggers": TriggersPage(),
             "motor": VibrationPage(rumbler),
             "macros": MacroEditor(rumbler),
-            "test": KeyTestPage(),
+            # The 0.2.1 tester, which draws the sticks as circles you can
+            # watch move. Amjad asked for it back, and it reads better than a
+            # row of numbers.
+            "test": TesterPage(),
+            "keys": KeyTestPage(),
             "timeout": PowerPage(),
             "device": DevicePage(),
         }
@@ -190,19 +195,19 @@ class Workspace(QWidget):
         if state is None:
             # Silence looks identical to a broken page, so say which
             # connection is missing.
-            if self.section == "test":
-                self.pages["test"].set_present(False)
+            if self.section == "keys":
+                self.pages["keys"].set_present(False)
             elif self.section == "triggers":
                 self.pages["triggers"].set_positions(0, 0)
             return
-        if self.section == "test":
-            self.pages["test"].set_present(True)
+        if self.section == "keys":
+            self.pages["keys"].set_present(True)
 
         if self.recorder is not None and self.recorder.recording:
             self.recorder.poll()
 
-        if self.section == "test":
-            page = self.pages["test"]
+        if self.section == "keys":
+            page = self.pages["keys"]
             page.set_buttons(state.buttons)
             page.set_axis("left_x", _percent(state.left_stick[0]))
             page.set_axis("left_y", _percent(state.left_stick[1]))
@@ -221,8 +226,12 @@ class Workspace(QWidget):
             return
         if self.section == "motor" and key != "motor":
             self.pages["motor"].flush()      # do not lose a pending change
+        if self.section == "test" and key != "test":
+            self.pages["test"].stop()        # the old tester owns its own poll
         self.section = key
         self.stack.setCurrentWidget(page)
+        if key == "test":
+            self.pages["test"].start()
 
     def say(self, message: str) -> None:
         self.status.setText(message)
