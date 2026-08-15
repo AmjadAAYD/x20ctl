@@ -530,6 +530,54 @@ def test_macro_writes_rejects_empty_payload():
     raise AssertionError("empty payload must be rejected; use MACRO_CLEAR")
 
 
+def test_curve_presets_are_the_app_s_own_control_points():
+    """Read out of HostActivity's preset tables. The app keeps one copy per
+    channel and per kind and they are all identical, so these six apply to
+    sticks and triggers alike."""
+    assert p.CURVE_PRESETS["default"] == ((85, 85), (170, 170))
+    assert p.CURVE_PRESETS["quick"] == ((35, 35), (136, 204))
+    assert p.CURVE_PRESETS["slow"] == ((35, 35), (219, 145))
+    assert p.CURVE_PRESETS["smooth"] == ((142, 142), (220, 157))
+    assert p.CURVE_PRESETS["fine"] == ((67, 67), (72, 106))
+
+
+def test_the_default_preset_really_is_a_straight_line():
+    """85,85 and 170,170 are the thirds of a 0-255 range, so Default is the
+    identity response. A preset table that failed this would be misread."""
+    (x1, y1), (x2, y2) = p.CURVE_PRESETS["default"]
+    assert x1 == y1 and x2 == y2
+    curve = p.Curve(inner_deadzone=0, outer_raw=255, point1=(x1, y1),
+                    point2=(x2, y2), flags=0)
+    assert curve.is_linear
+
+
+def test_control_points_name_their_preset_and_custom_ones_do_not():
+    assert p.preset_name((35, 35), (136, 204)) == "quick"
+    assert p.preset_name((1, 2), (3, 4)) is None
+
+
+def test_trigger_gears_are_the_values_the_app_writes():
+    """Each pair was read off the pad after setting that gear in the app, or
+    captured from the app writing it. None of them is interpolated."""
+    assert p.TRIGGER_GEARS["zero"] == (0, 0)
+    assert p.TRIGGER_GEARS["small"] == (4, 34)
+    assert p.TRIGGER_GEARS["medium"] == (20, 40)
+    assert p.TRIGGER_GEARS["large"] == (30, 60)
+
+
+def test_gears_grow_in_both_deadzones():
+    pairs = [p.TRIGGER_GEARS[name] for name in ("zero", "small", "medium", "large")]
+    inners = [inner for inner, _ in pairs]
+    outers = [outer for _, outer in pairs]
+    assert inners == sorted(inners), "a bigger gear cannot start earlier"
+    assert outers == sorted(outers), "a bigger gear cannot saturate earlier"
+
+
+def test_a_deadzone_pair_names_its_gear_and_custom_pairs_do_not():
+    assert p.gear_name(20, 40) == "medium"
+    assert p.gear_name(5, 40) is None, "not one of the app's four"
+
+
 def test_shutdown_timeout_decodes_a_real_motor_record():
     """Bytes read off a live X20: motors at 30%, then the timeout. The pad's
     editor showed 10 minutes at the time."""

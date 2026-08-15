@@ -172,9 +172,14 @@ def print_curves(kind: str, channels: list[p.Curve]) -> None:
         flags = ", ".join(name for name, on in (
             ("invert X", curve.invert_x), ("invert Y", curve.invert_y),
             ("sticks swapped", curve.swapped)) if on)
+        gear = p.gear_name(curve.inner_deadzone, curve.outer_raw)
+        named = f" ({gear})" if gear and kind == "triggers" else ""
         print(ui.field(side, f"deadzone {curve.inner_deadzone} to "
-                             f"{curve.outer_deadzone} of {curve.max_progress}"))
-        print(ui.field("", f"points {curve.point1} {curve.point2}, {shape}"))
+                             f"{curve.outer_deadzone} of {curve.max_progress}{named}"))
+        preset = p.preset_name(curve.point1, curve.point2)
+        label = f", {preset}" if preset else ", custom"
+        print(ui.field("", f"points {curve.point1} {curve.point2}, "
+                           f"{shape}{label}"))
         if flags:
             print(ui.field("", flags))
         print(ui.plot(curve.shape(steps=25), p.CURVE_AXIS_MAX))
@@ -215,6 +220,11 @@ def _edited(kind: str, channels: list[p.Curve], args) -> list[p.Curve]:
             curve = curve.straightened()
         if args.points:
             curve = curve.with_points(*_parse_points(args.points))
+        if args.preset:
+            curve = curve.with_points(*p.CURVE_PRESETS[args.preset])
+        if args.gear:
+            inner, outer = p.TRIGGER_GEARS[args.gear]
+            curve = curve.with_deadzones(inner, outer)
         if args.inner is not None or args.outer is not None:
             curve = curve.with_deadzones(args.inner, args.outer)
         out.append(curve.with_flags(invert_x=args.invert_x, invert_y=args.invert_y,
@@ -224,11 +234,14 @@ def _edited(kind: str, channels: list[p.Curve], args) -> list[p.Curve]:
 
 async def cmd_curve(args) -> None:
     changes = (args.inner, args.outer, args.points, args.invert_x, args.invert_y,
-               args.swap, args.restore)
+               args.swap, args.restore, args.gear, args.preset)
     editing = args.linear or any(change is not None for change in changes)
     if editing and not args.kind:
         raise SystemExit(ui.bad(
             "  say which to change: x20 curve sticks --inner 5"))
+    if args.gear and args.kind != "triggers":
+        raise SystemExit(ui.bad(
+            "  gears are a trigger setting: x20 curve triggers --gear medium"))
 
     address = await resolve(args.address)
     kinds = [args.kind] if args.kind else list(CURVE_KINDS)
@@ -580,6 +593,10 @@ def build_parser() -> argparse.ArgumentParser:
     crv.add_argument("--swap", action=argparse.BooleanOptionalAction,
                      help="swap the two sticks")
     crv.add_argument("--restore", help="write a whole record back, as hex")
+    crv.add_argument("--gear", choices=list(p.TRIGGER_GEARS),
+                     help="trigger effective range, the app's four presets")
+    crv.add_argument("--preset", choices=list(p.CURVE_PRESETS),
+                     help="named response curve, for sticks or triggers")
     crv.set_defaults(fn=cmd_curve)
 
     mac = sub.add_parser("macro", help="write a macro to a slot")

@@ -1569,6 +1569,65 @@ def build_calibrate(*, serial: int, nonce: int | None = None) -> bytes:
     return build(Op.SET_MODE, CALIBRATE_PAYLOAD, serial=serial, nonce=nonce)
 
 
+# -- response curve presets ----------------------------------------------
+#
+# The app offers named response curves rather than raw control points: Default,
+# Quick, Slow, Smooth, Fine and Custom. Each is a pair of Hermite control points,
+# the same two this library already writes, so a preset is nothing more than a
+# named `with_points` call.
+#
+# Taken from HostActivity's preset tables, which hold one copy per channel and
+# per kind, all with identical values. So the same six apply to both sticks and
+# both triggers.
+#
+# "Custom" is not included: it starts as Default and means "whatever you dragged
+# it to", which is what you get by setting points directly.
+
+CURVE_PRESETS = {
+    "default": ((85, 85), (170, 170)),      # a straight line on the 0-255 scale
+    "quick":   ((35, 35), (136, 204)),      # rises early, saturates late
+    "slow":    ((35, 35), (219, 145)),      # rises early then flattens off
+    "smooth":  ((142, 142), (220, 157)),    # lazy at first, then a late climb
+    "fine":    ((67, 67), (72, 106)),       # compressed, for small movements
+}
+
+
+def preset_name(point1, point2) -> str | None:
+    """The preset a pair of control points matches, or None if it's custom."""
+    for name, points in CURVE_PRESETS.items():
+        if (tuple(point1), tuple(point2)) == points:
+            return name
+    return None
+
+
+# -- trigger gears -------------------------------------------------------
+#
+# The phone app offers four "gears" for a trigger's effective range rather than
+# raw numbers. They are not a separate setting: each gear is a pair of deadzone
+# values written into bytes 0 and 1 of that trigger's existing curve record, so
+# the same write path handles both.
+#
+# Measured, one gear at a time, by setting it in the app and reading the record
+# back: zero and large came off a BLE capture of the app writing them, small and
+# medium from setting each and reading. The gear applies to one trigger at a
+# time, not both.
+
+TRIGGER_GEARS = {
+    "zero":   (0, 0),
+    "small":  (4, 34),
+    "medium": (20, 40),
+    "large":  (30, 60),
+}
+
+
+def gear_name(inner: int, outer: int) -> str | None:
+    """The gear a deadzone pair corresponds to, or None if it's a custom pair."""
+    for name, pair in TRIGGER_GEARS.items():
+        if pair == (inner, outer):
+            return name
+    return None
+
+
 # -- idle shutdown -------------------------------------------------------
 #
 # The pad powers itself off after a period with no input. There is no command
