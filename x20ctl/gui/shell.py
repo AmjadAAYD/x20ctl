@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 
 from ..profiles import DEFAULT_DIR
 from .addsheet import AddControllerSheet
+from .nav import NavRail
 from .roster import AlreadyAdded, PlayerTaken, Roster, RosterFull
 from .start import StartPage
 
@@ -51,7 +52,17 @@ class Workspace(QWidget):
         super().__init__()
         self.slot = None
 
-        root = QVBoxLayout(self)
+        outer = QHBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+
+        self.rail = NavRail()
+        self.rail.selected.connect(self.show_section)
+        outer.addWidget(self.rail)
+
+        column = QWidget()
+        outer.addWidget(column, 1)
+        root = QVBoxLayout(column)
         root.setContentsMargins(30, 24, 30, 24)
         root.setSpacing(14)
 
@@ -73,10 +84,26 @@ class Workspace(QWidget):
         self.tabs.setSpacing(8)
         root.addLayout(self.tabs)
 
-        self.body = QLabel("Settings for this controller land here next.")
+        self.body = QLabel()
         self.body.setObjectName("PageSubtitle")
         self.body.setAlignment(Qt.AlignCenter)
+        self.body.setWordWrap(True)
         root.addWidget(self.body, 1)
+
+        self.section = None
+        self.show_section(self.rail.current() or "buttons")
+
+    def show_section(self, key: str) -> None:
+        """Until the real pages land, say what this section will hold.
+
+        Named rather than blank: an empty panel reads as broken, and the blurb
+        is the same text the rail shows on hover.
+        """
+        from .nav import SECTIONS
+        self.section = key
+        blurb = next((s.blurb for s in SECTIONS if s.key == key), "")
+        title = next((s.title for s in SECTIONS if s.key == key), key)
+        self.body.setText(f"{title}\n\n{blurb}")
 
     def show_slot(self, slot, roster: Roster) -> None:
         """Point the workspace at one controller, with tabs for the others."""
