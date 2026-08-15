@@ -332,6 +332,32 @@ class X20:
         await self._send(packet, serial)
         return await self.vibration()
 
+    async def calibrate(self) -> None:
+        """Recalibrate the sticks against their resting position.
+
+        The pad measures where the sticks sit right now and treats that as
+        centre, so it must be lying flat and untouched. Nothing is sent back;
+        the app watches its own indicator light rather than waiting for a reply.
+        """
+        packet = p.build_calibrate(serial=self._next_save_counter())
+        serial = p.unscramble(packet)[2]
+        await self._send(packet, serial, expect_reply=False)
+
+    async def factory_reset(self, *, second_generation: bool = True) -> None:
+        """Clear every stored setting: macros, curves, remaps, the lot.
+
+        Firmware is untouched. `second_generation` selects the protocol
+        generation the way the phone app's `is_new_2_ver` flag does.
+
+        It defaults to the newer one because the X20 ignores the older one
+        **silently**: no error, no reply, nothing cleared. A reset that appears
+        to do nothing is the wrong generation, not a broken pad.
+        """
+        packet = p.build_recover(second_generation=second_generation,
+                                 serial=self._next_save_counter())
+        serial = p.unscramble(packet)[2]
+        await self._send(packet, serial, expect_reply=False)
+
     async def shutdown_timeout(self) -> int | None:
         """Minutes of idle before the pad powers off, or None for never."""
         body = await self.read_body(p.Op.HOST_MOTOR, bytes([0]))
