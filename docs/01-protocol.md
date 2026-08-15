@@ -514,10 +514,24 @@ around 6500 of 32767. It read 768, against 605 before, and the right stick
 moved comparably without having been touched at all. Those are settling
 deltas, not a new centre.
 
-The effect on the sensor itself is **unverified**. `READ_3D` (`0x9A`) does not
-answer the payload forms tried so far, so there is no oracle for the gyro the
-way XInput is an oracle for the buttons. Sending the command is safe and
-repeatable; proving what it did is still open.
+The effect on the sensor itself is **unverified**, and `READ_3D` (`0x9A`) turns
+out not to be the oracle either.
+
+It answers two payloads: `00` returns an eight-byte record, and `C0` returns
+`01 04`, which looks like a status. `C1` is silent. The app only ever sends
+`C0`, from `b1.U(192)`.
+
+The eight-byte record is invariant. It read `94239b004b838489` while flat,
+while held tilted, after calibrating tilted, and after calibrating flat and
+confirming with the `+` button on the pad. Something that never changes is
+neither live sensor output nor a calibration result, so it is probably an
+identifier or a fixed constant.
+
+An earlier version of this section said `READ_3D` answered nothing. That was
+wrong and the mistake is worth recording: **the first query on a fresh
+connection can time out**, and a single silent reply is not evidence that an
+opcode is unsupported. Retry on an established link before concluding
+anything.
 
 **Factory reset is `RECOVER`, and the trailing byte is a protocol generation,
 not a mode.** `03 DF A9 01` for older pads, `03 DF A9 02` for newer, chosen in
