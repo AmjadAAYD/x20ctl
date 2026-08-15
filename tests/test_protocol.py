@@ -708,21 +708,43 @@ def test_curve_rejects_a_wrong_sized_channel():
 
 
 def test_a_macro_that_is_too_long_says_so():
-    """The header declares its own length in one byte, so 50 entries is the
-    hardware's ceiling. Past it, bytes() raised "must be in range(0, 256)" from
-    inside the header builder, which tells you nothing about macros."""
-    fits = p.parse_sequence(",".join(["LS_UP:50/50"] * 25), 100, 60)
-    assert len(fits) == p.MAX_MACRO_ENTRIES, "a press and a release each count"
+    """47 entries, not the 50 the length byte alone would allow.
+
+    The payload is chunked and the chunk index is four bits, so only 16 chunks
+    of 15 bytes can be addressed. 240 bytes is 47 entries, and that binds before
+    the length byte does. Past it, bytes() raised "must be in range(0, 256)"
+    from inside the header builder, which tells you nothing about macros."""
+    assert p.MAX_MACRO_ENTRIES == 47
+    fits = p.parse_sequence(",".join(["LS_UP:50/50"] * 23), 100, 60)
     payload = p.build_macro_payload(fits, loop_interval_ms=0)
-    assert payload[0] == 252, "the length byte is right at the top of its range"
+    assert len(payload) <= p.MAX_MACRO_PAYLOAD
+    assert len(p.build_macro_writes(payload, slot=0)) <= p.MAX_MACRO_CHUNKS
 
     too_long = p.parse_sequence(",".join(["LS_UP:50/50"] * 26), 100, 60)
     try:
         p.build_macro_payload(too_long, loop_interval_ms=0)
         raise AssertionError("a macro past the ceiling must be refused")
     except ValueError as exc:
-        assert "at most 50 entries" in str(exc)
+        assert "at most 47 entries" in str(exc)
         assert "hardware" in str(exc), "say whose limit it is"
+        assert "four bits" in str(exc), "name the thing that actually binds"
+
+
+def test_the_chunk_index_ceiling_is_reported_not_crashed_into():
+    """build_macro_writes must refuse a payload it cannot address.
+
+    A caller that builds a payload by hand bypasses build_macro_payload's entry
+    check, and used to reach bytes() with a serial that no longer fit a byte."""
+    over = bytes(p.MAX_MACRO_PAYLOAD + 1)
+    try:
+        p.build_macro_writes(over, slot=0)
+        raise AssertionError("a payload past the chunk ceiling must be refused")
+    except ValueError as exc:
+        assert "four bits" in str(exc)
+        assert str(p.MAX_MACRO_CHUNKS) in str(exc)
+
+    ok = bytes(p.MAX_MACRO_PAYLOAD)
+    assert len(p.build_macro_writes(ok, slot=0)) == p.MAX_MACRO_CHUNKS
 
 
 def test_a_two_channel_curve_write_exactly_fills_a_packet():
