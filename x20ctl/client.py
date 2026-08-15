@@ -333,11 +333,14 @@ class X20:
         return await self.vibration()
 
     async def calibrate(self) -> None:
-        """Recalibrate the sticks against their resting position.
+        """Calibrate the motion sensor against level.
 
-        The pad measures where the sticks sit right now and treats that as
-        centre, so it must be lying flat and untouched. Nothing is sent back;
-        the app watches its own indicator light rather than waiting for a reply.
+        Lay the pad flat first: the app calls this "Sensor Calibration" and
+        asks for a flat surface, which is a level reference for the gyro.
+
+        It does not touch the sticks, tested and confirmed. Nothing is sent
+        back; the app watches its indicator light rather than waiting for a
+        reply, and so do we.
         """
         packet = p.build_calibrate(serial=self._next_save_counter())
         serial = p.unscramble(packet)[2]
