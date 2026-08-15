@@ -13,11 +13,16 @@ changes nothing.
 
 Recording quantises to the protocol's 5 ms grid, which is finer than anyone can
 press a button, so a performance survives the conversion intact.
+
+Both buttons and the left stick are captured. The stick is bucketed to the
+pad's eight compass headings because that is all a macro step can store, so
+what comes back is not exactly what was played; see stick_direction.
 """
 
 from __future__ import annotations
 
 import ctypes
+import math
 import time
 from ctypes import wintypes
 from dataclasses import dataclass, field
@@ -47,6 +52,36 @@ TRIGGER_THRESHOLD = 30
 
 RECORD_TICK_MS = 5          # the protocol's own resolution
 MAX_STEPS = 60              # keeps a recording inside a sane number of packets
+
+# XInput's own documented left-stick deadzone. Below it the stick counts as
+# untouched, which in a macro means "no input from the macro" and NOT "stick
+# centred": the format cannot express centred at all, so on any step that names
+# no direction the player's own thumb passes through.
+LEFT_STICK_DEADZONE = 7849
+
+
+def stick_direction(x: int, y: int) -> "p.Direction | None":
+    """XInput thumb coordinates to one of the pad's eight compass headings.
+
+    Direction runs clockwise from up, so the angle is measured from +Y toward
+    +X. Returns None inside the deadzone.
+
+    The bucket is lossy and that is the hardware: a stick held at 30 degrees
+    comes back as 45. Measured on real recordings, wave dashes survive it
+    (worst error 15.9 degrees, side dashes within 3.4) while a speed flip does
+    not, which is the whole difference between the two.
+    """
+    if math.hypot(x, y) < LEFT_STICK_DEADZONE:
+        return None
+    angle = math.degrees(math.atan2(x, y)) % 360
+    return p.Direction((round(angle / 45) % 8) + 1)
+
+
+def _input_order(item) -> tuple:
+    """Buttons first in key order, then the stick. Matches how macros read."""
+    if isinstance(item, p.StickInput):
+        return (1, int(item.direction))
+    return (0, int(item))
 
 
 class XINPUT_GAMEPAD(ctypes.Structure):
@@ -94,6 +129,25 @@ class GamepadState:
     def macro_keys(self) -> list:
         """Only the buttons this pad can actually put in a macro."""
         return [k for k in self.buttons if k in p.MACRO_MASK_BIT]
+
+    @property
+    def left_direction(self) -> "p.Direction | None":
+        return stick_direction(*self.left_stick)
+
+    @property
+    def macro_inputs(self) -> list:
+        """Everything here a macro step can store: buttons plus a stick heading.
+
+        Recording buttons alone cannot capture a wave dash, which is mostly
+        stick. Use this rather than macro_keys for anything that replays a
+        performance.
+        """
+        out = list(self.macro_keys)
+        direction = self.left_direction
+        if direction is not None:
+            out.append(p.StickInput(stick=p.Key.LSTICK_ANALOG,
+                                    direction=direction))
+        return out
 
 
 class XInputReader:
@@ -196,7 +250,7 @@ class MacroRecorder:
             if key not in p.MACRO_MASK_BIT:
                 self.ignored.add(key.name)
 
-        current = frozenset(state.macro_keys)
+        current = frozenset(state.macro_inputs)
         if self._last is None:
             self._last = current
             self._changed_at = time.perf_counter()
@@ -208,8 +262,9 @@ class MacroRecorder:
         now = time.perf_counter()
         held = _quantise((now - self._changed_at) * 1000)
         if len(self.steps) < MAX_STEPS:
-            self.steps.append(RecordedStep(keys=sorted(self._last, key=int),
-                                           duration_ms=held))
+            self.steps.append(
+                RecordedStep(keys=sorted(self._last, key=_input_order),
+                             duration_ms=held))
         self._last = current
         self._changed_at = now
 
@@ -222,7 +277,8 @@ class MacroRecorder:
             held = _quantise((time.perf_counter() - self._changed_at) * 1000)
             if len(self.steps) < MAX_STEPS:
                 self.steps.append(
-                    RecordedStep(keys=sorted(self._last, key=int), duration_ms=held))
+                    RecordedStep(keys=sorted(self._last, key=_input_order),
+                                 duration_ms=held))
 
         steps = list(self.steps)
         if self.trim_leading_pause:
