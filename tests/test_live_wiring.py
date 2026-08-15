@@ -77,17 +77,17 @@ def test_a_trigger_is_a_byte_not_a_signed_axis():
 
 def test_polling_lights_the_test_tab():
     work = workspace_with(FakeState(buttons=[p.Key.A, p.Key.RB]))
-    work.show_section("test")
+    work.show_section("keys")
     work.poll_inputs()
-    assert work.pages["test"].lit() == {int(p.Key.A), int(p.Key.RB)}
+    assert work.pages["keys"].lit() == {int(p.Key.A), int(p.Key.RB)}
 
 
 def test_polling_moves_the_sticks_on_the_test_tab():
     work = workspace_with(FakeState(left=(-32767, 0), right=(0, 32767)))
-    work.show_section("test")
+    work.show_section("keys")
     work.poll_inputs()
-    assert work.pages["test"].axes["left_x"].bar.value() == -100
-    assert work.pages["test"].axes["right_y"].bar.value() == 100
+    assert work.pages["keys"].axes["left_x"].bar.value() == -100
+    assert work.pages["keys"].axes["right_y"].bar.value() == 100
 
 
 def test_polling_moves_the_trigger_meters():
@@ -103,12 +103,12 @@ def test_a_page_that_is_not_showing_is_not_fed():
     work = workspace_with(FakeState(buttons=[p.Key.A]))
     work.show_section("motor")
     work.poll_inputs()
-    assert work.pages["test"].lit() == set()
+    assert work.pages["keys"].lit() == set()
 
 
 def test_polling_survives_having_no_pad():
     work = workspace_with(None)
-    work.show_section("test")
+    work.show_section("keys")
     work.poll_inputs()          # must not raise
 
 
@@ -116,22 +116,22 @@ def test_no_gamepad_says_which_connection_is_missing():
     """A pad on the settings link and not on XInput is a normal state, and
     an empty tab looks identical to a broken one."""
     work = workspace_with(None)
-    work.show_section("test")
+    work.show_section("keys")
     work.poll_inputs()
-    hint = work.pages["test"].hint.text()
+    hint = work.pages["keys"].hint.text()
     assert "gamepad" in hint and "settings link is separate" in hint
 
 
 def test_the_hint_clears_once_a_pad_appears():
     work = workspace_with(None)
-    work.show_section("test")
+    work.show_section("keys")
     work.poll_inputs()
-    assert work.pages["test"].hint.text()
+    assert work.pages["keys"].hint.text()
 
     work.reader.state = FakeState(buttons=[p.Key.A])
     work.poll_inputs()
-    assert work.pages["test"].hint.text() == ""
-    assert work.pages["test"].lit() == {int(p.Key.A)}
+    assert work.pages["keys"].hint.text() == ""
+    assert work.pages["keys"].lit() == {int(p.Key.A)}
 
 
 def test_the_poll_timer_is_running_from_the_start():
