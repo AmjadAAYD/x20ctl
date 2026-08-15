@@ -252,6 +252,52 @@ def test_recorded_macro_keeps_the_timing_it_captured():
     assert steps[2].duration_ms == 90
 
 
+def test_a_recording_captures_the_stick_not_just_buttons():
+    """Regression: the recorder read left_stick and threw it away.
+
+    A wave dash is mostly stick, so a button-only recording of one replays as a
+    bare jump. Recorded on hardware, a right-hand wave dash is an air roll
+    pulse plus LS_LEFT, then a dodge on LS_RIGHT."""
+    from x20ctl import protocol as p
+    from x20ctl.input import MacroRecorder, RecordedStep, XInputReader
+
+    left = p.StickInput(stick=p.Key.LSTICK_ANALOG, direction=p.Direction.LEFT)
+    right = p.StickInput(stick=p.Key.LSTICK_ANALOG, direction=p.Direction.RIGHT)
+
+    recorder = MacroRecorder(XInputReader())
+    recorder.steps = [
+        RecordedStep(keys=[p.Key.LT, left], duration_ms=30),
+        RecordedStep(keys=[], duration_ms=1055),
+        RecordedStep(keys=[p.Key.A, right], duration_ms=205),
+    ]
+    recorder._last = None
+    recorder._recording = True
+    spec = recorder.stop()
+
+    assert "LT+LS_LEFT:30/1055" in spec.keys
+    assert "A+LS_RIGHT:205" in spec.keys
+    # and it must survive the round trip back into steps the pad can hold
+    assert len(spec.steps()) == 4
+
+
+def test_stick_bucketing_covers_all_eight_headings():
+    from x20ctl import protocol as p
+    from x20ctl.input import LEFT_STICK_DEADZONE, stick_direction
+
+    full = 32767
+    assert stick_direction(0, full) is p.Direction.UP
+    assert stick_direction(full, full) is p.Direction.UP_RIGHT
+    assert stick_direction(full, 0) is p.Direction.RIGHT
+    assert stick_direction(full, -full) is p.Direction.DOWN_RIGHT
+    assert stick_direction(0, -full) is p.Direction.DOWN
+    assert stick_direction(-full, -full) is p.Direction.DOWN_LEFT
+    assert stick_direction(-full, 0) is p.Direction.LEFT
+    assert stick_direction(-full, full) is p.Direction.UP_LEFT
+
+    assert stick_direction(0, 0) is None, "centred is no input, not direction 0"
+    assert stick_direction(LEFT_STICK_DEADZONE - 1, 0) is None
+
+
 def test_slugify_keeps_filenames_sane():
     assert slugify("Save file 1") == "save-file-1"
     assert slugify("  ???  ") == "profile"
