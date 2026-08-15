@@ -514,6 +514,15 @@ def test_macro_writes_rejects_empty_payload():
     raise AssertionError("empty payload must be rejected; use MACRO_CLEAR")
 
 
+def test_a_list_stops_at_its_count_not_at_the_end_of_the_buffer():
+    """The X20 answers kind 4 with its turbo record twice over. Reading to the
+    end of the buffer decodes the second copy as a continuation and gives 25
+    keys for a list of 12. Bytes captured from a live pad on 9.01."""
+    doubled = bytes.fromhex("0c01880d840c01880d84")
+    keys = p.decode_key_list(doubled)
+    assert keys == [1, 2, 3, 4, 5, 6, 7, 8, 13, 14, 15, 16]
+
+
 def test_a_written_macro_parses_back_to_what_was_written():
     """parse_macro_payload is the inverse of build_macro_payload, so anything
     the builder emits must survive the trip back."""
