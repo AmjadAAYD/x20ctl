@@ -20,10 +20,66 @@ from PySide6.QtWidgets import (
 
 from ..profiles import DEFAULT_DIR
 from .addsheet import AddControllerSheet
+from .buttons import ButtonsPage
 from .header import HeaderBar
+from .keytest import KeyTestPage
+from .macros import MacroEditor
 from .nav import NavRail
+from .panels import Page, PowerPage, VibrationPage
 from .roster import AlreadyAdded, PlayerTaken, Roster, RosterFull
 from .start import StartPage
+from .triggers import TriggersPage
+
+
+class CurvesPlaceholder(Page):
+    """Sticks reuse the existing curves editor, which is not moved yet."""
+
+    def __init__(self, title: str) -> None:
+        super().__init__(
+            title,
+            "Deadzones and response curves for both sticks. The existing "
+            "curve editor moves here next.")
+        self.root.addStretch(1)
+
+
+class DevicePage(Page):
+    """Calibration and what the pad says about itself."""
+
+    calibrate_requested = Signal()
+
+    def __init__(self) -> None:
+        super().__init__(
+            "Device",
+            "Calibration and what this controller reports about itself. "
+            "Factory reset lives in the header, away from the settings.")
+
+        self.calibrate_button = QPushButton("Calibrate motion sensor")
+        self.calibrate_button.setObjectName("Ghost")
+        self.calibrate_button.setCursor(Qt.PointingHandCursor)
+        self.calibrate_button.setToolTip(
+            "Lay the controller flat first. It measures level from where it "
+            "is resting, and waits for you to press + on the pad.")
+        self.calibrate_button.clicked.connect(self.calibrate_requested.emit)
+        self.root.addWidget(self.calibrate_button, 0, Qt.AlignLeft)
+
+        self.detail = QLabel()
+        self.detail.setObjectName("RowDetail")
+        self.detail.setWordWrap(True)
+        self.root.addSpacing(14)
+        self.root.addWidget(self.detail)
+        self.root.addWidget(self.status)
+        self.root.addStretch(1)
+
+    def load(self, snapshot) -> None:
+        device = getattr(snapshot, "device", None)
+        caps = getattr(snapshot, "capabilities", None)
+        lines = [f"Name: {getattr(snapshot, 'name', 'unknown')}"]
+        if device is not None:
+            lines.append(f"Firmware: {getattr(device, 'version', 'unknown')}")
+        if caps is not None:
+            lines.append(f"Macro slots: {bin(caps.macros).count('1')}")
+            lines.append(f"Remapping: {'yes' if caps.changekey else 'no'}")
+        self.detail.setText("\n".join(lines))
 
 ROSTER_PAGE = 0
 WORKSPACE_PAGE = 1
@@ -50,9 +106,10 @@ class Workspace(QWidget):
     switch_player = Signal(int)
     factory_reset = Signal()
 
-    def __init__(self) -> None:
+    def __init__(self, rumbler=None) -> None:
         super().__init__()
         self.slot = None
+        self.link = None
 
         outer = QHBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -81,26 +138,40 @@ class Workspace(QWidget):
         self.tabs.setSpacing(8)
         root.addLayout(self.tabs)
 
-        self.body = QLabel()
-        self.body.setObjectName("PageSubtitle")
-        self.body.setAlignment(Qt.AlignCenter)
-        self.body.setWordWrap(True)
-        root.addWidget(self.body, 1)
+        self.stack = QStackedWidget()
+        self.pages = {
+            "buttons": ButtonsPage(),
+            "sticks": CurvesPlaceholder("Sticks"),
+            "triggers": TriggersPage(),
+            "motor": VibrationPage(rumbler),
+            "macros": MacroEditor(rumbler),
+            "test": KeyTestPage(),
+            "timeout": PowerPage(),
+            "device": DevicePage(),
+        }
+        for page in self.pages.values():
+            self.stack.addWidget(page)
+        root.addWidget(self.stack, 1)
+
+        self.status = QLabel()
+        self.status.setObjectName("RowDetail")
+        root.addWidget(self.status)
 
         self.section = None
         self.show_section(self.rail.current() or "buttons")
 
     def show_section(self, key: str) -> None:
-        """Until the real pages land, say what this section will hold.
-
-        Named rather than blank: an empty panel reads as broken, and the blurb
-        is the same text the rail shows on hover.
-        """
-        from .nav import SECTIONS
+        """Bring one section's page to the front."""
+        page = self.pages.get(key)
+        if page is None:
+            return
+        if self.section == "motor" and key != "motor":
+            self.pages["motor"].flush()      # do not lose a pending change
         self.section = key
-        blurb = next((s.blurb for s in SECTIONS if s.key == key), "")
-        title = next((s.title for s in SECTIONS if s.key == key), key)
-        self.body.setText(f"{title}\n\n{blurb}")
+        self.stack.setCurrentWidget(page)
+
+    def say(self, message: str) -> None:
+        self.status.setText(message)
 
     def show_slot(self, slot, roster: Roster) -> None:
         """Point the workspace at one controller, with tabs for the others."""
@@ -122,6 +193,46 @@ class Workspace(QWidget):
                 lambda _=False, n=other.player: self.switch_player.emit(n))
             self.tabs.addWidget(tab)
         self.tabs.addStretch(1)
+
+    # -- the live controller ---------------------------------------------
+
+    def attach(self, link) -> None:
+        """Point the pages at one controller and read what it holds."""
+        self.link = link
+        link.loaded.connect(self.populate)
+        link.written.connect(self.say)
+        link.failed.connect(self.say)
+
+        self.pages["motor"].save_requested.connect(link.set_vibration)
+        self.pages["timeout"].save_requested.connect(link.set_shutdown)
+        self.pages["buttons"].changed.connect(link.set_remapping)
+        self.pages["device"].calibrate_requested.connect(link.calibrate)
+        self.pages["macros"].apply_requested.connect(self._write_macro)
+        self.header.factory_reset.connect(link.factory_reset)
+        link.load()
+
+    def populate(self, snapshot) -> None:
+        """Show what the pad currently holds, without writing any of it back."""
+        from .. import protocol as p
+
+        vibration = getattr(snapshot, "vibration", None)
+        if vibration:
+            self.pages["motor"].load(vibration[0])
+
+        triggers = getattr(snapshot, "triggers", None) or []
+        if triggers:
+            curves = [p.Curve.parse(raw, p.TRIGGER_MAX_PROGRESS)
+                      for raw in triggers]
+            self.pages["triggers"].load(curves)
+
+        self.pages["device"].load(snapshot)
+        self.say("Loaded.")
+
+    def _write_macro(self, slot: str, grid) -> None:
+        if self.link is None:
+            return
+        number = int(slot[1])
+        self.link.write_macro(number, grid.to_steps(), loop_ms=grid.loop_ms)
 
 
 class AppShell(QWidget):
