@@ -213,12 +213,15 @@ or the `DeviceUsb.dll` interface return nothing. This is unexplored.
 - [ ] What is the hardware model id checked by `Upgrade code and hardware mismatch!`?
 - [x] **What are key codes 93, 94, 95, 96, 97 and 104?** Answered from the app's
       `ic_big_code_*` drawable table: **95 = `cap`, the `C` button; 96 = `tooble`,
-      the `T` button**; 97 = M-left; 104 = M2. 93 and 94 have no drawable at all,
-      confirming them as genuine pseudo-keys. See 01-protocol 4c.
-- [ ] Why are `SELECT` (9) and `START` (10) absent from every support sub-query
-      despite being physical buttons? `C` (95) and `T` (96) are absent from the
-      changekey and macro lists for the same unexplained reason, which is what
-      makes `Menu`, `C` and `T` combinations impossible to encode as macros.
+      the `T` button**; 97 = M-left; 104 = M2. **93 and 94 are Select and Start**,
+      which the missing drawable did not show: 9 and 10 carry those icons as
+      legacy vocabulary while the firmware reports 93 and 94. See 01-protocol 4c.
+- [x] Why are `SELECT` (9) and `START` (10) absent from every support sub-query
+      despite being physical buttons? They aren't; the pad lists them as 93 and
+      94 and rejects 9 and 10. Verified on hardware: a macro setting bit 22 makes
+      XInput report `BACK`, bit 23 reports `START`. `C` (95) and `T` (96) really
+      are excluded from the changekey and macro lists, so `C` and `T` combinations
+      remain impossible to encode.
 - [ ] Is there an on-pad combination for RGB **colour or mode**? Section 1 records
       "RGB, 3 modes", but only brightness (`C` + `L3`) and the ABXY toggle
       (`Menu` + `D-pad Right`) are transcribed from the manual. A mode combo would

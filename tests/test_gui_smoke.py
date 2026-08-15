@@ -59,9 +59,13 @@ def test_invalid_keys_are_flagged_not_crashed():
     assert "unknown key" in card.summary.text().lower()
 
 
-def test_non_macro_capable_button_is_flagged():
+def test_home_is_flagged_but_select_and_start_are_valid():
     card = MacroCard("M4")
     card.keys.setText("START")
+    assert card.is_valid(), "Start is macro-capable on the X20"
+    card.keys.setText("SELECT")
+    assert card.is_valid(), "Select is macro-capable on the X20"
+    card.keys.setText("HOME")
     assert not card.is_valid()
     assert "not macro-capable" in card.summary.text()
 
