@@ -772,12 +772,19 @@ def decode_key_list(data: bytes) -> list[int]:
 
     The leading count byte is a checksum of sorts: it states how many keys the
     RLE should expand to, so a mismatch means the decode is wrong.
+
+    The count also says where to stop. A reply can carry more bytes than the
+    list needs: the X20 answers kind 4 with its five-byte turbo record twice
+    over, and reading straight to the end of the buffer decodes the second copy
+    as a continuation and reports 25 keys for a list of 12.
     """
     if not data:
         return []
     expected = data[0]
     keys: list[int] = []
     for byte in data[1:]:
+        if len(keys) >= expected:
+            break               # the count is the end of the list, not the buffer
         if byte & 0x80:
             run = byte & 0x7F
             if not keys:
