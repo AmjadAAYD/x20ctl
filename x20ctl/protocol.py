@@ -1537,3 +1537,51 @@ RECOVER_MAGIC = bytes([0x03, 0xDF, 0xA9])
 
 def build_recover(*, host: bool = False, serial: int, nonce: int | None = None) -> bytes:
     return build(Op.RECOVER, RECOVER_MAGIC + bytes([2 if host else 1]), serial=serial, nonce=nonce)
+
+
+# -- button remapping (changekey) ----------------------------------------
+#
+# The pad reports its remappable sources through HOST_MENU kind 3 as an
+# RLE-encoded key list, and the current targets through HOST_CHANGEKEY (0xB6).
+# The write path mirrors ZXBTHelper.writeChangeKeyData: the payload is
+# `[count] + [0 or target]`, one byte per source in list order, where 0 means
+# "unchanged". The record is chunked into 15-byte packets and the chunk index
+# travels in the serial's slot nibble.
+
+CHANGEKEY_CHUNK_SIZE = 15
+
+# The changekey source list an X20 on firmware 9.01 reports. Used only when no
+# device has been consulted; a connected pad supplies its own through
+# HOST_MENU kind 3.
+CHANGEKEY_DEFAULT_SOURCES = (1, 2, 3, 4, 5, 6, 7, 8, 13, 14, 15, 16, 11, 12, 93, 94)
+
+
+def build_changekey_payload(sources, targets) -> bytes:
+    """Assemble a changekey write payload from parallel source and target lists.
+
+    Both are in the pad's own order. A target equal to its source encodes as 0,
+    meaning "leave this one alone".
+    """
+    if len(sources) != len(targets):
+        raise ValueError("sources and targets must be the same length")
+    out = bytearray([len(sources)])
+    for src, tgt in zip(sources, targets):
+        out.append(0 if src == tgt else tgt & 0xFF)
+    return bytes(out)
+
+
+def parse_changekey(sources, data: bytes) -> dict:
+    """Decode a changekey record into {source: target}.
+
+    `data` is the payload after its length prefix, one target byte per source.
+    Zero means unchanged, so those sources are left out of the result.
+    """
+    if len(data) < len(sources):
+        raise ValueError(
+            f"changekey record has {len(data)} targets for {len(sources)} sources")
+    out: dict = {}
+    for i, src in enumerate(sources):
+        tgt = data[i]
+        if tgt != 0 and tgt != src:
+            out[src] = tgt
+    return out

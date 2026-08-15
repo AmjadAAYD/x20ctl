@@ -7,6 +7,10 @@
     x20 macro M1 --clear              empty a slot
     x20 macro --read                  read all four slots off the pad
 
+    x20 remap                         show current button remappings
+    x20 remap A:B X:Y                 swap A/B and X/Y
+    x20 remap A:T                     put T on the A button
+
     x20 curve                         show stick and trigger response
     x20 curve sticks --inner 5        set the inner deadzone
     x20 curve triggers --linear       straighten the response
@@ -290,6 +294,72 @@ async def _cmd_macro_read(args) -> None:
     print()
 
 
+def button_name(code: int) -> str:
+    try:
+        return p.Key(code).name
+    except ValueError:
+        return f"0x{code:02x}"
+
+
+def button_code(text: str) -> int | None:
+    token = text.strip().upper().replace("-", "_")
+    try:
+        return int(p.Key[token])
+    except KeyError:
+        return None
+
+
+async def cmd_remap(args) -> None:
+    """Show or set button remappings, as SOURCE:TARGET pairs."""
+    address = await resolve(args.address)
+
+    async with X20(address) as pad:
+        sources = await pad.changekey_sources()
+        current = await pad.remappings(sources)
+
+        if not args.pairs:
+            print(ui.header("Button remapping"))
+            if not current:
+                print(ui.label("  no remappings configured"))
+            else:
+                for src, tgt in sorted(current.items()):
+                    print(f"  {ui.label(button_name(src))} -> "
+                          f"{ui.value(button_name(tgt))}")
+            print()
+            print(ui.label("  sources: " + ", ".join(button_name(s) for s in sources)))
+            print(ui.label("  targets can also be C and T, which are not sources"))
+            print(ui.label('  set one with: x20 remap A:B\n'))
+            return
+
+        changes: dict[int, int] = {}
+        for pair in args.pairs:
+            if ":" not in pair:
+                raise SystemExit(ui.bad(f"'{pair}' is not SOURCE:TARGET"))
+            src_text, tgt_text = pair.split(":", 1)
+            src = button_code(src_text)
+            tgt = button_code(tgt_text)
+            if src is None:
+                raise SystemExit(ui.bad(f"unknown source button '{src_text}'"))
+            if tgt is None:
+                raise SystemExit(ui.bad(f"unknown target button '{tgt_text}'"))
+            if src not in sources:
+                raise SystemExit(ui.bad(
+                    f"'{src_text}' cannot be remapped on this pad. Sources are: "
+                    + ", ".join(button_name(s) for s in sources)))
+            changes[src] = tgt
+
+        reported = await pad.set_remapping(changes)
+
+    print(ui.header("Button remapping written"))
+    if not reported:
+        print(ui.label("  the pad reports no remappings\n"))
+        return
+    for src, tgt in sorted(reported.items()):
+        print(f"  {ui.label(button_name(src))} -> {ui.value(button_name(tgt))}")
+    print(ui.label("\n  what is shown is what the pad reports back, not what "
+                   "was asked for\n"))
+
+
 # -- profiles -------------------------------------------------------------
 
 def print_profile(profile: Profile) -> None:
@@ -427,6 +497,11 @@ def build_parser() -> argparse.ArgumentParser:
     mac.add_argument("--loop", type=int, default=0,
                      help="loop interval ms; 0 fires once")
     mac.set_defaults(fn=cmd_macro)
+
+    remap = sub.add_parser("remap", help="show or set button remappings")
+    remap.add_argument("pairs", nargs="*",
+                       help="SOURCE:TARGET pairs, e.g. A:B X:Y")
+    remap.set_defaults(fn=cmd_remap)
 
     prof = sub.add_parser("profile", help="save files")
     psub = prof.add_subparsers(dest="sub", required=True)
