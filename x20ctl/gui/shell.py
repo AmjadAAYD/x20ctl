@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 
 from ..profiles import DEFAULT_DIR
 from .addsheet import AddControllerSheet
+from .header import HeaderBar
 from .nav import NavRail
 from .roster import AlreadyAdded, PlayerTaken, Roster, RosterFull
 from .start import StartPage
@@ -47,6 +48,7 @@ class Workspace(QWidget):
 
     back = Signal()
     switch_player = Signal(int)
+    factory_reset = Signal()
 
     def __init__(self) -> None:
         super().__init__()
@@ -66,19 +68,14 @@ class Workspace(QWidget):
         root.setContentsMargins(30, 24, 30, 24)
         root.setSpacing(14)
 
-        header = QHBoxLayout()
-        header.setSpacing(12)
-        self.back_button = QPushButton("Controllers")
-        self.back_button.setObjectName("Ghost")
-        self.back_button.setCursor(Qt.PointingHandCursor)
-        self.back_button.clicked.connect(self.back.emit)
-        header.addWidget(self.back_button)
-
-        self.title = QLabel()
-        self.title.setObjectName("PageTitle")
-        header.addWidget(self.title)
-        header.addStretch(1)
-        root.addLayout(header)
+        self.header = HeaderBar()
+        self.header.back.connect(self.back.emit)
+        self.header.factory_reset.connect(self.factory_reset.emit)
+        # Kept as attributes because they are the two the rest of the app and
+        # the tests reach for by name.
+        self.back_button = self.header.back_button
+        self.title = self.header.title
+        root.addWidget(self.header)
 
         self.tabs = QHBoxLayout()
         self.tabs.setSpacing(8)
@@ -108,7 +105,7 @@ class Workspace(QWidget):
     def show_slot(self, slot, roster: Roster) -> None:
         """Point the workspace at one controller, with tabs for the others."""
         self.slot = slot
-        self.title.setText(slot.label)
+        self.header.show_slot(slot)
 
         while self.tabs.count():
             item = self.tabs.takeAt(0)
