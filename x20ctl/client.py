@@ -404,6 +404,44 @@ class X20:
             await self._send(packet, serial)
             await asyncio.sleep(0.25)
 
+    async def read_macro(self, slot: int) -> p.MacroProgram | None:
+        """Read one macro slot back off the pad.
+
+        The pad ignores READ_MACRO (0xA7) but answers HOST_MACRO (0xB5) with
+        the real record when queried as `[position, slot]`. Returns None for an
+        empty slot, or when the pad does not answer.
+        """
+        if not 1 <= slot <= 4:
+            raise ValueError("slot must be 1-4")
+        index = slot - 1
+
+        first = await self.query(p.Op.HOST_MACRO, bytes([0, index]))
+        if first is None or not first.crc_valid or not first.payload:
+            return None
+        declared = first.payload[0]
+        if declared == 0:
+            return None
+        data = bytearray(first.payload[1:])
+
+        position = 1
+        while len(data) < declared and position < 8:
+            more = await self.query(p.Op.HOST_MACRO, bytes([position, index]))
+            if more is None or not more.crc_valid:
+                break
+            data.extend(more.payload)
+            position += 1
+
+        return p.parse_macro_payload(bytes([declared]) + bytes(data))
+
+    async def macros(self) -> dict[int, p.MacroProgram]:
+        """Read all four macro slots, keyed by slot number 1-4."""
+        out: dict[int, p.MacroProgram] = {}
+        for slot in range(1, 5):
+            program = await self.read_macro(slot)
+            if program is not None:
+                out[slot] = program
+        return out
+
     async def clear_macro(self, slot: int) -> None:
         """Empty a macro slot.
 

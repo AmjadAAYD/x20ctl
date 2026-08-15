@@ -1168,6 +1168,69 @@ def build_macro_payload(
 
 
 @dataclass
+class MacroProgram:
+    """A macro read back off the pad, ready to display or re-serialize."""
+
+    steps: list[MacroStep]
+    loop_interval_ms: int = 0
+    trigger: int = 0
+
+    def as_sequence(self) -> str:
+        """Render the program in the same syntax the editor accepts.
+
+        Consecutive press/release pairs are collapsed back into the
+        "keys:hold/gap" form, so a program that was written as "A:100/60"
+        reads back as "A:100/60" rather than as raw steps.
+        """
+        groups: list[str] = []
+        i = 0
+        while i < len(self.steps):
+            press = self.steps[i]
+            keys = describe_mask(press.mask)
+            if not keys:
+                i += 1
+                continue
+            gap = 0
+            if i + 1 < len(self.steps) and not describe_mask(self.steps[i + 1].mask):
+                gap = self.steps[i + 1].duration_ms
+                i += 2
+            else:
+                i += 1
+            groups.append(f"{'+'.join(keys)}:{press.duration_ms}/{gap}")
+        text = ",".join(groups)
+        if self.loop_interval_ms:
+            text += f" loop:{self.loop_interval_ms}"
+        return text or "empty"
+
+
+def parse_macro_payload(payload: bytes) -> MacroProgram:
+    """Decode a full macro record, header and steps, as read from the pad.
+
+    The inverse of `build_macro_payload`. `payload` is the reassembled record
+    including its length-prefix byte.
+    """
+    if len(payload) < 3:
+        raise ValueError("macro payload too short")
+
+    declared = payload[0]
+    loop_lo = payload[1]
+    packed = payload[2]
+    loop_ticks = ((packed & 0x0F) << 8) | loop_lo
+    trigger = (packed >> 7) & 1
+
+    step_bytes = declared - 2
+    steps: list[MacroStep] = []
+    offset = 3
+    while (offset + MACRO_STEP_SIZE <= len(payload)
+           and len(steps) * MACRO_STEP_SIZE < step_bytes):
+        steps.append(MacroStep.parse(payload[offset:offset + MACRO_STEP_SIZE]))
+        offset += MACRO_STEP_SIZE
+
+    return MacroProgram(steps=steps, loop_interval_ms=loop_ticks * 5,
+                        trigger=trigger)
+
+
+@dataclass
 class Capabilities:
     """What a pad exposes to the configuration protocol.
 

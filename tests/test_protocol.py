@@ -514,6 +514,49 @@ def test_macro_writes_rejects_empty_payload():
     raise AssertionError("empty payload must be rejected; use MACRO_CLEAR")
 
 
+def test_a_written_macro_parses_back_to_what_was_written():
+    """parse_macro_payload is the inverse of build_macro_payload, so anything
+    the builder emits must survive the trip back."""
+    steps = p.parse_sequence("A:100/60,B+X:200/50")
+    payload = p.build_macro_payload(steps, loop_interval_ms=250)
+
+    program = p.parse_macro_payload(payload)
+    assert [s.mask for s in program.steps] == [s.mask for s in steps]
+    assert [s.duration_ms for s in program.steps] == [s.duration_ms for s in steps]
+    assert program.loop_interval_ms == 250
+
+
+def test_a_read_back_macro_renders_in_editor_syntax():
+    """The point of reading a macro back is being able to show it, so what
+    comes out has to be something you could have typed in."""
+    written = "A:100/60,B+X:200/50"
+    program = p.parse_macro_payload(p.build_macro_payload(p.parse_sequence(written)))
+    assert program.as_sequence() == written
+
+
+def test_a_trailing_press_with_no_release_still_renders():
+    """The last step of a recording can be a press the recorder never saw
+    released. It must not swallow the step or borrow the next one's gap."""
+    steps = [p.MacroStep(mask=p.mask_for([p.Key.A]), duration_ms=100)]
+    program = p.parse_macro_payload(p.build_macro_payload(steps))
+    assert program.as_sequence() == "A:100/0"
+
+
+def test_an_empty_record_reads_as_empty_not_as_a_crash():
+    program = p.parse_macro_payload(p.build_macro_payload([]))
+    assert program.steps == []
+    assert program.as_sequence() == "empty"
+
+
+def test_a_truncated_macro_record_is_rejected():
+    try:
+        p.parse_macro_payload(b"\x0c\x00")
+    except ValueError as exc:
+        assert "too short" in str(exc)
+        return
+    raise AssertionError("a record shorter than its header must be rejected")
+
+
 def test_all_sixteen_digital_buttons_are_macro_capable():
     """Every key in the pad's macro list that's a single-bit digital button
     must be usable. 18 and 19 are analog; 93 and 94 are Select and Start."""

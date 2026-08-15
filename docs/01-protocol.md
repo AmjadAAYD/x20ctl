@@ -488,6 +488,17 @@ Opcode `0xB5` also has both a one-byte and a two-byte form in the app
 (`getHostToobleData(i)` on `0xB4` versus `getHostToobleData(i, i2)` on `0xB5`),
 so its earlier silence has the same explanation.
 
+**Macros can be read back, through `HOST_MACRO` and not through `READ_MACRO`.**
+`READ_MACRO` (`0xA7`) answers with zeros or nothing at all, which read like a
+pad that simply does not support reading. `HOST_MACRO` (`0xB5`) queried as
+`[position, slot]` returns the stored record: the length-prefixed header
+followed by five bytes per step, exactly the layout `build_macro_payload`
+writes. Verified by round trip on an X20 running 9.01, writing
+`A:100/60,B+X:200/50,LT:150/0` to M4 and reading back the same string, chords
+and per-step timings intact. A cleared slot answers with a declared length of
+zero, so empty is distinguishable from absent. Found by
+[chriss80](https://github.com/chriss80/x20ctl).
+
 ## 4d. The capability descriptor, and what the X20 actually exposes
 
 `HOST_MENU` kind 1 returns the record that drives the entire app UI.
