@@ -7,7 +7,7 @@
     x20 macro M1 --clear              empty a slot
     x20 macro --read                  read all four slots off the pad
 
-    x20 calibrate                     recentre the sticks, pad lying flat
+    x20 calibrate                     calibrate the motion sensor, pad flat
     x20 factory-reset --yes           clear every stored setting
 
     x20 sleep                         show the idle shutdown timeout
@@ -302,10 +302,11 @@ async def _cmd_macro_read(args) -> None:
 
 
 async def cmd_calibrate(args) -> None:
-    """Recalibrate the sticks against their resting position."""
-    print(ui.header("Stick calibration"))
-    print(ui.label("  the pad measures where the sticks sit right now and calls"))
-    print(ui.label("  that centre, so lay it flat and take your hands off it\n"))
+    """Calibrate the motion sensor against level."""
+    print(ui.header("Sensor calibration"))
+    print(ui.label("  lay the pad flat and face up before this runs; the flat"))
+    print(ui.label("  surface is the level reference for its motion sensor"))
+    print(ui.label("  this does not touch the sticks\n"))
 
     address = await resolve(args.address)
     async with X20(address) as pad:

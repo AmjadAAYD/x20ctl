@@ -1547,11 +1547,21 @@ def build_recover(*, second_generation: bool = False, serial: int,
                  serial=serial, nonce=nonce)
 
 
-# Sensor calibration. One command, no parameters: the pad measures its own
-# resting position, so it has to be lying flat and still when this arrives.
-# The app's dialog ("lay the handle flat") is instruction to the user, not
-# anything it sends. Same SET_MODE opcode the mode switches use, distinguished
-# only by its payload.
+# Motion sensor calibration. One command, no parameters. The app labels it
+# "Sensor Calibration" and asks the user to lay the handle flat, which is a
+# level reference for the gyro; that dialog is instruction to the user, not
+# anything transmitted.
+#
+# It does NOT calibrate the sticks. Tested by holding a stick a fifth of the
+# way over, calibrating, and releasing: resting positions moved by ~200 units
+# out of 32767, where adopting the held position as centre would have moved
+# them by ~6500. Whatever this does, the sticks are not it.
+#
+# The effect on the sensor is unverified. READ_3D does not answer the payload
+# forms tried so far, so there is no oracle for it yet.
+#
+# Same SET_MODE opcode as the mode switches, told apart only by payload, and
+# four bytes from the one that enters firmware update mode.
 CALIBRATE_PAYLOAD = bytes([0x03, 0xDF, 0xAB, 0x10])
 
 

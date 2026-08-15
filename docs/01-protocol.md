@@ -499,11 +499,25 @@ Opcode `0xB5` also has both a one-byte and a two-byte form in the app
 so its earlier silence has the same explanation.
 
 **Sensor calibration is `SET_MODE` with payload `03 DF AB 10`.** One command,
-no parameters: the pad measures where its sticks are resting and calls that
-centre, so it must be lying flat and untouched. The app's "lay the handle flat"
-dialog is instruction to the user, not something it transmits. Note how close
-this sits to `05 DF AB 00 02 0E` on the same opcode, which is the enter
-firmware update command; the payload is the only thing telling them apart.
+no parameters, sent by the app's sensor test button and nothing else. The app
+labels it "Sensor Calibration" and asks for the pad to be laid flat, which is a
+level reference for the gyro; that dialog is instruction to the user, not
+something transmitted. Note how close it sits to `05 DF AB 00 02 0E` on the
+same opcode, the enter firmware update command; payload is the only thing
+telling them apart.
+
+**It does not calibrate the sticks**, despite the obvious reading of the word.
+Tested directly: hold the left stick about a fifth of the way over, calibrate,
+release, and measure the resting position with the deadzone stripped out. If
+the held position had become the new centre, the released stick would read
+around 6500 of 32767. It read 768, against 605 before, and the right stick
+moved comparably without having been touched at all. Those are settling
+deltas, not a new centre.
+
+The effect on the sensor itself is **unverified**. `READ_3D` (`0x9A`) does not
+answer the payload forms tried so far, so there is no oracle for the gyro the
+way XInput is an oracle for the buttons. Sending the command is safe and
+repeatable; proving what it did is still open.
 
 **Factory reset is `RECOVER`, and the trailing byte is a protocol generation,
 not a mode.** `03 DF A9 01` for older pads, `03 DF A9 02` for newer, chosen in
