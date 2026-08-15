@@ -50,8 +50,10 @@ class MainWindow(QWidget):
         """
         super().__init__()
         self.setWindowTitle("x20ctl")
-        self.resize(940, 660)
-        self.setMinimumSize(820, 560)
+        # Big enough that a macro of a dozen steps fits without scrolling, and
+        # that the sidebar plus a settings page still leaves room to work.
+        self.resize(1280, 820)
+        self.setMinimumSize(1040, 680)
 
         self.bridge = AsyncBridge()
         self.store = ProfileStore()
