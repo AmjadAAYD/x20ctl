@@ -483,8 +483,23 @@ class X20:
         if not caps.macros:
             raise NotSupported("this pad does not expose macros")
 
-        layout = await self.macro_layout()
+        await self.macro_layout()
         steps = p.parse_sequence(keys, hold_ms, gap_ms)
+        await self.write_macro_steps(slot, steps, loop_ms=loop_ms)
+
+    async def write_macro_steps(self, slot: int, steps, *,
+                                loop_ms: int = 0) -> None:
+        """Write a macro from steps rather than from the text syntax.
+
+        The editor builds steps directly, so routing it through a string and
+        parsing that back would be a lossy detour. `set_macro` is now this plus
+        a parser.
+        """
+        if not 1 <= slot <= 4:
+            raise ValueError("slot must be 1-4")
+        caps = await self.capabilities()
+        if not caps.macros:
+            raise NotSupported("this pad does not expose macros")
 
         payload = p.build_macro_payload(steps, loop_interval_ms=loop_ms)
         for packet in p.build_macro_writes(
