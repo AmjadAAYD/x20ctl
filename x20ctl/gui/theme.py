@@ -310,4 +310,18 @@ QLabel#Lamp[lit="yes"] {{
     color: {EMBER};
     font-weight: 600;
 }}
+
+/* -- macro grid ------------------------------------------------------- */
+
+QPushButton#Cell {{
+    background: {SURFACE};
+    border: 1px solid {LINE};
+    border-radius: 5px;
+}}
+QPushButton#Cell:hover {{ border-color: {EMBER_DEEP}; }}
+QPushButton#Cell:checked {{
+    background: {EMBER};
+    border-color: {EMBER};
+}}
+QPushButton#Cell:checked:hover {{ background: {EMBER_DEEP}; }}
 """
