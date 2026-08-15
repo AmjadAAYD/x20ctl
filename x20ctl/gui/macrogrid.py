@@ -198,3 +198,23 @@ class MacroGrid:
 
     def total_ms(self) -> int:
         return sum(step.duration_ms for step in self.steps)
+
+
+def grid_from_recorded(recorded) -> MacroGrid:
+    """Turn what the recorder wrote down into a drawable grid.
+
+    The recorder speaks in Key and StickInput objects; the grid speaks in row
+    names. Same eight headings on both sides, so nothing is lost crossing over.
+    """
+    grid = MacroGrid()
+    for step in recorded:
+        keys = set()
+        for item in getattr(step, "keys", ()):
+            stick = getattr(item, "stick", None)
+            if stick is not None:
+                row = "LS" if stick == p.Key.LSTICK_ANALOG else "RS"
+                keys.add(stick_token(row, item.direction.name))
+            else:
+                keys.add(item.name)
+        grid.steps.append(Step(keys=keys, duration_ms=step.duration_ms))
+    return grid

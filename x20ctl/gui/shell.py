@@ -13,14 +13,16 @@ from __future__ import annotations
 
 import os
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QHBoxLayout, QLabel, QPushButton, QStackedWidget, QVBoxLayout, QWidget,
 )
 
+from ..input import MacroRecorder, XInputReader
 from ..profiles import DEFAULT_DIR
 from .addsheet import AddControllerSheet
 from .buttons import ButtonsPage
+from .curves import CurvesPage
 from .header import HeaderBar
 from .keytest import KeyTestPage
 from .macros import MacroEditor
@@ -83,6 +85,17 @@ class DevicePage(Page):
 
 ROSTER_PAGE = 0
 WORKSPACE_PAGE = 1
+POLL_MS = 40                    # 25 times a second, smooth enough to read
+
+
+def _percent(axis: int) -> int:
+    """An XInput stick axis, which is signed 16 bit, as a percentage."""
+    return max(-100, min(100, round(axis * 100 / 32767)))
+
+
+def _trigger(value: int) -> int:
+    """An XInput trigger, which is a byte, as a percentage."""
+    return max(0, min(100, round(value * 100 / 255)))
 
 
 def profile_dir(save_key: str) -> str:
@@ -141,7 +154,7 @@ class Workspace(QWidget):
         self.stack = QStackedWidget()
         self.pages = {
             "buttons": ButtonsPage(),
-            "sticks": CurvesPlaceholder("Sticks"),
+            "sticks": CurvesPage(),
             "triggers": TriggersPage(),
             "motor": VibrationPage(rumbler),
             "macros": MacroEditor(rumbler),
@@ -157,8 +170,39 @@ class Workspace(QWidget):
         self.status.setObjectName("RowDetail")
         root.addWidget(self.status)
 
+        # Live input for the test tab and the trigger meters. Nothing was
+        # driving them, so both looked broken while working perfectly.
+        self.reader = XInputReader()
+        self.poll_timer = QTimer(self)
+        self.poll_timer.setInterval(POLL_MS)
+        self.poll_timer.timeout.connect(self.poll_inputs)
+        self.poll_timer.start()
+
+        self.recorder = None
         self.section = None
         self.show_section(self.rail.current() or "buttons")
+
+    def poll_inputs(self) -> None:
+        """Feed whatever the pad is doing to the pages that show it live."""
+        state = self.reader.poll() if self.reader.available else None
+        if state is None:
+            return
+
+        if self.recorder is not None and self.recorder.recording:
+            self.recorder.poll()
+
+        if self.section == "test":
+            page = self.pages["test"]
+            page.set_buttons(state.buttons)
+            page.set_axis("left_x", _percent(state.left_stick[0]))
+            page.set_axis("left_y", _percent(state.left_stick[1]))
+            page.set_axis("right_x", _percent(state.right_stick[0]))
+            page.set_axis("right_y", _percent(state.right_stick[1]))
+            page.set_axis("left_trigger", _trigger(state.left_trigger))
+            page.set_axis("right_trigger", _trigger(state.right_trigger))
+        elif self.section == "triggers":
+            self.pages["triggers"].set_positions(
+                _trigger(state.left_trigger), _trigger(state.right_trigger))
 
     def show_section(self, key: str) -> None:
         """Bring one section's page to the front."""
@@ -241,7 +285,14 @@ class Workspace(QWidget):
         self.pages["buttons"].changed.connect(link.set_remapping)
         self.pages["device"].calibrate_requested.connect(link.calibrate)
         self.pages["macros"].apply_requested.connect(self._write_macro)
+        self.pages["macros"].read_requested.connect(self._read_macro)
+        self.pages["macros"].record_requested.connect(self._record_macro)
+        self.pages["triggers"].zone_chosen.connect(self._write_zone)
+        self.pages["triggers"].shape_chosen.connect(self._write_shape)
+        self.pages["sticks"].write_requested.connect(self._write_sticks)
         self.header.factory_reset.connect(link.factory_reset)
+        # One at a time: the link refuses overlapping work, so the remapping
+        # read is chained onto the snapshot rather than fired alongside it.
         link.load()
 
     def populate(self, snapshot) -> None:
@@ -254,12 +305,109 @@ class Workspace(QWidget):
 
         triggers = getattr(snapshot, "triggers", None) or []
         if triggers:
-            curves = [p.Curve.parse(raw, p.TRIGGER_MAX_PROGRESS)
-                      for raw in triggers]
-            self.pages["triggers"].load(curves)
+            self._trigger_curves = [p.Curve.parse(raw, p.TRIGGER_MAX_PROGRESS)
+                                    for raw in triggers]
+            self.pages["triggers"].load(self._trigger_curves)
+
+        sticks = getattr(snapshot, "sticks", None) or []
+        if sticks:
+            self._stick_curves = [p.Curve.parse(raw, p.STICK_MAX_PROGRESS)
+                                  for raw in sticks]
+            self.pages["sticks"].load("sticks", self._stick_curves,
+                                      baseline=True)
+            self.pages["sticks"].load("triggers", self._trigger_curves,
+                                      baseline=True)
 
         self.pages["device"].load(snapshot)
         self.say("Loaded.")
+        if self.link is not None and not self.pages["buttons"].boxes:
+            self.link.read_remapping(self._show_remapping)
+
+    def _show_remapping(self, result) -> None:
+        """Fill the buttons page from what the pad reports."""
+        sources, mapping = result
+        self.pages["buttons"].blockSignals(True)
+        self.pages["buttons"].load(sources, mapping)
+        self.pages["buttons"].blockSignals(False)
+
+    # -- writes from the pages -------------------------------------------
+
+    def _write_zone(self, side: str, zone: str) -> None:
+        curves = self._edited_triggers(side, gear=zone)
+        if curves and self.link is not None:
+            self.link.set_curves("triggers", curves)
+
+    def _write_shape(self, side: str, shape: str) -> None:
+        curves = self._edited_triggers(side, shape=shape)
+        if curves and self.link is not None:
+            self.link.set_curves("triggers", curves)
+
+    def _edited_triggers(self, side: str, *, gear=None, shape=None):
+        """One side changed; the other keeps exactly what it had."""
+        from .triggers import SIDES, preset_for
+
+        if not getattr(self, "_trigger_curves", None):
+            self.say("Trigger settings have not loaded yet.")
+            return None
+
+        index = SIDES.index(side)
+        out = []
+        for position, curve in enumerate(self._trigger_curves):
+            if position == index:
+                if gear is not None:
+                    inner, outer = p.TRIGGER_GEARS[gear]
+                    curve = curve.with_deadzones(inner, outer)
+                if shape is not None:
+                    curve = curve.with_points(*p.CURVE_PRESETS[preset_for(shape)])
+            out.append(curve)
+        self._trigger_curves = out
+        return out
+
+    def _write_sticks(self) -> None:
+        page = self.pages["sticks"]
+        for kind in ("sticks", "triggers"):
+            channels = page.channels(kind) if hasattr(page, "channels") else None
+            if channels and self.link is not None:
+                self.link.set_curves(kind, channels)
+
+    # -- macros ----------------------------------------------------------
+
+    def _read_macro(self, slot: str) -> None:
+        if self.link is None:
+            self.say("No controller connected.")
+            return
+        number = int(slot[1])
+        self.say(f"Reading {slot}...")
+        started = self.link.read_macro(
+            number, lambda program: self._macro_read(slot, program))
+        if not started:
+            self.say("The controller is busy. Try that again in a moment.")
+
+    def _macro_read(self, slot: str, program) -> None:
+        from .macrogrid import MacroGrid
+        if program is None:
+            self.say(f"{slot} is empty.")
+            return
+        self.pages["macros"].load(slot, MacroGrid.from_program(program))
+        self.say(f"{slot} loaded from the controller.")
+
+    def _record_macro(self, slot: str) -> None:
+        """Start or stop writing down what is played on the pad."""
+        from .macrogrid import grid_from_recorded
+
+        if self.recorder is not None and self.recorder.recording:
+            steps = self.recorder.stop()
+            self.recorder = None
+            self.pages["macros"].load(slot, grid_from_recorded(steps))
+            self.say(f"Recorded {len(steps)} steps into {slot}.")
+            return
+
+        if not self.reader.available:
+            self.say("Connect the controller to this PC to record.")
+            return
+        self.recorder = MacroRecorder(self.reader)
+        self.recorder.start()
+        self.say(f"Recording into {slot}. Press Record again to stop.")
 
     def _write_macro(self, slot: str, grid) -> None:
         if self.link is None:
