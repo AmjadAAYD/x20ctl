@@ -294,4 +294,20 @@ QPushButton#RailItem:checked {{
     color: {EMBER};
     font-weight: 600;
 }}
+
+/* -- test tab --------------------------------------------------------- */
+
+QLabel#Lamp {{
+    background: {SURFACE};
+    border: 1px solid {LINE};
+    border-radius: {RADIUS_SM};
+    color: {TEXT_FAINT};
+    font-size: 13px;
+}}
+QLabel#Lamp[lit="yes"] {{
+    background: {EMBER_GLOW};
+    border-color: {EMBER};
+    color: {EMBER};
+    font-weight: 600;
+}}
 """
