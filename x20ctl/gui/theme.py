@@ -265,4 +265,33 @@ QLabel#RowDetail {{ font-size: 12px; color: {TEXT_FAINT}; }}
 QLabel#RowState {{ font-size: 12px; color: {SAGE}; }}
 QLabel#RowStateIdle {{ font-size: 12px; color: {TEXT_FAINT}; }}
 QLabel#VersionLink {{ font-size: 12px; }}
+
+/* -- workspace sidebar ------------------------------------------------ */
+
+QFrame#NavRail {{
+    background: {SURFACE};
+    border: none;
+    border-right: 1px solid {LINE};
+}}
+QLabel#RailHeading {{
+    font-size: 11px;
+    font-weight: 600;
+    color: {TEXT_FAINT};
+    padding: 2px 8px 10px 8px;
+}}
+QPushButton#RailItem {{
+    background: transparent;
+    border: none;
+    border-radius: {RADIUS_SM};
+    color: {TEXT_MUTED};
+    font-size: 14px;
+    text-align: left;
+    padding: 9px 12px;
+}}
+QPushButton#RailItem:hover {{ background: {SURFACE_HI}; color: {TEXT}; }}
+QPushButton#RailItem:checked {{
+    background: {EMBER_GLOW};
+    color: {EMBER};
+    font-weight: 600;
+}}
 """
