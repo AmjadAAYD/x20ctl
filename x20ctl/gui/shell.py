@@ -415,6 +415,10 @@ class Workspace(QWidget):
             spec = self.recorder.stop()
             ignored = sorted(self.recorder.ignored)
             self.recorder = None
+            if spec is None:
+                # Nothing was played between starting and stopping.
+                self.say("Nothing was recorded. Press something next time.")
+                return
             grid = grid_from_recorded(spec)
             self.pages["macros"].load(slot, grid)
             note = f"Recorded {len(grid)} steps into {slot}."
