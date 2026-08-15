@@ -17,10 +17,18 @@ from PySide6.QtWidgets import (
     QSpinBox, QVBoxLayout, QWidget,
 )
 
+from .dial import DirectionDial
 from .macrogrid import (
-    DEFAULT_GAP_MS, DEFAULT_STEP_MS, ROWS, STEP_GRID_MS, MacroGrid,
+    DEFAULT_GAP_MS, DEFAULT_STEP_MS, ROWS, STEP_GRID_MS, STICK_ROWS, MacroGrid,
     TooManySteps,
 )
+
+# A heading is quicker to read as an arrow than as a word, in a cell this size.
+ARROWS = {
+    "UP": "↑", "UP_RIGHT": "↗", "RIGHT": "→",
+    "DOWN_RIGHT": "↘", "DOWN": "↓", "DOWN_LEFT": "↙",
+    "LEFT": "←", "UP_LEFT": "↖",
+}
 
 SLOTS = ("M1", "M2", "M3", "M4")
 STARTING_COLUMNS = 10
@@ -197,9 +205,20 @@ class MacroEditor(QWidget):
                 cell.setCheckable(True)
                 cell.setFixedSize(72, 24)
                 cell.setCursor(Qt.PointingHandCursor)
-                cell.setChecked(key in grid.steps[column].keys)
-                cell.clicked.connect(
-                    lambda _=False, c=column, k=key: self._on_toggle(c, k))
+
+                if key in STICK_ROWS:
+                    heading = grid.direction(column, key)
+                    cell.setChecked(heading is not None)
+                    cell.setText(ARROWS.get(heading, ""))
+                    cell.setToolTip("Point the stick, or the middle to leave "
+                                    "it out of this step")
+                    cell.clicked.connect(
+                        lambda _=False, c=column, k=key: self.open_dial(c, k))
+                else:
+                    cell.setChecked(key in grid.steps[column].keys)
+                    cell.clicked.connect(
+                        lambda _=False, c=column, k=key: self._on_toggle(c, k))
+
                 self.grid.addWidget(cell, row, column + 1)
                 self.cells[(column, row - 1)] = cell
 
@@ -232,6 +251,40 @@ class MacroEditor(QWidget):
     def clear(self) -> None:
         self.current.clear()
         self.current.ensure(STARTING_COLUMNS)
+        self.rebuild()
+        self.status.setText("")
+
+    def open_dial(self, column: int, stick: str):
+        """Ask which way this stick points in this column.
+
+        A dial rather than a dropdown, because the thing being chosen is an
+        angle. Returns the popup so it can be driven in tests.
+        """
+        from PySide6.QtWidgets import QDialog, QVBoxLayout as VBox
+
+        popup = QDialog(self)
+        popup.setWindowTitle(f"{stick} direction")
+        popup.setWindowFlag(Qt.Popup, True)
+        layout = VBox(popup)
+        layout.setContentsMargins(12, 12, 12, 12)
+
+        dial = DirectionDial(self.current.direction(column, stick))
+        dial.chosen.connect(
+            lambda heading: self._on_point(column, stick, heading, popup))
+        layout.addWidget(dial)
+
+        self._dial = dial            # kept alive for the popup's lifetime
+        popup.show()
+        return popup
+
+    def _on_point(self, column: int, stick: str, heading, popup=None) -> None:
+        if heading is None:
+            self.current.ensure(column + 1)
+            self.current.steps[column].clear_stick(stick)
+        else:
+            self.current.point(column, stick, heading)
+        if popup is not None:
+            popup.close()
         self.rebuild()
         self.status.setText("")
 
