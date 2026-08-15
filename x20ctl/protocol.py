@@ -1539,6 +1539,50 @@ def build_recover(*, host: bool = False, serial: int, nonce: int | None = None) 
     return build(Op.RECOVER, RECOVER_MAGIC + bytes([2 if host else 1]), serial=serial, nonce=nonce)
 
 
+# -- idle shutdown -------------------------------------------------------
+#
+# The pad powers itself off after a period with no input. There is no command
+# for it: the value rides in the motor record, four bytes after the motor
+# levels, as a 32-bit little-endian count of the same 5 ms ticks macros use.
+# All ones means never. Found in HostActivity.Q9, which assembles
+# `[8, L1, L2, R1, R2, t0, t1, t2, t3]`, and confirmed against a live pad
+# reading `4c4c0000 c0d40100`: motors at 30%, timeout 120000 ticks = 10 minutes.
+
+SHUTDOWN_OFFSET = 4                 # into the motor record's data
+SHUTDOWN_WIDTH = 4
+SHUTDOWN_NEVER = b"\xff\xff\xff\xff"
+TICKS_PER_MINUTE = 60_000 // 5      # 12000
+MAX_SHUTDOWN_MINUTES = 30           # the app's own ceiling; past it, never
+
+
+def parse_shutdown(data: bytes) -> int | None:
+    """Minutes of idle before the pad powers off, or None for never.
+
+    `data` is the motor record after its length prefix.
+    """
+    if len(data) < SHUTDOWN_OFFSET + SHUTDOWN_WIDTH:
+        raise ValueError(
+            f"motor record of {len(data)} bytes has no shutdown field; "
+            f"it starts at byte {SHUTDOWN_OFFSET}")
+    raw = data[SHUTDOWN_OFFSET:SHUTDOWN_OFFSET + SHUTDOWN_WIDTH]
+    if raw == SHUTDOWN_NEVER:
+        return None
+    ticks = int.from_bytes(raw, "little")
+    return ticks // TICKS_PER_MINUTE
+
+
+def encode_shutdown(minutes: int | None) -> bytes:
+    """The four bytes for an idle timeout. None means never power off."""
+    if minutes is None:
+        return SHUTDOWN_NEVER
+    if not 1 <= minutes <= MAX_SHUTDOWN_MINUTES:
+        raise ValueError(
+            f"shutdown timeout is 1-{MAX_SHUTDOWN_MINUTES} minutes or never, "
+            f"got {minutes}. The pad's own editor offers no value between "
+            f"{MAX_SHUTDOWN_MINUTES} and never.")
+    return (minutes * TICKS_PER_MINUTE).to_bytes(SHUTDOWN_WIDTH, "little")
+
+
 # -- button remapping (changekey) ----------------------------------------
 #
 # The pad reports its remappable sources through HOST_MENU kind 3 as an

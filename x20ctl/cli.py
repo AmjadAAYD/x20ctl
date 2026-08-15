@@ -7,6 +7,10 @@
     x20 macro M1 --clear              empty a slot
     x20 macro --read                  read all four slots off the pad
 
+    x20 sleep                         show the idle shutdown timeout
+    x20 sleep 10                      power off after 10 idle minutes
+    x20 sleep never                   never power off
+
     x20 remap                         show current button remappings
     x20 remap A:B X:Y                 swap A/B and X/Y
     x20 remap A:T                     put T on the A button
@@ -294,6 +298,48 @@ async def _cmd_macro_read(args) -> None:
     print()
 
 
+async def cmd_sleep(args) -> None:
+    """Show or set how long the pad waits before powering itself off."""
+    address = await resolve(args.address)
+
+    if args.minutes is None:
+        async with X20(address) as pad:
+            current = await pad.shutdown_timeout()
+        print(ui.header("Idle shutdown"))
+        print(ui.field("timeout", describe_sleep(current)))
+        print(ui.label(f"\n  set it with: x20 sleep 10, or x20 sleep never\n"))
+        return
+
+    text = args.minutes.strip().lower()
+    if text in ("never", "off", "none"):
+        wanted = None
+    else:
+        try:
+            wanted = int(text)
+        except ValueError:
+            raise SystemExit(ui.bad(f"'{args.minutes}' is not a number of minutes"))
+
+    try:
+        p.encode_shutdown(wanted)
+    except ValueError as exc:
+        raise SystemExit(ui.bad(str(exc)))
+
+    async with X20(address) as pad:
+        reported = await pad.set_shutdown_timeout(wanted)
+
+    print(ui.header("Idle shutdown"))
+    print(ui.field("timeout", describe_sleep(reported)))
+    if reported != wanted:
+        print(ui.warn("\n  the pad reports something else; the write did not take"))
+    print()
+
+
+def describe_sleep(minutes: int | None) -> str:
+    if minutes is None:
+        return "never; the pad stays awake"
+    return f"{minutes} minute{'s' if minutes != 1 else ''} of no input"
+
+
 def button_name(code: int) -> str:
     try:
         return p.Key(code).name
@@ -497,6 +543,11 @@ def build_parser() -> argparse.ArgumentParser:
     mac.add_argument("--loop", type=int, default=0,
                      help="loop interval ms; 0 fires once")
     mac.set_defaults(fn=cmd_macro)
+
+    slp = sub.add_parser("sleep", help="show or set the idle shutdown timeout")
+    slp.add_argument("minutes", nargs="?",
+                     help=f"1-{p.MAX_SHUTDOWN_MINUTES}, or 'never'")
+    slp.set_defaults(fn=cmd_sleep)
 
     remap = sub.add_parser("remap", help="show or set button remappings")
     remap.add_argument("pairs", nargs="*",

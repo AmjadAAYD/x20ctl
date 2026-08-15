@@ -332,6 +332,40 @@ class X20:
         await self._send(packet, serial)
         return await self.vibration()
 
+    async def shutdown_timeout(self) -> int | None:
+        """Minutes of idle before the pad powers off, or None for never."""
+        body = await self.read_body(p.Op.HOST_MOTOR, bytes([0]))
+        if body is None:
+            raise ControllerError("could not read the motor record")
+        return p.parse_shutdown(body.data)
+
+    async def set_shutdown_timeout(self, minutes: int | None) -> int | None:
+        """Set the idle shutdown timeout, then read back what the pad holds.
+
+        The value lives in the motor record rather than in a command of its
+        own, so this reads that record and rewrites it with the motor levels
+        untouched.
+        """
+        payload_bytes = p.encode_shutdown(minutes)
+
+        body = await self.read_body(p.Op.HOST_MOTOR, bytes([0]))
+        if body is None:
+            raise ControllerError("could not read the motor record")
+        data = bytearray(body.data)
+        if len(data) < p.SHUTDOWN_OFFSET + p.SHUTDOWN_WIDTH:
+            raise NotSupported(
+                "this pad's motor record has no shutdown field")
+        data[p.SHUTDOWN_OFFSET:p.SHUTDOWN_OFFSET + p.SHUTDOWN_WIDTH] = payload_bytes
+        payload = bytes([body.declared]) + bytes(data)
+
+        serial = p.save_button_serial(slot=0, counter=self._next_save_counter())
+        packet = p.build(
+            p.Op.WRITE_MOTOR, payload, serial=serial,
+            length_field=p.host_length(len(payload), self._next_host_counter()),
+        )
+        await self._send(packet, serial)
+        return await self.shutdown_timeout()
+
     async def set_curves(self, kind: str, channels: list[p.Curve]) -> list[p.Curve]:
         """Write a whole stick or trigger record, then read it back.
 
