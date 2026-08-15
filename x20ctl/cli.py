@@ -7,6 +7,9 @@
     x20 macro M1 --clear              empty a slot
     x20 macro --read                  read all four slots off the pad
 
+    x20 calibrate                     recentre the sticks, pad lying flat
+    x20 factory-reset --yes           clear every stored setting
+
     x20 sleep                         show the idle shutdown timeout
     x20 sleep 10                      power off after 10 idle minutes
     x20 sleep never                   never power off
@@ -298,6 +301,48 @@ async def _cmd_macro_read(args) -> None:
     print()
 
 
+async def cmd_calibrate(args) -> None:
+    """Recalibrate the sticks against their resting position."""
+    print(ui.header("Stick calibration"))
+    print(ui.label("  the pad measures where the sticks sit right now and calls"))
+    print(ui.label("  that centre, so lay it flat and take your hands off it\n"))
+
+    address = await resolve(args.address)
+    async with X20(address) as pad:
+        await pad.calibrate()
+
+    print(ui.ok("  calibration sent"))
+    print(ui.label("  the pad's light flashes while it works, then stops\n"))
+
+
+async def cmd_factory_reset(args) -> None:
+    """Clear every stored setting on the pad."""
+    if not args.yes:
+        print(ui.header("Factory reset"))
+        print(ui.warn("  this clears every stored setting: macros, curves,"))
+        print(ui.warn("  remappings and the shutdown timeout"))
+        print(ui.label("\n  firmware is not touched\n"))
+        print(ui.label("  run it again with --yes if that's what you want\n"))
+        return
+
+    address = await resolve(args.address)
+    async with X20(address) as pad:
+        before = await pad.shutdown_timeout()
+        await pad.factory_reset(second_generation=not args.gen1)
+        await asyncio.sleep(1.5)
+        after = await pad.shutdown_timeout()
+
+    print(ui.header("Factory reset"))
+    print(ui.field("shutdown before", describe_sleep(before)))
+    print(ui.field("shutdown after", describe_sleep(after)))
+    if before == after:
+        print(ui.warn("\n  nothing changed, and the pad said nothing either."))
+        print(ui.label("  a wrong protocol generation fails silently; if you"))
+        print(ui.label("  passed --gen1, try again without it\n"))
+    else:
+        print(ui.ok("\n  settings were cleared\n"))
+
+
 async def cmd_sleep(args) -> None:
     """Show or set how long the pad waits before powering itself off."""
     address = await resolve(args.address)
@@ -543,6 +588,15 @@ def build_parser() -> argparse.ArgumentParser:
     mac.add_argument("--loop", type=int, default=0,
                      help="loop interval ms; 0 fires once")
     mac.set_defaults(fn=cmd_macro)
+
+    cal = sub.add_parser("calibrate", help="recalibrate the sticks")
+    cal.set_defaults(fn=cmd_calibrate)
+
+    fac = sub.add_parser("factory-reset", help="clear every stored setting")
+    fac.add_argument("--yes", action="store_true", help="actually do it")
+    fac.add_argument("--gen1", action="store_true",
+                     help="use the older protocol generation; the X20 ignores it")
+    fac.set_defaults(fn=cmd_factory_reset)
 
     slp = sub.add_parser("sleep", help="show or set the idle shutdown timeout")
     slp.add_argument("minutes", nargs="?",

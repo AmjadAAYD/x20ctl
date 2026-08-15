@@ -1532,11 +1532,31 @@ def parse_device_info(payload: bytes) -> DeviceInfo:
 
 # Factory reset, guarded by a magic payload. Restores settings only; it doesn't
 # touch firmware. This is the documented recovery path.
+#
+# The trailing byte selects a protocol generation, not a mode. The phone app
+# picks it from the device's own `is_new_2_ver` flag: 2 for newer pads, 1 for
+# the rest. Both reach the same Factory reset menu item, behind a confirmation
+# dialog, and the pad answers with a notification the app turns into "Restore
+# factory success".
 RECOVER_MAGIC = bytes([0x03, 0xDF, 0xA9])
 
 
-def build_recover(*, host: bool = False, serial: int, nonce: int | None = None) -> bytes:
-    return build(Op.RECOVER, RECOVER_MAGIC + bytes([2 if host else 1]), serial=serial, nonce=nonce)
+def build_recover(*, second_generation: bool = False, serial: int,
+                  nonce: int | None = None) -> bytes:
+    return build(Op.RECOVER, RECOVER_MAGIC + bytes([2 if second_generation else 1]),
+                 serial=serial, nonce=nonce)
+
+
+# Sensor calibration. One command, no parameters: the pad measures its own
+# resting position, so it has to be lying flat and still when this arrives.
+# The app's dialog ("lay the handle flat") is instruction to the user, not
+# anything it sends. Same SET_MODE opcode the mode switches use, distinguished
+# only by its payload.
+CALIBRATE_PAYLOAD = bytes([0x03, 0xDF, 0xAB, 0x10])
+
+
+def build_calibrate(*, serial: int, nonce: int | None = None) -> bytes:
+    return build(Op.SET_MODE, CALIBRATE_PAYLOAD, serial=serial, nonce=nonce)
 
 
 # -- idle shutdown -------------------------------------------------------

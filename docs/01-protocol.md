@@ -498,6 +498,21 @@ Opcode `0xB5` also has both a one-byte and a two-byte form in the app
 (`getHostToobleData(i)` on `0xB4` versus `getHostToobleData(i, i2)` on `0xB5`),
 so its earlier silence has the same explanation.
 
+**Sensor calibration is `SET_MODE` with payload `03 DF AB 10`.** One command,
+no parameters: the pad measures where its sticks are resting and calls that
+centre, so it must be lying flat and untouched. The app's "lay the handle flat"
+dialog is instruction to the user, not something it transmits. Note how close
+this sits to `05 DF AB 00 02 0E` on the same opcode, which is the enter
+firmware update command; the payload is the only thing telling them apart.
+
+**Factory reset is `RECOVER`, and the trailing byte is a protocol generation,
+not a mode.** `03 DF A9 01` for older pads, `03 DF A9 02` for newer, chosen in
+the app from its `is_new_2_ver` flag. An X20 on 9.01 wants `02`, and **ignores
+`01` in silence**: no error, no reply, nothing cleared. A reset that seems to do
+nothing is the wrong generation rather than a failure. Verified by setting the
+idle timeout to never, resetting, and watching it return to the ten-minute
+default while macros and remappings emptied.
+
 **The idle shutdown timeout has no command of its own.** It rides in the motor
 record, four bytes after the motor levels, as a 32-bit little-endian count of
 the same 5 ms ticks macros use. All ones means never power off. The record is

@@ -95,8 +95,24 @@ def test_recover_carries_the_magic_guard():
     assert pkt.payload == p.RECOVER_MAGIC + b"\x01"
     assert pkt.crc_valid
 
-    host = p.parse(p.build_recover(host=True, serial=1, nonce=0))
+    host = p.parse(p.build_recover(second_generation=True, serial=1, nonce=0))
     assert host.payload == p.RECOVER_MAGIC + b"\x02"
+
+
+def test_calibration_is_set_mode_with_its_own_payload():
+    """Calibration shares SET_MODE with the mode switches and is told apart
+    only by payload, so the payload is the whole command."""
+    pkt = p.parse(p.build_calibrate(serial=1, nonce=0))
+    assert pkt.opcode == p.Op.SET_MODE
+    assert pkt.payload == bytes([0x03, 0xDF, 0xAB, 0x10])
+
+
+def test_calibration_is_not_the_firmware_update_payload():
+    """05 DF AB 00 02 0E on the same opcode drops the pad into firmware
+    update mode. Calibration must never be confused with it."""
+    pkt = p.parse(p.build_calibrate(serial=1, nonce=0))
+    assert pkt.payload != bytes([0x05, 0xDF, 0xAB, 0x00, 0x02, 0x0E])
+    assert pkt.payload[0] == 3, "a 3-byte body, not the 5-byte mode selector"
 
 
 # --- captured from real hardware -------------------------------------------
