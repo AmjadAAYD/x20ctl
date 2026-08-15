@@ -57,18 +57,39 @@ class NotSupported(ControllerError):
     """The pad's capability descriptor says it doesn't expose this setting."""
 
 
-async def find_controller(timeout: float = 8.0) -> str | None:
-    """Scan for a controller's configuration peripheral and return its address.
+@dataclass(frozen=True)
+class Found:
+    """A controller seen while scanning."""
+
+    address: str
+    name: str = ""
+
+    @property
+    def label(self) -> str:
+        return self.name or "Controller"
+
+
+def is_controller(name: str, address: str) -> bool:
+    """Whether an advertisement belongs to a pad we can configure.
 
     Matches on the advertised name or the vendor MAC range, never on USB
     VID/PID, which the pad clones from Microsoft.
+    """
+    return (ADVERTISED_NAME.lower() in (name or "").lower()
+            or (address or "").upper().startswith(VENDOR_MAC_PREFIX))
+
+
+async def find_controllers(timeout: float = 8.0) -> list[Found]:
+    """Every controller advertising right now, in the order first seen.
+
+    Four pads can share a desk, so discovery returns all of them rather than
+    whichever answered first.
     """
     found: dict[str, str] = {}
 
     def seen(device, adv) -> None:
         name = adv.local_name or device.name or ""
-        if ADVERTISED_NAME.lower() in name.lower() or \
-                device.address.upper().startswith(VENDOR_MAC_PREFIX):
+        if is_controller(name, device.address):
             found.setdefault(device.address, name)
 
     scanner = BleakScanner(detection_callback=seen)
@@ -77,7 +98,13 @@ async def find_controller(timeout: float = 8.0) -> str | None:
         await asyncio.sleep(timeout)
     finally:
         await scanner.stop()
-    return next(iter(found), None)
+    return [Found(address=address, name=name) for address, name in found.items()]
+
+
+async def find_controller(timeout: float = 8.0) -> str | None:
+    """The address of the first controller found, or None."""
+    controllers = await find_controllers(timeout)
+    return controllers[0].address if controllers else None
 
 
 @dataclass
