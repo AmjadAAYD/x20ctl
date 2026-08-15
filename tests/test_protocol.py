@@ -514,6 +514,46 @@ def test_macro_writes_rejects_empty_payload():
     raise AssertionError("empty payload must be rejected; use MACRO_CLEAR")
 
 
+def test_shutdown_timeout_decodes_a_real_motor_record():
+    """Bytes read off a live X20: motors at 30%, then the timeout. The pad's
+    editor showed 10 minutes at the time."""
+    record = bytes.fromhex("4c4c0000c0d40100")
+    assert p.parse_shutdown(record) == 10
+
+
+def test_shutdown_timeout_round_trips():
+    for minutes in (1, 5, 10, 30):
+        record = bytes(4) + p.encode_shutdown(minutes)
+        assert p.parse_shutdown(record) == minutes
+
+
+def test_never_is_all_ones_not_zero():
+    """Zero would be a timeout of nothing at all, which would put the pad to
+    sleep instantly. The pad spells never as every bit set."""
+    assert p.encode_shutdown(None) == b"\xff\xff\xff\xff"
+    assert p.parse_shutdown(bytes(4) + b"\xff\xff\xff\xff") is None
+    assert p.parse_shutdown(bytes(8)) == 0
+
+
+def test_shutdown_timeout_refuses_values_the_pad_has_no_gear_for():
+    for bad in (0, 31, -1, 43200):
+        try:
+            p.encode_shutdown(bad)
+        except ValueError as exc:
+            assert "never" in str(exc)
+        else:
+            raise AssertionError(f"{bad} minutes should have been rejected")
+
+
+def test_a_motor_record_without_the_field_is_rejected():
+    try:
+        p.parse_shutdown(bytes(4))
+    except ValueError as exc:
+        assert "no shutdown field" in str(exc)
+        return
+    raise AssertionError("a short record cannot carry a timeout")
+
+
 def test_changekey_encodes_unchanged_sources_as_zero():
     sources = [1, 2, 3, 4]
     payload = p.build_changekey_payload(sources, [2, 2, 3, 4])

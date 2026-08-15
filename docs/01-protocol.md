@@ -498,6 +498,21 @@ Opcode `0xB5` also has both a one-byte and a two-byte form in the app
 (`getHostToobleData(i)` on `0xB4` versus `getHostToobleData(i, i2)` on `0xB5`),
 so its earlier silence has the same explanation.
 
+**The idle shutdown timeout has no command of its own.** It rides in the motor
+record, four bytes after the motor levels, as a 32-bit little-endian count of
+the same 5 ms ticks macros use. All ones means never power off. The record is
+`[declared, L1, L2, R1, R2, t0, t1, t2, t3]` with `declared` = 8, which matches
+`HostActivity.Q9` in the phone app assembling exactly that array. A live X20
+read back `4c4c0000 c0d40100`: motors at 0x4C of 255, or 30%, and 0x0001D4C0 =
+120000 ticks = 600 seconds = ten minutes, which is what the app displayed at the
+time.
+
+This is why hunting for a shutdown opcode found nothing across three separate
+attempts, including a full BLE capture of the app changing the setting. There
+was never a packet to find. It also means anything that writes the motor record
+without preserving bytes 4 to 7 silently rewrites the user's sleep setting, and
+zero there is not "no timeout" but "sleep immediately".
+
 **Macros can be read back, through `HOST_MACRO` and not through `READ_MACRO`.**
 `READ_MACRO` (`0xA7`) answers with zeros or nothing at all, which read like a
 pad that simply does not support reading. `HOST_MACRO` (`0xB5`) queried as
