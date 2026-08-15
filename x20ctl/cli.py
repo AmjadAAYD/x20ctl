@@ -5,6 +5,7 @@
     x20 vibration 60                  set motor strength
     x20 macro M1 "A+B"                write a macro
     x20 macro M1 --clear              empty a slot
+    x20 macro --read                  read all four slots off the pad
 
     x20 curve                         show stick and trigger response
     x20 curve sticks --inner 5        set the inner deadzone
@@ -245,6 +246,12 @@ async def cmd_curve(args) -> None:
 
 
 async def cmd_macro(args) -> None:
+    if args.read:
+        await _cmd_macro_read(args)
+        return
+    if not args.slot:
+        raise SystemExit(ui.bad(f"which slot? one of {', '.join(SLOTS)}"))
+
     slot_name = args.slot.upper()
     if slot_name not in SLOTS:
         raise SystemExit(ui.bad(f"slot must be one of {', '.join(SLOTS)}"))
@@ -268,6 +275,19 @@ async def cmd_macro(args) -> None:
         print(ui.warn("\n  this macro loops and will repeat until interrupted"))
         print(ui.label("  press another macro button to stop it"))
     print(ui.label(f"\n  press {slot_name} to test\n"))
+
+
+async def _cmd_macro_read(args) -> None:
+    """Read every macro slot off the pad and print it in editor syntax."""
+    address = await resolve(args.address)
+    async with X20(address) as pad:
+        macros = await pad.macros()
+
+    print(ui.header("Macros on the controller"))
+    for slot in SLOTS:
+        program = macros.get(SLOTS.index(slot) + 1)
+        print(ui.slot_line(slot, program.as_sequence() if program else None))
+    print()
 
 
 # -- profiles -------------------------------------------------------------
@@ -396,10 +416,12 @@ def build_parser() -> argparse.ArgumentParser:
     crv.set_defaults(fn=cmd_curve)
 
     mac = sub.add_parser("macro", help="write a macro to a slot")
-    mac.add_argument("slot", help="M1, M2, M3 or M4")
+    mac.add_argument("slot", nargs="?", help="M1, M2, M3 or M4")
     mac.add_argument("keys", nargs="?", default="",
                      help="',' separates steps, '+' joins keys: \"A,B\" or \"A+B\"")
     mac.add_argument("--clear", action="store_true")
+    mac.add_argument("--read", action="store_true",
+                     help="read every slot back off the pad")
     mac.add_argument("--hold", type=int, default=100)
     mac.add_argument("--gap", type=int, default=60)
     mac.add_argument("--loop", type=int, default=0,
