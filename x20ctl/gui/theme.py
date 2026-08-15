@@ -264,6 +264,11 @@ QLabel#RowTitle {{ font-size: 15px; color: {TEXT}; }}
 QLabel#RowDetail {{ font-size: 12px; color: {TEXT_FAINT}; }}
 QLabel#RowState {{ font-size: 12px; color: {SAGE}; }}
 QLabel#RowStateIdle {{ font-size: 12px; color: {TEXT_FAINT}; }}
+QLabel#RowStateOff {{ font-size: 12px; color: {ROSE}; }}
+
+QLabel#PresenceDot {{ border-radius: 5px; background: {TEXT_FAINT}; }}
+QLabel#PresenceDot[state="on"] {{ background: {SAGE}; }}
+QLabel#PresenceDot[state="off"] {{ background: {ROSE}; }}
 QLabel#VersionLink {{ font-size: 12px; }}
 
 /* -- workspace sidebar ------------------------------------------------ */
