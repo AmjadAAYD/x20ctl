@@ -622,6 +622,11 @@ def _hermite(xs: list[float], ys: list[float], slopes: list[float], x: float) ->
 
 MACRO_CHUNK_SIZE = 15
 
+# save_button_serial formats the chunk index as `{slot:04b}`, four bits, so only
+# sixteen chunks can be addressed. Past that the serial no longer fits a byte.
+MAX_MACRO_CHUNKS = 16
+MAX_MACRO_PAYLOAD = MAX_MACRO_CHUNKS * MACRO_CHUNK_SIZE     # 240
+
 
 def build_macro_writes(
     payload: bytes,
@@ -641,6 +646,15 @@ def build_macro_writes(
     """
     if not payload:
         raise ValueError("empty payload; use MACRO_CLEAR to empty a slot")
+
+    chunks = -(-len(payload) // MACRO_CHUNK_SIZE)
+    if chunks > MAX_MACRO_CHUNKS:
+        raise ValueError(
+            f"this payload is {len(payload)} bytes and needs {chunks} chunks, "
+            f"but the chunk index is four bits wide so only {MAX_MACRO_CHUNKS} "
+            f"can be addressed. That is {MAX_MACRO_PAYLOAD} bytes, or "
+            f"{MAX_MACRO_ENTRIES} entries. Past it the serial overflows a byte "
+            "and bytes() raises from inside the header builder.")
 
     packets = []
     counter = start_counter
@@ -1037,10 +1051,18 @@ def describe_mask(mask: int, layout: MaskLayout | None = None) -> list[str]:
 
 MACRO_STEP_SIZE = 5
 
-# The header states the record's length in byte 0 as (entries * 5) + 2, so the
-# record cannot describe more entries than fit in a byte. A press and its
-# release are separate entries, which halves it in practice.
-MAX_MACRO_ENTRIES = (255 - 2) // MACRO_STEP_SIZE        # 50
+# Two ceilings apply and the tighter one binds.
+#
+# The header states the record's length in byte 0 as (entries * 5) + 2, so on
+# that alone a record could describe 50 entries. But the payload also has to be
+# addressable by a four-bit chunk index, which caps it at MAX_MACRO_PAYLOAD.
+# That gives 47, and it is the one that binds. Found the hard way: a 48-entry
+# macro raised "bytes must be in range(0, 256)" from inside the header builder,
+# which is exactly the unhelpful failure the 50-entry check existed to prevent.
+#
+# A press and its release are separate entries, which halves it again in
+# practice.
+MAX_MACRO_ENTRIES = (MAX_MACRO_PAYLOAD - 3) // MACRO_STEP_SIZE      # 47
 
 
 @dataclass
@@ -1121,16 +1143,17 @@ def build_macro_payload(
     if not 0 <= ticks < 1 << 12:
         raise ValueError("loop interval out of range for 12 bits")
 
-    # Byte 0 states the record's own length, so the whole macro has to fit in
-    # one byte. Checked here because the alternative is bytes() raising "bytes
-    # must be in range(0, 256)" from inside the header builder, which says
-    # nothing about macros being too long.
+    # Checked here because the alternative is bytes() raising "bytes must be in
+    # range(0, 256)" from inside the header builder, which says nothing about
+    # macros being too long.
     if len(steps) > MAX_MACRO_ENTRIES:
         raise ValueError(
             f"a macro holds at most {MAX_MACRO_ENTRIES} entries and this has "
             f"{len(steps)}. That is the hardware's ceiling, not this library's: "
-            "the record declares its length in a single byte. A press and its "
-            f"release are two entries, so roughly {MAX_MACRO_ENTRIES // 2} steps.")
+            "the payload is split into 15-byte chunks and the chunk index is "
+            f"only four bits, so {MAX_MACRO_PAYLOAD} bytes is all that can be "
+            "addressed. A press and its release are two entries, so roughly "
+            f"{MAX_MACRO_ENTRIES // 2} steps.")
 
     header = bytes([
         (len(steps) * MACRO_STEP_SIZE) + 2,
