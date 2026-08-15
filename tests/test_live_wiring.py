@@ -112,6 +112,28 @@ def test_polling_survives_having_no_pad():
     work.poll_inputs()          # must not raise
 
 
+def test_no_gamepad_says_which_connection_is_missing():
+    """A pad on the settings link and not on XInput is a normal state, and
+    an empty tab looks identical to a broken one."""
+    work = workspace_with(None)
+    work.show_section("test")
+    work.poll_inputs()
+    hint = work.pages["test"].hint.text()
+    assert "gamepad" in hint and "settings link is separate" in hint
+
+
+def test_the_hint_clears_once_a_pad_appears():
+    work = workspace_with(None)
+    work.show_section("test")
+    work.poll_inputs()
+    assert work.pages["test"].hint.text()
+
+    work.reader.state = FakeState(buttons=[p.Key.A])
+    work.poll_inputs()
+    assert work.pages["test"].hint.text() == ""
+    assert work.pages["test"].lit() == {int(p.Key.A)}
+
+
 def test_the_poll_timer_is_running_from_the_start():
     work = workspace_with(None)
     assert work.poll_timer.isActive()

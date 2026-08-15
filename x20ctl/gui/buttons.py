@@ -10,8 +10,8 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
-    QComboBox, QGridLayout, QLabel, QPushButton, QScrollArea, QVBoxLayout,
-    QWidget,
+    QComboBox, QGridLayout, QHBoxLayout, QLabel, QPushButton, QScrollArea,
+    QVBoxLayout, QWidget,
 )
 
 from .. import protocol as p
@@ -47,7 +47,8 @@ class ButtonsPage(QWidget):
     """One row per remappable button, each with what it should do instead."""
 
     # object, not dict: Qt cannot marshal a Python dict through a typed signal
-    changed = Signal(object)        # {source: target}, only real changes
+    changed = Signal(object)        # {source: target}, as it is edited
+    save_requested = Signal(object)  # the same, when Save is pressed
 
     def __init__(self) -> None:
         super().__init__()
@@ -82,11 +83,24 @@ class ButtonsPage(QWidget):
         area.setWidget(holder)
         root.addWidget(area, 1)
 
+        footer = QHBoxLayout()
+        footer.setSpacing(10)
         self.reset_button = QPushButton("Clear all remapping")
         self.reset_button.setObjectName("Ghost")
         self.reset_button.setCursor(Qt.PointingHandCursor)
         self.reset_button.clicked.connect(self.clear)
-        root.addWidget(self.reset_button, 0, Qt.AlignLeft)
+        footer.addWidget(self.reset_button)
+        footer.addStretch(1)
+
+        self.status = QLabel()
+        self.status.setObjectName("RowDetail")
+        footer.addWidget(self.status)
+
+        self.save_button = QPushButton("Save to controller")
+        self.save_button.setCursor(Qt.PointingHandCursor)
+        self.save_button.clicked.connect(self.save)
+        footer.addWidget(self.save_button)
+        root.addLayout(footer)
 
     def load(self, sources, mapping: dict | None = None) -> None:
         """Draw a row per source the pad reports, showing its current target."""
@@ -134,5 +148,12 @@ class ButtonsPage(QWidget):
             box.blockSignals(False)
         self._emit()
 
+    def save(self) -> None:
+        """Send what is on screen. Nothing reaches the pad before this."""
+        mapping = self.mapping()
+        self.status.setText("Saving..." if mapping else "Clearing...")
+        self.save_requested.emit(mapping)
+
     def _emit(self) -> None:
+        self.status.setText("Not saved yet")
         self.changed.emit(self.mapping())

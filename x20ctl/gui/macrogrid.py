@@ -14,6 +14,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from .. import protocol as p
+from ..protocol import describe_mask
 
 # The rows, top to bottom. Sticks first because a recorded movement usually
 # starts with one, then the buttons in the order they sit on the pad.
@@ -200,21 +201,17 @@ class MacroGrid:
         return sum(step.duration_ms for step in self.steps)
 
 
-def grid_from_recorded(recorded) -> MacroGrid:
-    """Turn what the recorder wrote down into a drawable grid.
+def grid_from_recorded(spec) -> MacroGrid:
+    """Turn what the recorder produced into a drawable grid.
 
-    The recorder speaks in Key and StickInput objects; the grid speaks in row
-    names. Same eight headings on both sides, so nothing is lost crossing over.
+    The recorder hands back a MacroSpec rather than raw steps, and a spec knows
+    how to render itself as MacroSteps: mask and duration, which is exactly
+    what a column is. So the same conversion serves a recording and a macro
+    read off the pad.
     """
-    grid = MacroGrid()
-    for step in recorded:
-        keys = set()
-        for item in getattr(step, "keys", ()):
-            stick = getattr(item, "stick", None)
-            if stick is not None:
-                row = "LS" if stick == p.Key.LSTICK_ANALOG else "RS"
-                keys.add(stick_token(row, item.direction.name))
-            else:
-                keys.add(item.name)
-        grid.steps.append(Step(keys=keys, duration_ms=step.duration_ms))
+    loop_ms = getattr(spec, "loop_ms", 0) or 0
+    grid = MacroGrid(loop_ms=loop_ms)
+    for step in spec.steps():
+        grid.steps.append(Step(keys=set(describe_mask(step.mask)),
+                               duration_ms=step.duration_ms))
     return grid

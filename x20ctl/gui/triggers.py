@@ -182,6 +182,7 @@ class TriggersPage(QWidget):
 
     zone_chosen = Signal(str, str)
     shape_chosen = Signal(str, str)
+    save_requested = Signal()
 
     def __init__(self) -> None:
         super().__init__()
@@ -213,6 +214,26 @@ class TriggersPage(QWidget):
             columns.addWidget(column, 1)
         root.addLayout(columns)
         root.addStretch(1)
+
+        footer = QHBoxLayout()
+        footer.setSpacing(10)
+        footer.addStretch(1)
+        self.status = QLabel()
+        self.status.setObjectName("RowDetail")
+        footer.addWidget(self.status)
+
+        self.save_button = QPushButton("Save to controller")
+        self.save_button.setCursor(Qt.PointingHandCursor)
+        self.save_button.clicked.connect(self._save)
+        footer.addWidget(self.save_button)
+        root.addLayout(footer)
+
+        self.zone_chosen.connect(lambda *_: self.status.setText("Not saved yet"))
+        self.shape_chosen.connect(lambda *_: self.status.setText("Not saved yet"))
+
+    def _save(self) -> None:
+        self.status.setText("Saving...")
+        self.save_requested.emit()
 
     def load(self, curves) -> None:
         """Take the pad's two trigger channels, left first."""
