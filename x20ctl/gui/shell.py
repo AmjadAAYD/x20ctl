@@ -15,7 +15,8 @@ import os
 
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import (
-    QHBoxLayout, QLabel, QPushButton, QStackedWidget, QVBoxLayout, QWidget,
+    QHBoxLayout, QLabel, QMessageBox, QPushButton, QStackedWidget, QVBoxLayout,
+    QWidget,
 )
 
 from ..input import MacroRecorder, XInputReader
@@ -28,6 +29,7 @@ from .keytest import KeyTestPage
 from .macros import MacroEditor
 from .nav import NavRail
 from .panels import Page, PowerPage, VibrationPage
+from .presence import PresenceWatcher, ask_about_lost
 from .roster import AlreadyAdded, PlayerTaken, Roster, RosterFull
 from .start import StartPage
 from .triggers import TriggersPage
@@ -463,7 +465,27 @@ class AppShell(QWidget):
         self.pages.addWidget(self.workspace)
 
         root.addWidget(self.pages)
+
+        self.watcher = PresenceWatcher(self.roster, scan=scan, bridge=bridge)
+        self.watcher.changed.connect(self.refresh)
+        self.watcher.lost.connect(self.controller_lost)
+        self.watcher.start()
+
         self.refresh()
+
+    def controller_lost(self, slot) -> None:
+        """A controller stopped answering. Ask, rather than guessing."""
+        box = ask_about_lost(slot, self)
+
+        def answered(button) -> None:
+            if box.buttonRole(button) == QMessageBox.DestructiveRole:
+                self.remove_controller(slot.player)
+            else:
+                self.watcher.watch_again(slot)
+
+        box.buttonClicked.connect(answered)
+        box.show()
+        return box
 
     # -- roster ----------------------------------------------------------
 
@@ -502,6 +524,10 @@ class AppShell(QWidget):
             self.workspace.attach(link)
 
     def remove_controller(self, player: int) -> None:
+        slot = self.roster.slots.get(player)
+        if slot is not None:
+            self.watcher.forget(slot)
+        self.links.pop(player, None)
         self.roster.remove(player)
         if not self.roster:
             self.show_roster()

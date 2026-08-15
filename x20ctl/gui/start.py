@@ -35,6 +35,14 @@ class ControllerRow(QFrame):
         layout.setContentsMargins(18, 14, 14, 14)
         layout.setSpacing(14)
 
+        self.dot = QLabel()
+        self.dot.setObjectName("PresenceDot")
+        self.dot.setProperty("state", "on" if slot.connected else "off")
+        self.dot.setFixedSize(10, 10)
+        self.dot.setToolTip("Connected" if slot.connected
+                            else "Not answering: switched off or out of range")
+        layout.addWidget(self.dot)
+
         badge = QLabel(f"P{slot.player}")
         badge.setObjectName("PlayerBadge")
         badge.setAlignment(Qt.AlignCenter)
@@ -51,8 +59,8 @@ class ControllerRow(QFrame):
         stack.addWidget(detail)
         layout.addLayout(stack, 1)
 
-        state = QLabel("connected" if slot.connected else "added")
-        state.setObjectName("RowState" if slot.connected else "RowStateIdle")
+        state = QLabel("connected" if slot.connected else "not answering")
+        state.setObjectName("RowState" if slot.connected else "RowStateOff")
         layout.addWidget(state)
 
         drop = QPushButton("Remove")
