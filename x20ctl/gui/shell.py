@@ -196,8 +196,41 @@ class Workspace(QWidget):
 
     # -- the live controller ---------------------------------------------
 
+    def _wiring(self, link):
+        """Every connection between this workspace and one link."""
+        return (
+            (link.loaded, self.populate),
+            (link.written, self.say),
+            (link.failed, self.say),
+            (self.pages["motor"].save_requested, link.set_vibration),
+            (self.pages["timeout"].save_requested, link.set_shutdown),
+            (self.pages["buttons"].changed, link.set_remapping),
+            (self.pages["device"].calibrate_requested, link.calibrate),
+            (self.header.factory_reset, link.factory_reset),
+        )
+
+    def detach(self) -> None:
+        """Let go of the current controller, so it cannot be written to by a
+        page belonging to a different one."""
+        if self.link is None:
+            return
+        for signal, slot in self._wiring(self.link):
+            try:
+                signal.disconnect(slot)
+            except (RuntimeError, TypeError):
+                pass
+        try:
+            self.pages["macros"].apply_requested.disconnect(self._write_macro)
+        except (RuntimeError, TypeError):
+            pass
+        self.link = None
+
     def attach(self, link) -> None:
         """Point the pages at one controller and read what it holds."""
+        if link is self.link:
+            link.load()
+            return
+        self.detach()
         self.link = link
         link.loaded.connect(self.populate)
         link.written.connect(self.say)
@@ -235,13 +268,36 @@ class Workspace(QWidget):
         self.link.write_macro(number, grid.to_steps(), loop_ms=grid.loop_ms)
 
 
+def build_app_window():
+    """The real thing: a shell with a radio, a rumbler and a title.
+
+    Kept here rather than in the launcher so the wiring lives next to what it
+    wires, and so a test can build the same object.
+    """
+    from ..client import X20, find_controllers
+    from .bridge import AsyncBridge
+    from .rumble import Rumbler
+
+    shell = AppShell(scan=find_controllers, bridge=AsyncBridge(),
+                     open_pad=X20, rumbler=Rumbler())
+    shell.setWindowTitle("x20ctl")
+    shell.resize(1280, 820)
+    shell.setMinimumSize(1040, 680)
+    return shell
+
+
 class AppShell(QWidget):
     """Roster and workspace, and the moving between them."""
 
-    def __init__(self, *, scan=None, roster: Roster | None = None) -> None:
+    def __init__(self, *, scan=None, roster: Roster | None = None,
+                 bridge=None, open_pad=None, rumbler=None) -> None:
         super().__init__()
         self.roster = roster if roster is not None else Roster()
         self._scan = scan
+        self._bridge = bridge
+        self._open_pad = open_pad
+        self._rumbler = rumbler
+        self.links: dict[int, object] = {}
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -253,7 +309,7 @@ class AppShell(QWidget):
         self.start.removed.connect(self.remove_controller)
         self.pages.addWidget(self.start)
 
-        self.workspace = Workspace()
+        self.workspace = Workspace(rumbler)
         self.workspace.back.connect(self.show_roster)
         self.workspace.switch_player.connect(self.open_controller)
         self.pages.addWidget(self.workspace)
@@ -277,6 +333,25 @@ class AppShell(QWidget):
             return
         self.workspace.show_slot(slot, self.roster)
         self.pages.setCurrentIndex(WORKSPACE_PAGE)
+        self.connect_controller(slot)
+
+    def connect_controller(self, slot) -> None:
+        """Attach a live link for this controller, reusing one if it exists.
+
+        Without a way to open a pad this does nothing, which is how the whole
+        shell stays drivable with no radio.
+        """
+        if self._open_pad is None or self._bridge is None:
+            return
+        link = self.links.get(slot.player)
+        if link is None:
+            from .link import ControllerLink
+            link = ControllerLink(slot.address, bridge=self._bridge,
+                                  open_pad=self._open_pad)
+            self.links[slot.player] = link
+            self.workspace.attach(link)
+        else:
+            self.workspace.attach(link)
 
     def remove_controller(self, player: int) -> None:
         self.roster.remove(player)
@@ -317,6 +392,15 @@ class AppShell(QWidget):
             sheet.failed("Scanning is unavailable in this build.")
             return
         sheet.scanning()
+
+        if self._bridge is not None:
+            # A real scan takes seconds. Off the GUI thread, or the window
+            # freezes and Windows offers to close it.
+            self._bridge.run(self._scan,
+                             on_done=sheet.show_results,
+                             on_error=sheet.failed)
+            return
+
         try:
             sheet.show_results(self._scan())
         except Exception as exc:                    # noqa: BLE001 - shown to user

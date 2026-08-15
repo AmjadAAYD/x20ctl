@@ -82,7 +82,7 @@ def main() -> int:
     from PySide6.QtWidgets import QApplication
 
     from . import theme
-    from .window import MainWindow
+    from .shell import build_app_window
 
     app = QApplication(sys.argv)
     app.setApplicationName("x20ctl")
@@ -108,7 +108,7 @@ def main() -> int:
     if not icon.isNull():
         app.setWindowIcon(icon)
 
-    window = MainWindow()
+    window = build_app_window()
     # Also set it on the window. The application icon alone isn't always what
     # the taskbar picks up.
     if not icon.isNull():
