@@ -212,4 +212,57 @@ QToolTip {{
 }}
 
 QMessageBox, QInputDialog {{ background: {SURFACE}; }}
+
+/* -- start screen ---------------------------------------------------- */
+
+QLabel#PageTitle {{ font-size: 25px; font-weight: 600; color: {TEXT}; }}
+QLabel#PageSubtitle {{ font-size: 13px; color: {TEXT_FAINT}; }}
+
+QFrame#EmptyPanel {{
+    background: {SURFACE};
+    border: 1px dashed {LINE_HI};
+    border-radius: {RADIUS};
+}}
+QLabel#EmptyHeadline {{ font-size: 17px; color: {TEXT_MUTED}; }}
+QLabel#EmptyHint {{ font-size: 13px; color: {TEXT_FAINT}; }}
+
+QPushButton#AddTile {{
+    background: {SURFACE};
+    border: 1px solid {LINE_HI};
+    border-radius: {RADIUS};
+    color: {EMBER};
+    font-size: 24px;
+    font-weight: 600;
+}}
+QPushButton#AddTile:hover {{
+    background: {EMBER_GLOW};
+    border-color: {EMBER};
+}}
+QPushButton#AddTile:disabled {{
+    color: {TEXT_FAINT};
+    border-color: {LINE};
+    font-size: 13px;
+    font-weight: 400;
+}}
+
+QFrame#ControllerRow {{
+    background: {SURFACE};
+    border: 1px solid {LINE};
+    border-radius: {RADIUS};
+}}
+QFrame#ControllerRow:hover {{ border-color: {EMBER_DEEP}; background: {SURFACE_HI}; }}
+
+QLabel#PlayerBadge {{
+    background: {EMBER_GLOW};
+    border: 1px solid {EMBER_DEEP};
+    border-radius: {RADIUS_SM};
+    color: {EMBER};
+    font-size: 15px;
+    font-weight: 600;
+}}
+QLabel#RowTitle {{ font-size: 15px; color: {TEXT}; }}
+QLabel#RowDetail {{ font-size: 12px; color: {TEXT_FAINT}; }}
+QLabel#RowState {{ font-size: 12px; color: {SAGE}; }}
+QLabel#RowStateIdle {{ font-size: 12px; color: {TEXT_FAINT}; }}
+QLabel#VersionLink {{ font-size: 12px; }}
 """
