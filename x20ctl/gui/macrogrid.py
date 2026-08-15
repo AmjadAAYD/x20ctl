@@ -28,7 +28,28 @@ ROWS = (
     ("SELECT", "Select"), ("START", "Start"),
 )
 
-BUTTON_ROWS = tuple(key for key, _ in ROWS if key not in ("LS", "RS"))
+STICK_ROWS = ("LS", "RS")
+BUTTON_ROWS = tuple(key for key, _ in ROWS if key not in STICK_ROWS)
+
+# The eight headings a macro step can hold for a stick. The format stores a
+# direction, not a position, so a stick in a macro points one of eight ways or
+# is not in that step at all.
+DIRECTIONS = ("UP", "UP_RIGHT", "RIGHT", "DOWN_RIGHT",
+              "DOWN", "DOWN_LEFT", "LEFT", "UP_LEFT")
+DEFAULT_DIRECTION = "UP"
+
+
+def stick_token(stick: str, direction: str) -> str:
+    """The name the protocol knows a stick heading by, e.g. 'LS_DOWN_LEFT'."""
+    return f"{stick}_{direction}"
+
+
+def split_token(token: str):
+    """('LS', 'UP') for a stick token, or None for a button."""
+    for stick in STICK_ROWS:
+        if token.startswith(f"{stick}_"):
+            return stick, token[len(stick) + 1:]
+    return None
 DEFAULT_STEP_MS = 100
 DEFAULT_GAP_MS = 60
 STEP_GRID_MS = 5            # the controller's own resolution
@@ -50,10 +71,43 @@ class Step:
         return not self.keys
 
     def toggle(self, key: str) -> None:
+        """Add or remove one input.
+
+        A bare stick name means that stick pointing its default way: the
+        format has no such thing as "the stick is involved but points
+        nowhere", so a row cannot be half on.
+        """
+        if key in STICK_ROWS:
+            existing = self.direction(key)
+            if existing is not None:
+                self.clear_stick(key)
+            else:
+                self.set_direction(key, DEFAULT_DIRECTION)
+            return
         if key in self.keys:
             self.keys.discard(key)
         else:
             self.keys.add(key)
+
+    def direction(self, stick: str) -> str | None:
+        """Which way this stick points in this step, if it is in it at all."""
+        for token in self.keys:
+            parts = split_token(token)
+            if parts and parts[0] == stick:
+                return parts[1]
+        return None
+
+    def set_direction(self, stick: str, direction: str) -> None:
+        """Point a stick one of the eight ways, replacing any earlier heading."""
+        if direction not in DIRECTIONS:
+            raise ValueError(
+                f"{direction} is not one of the eight headings a step can hold")
+        self.clear_stick(stick)
+        self.keys.add(stick_token(stick, direction))
+
+    def clear_stick(self, stick: str) -> None:
+        for token in {t for t in self.keys if (split_token(t) or ("",))[0] == stick}:
+            self.keys.discard(token)
 
 
 @dataclass
@@ -83,6 +137,16 @@ class MacroGrid:
     def toggle(self, column: int, key: str) -> None:
         self.ensure(column + 1)
         self.steps[column].toggle(key)
+
+    def point(self, column: int, stick: str, direction: str) -> None:
+        """Aim a stick in one column, which is what a direction dial does."""
+        self.ensure(column + 1)
+        self.steps[column].set_direction(stick, direction)
+
+    def direction(self, column: int, stick: str) -> str | None:
+        if column >= len(self.steps):
+            return None
+        return self.steps[column].direction(stick)
 
     def set_duration(self, column: int, milliseconds: int) -> int:
         """Set a column's length, snapped to the controller's 5 ms grid."""
