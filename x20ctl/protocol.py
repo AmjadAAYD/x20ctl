@@ -1619,6 +1619,17 @@ CHANGEKEY_CHUNK_SIZE = 15
 # HOST_MENU kind 3.
 CHANGEKEY_DEFAULT_SOURCES = (1, 2, 3, 4, 5, 6, 7, 8, 13, 14, 15, 16, 11, 12, 93, 94)
 
+# Select and Start are listed as sources and are not honoured as sources.
+#
+# The pad reports 93 and 94 in CHANGEKEY_SUPPORT, accepts a write naming either
+# as a source, stores it, and reads it back as though it had taken. It then
+# ignores it: with SELECT -> A written and read back, pressing Select still
+# reports SELECT on XInput, five presses out of five. They work as targets.
+#
+# This is the one case where reading a record back is not proof that a write
+# landed, which is otherwise the rule everywhere in this protocol.
+CHANGEKEY_TARGET_ONLY = (Key.SELECT, Key.START)
+
 
 def build_changekey_payload(sources, targets) -> bytes:
     """Assemble a changekey write payload from parallel source and target lists.

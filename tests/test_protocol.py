@@ -591,6 +591,16 @@ def test_changekey_round_trips_through_its_own_encoding():
     assert p.parse_changekey(sources, payload[1:]) == {1: 2}
 
 
+def test_select_and_start_are_listed_as_sources_but_are_target_only():
+    """The contradiction is the point: the pad advertises 93 and 94 as
+    remappable sources, stores a write naming them, and reads it back as
+    though it took. It does not act on it. Measured with SELECT -> A written
+    and read back, where pressing Select still reported SELECT."""
+    for key in p.CHANGEKEY_TARGET_ONLY:
+        assert int(key) in p.CHANGEKEY_DEFAULT_SOURCES, (
+            f"{key.name} is in the pad's own source list")
+
+
 def test_changekey_accepts_c_and_t_as_targets():
     """C and T are absent from every source list, but nothing in the format
     restricts a target to being a source. Confirmed on hardware: writing A->T

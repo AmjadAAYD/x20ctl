@@ -437,6 +437,11 @@ async def cmd_remap(args) -> None:
                 raise SystemExit(ui.bad(
                     f"'{src_text}' cannot be remapped on this pad. Sources are: "
                     + ", ".join(button_name(s) for s in sources)))
+            if src in p.CHANGEKEY_TARGET_ONLY:
+                raise SystemExit(ui.bad(
+                    f"'{src_text}' can be a target but not a source. The pad "
+                    "lists it as a source, accepts the write and reads it back, "
+                    "then ignores it."))
             changes[src] = tgt
 
         reported = await pad.set_remapping(changes)
