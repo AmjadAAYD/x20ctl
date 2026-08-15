@@ -111,6 +111,11 @@ class KeyTestPage(QWidget):
         self.blurb.setObjectName("PageSubtitle")
         self.blurb.setWordWrap(True)
         root.addWidget(self.blurb)
+
+        self.hint = QLabel()
+        self.hint.setObjectName("RowStateOff")
+        self.hint.setWordWrap(True)
+        root.addWidget(self.hint)
         root.addSpacing(14)
 
         grid = QGridLayout()
@@ -147,6 +152,23 @@ class KeyTestPage(QWidget):
             axes.addWidget(bar)
         root.addWidget(sticks)
         root.addStretch(1)
+
+    def set_present(self, present: bool) -> None:
+        """Say when there is nothing to read, rather than looking broken.
+
+        This tab reads the controller as a gamepad, over the dongle or a
+        Bluetooth gamepad pairing. That is a different connection from the
+        settings link, so a pad can be perfectly configurable and invisible
+        here at the same time.
+        """
+        if present:
+            self.hint.setText("")
+            return
+        self.hint.setText(
+            "No controller is reaching this PC as a gamepad. Plug in the "
+            "dongle or pair the controller to Windows, then press something. "
+            "The settings link is separate and may already be connected.")
+        self.clear()
 
     def set_buttons(self, pressed) -> None:
         """Light exactly the buttons in `pressed` and darken the rest."""

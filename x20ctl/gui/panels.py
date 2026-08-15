@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
-    QCheckBox, QHBoxLayout, QLabel, QSlider, QVBoxLayout, QWidget,
+    QCheckBox, QHBoxLayout, QLabel, QPushButton, QSlider, QVBoxLayout, QWidget,
 )
 
 from .. import protocol as p
@@ -154,6 +154,12 @@ class PowerPage(Page):
         self.root.addWidget(self.never)
 
         self.root.addSpacing(10)
+        self.save_button = QPushButton("Save to controller")
+        self.save_button.setCursor(Qt.PointingHandCursor)
+        self.save_button.clicked.connect(self.apply)
+        self.root.addWidget(self.save_button, 0, Qt.AlignLeft)
+
+        self.root.addSpacing(8)
         self.root.addWidget(self.status)
         self.root.addStretch(1)
         self.load(10)

@@ -188,7 +188,15 @@ class Workspace(QWidget):
         """Feed whatever the pad is doing to the pages that show it live."""
         state = self.reader.poll() if self.reader.available else None
         if state is None:
+            # Silence looks identical to a broken page, so say which
+            # connection is missing.
+            if self.section == "test":
+                self.pages["test"].set_present(False)
+            elif self.section == "triggers":
+                self.pages["triggers"].set_positions(0, 0)
             return
+        if self.section == "test":
+            self.pages["test"].set_present(True)
 
         if self.recorder is not None and self.recorder.recording:
             self.recorder.poll()
@@ -250,7 +258,7 @@ class Workspace(QWidget):
             (link.failed, self.say),
             (self.pages["motor"].save_requested, link.set_vibration),
             (self.pages["timeout"].save_requested, link.set_shutdown),
-            (self.pages["buttons"].changed, link.set_remapping),
+            (self.pages["buttons"].save_requested, link.set_remapping),
             (self.pages["device"].calibrate_requested, link.calibrate),
             (self.header.factory_reset, link.factory_reset),
         )
@@ -284,13 +292,14 @@ class Workspace(QWidget):
 
         self.pages["motor"].save_requested.connect(link.set_vibration)
         self.pages["timeout"].save_requested.connect(link.set_shutdown)
-        self.pages["buttons"].changed.connect(link.set_remapping)
+        self.pages["buttons"].save_requested.connect(link.set_remapping)
         self.pages["device"].calibrate_requested.connect(link.calibrate)
         self.pages["macros"].apply_requested.connect(self._write_macro)
         self.pages["macros"].read_requested.connect(self._read_macro)
         self.pages["macros"].record_requested.connect(self._record_macro)
-        self.pages["triggers"].zone_chosen.connect(self._write_zone)
-        self.pages["triggers"].shape_chosen.connect(self._write_shape)
+        self.pages["triggers"].zone_chosen.connect(self._choose_zone)
+        self.pages["triggers"].shape_chosen.connect(self._choose_shape)
+        self.pages["triggers"].save_requested.connect(self._write_triggers)
         self.pages["sticks"].write_requested.connect(self._write_sticks)
         self.header.factory_reset.connect(link.factory_reset)
         # One at a time: the link refuses overlapping work, so the remapping
@@ -334,15 +343,20 @@ class Workspace(QWidget):
 
     # -- writes from the pages -------------------------------------------
 
-    def _write_zone(self, side: str, zone: str) -> None:
-        curves = self._edited_triggers(side, gear=zone)
-        if curves and self.link is not None:
-            self.link.set_curves("triggers", curves)
+    def _choose_zone(self, side: str, zone: str) -> None:
+        """Remember the choice. Nothing reaches the pad until Save."""
+        self._edited_triggers(side, gear=zone)
 
-    def _write_shape(self, side: str, shape: str) -> None:
-        curves = self._edited_triggers(side, shape=shape)
-        if curves and self.link is not None:
-            self.link.set_curves("triggers", curves)
+    def _choose_shape(self, side: str, shape: str) -> None:
+        self._edited_triggers(side, shape=shape)
+
+    def _write_triggers(self) -> None:
+        curves = getattr(self, "_trigger_curves", None)
+        if not curves or self.link is None:
+            self.say("Trigger settings have not loaded yet.")
+            return
+        if not self.link.set_curves("triggers", curves):
+            self.say("The controller is busy. Try that again in a moment.")
 
     def _edited_triggers(self, side: str, *, gear=None, shape=None):
         """One side changed; the other keeps exactly what it had."""
@@ -398,10 +412,16 @@ class Workspace(QWidget):
         from .macrogrid import grid_from_recorded
 
         if self.recorder is not None and self.recorder.recording:
-            steps = self.recorder.stop()
+            spec = self.recorder.stop()
+            ignored = sorted(self.recorder.ignored)
             self.recorder = None
-            self.pages["macros"].load(slot, grid_from_recorded(steps))
-            self.say(f"Recorded {len(steps)} steps into {slot}.")
+            grid = grid_from_recorded(spec)
+            self.pages["macros"].load(slot, grid)
+            note = f"Recorded {len(grid)} steps into {slot}."
+            if ignored:
+                note += (" Ignored " + ", ".join(ignored)
+                         + ": the pad cannot put those in a macro.")
+            self.say(note)
             return
 
         if not self.reader.available:
