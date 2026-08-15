@@ -131,6 +131,19 @@ class ControllerLink(QObject):
 
         return self._run(work, "", on_done=on_done)
 
+    def read_remapping(self, on_done) -> bool:
+        """The pad's remappable sources and whatever it currently maps.
+
+        Not part of the snapshot, so the buttons page would otherwise come up
+        empty next to pages that had loaded.
+        """
+        async def work():
+            async with self._open(self.address) as pad:
+                sources = await pad.changekey_sources()
+                return sources, await pad.remappings(sources)
+
+        return self._run(work, "", on_done=on_done)
+
     def calibrate(self) -> bool:
         async def work():
             async with self._open(self.address) as pad:

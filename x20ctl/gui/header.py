@@ -78,13 +78,25 @@ class HeaderBar(QWidget):
 
     # -- actions ---------------------------------------------------------
 
-    def check_updates(self) -> None:
+    def check_updates(self, *, show: bool = True) -> QMessageBox:
+        """Ask GitHub, then say so out loud rather than only in the status."""
         self.status.setText("Checking...")
         message, release = (check(__version__, self._fetch) if self._fetch
                             else check(__version__))
         self.status.setText(message)
+
+        box = QMessageBox(self)
+        box.setWindowTitle("Updates")
+        box.setText(message)
         if release is not None:
-            self.status.setToolTip(release.notes or release.url)
+            box.setInformativeText(
+                (release.notes or "").strip()[:800] + f"\n\n{release.url}")
+        else:
+            box.setInformativeText(RELEASES_PAGE)
+        box.setStandardButtons(QMessageBox.Ok)
+        if show:
+            box.show()
+        return box
 
     def share_app(self) -> str:
         """Hand the description to the clipboard, and to anyone listening."""
@@ -96,7 +108,7 @@ class HeaderBar(QWidget):
         self.share.emit(SHARE_TEXT)
         return SHARE_TEXT
 
-    def show_help(self) -> QMessageBox:
+    def show_help(self, *, show: bool = True) -> QMessageBox:
         box = QMessageBox(self)
         box.setWindowTitle("Help")
         box.setText("What each section does")
@@ -110,9 +122,11 @@ class HeaderBar(QWidget):
             "Advanced mode adds the power timeout and the device page, which "
             "holds calibration and factory reset.")
         box.setStandardButtons(QMessageBox.Ok)
+        if show:
+            box.show()
         return box
 
-    def show_about(self) -> QMessageBox:
+    def show_about(self, *, show: bool = True) -> QMessageBox:
         box = QMessageBox(self)
         box.setWindowTitle("About")
         box.setText(f"x20ctl {__version__}")
@@ -121,9 +135,11 @@ class HeaderBar(QWidget):
             "configuration link.\n\n"
             f"{RELEASES_PAGE}")
         box.setStandardButtons(QMessageBox.Ok)
+        if show:
+            box.show()
         return box
 
-    def confirm_reset(self) -> QMessageBox:
+    def confirm_reset(self, *, show: bool = True) -> QMessageBox:
         """Ask before wiping, and say exactly what goes."""
         box = QMessageBox(self)
         box.setWindowTitle("Factory reset")
@@ -136,4 +152,6 @@ class HeaderBar(QWidget):
         box.setStandardButtons(QMessageBox.Cancel | QMessageBox.Yes)
         box.setDefaultButton(QMessageBox.Cancel)
         box.accepted.connect(self.factory_reset.emit)
+        if show:
+            box.show()
         return box
