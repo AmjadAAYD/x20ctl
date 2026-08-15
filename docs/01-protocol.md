@@ -469,18 +469,20 @@ reports only the six above.
 **This closes the macro question with a reason.** 95 and 96 appear in kind 2 but
 in neither kind 3 (changekey) nor kind 5 (macro). The pad itself excludes `C` and
 `T` from remapping and from macros, so no encoder change could ever have made
-them usable. 93 and 94 remain correctly named as pseudo-keys: they have no
-drawable at all.
+them usable.
 
-Equally notable is what is **absent**: `SELECT` (9) and `START` (10) are not in
-the pad's all-keys list, despite being physical buttons. So the list is not
-simply "every button" — 9 and 10 are reachable as inputs yet excluded from every
-support sub-query, which is why `Menu` combinations are unencodable too.
+**93 and 94 are Select and Start.** They were called pseudo-keys here on the
+grounds that they have no drawable in `ic_big_code_*`, which is true and turned
+out not to mean what it looked like. Codes 9 and 10 own the select/start icons
+as legacy vocabulary; this firmware reports 93 and 94 instead, and rejects 9 and
+10 everywhere. Measured rather than argued: a one-step macro setting bit 22 made
+XInput report `BACK`, and bit 23 made it report `START`. That also explains why
+the pad's macro list looked like it was missing two physical buttons — it never
+was. Found by [chriss80](https://github.com/chriss80/x20ctl).
 
 An earlier version of this section offered "six unnamed codes against six
-physical extras" as a suggestive fit. That arithmetic was wrong: 93 and 94 are
-not physical at all, and the real split is two pseudo-keys plus `C`, `T`, ML and
-M2.
+physical extras" as a suggestive fit. The arithmetic was closer than it deserved
+to be: 93 and 94 are physical after all, and the extras are `C`, `T`, ML and M2.
 
 Opcode `0xB5` also has both a one-byte and a two-byte form in the app
 (`getHostToobleData(i)` on `0xB4` versus `getHostToobleData(i, i2)` on `0xB5`),

@@ -514,27 +514,39 @@ def test_macro_writes_rejects_empty_payload():
     raise AssertionError("empty payload must be rejected; use MACRO_CLEAR")
 
 
-def test_all_fourteen_digital_buttons_are_macro_capable():
+def test_all_sixteen_digital_buttons_are_macro_capable():
     """Every key in the pad's macro list that's a single-bit digital button
-    must be usable. 18 and 19 are analog, 93 and 94 are editor pseudo-keys."""
+    must be usable. 18 and 19 are analog; 93 and 94 are Select and Start."""
     pad_list = p.decode_key_list(bytes.fromhex("1212130d8401880b825d82"))
-    digital = [k for k in pad_list if k not in (18, 19, 93, 94)]
-    assert len(digital) == 14
+    digital = [k for k in pad_list if k not in (18, 19)]
+    assert len(digital) == 16
     for code in digital:
         mask = p.mask_for([p.Key(code)])
         assert mask != p.MACRO_ANALOG_NEUTRAL, f"code {code} set no bit"
 
 
-def test_select_start_home_are_rejected_with_a_clear_reason():
-    """These are absent from the pad's macro list, so they must fail loudly
-    instead of silently producing a mask that does nothing."""
-    for key in (p.Key.SELECT, p.Key.START, p.Key.HOME):
-        try:
-            p.mask_for([key])
-        except ValueError as exc:
-            assert "not macro-capable" in str(exc)
-        else:
-            raise AssertionError(f"{key.name} should have been rejected")
+def test_select_start_are_macro_capable_home_is_not():
+    """93 (Select) and 94 (Start) are real digital buttons on the X20 and must
+    be usable in macros. Home (17) is absent from the pad's macro list and must
+    fail loudly instead of silently producing a mask that does nothing.
+
+    The bit positions are the ones a live pad was measured at: a macro setting
+    bit 22 made XInput report BACK, and bit 23 made it report START.
+    """
+    select = p.mask_for([p.Key.SELECT])
+    assert select & 0xFF == p.MACRO_ANALOG_NEUTRAL
+    assert select >> 22 & 1, "Select should sit at bit 22"
+
+    start = p.mask_for([p.Key.START])
+    assert start & 0xFF == p.MACRO_ANALOG_NEUTRAL
+    assert start >> 23 & 1, "Start should sit at bit 23"
+
+    try:
+        p.mask_for([p.Key.HOME])
+    except ValueError as exc:
+        assert "not macro-capable" in str(exc)
+    else:
+        raise AssertionError("HOME should have been rejected")
 
 
 def test_chord_sets_multiple_bits_in_one_step():

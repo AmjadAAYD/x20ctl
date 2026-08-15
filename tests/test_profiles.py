@@ -32,11 +32,17 @@ def test_macro_spec_rejects_unknown_keys():
 
 def test_macro_spec_rejects_buttons_the_pad_cannot_macro():
     try:
-        MacroSpec(keys="START").validate()
+        MacroSpec(keys="HOME").validate()
     except ValueError as exc:
         assert "not macro-capable" in str(exc)
         return
-    raise AssertionError("Start is not in the pad's macro list")
+    raise AssertionError("Home is not in the pad's macro list")
+
+
+def test_macro_spec_accepts_select_and_start():
+    MacroSpec(keys="START").validate()
+    MacroSpec(keys="SELECT").validate()
+    MacroSpec(keys="START+SELECT").validate()
 
 
 def test_macro_spec_rejects_durations_off_the_5ms_grid():

@@ -68,10 +68,12 @@ def test_unknown_key_codes_still_consume_their_place():
     assert layout.digital[p.Key.B] == 2, "code 200 still occupies bit 1"
 
 
-def test_pseudo_keys_occupy_space_but_are_not_buttons():
+def test_select_and_start_are_digital_buttons_now():
+    """93 and 94 are Select and Start on the X20, not placeholders."""
     layout = p.layout_from_key_list([1, 93, 94, 2])
-    assert 93 not in layout.digital and 94 not in layout.digital
-    assert layout.digital[p.Key.B] == 3, "the two pseudo keys still take bits"
+    assert layout.digital[p.Key.SELECT] == 1
+    assert layout.digital[p.Key.START] == 2
+    assert layout.digital[p.Key.B] == 3, "Select and Start each take one bit"
 
 
 def test_key_that_a_pad_omits_is_rejected_for_that_pad():
@@ -144,7 +146,7 @@ def test_macro_layout_uses_the_pad_not_the_fallback():
 
     assert layout is not p.DEFAULT_LAYOUT, "falling back means the decode failed"
     assert layout.key_list == p.X20_MACRO_KEYS
-    assert len(layout.digital) == 14 and len(layout.analog) == 2
+    assert len(layout.digital) == 16 and len(layout.analog) == 2
 
 
 # -- diagnoses -------------------------------------------------------------

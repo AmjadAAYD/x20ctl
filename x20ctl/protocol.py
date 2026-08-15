@@ -797,6 +797,14 @@ class Key(IntEnum):
     Recovered from ButtonUtil's parallel BUTTON_CODE / BIG_BUTTON_RES arrays,
     resolved through the resource table. The drawable names carry both the code
     and the name, e.g. `ic_big_code_0x01_a1`, so this mapping isn't inferred.
+
+    Note on SELECT/START: the pad reports 93 and 94 in its changekey and macro
+    support lists and rejects 9/10, which are the codes the app's own resource
+    table pairs with the select/start icons. On this hardware 93 *is* Select and
+    94 *is* Start; 9/10 exist only as legacy vocabulary.
+
+    Confirmed on the device rather than reasoned about: a one-step macro setting
+    bit 22 makes XInput report BACK, and bit 23 makes it report START.
     """
 
     A = 1
@@ -807,8 +815,8 @@ class Key(IntEnum):
     RB = 6
     LT = 7
     RT = 8
-    SELECT = 9
-    START = 10
+    SELECT_LEGACY = 9
+    START_LEGACY = 10
     L3 = 11
     R3 = 12
     DPAD_DOWN = 13
@@ -831,16 +839,15 @@ class Key(IntEnum):
     M_LEFT = 97
     M2 = 104
 
+    # The codes the X20 itself uses for Select and Start.
+    SELECT = 93
+    START = 94
+
 
 # Analog entries take a nibble each, not a single bit.
 ANALOG_KEYS = (Key.LSTICK_ANALOG, Key.RSTICK_ANALOG)
 ANALOG_WIDTH = 4
 MASK_WIDTH = 24
-
-# Editor pseudo-keys, present in the key list but not physical buttons. Unlike
-# every other code the pad reports, 93 and 94 have no drawable in the app's
-# ic_big_code_* table, which is what distinguishes them from C (95) and T (96).
-PSEUDO_KEYS = (93, 94)
 
 
 @dataclass(frozen=True)
@@ -884,9 +891,6 @@ def layout_from_key_list(keys) -> MaskLayout:
     position = 0
 
     for code in keys:
-        if code in PSEUDO_KEYS:
-            position += 1           # occupies a bit but isn't a button
-            continue
         try:
             key = Key(code)
         except ValueError:
