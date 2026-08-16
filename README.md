@@ -3,19 +3,16 @@
 Open configuration for the EasySMX X20 gamepad, and for other controllers
 speaking the same KeyLinker protocol.
 
-> ### Test phase
+> ### 1.0.0
 >
-> I built this against one controller, mine. It works on that pad. I don't know
-> yet whether it works on anyone else's.
+> Verified against two X20 controllers. Up to four can be configured at once,
+> one per player slot, each with its own save files.
 >
-> If you have an X20, try it and tell me what happens. If it works, good. If it
-> doesn't, tell me the error or what the pad did and I'll look into it. That's
-> the most useful thing anyone can do for this right now.
+> It never touches firmware. Anything it changes is undone by a factory reset,
+> from the app or by holding `C` for five seconds. See [Safety](#safety).
 >
-> It never touches firmware. Anything it changes is undone by holding `C` for
-> five seconds, which is a factory reset. See [Safety](#safety).
->
-> **Not working?** Start with
+> If you have an X20 and something doesn't work, tell me the error or what the
+> pad did. Start with
 > [IF-YOUR-CONTROLLER-ISNT-WORKING.md](IF-YOUR-CONTROLLER-ISNT-WORKING.md).
 
 The X20 ships with no desktop configuration software. The vendor provides a
@@ -23,10 +20,13 @@ manual, a driver, and a firmware updater. Everything else lives in a mobile-only
 app or behind button combinations on the pad itself. This project documents the
 protocol and makes it usable from a PC.
 
-**Working today:** macros on all four rear buttons, vibration strength, battery
-level, a live input tester and a polling-rate meter, driven from a desktop app or
-the command line, plus stick and trigger deadzones and response curves. See
-[status](#status) for exactly what is and isn't proven.
+**Working today:** button remapping, macros on all four rear buttons with a
+piano-roll editor and recording, saved whole-controller setups, vibration
+strength, the idle shutdown timer, stick and trigger deadzones and response
+curves, battery level, a live input tester and a polling-rate meter, and
+factory reset. Up to four controllers at once. Driven from a desktop app or the
+command line. See [status](#status) for exactly what is and isn't proven, and
+[CHANGELOG.md](CHANGELOG.md) for what landed in 1.0.0.
 
 The protocol was reverse engineered from scratch. No prior documentation of
 KeyLinker, `Xpert2`, or `com.pulsenet.inputset` appears to exist publicly.
