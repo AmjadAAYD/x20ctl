@@ -2,9 +2,24 @@
 
 ## 1.0.1 — 2026-08-16
 
+Same application as 1.0.0. No code changes, no fixes, no new features.
+
 ### Added
 
 - Standalone Windows executable. No Python install needed; download and run.
+
+### Note on the missing 1.0.0 release page
+
+1.0.0 was published without the executable, which made it a release only
+useful to people who already had Python. Attaching the exe afterwards was not
+possible: GitHub marks releases immutable, so assets cannot be added after
+publishing. Deleting and republishing the release was not possible either —
+GitHub permanently reserves the tag name of an immutable release.
+
+So the 1.0.0 release page was removed and this one replaces it. The `v1.0.0`
+tag still exists in git and still points at the same commit; only its release
+page is gone. Anyone who cloned or downloaded source at 1.0.0 has exactly the
+code described under 1.0.0 below.
 
 ## 1.0.0 — 2026-08-15
 
