@@ -31,20 +31,38 @@ command line. See [status](#status) for exactly what is and isn't proven, and
 The protocol was reverse engineered from scratch. No prior documentation of
 KeyLinker, `Xpert2`, or `com.pulsenet.inputset` appears to exist publicly.
 
-![The settings window](assets/screenshots/settings.png)
+![The controller roster](assets/screenshots/roster.png)
 
-Macros on the four rear buttons, with per-step timing, save files, and vibration.
+Up to four controllers, one per player. Green while a controller is answering,
+red when it stops, and each one keeps its own save files.
+
+![Macros](assets/screenshots/macros.png)
+
+The macro editor. One column is one step the controller stores, so a macro read
+back off the pad appears here unchanged. Cells hold buttons; stick rows open a
+dial that snaps to the eight directions the hardware can store.
+
+![Button remapping](assets/screenshots/buttons.png)
+
+Remapping, laid out the way the controller is: triggers, bumpers and sticks
+paired left against right, the d-pad against the face buttons.
+
+![Triggers](assets/screenshots/triggers.png)
+
+Trigger travel and response, with a live meter. Each choice explains itself, and
+a controller holding something that matches no preset says so rather than
+pretending.
+
+![Sticks and triggers](assets/screenshots/sticks.png)
+
+Deadzones and response curves, one editor per channel. The dotted diagonal is a
+linear response, and both control points are dragged directly.
 
 ![The input tester](assets/screenshots/tester.png)
 
 The input tester: every button, both sticks with a position trail, the analog
 triggers, and a meter counting the reports per second that actually reach
 Windows.
-
-![Sticks and triggers](assets/screenshots/curves.png)
-
-Deadzones and response curves, one editor per channel. The dotted diagonal is a
-linear response, and both control points are dragged directly.
 
 ---
 
