@@ -98,16 +98,21 @@ def test_choosing_a_shape_says_which_side_it_was_for():
 def test_the_meters_follow_a_live_pull():
     page = TriggersPage()
     page.set_positions(64, 0)
-    assert page.sides["left"].meter.bar.value() == 64
-    assert page.sides["left"].meter.reading.text() == "64"
-    assert page.sides["right"].meter.bar.value() == 0
+    assert page.sides["left"].meter.value() == 64
+    assert page.sides["right"].meter.value() == 0
 
 
 def test_a_meter_refuses_impossible_readings():
     page = TriggersPage()
     page.set_positions(180, -20)
-    assert page.sides["left"].meter.bar.value() == 100
-    assert page.sides["right"].meter.bar.value() == 0
+    assert page.sides["left"].meter.value() == 100
+    assert page.sides["right"].meter.value() == 0
+
+
+def test_the_meter_is_the_testers_own_bar():
+    """Not a lookalike: the same widget, so the two pages cannot drift."""
+    page = TriggersPage()
+    assert type(page.sides["left"].meter.bar).__name__ == "TriggerBar"
 
 
 def test_each_choice_carries_its_own_explanation():

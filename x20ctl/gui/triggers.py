@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 )
 
 from .. import protocol as p
+from .tester import TriggerBar
 
 SIDES = ("left", "right")
 
@@ -58,42 +59,32 @@ def shape_for(preset: str | None) -> str | None:
 
 
 class TravelMeter(QWidget):
-    """Live position of one trigger: a label, a long bar, a number.
+    """Live position of one trigger, drawn by the tester's own bar.
 
-    The same shape as the input tester, which reads at a glance because the
-    bar is long enough to see small movement in.
+    Literally the same widget the Test tab uses rather than a lookalike, so
+    the two pages cannot drift apart.
     """
 
     def __init__(self, title: str) -> None:
         super().__init__()
         row = QHBoxLayout(self)
         row.setContentsMargins(0, 0, 0, 0)
-        row.setSpacing(12)
+        row.setSpacing(0)
 
-        name = QLabel(title)
-        name.setObjectName("RowDetail")
-        name.setFixedWidth(30)
-        row.addWidget(name)
-
-        self.bar = QProgressBar()
-        self.bar.setRange(0, 100)
-        self.bar.setTextVisible(False)
-        self.bar.setFixedHeight(8)
+        self.bar = TriggerBar(title)
         row.addWidget(self.bar, 1)
-
-        self.reading = QLabel("0")
-        self.reading.setObjectName("RowDetail")
-        self.reading.setFixedWidth(34)
-        self.reading.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        row.addWidget(self.reading)
 
         self.zone = QLabel()          # kept for the caller; shown in the panel
         self.zone.setObjectName("RowDetail")
 
     def set_position(self, percent: int) -> None:
+        """The tester's bar speaks in 0-255, the way the pad reports it."""
         percent = max(0, min(100, percent))
-        self.bar.setValue(percent)
-        self.reading.setText(str(percent))
+        self._percent = percent
+        self.bar.set_value(round(percent * 255 / 100))
+
+    def value(self) -> int:
+        return getattr(self, "_percent", 0)
 
     def set_zone(self, inner: int, outer: int) -> None:
         self.zone.setText(f"counts from {inner} to {outer}")

@@ -22,13 +22,20 @@ UNCHANGED = "unchanged"
 # them as sources, and nothing in the record format says a target has to be one.
 EXTRA_TARGETS = (p.Key.CAPTURE, p.Key.TURBO)
 
-# What the left hand reaches. Everything else goes in the right column, so a
-# controller held in front of you and the page in front of you agree.
-LEFT_HAND = (
-    int(p.Key.LB), int(p.Key.LT), int(p.Key.L3),
-    int(p.Key.DPAD_UP), int(p.Key.DPAD_DOWN),
-    int(p.Key.DPAD_LEFT), int(p.Key.DPAD_RIGHT),
+# Paired across the page the way they are paired on the controller: the two
+# triggers on one line, the two bumpers on the next, the two sticks after that,
+# then the d-pad against the face buttons.
+PAIRS = (
+    (p.Key.LT, p.Key.RT),
+    (p.Key.LB, p.Key.RB),
+    (p.Key.L3, p.Key.R3),
+    (p.Key.DPAD_UP, p.Key.X),
+    (p.Key.DPAD_DOWN, p.Key.Y),
+    (p.Key.DPAD_LEFT, p.Key.A),
+    (p.Key.DPAD_RIGHT, p.Key.B),
 )
+
+LEFT_HAND = tuple(int(left) for left, _ in PAIRS)
 
 FRIENDLY = {
     "DPAD_UP": "D-pad up",
@@ -127,10 +134,19 @@ class ButtonsPage(QWidget):
         # Laid out the way the pad is: everything your left hand reaches on the
         # left, everything your right hand reaches on the right. Scanning for a
         # button then matches looking down at the controller.
-        left = [code for code in LEFT_HAND if code in self.sources]
-        right = [code for code in self.sources if code not in left]
-        ordered = [(code, 0, row) for row, code in enumerate(left)]
-        ordered += [(code, 2, row) for row, code in enumerate(right)]
+        placed: set = set()
+        ordered = []
+        for row, (left, right) in enumerate(PAIRS):
+            for side, key in ((0, int(left)), (2, int(right))):
+                if key in self.sources:
+                    ordered.append((key, side, row))
+                    placed.add(key)
+
+        # Anything the pad reports that this layout has no seat for still gets
+        # a row, rather than vanishing because a table here is out of date.
+        spare = [code for code in self.sources if code not in placed]
+        for index, code in enumerate(spare):
+            ordered.append((code, index % 2 * 2, len(PAIRS) + index // 2))
 
         for code, side, row in ordered:
 
