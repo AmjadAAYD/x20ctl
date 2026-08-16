@@ -115,10 +115,19 @@ class ButtonsPage(QWidget):
                 item.widget().deleteLater()
 
         targets = list(sources) + [int(k) for k in EXTRA_TARGETS]
-        for row, code in enumerate(self.sources):
+
+        # Two columns rather than one long scroll: sixteen buttons in a single
+        # list runs off the bottom of the window and reads as a form to fill in
+        # rather than a layout you can scan.
+        half = (len(self.sources) + 1) // 2
+        for index, code in enumerate(self.sources):
+            row = index % half
+            side = 0 if index < half else 2
+
             name = QLabel(label_for(code))
             name.setObjectName("RowTitle")
-            self.grid.addWidget(name, row, 0)
+            name.setFixedWidth(96)
+            self.grid.addWidget(name, row, side)
 
             box = QComboBox()
             box.addItem("unchanged", UNCHANGED)
@@ -127,10 +136,12 @@ class ButtonsPage(QWidget):
             chosen = mapping.get(code)
             box.setCurrentIndex(box.findData(chosen) if chosen else 0)
             box.currentIndexChanged.connect(self._emit)
-            self.grid.addWidget(box, row, 1)
+            self.grid.addWidget(box, row, side + 1)
             self.boxes[code] = box
 
         self.grid.setColumnStretch(1, 1)
+        self.grid.setColumnStretch(3, 1)
+        self.grid.setColumnMinimumWidth(2, 24)
 
     def mapping(self) -> dict:
         """Only the buttons actually pointed somewhere else."""
