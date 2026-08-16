@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from .. import protocol as p
 from ..input import MacroRecorder, XInputReader
 from ..profiles import DEFAULT_DIR
 from .addsheet import AddControllerSheet
@@ -31,6 +32,7 @@ from .nav import NavRail
 from .panels import Page, PowerPage, VibrationPage
 from .presence import PresenceWatcher, ask_about_lost
 from .roster import AlreadyAdded, PlayerTaken, Roster, RosterFull
+from .saves import SavedMacrosPage
 from .start import StartPage
 from .tester import TesterPage
 from .triggers import TriggersPage
@@ -161,6 +163,7 @@ class Workspace(QWidget):
             "triggers": TriggersPage(),
             "motor": VibrationPage(rumbler),
             "macros": MacroEditor(rumbler),
+            "saves": SavedMacrosPage(),
             # The 0.2.1 tester, which draws the sticks as circles you can
             # watch move. Amjad asked for it back, and it reads better than a
             # row of numbers.
@@ -227,6 +230,12 @@ class Workspace(QWidget):
         self.slot = slot
         self.header.show_slot(slot)
 
+        # Draw the buttons page immediately from the list this family reports,
+        # rather than leaving it blank for the several seconds a connection and
+        # two reads take. The live read replaces it when it lands.
+        if not self.pages["buttons"].boxes:
+            self.pages["buttons"].load(list(p.CHANGEKEY_DEFAULT_SOURCES))
+
         while self.tabs.count():
             item = self.tabs.takeAt(0)
             if item.widget():
@@ -291,10 +300,11 @@ class Workspace(QWidget):
         self.pages["device"].calibrate_requested.connect(link.calibrate)
         self.pages["macros"].apply_requested.connect(self._write_macro)
         self.pages["macros"].read_requested.connect(self._read_macro)
-        saves = self.pages["macros"].saves
-        saves.save_requested.connect(self._save_profile)
-        saves.load_requested.connect(self._load_profile)
-        saves.delete_requested.connect(self._delete_profile)
+        self.pages["macros"].saves.save_requested.connect(self._save_profile)
+        saved = self.pages["saves"]
+        saved.show_requested.connect(self._show_profile)
+        saved.load_requested.connect(self._send_profile)
+        saved.delete_requested.connect(self._delete_profile)
         self.refresh_saves()
         self.pages["macros"].record_requested.connect(self._record_macro)
         self.pages["triggers"].zone_chosen.connect(self._choose_zone)
@@ -400,7 +410,7 @@ class Workspace(QWidget):
         store = self.store()
         if store is None:
             return
-        self.pages["macros"].saves.show_saves(
+        self.pages["saves"].show_saves(
             [profile.name for profile in store.list()])
 
     def _save_profile(self, name: str) -> None:
@@ -425,22 +435,41 @@ class Workspace(QWidget):
             self.say(f"Could not save: {exc}")
             return
         self.refresh_saves()
-        self.pages["macros"].saves.select(name)
+        self.pages["saves"].select(name)
+        self.pages["macros"].saves.clear()
         self.say(f"Saved “{name}”.")
 
-    def _load_profile(self, name: str) -> None:
-        """Put a save file on screen and send it to the controller."""
+    def _show_profile(self, name: str) -> None:
+        """Open a save file in the editor and go there, without sending it."""
+        if self._load_profile(name):
+            self.rail.select("macros")
+
+    def _send_profile(self, name: str) -> None:
+        """Load a save file and write its macros to the controller."""
+        if not self._load_profile(name):
+            return
+        if self.link is None:
+            self.pages["saves"].say("No controller connected.")
+            return
+        for slot, grid in self.pages["macros"].grids.items():
+            if not grid.empty:
+                self._write_macro(slot, grid)
+        self.pages["saves"].say(f"Sent “{name}” to the controller.")
+
+    def _load_profile(self, name: str) -> bool:
+        """Put a save file on screen. Returns whether it worked."""
         from .macrogrid import MacroGrid
         from .macrogrid import grid_from_recorded as grid_from_spec
 
         store = self.store()
         if store is None:
-            return
+            return False
         try:
             profile = store.load(name)
         except Exception as exc:                # noqa: BLE001 - shown to user
             self.say(f"Could not load: {exc}")
-            return
+            self.pages["saves"].say(f"Could not load: {exc}")
+            return False
 
         if profile.vibration is not None:
             self.pages["motor"].load(profile.vibration)
@@ -450,7 +479,8 @@ class Workspace(QWidget):
                 continue
             self.pages["macros"].load(slot, grid_from_spec(spec))
 
-        self.say(f"Loaded “{name}”. Apply each macro to send it.")
+        self.say(f"Loaded “{name}”.")
+        return True
 
     def _delete_profile(self, name: str) -> None:
         store = self.store()
