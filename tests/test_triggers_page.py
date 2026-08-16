@@ -99,7 +99,7 @@ def test_the_meters_follow_a_live_pull():
     page = TriggersPage()
     page.set_positions(64, 0)
     assert page.sides["left"].meter.bar.value() == 64
-    assert page.sides["left"].meter.reading.text() == "64%"
+    assert page.sides["left"].meter.reading.text() == "64"
     assert page.sides["right"].meter.bar.value() == 0
 
 

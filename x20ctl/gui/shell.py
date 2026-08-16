@@ -165,7 +165,6 @@ class Workspace(QWidget):
             # watch move. Amjad asked for it back, and it reads better than a
             # row of numbers.
             "test": TesterPage(),
-            "keys": KeyTestPage(),
             "timeout": PowerPage(),
             "device": DevicePage(),
         }
@@ -195,27 +194,14 @@ class Workspace(QWidget):
         if state is None:
             # Silence looks identical to a broken page, so say which
             # connection is missing.
-            if self.section == "keys":
-                self.pages["keys"].set_present(False)
-            elif self.section == "triggers":
+            if self.section == "triggers":
                 self.pages["triggers"].set_positions(0, 0)
             return
-        if self.section == "keys":
-            self.pages["keys"].set_present(True)
 
         if self.recorder is not None and self.recorder.recording:
             self.recorder.poll()
 
-        if self.section == "keys":
-            page = self.pages["keys"]
-            page.set_buttons(state.buttons)
-            page.set_axis("left_x", _percent(state.left_stick[0]))
-            page.set_axis("left_y", _percent(state.left_stick[1]))
-            page.set_axis("right_x", _percent(state.right_stick[0]))
-            page.set_axis("right_y", _percent(state.right_stick[1]))
-            page.set_axis("left_trigger", _trigger(state.left_trigger))
-            page.set_axis("right_trigger", _trigger(state.right_trigger))
-        elif self.section == "triggers":
+        if self.section == "triggers":
             self.pages["triggers"].set_positions(
                 _trigger(state.left_trigger), _trigger(state.right_trigger))
 

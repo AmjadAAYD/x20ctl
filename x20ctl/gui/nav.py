@@ -45,8 +45,6 @@ SECTIONS = (
             "Record or draw a sequence onto M1 to M4."),
     Section("test", "Test",
             "Watch the sticks and triggers move as you use them."),
-    Section("keys", "Buttons live",
-            "Every button as a lamp, lit while it is held.", advanced=True),
     Section("timeout", "Power",
             "How long the controller waits before switching itself off.",
             advanced=True),
