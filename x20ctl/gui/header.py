@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
 )
 
 from .. import __version__
+from . import theme
 from .updates import RELEASES_PAGE, check
 
 SHARE_TEXT = (
@@ -47,6 +48,12 @@ class HeaderBar(QWidget):
         row.addWidget(self.title)
         row.addStretch(1)
 
+        self.battery = QLabel()
+        self.battery.setObjectName("RowDetail")
+        self.battery.setToolTip(
+            "The pad reports one of four levels, not a percentage")
+        row.addWidget(self.battery)
+
         self.status = QLabel()
         self.status.setObjectName("RowDetail")
         row.addWidget(self.status)
@@ -75,6 +82,30 @@ class HeaderBar(QWidget):
 
     def show_slot(self, slot) -> None:
         self.title.setText(slot.label if slot is not None else "")
+
+    def show_battery(self, battery) -> None:
+        """Four bars, because four is all the pad reports.
+
+        There is no percentage in the protocol: the level lives in three bits
+        and the vendor app draws one of four icons from exactly those. Showing
+        a made-up percentage would be inventing precision.
+        """
+        if battery is None:
+            self.battery.setText("")
+            self.battery.setStyleSheet("")
+            return
+
+        level = max(1, min(4, getattr(battery, "level", 1)))
+        bars = "■" * level + "□" * (4 - level)
+        charging = " charging" if getattr(battery, "charging", False) else ""
+        self.battery.setText(f"{bars}{charging}")
+
+        low = level <= 1 and not charging
+        self.battery.setStyleSheet(f"color: {theme.ROSE};" if low else "")
+        self.battery.setToolTip(
+            "Battery is low. The link drops and the pad behaves oddly as it "
+            "runs down." if low else
+            "The pad reports one of four levels, not a percentage")
 
     # -- actions ---------------------------------------------------------
 

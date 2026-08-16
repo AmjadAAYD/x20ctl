@@ -338,6 +338,7 @@ class Workspace(QWidget):
             self.pages["sticks"].load("triggers", self._trigger_curves,
                                       baseline=True)
 
+        self.header.show_battery(getattr(snapshot, "battery", None))
         self.pages["device"].load(snapshot)
         self.say("Loaded.")
         if self.link is not None and not self.pages["buttons"].boxes:

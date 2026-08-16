@@ -22,6 +22,14 @@ UNCHANGED = "unchanged"
 # them as sources, and nothing in the record format says a target has to be one.
 EXTRA_TARGETS = (p.Key.CAPTURE, p.Key.TURBO)
 
+# What the left hand reaches. Everything else goes in the right column, so a
+# controller held in front of you and the page in front of you agree.
+LEFT_HAND = (
+    int(p.Key.LB), int(p.Key.LT), int(p.Key.L3),
+    int(p.Key.DPAD_UP), int(p.Key.DPAD_DOWN),
+    int(p.Key.DPAD_LEFT), int(p.Key.DPAD_RIGHT),
+)
+
 FRIENDLY = {
     "DPAD_UP": "D-pad up",
     "DPAD_DOWN": "D-pad down",
@@ -116,13 +124,15 @@ class ButtonsPage(QWidget):
 
         targets = list(sources) + [int(k) for k in EXTRA_TARGETS]
 
-        # Two columns rather than one long scroll: sixteen buttons in a single
-        # list runs off the bottom of the window and reads as a form to fill in
-        # rather than a layout you can scan.
-        half = (len(self.sources) + 1) // 2
-        for index, code in enumerate(self.sources):
-            row = index % half
-            side = 0 if index < half else 2
+        # Laid out the way the pad is: everything your left hand reaches on the
+        # left, everything your right hand reaches on the right. Scanning for a
+        # button then matches looking down at the controller.
+        left = [code for code in LEFT_HAND if code in self.sources]
+        right = [code for code in self.sources if code not in left]
+        ordered = [(code, 0, row) for row, code in enumerate(left)]
+        ordered += [(code, 2, row) for row, code in enumerate(right)]
+
+        for code, side, row in ordered:
 
             name = QLabel(label_for(code))
             name.setObjectName("RowTitle")
