@@ -16,8 +16,11 @@ LINE_HI = "#453B36"
 
 # -- type ------------------------------------------------------------------
 TEXT = "#F4F0EB"
-TEXT_MUTED = "#A79C92"
-TEXT_FAINT = "#6B625B"
+# Raised from #A79C92 and #6B625B. The old pair passed as decoration and
+# failed as text: labels you have to lean in for are labels people stop
+# reading, and most of this app is labels.
+TEXT_MUTED = "#D6CEC6"
+TEXT_FAINT = "#A79C92"
 
 # -- accent and states -----------------------------------------------------
 EMBER = "#FF8A5B"          # the only interactive colour
@@ -216,7 +219,7 @@ QMessageBox, QInputDialog {{ background: {SURFACE}; }}
 /* -- start screen ---------------------------------------------------- */
 
 QLabel#PageTitle {{ font-size: 25px; font-weight: 600; color: {TEXT}; }}
-QLabel#PageSubtitle {{ font-size: 13px; color: {TEXT_FAINT}; }}
+QLabel#PageSubtitle {{ font-size: 13px; color: {TEXT_MUTED}; }}
 
 QFrame#EmptyPanel {{
     background: {SURFACE};
@@ -260,8 +263,12 @@ QLabel#PlayerBadge {{
     font-size: 15px;
     font-weight: 600;
 }}
-QLabel#RowTitle {{ font-size: 15px; color: {TEXT}; }}
-QLabel#RowDetail {{ font-size: 12px; color: {TEXT_FAINT}; }}
+QLabel#RowTitle {{ font-size: 15px; font-weight: 600; color: {TEXT}; }}
+QLabel#RowDetail {{ font-size: 13px; font-weight: 500; color: {TEXT_MUTED}; }}
+
+/* Row names down the side of the macro grid: read constantly while
+   drawing, so they are full strength rather than a caption. */
+QLabel#GridRow {{ font-size: 13px; font-weight: 600; color: {TEXT}; }}
 QLabel#RowState {{ font-size: 12px; color: {SAGE}; }}
 QLabel#RowStateIdle {{ font-size: 12px; color: {TEXT_FAINT}; }}
 QLabel#RowStateOff {{ font-size: 12px; color: {ROSE}; }}
