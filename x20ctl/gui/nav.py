@@ -43,6 +43,8 @@ SECTIONS = (
             "How hard the motors are allowed to work. Saves itself."),
     Section("macros", "Macros",
             "Record or draw a sequence onto M1 to M4."),
+    Section("saves", "Saved macros",
+            "Setups you have saved, ready to open or send back."),
     Section("test", "Test",
             "Watch the sticks and triggers move as you use them."),
     Section("timeout", "Power",

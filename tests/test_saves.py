@@ -14,7 +14,7 @@ pytest.importorskip("PySide6")
 
 from PySide6.QtWidgets import QApplication      # noqa: E402
 
-from x20ctl.gui.saves import SavesBar            # noqa: E402
+from x20ctl.gui.saves import SavedMacrosPage     # noqa: E402
 from x20ctl.gui.shell import AppShell            # noqa: E402
 from x20ctl.profiles import ProfileStore         # noqa: E402
 
@@ -32,18 +32,55 @@ def shell_with_store(directory):
     return work
 
 
-def test_nothing_can_be_loaded_or_deleted_before_a_file_is_chosen():
-    bar = SavesBar()
-    assert not bar.load_button.isEnabled()
-    assert not bar.delete_button.isEnabled()
+def test_nothing_can_be_done_before_a_file_is_chosen():
+    page = SavedMacrosPage()
+    for button in (page.show_button, page.load_button, page.delete_button):
+        assert not button.isEnabled()
 
 
 def test_choosing_a_file_enables_the_actions():
-    bar = SavesBar()
-    bar.show_saves(["Rocket League"])
-    bar.select("Rocket League")
-    assert bar.load_button.isEnabled()
-    assert bar.selected() == "Rocket League"
+    page = SavedMacrosPage()
+    page.show_saves(["Rocket League"])
+    page.select("Rocket League")
+    assert page.show_button.isEnabled()
+    assert page.load_button.isEnabled()
+    assert page.selected() == "Rocket League"
+
+
+def test_an_empty_list_says_where_saves_come_from():
+    page = SavedMacrosPage()
+    page.show_saves([])
+    assert "Save as" in page.empty.text()
+
+
+def test_showing_a_save_opens_it_in_the_editor_without_sending_it():
+    """Show on Macros is for editing. Load is what reaches the pad."""
+    with tempfile.TemporaryDirectory() as tmp:
+        work = shell_with_store(tmp)
+        work.pages["macros"].grids["M1"].toggle(0, "A")
+        work._save_profile("Setup")
+        work.pages["macros"].grids["M1"].clear()
+
+        sent = []
+        work._write_macro = lambda slot, grid: sent.append(slot)
+        work._show_profile("Setup")
+
+        assert not work.pages["macros"].grids["M1"].empty
+        assert sent == [], "showing must not write to the controller"
+        assert work.rail.current() == "macros"
+
+
+def test_loading_a_save_sends_its_macros():
+    with tempfile.TemporaryDirectory() as tmp:
+        work = shell_with_store(tmp)
+        work.pages["macros"].grids["M2"].toggle(0, "B")
+        work._save_profile("Setup")
+
+        sent = []
+        work._write_macro = lambda slot, grid: sent.append(slot)
+        work.link = object()            # something to send through
+        work._send_profile("Setup")
+        assert sent == ["M2"]
 
 
 def test_a_save_holds_all_four_macros_not_one_slot():
@@ -99,8 +136,8 @@ def test_the_list_shows_what_was_saved():
         work._save_profile("One")
         work._save_profile("Two")
 
-        names = [work.pages["macros"].saves.list.item(i).text()
-                 for i in range(work.pages["macros"].saves.list.count())]
+        names = [work.pages["saves"].list.item(i).text()
+                 for i in range(work.pages["saves"].list.count())]
         assert set(names) == {"One", "Two"}
 
 
@@ -110,7 +147,7 @@ def test_deleting_removes_it_from_the_list():
         work.pages["macros"].grids["M1"].toggle(0, "A")
         work._save_profile("Gone")
         work._delete_profile("Gone")
-        assert work.pages["macros"].saves.list.count() == 0
+        assert work.pages["saves"].list.count() == 0
 
 
 def test_loading_something_missing_says_so_rather_than_raising():

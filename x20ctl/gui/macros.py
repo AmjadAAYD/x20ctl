@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
 )
 
 from .dial import DirectionDial
-from .saves import SavesBar
+from .saves import SaveAsRow
 from .macrogrid import (
     DEFAULT_GAP_MS, DEFAULT_STEP_MS, ROWS, STEP_GRID_MS, STICK_ROWS, MacroGrid,
     TooManySteps,
@@ -86,7 +86,7 @@ class MacroEditor(QWidget):
         root.addLayout(tabs)
         root.addSpacing(8)
 
-        self.saves = SavesBar()
+        self.saves = SaveAsRow()
         root.addWidget(self.saves)
         root.addSpacing(10)
 
