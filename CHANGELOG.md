@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.1 — 2026-08-16
+
+### Added
+
+- Standalone Windows executable. No Python install needed; download and run.
+
 ## 1.0.0 — 2026-08-15
 
 First stable release. Verified on two EasySMX X20 controllers.

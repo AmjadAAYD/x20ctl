@@ -1,17 +1,12 @@
-"""Entry point for the packaged application.
+"""Entry point for the packaged executable.
 
-PyInstaller runs its entry script as a top level module, so `x20ctl/gui/__main__.py`
-can't be used directly: its relative import has no parent package at that point.
-This imports absolutely instead.
-
-Running from source is unaffected; `python -m x20ctl.gui` still works.
+PyInstaller needs a script rather than a module, and `x20ctl/gui/__main__.py`
+uses a relative import that only resolves when run with `-m`. This is that
+file's contents with an absolute import.
 """
-
-from __future__ import annotations
 
 import sys
 
 from x20ctl.gui import main
 
-if __name__ == "__main__":
-    sys.exit(main())
+sys.exit(main())
