@@ -77,15 +77,15 @@ def test_polling_moves_the_trigger_meters():
     work = workspace_with(FakeState(lt=255, rt=0))
     work.show_section("triggers")
     work.poll_inputs()
-    assert work.pages["triggers"].sides["left"].meter.bar.value() == 100
-    assert work.pages["triggers"].sides["right"].meter.bar.value() == 0
+    assert work.pages["triggers"].sides["left"].meter.value() == 100
+    assert work.pages["triggers"].sides["right"].meter.value() == 0
 
 
 def test_the_meters_fall_back_to_zero_with_no_pad():
     work = workspace_with(None)
     work.show_section("triggers")
     work.poll_inputs()
-    assert work.pages["triggers"].sides["left"].meter.bar.value() == 0
+    assert work.pages["triggers"].sides["left"].meter.value() == 0
 
 
 def test_polling_survives_having_no_pad():
