@@ -291,6 +291,11 @@ class Workspace(QWidget):
         self.pages["device"].calibrate_requested.connect(link.calibrate)
         self.pages["macros"].apply_requested.connect(self._write_macro)
         self.pages["macros"].read_requested.connect(self._read_macro)
+        saves = self.pages["macros"].saves
+        saves.save_requested.connect(self._save_profile)
+        saves.load_requested.connect(self._load_profile)
+        saves.delete_requested.connect(self._delete_profile)
+        self.refresh_saves()
         self.pages["macros"].record_requested.connect(self._record_macro)
         self.pages["triggers"].zone_chosen.connect(self._choose_zone)
         self.pages["triggers"].shape_chosen.connect(self._choose_shape)
@@ -381,6 +386,83 @@ class Workspace(QWidget):
             channels = page.channels(kind) if hasattr(page, "channels") else None
             if channels and self.link is not None:
                 self.link.set_curves(kind, channels)
+
+    # -- save files ------------------------------------------------------
+
+    def store(self):
+        """This controller's own save directory, or None before one is open."""
+        if self.slot is None:
+            return None
+        from ..profiles import ProfileStore
+        return ProfileStore(profile_dir(self.slot.save_key))
+
+    def refresh_saves(self) -> None:
+        store = self.store()
+        if store is None:
+            return
+        self.pages["macros"].saves.show_saves(
+            [profile.name for profile in store.list()])
+
+    def _save_profile(self, name: str) -> None:
+        """Write what is on screen: all four macros, vibration, the curves."""
+        from .. import protocol as p
+        from ..profiles import MacroSpec, Profile
+
+        store = self.store()
+        if store is None:
+            return
+        profile = Profile(name=name, vibration=self.pages["motor"].value())
+        for slot, grid in self.pages["macros"].grids.items():
+            if grid.empty:
+                continue
+            program = p.MacroProgram(steps=grid.to_steps(),
+                                     loop_interval_ms=grid.loop_ms)
+            profile.macros[slot] = MacroSpec(keys=program.as_sequence(),
+                                             loop_ms=grid.loop_ms)
+        try:
+            store.save(profile)
+        except Exception as exc:                # noqa: BLE001 - shown to user
+            self.say(f"Could not save: {exc}")
+            return
+        self.refresh_saves()
+        self.pages["macros"].saves.select(name)
+        self.say(f"Saved “{name}”.")
+
+    def _load_profile(self, name: str) -> None:
+        """Put a save file on screen and send it to the controller."""
+        from .macrogrid import MacroGrid
+        from .macrogrid import grid_from_recorded as grid_from_spec
+
+        store = self.store()
+        if store is None:
+            return
+        try:
+            profile = store.load(name)
+        except Exception as exc:                # noqa: BLE001 - shown to user
+            self.say(f"Could not load: {exc}")
+            return
+
+        if profile.vibration is not None:
+            self.pages["motor"].load(profile.vibration)
+        for slot, spec in profile.macros.items():
+            if spec is None:
+                self.pages["macros"].load(slot, MacroGrid())
+                continue
+            self.pages["macros"].load(slot, grid_from_spec(spec))
+
+        self.say(f"Loaded “{name}”. Apply each macro to send it.")
+
+    def _delete_profile(self, name: str) -> None:
+        store = self.store()
+        if store is None:
+            return
+        try:
+            store.delete(name)
+        except Exception as exc:                # noqa: BLE001 - shown to user
+            self.say(f"Could not delete: {exc}")
+            return
+        self.refresh_saves()
+        self.say(f"Deleted “{name}”.")
 
     # -- macros ----------------------------------------------------------
 

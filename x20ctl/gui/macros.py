@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 )
 
 from .dial import DirectionDial
+from .saves import SavesBar
 from .macrogrid import (
     DEFAULT_GAP_MS, DEFAULT_STEP_MS, ROWS, STEP_GRID_MS, STICK_ROWS, MacroGrid,
     TooManySteps,
@@ -84,6 +85,10 @@ class MacroEditor(QWidget):
         tabs.addStretch(1)
         root.addLayout(tabs)
         root.addSpacing(8)
+
+        self.saves = SavesBar()
+        root.addWidget(self.saves)
+        root.addSpacing(10)
 
         area = QScrollArea()
         area.setWidgetResizable(True)
@@ -195,7 +200,7 @@ class MacroEditor(QWidget):
 
         for row, (key, label) in enumerate(ROWS, start=1):
             name = QLabel(label)
-            name.setObjectName("RowDetail")
+            name.setObjectName("GridRow")
             name.setFixedWidth(96)
             self.grid.addWidget(name, row, 0)
 
