@@ -33,13 +33,17 @@ def test_select_and_start_get_no_row_because_the_pad_ignores_them():
     assert len(page.boxes) == len(SOURCES) - 2
 
 
-def test_c_and_t_are_offered_as_targets_although_never_as_sources():
+def test_c_and_t_are_not_offered_at_all():
+    """The pad accepts them as targets and the mapped button goes silent,
+    which proves the write lands and not that C or T then works. Neither is
+    an XInput button, so there is nothing to observe. Offering a control we
+    cannot demonstrate is inventing a feature."""
     page = ButtonsPage()
     page.load(SOURCES)
     box = page.boxes[int(p.Key.A)]
     offered = [box.itemData(i) for i in range(box.count())]
-    assert int(p.Key.CAPTURE) in offered
-    assert int(p.Key.TURBO) in offered
+    assert int(p.Key.CAPTURE) not in offered
+    assert int(p.Key.TURBO) not in offered
     assert int(p.Key.CAPTURE) not in page.boxes
 
 
@@ -75,10 +79,10 @@ def test_pointing_a_button_at_itself_is_not_a_remapping():
 
 def test_loading_shows_what_the_pad_already_holds():
     page = ButtonsPage()
-    page.load(SOURCES, {int(p.Key.A): int(p.Key.TURBO)})
+    page.load(SOURCES, {int(p.Key.A): int(p.Key.B)})
     box = page.boxes[int(p.Key.A)]
-    assert box.currentData() == int(p.Key.TURBO)
-    assert page.mapping() == {int(p.Key.A): int(p.Key.TURBO)}
+    assert box.currentData() == int(p.Key.B)
+    assert page.mapping() == {int(p.Key.A): int(p.Key.B)}
 
 
 def test_clearing_puts_every_button_back_to_unchanged():

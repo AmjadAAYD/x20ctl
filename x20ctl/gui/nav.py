@@ -135,7 +135,7 @@ class NavRail(QFrame):
         self.mode_button.setToolTip(
             "Hide the settings that need explaining"
             if self.mode == ADVANCED else
-            "Show power, calibration and factory reset")
+            "Show the power timeout and the device page")
 
     def current(self) -> str | None:
         for key, button in self._buttons.items():

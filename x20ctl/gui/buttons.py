@@ -18,9 +18,12 @@ from .. import protocol as p
 
 UNCHANGED = "unchanged"
 
-# Buttons that can receive a mapping but never send one. The pad never lists
-# them as sources, and nothing in the record format says a target has to be one.
-EXTRA_TARGETS = (p.Key.CAPTURE, p.Key.TURBO)
+# C and T were offered here and are not offered any more. The pad accepts them
+# as targets and a source mapped to one goes silent, which proves the write
+# lands; it does not prove the button then does C or T's job. Neither is an
+# XInput button, so there is nothing to observe either way. Offering a control
+# we cannot demonstrate is inventing a feature.
+EXTRA_TARGETS: tuple = ()
 
 # Paired across the page the way they are paired on the controller: the two
 # triggers on one line, the two bumpers on the next, the two sticks after that,
@@ -80,8 +83,9 @@ class ButtonsPage(QWidget):
 
         self.blurb = QLabel(
             "Pick what each button should do instead. Leave one on "
-            "“unchanged” and it keeps its own job. C and T can be "
-            "placed onto a button even though they cannot be remapped away.")
+            "“unchanged” and it keeps its own job. Select and Start can be "
+            "chosen as targets, but the controller ignores them as sources, "
+            "so they have no row of their own.")
         self.blurb.setObjectName("PageSubtitle")
         self.blurb.setWordWrap(True)
         root.addWidget(self.blurb)
