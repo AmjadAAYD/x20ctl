@@ -57,40 +57,43 @@ def shape_for(preset: str | None) -> str | None:
     return preset
 
 
-class TravelMeter(QFrame):
-    """Live position of one trigger, with the chosen zone drawn on it."""
+class TravelMeter(QWidget):
+    """Live position of one trigger: a label, a long bar, a number.
+
+    The same shape as the input tester, which reads at a glance because the
+    bar is long enough to see small movement in.
+    """
 
     def __init__(self, title: str) -> None:
         super().__init__()
-        self.setObjectName("ControllerRow")
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 14, 16, 14)
-        layout.setSpacing(8)
+        row = QHBoxLayout(self)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(12)
 
-        head = QHBoxLayout()
         name = QLabel(title)
-        name.setObjectName("RowTitle")
-        head.addWidget(name)
-        head.addStretch(1)
-        self.reading = QLabel("0%")
-        self.reading.setObjectName("RowDetail")
-        head.addWidget(self.reading)
-        layout.addLayout(head)
+        name.setObjectName("RowDetail")
+        name.setFixedWidth(30)
+        row.addWidget(name)
 
         self.bar = QProgressBar()
         self.bar.setRange(0, 100)
         self.bar.setTextVisible(False)
-        self.bar.setFixedHeight(10)
-        layout.addWidget(self.bar)
+        self.bar.setFixedHeight(8)
+        row.addWidget(self.bar, 1)
 
-        self.zone = QLabel()
+        self.reading = QLabel("0")
+        self.reading.setObjectName("RowDetail")
+        self.reading.setFixedWidth(34)
+        self.reading.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        row.addWidget(self.reading)
+
+        self.zone = QLabel()          # kept for the caller; shown in the panel
         self.zone.setObjectName("RowDetail")
-        layout.addWidget(self.zone)
 
     def set_position(self, percent: int) -> None:
         percent = max(0, min(100, percent))
         self.bar.setValue(percent)
-        self.reading.setText(f"{percent}%")
+        self.reading.setText(str(percent))
 
     def set_zone(self, inner: int, outer: int) -> None:
         self.zone.setText(f"counts from {inner} to {outer}")
@@ -116,13 +119,13 @@ class ChoiceRow(QWidget):
         self.group = QButtonGroup(self)
         self.group.setExclusive(True)
         self.buttons: dict[str, QPushButton] = {}
+        self.blurbs = {key: blurb for key, _, blurb in options}
 
         for key, label, blurb in options:
             button = QPushButton(label)
             button.setObjectName("Ghost")
             button.setCheckable(True)
             button.setCursor(Qt.PointingHandCursor)
-            button.setToolTip(blurb)
             button.clicked.connect(lambda _=False, k=key: self.chosen.emit(k))
             self.group.addButton(button)
             self.buttons[key] = button
@@ -130,12 +133,27 @@ class ChoiceRow(QWidget):
         row.addStretch(1)
         layout.addLayout(row)
 
+        # Written out rather than hidden behind a hover: a setting you cannot
+        # see the meaning of is a setting nobody changes on purpose.
+        self.explain = QLabel()
+        self.explain.setObjectName("RowDetail")
+        self.explain.setWordWrap(True)
+        self.explain.setMinimumHeight(34)
+        layout.addWidget(self.explain)
+        self.chosen.connect(self.describe)
+
+    def describe(self, key: str | None) -> None:
+        self.explain.setText(self.blurbs.get(key, "") if key else
+                             "This controller is holding something of its own, "
+                             "matching none of these.")
+
     def select(self, key: str | None) -> None:
         """Check one option, or none of them if the pad holds something custom."""
         self.group.setExclusive(False)
         for name, button in self.buttons.items():
             button.setChecked(name == key)
         self.group.setExclusive(True)
+        self.describe(key)
 
     def current(self) -> str | None:
         for name, button in self.buttons.items():
@@ -158,8 +176,20 @@ class TriggerSide(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(14)
 
-        self.meter = TravelMeter(f"{side.title()} trigger")
-        layout.addWidget(self.meter)
+        panel = QFrame()
+        panel.setObjectName("ControllerRow")
+        inner = QVBoxLayout(panel)
+        inner.setContentsMargins(16, 12, 16, 12)
+        inner.setSpacing(8)
+
+        heading = QLabel(f"{side.title()} trigger")
+        heading.setObjectName("RowTitle")
+        inner.addWidget(heading)
+
+        self.meter = TravelMeter("LT" if side == "left" else "RT")
+        inner.addWidget(self.meter)
+        inner.addWidget(self.meter.zone)
+        layout.addWidget(panel)
 
         self.zones = ChoiceRow("Travel", ZONES)
         self.zones.chosen.connect(lambda key: self.zone_chosen.emit(side, key))
