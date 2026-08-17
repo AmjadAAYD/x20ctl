@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- The update check now runs once at launch instead of only on demand, on a
+  bottom-left line: a spinner and "Searching for a new update...", then
+  "Currently at the latest version" and the version number.
+- It stays silent when there is nothing to report. A newer release pops a
+  dialog offering Cancel or Update; Update opens the release page. Nobody is
+  made to update.
+- A GitHub that cannot be reached says so on that line and never opens a
+  dialog.
+- The check runs on a worker thread. The on-demand one called urllib with an
+  eight-second timeout on the UI thread, which would have frozen the window at
+  launch on a slow network.
+
 ## 1.1.2 — 2026-08-16
 
 A read-everything bug hunt over the whole codebase.

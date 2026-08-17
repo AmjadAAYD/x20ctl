@@ -32,6 +32,7 @@ from .nav import NavRail
 from .panels import Page, PowerPage, VibrationPage
 from .presence import PresenceWatcher, ask_about_lost
 from .roster import AlreadyAdded, PlayerTaken, Roster, RosterFull
+from .updatebar import UpdateBar
 from .saves import SavedMacrosPage
 from .start import StartPage
 from .tester import TesterPage
@@ -690,12 +691,28 @@ class AppShell(QWidget):
 
         root.addWidget(self.pages)
 
+        # Bottom left, under everything: the launch update check. Quiet unless
+        # there is something to say.
+        self.updates = UpdateBar()
+        self.updates.finished.connect(self._update_checked)
+        root.addWidget(self.updates)
+
         self.watcher = PresenceWatcher(self.roster, scan=scan, bridge=bridge)
         self.watcher.changed.connect(self.refresh)
         self.watcher.lost.connect(self.controller_lost)
         self.watcher.start()
 
         self.refresh()
+
+    def check_for_updates(self, fetch=None) -> None:
+        """Start the launch check. Separate from __init__ so a test can skip it."""
+        self.updates.start(fetch)
+
+    def _update_checked(self, _message: str, release) -> None:
+        """Only interrupt when there is actually a newer version."""
+        if release is None:
+            return
+        self._update_box = self.updates.offer(release)
 
     def controller_lost(self, slot) -> None:
         """A controller stopped answering. Ask, rather than guessing."""
