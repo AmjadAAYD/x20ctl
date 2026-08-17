@@ -366,7 +366,7 @@ async def cmd_sleep(args) -> None:
             current = await pad.shutdown_timeout()
         print(ui.header("Idle shutdown"))
         print(ui.field("timeout", describe_sleep(current)))
-        print(ui.label(f"\n  set it with: x20 sleep 10, or x20 sleep never\n"))
+        print(ui.label("\n  set it with: x20 sleep 10, or x20 sleep never\n"))
         return
 
     text = args.minutes.strip().lower()

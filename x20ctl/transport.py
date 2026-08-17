@@ -1,4 +1,4 @@
-"""Work out how the controller is physically connected.
+r"""Work out how the controller is physically connected.
 
 Matches on the interface Windows reports, since the USB ids are cloned from
 Microsoft on every link and tell you nothing.

@@ -127,10 +127,19 @@ class Workspace(QWidget):
     # window (the tray icon) can mirror it without reaching into the header.
     battery_read = Signal(object)
 
+    # Set from a snapshot. Declared here rather than sprung into existence by
+    # populate(), so every reader sees an empty list instead of AttributeError
+    # when a record does not arrive.
     def __init__(self, rumbler=None) -> None:
         super().__init__()
         self.slot = None
         self.link = None
+        # Set from a snapshot. Initialised here rather than sprung into
+        # existence by populate(), so every reader sees an empty list instead of
+        # AttributeError when a record does not arrive.
+        self._trigger_curves: list = []
+        self._stick_curves: list = []
+        self._snapshot = None
 
         outer = QHBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -340,6 +349,12 @@ class Workspace(QWidget):
                                   for raw in sticks]
             self.pages["sticks"].load("sticks", self._stick_curves,
                                       baseline=True)
+        # Separately, and guarded. These used to be one block, so a pad that
+        # answered HOST_STICK but not HOST_TRIGGER raised AttributeError here and
+        # aborted the whole load. That is reachable two ways: a pad reporting no
+        # triggers, and a single read timing out, which the first query on a
+        # fresh link is known to do.
+        if self._trigger_curves:
             self.pages["sticks"].load("triggers", self._trigger_curves,
                                       baseline=True)
 
@@ -378,11 +393,16 @@ class Workspace(QWidget):
         """
         if self.link is None:
             return
-        caps = getattr(self._snapshot, "capabilities", None) if hasattr(
-            self, "_snapshot") else None
+        # Ask only for slots the pad says it has, by bit position rather than by
+        # count: a pad with a gap in its macro bits would otherwise be asked for
+        # the wrong slots. The editor holds M1-M4, so stop there.
+        caps = getattr(self._snapshot, "capabilities", None)
         slots = list(range(1, 5))
-        if caps is not None and getattr(caps, "macro_slots", None):
-            slots = list(range(1, len(caps.macro_slots) + 1))
+        bits = getattr(caps, "macros", None)
+        if bits:
+            present = [n for n in range(1, 5) if bits >> (n - 1) & 1]
+            if present:
+                slots = present
         self.link.read_macros(slots, self._macros_read)
 
     def _macros_read(self, programs) -> None:
@@ -645,6 +665,7 @@ class AppShell(QWidget):
         # Off by default so a build without a tray, or a test, still closes.
         self._close_to_tray = False
         self._told_about_tray = False
+        self.first_hide_to_tray = False
         self.roster = roster if roster is not None else Roster()
         self._scan = scan
         self._bridge = bridge
@@ -718,6 +739,11 @@ class AppShell(QWidget):
 
     def show_roster(self) -> None:
         self.pages.setCurrentIndex(ROSTER_PAGE)
+        # No controller is on screen, so any battery reading on the tray belongs
+        # to a pad we are no longer watching. Leaving it there is worse than
+        # showing nothing: it could be hours stale, or from a pad now switched
+        # off, and the tray is visible with the window closed.
+        self.workspace.battery_read.emit(None)
         self.refresh()
 
     def open_controller(self, player: int) -> None:

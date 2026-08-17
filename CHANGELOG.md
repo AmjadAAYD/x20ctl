@@ -1,5 +1,35 @@
 # Changelog
 
+## 1.1.2 — 2026-08-16
+
+A read-everything bug hunt over the whole codebase.
+
+Download **x20ctl.exe** and run it. No install, no Python needed.
+
+### Fixed
+
+- A controller that answered the stick query but not the trigger query crashed
+  the load with `AttributeError`, leaving the workspace half filled. Reachable
+  from a pad with no triggers and from a single read timing out, which the first
+  query on a fresh link is known to do, so it was intermittent.
+- The tray kept showing a battery reading after you left a controller, so with
+  the window closed it could sit there stale or belong to a pad since switched
+  off. It now clears.
+- Macro slots were asked for by count rather than by bit position, so a pad with
+  a gap in its macro bits would have been asked for the wrong slots.
+- `transport.py` raised a `SyntaxWarning` on import from an unescaped device
+  path in its docstring. That becomes an error in a future Python.
+- `first_hide_to_tray` was created on first use rather than initialised.
+
+### Verified, not changed
+
+- Reading macros from inside the remapping callback is safe: the link releases
+  before it calls back, so the chained read is not refused.
+- `VibrationPage.load` takes a percentage and `client.vibration()` already
+  converts from the raw 0-255 the pad stores. No unit mismatch.
+- `transport.py` already documented the 2.4 GHz receiver as transparent, which
+  independently confirms this release's dongle correction.
+
 ## 1.1.1 — 2026-08-16
 
 Download **x20ctl.exe** and run it. No install, no Python needed.
