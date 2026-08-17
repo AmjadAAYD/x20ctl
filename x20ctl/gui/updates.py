@@ -1,10 +1,14 @@
-"""Ask GitHub whether there is a newer release, when the user asks.
+"""Ask GitHub whether there is a newer release.
 
-On demand rather than on a timer. A tool that phones home every launch to tell
-you it is fine is a tool that phones home, and this one has no business doing
-that quietly.
+Called two ways: from the Updates button in the header, and once at launch by
+`gui.updatebar`. The launch check was added deliberately, replacing an earlier
+on-demand-only rule, and it earns its keep by being silent: it says nothing at
+all unless a newer version exists, and it never blocks the UI. A check that
+reports "you are fine" every launch is the thing worth avoiding, not the check
+itself.
 
-The fetch is injected so version comparison can be tested without a network.
+This module stays free of Qt so version comparison can be tested without a
+network or a display. The fetch is injected for the same reason.
 """
 
 from __future__ import annotations

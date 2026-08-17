@@ -177,6 +177,12 @@ def main() -> int:
     if tray is not None:
         window._tray = tray          # keep it alive for the app's lifetime
 
+    # After show(), so the window is already up and the bottom line is visible
+    # while the check runs. It runs on a worker thread, so a slow network delays
+    # nothing.
+    if hasattr(window, "check_for_updates"):
+        window.check_for_updates()
+
     # After show(), so the overlay is created against the window's real size.
     from .splash import play
     play(window, logo_path())
