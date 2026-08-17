@@ -631,12 +631,20 @@ def build_app_window():
     return shell
 
 
+
+
 class AppShell(QWidget):
     """Roster and workspace, and the moving between them."""
+
+    hidden_to_tray = Signal()
 
     def __init__(self, *, scan=None, roster: Roster | None = None,
                  bridge=None, open_pad=None, rumbler=None) -> None:
         super().__init__()
+        # Closing the window hides it and leaves the app running in the tray.
+        # Off by default so a build without a tray, or a test, still closes.
+        self._close_to_tray = False
+        self._told_about_tray = False
         self.roster = roster if roster is not None else Roster()
         self._scan = scan
         self._bridge = bridge
@@ -686,6 +694,27 @@ class AppShell(QWidget):
 
     def refresh(self) -> None:
         self.start.show_roster(self.roster)
+
+    def set_close_to_tray(self, enabled: bool) -> None:
+        """Hide on close instead of quitting.
+
+        Only ever enabled when a tray icon exists, because the window is the
+        only way back in and an app with no way back is just gone.
+        """
+        self._close_to_tray = bool(enabled)
+
+    def closeEvent(self, event) -> None:            # noqa: N802 - Qt's name
+        if self._close_to_tray:
+            event.ignore()
+            self.hide()
+            first = not self._told_about_tray
+            self._told_about_tray = True
+            self.hidden_to_tray.emit()
+            if first:
+                # Windows convention: say where it went, once.
+                self.first_hide_to_tray = True
+            return
+        super().closeEvent(event)
 
     def show_roster(self) -> None:
         self.pages.setCurrentIndex(ROSTER_PAGE)

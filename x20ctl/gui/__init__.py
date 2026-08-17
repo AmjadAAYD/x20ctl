@@ -99,12 +99,37 @@ def _build_tray(app, window):
         window.raise_()
         window.activateWindow()
 
+    def leave() -> None:
+        # Turn hide-on-close off first, or the window would swallow the quit and
+        # the app would sit in the tray forever with no way out.
+        if hasattr(window, "set_close_to_tray"):
+            window.set_close_to_tray(False)
+        app.quit()
+
     tray.show_requested.connect(surface)
-    tray.quit_requested.connect(app.quit)
+    tray.quit_requested.connect(leave)
 
     workspace = getattr(window, "workspace", None)
     if workspace is not None and hasattr(workspace, "battery_read"):
         workspace.battery_read.connect(tray.show_battery)
+
+    # Closing the window now hides it: the app keeps running and stays in the
+    # tray. Quit is on the tray menu. Without this, Qt would exit as soon as the
+    # last window closed and the tray icon would vanish with it.
+    if hasattr(window, "set_close_to_tray"):
+        window.set_close_to_tray(True)
+        app.setQuitOnLastWindowClosed(False)
+
+        def explain() -> None:
+            if getattr(window, "first_hide_to_tray", False):
+                window.first_hide_to_tray = False
+                tray.showMessage(
+                    "x20ctl is still running",
+                    "Battery stays on the taskbar. Click the icon to reopen, "
+                    "or right-click and choose Quit.",
+                    tray.icon(), 4000)
+
+        window.hidden_to_tray.connect(explain)
 
     tray.show()
     return tray
