@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.1.1 — 2026-08-16
+
+Download **x20ctl.exe** and run it. No install, no Python needed.
+
+### Fixed
+
+- Closing the window quit the app and took the tray icon with it. It now hides
+  and keeps running; the tray icon stays, clicking it reopens the window, and
+  Quit is on its right-click menu.
+- The first time the window hides, the tray says where it went.
+
 ## 1.1.0 — 2026-08-16
 
 Acts on the first round of user feedback against 1.0.1.
