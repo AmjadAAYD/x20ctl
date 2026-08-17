@@ -365,28 +365,58 @@ A third confirmation was later taken with the LEDs fully off at brightness 0:
 the record read back byte-identical again. Off, brightness 1, and green all
 produce the same 24 bytes, so the palette is inert on this model.
 
-#### The lighting write does not fit the transport
+#### The lighting write does fit, and it lands. The LEDs still ignore it.
 
-Independently of whether the record means anything, it **cannot be written**.
-Four entries are 24 bytes; `writeLightingData` prefixes a length byte for 25, and
-the frame adds five more. That is a 30-byte packet against a `MAX_PACKET` of 20,
-so `scramble` refuses to build it. The 20-byte cap is not arbitrary — it is the
-payload of a default 23-byte BLE ATT MTU.
+An earlier version of this document claimed the record could not be written at
+all: 24 bytes plus a length prefix plus a five-byte frame is 30, over the
+20-byte `MAX_PACKET`. **That was wrong, and it was wrong because nobody read
+`writeLightingData` to the end.**
 
-This is why the read arrives chunked as 14 + 10 bytes. No chunked *write* form
-exists for lighting anywhere: not in the app's opcode constants, not in any
-capture. The only observed write chunking is `build_macro_write`, which carries
-its chunk index in the serial and is specific to macros.
+`ZXBTHelper.writeLightingData` walks the payload in **15-byte chunks** with an
+incrementing index, and `CodeHelper.writeHostLightingData(data, i)` puts that
+index in the serial via `getSaveButtonSerial(toBinary(i, 4))` — byte for byte
+the same shape as `writeHostMacroData`. So the 25-byte payload goes out as
+15 + 10, producing packets of 20 and 15. Both fit.
 
-The constraint binds the official app too. With four zones, KeyLinker could not
-have written this record in one packet either, and with the capability byte at
-zero it never draws the page to try. Lighting writes were not intended for this
-model over this transport.
+Verified on hardware 2026-08-16 against a second X20 (`98:B6:ED:55:D9:22`):
 
-Three independent walls now stand in front of software lighting control: the
-capability byte is zero, the record is inert, and no writable frame exists. Any
-further attempt would mean inventing write framing for a record whose payload
-layout the app's own decompilation leaves unknown.
+```
+2 packet(s): sizes [20, 15]
+  sent 20B serial 0x81 -> reply op 0x19
+  sent 15B serial 0x0a -> reply op 0x19
+RESULT: the pad stored exactly what was written.
+```
+
+Both packets acknowledged, and the record read back byte-identical to what was
+sent — `00ff00` in all four entries. **The LEDs stayed red.** The pad was later
+observed still displaying red with a green record stored, which is the converse
+of the earlier observation and completes the proof in both directions.
+
+`build_write(Op.WRITE_LIGHTING, piece, slot=chunk, counter=counter)` reproduces
+the app exactly, so this is a demonstrated capability, not a theory. It is
+deliberately **not** exposed as a library API, because it does nothing a user
+would want: writes to this record are stored and never read by the LED code.
+
+**Why `MAX_PACKET` is 20** is also worth stating correctly. It is not the ATT
+MTU. `SERIAL_KEY` has exactly 40 entries and `scramble` offsets into it by 0 or
+20, so a packet over 20 bytes indexes off the end of the table — and the
+firmware runs the same table in reverse. Negotiating a larger BLE MTU cannot
+help; the cap is in the obfuscation, not the transport. The MTU coincidence is
+just that.
+
+#### Page mode is not the gate either
+
+`CodeHelper.setHostMode(i)` sends `SET_MODE` with `05 DF AB 00 <a> <b>`, and
+`ZXBTHelper` re-asserts it on a repeating handler while a settings page is open.
+Mode 8 (`0A 03`) is the host settings menu. Writing lighting while **holding**
+mode 8, and again while holding mode 4, changed nothing. See 4i for the table.
+
+**The conclusion, measured rather than inferred:** `HOST_LIGHTING` /
+`WRITE_LIGHTING` is a stored palette the firmware never reads on this model.
+`caps.lighting = 0x00`, and the app gates its own lighting page on that byte
+(`HostMenuBean.hasLighting`), so **KeyLinker cannot change an X20's colour
+either**. Colour is reachable only through the on-pad combinations in
+`00-findings.md` section 1.
 
 ## 4c. HOST_MENU is multiplexed
 
@@ -405,13 +435,38 @@ Kinds, from the app's call sites (`getHostChangeKeySupport(pos, 3)`,
 | 3 | changekey support | `09` + `10 01 88 0d 84 0b 82 5d 82` |
 | 4 | turbo support | `0a` + `0c 01 88 0d 84` repeated twice |
 | 5 | macro support | `0b` + `12 12 13 0d 84 01 88 0b 82 5d 82` |
-| 6 | changekey variant | `10` + `2a 00` four times, then six zero bytes |
-| 7 | changekey variant | no reply |
+| 6 | **macro step data** | `10` + `2a 00` four times, then eight zero bytes |
+| 7 | device can-change list | no reply |
+| 0, 8-15 | — | no reply |
 
-Two observations, offered as leads rather than conclusions. Kind 4 is a 5-byte
-block repeated twice, matching the two-channel pattern already seen in the stick
-and trigger records. Kind 6 repeats `2a 00` exactly four times, which is
-suggestive on a pad with four rear buttons, though nothing yet confirms that.
+Kinds 6 and 7 are named by the app itself, in `host/util/SimplifyBleUtils`:
+
+```java
+public static void readMacroStepData(int i)      { getHostChangeKeySupport(i, 6); }
+public static void readDeviceCanChangeList(int i) { getHostChangeKeySupport(i, 7); }
+```
+
+**Kind 6 is macro step data**, and its full record is sixteen bytes — eight
+16-bit slots, of which the first four hold **42** and the rest are zero:
+
+```
+2a 00 2a 00 2a 00 2a 00 00 00 00 00 00 00 00 00
+```
+
+Eight slots with four populated matches `caps.macros = 0x0f` exactly, so this is
+one value per present macro slot, and the pad's own answer for **maximum macro
+steps is 42**. Note that `MAX_MACRO_ENTRIES` in `protocol.py` says 50 and the
+chunk-packing limit derives 47; the firmware's own number is lower than both and
+should be treated as authoritative until tested otherwise.
+
+Kind 4 is a 5-byte block repeated twice, matching the two-channel pattern
+already seen in the stick and trigger records.
+
+**Reading kind 6 requires the two-byte continuation.** It declares 16 bytes and
+only 14 arrive in the first packet. `client.read_body` used to follow
+continuations with a bare index byte, which is malformed for `HOST_MENU` and
+answers with silence, so the record silently truncated. Continuations must be
+`[position, kind]`, keeping the sub-query. Fixed 2026-08-16.
 
 #### The "16-bit pairs" lead was wrong
 
@@ -506,6 +561,41 @@ something transmitted. Note how close it sits to `05 DF AB 00 02 0E` on the
 same opcode, the enter firmware update command; payload is the only thing
 telling them apart.
 
+### The full SET_MODE page table
+
+`SET_MODE` (`0x1D`) carries `[argc, 0xDF, subcmd, args...]`. The six-byte
+`05 DF AB 00 <a> <b>` form is a **page selector**, and the app re-asserts it on
+a repeating handler for as long as a settings screen is open
+(`ZXBTHelper` run loop, guarded by `isSet`). From `CodeHelper.setHostMode(i)`:
+
+| i | payload tail | meaning |
+|---|---|---|
+| 1 | `00 00` | |
+| 2 | `06 05` | button test (`ButtonTestActivity` sets `hostPositionType = 2`) |
+| 3 | `06 02` | |
+| 4 | `0A 02` | normal |
+| 5 | `02 06` | |
+| 6 | `02 0E` | **ENTER FIRMWARE UPDATE — never send** |
+| 7 | `02 0C` | |
+| 8 | `0A 03` | host settings menu (`HostActivity.onDeviceMenu`) |
+
+`setMode(i)` overlaps: 0 gives the bare `02 DF AB`, 4 gives `0A 02`, 6 gives
+`02 0E`, 7 gives `02 0C`.
+
+Two corrections to earlier notes. `0A 03` is the **host settings menu**, not an
+"EQ page mode". And the enter-firmware-update command is not a special case — it
+is simply pair 6 of this table, which is exactly what makes it dangerous: it is
+one byte away from ordinary page switching.
+
+### The 0xDF values 0x0A-0x0F are a clock, not features
+
+`03 DF AB 0A` through `0F` all answer `09 df aa <value> 90 <b0 b1 b2> 00 5e`,
+echoing the value. The three varying bytes are a little-endian 24-bit counter.
+Sending one value at 2 s, 8 s and 2 s intervals gives 4.95, 4.97 and 5.11 ms per
+unit, so it is a **5 ms uptime counter** — the same timebase as the idle
+shutdown record. The pad parses these values and returns generic status; there
+is no feature behind any of them. Do not re-sweep this range.
+
 **It does not calibrate the sticks**, despite the obvious reading of the word.
 Tested directly: hold the left stick about a fifth of the way over, calibrate,
 release, and measure the resting position with the deadzone stripped out. If
@@ -585,9 +675,19 @@ here is the app's `iArr[1]`.
 | 4 | macros | bits 0-7: M1-M6, ML, MR |
 | 5 | button remapping | non-zero enables the page |
 | 6 | lighting | one bit per lighting zone |
-| 7 | EQ | audio equaliser |
+| 7 | EQ | audio equaliser — see below |
 | 8 | NFC | bits for pro/left/right pad and NFC 1-4 |
 | 9 | sensor | gyro |
+
+The offset mapping is confirmed against the app: `HostActivity` tests
+`iArr[8] > 0` to `setHasEq(true)`, and `iArr[8]` is this table's offset 7 once
+the length prefix is accounted for.
+
+**EQ really is an audio equaliser**, not a second lighting surface. `HostActivity`
+draws it as a bank of `VerticalSeekBar`s and sets `hostPositionType = 8` to enter
+the settings-menu mode first. The X20 reports `eq = 0x02`, so the official app
+*does* offer this page for this pad — making it the one enabled capability
+`x20ctl` does not implement.
 
 ### Reading from an EasySMX X20, firmware 9.01
 
@@ -786,7 +886,7 @@ These are the settings a desktop tool could offer that nothing else can.
 | Wired USB, Switch | `057E:2009`, 1 collection | **none**, `feature=0` |
 | Bluetooth Classic | `045E:02FD`, BR/EDR HID | **none** |
 | BLE, `Xpert2` peripheral | n/a | **yes**, service `d7f010e0` |
-| 2.4 GHz dongle | `1D57:FA60`, 7 collections | **yes**, see below |
+| 2.4 GHz dongle | presents the **pad's own** identity per mode | **none** |
 
 All rows enumerated with `tools/hid_scan.py`, which opens devices at zero access
 and only reads descriptors.
@@ -818,7 +918,32 @@ Note that the same command space contains `0x11` SPI flash write and `0x12` SPI
 sector erase. Those are brick vectors sitting beside the LED commands, so this is
 a spare-hardware experiment, not a main-controller one.
 
-### The dongle exposes a firmware channel
+### The dongle carries no config channel — retracted, mistaken identity
+
+**Everything below about `1D57:FA60` describes a different device.** Retracted
+2026-08-16. `VID_1D57` is Xenta, and the collections attributed to the X20's
+receiver are a keyboard, a mouse, a consumer-control page and `col04` — the
+signature of a generic wireless **keyboard/mouse** receiver that happens to live
+permanently in this machine. It was present during the original `hid_scan` and
+was read as if it were the pad's dongle.
+
+**What the X20's own receiver actually does:** it is transparent, presenting the
+pad's identity per mode, exactly as the cable does. Verified by mode-switching a
+pad connected over the dongle with no cable attached:
+
+| Pad mode, over the dongle | Enumerates as |
+|---|---|
+| XInput | `045E:028E`, one collection, `feature=0` |
+| DInput | `0079:181C`, `ZhiXu` / `EasySMX X20`, `feature=0` |
+
+No feature-report collection appears in any mode, so the dongle rows match the
+wired rows: **no config channel**. There is no dongle-side firmware surface for
+this project, and the receiver has no mass-storage bootloader either — `L3` while
+connecting is a pad gesture, confirmed by the pad's bootloader volume still
+appearing with the dongle physically removed.
+
+The original text is kept below so the error is legible rather than silently
+deleted. Do not act on it.
 
 The 2.4 GHz receiver is the one transport that does carry a config-shaped channel,
 and `--vendor` misses it because the vendor used a low usage page rather than
@@ -848,6 +973,67 @@ Note that link speed is irrelevant to configuration. The dongle's 1000 Hz pollin
 matters for input latency during play; a configuration write is a single packet
 of under 20 bytes. The likely workflow is to configure over BLE and play over the
 dongle, since both links are live simultaneously.
+
+**Correction, 2026-08-16: none of this belongs to the X20.** Re-read read-only on
+the documented ids: `0x04` returns the UTF-16 product string `2.4G Wireless
+Device`, `0x05`-`0x22` return 8051 code, `0xA0` an unidentified blob. There is no
+request/response interface — it only streams that device's own code memory, so it
+is a firmware read-back surface rather than a config one. And it is an unrelated
+wireless keyboard/mouse receiver, as the retraction above explains. Reading it
+further would be poking a third party's peripheral for no benefit.
+
+## 4j. The USB bootloader, and why the firmware cannot be dumped
+
+Holding `L3` while connecting USB really does enter upgrade mode: the pad leaves
+XInput and BLE and enumerates as a removable disk. Entering and leaving it
+**without writing is harmless** — nothing is flashed and unplugging restores a
+working controller.
+
+The volume has no filesystem and reports `Size = 0`. A raw `\\.\D:` read fails
+with `PermissionError` even elevated, because there are no sectors, not because
+of privilege. `INQUIRY` over `IOCTL_SCSI_PASS_THROUGH_DIRECT` answers:
+
+```
+vendor "Gamepad "  product "Updater         "  rev "1.00"   (RMB set)
+```
+
+Every other standard read answers sense key `0x2` ASC `0x3A` (MEDIUM NOT
+PRESENT); `READ BUFFER` answers `0x5` ASC `0x24`, so it is unimplemented.
+
+### The vendor command set
+
+`DeviceUsb.dll` exports `deviceUsb_Request`, which disassembles to a plain
+`IOCTL_SCSI_PASS_THROUGH_DIRECT` wrapper hardcoding no opcode and no direction:
+
+```c
+int deviceUsb_Request(HANDLE h, BYTE dataIn, void *cdb, BYTE cdbLen,
+                      void *dataBuf, DWORD dataLen);
+```
+
+The updater calls it from exactly four sites:
+
+| VA | dataIn | data | meaning |
+|---|---|---|---|
+| `0x00402644` | 1 read | 20 B | vendor query, opcode `0xF1` |
+| `0x00402872` | 0 write | 512 B | firmware chunk loop |
+| `0x00402897` | 1 read | 20 B | status after each chunk |
+| `0x004028de` | 1 read | 20 B | final status |
+
+**Every read is 20 bytes. There is no bulk read.** The firmware cannot be dumped,
+so no backup can be taken, so any write is unrecoverable. That is the reason
+flashing stays out of scope — not caution, but the vendor's own command table.
+
+`0xF1` is safe and useful: CDB `f1 00 00 00 00 00 00 00 00 00`, `dataIn = 1`, 20
+bytes. It returns **the same 18-byte GUID as `HOST_GUID` (0x93) over BLE**, plus
+two zero pad bytes, verified on one unit across both transports. That makes it a
+cross-transport identity oracle — useful for proving which physical pad a
+bootloader volume belongs to.
+
+**Trap when disassembling the updater:** the `GetProcAddress` block at
+`0x004021fa` stores each result one call late, so the naive mapping is off by
+one. The real pointers are `0x5f9870` OpenByDrv, `0x5f986c` Close, `0x5f9868`
+GetInfo, `0x5f9864` **Request**. Reading it wrong leads to a two-argument
+identity check at `0x00402d52` that looks like the command path and is not.
 
 ## 4h. Macros, confirmed working
 

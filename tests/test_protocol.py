@@ -855,7 +855,13 @@ def test_battery_bit_layout():
     assert status(0b1000_0000).level == 4
     assert status(0b0001_0000).charging is True
     assert status(0b0000_0000).charging is False
-    assert status(0b1001_0000) == p.Battery(level=4, charging=True)
+    assert status(0b1001_0000) == p.Battery(level=4, charging=True, status=0x90)
+
+    # The raw byte is carried through so a wrong reading stays diagnosable: a
+    # user reported 4/4 in the app against 2/4 on the pad's own LEDs, and every
+    # reading we have came from a wired unit at 0x90, which cannot disprove it.
+    assert status(0b1001_0000).status == 0x90
+    assert status(0b0100_0000).status == 0x40
 
 
 def test_battery_precedence_follows_the_app():

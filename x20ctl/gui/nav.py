@@ -47,9 +47,11 @@ SECTIONS = (
             "Setups you have saved, ready to open or send back."),
     Section("test", "Test",
             "Watch the sticks and triggers move as you use them."),
+    # Not advanced. A user asked "Is Power standard enough that it shouldn't be
+    # part of Advanced?" and they are right: a sleep timer needs no explanation
+    # before it is safe to touch, which is the only thing Advanced is for.
     Section("timeout", "Power",
-            "How long the controller waits before switching itself off.",
-            advanced=True),
+            "How long the controller waits before switching itself off."),
     Section("device", "Device",
             "Calibration, factory reset, and what the pad reports about itself.",
             advanced=True),

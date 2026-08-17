@@ -27,6 +27,8 @@ These define the minimum feature set the protocol must cover.
 
 | Setting | Combination |
 |---|---|
+| **RGB colour** | hold `C` + `R3` |
+| **RGB mode, breathing or constant** | hold `C` + `L3`, twice |
 | RGB brightness, cycles 0 to 3 | hold `C` + `L3` |
 | ABXY lighting toggle | `Menu` + `D-pad Right` |
 | Map gyro to left stick | hold `C` + `BACK` + `L3` |
@@ -37,6 +39,11 @@ These define the minimum feature set the protocol must cover.
 | Turbo rate | `C` + left stick up/down |
 | Factory reset | hold `C` for 5 seconds |
 | Enter firmware upgrade mode | hold `L3` while connecting USB |
+
+All verified working on hardware, 2026-08-16. The colour and mode combinations
+were missing from earlier versions of this table, which listed only brightness —
+and their absence sent a whole day of protocol work chasing something that has
+no protocol path at all. **Colour is on-pad only**; see 01-protocol 4b.
 
 Factory reset is the recovery path for any settings-level mistake.
 
@@ -115,7 +122,28 @@ Open update device fail!
 ```
 
 `Upgrade code and hardware mismatch!` implies a hardware model id is checked
-before flashing, which is worth identifying later as a fingerprinting method.
+before flashing. **That id is now known**: the updater's first command is a
+read-direction vendor CDB with opcode `0xF1`, and it returns the same 18-byte
+GUID as `HOST_GUID` (0x93) over BLE. See 01-protocol 4j.
+
+### The updater carries no firmware, and cannot fetch any
+
+Checked 2026-08-16 on this exact binary (SHA-256 above):
+
+- **No network imports.** No WinINet, WinHTTP, ws2_32 or urlmon, so it cannot
+  download an image.
+- **One large resource**, `IDR_DLL` id 130 at 8704 bytes — that is
+  `DeviceUsb.dll`. There is no firmware resource of any kind.
+- **No region in the 2.2 MB file has the byte profile of 8051 code.** The control
+  case works: the known x86 DLL resource scores 4% on that profile.
+- It imports `COMDLG32.dll`, consistent with expecting the **user** to supply a
+  firmware file through a browse dialog.
+
+Combined with the vendor server returning `404 匹配失败` for vid 1013 / pid 2009,
+and the pad having no read command on any transport, **no firmware image for this
+pad exists anywhere we can reach**. Running the updater would read the version and
+then ask for a file that does not exist. This is why flashing is out of scope: not
+a risk judgement, simply nothing to write.
 
 ---
 
@@ -222,27 +250,49 @@ or the `DeviceUsb.dll` interface return nothing. This is unexplored.
       XInput report `BACK`, bit 23 reports `START`. `C` (95) and `T` (96) really
       are excluded from the changekey and macro lists, so `C` and `T` combinations
       remain impossible to encode.
-- [ ] Is there an on-pad combination for RGB **colour or mode**? Section 1 records
-      "RGB, 3 modes", but only brightness (`C` + `L3`) and the ABXY toggle
-      (`Menu` + `D-pad Right`) are transcribed from the manual. A mode combo would
-      only cycle the vendor's presets, so it is not a route to *authoring* colours.
+- [x] **Is there an on-pad combination for RGB colour or mode?** **Yes, both.**
+      `C` + `R3` cycles colour; `C` + `L3` twice switches breathing/constant.
+      Confirmed working on hardware. They are now in the section 1 table.
+- [x] **Can lighting be controlled from software?** **No, and not by the vendor
+      either.** The record is writable (chunked, 15 + 10) and the write lands and
+      reads back, but the LED code never reads it — proven in both directions on
+      two units, and under held page modes 8 and 4. `caps.lighting = 0x00` and the
+      app gates its own lighting page on that byte, so KeyLinker cannot do it on
+      an X20 either. Every transport is eliminated: config service, BLE OTA
+      (write-only), USB bootloader (no read command, so no backup and no
+      recoverable write), and the 2.4 GHz dongle (its own 8051 code, no command
+      interface). The combos cannot be synthesised either, since `C` (95) and `T`
+      (96) are excluded from the macro and changekey lists. See 01-protocol 4b.
 - [ ] Does the X20 map the Switch Pro LED subcommands (`0x30` player lights,
       `0x38` HOME light) onto its RGB hardware? The one untested write channel.
       Ceiling is brightness or on/off, not per-zone colour. Spare hardware only:
       `0x11`/`0x12` SPI write and erase share that command space.
-- [ ] Do two X20 units report the **same capability descriptor**? The entire
-      lighting conclusion rests on `caps.lighting = 0` read from a single unit.
-      `tools/report.py` on each pad and a diff of the two would settle it, at no
-      risk. A second unit reporting non-zero would invert the conclusion, and per
-      the changelog the library gates on the descriptor, so it would simply work.
+- [x] **Do two X20 units report the same capability descriptor?** **Yes**, byte
+      for byte, including `lighting`, `turbo` and `sensor` all zero. Settled by
+      running `tools/report.py` against a second unit. The question turned out not
+      to matter: the pad accepted a lighting write with the byte at zero, so the
+      descriptor gates the *app's UI*, not what the firmware will accept.
+- [ ] **`READ_PRESS_GUN` (`0xA4`) is undecoded.** `ZXBTHelper.parsingPressGun`
+      takes `copyOfRange(cache, 1, 7)` and `setPressGunData` takes three bytes per
+      button, so it is a per-button record. "Press gun" is 压枪, recoil control.
+      Nothing else is known and nothing in `x20ctl` reads it.
+- [ ] **EQ is unimplemented.** `eq = 0x02` is the one enabled capability the
+      library ignores. The app draws it as vertical seek bars, so it is a real
+      audio equaliser with a real record somewhere.
 
 ---
 
 ## 6. Safety rules for this project
 
-1. Never invoke the mass-storage/SCSI path. No `\\.\PHYSICALDRIVE`, no
-   `IOCTL_SCSI_PASS_THROUGH`, no running the vendor updater during development.
+1. Never **write** over the mass-storage/SCSI path, and never run the vendor
+   updater during development. Refined 2026-08-16: read-direction
+   `IOCTL_SCSI_PASS_THROUGH_DIRECT` with an opcode allowlist is safe and was used
+   to recover the command set (01-protocol 4j). The prohibition is on writes,
+   because the bootloader has no read-back and therefore no backup is possible.
+   Raw `\\.\PHYSICALDRIVE` access stays off-limits regardless: a wrong index
+   damages the host machine, not the pad.
 2. Never enter upgrade mode (`L3` held while connecting) except deliberately.
+   Entering and leaving it without writing is harmless and has been done.
 3. Read before writing. Feature-report probes are read-only and safe.
 4. Record the full settings state before the first write, so it can be restored.
 5. Recovery path for settings damage: hold `C` for 5 seconds.

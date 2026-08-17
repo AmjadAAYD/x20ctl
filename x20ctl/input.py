@@ -41,11 +41,21 @@ XINPUT_BUTTONS = {
     0x0080: p.Key.R3,
     0x0100: p.Key.LB,
     0x0200: p.Key.RB,
+    # 0x0400 is the Guide/Home button. It is NOT in the public SDK header and
+    # XInputGetState deliberately masks it out, which is why the Test page never
+    # showed Home. It only arrives through XInputGetStateEx; see _load_xinput.
+    0x0400: p.Key.HOME,
     0x1000: p.Key.A,
     0x2000: p.Key.B,
     0x4000: p.Key.X,
     0x8000: p.Key.Y,
 }
+
+XINPUT_GAMEPAD_GUIDE = 0x0400
+
+# XInputGetStateEx has no exported name, only ordinal 100. Present in
+# XInput1_3.dll and XInput1_4.dll, absent from XInput9_1_0.dll.
+XINPUT_GETSTATE_EX_ORDINAL = 100
 
 # Triggers are analog; treat them as pressed past the standard threshold.
 TRIGGER_THRESHOLD = 30
@@ -109,6 +119,26 @@ def _load_xinput():
     return None
 
 
+def _get_state_fn(dll):
+    """Prefer XInputGetStateEx, which reports the Guide/Home button.
+
+    A user asked why Home never appears in the Test page. The answer is that the
+    documented XInputGetState clears bit 0x0400 before returning, so Home is
+    invisible through it no matter what the pad sends. The undocumented
+    XInputGetStateEx does not, and is reachable only by ordinal 100.
+
+    Returns (callable, reports_home). Falls back to XInputGetState where the
+    ordinal is missing, e.g. XInput9_1_0.dll, in which case Home genuinely
+    cannot be seen and the UI should say so rather than look broken.
+    """
+    if dll is None:
+        return None, False
+    try:
+        return dll[XINPUT_GETSTATE_EX_ORDINAL], True
+    except Exception:
+        return getattr(dll, "XInputGetState", None), False
+
+
 @dataclass
 class GamepadState:
     slot: int
@@ -155,20 +185,21 @@ class XInputReader:
 
     def __init__(self) -> None:
         self._dll = _load_xinput()
+        self._get_state, self.reports_home = _get_state_fn(self._dll)
         self._slot: int | None = None
 
     @property
     def available(self) -> bool:
-        return self._dll is not None
+        return self._dll is not None and self._get_state is not None
 
     def poll(self) -> GamepadState | None:
-        if self._dll is None:
+        if self._get_state is None:
             return None
 
         slots = [self._slot] if self._slot is not None else range(4)
         for slot in slots:
             state = XINPUT_STATE()
-            if self._dll.XInputGetState(slot, ctypes.byref(state)) != 0:
+            if self._get_state(slot, ctypes.byref(state)) != 0:
                 continue    # 1167 == ERROR_DEVICE_NOT_CONNECTED
             self._slot = slot
             pad = state.Gamepad

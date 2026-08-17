@@ -123,6 +123,9 @@ class Workspace(QWidget):
     back = Signal()
     switch_player = Signal(int)
     factory_reset = Signal()
+    # Emitted whenever a snapshot brings a new reading, so anything outside the
+    # window (the tray icon) can mirror it without reaching into the header.
+    battery_read = Signal(object)
 
     def __init__(self, rumbler=None) -> None:
         super().__init__()
@@ -309,6 +312,7 @@ class Workspace(QWidget):
         self.pages["macros"].record_requested.connect(self._record_macro)
         self.pages["triggers"].zone_chosen.connect(self._choose_zone)
         self.pages["triggers"].shape_chosen.connect(self._choose_shape)
+        self.pages["triggers"].swap_toggled.connect(self._swap_triggers)
         self.pages["triggers"].save_requested.connect(self._write_triggers)
         self.pages["sticks"].write_requested.connect(self._write_sticks)
         self.header.factory_reset.connect(link.factory_reset)
@@ -339,7 +343,18 @@ class Workspace(QWidget):
             self.pages["sticks"].load("triggers", self._trigger_curves,
                                       baseline=True)
 
-        self.header.show_battery(getattr(snapshot, "battery", None))
+        # The shutdown timeout is carried in the motor record the snapshot
+        # already read. Before this it was never loaded, so the page showed its
+        # own default and a pad set to 30 minutes read as 10.
+        # The PowerPage is keyed "timeout", not "power".
+        power = self.pages.get("timeout")
+        if power is not None and hasattr(power, "load"):
+            power.load(getattr(snapshot, "shutdown", None))
+
+        self._snapshot = snapshot
+        battery = getattr(snapshot, "battery", None)
+        self.header.show_battery(battery)
+        self.battery_read.emit(battery)
         self.pages["device"].load(snapshot)
         self.say("Loaded.")
         if self.link is not None and not self.pages["buttons"].boxes:
@@ -351,6 +366,41 @@ class Workspace(QWidget):
         self.pages["buttons"].blockSignals(True)
         self.pages["buttons"].load(sources, mapping)
         self.pages["buttons"].blockSignals(False)
+        # Chained, not fired alongside: the link refuses overlapping work.
+        self._read_all_macros()
+
+    def _read_all_macros(self) -> None:
+        """Load every macro slot the pad has, without being asked per slot.
+
+        A user reported "each macro needs an individual Read from controller
+        press". They are read here instead, as one operation after the remapping
+        read, so the editor opens showing what the controller actually holds.
+        """
+        if self.link is None:
+            return
+        caps = getattr(self._snapshot, "capabilities", None) if hasattr(
+            self, "_snapshot") else None
+        slots = list(range(1, 5))
+        if caps is not None and getattr(caps, "macro_slots", None):
+            slots = list(range(1, len(caps.macro_slots) + 1))
+        self.link.read_macros(slots, self._macros_read)
+
+    def _macros_read(self, programs) -> None:
+        from .macrogrid import MacroGrid
+
+        if not programs:
+            return
+        loaded = []
+        for number, program in sorted(programs.items()):
+            slot = f"M{number}"
+            if program is None:
+                continue
+            self.pages["macros"].load(slot, MacroGrid.from_program(program))
+            loaded.append(slot)
+        if loaded:
+            self.say("Macros read from the controller: " + ", ".join(loaded))
+        else:
+            self.say("No macros stored on the controller.")
 
     # -- writes from the pages -------------------------------------------
 
@@ -389,6 +439,19 @@ class Workspace(QWidget):
             out.append(curve)
         self._trigger_curves = out
         return out
+
+    def _swap_triggers(self, swapped: bool) -> None:
+        """L2/R2 exchange. The pad stores the flag on both channels, not one.
+
+        KeyLinker writes isTriggerExchange into the flag byte of each side, so
+        setting it on one channel alone would be a state the vendor app never
+        produces. Nothing reaches the pad until Save, like the rest of the page.
+        """
+        curves = getattr(self, "_trigger_curves", None)
+        if not curves:
+            self.say("Trigger settings have not loaded yet.")
+            return
+        self._trigger_curves = [c.with_flags(swapped=swapped) for c in curves]
 
     def _write_sticks(self) -> None:
         page = self.pages["sticks"]

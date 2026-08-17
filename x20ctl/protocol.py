@@ -1425,6 +1425,7 @@ class Battery:
 
     level: int          # 1 to 4
     charging: bool
+    status: int = 0     # the raw byte, kept so a wrong reading is diagnosable
 
     @property
     def approximate_percent(self) -> int:
@@ -1433,7 +1434,9 @@ class Battery:
 
     def __str__(self) -> str:
         bar = "▮" * self.level + "▯" * (BATTERY_LEVELS - self.level)
-        return f"{bar} {self.level}/{BATTERY_LEVELS}" + (" charging" if self.charging else "")
+        return (f"{bar} {self.level}/{BATTERY_LEVELS}"
+                + (" charging" if self.charging else "")
+                + f"  (status 0x{self.status:02x})")
 
 
 def parse_battery(body: "Body") -> Battery:
@@ -1442,6 +1445,15 @@ def parse_battery(body: "Body") -> Battery:
     Follows ButtonTestActivity.onDeviceHostMacroPower, including its precedence:
     it tests bit 5, then bit 6, then bit 7, so a lower bit wins if several are
     set.
+
+    **This decode is not confirmed against a discharging pad.** Every reading
+    taken so far came from a wired unit reporting status 0x90, which is bit 7
+    (level 4) plus bit 4 (charging) and is consistent but unfalsifiable. A user
+    reported the app showing 4/4 while the controller's own LEDs showed 2/4, so
+    the precedence above may be wrong for intermediate levels. The raw byte is
+    carried on the result and printed by `tools/report.py` precisely so the next
+    report can settle it: send the status byte alongside what the pad's LEDs
+    show.
     """
     if len(body.data) < 4:
         raise ValueError(f"power reply too short: {len(body.data)} bytes")
@@ -1456,7 +1468,7 @@ def parse_battery(body: "Body") -> Battery:
         level = 4
     else:
         level = 1
-    return Battery(level=level, charging=charging)
+    return Battery(level=level, charging=charging, status=status)
 
 
 # The pad reports its internal name, not the one on the box. Map the ones we
