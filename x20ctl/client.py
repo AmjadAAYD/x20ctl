@@ -120,6 +120,23 @@ class Snapshot:
     battery: p.Battery | None = None
     raw: dict[str, bytes] = field(default_factory=dict)
 
+    @property
+    def shutdown(self) -> int | None:
+        """Idle shutdown in minutes, or None for never.
+
+        It lives in the motor record, which this snapshot already reads, so
+        exposing it here costs no extra traffic. Raises nothing: a pad whose
+        motor record is too short simply has no field, and that reads as never
+        rather than as an error, because the caller is a settings page.
+        """
+        data = self.raw.get("motor")
+        if not data:
+            return None
+        try:
+            return p.parse_shutdown(data)
+        except ValueError:
+            return None
+
 
 class X20:
     """A connected controller.
@@ -211,7 +228,15 @@ class X20:
         return await self._send(p.build(opcode, payload, serial=serial), serial)
 
     async def read_body(self, opcode: p.Op, payload: bytes = b"") -> p.Body | None:
-        """Query and strip the length prefix, following chunks if needed."""
+        """Query and strip the length prefix, following chunks if needed.
+
+        The continuation query must keep the *shape* of the original payload.
+        Most records take a single index byte, but HOST_MENU takes
+        [position, kind], where position is the chunk index. Sending a bare
+        index byte to HOST_MENU is a malformed request that answers with
+        silence, so a chunked menu record used to truncate without error:
+        kind 6 declares 16 bytes and only 14 arrive in the first packet.
+        """
         first = await self.query(opcode, payload)
         if first is None or not first.crc_valid:
             return None
@@ -220,7 +245,12 @@ class X20:
         index = 0
         while not body.complete and index < 8:
             index += 1
-            more = await self.query(opcode, bytes([index]))
+            if len(payload) >= 2:
+                # [position, kind]: advance position, keep the sub-query.
+                nxt = bytes([index]) + payload[1:]
+            else:
+                nxt = bytes([index])
+            more = await self.query(opcode, nxt)
             if more is None or not more.crc_valid:
                 break
             body = p.Body(declared=body.declared, data=body.data + more.payload)

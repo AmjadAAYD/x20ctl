@@ -77,6 +77,39 @@ def _write_diagnostic(resolved: str | None) -> None:
         pass
 
 
+def _build_tray(app, window):
+    """A battery tray icon, if the desktop has a tray at all.
+
+    Returns None when there is no system tray, which is normal on some Linux
+    sessions, rather than failing to start. Closing the window still quits: the
+    tray is a readout, not a background mode, so the app does not silently keep
+    running after you close it.
+    """
+    from PySide6.QtWidgets import QSystemTrayIcon
+
+    if not QSystemTrayIcon.isSystemTrayAvailable():
+        return None
+
+    from .tray import BatteryTray
+
+    tray = BatteryTray(window)
+
+    def surface() -> None:
+        window.showNormal()
+        window.raise_()
+        window.activateWindow()
+
+    tray.show_requested.connect(surface)
+    tray.quit_requested.connect(app.quit)
+
+    workspace = getattr(window, "workspace", None)
+    if workspace is not None and hasattr(workspace, "battery_read"):
+        workspace.battery_read.connect(tray.show_battery)
+
+    tray.show()
+    return tray
+
+
 def main() -> int:
     from PySide6.QtGui import QIcon
     from PySide6.QtWidgets import QApplication
@@ -114,6 +147,10 @@ def main() -> int:
     if not icon.isNull():
         window.setWindowIcon(icon)
     window.show()
+
+    tray = _build_tray(app, window)
+    if tray is not None:
+        window._tray = tray          # keep it alive for the app's lifetime
 
     # After show(), so the overlay is created against the window's real size.
     from .splash import play

@@ -131,6 +131,31 @@ class ControllerLink(QObject):
 
         return self._run(work, "", on_done=on_done)
 
+    def read_macros(self, slots, on_done) -> bool:
+        """Read several macro slots as ONE operation.
+
+        Four separate read_macro calls would have three refused: this link
+        rejects overlapping work, because the pad drops its link when requests
+        overlap. So the reads are sequential inside a single held connection.
+
+        `on_done` receives {slot number: program or None}. A slot the pad has
+        nothing in comes back as None rather than being omitted, so the caller
+        can tell "empty" from "never asked".
+        """
+        wanted = list(slots)
+
+        async def work():
+            out: dict[int, object] = {}
+            async with self._open(self.address) as pad:
+                for slot in wanted:
+                    try:
+                        out[slot] = await pad.read_macro(slot)
+                    except Exception:           # noqa: BLE001 - one bad slot
+                        out[slot] = None        # must not lose the others
+            return out
+
+        return self._run(work, "", on_done=on_done)
+
     def read_remapping(self, on_done) -> bool:
         """The pad's remappable sources and whatever it currently maps.
 

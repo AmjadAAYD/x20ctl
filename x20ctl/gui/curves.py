@@ -278,9 +278,10 @@ class ChannelEditor(QFrame):
         self.flag_row.addWidget(self.straighten)
         layout.addLayout(self.flag_row)
 
-        # The flag bits are decoded for sticks. On the trigger record the same
-        # byte exists but nothing has confirmed it means the same thing, so it
-        # is carried through untouched rather than offered as a control.
+        # Invert is a stick-only control. The trigger record has the same flag
+        # byte, but per HostActivity.applyTriggerData only bit 2 is ever set on
+        # it (the L2/R2 exchange, offered on the Triggers page); its invert bits
+        # are written as zero by the vendor app and are not exposed here.
         if kind != "sticks":
             for widget in (self.invert_x, self.invert_y):
                 widget.hide()
@@ -450,6 +451,24 @@ class CurvesPage(QWidget):
         scroll.setWidget(holder)
         layout.addWidget(scroll, 1)
 
+        # Swap is one flag for the pair, not a per-channel setting: the app
+        # writes the same bit into both halves of the record. So it lives on the
+        # page, beside the write button, rather than on a card.
+        swap_row = QHBoxLayout()
+        swap_row.setSpacing(10)
+        self.swap_sticks = QPushButton("Swap left and right sticks")
+        self.swap_sticks.setCheckable(True)
+        self.swap_sticks.setObjectName("Ghost")
+        self.swap_sticks.clicked.connect(self._on_edit)
+        swap_row.addWidget(self.swap_sticks)
+        swap_note = QLabel(
+            "The left stick does what the right one did, and the other way "
+            "round. Stored on the controller, so it applies in every game.")
+        swap_note.setObjectName("Faint")
+        swap_note.setWordWrap(True)
+        swap_row.addWidget(swap_note, 1)
+        layout.addLayout(swap_row)
+
         layout.addWidget(divider())
         footer = QHBoxLayout()
         footer.setSpacing(10)
@@ -478,6 +497,12 @@ class CurvesPage(QWidget):
             editor = self.editors.get((kind, index))
             if editor is not None:
                 editor.set_curve(curve)
+        if kind == "sticks" and curves:
+            # Read back from the pad, not remembered, so the button shows what
+            # the controller actually holds.
+            self.swap_sticks.blockSignals(True)
+            self.swap_sticks.setChecked(curves[0].swapped)
+            self.swap_sticks.blockSignals(False)
         if baseline:
             self._baseline[kind] = list(curves)
         self._sync()
@@ -486,12 +511,19 @@ class CurvesPage(QWidget):
         return list(self._baseline.get(kind, []))
 
     def values(self, kind: str) -> list[p.Curve]:
-        """Every channel of one record, in wire order."""
+        """Every channel of one record, in wire order.
+
+        The swap flag is applied here rather than held on a card, because the
+        pad stores it on both halves of the record or neither.
+        """
         out = []
         for (editor_kind, _index), editor in sorted(self.editors.items()):
             curve = editor.curve()
             if editor_kind == kind and curve is not None:
                 out.append(curve)
+        if kind == "sticks":
+            wanted = self.swap_sticks.isChecked()
+            out = [c.with_flags(swapped=wanted) for c in out]
         return out
 
     def changed_kinds(self) -> list[str]:

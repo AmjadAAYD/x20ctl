@@ -24,7 +24,17 @@ def test_simple_mode_hides_the_settings_that_need_explaining():
     simple = [s.key for s in sections_for(SIMPLE)]
     assert "buttons" in simple and "macros" in simple
     assert "device" not in simple, "factory reset is not a casual button"
-    assert "timeout" not in simple
+
+
+def test_the_sleep_timer_is_not_an_advanced_setting():
+    """A user asked why Power was behind Advanced, and they were right.
+
+    Advanced is for settings that need a sentence of explanation before they
+    are safe to touch. A shutdown timer does not: the worst case is that the
+    controller stays awake. Moved into Simple 2026-08-16.
+    """
+    assert "timeout" in [s.key for s in sections_for(SIMPLE)]
+    assert not next(s for s in SECTIONS if s.key == "timeout").advanced
 
 
 def test_advanced_shows_everything_simple_shows_and_more():

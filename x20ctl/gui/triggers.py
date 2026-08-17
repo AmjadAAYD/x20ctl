@@ -203,6 +203,7 @@ class TriggersPage(QWidget):
 
     zone_chosen = Signal(str, str)
     shape_chosen = Signal(str, str)
+    swap_toggled = Signal(bool)
     save_requested = Signal()
 
     def __init__(self) -> None:
@@ -234,6 +235,24 @@ class TriggersPage(QWidget):
             self.sides[side] = column
             columns.addWidget(column, 1)
         root.addLayout(columns)
+
+        # One flag for both channels: the app writes isTriggerExchange into the
+        # flag byte of each side, never one alone. So this belongs to the page.
+        root.addSpacing(14)
+        self.swap = QPushButton("Swap L2 and R2")
+        self.swap.setCheckable(True)
+        self.swap.setCursor(Qt.PointingHandCursor)
+        self.swap.clicked.connect(self._on_swap)
+        root.addWidget(self.swap, 0, Qt.AlignLeft)
+
+        swap_note = QLabel(
+            "Pulling the left trigger sends the right one, and the other way "
+            "round. The swap lives on the controller, so it applies in every "
+            "game and stays after unplugging.")
+        swap_note.setObjectName("RowDetail")
+        swap_note.setWordWrap(True)
+        root.addWidget(swap_note)
+
         root.addStretch(1)
 
         footer = QHBoxLayout()
@@ -252,14 +271,23 @@ class TriggersPage(QWidget):
         self.zone_chosen.connect(lambda *_: self.status.setText("Not saved yet"))
         self.shape_chosen.connect(lambda *_: self.status.setText("Not saved yet"))
 
+    def _on_swap(self) -> None:
+        self.status.setText("Not saved yet")
+        self.swap_toggled.emit(self.swap.isChecked())
+
     def _save(self) -> None:
         self.status.setText("Saving...")
         self.save_requested.emit()
 
     def load(self, curves) -> None:
         """Take the pad's two trigger channels, left first."""
+        curves = list(curves)
         for side, curve in zip(SIDES, curves):
             self.sides[side].load(curve)
+        if curves:
+            # Read back from the pad rather than remembered, so the button
+            # always shows what the controller actually holds.
+            self.swap.setChecked(curves[0].swapped)
 
     def set_positions(self, left: int, right: int) -> None:
         self.sides["left"].meter.set_position(left)

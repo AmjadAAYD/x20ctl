@@ -22,7 +22,11 @@ SHOULDER = ((p.Key.LB, "LB"), (p.Key.RB, "RB"),
 DPAD = ((p.Key.DPAD_UP, "Up"), (p.Key.DPAD_DOWN, "Down"),
         (p.Key.DPAD_LEFT, "Left"), (p.Key.DPAD_RIGHT, "Right"))
 CENTRE = ((p.Key.SELECT, "Select"), (p.Key.START, "Start"),
-          (p.Key.L3, "L3"), (p.Key.R3, "R3"))
+          (p.Key.L3, "L3"), (p.Key.R3, "R3"),
+          # Home arrives only through XInputGetStateEx; the documented
+          # XInputGetState masks its bit out, which is why a user reported Home
+          # never lighting here. See input._get_state_fn.
+          (p.Key.HOME, "Home"))
 
 GROUPS = (("Face", FACE), ("Shoulders", SHOULDER),
           ("D-pad", DPAD), ("Centre", CENTRE))

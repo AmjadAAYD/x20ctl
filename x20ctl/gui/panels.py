@@ -148,10 +148,14 @@ class PowerPage(Page):
         self.root.addLayout(row)
 
         self.never = QCheckBox("Never switch off")
-        self.never.setToolTip(
-            "The controller stays awake indefinitely. Costs battery.")
         self.never.toggled.connect(self._on_never)
         self.root.addWidget(self.never)
+
+        never_note = QLabel(
+            "The controller stays awake indefinitely, which costs battery.")
+        never_note.setObjectName("RowDetail")
+        never_note.setWordWrap(True)
+        self.root.addWidget(never_note)
 
         self.root.addSpacing(10)
         self.save_button = QPushButton("Save to controller")
@@ -162,9 +166,25 @@ class PowerPage(Page):
         self.root.addSpacing(8)
         self.root.addWidget(self.status)
         self.root.addStretch(1)
-        self.load(10)
+
+        # Do NOT assert a value before the pad has been read. This used to call
+        # load(10), so a controller set to 30 minutes showed 10 and looked like
+        # the app had read it. Start unread and say so.
+        self.loaded = False
+        self.show_unread()
+
+    def show_unread(self) -> None:
+        """State before the pad answers: no claim about the current setting."""
+        self.loaded = False
+        self.slider.blockSignals(True)
+        self.slider.setValue(10)
+        self.slider.blockSignals(False)
+        self.readout.setText("reading...")
+        self.status.setText("Reading the current setting from the controller.")
 
     def load(self, minutes: int | None) -> None:
+        self.loaded = True
+        self.status.setText("")
         self.never.blockSignals(True)
         self.slider.blockSignals(True)
         self.never.setChecked(minutes is None)
