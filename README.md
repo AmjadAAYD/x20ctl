@@ -469,6 +469,15 @@ several brands. Two things to know before pointing this at other hardware:
 - **Always read the capability descriptor first** and honour it. It's how the pad
   tells you which settings it will accept.
 
+**Checked and found unsupported: the EasySMX X05.** It's a different chip and
+firmware, not another KeyLinker device. RGB, macros (M1/M2) and vibration are
+all set with on-pad button combinations from the manual; there's no companion
+app, no BLE service advertised, and no HID feature report on either its USB or
+Bluetooth identity for this library to speak to. See
+[docs/00-findings.md](docs/00-findings.md#7-other-controllers-checked) for what
+was checked. The input tester and connection detection, which are generic
+XInput/PnP code rather than KeyLinker-specific, aren't affected by this.
+
 ---
 
 ## Is the executable safe
