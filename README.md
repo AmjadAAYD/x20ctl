@@ -469,7 +469,8 @@ several brands. Two things to know before pointing this at other hardware:
 - **Always read the capability descriptor first** and honour it. It's how the pad
   tells you which settings it will accept.
 
-**Checked and found unsupported: the EasySMX X05.** It's a different chip and
+**Checked and found unsupported: the EasySMX X05** (investigated by
+[@SpookyyQ](https://github.com/SpookyyQ)). It's a different chip and
 firmware, not another KeyLinker device. RGB, macros (M1/M2) and vibration are
 all set with on-pad button combinations from the manual; there's no companion
 app, no BLE service advertised, and no HID feature report on either its USB or
@@ -514,6 +515,12 @@ The program talks BLE to the controller's configuration service, reads and
 writes gamepad settings, and reads XInput for the input tester. There is no
 network code in it and no path to the controller's bootloader. See
 [Safety](#safety).
+
+## Acknowledgements
+
+- [@SpookyyQ](https://github.com/SpookyyQ) checked a physical EasySMX X05 over
+  Bluetooth and documented that it doesn't speak the KeyLinker protocol — see
+  [docs/00-findings.md](docs/00-findings.md#7-other-controllers-checked).
 
 ## Licence
 
