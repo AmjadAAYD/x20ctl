@@ -495,6 +495,7 @@ Get-FileHash .\x20ctl.exe -Algorithm SHA256
 
 | Release | SHA-256 |
 |---|---|
+| 1.2.0 | `89cc96848b633756b37c9f1eb876b645624ed7833e31af104e0ecd519480a519` |
 | 0.2.1 | `0593a3251b19f8d2cd0376456dcb691adaa7eac8c9f7d23edf6a472cb7913cb4` |
 | 0.2.0 | `d5f3fb1842df7089cdaa3b6260714770ef85815f7ac0cad7a725aa3b82d8efb6` |
 

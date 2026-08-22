@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased
+## 1.2.0 — 2026-08-22
+
+Adds a quiet update check at launch, and rules out the EasySMX X05 as a
+KeyLinker device.
+
+Download **x20ctl.exe** and run it. No install, no Python needed.
 
 ### Investigated
 
