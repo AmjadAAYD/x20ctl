@@ -300,6 +300,67 @@ or the `DeviceUsb.dll` interface return nothing. This is unexplored.
 
 ---
 
+## 7. Other controllers checked
+
+### EasySMX X05: no software configuration channel found
+
+Checked 2026-08-19 against a physical unit, Bluetooth-paired to the test machine.
+Requested feature: bring the X05 under the same configuration this library gives
+the X20 (macros, vibration, RGB, curves).
+
+**The user manual describes every setting as an on-pad button combination, with
+no companion app mentioned at all:**
+
+| Setting | Combination |
+|---|---|
+| Enter Bluetooth mode | mode switch to Bluetooth, hold `Home` 5s |
+| RGB adjustment mode | double-click `M` |
+| RGB mode (steady / breathing / dazzling / gradient / off) | left stick up/down, in RGB mode |
+| RGB colour | left stick left/right, in RGB mode |
+| RGB brightness | `M` + `L3` |
+| Macro programming (M1 or M2 only, not four slots) | hold `M` + `M1`/`M2`, LED flashes red, then press the keys to record |
+| Vibration, 0/25/50/75/100% | `M` + left stick up/down |
+
+Three independent checks, all negative:
+
+1. **BLE scan.** `tools/ble_scan.py --all`, run twice (20s and 60s) with the pad
+   woken by button presses in between, heard 8-11 nearby Bluetooth devices and
+   none of them advertised the KeyLinker config service
+   (`d7f010e0-660d-46e9-96c3-19c4148bdab5`), the `Xpert2` name, or the vendor MAC
+   prefix `98:B6:E`. `x20 scan` and `tools/report.py` agree: no controller
+   exposing that service was found.
+2. **XInput.** `tools/report.py` confirms Windows sees the pad on XInput slot 0,
+   so the identity-cloning behaviour matches the X20, but that tells us nothing
+   about a config channel: XInput never carried one for the X20 either.
+3. **HID feature reports.** `tools/hid_scan.py`, no filter, found exactly two
+   collections belonging to this pad:
+
+   ```
+   VID_045E PID_028E   "Controller (USB Controller)"        feature=0
+   VID_045E PID_02E0   "Xbox Bluetooth Gamepad" (Microsoft)  feature=0
+   ```
+
+   The second is the real Microsoft Xbox Wireless Controller BLE HOGP profile
+   (PID `02E0`), not a vendor collection: the pad clones it over Bluetooth LE
+   the way it clones `045E:028E` over USB. Both interfaces declare a feature
+   report length of zero, so there is nothing for `hid_scan.py --probe` to read;
+   unlike the X20's lighting record, there isn't even a channel that answers and
+   does nothing.
+
+**Conclusion: the X05 does not implement the pulsenet/KeyLinker protocol this
+library speaks.** Nothing found here contradicts the manual: RGB, macros and
+vibration all appear to be firmware-local, driven by the on-pad combinations
+above, with no digital read-back or write path discovered on any transport.
+There is no protocol left to reverse engineer, so `x20ctl` has nothing to add
+for this model. The input tester and battery/connection detection, which are
+generic XInput/PnP code rather than KeyLinker-specific, are unaffected and
+should work regardless.
+
+If a future firmware revision or a different X05 variant does answer one of the
+scans above, that would be worth reopening.
+
+---
+
 ## Sources
 
 - <https://www.easysmx.com/pages/support-about-easysmx-x20-controller>
@@ -310,3 +371,5 @@ or the `DeviceUsb.dll` interface return nothing. This is unexplored.
 - <https://play.google.com/store/apps/details?id=com.pulsenet.inputset>
 - Static analysis of `vendor/EasySMX X20 Controller-V2.22.exe`
 - Live enumeration on Windows 11, wired, XInput mode
+- EasySMX X05 user manual: <https://manuals.plus/easysmx/x05-wireless-controller-manual>
+- Live BLE scan and HID enumeration against a physical X05, Windows 11, Bluetooth
