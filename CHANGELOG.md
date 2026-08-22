@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Investigated
+
+- The EasySMX X05: checked against a physical unit and found to have no
+  KeyLinker/pulsenet protocol at all, on any transport. BLE scan, XInput, and a
+  full HID feature-report sweep all came back empty; the manual confirms RGB,
+  macros and vibration are on-pad-only. Documented in
+  [docs/00-findings.md](docs/00-findings.md#7-other-controllers-checked) rather
+  than left unexplained.
+
 ### Changed
 
 - The update check now runs once at launch instead of only on demand, on a
