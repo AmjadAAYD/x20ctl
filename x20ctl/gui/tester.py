@@ -337,8 +337,8 @@ class TesterPage(QWidget):
     def start(self) -> None:
         if not self.reader.available:
             self.state.setText("XInput is unavailable on this system")
-            return
-        self.probe.probe()
+        else:
+            self.probe.probe()
         self.timer.start()
 
     def stop(self) -> None:
@@ -375,6 +375,11 @@ class TesterPage(QWidget):
     # -- sampling --------------------------------------------------------
 
     def _tick(self) -> None:
+        if not self.reader.available:
+            self.state.setText("XInput is unavailable on this system")
+            self.rate_label.setText("...")
+            return
+
         state = self.reader.poll()
         if state is None:
             if self._had_controller:

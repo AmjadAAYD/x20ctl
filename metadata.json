@@ -1,0 +1,6 @@
+{
+  "name": "x20ctl Gamepad Configurator",
+  "description": "Configuration suite, profile manager, and live input tester for the EasySMX X20 and KeyLinker gamepad controllers",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
