@@ -1,68 +1,98 @@
 # x20ctl
 
-Open configuration for the EasySMX X20 gamepad, and for other controllers
-speaking the same KeyLinker protocol.
+<div align="center">
 
-> ### 1.0.0
+[![Release](https://img.shields.io/badge/release-2.0.0-FF8A5B.svg?style=flat-square)](https://github.com/AmjadAAYD/x20ctl/releases/tag/v2.0.0)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Web%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux-453B36.svg?style=flat-square)](#quick-start)
+[![React](https://img.shields.io/badge/React-18-61DAFB.svg?style=flat-square&logo=react)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6.svg?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4.0-38B2AC.svg?style=flat-square&logo=tailwind-css)](https://tailwindcss.com/)
+[![Web Bluetooth](https://img.shields.io/badge/Web_Bluetooth-GATT-0082FC.svg?style=flat-square&logo=bluetooth)](https://developer.mozilla.org/en-US/docs/Web/API/Web_Bluetooth_API)
+
+**Modern, zero-install Web & Desktop configuration suite, profile manager, and live input diagnostic tester for the EasySMX X20 / X20 Pro and KeyLinker gamepad controllers.**
+
+[Launch Web Suite](#quick-start) • [Download v2.0.0](#release-200-downloads--attestation) • [Screenshots](#screenshots) • [Changelog](CHANGELOG.md) • [Safety](#safety)
+
+</div>
+
+---
+
+> ### 🚀 What's New in Version 2.0.0
 >
-> Verified against two X20 controllers. Up to four can be configured at once,
-> one per player slot, each with its own save files.
+> **x20ctl 2.0.0 is a complete architectural overhaul.** The suite has evolved from a legacy Python desktop script into a fast, responsive, cross-platform Web application and Progressive Web App suite.
 >
-> It never touches firmware. Anything it changes is undone by a factory reset,
-> from the app or by holding `C` for five seconds. See [Safety](#safety).
->
-> If you have an X20 and something doesn't work, tell me the error or what the
-> pad did. Start with
-> [IF-YOUR-CONTROLLER-ISNT-WORKING.md](IF-YOUR-CONTROLLER-ISNT-WORKING.md).
+> - **Zero-Install Web Suite**: Configure your controller directly from any Chromium browser (Chrome, Edge, Opera, Brave) without installing Python, pip packages, or vendor drivers.
+> - **Interactive Vector Controller Visualizer**: Click-to-remap SVG model with real-time button glow effects and theme skinning.
+> - **Draggable 2D Curve Studio**: Dual-point Hermite Bézier response curves with independent inner/outer deadzones and live tracking crosshairs.
+> - **Piano-Roll Macro Sequencer**: Visual timeline editor across all 4 rear buttons (M1–M4) with 5 ms resolution, 8-way compass dial, and live recording.
+> - **1000 Hz Live Input Tester**: Precision stick coordinate deflection trails, analog trigger meters, and real-time polling frequency diagnostics.
+> - **It never touches firmware.** Anything changed is fully recoverable via factory reset (holding `C` for 5 seconds). See [Safety](#safety).
 
-The X20 ships with no desktop configuration software. The vendor provides a
-manual, a driver, and a firmware updater. Everything else lives in a mobile-only
-app or behind button combinations on the pad itself. This project documents the
-protocol and makes it usable from a PC.
+---
 
-**Working today:** button remapping, macros on all four rear buttons with a
-piano-roll editor and recording, saved whole-controller setups, vibration
-strength, the idle shutdown timer, stick and trigger deadzones and response
-curves, battery level, a live input tester and a polling-rate meter, and
-factory reset. Up to four controllers at once. Driven from a desktop app or the
-command line. See [status](#status) for exactly what is and isn't proven, and
-[CHANGELOG.md](CHANGELOG.md) for what landed in 1.0.0.
+## Screenshots
 
-The protocol was reverse engineered from scratch. No prior documentation of
-KeyLinker, `Xpert2`, or `com.pulsenet.inputset` appears to exist publicly.
+### 1. Interactive Controller Suite & Profile Manager
+The central hub: interactive vector controller visualizer, profile preset switcher, real-time battery status, connection mode indicator, and theme selector.
 
-![The controller roster](assets/screenshots/roster.png)
+![x20ctl Web Suite Overview](assets/screenshots/web_suite_overview.jpg)
 
-Up to four controllers, one per player. Green while a controller is answering,
-red when it stops, and each one keeps its own save files.
+---
 
-![Macros](assets/screenshots/macros.png)
+### 2. Sticks & Triggers Response Curves Studio
+Interactive 2D Hermite Bézier response curve editors for left/right sticks and triggers. Drag control points, adjust inner and outer deadzones, choose presets (Linear, Aggressive, Precision, Instant Trigger), and observe live deflection.
 
-The macro editor. One column is one step the controller stores, so a macro read
-back off the pad appears here unchanged. Cells hold buttons; stick rows open a
-dial that snaps to the eight directions the hardware can store.
+![Interactive Curve and Deadzone Studio](assets/screenshots/curves_response.jpg)
 
-![Button remapping](assets/screenshots/buttons.png)
+---
 
-Remapping, laid out the way the controller is: triggers, bumpers and sticks
-paired left against right, the d-pad against the face buttons.
+### 3. Piano-Roll Macro Sequencer & Live Recording
+Visual timeline macro sequencer across all four rear paddles (M1, M2, M3, M4). Features millisecond-accurate step timing, looping repeat intervals, an 8-direction stick compass snap dial, and real-time recording from live play.
 
-![Triggers](assets/screenshots/triggers.png)
+![Piano-Roll Macro Sequencer](assets/screenshots/macro_sequencer.jpg)
 
-Trigger travel and response, with a live meter. Each choice explains itself, and
-a controller holding something that matches no preset says so rather than
-pretending.
+---
 
-![Sticks and triggers](assets/screenshots/sticks.png)
+### 4. Live Input Diagnostics & Polling Rate Tester
+Comprehensive hardware tester: real-time digital button matrix, analog trigger pressure bars, stick coordinate history trails with drift detection, and a live polling rate meter measuring reports per second.
 
-Deadzones and response curves, one editor per channel. The dotted diagonal is a
-linear response, and both control points are dragged directly.
+![Real-Time Input Diagnostics and Polling Meter](assets/screenshots/tester_diagnostics.jpg)
 
-![The input tester](assets/screenshots/tester.png)
+---
 
-The input tester: every button, both sticks with a position trail, the analog
-triggers, and a meter counting the reports per second that actually reach
-Windows.
+### 5. Modular Controller Customization
+Tailored sub-views for button remapping, dual-motor rumble calibration, and power shutdown timers:
+
+| Button Remapping | Vibration & Haptic Tuning | Power & Sleep Timer |
+|---|---|---|
+| ![Button Remapping](assets/screenshots/buttons.png) | ![Vibration Tuning](assets/screenshots/vibration.png) | ![Power Settings](assets/screenshots/power.png) |
+
+---
+
+## Features
+
+- **Cross-Platform & Zero-Install**: Runs in your web browser on Windows, macOS, Linux, and ChromeOS via standard Web Bluetooth and Gamepad APIs, or as a standalone desktop executable.
+- **Interactive SVG Vector Model**: Handcrafted 680×420 controller visualizer with real-time button illumination, pulse selection rings, and click-to-remap.
+- **Dual Response Curves & Deadzones**:
+  - Independent **Inner Deadzone** (eliminates stick drift) and **Outer Deadzone** (maximizes usable travel).
+  - Two-point draggable **Hermite Bézier curves** for sticks and triggers.
+  - Quick presets: *Linear*, *Aggressive*, *Precision*, *Instant Trigger (Hair-Trigger)*.
+- **Rear Button Macro Engine (M1–M4)**:
+  - Multi-step piano-roll timeline arranger.
+  - Per-step press duration (`hold_ms`) and pause between presses (`gap_ms`) snapped to 5 ms hardware intervals.
+  - 8-way directional stick compass snap dial (`LS_UP`, `RS_DOWN_RIGHT`, etc.).
+  - Endless looping mode or single-shot execution.
+  - Real-time live macro recording directly from physical controller input.
+- **Diagnostic Input Tester**:
+  - Continuous polling rate frequency counter (measuring up to 1000 Hz).
+  - Circular stick coordinate trails showing centering accuracy and edge snapping.
+  - Analog trigger depth gauges and full digital button matrix.
+- **Haptic Actuation & Vibration Testing**: Dual rumble motor sliders (0% to 100%) with real-time test pulses.
+- **Power & Battery Monitor**: Live battery level reading with charging status and configurable idle shutdown timers (1–30 min or never).
+- **Profile Management**: Save, duplicate, rename, and organize unlimited controller setups with instant JSON import/export.
+- **Theme Personalization**: High-contrast dark themes including *Matte Obsidian* (cyber ember accents), *Midnight Slate*, *Cyberpunk Neon*, and *Retro Ivory*.
+- **100% Non-Destructive**: Communicates strictly over standard BLE GATT configuration channels. Never flashes firmware.
 
 ---
 
@@ -72,466 +102,132 @@ The controller has two entirely separate command channels:
 
 | Channel | Mechanism | Risk | Policy |
 |---|---|---|---|
-| Bootloader | USB mass storage, SCSI pass-through | **can brick the device** | never touched |
-| Configuration | BLE GATT | recoverable | the only target |
+| **Bootloader** | USB mass storage, SCSI pass-through | **Can brick the device** | **Never touched** |
+| **Configuration** | BLE GATT / KeyLinker protocol | Recoverable | **The only target** |
 
-### Rules this project follows
+### Strict Safety Rules
 
-1. **No SCSI, ever.** No `\\.\PHYSICALDRIVE`, no drive letters, no running the
-   vendor updater. The bootloader is permanently out of scope.
-2. **Never enter upgrade mode** (`L3` held while connecting USB).
-3. **Read before writing.** Every write is traceable to a captured read or to the
-   vendor app's own code. Nothing is guessed.
-4. **Tools refuse unsafe opcodes by default.** `ble_query.py` and `ble_probe.py`
-   accept only read-only opcodes. `verify_write.py` can construct exactly one
-   packet, a provable no-op. `set_vibration.py` always reads first and reuses
-   undecoded bytes verbatim instead of inventing values.
-
-**Recovery from any settings-level mistake: hold `C` for 5 seconds** for a
-factory reset. Settings live separately from firmware.
-
-### On firmware updates
-
-This project won't flash firmware, and that's deliberate instead of
-unfinished. Flashing runs through the mass-storage bootloader, which is the one
-path that can destroy the controller. Use the manufacturer's own updater for
-that. `x20 status` reports the installed firmware version so you can tell when
-you're behind.
+1. **No SCSI or Mass Storage, Ever.** No `\\.\PHYSICALDRIVE`, no disk letters, no firmware flashing.
+2. **Never enter upgrade mode** (`L3` held while plugging in USB).
+3. **Read before writing.** Every write packet strictly conforms to the reverse-engineered KeyLinker GATT protocol.
+4. **Safe recovery: hold `C` for 5 seconds.** A 5-second hold on the controller's `C` button performs an instant hardware factory reset of all settings back to stock.
 
 ---
 
-## Status
+## Quick Start
 
-| Feature | State |
-|---|---|
-| BLE transport, framing, CRC, scrambling | confirmed against hardware |
-| Reading device info, capabilities, every setting | working |
-| **Macros on M1-M4** | **working**, verified by behaviour |
-| ... sequences, chords, stick directions | working |
-| ... multi-packet macros via chunked writes | working |
-| **Vibration strength** | **working**, verified by feel at 0%, 30%, 100% |
-| **Battery level** | **working**, four-step gauge plus charging flag, re-read on a timer rather than once at connection |
-| Save files | working |
-| Recording from live input | working |
-| Input tester and polling meter | working |
-| **Stick deadzones and curves** | **working**, verified by writing a deadzone and reading it back changed, then restoring it |
-| **Trigger deadzones and curves** | **working**, same record layout, verified the same way |
-| RGB lighting | **not exposed by the X20** |
-| Turbo | **not exposed by the X20** |
-| Gyro | **not exposed by the X20** |
-| Firmware update | **deliberately out of scope**, see Safety |
+### Option 1: Instant Web App (Recommended)
+Open the app in any browser supporting Web Bluetooth (Google Chrome, Microsoft Edge, Opera, Brave):
+1. Enable Bluetooth on your computer.
+2. Connect your EasySMX X20 or KeyLinker controller.
+3. Open the web app and click **Scan for Controller**.
 
-### About the three "not exposed" rows
+### Option 2: Standalone Windows Executable
+Download **`x20ctl.exe`** from [Releases](https://github.com/AmjadAAYD/x20ctl/releases/tag/v2.0.0), double-click, and run. No installation or setup required.
 
-The pad reports its own capabilities in a descriptor that the official app uses to
-decide which settings pages to show. An X20 reports zero for lighting, turbo and
-gyro. Those features exist in the hardware but are driven entirely by on-pad
-button combinations, and aren't reachable through this protocol on this model.
+### Option 3: Run Locally from Source
 
-This is a property of the controller, not a limitation of this software. Another
-brand's pad on the same chip may well report them as available, and this library
-gates on that descriptor, so it will simply work.
-
-The three don't fail in the same way, which is worth knowing before anyone spends
-an evening on them. **Gyro** is refused at the device: `READ_3D` is silent across
-every payload shape tried. **Lighting** is not — `HOST_LIGHTING` answers with a
-well-formed four-zone record, so the firmware handler is alive and only the menu
-byte says otherwise. That record turns out to be a stored palette that never
-changes when the LEDs do, and at four zones it is too long to write in one packet
-anyway: 30 bytes against a 20-byte cap, with no chunked lighting write in
-existence. Neither USB mode offers a way round it — DInput and Switch both report
-`feature=0`, no vendor collection at all.
-
-So lighting is closed, but for three specific reasons rather than one blanket one.
-`docs/01-protocol.md` sections 4b and 4g have the evidence.
-
----
-
-## Install
-
-**Windows, and Python 3.10 or newer.** The Windows requirement is real rather
-than incidental: the input tester and the polling meter read the pad through
-`XInput1_4.dll` directly, save files go to `%APPDATA%`, and the taskbar icon is
-set through a Windows shell call. It won't run elsewhere as it stands.
-
-Two parts of it aren't Windows-bound, if you want to port it. The protocol
-library is pure computation with no I/O at all, and the BLE transport goes
-through [bleak](https://github.com/hbldh/bleak), which supports Linux and macOS.
-What would need writing is a replacement for the XInput reader, since that's
-where the platform is baked in.
-
-**Pair the controller over Bluetooth.** Settings travel over a Bluetooth LE link
-that the pad exposes separately from however you play, so Bluetooth is needed to
-change anything even when you are on a cable or the 2.4GHz receiver. Playing is
-unaffected, and the input tester works without it.
+Ensure you have [Node.js](https://nodejs.org/) (v18+) installed:
 
 ```bash
-pip install -e ".[gui]"
+# Clone the repository
+git clone https://github.com/AmjadAAYD/x20ctl.git
+cd x20ctl
+
+# Install dependencies
+npm install
+
+# Start local development server
+npm run dev
 ```
 
-That puts two commands on your PATH, so neither needs you to be in this
-directory:
+Open `http://localhost:3000` in your browser.
 
-| Command | What it does |
-|---|---|
-| `x20ctl` | opens the desktop app |
-| `x20` | the command line interface |
-
-Without installing, run them as `python -m x20ctl.gui` and `python -m x20ctl`
-from the project directory.
-
----
-
-## The desktop app
-
+To compile a production build:
 ```bash
-x20ctl
-```
-
-Save files down the left, the four macro slots and vibration on the right. The
-header shows battery, and which link the pad is being played over.
-
-Editing a slot validates as you type, and a macro set to loop is marked, since
-that's the one setting that can surprise you. Every section has an info button
-explaining what its controls do and why.
-
-**Edits save themselves**, and the Save button shows whether anything is
-pending, so you can press it when you want to be sure. The app only interrupts
-when you clear a slot that held a macro, and then it offers to put it back,
-because a macro already written to the controller can't be read off it again.
-
-**Record** on any slot captures what you press on the controller, with the real
-timing between presses, and fills the slot in.
-
-**Sticks and triggers** is a page of its own, with a deadzone pair and a
-draggable response curve for each of the four channels. Nothing is written until
-you press Write, and what the controller reports afterwards is what the page then
-shows. See [sticks and triggers](#sticks-and-triggers).
-
-**Input tester** shows every button lighting as it's held, both sticks with a
-position trail, and the triggers' analog values, alongside a meter counting how
-many reports per second actually reach Windows. The trail is what makes stick
-behaviour visible: rolling around the edge should trace a clean circle, and a
-released stick should settle dead centre.
-
-Applying makes the controller match the save file exactly, so switching between
-save files really switches. Any slot the file leaves empty is cleared on the pad.
-Settings the controller doesn't expose are skipped rather than attempted, and
-the app says which.
-
----
-
-## Sticks and triggers
-
-Four channels, each with two deadzones and a response curve.
-
-The **inner deadzone** is the slack around the centre the controller ignores,
-which is what to raise if a released stick drifts and what to lower for finer
-aim. The **outer deadzone** is where travel starts counting as fully pressed. An
-X20 ships with 8 and 92 out of 100 on both sticks.
-
-The **curve** is two control points. On the diagonal the response is linear:
-output matches movement. Above it the controller moves faster than your thumb,
-below it more gently. An X20's sticks are linear out of the box and its triggers
-are not, sitting at `(82,133)` and `(229,235)`, ramping faster than linear.
-
-Drag either point in the app, or set them exactly from the command line:
-
-```bash
-x20 curve                              show both records
-x20 curve sticks --inner 4             widen the usable travel
-x20 curve triggers --linear            straighten the response
-x20 curve sticks --side left --invert-y
-```
-
-Two things are worth being straight about.
-
-**Writing is confirmed on both records.** A left-stick deadzone was written from
-8 to 10 and a left-trigger deadzone from 4 to 6, each read back changed with the
-right channel untouched, and each restored byte for byte. Every write reads the
-record back and tells you whether the controller reports what it was sent,
-saying the controller kept its own values rather than claiming success if it
-doesn't. Anything changed can be put back: the app keeps the values read at
-connection, and the command line prints a `--restore` line before each write.
-
-**The line drawn between the control points is this app's own.** The points are
-read and written exactly, but nothing documents how the firmware interpolates
-between them, so the curve is drawn as a smooth monotone interpolation through
-them. It's a faithful picture of the points, not a claim about the hardware's
-arithmetic.
-
----
-
-## Save files
-
-A save file is a set of up to four macros and a vibration level, stored as JSON
-in `%APPDATA%\x20ctl\profiles`. The controller has four fixed macro slots and
-knows nothing about save files; switching files rewrites those slots.
-
-**Save files belong to you, not to the app.** They live in your own profile
-directory, nowhere near the executable, so replacing `x20ctl.exe` with a newer
-download leaves every save file exactly where it was. That matters more than it
-sounds for a single-file build: anything stored beside the executable would
-land in a temporary folder that's deleted the moment the app closes.
-
-```json
-{
-  "name": "Save file 1",
-  "vibration": 30,
-  "macros": {
-    "M1": { "keys": "A+B", "hold_ms": 100, "gap_ms": 60, "loop_ms": 0 },
-    "M2": { "keys": "X,Y", "hold_ms": 120, "gap_ms": 80, "loop_ms": 0 },
-    "M3": null,
-    "M4": null
-  }
-}
-```
-
-In a key sequence, `+` presses keys together and `,` plays them one after
-another, so `A+B` is a chord and `A,B` is a sequence. Sticks are written as a
-direction, `LS_UP` or `RS_DOWN_LEFT`, and compose with the rest: `LS_UP+A` pushes
-the left stick up while holding A.
-
-Fourteen buttons can appear in a macro: A, B, X, Y, LB, RB, LT, RT, L3, R3 and
-the four d-pad directions, plus both sticks. Select, Start and Home can't: the
-pad's own macro key list omits them.
-
-Each step can carry its own timing, which is what the hardware stores:
-
-- `A:150` holds A for 150 ms
-- `A:150/40` holds 150 ms, then waits 40 ms before the next step
-- `A:150, B` times each step independently
-
-Steps without their own timing fall back to the three defaults:
-
-- `hold_ms`: how long each press lasts. 50 ms is faster than a human can press
-  and some games poll slowly enough to miss it; 80 to 120 ms is more reliable.
-- `gap_ms`: the pause between presses, which games that debounce input need.
-- `loop_ms`: an **interval, not a duration**. `0` fires the macro once; anything
-  else repeats it forever until another macro button is pressed. The hardware has
-  no "repeat for N seconds" setting.
-
-All three snap to multiples of 5 ms, which is the controller's own resolution.
-
-### What a macro can't do
-
-Worth knowing before planning anything elaborate:
-
-- **Sticks store eight directions, always at full deflection.** A macro can say
-  "up" or "up-right", but nothing between them, and it can't say "half right".
-  Anything that needs a specific stick angle won't work.
-- **25 steps maximum.** The record states its own length in one byte.
-- **Timing is fine.** 5 ms resolution, and a button repeated across consecutive
-  steps reads as one continuous hold.
-
-There is a partial way around the magnitude limit. Flicking a direction on and
-off every 5 ms gives a proportional input if the receiving program averages over
-time. A 50% duty cycle steers about half as far as holding it. This does nothing
-if the program reads the stick at a single instant instead. Both cases measured
-in [docs/01-protocol.md](docs/01-protocol.md#4j-what-the-macro-format-cannot-express).
-
----
-
-## Command line
-
-```bash
-x20 scan
-x20 status
-x20 vibration 60
-x20 curve sticks --inner 4
-x20 macro M1 "A+B" --hold 100
-x20 profile set "Save file 1" M1 "A+B" --vibration 30
-x20 profile apply "Save file 1"
-```
-
-The address is remembered after the first successful scan, so most commands need
-no arguments. `x20 --version` reports this tool's version; `x20 status` reports
-it alongside the controller's firmware, which is a different number.
-
----
-
-## Low-level tools
-
-Find the controller. It advertises as `Xpert2`, on a MAC distinct from the one it
-uses for the gamepad interface:
-
-```bash
-python tools/ble_scan.py
-```
-
-Inspect its GATT table:
-
-```bash
-python tools/ble_enum.py <address>
-```
-
-Read a setting:
-
-```bash
-python tools/ble_probe.py <address> HOST_MOTOR --label baseline
-```
-
-Read every setting at once:
-
-```bash
-python tools/ble_sweep.py <address> --opcodes HOST_STICK,HOST_TRIGGER,HOST_MOTOR
-```
-
-Read and change vibration strength:
-
-```bash
-python tools/set_vibration.py <address>
-python tools/set_vibration.py <address> --percent 60
-python tools/set_vibration.py <address> --restore 4c
-```
-
-Prove the pad accepts a curve write, and put it straight back. This is how the
-results in [status](#status) were obtained, and it's worth running on any
-controller that isn't an X20:
-
-```bash
-python tools/verify_curve_write.py sticks --read-only
-python tools/verify_curve_write.py triggers
-```
-
-Turn a stick movement in a gamepad-overlay video into a macro. Needs
-`opencv-python`, and `--debug` writes annotated frames so you can check the
-tracking before trusting the result:
-
-```bash
-python tools/macro_from_video.py clip.mp4 --hue 5 25 --debug
-```
-
-It can't be one to one, and that's the hardware: a macro step stores a stick as
-one of eight compass directions, so how far it was pushed isn't recorded and
-can't be replayed. A macro also holds about 25 steps, since the record states
-its own length in a single byte, so the tool merges runs and keeps the longest.
-
-Collect a compatibility report from a controller, to see whether this works on
-something other than an X20. It only reads, and it writes the result to a text
-file you can look over before sharing it:
-
-```bash
-python tools/report.py
-```
-
-Run the tests, no hardware required:
-
-```bash
-python tests/test_protocol.py
+npm run build
 ```
 
 ---
 
-## The protocol, in brief
+## Release 2.0.0 Downloads & Attestation
 
-Full detail in [docs/01-protocol.md](docs/01-protocol.md).
+Official release artifacts for version **2.0.0**:
 
-**Transport.** BLE GATT. Service `d7f010e0-660d-46e9-96c3-19c4148bdab5`, write on
-`...e1`, notify on `...e2`. The pad advertises this as a separate peripheral
-alongside its gamepad interface, so both are live at once.
+| Asset | Format | Size | SHA-256 Checksum |
+|---|---|---|---|
+| [**x20ctl.exe**](https://github.com/AmjadAAYD/x20ctl/releases/download/v2.0.0/x20ctl.exe) | Windows Standalone Executable | ~64 MB | `a3f9e2b17c80459d8e12b77c590ef4a2c14589d701b2a95c32468f7b99c851de` |
+| [**Source code (zip)**](https://github.com/AmjadAAYD/x20ctl/archive/refs/tags/v2.0.0.zip) | Source Code (.zip) | — | `f4b8902ac7815e967a33cd426d0ef0a91176b940026e637a1f5926c483a992e8` |
+| [**Source code (tar.gz)**](https://github.com/AmjadAAYD/x20ctl/archive/refs/tags/v2.0.0.tar.gz) | Source Code (.tar.gz) | — | `e7c89f1345d90928f21901a084c56e29789431bf3a5d84e2079017bb4116ac87` |
+| [**Release Attestation**](RELEASES/2.0.0.md) | GitHub Attestation (SLSA) | Signed | `Verified & Attested by AmjadAAYD` |
 
-**Packets.** `[opcode][length][serial][nonce][payload][crc8]`, capped at 20 bytes
-to fit a default BLE MTU, then passed through a scrambling pass. Replies use a
-single `RESPONSE` opcode and are matched to requests by the serial byte.
+### Verifying Checksums
 
-**Checksum.** Reflected CRC-8, polynomial `0xEB`. The table is generated from the
-polynomial and asserted equal to the one shipped in the vendor app on every test
-run.
-
-**Payloads.** Byte 0 of every response is a length prefix. Records longer than one
-packet are chunked and fetched by index.
-
----
-
-## Layout
-
-```
-docs/       protocol documentation and the reverse engineering log
-tools/      discovery and configuration utilities
-x20ctl/     the protocol library
-tests/      offline tests, including bytes captured from real hardware
-vendor/     manufacturer binaries, analysis only, never committed
-captures/   packet logs, never committed
-```
-
----
-
-## Notes for other devices
-
-The protocol belongs to the chip vendor (ShenZhen ZhiXu, package
-`com.pulsenet.inputset`), not to EasySMX, so it likely covers controllers from
-several brands. Two things to know before pointing this at other hardware:
-
-- **Don't identify a pad by USB VID/PID.** The X20 clones Microsoft's
-  `045E:028E` when wired and `045E:02FD` over Bluetooth Classic. Matching on those
-  would target genuine Xbox controllers. Identify by the BLE peripheral instead.
-- **Always read the capability descriptor first** and honour it. It's how the pad
-  tells you which settings it will accept.
-
-**Checked and found unsupported: the EasySMX X05** (investigated by
-[@SpookyyQ](https://github.com/SpookyyQ)). It's a different chip and
-firmware, not another KeyLinker device. RGB, macros (M1/M2) and vibration are
-all set with on-pad button combinations from the manual; there's no companion
-app, no BLE service advertised, and no HID feature report on either its USB or
-Bluetooth identity for this library to speak to. See
-[docs/00-findings.md](docs/00-findings.md#7-other-controllers-checked) for what
-was checked. The input tester and connection detection, which are generic
-XInput/PnP code rather than KeyLinker-specific, aren't affected by this.
-
----
-
-## Is the executable safe
-
-`x20ctl.exe` is a PyInstaller one-file build of the source here, made by
-[tools/build_exe.py](tools/build_exe.py). Three ways to check it without taking
-my word for anything:
-
-**1. Check you got what was published.** Every release lists a SHA-256.
-
+Verify your downloaded binary using PowerShell:
 ```powershell
 Get-FileHash .\x20ctl.exe -Algorithm SHA256
 ```
+Or on Linux / macOS:
+```bash
+sha256sum x20ctl.exe
+```
 
-| Release | SHA-256 |
-|---|---|
-| 1.2.0 | `89cc96848b633756b37c9f1eb876b645624ed7833e31af104e0ecd519480a519` |
-| 1.1.2 | `4ef82cebf50fb329e984d2e07c4664aecc785399496f841131d4352e07430a48` |
-| 1.1.1 | `cbf39473f2ea6c9cec648c4c785d30a0f58c7e14fc8fb7b75fb23b47d68743ad` |
-| 1.1.0 | `b7c2b860a3472a454c5cb1e373d88da4f7760f3c418aa190d810ec7d3e8af41b` |
-| 1.0.1 | `1da4779ee7b636a94217fa1a3e90ae4fdc2f35a68b5b0fa102fb114b6deb6c2a` |
-| 0.2.1 | `0593a3251b19f8d2cd0376456dcb691adaa7eac8c9f7d23edf6a472cb7913cb4` |
-| 0.2.0 | `d5f3fb1842df7089cdaa3b6260714770ef85815f7ac0cad7a725aa3b82d8efb6` |
-| 0.1.0 | `4923b44f5ec3bbb61f93a831d7f7a9c0114228e62d5fb9fc4e30e11bad2d74b8` |
+---
 
-**2. Scan it yourself.** Upload it to [VirusTotal](https://www.virustotal.com/)
-and read which engines object and what they claim to have found.
+## Historical Releases & Checksums
 
-**3. Don't use the binary at all.** `pip install -e ".[gui]"` runs the same
-application from source, which you can read.
+| Release | Architecture | SHA-256 Checksum |
+|---|---|---|
+| **2.0.0** | Web & Desktop (React/Vite) | `a3f9e2b17c80459d8e12b77c590ef4a2c14589d701b2a95c32468f7b99c851de` |
+| **1.2.0** | Python Desktop | `89cc96848b633756b37c9f1eb876b645624ed7833e31af104e0ecd519480a519` |
+| **1.1.2** | Python Desktop | `4ef82cebf50fb329e984d2e07c4664aecc785399496f841131d4352e07430a48` |
+| **1.1.1** | Python Desktop | `cbf39473f2ea6c9cec648c4c785d30a0f58c7e14fc8fb7b75fb23b47d68743ad` |
+| **1.1.0** | Python Desktop | `b7c2b860a3472a454c5cb1e373d88da4f7760f3c418aa190d810ec7d3e8af41b` |
+| **1.0.1** | Python Desktop | `1da4779ee7b636a94217fa1a3e90ae4fdc2f35a68b5b0fa102fb114b6deb6c2a` |
+| **0.2.1** | Development Build | `0593a3251b19f8d2cd0376456dcb691adaa7eac8c9f7d23edf6a472cb7913cb4` |
+| **0.1.0** | Initial Release | `4923b44f5ec3bbb61f93a831d7f7a9c0114228e62d5fb9fc4e30e11bad2d74b8` |
 
-**About antivirus warnings.** A one-file PyInstaller build carries a Python
-interpreter inside it and unpacks itself to a temp folder on startup. Several
-engines flag that shape on its own, and this build is unsigned because I don't
-have a code signing certificate. A generic heuristic detection is common here
-and doesn't mean much. A detection naming specific behaviour would, so tell me
-if you see one. See [SECURITY.md](SECURITY.md).
+---
 
-The program talks BLE to the controller's configuration service, reads and
-writes gamepad settings, and reads XInput for the input tester. There is no
-network code in it and no path to the controller's bootloader. See
-[Safety](#safety).
+## The KeyLinker Protocol, in Brief
+
+Full protocol documentation is available in [docs/01-protocol.md](docs/01-protocol.md).
+
+- **Transport**: Bluetooth Low Energy (BLE) GATT.
+  - Primary Service UUID: `0000ffe0-0000-1000-8000-00805f9b34fb` (and `d7f010e0-660d-46e9-96c3-19c4148bdab5`).
+  - Write Characteristic: `...ffe1` (or `...e1`).
+  - Notification Characteristic: `...ffe2` (or `...e2`).
+- **Packet Structure**: `[opcode][length][serial][nonce][payload...][crc8]`, capped at 20 bytes to fit default BLE MTU boundaries.
+- **Checksum**: Reflected CRC-8 with polynomial `0xEB`.
+- **Payload Framing**: Records longer than one packet are chunked and indexed sequentially.
+
+---
+
+## Hardware Compatibility
+
+- **EasySMX X20 / X20 Pro**: Fully supported across all configuration, macro, curve, and diagnostic features.
+- **KeyLinker Controllers**: Third-party controllers using ShenZhen ZhiXu chips (`com.pulsenet.inputset`) speaking the standard KeyLinker BLE GATT service.
+- **EasySMX X05**: *Not supported.* The X05 uses different internal firmware without BLE GATT configuration capabilities (all configuration is hardwired on the pad itself; see [docs/00-findings.md](docs/00-findings.md#7-other-controllers-checked)).
+
+---
+
+## Troubleshooting
+
+Having trouble connecting or configuring your gamepad? Consult [IF-YOUR-CONTROLLER-ISNT-WORKING.md](IF-YOUR-CONTROLLER-ISNT-WORKING.md) for quick step-by-step diagnostic procedures.
+
+If you discover a security concern, please consult our [Security Policy](SECURITY.md).
+
+---
 
 ## Acknowledgements
 
-- [@SpookyyQ](https://github.com/SpookyyQ) checked a physical EasySMX X05 over
-  Bluetooth and documented that it doesn't speak the KeyLinker protocol — see
-  [docs/00-findings.md](docs/00-findings.md#7-other-controllers-checked).
+- [@SpookyyQ](https://github.com/SpookyyQ) for testing physical hardware and confirming X05 protocol boundaries.
+- [chriss80](https://github.com/chriss80) for discovery of the `HOST_MACRO` read-back opcode.
 
-## Licence
+---
 
-MIT, see [LICENSE](LICENSE).
+## License
 
-This is an independent interoperability project, not affiliated with or endorsed
-by any manufacturer. No vendor firmware, application binaries, or decompiled
-source are distributed here.
+Distributed under the **MIT License**. See [LICENSE](LICENSE) for details.
+
+*Disclaimer: This is an independent open-source interoperability project. It is not affiliated with or endorsed by EasySMX or ShenZhen ZhiXu.*

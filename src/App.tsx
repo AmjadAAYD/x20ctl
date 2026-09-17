@@ -184,7 +184,9 @@ export function App() {
   if (showScanner) {
     return (
       <IntroScanner
-        onConnect={(name, mode) => {
+        hardwareDetected={hardwareDetected}
+        controllerName={controllerName}
+        onConnect={(name: string, mode: ConnectionType) => {
           setActiveController((prev) => ({
             ...prev,
             connected: true,

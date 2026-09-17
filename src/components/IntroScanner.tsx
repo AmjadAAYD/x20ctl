@@ -3,15 +3,19 @@ import { Radio, Usb, Wifi, Play, RefreshCw, CheckCircle2, Gamepad2, ArrowRight }
 import { ConnectionType } from '../types/gamepad';
 
 interface IntroScannerProps {
-  onEnterApp: (connectionMode: ConnectionType) => void;
-  hardwareDetected: boolean;
-  controllerName: string;
+  onEnterApp?: (connectionMode: ConnectionType) => void;
+  hardwareDetected?: boolean;
+  controllerName?: string;
+  onConnect?: (name: string, connectionMode: ConnectionType) => void;
+  onSkip?: () => void;
 }
 
 export const IntroScanner: React.FC<IntroScannerProps> = ({
   onEnterApp,
-  hardwareDetected,
-  controllerName,
+  hardwareDetected = false,
+  controllerName = 'EasySMX X20 PRO Gamepad',
+  onConnect,
+  onSkip,
 }) => {
   const [scanning, setScanning] = useState<boolean>(true);
   const [scanProgress, setScanProgress] = useState<number>(0);
@@ -189,8 +193,22 @@ export const IntroScanner: React.FC<IntroScannerProps> = ({
             <span>Re-Scan Devices</span>
           </button>
 
+          {onSkip && (
+            <button
+              onClick={onSkip}
+              className="w-full sm:w-auto px-4 py-3 rounded-xl bg-[#1B1817] hover:bg-[#241F1D] border border-[#332C29] text-[#D6CEC6] text-xs font-semibold flex items-center justify-center gap-2 transition-colors"
+            >
+              <span>Skip Scanner</span>
+            </button>
+          )}
+
           <button
-            onClick={() => onEnterApp(selectedMode)}
+            onClick={() => {
+              const name = controllerName || 'EasySMX X20 PRO Gamepad';
+              if (onConnect) onConnect(name, selectedMode);
+              if (onEnterApp) onEnterApp(selectedMode);
+              if (!onConnect && !onEnterApp && onSkip) onSkip();
+            }}
             className="w-full flex-1 py-3 px-6 rounded-xl bg-[#FF8A5B] hover:bg-[#E77445] text-[#131110] font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-[#FF8A5B]/25 transition-all duration-200 transform hover:scale-[1.01]"
           >
             <span>Launch EasySMX Suite</span>

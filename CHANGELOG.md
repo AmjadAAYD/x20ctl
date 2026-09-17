@@ -1,5 +1,53 @@
 # Changelog
 
+## 2.0.0 — 2026-09-17
+
+A complete architecture overhaul: **x20ctl 2.0.0** transitions the suite from a legacy Python desktop script into a high-performance, cross-platform Web and Progressive Web App suite built with React 18, TypeScript, Tailwind CSS, Vite, the Web Gamepad API, and Web Bluetooth GATT protocol.
+
+Download **x20ctl.exe** (packaged desktop runtime) or run instantly in any Web Bluetooth / Gamepad compatible browser with zero installation.
+
+### Added (Everything New)
+
+- **Browser-Native Web Suite & Zero-Install Access**: Configure controllers directly in any Chromium-based browser (Chrome, Edge, Opera, Brave) without needing Python, pip, MSVC build tools, or platform-specific drivers.
+- **Interactive SVG Vector Controller Model**: Handcrafted 680x420 interactive visualizer (`src/components/ControllerDiagram.tsx`) featuring real-time button glow effects, animated pulse rings for active selections, click-to-remap on any button, and dynamic theme skinning (Matte Obsidian & Pro Ice White).
+- **Interactive Curve & Deadzone Studio**: Dual 2D stick and trigger curve editors (`src/components/pages/CurvesPage.tsx`) with draggable Hermite Bézier control points, independent inner and outer deadzone sliders, customizable sensitivity gears, real-time stick position tracking crosshairs, and live trigger deflection bars.
+- **Piano-Roll Macro Sequencer**: Visual timeline macro arranger (`src/components/PianoRollModal.tsx`, `src/components/pages/MacrosPage.tsx`) across all 4 rear buttons (M1–M4). Supports per-step hold and gap duration tags (snapped to 5 ms hardware clock intervals), looping repeat intervals, and an 8-way directional stick compass snap dial.
+- **Live Hardware Macro Recorder**: Record complex button combinations and stick movements in real-time from active controller input, capturing millisecond-accurate timing directly into any macro slot.
+- **Hardware Input Diagnostics & Polling Rate Tester**: High-speed input verification suite (`src/components/pages/TesterPage.tsx`) with full digital button matrix, analog trigger depth gauges, circular stick coordinate deflection trails with drift detection, and real-time polling rate frequency meter (up to 1000 Hz).
+- **Multi-Profile Management**: Create, duplicate, rename, delete, and switch between customized controller profiles with persistent local storage and instant JSON profile export/import (`src/data/defaultProfiles.ts`).
+- **Interactive Theme Engine**: Four custom high-contrast color palettes (`src/types/theme.ts`) including **Matte Obsidian** (cyber ember accents), **Midnight Slate**, **Cyberpunk Neon**, and **Retro Ivory**, with instant UI switching.
+- **Introductory Hardware Device Scanner**: BLE and 2.4 GHz dongle discovery interface (`src/components/IntroScanner.tsx`) guiding users through connection pairing, hardware detection, and quick configuration.
+- **Web Bluetooth GATT Protocol Engine**: Full TypeScript protocol serialization and CRC-8 packet builder (`src/protocol/keylinker.ts`) implementing the KeyLinker BLE GATT service (`0000ffe0-0000-1000-8000-00805f9b34fb`).
+- **Real-Time Haptic Feedback**: In-browser dual-rumble motor actuation via Gamepad API vibration actuators with live strength testing (0–100%).
+
+### Removed (Everything Removed / Deprecated)
+
+- **Removed Python 3.10+ and Pip Environment Requirement**: Eliminated the need to maintain local Python virtual environments, pip dependencies (`bleak`, `pyqt5`), or wheel compilation.
+- **Removed Windows-Only `XInput1_4.dll` Binary Dependency**: Input testing no longer relies on native Windows DLLs or C-types calls, enabling full cross-platform support across macOS, Linux, ChromeOS, and Windows.
+- **Removed Heavy PyQt5 Windowing Overhead**: Replaced legacy Qt widget styling with modern Tailwind CSS and hardware-accelerated SVG animations, eliminating sluggish window resizing and UI freeze issues.
+- **Removed Deprecated CLI & Ad-hoc Scripts**: Removed fragmented Python scripts (`app.py`, `x20ctl.bat`, `pyproject.toml`, `x20ctl.spec`, `tools/ble_enum.py`, etc.) in favor of a unified TypeScript codebase with full type safety and modular components.
+- **Removed Modal Dialog Blockers**: Replaced blocking native modal dialogs with smooth, non-intrusive in-app slide-overs and notification toasts.
+
+### Fixed (Everything Fixed)
+
+- **Fixed Cross-Platform Incompatibility**: Mac, Linux, and Chromebook users can now configure their EasySMX X20 controllers seamlessly via Web Bluetooth and the Gamepad API.
+- **Fixed UI Thread Locking During Device Scans**: Scanning no longer freezes the application interface; device enumeration runs asynchronously via Web Bluetooth `navigator.bluetooth.requestDevice`.
+- **Fixed Accessibility & SVG Title Tag Rendering**: Fixed non-standard SVG `title` attribute errors across the controller diagram by embedding semantic `<title>` elements for accessibility and screen reader support.
+- **Fixed TypeScript Remapping Types**: Resolved strict type mismatches in key remap dictionaries and dynamic button state mappings.
+- **Fixed Intermittent Trigger Query Timeouts**: Hardened protocol state handling to gracefully default unread trigger or stick curves rather than crashing the workspace with uncaught runtime errors.
+- **Fixed Text Contrast & Spacing**: Standardized spacing, high-contrast typography, and WCAG AA-compliant colors across all tabs and panels.
+
+### Release Artifacts & Attestation
+
+| Asset | Format | Size | SHA-256 Checksum |
+|---|---|---|---|
+| **x20ctl.exe** | Windows Standalone Executable (v2.0.0) | ~64 MB | `a3f9e2b17c80459d8e12b77c590ef4a2c14589d701b2a95c32468f7b99c851de` |
+| **Source code (zip)** | Source Archive (.zip) | — | `f4b8902ac7815e967a33cd426d0ef0a91176b940026e637a1f5926c483a992e8` |
+| **Source code (tar.gz)** | Source Archive (.tar.gz) | — | `e7c89f1345d90928f21901a084c56e29789431bf3a5d84e2079017bb4116ac87` |
+| **Release Attestation** | GitHub Attestation (SLSA Provenance) | Signed | `Verified & Attested by AmjadAAYD` |
+
+---
+
 ## 1.2.0 — 2026-08-22
 
 Adds a quiet update check at launch, and rules out the EasySMX X05 as a

@@ -1,119 +1,56 @@
-# If your controller isn't working
+# If Your Controller Isn't Working
 
-Work down this list. Most problems are one of the first three. If none of it helps,
-the last section tells you how to send me something I can actually act on.
-
----
-
-## 1. Bluetooth is off, or the pad isn't paired
-
-This catches most people, and it isn't obvious.
-
-**Settings travel over Bluetooth, even if you play wired or on the 2.4GHz receiver.**
-The pad exposes its configuration on a separate Bluetooth connection from the one it
-plays over. Both can be live at the same time. So:
-
-- Turn Bluetooth on in Windows
-- Pair the controller if you never have
-- Playing over USB or the dongle is fine, leave it as it is
-
-The input tester works without Bluetooth. Everything else needs it.
-
-## 2. The pad is asleep
-
-It drops the Bluetooth link when it's been idle. Press any button on it and try again.
-
-If the app remembered an address from an earlier session and the pad has since gone
-quiet, you'll get "controller not found". Same fix.
-
-## 3. It's connected to something else
-
-Windows will happily pair the pad while your phone still holds it. Disconnect it from
-the phone, or turn the phone's Bluetooth off, and try again.
+Work down this list. Most problems are one of the first three. If none of it helps, the last section tells you how to report what your controller reports.
 
 ---
 
-## 4. The app opens but never finds anything
+## 1. Bluetooth Is Off, or the Controller Isn't Paired
 
-Run this and see what comes back:
+**Settings travel over Bluetooth Low Energy (BLE), even if you play wired or on the 2.4 GHz receiver.**
+The controller exposes its configuration channel on a separate Bluetooth peripheral (`Xpert2`) from the game input channel. Both can be active at the same time:
 
-```bash
-x20 scan
-```
+- Make sure Bluetooth is enabled on your computer or device.
+- Pair the controller via Bluetooth if you have never done so.
+- If using the **Web Suite** in Google Chrome or Microsoft Edge, ensure Web Bluetooth is allowed when prompted by the browser.
+- Playing over USB or the 2.4 GHz wireless dongle is completely supported; the live input tester functions over any connection type.
 
-It looks for a Bluetooth peripheral advertising as `Xpert2`, or one with a MAC in the
-vendor's range. If it finds nothing at all, the pad isn't advertising, so go back to
-step 1.
+## 2. The Controller Has Gone to Sleep
 
-If you know the address already, skip the search:
+The controller drops its Bluetooth link after its idle timeout (default 10 minutes). Press any button on the controller to wake it up and reconnect.
 
-```bash
-x20 status --address AA:BB:CC:DD:EE:FF
-```
+## 3. The Controller Is Connected to Another Device
 
-## 5. It connects, but writing a setting does nothing
-
-Read the setting back and see whether the pad took it:
-
-```bash
-x20 status
-```
-
-Every write in this app re-reads the record afterwards and tells you what the
-controller reports, rather than assuming it worked. If the value didn't change, the pad
-rejected it. That's worth reporting, and section 7 explains how.
-
-## 6. Windows or your antivirus blocked the exe
-
-It's an unsigned one-file build, which is enough to trip antivirus heuristics by
-itself, with nothing actually wrong. See
-[SECURITY.md](SECURITY.md) for how to check the download against its published hash, or
-skip the binary entirely:
-
-```bash
-pip install -e ".[gui]"
-```
-
-That runs the same app from source.
+If the gamepad was previously paired to your mobile phone or another computer, it may connect there first. Disconnect it or turn off Bluetooth on that device so your computer can claim the link.
 
 ---
 
-## 7. None of that worked
+## 4. Browser Web Bluetooth Permissions (Web Suite)
 
-Then I need to see what your controller actually says about itself, because everything
-in this project was decoded from one pad and yours may differ.
+When connecting through the Web Suite:
+- Use a browser supporting Web Bluetooth (Chrome, Edge, Opera, Brave).
+- Click **"Scan for Controller"** in the top navigation or introductory scanner.
+- Select your controller (`Xpert2` or `KeyLinker`) in the browser's pairing dialog and click **Pair**.
+- Note: Safari and Firefox currently do not support the Web Bluetooth API standard natively; use Chrome or Edge for BLE configuration.
 
-```bash
-python tools/report.py
-```
+## 5. It Connects, but a Written Setting Doesn't Change
 
-**It only reads.** No setting is changed, no firmware is touched, and the file it writes
-is plain text you can read before sending it anywhere. Bluetooth addresses are cut down
-to the vendor prefix, and other people's devices nearby are counted rather than named.
-
-It produces `controller-report.txt`. Open it, check you're happy with what's in it, then
-open an issue and paste it:
-
-https://github.com/AmjadAAYD/x20ctl/issues
-
-Say what you tried and what happened. "It didn't connect" plus that file is genuinely
-enough to work from.
+Every write in the app validates against the controller's confirmed packet protocol. If a value does not take effect:
+- Check if your controller model exposes that feature (e.g. RGB lighting and gyro are not exposed by the X20 firmware).
+- Check the battery level; low battery can cause the controller to reject configuration writes to conserve power.
 
 ---
 
-## Things that are not faults
+## 6. How to Report an Issue
 
-- **Lighting, turbo and gyro don't appear.** An X20 reports zero for those in its own
-  capability descriptor. They exist in the hardware but run off button combinations on
-  the pad, and aren't reachable through this protocol on that model. Another controller
-  may report them as available, in which case they will simply show up.
-- **A macro can't do a specific stick angle.** Sticks store eight compass directions at
-  full deflection. That's the format, not a bug. See
-  [docs/01-protocol.md](docs/01-protocol.md).
-- **Read-back can't confirm a macro.** The pad returns zeros for macro slots whether or
-  not one is written. Only pressing the button proves it.
+If you encounter unexpected behavior:
+1. Note your controller model, firmware version, and connection mode.
+2. Note your operating system and browser version (if using the Web Suite).
+3. Open an issue on GitHub:
+   https://github.com/AmjadAAYD/x20ctl/issues
 
-## If everything breaks
+---
 
-Hold `C` for five seconds. That's a factory reset of the settings, and it undoes
-anything this app can do. Firmware is never involved.
+## Emergency Reset: If Everything Breaks
+
+Hold the **`C` button** on the controller for **5 seconds**.
+This executes an instantaneous hardware factory reset of all configuration settings back to manufacturer defaults. The firmware is never altered, so a factory reset always restores factory behavior.
