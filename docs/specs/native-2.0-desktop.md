@@ -2,7 +2,7 @@
 
 ## Source and Status
 
-- Status: proposed controlling product specification, pending user review.
+- Status: approved by the user on 2026-09-17; implementation authorized.
 - Source: chat-approved product direction from 2026-09-17, repository evidence from remote `main` at `b626cdc`, and the last verified native baseline at `94cd363`.
 - Product decision: preserve the visual direction of the React 2.0 interface, but ship x20ctl as a real downloadable Windows desktop application backed by the proven native controller implementation.
 - Current behavior: `main` contains a React browser prototype, fabricated hardware state and diagnostics, an unused invented TypeScript protocol, misleading release documentation, synthetic marketing images, and a separate Tkinter mock backend added in `b626cdc`. It does not provide an end-to-end hardware configuration path.
