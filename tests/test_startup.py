@@ -93,7 +93,11 @@ def test_config_survives_an_unwritable_location():
     """Remembering the address is a convenience and must never be fatal."""
     config = _fresh_import("x20ctl.config")
     original = config.CONFIG_PATH
-    config.CONFIG_PATH = os.path.join("Z:\\", "definitely", "not", "there.json")
+    config.CONFIG_PATH = (
+        os.path.join("Z:\\", "definitely", "not", "there.json")
+        if sys.platform == "win32"
+        else "/dev/null/definitely/not/there.json"
+    )
     try:
         config.save_address("11:22:33:44:55:66")     # must not raise
         assert config.load_address() is None

@@ -111,9 +111,12 @@ class XINPUT_STATE(ctypes.Structure):
 
 
 def _load_xinput():
+    windll = getattr(ctypes, "WinDLL", None)
+    if windll is None:
+        return None
     for name in ("XInput1_4.dll", "xinput1_3.dll", "XInput9_1_0.dll"):
         try:
-            return ctypes.WinDLL(name)
+            return windll(name)
         except OSError:
             continue
     return None
