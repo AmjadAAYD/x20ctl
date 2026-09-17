@@ -267,7 +267,7 @@ export function useGamepad(enabled: boolean = true, remaps?: Record<KeyName, Key
         };
 
         // Remapped output buttons: route each physical input through the user's remap table
-        const activeRemaps = remapsRef.current || {};
+        const activeRemaps = (remapsRef.current || {}) as Partial<Record<KeyName, KeyName>>;
         const remappedBtns: Record<KeyName, boolean> = {
           DPAD_UP: b(12),
           DPAD_DOWN: b(13),

@@ -1,3 +1,4 @@
+/// <reference types="@types/web-bluetooth" />
 // KeyLinker / EasySMX X20 Bluetooth GATT Protocol & Packet Serialization
 
 export const KEYLINKER_SERVICE_UUID = '0000ffe0-0000-1000-8000-00805f9b34fb';

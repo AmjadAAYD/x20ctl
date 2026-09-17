@@ -187,8 +187,8 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
         <g
           className="cursor-pointer group"
           onClick={() => onButtonClick?.('LT')}
-          title="Left Trigger (LT) - Click to remap"
         >
+          <title>Left Trigger (LT) - Click to remap</title>
           <path
             d="M 175 48 C 175 20, 198 8, 238 8 C 270 8, 282 20, 282 48 Z"
             fill={isPressed('LT') || isSelected('LT') ? '#2E201B' : isProWhite ? '#CED5E0' : '#1C2028'}
@@ -218,8 +218,8 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
         <g
           className="cursor-pointer group"
           onClick={() => onButtonClick?.('RT')}
-          title="Right Trigger (RT) - Click to remap"
         >
+          <title>Right Trigger (RT) - Click to remap</title>
           <path
             d="M 398 48 C 398 20, 410 8, 442 8 C 482 8, 505 20, 505 48 Z"
             fill={isPressed('RT') || isSelected('RT') ? '#2E201B' : isProWhite ? '#CED5E0' : '#1C2028'}
@@ -249,8 +249,8 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
         <g
           className="cursor-pointer group"
           onClick={() => onButtonClick?.('LB')}
-          title="Left Bumper (LB) - Click to remap"
         >
+          <title>Left Bumper (LB) - Click to remap</title>
           <path
             d="M 158 84 C 152 62, 178 44, 270 44 C 286 44, 290 60, 290 84 Z"
             fill={
@@ -286,8 +286,8 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
         <g
           className="cursor-pointer group"
           onClick={() => onButtonClick?.('RB')}
-          title="Right Bumper (RB) - Click to remap"
         >
+          <title>Right Bumper (RB) - Click to remap</title>
           <path
             d="M 390 84 C 390 60, 394 44, 410 44 C 502 44, 528 62, 522 84 Z"
             fill={
@@ -520,8 +520,8 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
             className="cursor-pointer group"
             onClick={() => onButtonClick?.('CAPTURE')}
             transform="translate(340, 98)"
-            title="Home / Crest Button"
           >
+            <title>Home / Crest Button</title>
             <circle
               cx="0"
               cy="0"
@@ -549,8 +549,8 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
           className="cursor-pointer group"
           onClick={() => onButtonClick?.('SELECT')}
           transform="translate(296, 142)"
-          title="Select / View Button"
         >
+          <title>Select / View Button</title>
           {isSelected('SELECT') && (
             <circle cx="0" cy="0" r="17" fill="none" stroke="#FF8A5B" strokeWidth="2.5" className="animate-pulse" />
           )}
@@ -607,8 +607,8 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
             className="cursor-pointer group"
             onClick={() => onButtonClick?.('CAPTURE')}
             transform="translate(340, 150)"
-            title="Home / Capture Button"
           >
+            <title>Home / Capture Button</title>
             {isSelected('CAPTURE') && (
               <circle cx="0" cy="0" r="18" fill="none" stroke="#FF8A5B" strokeWidth="2.5" className="animate-pulse" />
             )}
@@ -658,8 +658,8 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
           className="cursor-pointer group"
           onClick={() => onButtonClick?.('START')}
           transform="translate(384, 142)"
-          title="Start / Menu Button"
         >
+          <title>Start / Menu Button</title>
           {isSelected('START') && (
             <circle cx="0" cy="0" r="17" fill="none" stroke="#FF8A5B" strokeWidth="2.5" className="animate-pulse" />
           )}
@@ -731,8 +731,8 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
           className="cursor-pointer group"
           onClick={() => onButtonClick?.('TURBO')}
           transform="translate(328, 254)"
-          title="M / Turbo Button"
         >
+          <title>M / Turbo Button</title>
           {isSelected('TURBO') && (
             <rect x="-3" y="-3" width="30" height="22" rx="6" fill="none" stroke="#FF8A5B" strokeWidth="2.5" className="animate-pulse" />
           )}
@@ -779,8 +779,8 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
           className="cursor-pointer group"
           onClick={() => onButtonClick?.('L3')}
           transform="translate(210, 146)"
-          title="Left Stick (L3) - Click to remap"
         >
+          <title>Left Stick (L3) - Click to remap</title>
           {isSelected('L3') && (
             <circle cx="0" cy="0" r="46" fill="none" stroke="#FF8A5B" strokeWidth="3" className="animate-pulse" />
           )}
@@ -873,8 +873,8 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
           <g
             className="cursor-pointer group"
             onClick={() => onButtonClick?.('DPAD_UP')}
-            title="D-Pad Up - Click to remap"
           >
+            <title>D-Pad Up - Click to remap</title>
             <polygon
               points="0,0 -15,-27 0,-35 15,-27"
               fill={isPressed('DPAD_UP') || isSelected('DPAD_UP') ? '#FF8A5B' : isProWhite ? '#FFFFFF' : '#3A404D'}
@@ -898,8 +898,8 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
           <g
             className="cursor-pointer group"
             onClick={() => onButtonClick?.('DPAD_RIGHT')}
-            title="D-Pad Right - Click to remap"
           >
+            <title>D-Pad Right - Click to remap</title>
             <polygon
               points="0,0 27,-15 35,0 27,15"
               fill={isPressed('DPAD_RIGHT') || isSelected('DPAD_RIGHT') ? '#FF8A5B' : isProWhite ? '#DEE3EC' : '#313642'}
@@ -923,8 +923,8 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
           <g
             className="cursor-pointer group"
             onClick={() => onButtonClick?.('DPAD_DOWN')}
-            title="D-Pad Down - Click to remap"
           >
+            <title>D-Pad Down - Click to remap</title>
             <polygon
               points="0,0 15,27 0,35 -15,27"
               fill={isPressed('DPAD_DOWN') || isSelected('DPAD_DOWN') ? '#FF8A5B' : isProWhite ? '#BCC5D2' : '#282C36'}
@@ -948,8 +948,8 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
           <g
             className="cursor-pointer group"
             onClick={() => onButtonClick?.('DPAD_LEFT')}
-            title="D-Pad Left - Click to remap"
           >
+            <title>D-Pad Left - Click to remap</title>
             <polygon
               points="0,0 -27,15 -35,0 -27,-15"
               fill={isPressed('DPAD_LEFT') || isSelected('DPAD_LEFT') ? '#FF8A5B' : isProWhite ? '#CBD3E0' : '#2D323E'}
@@ -981,8 +981,8 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
           className="cursor-pointer group"
           onClick={() => onButtonClick?.('R3')}
           transform="translate(418, 252)"
-          title="Right Stick (R3) - Click to remap"
         >
+          <title>Right Stick (R3) - Click to remap</title>
           {isSelected('R3') && (
             <circle cx="0" cy="0" r="46" fill="none" stroke="#FF8A5B" strokeWidth="3" className="animate-pulse" />
           )}
@@ -1068,8 +1068,8 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
             className="cursor-pointer group"
             onClick={() => onButtonClick?.('Y')}
             transform="translate(0, -25)"
-            title="Y Button - Click to remap"
           >
+            <title>Y Button - Click to remap</title>
             {isSelected('Y') && (
               <circle cx="0" cy="0" r="20" fill="none" stroke="#FF8A5B" strokeWidth="2.5" className="animate-pulse" />
             )}
@@ -1113,8 +1113,8 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
             className="cursor-pointer group"
             onClick={() => onButtonClick?.('X')}
             transform="translate(-25, 0)"
-            title="X Button - Click to remap"
           >
+            <title>X Button - Click to remap</title>
             {isSelected('X') && (
               <circle cx="0" cy="0" r="20" fill="none" stroke="#FF8A5B" strokeWidth="2.5" className="animate-pulse" />
             )}
@@ -1158,8 +1158,8 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
             className="cursor-pointer group"
             onClick={() => onButtonClick?.('B')}
             transform="translate(25, 0)"
-            title="B Button - Click to remap"
           >
+            <title>B Button - Click to remap</title>
             {isSelected('B') && (
               <circle cx="0" cy="0" r="20" fill="none" stroke="#FF8A5B" strokeWidth="2.5" className="animate-pulse" />
             )}
@@ -1203,8 +1203,8 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
             className="cursor-pointer group"
             onClick={() => onButtonClick?.('A')}
             transform="translate(0, 25)"
-            title="A Button - Click to remap"
           >
+            <title>A Button - Click to remap</title>
             {isSelected('A') && (
               <circle cx="0" cy="0" r="20" fill="none" stroke="#FF8A5B" strokeWidth="2.5" className="animate-pulse" />
             )}
