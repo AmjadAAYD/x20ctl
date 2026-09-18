@@ -42,4 +42,5 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon=['assets/x20ctl.ico'],
+    version='assets/version_info.txt',
 )

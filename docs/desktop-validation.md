@@ -25,6 +25,16 @@ DCD1847AC6D3E6707659AD78B840B5995071E8657F47647A11EA58FC6094978F
 
 This hash identifies the executable used for the screenshots below. The published release hash may differ after final notice/version metadata is embedded; `SHA256SUMS.txt` attached to the release is authoritative for the downloadable file.
 
+## Final release artifact
+
+After embedding Windows file/product version 2.0.0 and the complete third-party notice bundle, the final 332,117,406-byte executable repeated the same 16-check acceptance run successfully. Its SHA-256 is:
+
+```text
+D8DBF5B425A1A7B582F7CDB626569FCB4A1CD043848E2DD650B1D1D2ECDB0E8B
+```
+
+The final run used the bundled WebView2 fallback and exited with code 0. `SHA256SUMS.txt` attached to the GitHub release contains the same value.
+
 ## Screenshot provenance
 
 The files in `assets/screenshots/desktop` are direct pixel captures of that running packaged executable's WebView2 surface. The smoke harness called WebView2's native capture API after navigating and interacting with the real interface. It also rejected blank captures using image variance checks.
@@ -41,6 +51,6 @@ No image generator, mock webpage, browser developer preview or compositing tool 
 
 ## Hardware boundary
 
-No supported controller was connected during this acceptance run. BLE discovery found no active supported configuration peripheral, and XInput detected no active gamepad. Therefore this run did not perform a physical write, read-back or macro replay.
+BLE discovery found no active supported configuration peripheral during either packaged acceptance run. The screenshot-producing run detected no XInput gamepad; the final release run detected an XInput-compatible device but did not identify it as an EasySMX X20 or replay a macro. Neither run performed a physical configuration write or controller read-back.
 
 The protocol engine retains its regression and simulated-transport coverage from the native 1.x application, but that is not presented as fresh physical-device evidence. Version 1.2.0 remains available as a rollback. Hardware-specific problems should be reported with the controller firmware, connection mode and the application log.
