@@ -70,7 +70,7 @@ The React interface is bundled inside the EXE and talks to a restricted Python A
 
 The verified Python protocol engine, CLI, hardware findings and regression suites are retained. The primary interface is now a new local React desktop studio with a native bridge. The intervening browser prototype and Tkinter mock were removed, along with fabricated recording, unsupported telemetry, synthetic marketing screenshots, fake checksums and false attestation claims.
 
-Version 2.0 has software and executable acceptance tests. **No fresh physical-controller writes or replay were verified for this release while the test controller was off.** Restored protocol tests and simulated transport tests are not a substitute for that hardware evidence. Version [1.2.0](https://github.com/AmjadAAYD/x20ctl/releases/tag/v1.2.0) remains available as a rollback.
+Version 2.0 has software and executable acceptance tests. The 2.0.1 follow-up was also tested with a live Xpert2 controller on firmware 9.01: full settings reads, a timer write/read-back/restore, live XInput changes and saving the connected setup passed. Macro playback and every individual control have not been verified. See the [hardware test record](docs/desktop-validation.md#live-controller-follow-up-201). Version [1.2.0](https://github.com/AmjadAAYD/x20ctl/releases/tag/v1.2.0) remains available as a rollback.
 
 ## Run from source
 

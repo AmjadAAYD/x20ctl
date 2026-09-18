@@ -99,7 +99,7 @@ export function App() {
   const [updatesEnabled, setUpdatesEnabled] = useState(true);
   const [update, setUpdate] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
-  const [version, setVersion] = useState("2.0.0");
+  const [version, setVersion] = useState("2.0.1");
   const [tab, setTab] = useState<Tab>("buttons");
   const [profile, setProfile] = useState<Profile>(() => newProfile());
   const [profiles, setProfiles] = useState<Profile[]>([]);
