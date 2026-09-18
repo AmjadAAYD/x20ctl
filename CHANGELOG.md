@@ -29,6 +29,7 @@ hardware-capable release.
 
 ### Fixed
 
+- Updated the release environment to patched Pillow 12.3.0 and pytest 9.0.3 pins after GitHub security review.
 - Restored the Python engine, CLI, hardware tools and regression tests deleted
   during the prototype rewrite.
 - Macro recording no longer skips adjacent changed inputs or inserts unplayed
