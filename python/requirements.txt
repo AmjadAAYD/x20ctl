@@ -1,7 +1,0 @@
-# x20ctl Gamepad Configurator - Python Requirements
-# For running from Python source and compiling to Windows standalone .exe
-
-bleak>=0.21.0          # Cross-platform Bluetooth Low Energy (GATT) communication
-pygame>=2.5.0          # Gamepad / joystick detection and 1000Hz input testing
-Pillow>=10.0.0         # Image and icon processing
-pyinstaller>=6.0.0     # Standalone Windows .exe packager

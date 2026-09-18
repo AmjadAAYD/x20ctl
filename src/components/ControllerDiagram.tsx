@@ -1,5 +1,5 @@
-import React from 'react';
-import { KeyName, LiveGamepadState, ControllerPreset } from '../types/gamepad';
+import React from "react";
+import { KeyName, LiveGamepadState, ControllerPreset } from "../types/gamepad";
 
 interface ControllerDiagramProps {
   liveState: LiveGamepadState;
@@ -14,8 +14,8 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
   liveState,
   onButtonClick,
   selectedKey,
-  className = '',
-  preset = 'x20-pro-black',
+  className = "",
+  preset = "x20-pro-black",
 }) => {
   // Helpers for button press states
   const isPressed = (key: KeyName) => !!liveState.buttons[key];
@@ -28,16 +28,24 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
   const rsY = (liveState.rightStick.y || 0) * 16;
 
   // Trigger values (0.0 to 1.0)
-  const ltValue = Math.max(0, Math.min(1, liveState.leftTrigger || (liveState.buttons.LT ? 1 : 0)));
-  const rtValue = Math.max(0, Math.min(1, liveState.rightTrigger || (liveState.buttons.RT ? 1 : 0)));
+  const ltValue = Math.max(
+    0,
+    Math.min(1, liveState.leftTrigger || (liveState.buttons.LT ? 1 : 0)),
+  );
+  const rtValue = Math.max(
+    0,
+    Math.min(1, liveState.rightTrigger || (liveState.buttons.RT ? 1 : 0)),
+  );
 
   // Preset flags
-  const isProBlack = preset === 'x20-pro-black';
-  const isProWhite = preset === 'x20-pro-white';
-  const isX05 = preset === 'x05';
+  const isProBlack = preset === "x20-pro-black";
+  const isProWhite = preset === "x20-pro-white";
+  const isX05 = preset === "x05";
 
   return (
-    <div className={`relative flex flex-col items-center select-none w-full ${className}`}>
+    <div
+      className={`relative flex flex-col items-center select-none w-full ${className}`}
+    >
       <svg
         viewBox="50 10 580 430"
         className="w-full h-auto filter drop-shadow-[0_16px_36px_rgba(0,0,0,0.7)] transition-all duration-200"
@@ -108,14 +116,26 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
           </radialGradient>
 
           {/* D-Pad Gradients */}
-          <linearGradient id="proBlackDpadGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <linearGradient
+            id="proBlackDpadGrad"
+            x1="0%"
+            y1="0%"
+            x2="100%"
+            y2="100%"
+          >
             <stop offset="0%" stopColor="#555E6F" />
             <stop offset="30%" stopColor="#373D49" />
             <stop offset="70%" stopColor="#242831" />
             <stop offset="100%" stopColor="#15171E" />
           </linearGradient>
 
-          <linearGradient id="proWhiteDpadGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <linearGradient
+            id="proWhiteDpadGrad"
+            x1="0%"
+            y1="0%"
+            x2="100%"
+            y2="100%"
+          >
             <stop offset="0%" stopColor="#FFFFFF" />
             <stop offset="35%" stopColor="#E2E7F0" />
             <stop offset="70%" stopColor="#B6C0CF" />
@@ -129,14 +149,26 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
             <stop offset="100%" stopColor="#D500F9" />
           </linearGradient>
 
-          <linearGradient id="proRgbPipeRight" x1="0%" y1="0%" x2="0%" y2="100%">
+          <linearGradient
+            id="proRgbPipeRight"
+            x1="0%"
+            y1="0%"
+            x2="0%"
+            y2="100%"
+          >
             <stop offset="0%" stopColor="#00E5FF" />
             <stop offset="50%" stopColor="#2979FF" />
             <stop offset="100%" stopColor="#D500F9" />
           </linearGradient>
 
           {/* X05 Top Rainbow Lightbar Gradient */}
-          <linearGradient id="x05RainbowBarGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+          <linearGradient
+            id="x05RainbowBarGrad"
+            x1="0%"
+            y1="0%"
+            x2="100%"
+            y2="0%"
+          >
             <stop offset="0%" stopColor="#FF007A" />
             <stop offset="25%" stopColor="#FF8A00" />
             <stop offset="50%" stopColor="#FFE600" />
@@ -145,7 +177,13 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
           </linearGradient>
 
           {/* X05 D-Pad Halo Rainbow Gradient */}
-          <linearGradient id="x05DpadHaloGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <linearGradient
+            id="x05DpadHaloGrad"
+            x1="0%"
+            y1="0%"
+            x2="100%"
+            y2="100%"
+          >
             <stop offset="0%" stopColor="#FF007A" />
             <stop offset="30%" stopColor="#FF8A00" />
             <stop offset="60%" stopColor="#FFE600" />
@@ -154,23 +192,36 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
           </linearGradient>
 
           {/* Trigger Travel Fill */}
-          <linearGradient id="triggerTravelGrad" x1="0%" y1="100%" x2="0%" y2="0%">
+          <linearGradient
+            id="triggerTravelGrad"
+            x1="0%"
+            y1="100%"
+            x2="0%"
+            y2="0%"
+          >
             <stop offset="0%" stopColor="#FF8A5B" />
             <stop offset="100%" stopColor="#FFB020" />
           </linearGradient>
 
           {/* Grip Stipple Pattern */}
-          <pattern id="gripStipple" x="0" y="0" width="8" height="8" patternUnits="userSpaceOnUse">
+          <pattern
+            id="gripStipple"
+            x="0"
+            y="0"
+            width="8"
+            height="8"
+            patternUnits="userSpaceOnUse"
+          >
             <circle
               cx="4"
               cy="4"
               r="1.2"
-              fill={isProWhite ? '#7D8899' : '#5A6375'}
+              fill={isProWhite ? "#7D8899" : "#5A6375"}
               fillOpacity="0.4"
             />
           </pattern>
 
-          {/* Mathematical Guide Curve for X20 PRO Badge TextPath */}
+          {/* Mathematical Guide Curve for X20 Badge TextPath */}
           {/* Exactly 18px inward concentric to the left RGB light-pipe */}
           <path
             id="proBadgeCurve"
@@ -186,93 +237,123 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
         {/* LEFT TRIGGER (LT) */}
         <g
           className="cursor-pointer group"
-          onClick={() => onButtonClick?.('LT')}
+          onClick={() => onButtonClick?.("LT")}
         >
           <title>Left Trigger (LT) - Click to remap</title>
           <path
             d="M 175 48 C 175 20, 198 8, 238 8 C 270 8, 282 20, 282 48 Z"
-            fill={isPressed('LT') || isSelected('LT') ? '#2E201B' : isProWhite ? '#CED5E0' : '#1C2028'}
-            stroke={isSelected('LT') ? '#FF8A5B' : isPressed('LT') ? '#FF8A5B' : '#454D5C'}
-            strokeWidth={isSelected('LT') ? 3.5 : 2}
+            fill={
+              isPressed("LT") || isSelected("LT")
+                ? "#2E201B"
+                : isProWhite
+                  ? "#CED5E0"
+                  : "#1C2028"
+            }
+            stroke={
+              isSelected("LT")
+                ? "#FF8A5B"
+                : isPressed("LT")
+                  ? "#FF8A5B"
+                  : "#454D5C"
+            }
+            strokeWidth={isSelected("LT") ? 3.5 : 2}
           />
           <path
             d="M 180 45 C 180 25, 200 13, 238 13 C 267 13, 277 25, 277 45 Z"
             fill="url(#triggerTravelGrad)"
-            opacity={isSelected('LT') ? 0.9 : 0.15 + ltValue * 0.85}
+            opacity={isSelected("LT") ? 0.9 : 0.15 + ltValue * 0.85}
             className="transition-all duration-75"
           />
           <text
             x="228"
             y="33"
-            fill={isProWhite && ltValue === 0 ? '#262A32' : '#FFFFFF'}
+            fill={isProWhite && ltValue === 0 ? "#262A32" : "#FFFFFF"}
             fontSize="12"
             fontWeight="900"
             textAnchor="middle"
             filter="drop-shadow(0 1px 2px rgba(0,0,0,0.8))"
           >
-            LT {ltValue > 0 ? `${Math.round(ltValue * 100)}%` : ''}
+            LT {ltValue > 0 ? `${Math.round(ltValue * 100)}%` : ""}
           </text>
         </g>
 
         {/* RIGHT TRIGGER (RT) */}
         <g
           className="cursor-pointer group"
-          onClick={() => onButtonClick?.('RT')}
+          onClick={() => onButtonClick?.("RT")}
         >
           <title>Right Trigger (RT) - Click to remap</title>
           <path
             d="M 398 48 C 398 20, 410 8, 442 8 C 482 8, 505 20, 505 48 Z"
-            fill={isPressed('RT') || isSelected('RT') ? '#2E201B' : isProWhite ? '#CED5E0' : '#1C2028'}
-            stroke={isSelected('RT') ? '#FF8A5B' : isPressed('RT') ? '#FF8A5B' : '#454D5C'}
-            strokeWidth={isSelected('RT') ? 3.5 : 2}
+            fill={
+              isPressed("RT") || isSelected("RT")
+                ? "#2E201B"
+                : isProWhite
+                  ? "#CED5E0"
+                  : "#1C2028"
+            }
+            stroke={
+              isSelected("RT")
+                ? "#FF8A5B"
+                : isPressed("RT")
+                  ? "#FF8A5B"
+                  : "#454D5C"
+            }
+            strokeWidth={isSelected("RT") ? 3.5 : 2}
           />
           <path
             d="M 403 45 C 403 25, 413 13, 442 13 C 480 13, 500 25, 500 45 Z"
             fill="url(#triggerTravelGrad)"
-            opacity={isSelected('RT') ? 0.9 : 0.15 + rtValue * 0.85}
+            opacity={isSelected("RT") ? 0.9 : 0.15 + rtValue * 0.85}
             className="transition-all duration-75"
           />
           <text
             x="452"
             y="33"
-            fill={isProWhite && rtValue === 0 ? '#262A32' : '#FFFFFF'}
+            fill={isProWhite && rtValue === 0 ? "#262A32" : "#FFFFFF"}
             fontSize="12"
             fontWeight="900"
             textAnchor="middle"
             filter="drop-shadow(0 1px 2px rgba(0,0,0,0.8))"
           >
-            RT {rtValue > 0 ? `${Math.round(rtValue * 100)}%` : ''}
+            RT {rtValue > 0 ? `${Math.round(rtValue * 100)}%` : ""}
           </text>
         </g>
 
         {/* LEFT BUMPER (LB) */}
         <g
           className="cursor-pointer group"
-          onClick={() => onButtonClick?.('LB')}
+          onClick={() => onButtonClick?.("LB")}
         >
           <title>Left Bumper (LB) - Click to remap</title>
           <path
             d="M 158 84 C 152 62, 178 44, 270 44 C 286 44, 290 60, 290 84 Z"
             fill={
-              isPressed('LB') || isSelected('LB')
-                ? '#FF8A5B'
+              isPressed("LB") || isSelected("LB")
+                ? "#FF8A5B"
                 : isProWhite
-                ? '#DFE4ED'
-                : '#2A2F39'
+                  ? "#DFE4ED"
+                  : "#2A2F39"
             }
-            stroke={isSelected('LB') ? '#FFFFFF' : isPressed('LB') ? '#FFB020' : '#495262'}
-            strokeWidth={isSelected('LB') ? 3 : 2}
+            stroke={
+              isSelected("LB")
+                ? "#FFFFFF"
+                : isPressed("LB")
+                  ? "#FFB020"
+                  : "#495262"
+            }
+            strokeWidth={isSelected("LB") ? 3 : 2}
             className="transition-colors group-hover:brightness-110"
           />
           <text
             x="224"
             y="68"
             fill={
-              isPressed('LB') || isSelected('LB')
-                ? '#131110'
+              isPressed("LB") || isSelected("LB")
+                ? "#131110"
                 : isProWhite
-                ? '#242830'
-                : '#F4F0EB'
+                  ? "#242830"
+                  : "#F4F0EB"
             }
             fontSize="13"
             fontWeight="900"
@@ -285,31 +366,37 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
         {/* RIGHT BUMPER (RB) */}
         <g
           className="cursor-pointer group"
-          onClick={() => onButtonClick?.('RB')}
+          onClick={() => onButtonClick?.("RB")}
         >
           <title>Right Bumper (RB) - Click to remap</title>
           <path
             d="M 390 84 C 390 60, 394 44, 410 44 C 502 44, 528 62, 522 84 Z"
             fill={
-              isPressed('RB') || isSelected('RB')
-                ? '#FF8A5B'
+              isPressed("RB") || isSelected("RB")
+                ? "#FF8A5B"
                 : isProWhite
-                ? '#DFE4ED'
-                : '#2A2F39'
+                  ? "#DFE4ED"
+                  : "#2A2F39"
             }
-            stroke={isSelected('RB') ? '#FFFFFF' : isPressed('RB') ? '#FFB020' : '#495262'}
-            strokeWidth={isSelected('RB') ? 3 : 2}
+            stroke={
+              isSelected("RB")
+                ? "#FFFFFF"
+                : isPressed("RB")
+                  ? "#FFB020"
+                  : "#495262"
+            }
+            strokeWidth={isSelected("RB") ? 3 : 2}
             className="transition-colors group-hover:brightness-110"
           />
           <text
             x="456"
             y="68"
             fill={
-              isPressed('RB') || isSelected('RB')
-                ? '#131110'
+              isPressed("RB") || isSelected("RB")
+                ? "#131110"
                 : isProWhite
-                ? '#242830'
-                : '#F4F0EB'
+                  ? "#242830"
+                  : "#F4F0EB"
             }
             fontSize="13"
             fontWeight="900"
@@ -338,12 +425,12 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
           "
           fill={
             isProBlack
-              ? 'url(#proBlackBodyGrad)'
+              ? "url(#proBlackBodyGrad)"
               : isProWhite
-              ? 'url(#proWhiteBodyGrad)'
-              : 'url(#x05BlackBodyGrad)'
+                ? "url(#proWhiteBodyGrad)"
+                : "url(#x05BlackBodyGrad)"
           }
-          stroke={isProWhite ? '#A6B2C4' : isX05 ? '#363D4B' : '#464F60'}
+          stroke={isProWhite ? "#A6B2C4" : isX05 ? "#363D4B" : "#464F60"}
           strokeWidth="3.5"
         />
 
@@ -378,8 +465,12 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
                 C 116 260, 112 185, 136 132
                 C 164 102, 220 84, 268 84 Z
               "
-              fill={isProBlack ? 'url(#smokedFaceplateBlack)' : 'url(#smokedFaceplateWhite)'}
-              stroke={isProBlack ? '#444D5E' : '#9EA9BC'}
+              fill={
+                isProBlack
+                  ? "url(#smokedFaceplateBlack)"
+                  : "url(#smokedFaceplateWhite)"
+              }
+              stroke={isProBlack ? "#444D5E" : "#9EA9BC"}
               strokeWidth="2.5"
             />
 
@@ -403,7 +494,7 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
               filter="drop-shadow(0 0 6px #2979FF)"
             />
 
-            {/* Gold "X20 PRO" Badge with Mathematical Curved TextPath Alignment */}
+            {/* Gold "X20" Badge with Mathematical Curved TextPath Alignment */}
             <text
               fill="#FFB020"
               fontSize="11"
@@ -413,7 +504,7 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
               filter="drop-shadow(0 1px 2px rgba(0,0,0,0.8))"
             >
               <textPath href="#proBadgeCurve" startOffset="30%">
-                X20 PRO
+                X20
               </textPath>
             </text>
           </>
@@ -477,10 +568,7 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
               strokeWidth="2.5"
             />
             {/* Screen Glass */}
-            <polygon
-              points="14,4 106,4 114,42 6,42"
-              fill="#12151C"
-            />
+            <polygon points="14,4 106,4 114,42 6,42" fill="#12151C" />
 
             {/* Pegasus / Knight Crest Logo in Gold */}
             <g transform="translate(24, 10)">
@@ -508,9 +596,27 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
             </text>
 
             {/* 3 Status / Battery LED Dots */}
-            <circle cx="50" cy="56" r="2.8" fill="#8AB4F8" filter="drop-shadow(0 0 3px #8AB4F8)" />
-            <circle cx="60" cy="56" r="2.8" fill="#8AB4F8" filter="drop-shadow(0 0 3px #8AB4F8)" />
-            <circle cx="70" cy="56" r="2.8" fill="#8AB4F8" filter="drop-shadow(0 0 3px #8AB4F8)" />
+            <circle
+              cx="50"
+              cy="56"
+              r="2.8"
+              fill="#8AB4F8"
+              filter="drop-shadow(0 0 3px #8AB4F8)"
+            />
+            <circle
+              cx="60"
+              cy="56"
+              r="2.8"
+              fill="#8AB4F8"
+              filter="drop-shadow(0 0 3px #8AB4F8)"
+            />
+            <circle
+              cx="70"
+              cy="56"
+              r="2.8"
+              fill="#8AB4F8"
+              filter="drop-shadow(0 0 3px #8AB4F8)"
+            />
           </g>
         )}
 
@@ -518,7 +624,7 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
         {isX05 && (
           <g
             className="cursor-pointer group"
-            onClick={() => onButtonClick?.('CAPTURE')}
+            onClick={() => onButtonClick?.("CAPTURE")}
             transform="translate(340, 98)"
           >
             <title>Home / Crest Button</title>
@@ -526,8 +632,12 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
               cx="0"
               cy="0"
               r="17"
-              fill={isPressed('CAPTURE') || isSelected('CAPTURE') ? '#FF8A5B' : '#1C2028'}
-              stroke={isSelected('CAPTURE') ? '#FFFFFF' : '#4E5769'}
+              fill={
+                isPressed("CAPTURE") || isSelected("CAPTURE")
+                  ? "#FF8A5B"
+                  : "#1C2028"
+              }
+              stroke={isSelected("CAPTURE") ? "#FFFFFF" : "#4E5769"}
               strokeWidth="2.5"
               className="group-hover:brightness-125 transition-all"
             />
@@ -547,25 +657,33 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
         {/* SELECT / VIEW Button */}
         <g
           className="cursor-pointer group"
-          onClick={() => onButtonClick?.('SELECT')}
+          onClick={() => onButtonClick?.("SELECT")}
           transform="translate(296, 142)"
         >
           <title>Select / View Button</title>
-          {isSelected('SELECT') && (
-            <circle cx="0" cy="0" r="17" fill="none" stroke="#FF8A5B" strokeWidth="2.5" className="animate-pulse" />
+          {isSelected("SELECT") && (
+            <circle
+              cx="0"
+              cy="0"
+              r="17"
+              fill="none"
+              stroke="#FF8A5B"
+              strokeWidth="2.5"
+              className="animate-pulse"
+            />
           )}
           <circle
             cx="0"
             cy="0"
             r="12.5"
             fill={
-              isPressed('SELECT') || isSelected('SELECT')
-                ? '#FF8A5B'
+              isPressed("SELECT") || isSelected("SELECT")
+                ? "#FF8A5B"
                 : isProWhite
-                ? '#E2E6EF'
-                : '#252932'
+                  ? "#E2E6EF"
+                  : "#252932"
             }
-            stroke={isSelected('SELECT') ? '#FFFFFF' : '#4D5667'}
+            stroke={isSelected("SELECT") ? "#FFFFFF" : "#4D5667"}
             strokeWidth="2"
             className="group-hover:brightness-125 transition-all"
           />
@@ -576,11 +694,11 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
             height="5.5"
             fill="none"
             stroke={
-              isPressed('SELECT') || isSelected('SELECT')
-                ? '#131110'
+              isPressed("SELECT") || isSelected("SELECT")
+                ? "#131110"
                 : isProWhite
-                ? '#353B47'
-                : '#D1D6E2'
+                  ? "#353B47"
+                  : "#D1D6E2"
             }
             strokeWidth="1.3"
           />
@@ -591,11 +709,11 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
             height="5.5"
             fill="none"
             stroke={
-              isPressed('SELECT') || isSelected('SELECT')
-                ? '#131110'
+              isPressed("SELECT") || isSelected("SELECT")
+                ? "#131110"
                 : isProWhite
-                ? '#353B47'
-                : '#D1D6E2'
+                  ? "#353B47"
+                  : "#D1D6E2"
             }
             strokeWidth="1.3"
           />
@@ -605,25 +723,33 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
         {!isX05 && (
           <g
             className="cursor-pointer group"
-            onClick={() => onButtonClick?.('CAPTURE')}
+            onClick={() => onButtonClick?.("CAPTURE")}
             transform="translate(340, 150)"
           >
             <title>Home / Capture Button</title>
-            {isSelected('CAPTURE') && (
-              <circle cx="0" cy="0" r="18" fill="none" stroke="#FF8A5B" strokeWidth="2.5" className="animate-pulse" />
+            {isSelected("CAPTURE") && (
+              <circle
+                cx="0"
+                cy="0"
+                r="18"
+                fill="none"
+                stroke="#FF8A5B"
+                strokeWidth="2.5"
+                className="animate-pulse"
+              />
             )}
             <circle
               cx="0"
               cy="0"
               r="13.5"
               fill={
-                isPressed('CAPTURE') || isSelected('CAPTURE')
-                  ? '#FF8A5B'
+                isPressed("CAPTURE") || isSelected("CAPTURE")
+                  ? "#FF8A5B"
                   : isProWhite
-                  ? '#E2E6EF'
-                  : '#1F232B'
+                    ? "#E2E6EF"
+                    : "#1F232B"
               }
-              stroke={isSelected('CAPTURE') ? '#FFFFFF' : '#576072'}
+              stroke={isSelected("CAPTURE") ? "#FFFFFF" : "#576072"}
               strokeWidth="2.5"
               className="group-hover:brightness-125 transition-all"
             />
@@ -634,9 +760,9 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
               r="6"
               fill="none"
               stroke={
-                isPressed('CAPTURE') || isSelected('CAPTURE')
-                  ? '#131110'
-                  : '#FFB020'
+                isPressed("CAPTURE") || isSelected("CAPTURE")
+                  ? "#131110"
+                  : "#FFB020"
               }
               strokeWidth="2"
             />
@@ -645,9 +771,9 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
               cy="0"
               r="2"
               fill={
-                isPressed('CAPTURE') || isSelected('CAPTURE')
-                  ? '#131110'
-                  : '#FFB020'
+                isPressed("CAPTURE") || isSelected("CAPTURE")
+                  ? "#131110"
+                  : "#FFB020"
               }
             />
           </g>
@@ -656,25 +782,33 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
         {/* START / MENU Button */}
         <g
           className="cursor-pointer group"
-          onClick={() => onButtonClick?.('START')}
+          onClick={() => onButtonClick?.("START")}
           transform="translate(384, 142)"
         >
           <title>Start / Menu Button</title>
-          {isSelected('START') && (
-            <circle cx="0" cy="0" r="17" fill="none" stroke="#FF8A5B" strokeWidth="2.5" className="animate-pulse" />
+          {isSelected("START") && (
+            <circle
+              cx="0"
+              cy="0"
+              r="17"
+              fill="none"
+              stroke="#FF8A5B"
+              strokeWidth="2.5"
+              className="animate-pulse"
+            />
           )}
           <circle
             cx="0"
             cy="0"
             r="12.5"
             fill={
-              isPressed('START') || isSelected('START')
-                ? '#FF8A5B'
+              isPressed("START") || isSelected("START")
+                ? "#FF8A5B"
                 : isProWhite
-                ? '#E2E6EF'
-                : '#252932'
+                  ? "#E2E6EF"
+                  : "#252932"
             }
-            stroke={isSelected('START') ? '#FFFFFF' : '#4D5667'}
+            stroke={isSelected("START") ? "#FFFFFF" : "#4D5667"}
             strokeWidth="2"
             className="group-hover:brightness-125 transition-all"
           />
@@ -685,11 +819,11 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
             x2="4.5"
             y2="-3"
             stroke={
-              isPressed('START') || isSelected('START')
-                ? '#131110'
+              isPressed("START") || isSelected("START")
+                ? "#131110"
                 : isProWhite
-                ? '#353B47'
-                : '#D1D6E2'
+                  ? "#353B47"
+                  : "#D1D6E2"
             }
             strokeWidth="1.6"
             strokeLinecap="round"
@@ -700,11 +834,11 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
             x2="4.5"
             y2="0"
             stroke={
-              isPressed('START') || isSelected('START')
-                ? '#131110'
+              isPressed("START") || isSelected("START")
+                ? "#131110"
                 : isProWhite
-                ? '#353B47'
-                : '#D1D6E2'
+                  ? "#353B47"
+                  : "#D1D6E2"
             }
             strokeWidth="1.6"
             strokeLinecap="round"
@@ -715,11 +849,11 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
             x2="4.5"
             y2="3"
             stroke={
-              isPressed('START') || isSelected('START')
-                ? '#131110'
+              isPressed("START") || isSelected("START")
+                ? "#131110"
                 : isProWhite
-                ? '#353B47'
-                : '#D1D6E2'
+                  ? "#353B47"
+                  : "#D1D6E2"
             }
             strokeWidth="1.6"
             strokeLinecap="round"
@@ -729,12 +863,22 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
         {/* TURBO / M Button */}
         <g
           className="cursor-pointer group"
-          onClick={() => onButtonClick?.('TURBO')}
+          onClick={() => onButtonClick?.("TURBO")}
           transform="translate(328, 254)"
         >
           <title>M / Turbo Button</title>
-          {isSelected('TURBO') && (
-            <rect x="-3" y="-3" width="30" height="22" rx="6" fill="none" stroke="#FF8A5B" strokeWidth="2.5" className="animate-pulse" />
+          {isSelected("TURBO") && (
+            <rect
+              x="-3"
+              y="-3"
+              width="30"
+              height="22"
+              rx="6"
+              fill="none"
+              stroke="#FF8A5B"
+              strokeWidth="2.5"
+              className="animate-pulse"
+            />
           )}
           <rect
             x="0"
@@ -743,13 +887,13 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
             height="16"
             rx="4.5"
             fill={
-              isPressed('TURBO') || isSelected('TURBO')
-                ? '#FF8A5B'
+              isPressed("TURBO") || isSelected("TURBO")
+                ? "#FF8A5B"
                 : isProWhite
-                ? '#E2E6EF'
-                : '#252932'
+                  ? "#E2E6EF"
+                  : "#252932"
             }
-            stroke={isSelected('TURBO') ? '#FFFFFF' : '#4E5768'}
+            stroke={isSelected("TURBO") ? "#FFFFFF" : "#4E5768"}
             strokeWidth="1.6"
             className="group-hover:brightness-125 transition-all"
           />
@@ -757,11 +901,11 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
             x="12"
             y="12"
             fill={
-              isPressed('TURBO') || isSelected('TURBO')
-                ? '#131110'
+              isPressed("TURBO") || isSelected("TURBO")
+                ? "#131110"
                 : isProWhite
-                ? '#242830'
-                : '#F4F0EB'
+                  ? "#242830"
+                  : "#F4F0EB"
             }
             fontSize="10"
             fontWeight="900"
@@ -777,12 +921,20 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
         {/* ======================================================== */}
         <g
           className="cursor-pointer group"
-          onClick={() => onButtonClick?.('L3')}
+          onClick={() => onButtonClick?.("L3")}
           transform="translate(210, 146)"
         >
           <title>Left Stick (L3) - Click to remap</title>
-          {isSelected('L3') && (
-            <circle cx="0" cy="0" r="46" fill="none" stroke="#FF8A5B" strokeWidth="3" className="animate-pulse" />
+          {isSelected("L3") && (
+            <circle
+              cx="0"
+              cy="0"
+              r="46"
+              fill="none"
+              stroke="#FF8A5B"
+              strokeWidth="3"
+              className="animate-pulse"
+            />
           )}
 
           {/* Recessed Well */}
@@ -791,7 +943,7 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
             cy="0"
             r="42"
             fill="#12141A"
-            stroke={isProWhite ? '#A6B2C4' : '#39404E'}
+            stroke={isProWhite ? "#A6B2C4" : "#39404E"}
             strokeWidth="2.6"
           />
 
@@ -800,8 +952,10 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
             cx="0"
             cy="0"
             r="36"
-            fill={isX05 ? 'url(#glossyBlackKnurlGrad)' : 'url(#silverKnurlGrad)'}
-            stroke={isX05 ? '#404756' : '#727D8F'}
+            fill={
+              isX05 ? "url(#glossyBlackKnurlGrad)" : "url(#silverKnurlGrad)"
+            }
+            stroke={isX05 ? "#404756" : "#727D8F"}
             strokeWidth="1.8"
           />
           {!isX05 && (
@@ -822,8 +976,14 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
               cx="0"
               cy="0"
               r="27"
-              fill={isProWhite ? 'url(#lightStickCapGrad)' : 'url(#darkStickCapGrad)'}
-              stroke={isPressed('L3') || isSelected('L3') ? '#FF8A5B' : '#555E6E'}
+              fill={
+                isProWhite
+                  ? "url(#lightStickCapGrad)"
+                  : "url(#darkStickCapGrad)"
+              }
+              stroke={
+                isPressed("L3") || isSelected("L3") ? "#FF8A5B" : "#555E6E"
+              }
               strokeWidth="2.2"
             />
             {/* Concentric Grip Rings */}
@@ -832,15 +992,15 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
               cy="0"
               r="20"
               fill="none"
-              stroke={isProWhite ? '#86909E' : '#3E4654'}
+              stroke={isProWhite ? "#86909E" : "#3E4654"}
               strokeWidth="1.5"
             />
             <circle
               cx="0"
               cy="0"
               r="13"
-              fill={isProWhite ? '#98A3B2' : '#1C1F26'}
-              stroke={isProWhite ? '#828D9D' : '#14161B'}
+              fill={isProWhite ? "#98A3B2" : "#1C1F26"}
+              stroke={isProWhite ? "#828D9D" : "#14161B"}
               strokeWidth="1.3"
             />
           </g>
@@ -857,35 +1017,49 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
             cy="0"
             r="39"
             fill="#12141A"
-            stroke={isProWhite ? '#A8B4C5' : '#353B48'}
+            stroke={isProWhite ? "#A8B4C5" : "#353B48"}
             strokeWidth="2.4"
           />
 
           {/* 8-point Faceted Disc */}
           <polygon
             points="0,-35 15,-27 27,-15 35,0 27,15 15,27 0,35 -15,27 -27,15 -35,0 -27,-15 -15,-27"
-            fill={isProWhite ? 'url(#proWhiteDpadGrad)' : 'url(#proBlackDpadGrad)'}
-            stroke={isProWhite ? '#8D97A7' : '#576070'}
+            fill={
+              isProWhite ? "url(#proWhiteDpadGrad)" : "url(#proBlackDpadGrad)"
+            }
+            stroke={isProWhite ? "#8D97A7" : "#576070"}
             strokeWidth="1.6"
           />
 
           {/* UP Triangle */}
           <g
             className="cursor-pointer group"
-            onClick={() => onButtonClick?.('DPAD_UP')}
+            onClick={() => onButtonClick?.("DPAD_UP")}
           >
             <title>D-Pad Up - Click to remap</title>
             <polygon
               points="0,0 -15,-27 0,-35 15,-27"
-              fill={isPressed('DPAD_UP') || isSelected('DPAD_UP') ? '#FF8A5B' : isProWhite ? '#FFFFFF' : '#3A404D'}
-              stroke={isSelected('DPAD_UP') ? '#FFFFFF' : '#6A7485'}
-              strokeWidth={isSelected('DPAD_UP') ? 2 : 1}
+              fill={
+                isPressed("DPAD_UP") || isSelected("DPAD_UP")
+                  ? "#FF8A5B"
+                  : isProWhite
+                    ? "#FFFFFF"
+                    : "#3A404D"
+              }
+              stroke={isSelected("DPAD_UP") ? "#FFFFFF" : "#6A7485"}
+              strokeWidth={isSelected("DPAD_UP") ? 2 : 1}
               className="transition-colors group-hover:brightness-110"
             />
             <text
               x="0"
               y="-15"
-              fill={isPressed('DPAD_UP') || isSelected('DPAD_UP') ? '#131110' : isProWhite ? '#2A2F3A' : '#DDE2ED'}
+              fill={
+                isPressed("DPAD_UP") || isSelected("DPAD_UP")
+                  ? "#131110"
+                  : isProWhite
+                    ? "#2A2F3A"
+                    : "#DDE2ED"
+              }
               fontSize="11"
               fontWeight="900"
               textAnchor="middle"
@@ -897,20 +1071,32 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
           {/* RIGHT Triangle */}
           <g
             className="cursor-pointer group"
-            onClick={() => onButtonClick?.('DPAD_RIGHT')}
+            onClick={() => onButtonClick?.("DPAD_RIGHT")}
           >
             <title>D-Pad Right - Click to remap</title>
             <polygon
               points="0,0 27,-15 35,0 27,15"
-              fill={isPressed('DPAD_RIGHT') || isSelected('DPAD_RIGHT') ? '#FF8A5B' : isProWhite ? '#DEE3EC' : '#313642'}
-              stroke={isSelected('DPAD_RIGHT') ? '#FFFFFF' : '#6A7485'}
-              strokeWidth={isSelected('DPAD_RIGHT') ? 2 : 1}
+              fill={
+                isPressed("DPAD_RIGHT") || isSelected("DPAD_RIGHT")
+                  ? "#FF8A5B"
+                  : isProWhite
+                    ? "#DEE3EC"
+                    : "#313642"
+              }
+              stroke={isSelected("DPAD_RIGHT") ? "#FFFFFF" : "#6A7485"}
+              strokeWidth={isSelected("DPAD_RIGHT") ? 2 : 1}
               className="transition-colors group-hover:brightness-110"
             />
             <text
               x="17"
               y="4"
-              fill={isPressed('DPAD_RIGHT') || isSelected('DPAD_RIGHT') ? '#131110' : isProWhite ? '#2A2F3A' : '#DDE2ED'}
+              fill={
+                isPressed("DPAD_RIGHT") || isSelected("DPAD_RIGHT")
+                  ? "#131110"
+                  : isProWhite
+                    ? "#2A2F3A"
+                    : "#DDE2ED"
+              }
               fontSize="11"
               fontWeight="900"
               textAnchor="middle"
@@ -922,20 +1108,32 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
           {/* DOWN Triangle */}
           <g
             className="cursor-pointer group"
-            onClick={() => onButtonClick?.('DPAD_DOWN')}
+            onClick={() => onButtonClick?.("DPAD_DOWN")}
           >
             <title>D-Pad Down - Click to remap</title>
             <polygon
               points="0,0 15,27 0,35 -15,27"
-              fill={isPressed('DPAD_DOWN') || isSelected('DPAD_DOWN') ? '#FF8A5B' : isProWhite ? '#BCC5D2' : '#282C36'}
-              stroke={isSelected('DPAD_DOWN') ? '#FFFFFF' : '#6A7485'}
-              strokeWidth={isSelected('DPAD_DOWN') ? 2 : 1}
+              fill={
+                isPressed("DPAD_DOWN") || isSelected("DPAD_DOWN")
+                  ? "#FF8A5B"
+                  : isProWhite
+                    ? "#BCC5D2"
+                    : "#282C36"
+              }
+              stroke={isSelected("DPAD_DOWN") ? "#FFFFFF" : "#6A7485"}
+              strokeWidth={isSelected("DPAD_DOWN") ? 2 : 1}
               className="transition-colors group-hover:brightness-110"
             />
             <text
               x="0"
               y="20"
-              fill={isPressed('DPAD_DOWN') || isSelected('DPAD_DOWN') ? '#131110' : isProWhite ? '#2A2F3A' : '#DDE2ED'}
+              fill={
+                isPressed("DPAD_DOWN") || isSelected("DPAD_DOWN")
+                  ? "#131110"
+                  : isProWhite
+                    ? "#2A2F3A"
+                    : "#DDE2ED"
+              }
               fontSize="11"
               fontWeight="900"
               textAnchor="middle"
@@ -947,20 +1145,32 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
           {/* LEFT Triangle */}
           <g
             className="cursor-pointer group"
-            onClick={() => onButtonClick?.('DPAD_LEFT')}
+            onClick={() => onButtonClick?.("DPAD_LEFT")}
           >
             <title>D-Pad Left - Click to remap</title>
             <polygon
               points="0,0 -27,15 -35,0 -27,-15"
-              fill={isPressed('DPAD_LEFT') || isSelected('DPAD_LEFT') ? '#FF8A5B' : isProWhite ? '#CBD3E0' : '#2D323E'}
-              stroke={isSelected('DPAD_LEFT') ? '#FFFFFF' : '#6A7485'}
-              strokeWidth={isSelected('DPAD_LEFT') ? 2 : 1}
+              fill={
+                isPressed("DPAD_LEFT") || isSelected("DPAD_LEFT")
+                  ? "#FF8A5B"
+                  : isProWhite
+                    ? "#CBD3E0"
+                    : "#2D323E"
+              }
+              stroke={isSelected("DPAD_LEFT") ? "#FFFFFF" : "#6A7485"}
+              strokeWidth={isSelected("DPAD_LEFT") ? 2 : 1}
               className="transition-colors group-hover:brightness-110"
             />
             <text
               x="-17"
               y="4"
-              fill={isPressed('DPAD_LEFT') || isSelected('DPAD_LEFT') ? '#131110' : isProWhite ? '#2A2F3A' : '#DDE2ED'}
+              fill={
+                isPressed("DPAD_LEFT") || isSelected("DPAD_LEFT")
+                  ? "#131110"
+                  : isProWhite
+                    ? "#2A2F3A"
+                    : "#DDE2ED"
+              }
               fontSize="11"
               fontWeight="900"
               textAnchor="middle"
@@ -970,7 +1180,14 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
           </g>
 
           {/* Center concave dish */}
-          <circle cx="0" cy="0" r="10" fill={isProWhite ? '#B4BDCB' : '#22262F'} stroke="#667080" strokeWidth="1.2" />
+          <circle
+            cx="0"
+            cy="0"
+            r="10"
+            fill={isProWhite ? "#B4BDCB" : "#22262F"}
+            stroke="#667080"
+            strokeWidth="1.2"
+          />
         </g>
 
         {/* ======================================================== */}
@@ -979,12 +1196,20 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
         {/* ======================================================== */}
         <g
           className="cursor-pointer group"
-          onClick={() => onButtonClick?.('R3')}
+          onClick={() => onButtonClick?.("R3")}
           transform="translate(418, 252)"
         >
           <title>Right Stick (R3) - Click to remap</title>
-          {isSelected('R3') && (
-            <circle cx="0" cy="0" r="46" fill="none" stroke="#FF8A5B" strokeWidth="3" className="animate-pulse" />
+          {isSelected("R3") && (
+            <circle
+              cx="0"
+              cy="0"
+              r="46"
+              fill="none"
+              stroke="#FF8A5B"
+              strokeWidth="3"
+              className="animate-pulse"
+            />
           )}
 
           {/* Recessed Well */}
@@ -993,7 +1218,7 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
             cy="0"
             r="42"
             fill="#12141A"
-            stroke={isProWhite ? '#A6B2C4' : '#39404E'}
+            stroke={isProWhite ? "#A6B2C4" : "#39404E"}
             strokeWidth="2.6"
           />
 
@@ -1002,8 +1227,10 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
             cx="0"
             cy="0"
             r="36"
-            fill={isX05 ? 'url(#glossyBlackKnurlGrad)' : 'url(#silverKnurlGrad)'}
-            stroke={isX05 ? '#404756' : '#727D8F'}
+            fill={
+              isX05 ? "url(#glossyBlackKnurlGrad)" : "url(#silverKnurlGrad)"
+            }
+            stroke={isX05 ? "#404756" : "#727D8F"}
             strokeWidth="1.8"
           />
           {!isX05 && (
@@ -1024,8 +1251,14 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
               cx="0"
               cy="0"
               r="27"
-              fill={isProWhite ? 'url(#lightStickCapGrad)' : 'url(#darkStickCapGrad)'}
-              stroke={isPressed('R3') || isSelected('R3') ? '#FF8A5B' : '#555E6E'}
+              fill={
+                isProWhite
+                  ? "url(#lightStickCapGrad)"
+                  : "url(#darkStickCapGrad)"
+              }
+              stroke={
+                isPressed("R3") || isSelected("R3") ? "#FF8A5B" : "#555E6E"
+              }
               strokeWidth="2.2"
             />
             <circle
@@ -1033,15 +1266,15 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
               cy="0"
               r="20"
               fill="none"
-              stroke={isProWhite ? '#86909E' : '#3E4654'}
+              stroke={isProWhite ? "#86909E" : "#3E4654"}
               strokeWidth="1.5"
             />
             <circle
               cx="0"
               cy="0"
               r="13"
-              fill={isProWhite ? '#98A3B2' : '#1C1F26'}
-              stroke={isProWhite ? '#828D9D' : '#14161B'}
+              fill={isProWhite ? "#98A3B2" : "#1C1F26"}
+              stroke={isProWhite ? "#828D9D" : "#14161B"}
               strokeWidth="1.3"
             />
           </g>
@@ -1057,34 +1290,44 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
             cx="0"
             cy="0"
             r="44"
-            fill={isProBlack ? '#181B22' : isProWhite ? '#CBD2E0' : '#171920'}
+            fill={isProBlack ? "#181B22" : isProWhite ? "#CBD2E0" : "#171920"}
             fillOpacity={isProWhite ? 0.35 : 0.45}
-            stroke={isProWhite ? '#B0BAC9' : '#343B48'}
+            stroke={isProWhite ? "#B0BAC9" : "#343B48"}
             strokeWidth="1.2"
           />
 
           {/* Y BUTTON (TOP) */}
           <g
             className="cursor-pointer group"
-            onClick={() => onButtonClick?.('Y')}
+            onClick={() => onButtonClick?.("Y")}
             transform="translate(0, -25)"
           >
             <title>Y Button - Click to remap</title>
-            {isSelected('Y') && (
-              <circle cx="0" cy="0" r="20" fill="none" stroke="#FF8A5B" strokeWidth="2.5" className="animate-pulse" />
+            {isSelected("Y") && (
+              <circle
+                cx="0"
+                cy="0"
+                r="20"
+                fill="none"
+                stroke="#FF8A5B"
+                strokeWidth="2.5"
+                className="animate-pulse"
+              />
             )}
             <circle
               cx="0"
               cy="0"
               r="16"
               fill={
-                isPressed('Y') || isSelected('Y')
-                  ? '#FF8A5B'
+                isPressed("Y") || isSelected("Y")
+                  ? "#FF8A5B"
                   : isProWhite
-                  ? '#E2E6EF'
-                  : '#232732'
+                    ? "#E2E6EF"
+                    : "#232732"
               }
-              stroke={isSelected('Y') ? '#FFFFFF' : isProWhite ? '#A2ACB9' : '#4E5769'}
+              stroke={
+                isSelected("Y") ? "#FFFFFF" : isProWhite ? "#A2ACB9" : "#4E5769"
+              }
               strokeWidth="2"
               filter="drop-shadow(0 2px 4px rgba(0,0,0,0.5))"
               className="group-hover:scale-105 transition-transform"
@@ -1093,11 +1336,11 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
               x="0"
               y="5.5"
               fill={
-                isPressed('Y') || isSelected('Y')
-                  ? '#131110'
+                isPressed("Y") || isSelected("Y")
+                  ? "#131110"
                   : isProWhite
-                  ? '#2B303C'
-                  : '#FFFFFF'
+                    ? "#2B303C"
+                    : "#FFFFFF"
               }
               fontSize="16"
               fontWeight="900"
@@ -1111,25 +1354,35 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
           {/* X BUTTON (LEFT) */}
           <g
             className="cursor-pointer group"
-            onClick={() => onButtonClick?.('X')}
+            onClick={() => onButtonClick?.("X")}
             transform="translate(-25, 0)"
           >
             <title>X Button - Click to remap</title>
-            {isSelected('X') && (
-              <circle cx="0" cy="0" r="20" fill="none" stroke="#FF8A5B" strokeWidth="2.5" className="animate-pulse" />
+            {isSelected("X") && (
+              <circle
+                cx="0"
+                cy="0"
+                r="20"
+                fill="none"
+                stroke="#FF8A5B"
+                strokeWidth="2.5"
+                className="animate-pulse"
+              />
             )}
             <circle
               cx="0"
               cy="0"
               r="16"
               fill={
-                isPressed('X') || isSelected('X')
-                  ? '#FF8A5B'
+                isPressed("X") || isSelected("X")
+                  ? "#FF8A5B"
                   : isProWhite
-                  ? '#E2E6EF'
-                  : '#232732'
+                    ? "#E2E6EF"
+                    : "#232732"
               }
-              stroke={isSelected('X') ? '#FFFFFF' : isProWhite ? '#A2ACB9' : '#4E5769'}
+              stroke={
+                isSelected("X") ? "#FFFFFF" : isProWhite ? "#A2ACB9" : "#4E5769"
+              }
               strokeWidth="2"
               filter="drop-shadow(0 2px 4px rgba(0,0,0,0.5))"
               className="group-hover:scale-105 transition-transform"
@@ -1138,11 +1391,11 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
               x="0"
               y="5.5"
               fill={
-                isPressed('X') || isSelected('X')
-                  ? '#131110'
+                isPressed("X") || isSelected("X")
+                  ? "#131110"
                   : isProWhite
-                  ? '#2B303C'
-                  : '#FFFFFF'
+                    ? "#2B303C"
+                    : "#FFFFFF"
               }
               fontSize="16"
               fontWeight="900"
@@ -1156,25 +1409,35 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
           {/* B BUTTON (RIGHT) */}
           <g
             className="cursor-pointer group"
-            onClick={() => onButtonClick?.('B')}
+            onClick={() => onButtonClick?.("B")}
             transform="translate(25, 0)"
           >
             <title>B Button - Click to remap</title>
-            {isSelected('B') && (
-              <circle cx="0" cy="0" r="20" fill="none" stroke="#FF8A5B" strokeWidth="2.5" className="animate-pulse" />
+            {isSelected("B") && (
+              <circle
+                cx="0"
+                cy="0"
+                r="20"
+                fill="none"
+                stroke="#FF8A5B"
+                strokeWidth="2.5"
+                className="animate-pulse"
+              />
             )}
             <circle
               cx="0"
               cy="0"
               r="16"
               fill={
-                isPressed('B') || isSelected('B')
-                  ? '#FF8A5B'
+                isPressed("B") || isSelected("B")
+                  ? "#FF8A5B"
                   : isProWhite
-                  ? '#E2E6EF'
-                  : '#232732'
+                    ? "#E2E6EF"
+                    : "#232732"
               }
-              stroke={isSelected('B') ? '#FFFFFF' : isProWhite ? '#A2ACB9' : '#4E5769'}
+              stroke={
+                isSelected("B") ? "#FFFFFF" : isProWhite ? "#A2ACB9" : "#4E5769"
+              }
               strokeWidth="2"
               filter="drop-shadow(0 2px 4px rgba(0,0,0,0.5))"
               className="group-hover:scale-105 transition-transform"
@@ -1183,11 +1446,11 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
               x="0"
               y="5.5"
               fill={
-                isPressed('B') || isSelected('B')
-                  ? '#131110'
+                isPressed("B") || isSelected("B")
+                  ? "#131110"
                   : isProWhite
-                  ? '#2B303C'
-                  : '#FFFFFF'
+                    ? "#2B303C"
+                    : "#FFFFFF"
               }
               fontSize="16"
               fontWeight="900"
@@ -1201,25 +1464,35 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
           {/* A BUTTON (BOTTOM) */}
           <g
             className="cursor-pointer group"
-            onClick={() => onButtonClick?.('A')}
+            onClick={() => onButtonClick?.("A")}
             transform="translate(0, 25)"
           >
             <title>A Button - Click to remap</title>
-            {isSelected('A') && (
-              <circle cx="0" cy="0" r="20" fill="none" stroke="#FF8A5B" strokeWidth="2.5" className="animate-pulse" />
+            {isSelected("A") && (
+              <circle
+                cx="0"
+                cy="0"
+                r="20"
+                fill="none"
+                stroke="#FF8A5B"
+                strokeWidth="2.5"
+                className="animate-pulse"
+              />
             )}
             <circle
               cx="0"
               cy="0"
               r="16"
               fill={
-                isPressed('A') || isSelected('A')
-                  ? '#FF8A5B'
+                isPressed("A") || isSelected("A")
+                  ? "#FF8A5B"
                   : isProWhite
-                  ? '#E2E6EF'
-                  : '#232732'
+                    ? "#E2E6EF"
+                    : "#232732"
               }
-              stroke={isSelected('A') ? '#FFFFFF' : isProWhite ? '#A2ACB9' : '#4E5769'}
+              stroke={
+                isSelected("A") ? "#FFFFFF" : isProWhite ? "#A2ACB9" : "#4E5769"
+              }
               strokeWidth="2"
               filter="drop-shadow(0 2px 4px rgba(0,0,0,0.5))"
               className="group-hover:scale-105 transition-transform"
@@ -1228,11 +1501,11 @@ export const ControllerDiagram: React.FC<ControllerDiagramProps> = ({
               x="0"
               y="5.5"
               fill={
-                isPressed('A') || isSelected('A')
-                  ? '#131110'
+                isPressed("A") || isSelected("A")
+                  ? "#131110"
                   : isProWhite
-                  ? '#2B303C'
-                  : '#FFFFFF'
+                    ? "#2B303C"
+                    : "#FFFFFF"
               }
               fontSize="16"
               fontWeight="900"

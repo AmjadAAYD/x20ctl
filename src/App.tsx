@@ -1,427 +1,906 @@
-import React, { useState, useEffect } from 'react';
-import { Header } from './components/Header';
-import { Sidebar } from './components/Sidebar';
-import { ButtonsPage } from './components/pages/ButtonsPage';
-import { MacrosPage } from './components/pages/MacrosPage';
-import { CurvesPage } from './components/pages/CurvesPage';
-import { RumblePage } from './components/pages/RumblePage';
-import { PowerPage } from './components/pages/PowerPage';
-import { TesterPage } from './components/pages/TesterPage';
-import { IntroScanner } from './components/IntroScanner';
-import { TutorialModal } from './components/TutorialModal';
-import { ThemeSelector } from './components/ThemeSelector';
-import { useGamepad } from './hooks/useGamepad';
-import { THEMES } from './types/theme';
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Profile,
-  ControllerSlot,
-  ConnectionType,
-} from './types/gamepad';
-import {
-  loadProfiles,
-  saveProfiles,
-  getActiveProfileId,
-  setActiveProfileId,
-  DEFAULT_KEY_REMAPS,
-  DEFAULT_CURVE_CONFIG,
-} from './data/defaultProfiles';
-import { Settings, Sliders, Volume2, Power } from 'lucide-react';
+  Activity,
+  ArrowDownToLine,
+  ArrowUpFromLine,
+  Bluetooth,
+  Check,
+  ChevronRight,
+  CircleHelp,
+  Gamepad2,
+  Layers3,
+  LoaderCircle,
+  Monitor,
+  Plus,
+  Power,
+  Radio,
+  RefreshCw,
+  Save,
+  SlidersHorizontal,
+  Volume2,
+  Trash2,
+  X,
+} from "lucide-react";
+import { ButtonsPage } from "./components/pages/ButtonsPage";
+import { CurvesPage } from "./components/pages/CurvesPage";
+import { MacrosPage } from "./components/pages/MacrosPage";
+import { TesterPage } from "./components/pages/TesterPage";
+import { Profile } from "./types/gamepad";
+import { newProfile } from "./data/defaultProfiles";
+import { request, whenNativeReady } from "./native";
+import { useGamepad } from "./hooks/useGamepad";
+
+type Tab = "buttons" | "curves" | "macros" | "rumble" | "power" | "tester";
+type Category =
+  | "remaps"
+  | "stickCurves"
+  | "triggerCurves"
+  | "vibration"
+  | "idleTimeoutMinutes"
+  | "M1"
+  | "M2"
+  | "M3"
+  | "M4";
+interface Device {
+  connected: boolean;
+  name: string;
+  device: { version: string };
+  capabilities: Record<string, number>;
+  battery: { level: number; charging: boolean } | null;
+  values: Partial<Profile>;
+  warnings: string[];
+}
+const navigation: {
+  id: Tab;
+  label: string;
+  icon: typeof Gamepad2;
+  description: string;
+}[] = [
+  {
+    id: "buttons",
+    label: "Buttons",
+    icon: Gamepad2,
+    description: "Make every button yours.",
+  },
+  {
+    id: "curves",
+    label: "Response curves",
+    icon: SlidersHorizontal,
+    description: "Find the response that feels right.",
+  },
+  {
+    id: "macros",
+    label: "Macros",
+    icon: Layers3,
+    description: "Build a sequence. Give it a paddle.",
+  },
+  {
+    id: "rumble",
+    label: "Vibration",
+    icon: Volume2,
+    description: "Tune the strength of your feedback.",
+  },
+  {
+    id: "power",
+    label: "Power & device",
+    icon: Power,
+    description: "A little control over the essentials.",
+  },
+  {
+    id: "tester",
+    label: "Input tester",
+    icon: Activity,
+    description: "See exactly what your controller is sending.",
+  },
+];
 
 export function App() {
-  const [profiles, setProfiles] = useState<Profile[]>(loadProfiles);
-  const [activeProfileId, setActiveProfileIdState] = useState<string>(getActiveProfileId);
-  const [currentTab, setCurrentTab] = useState<'settings' | 'curves' | 'tester'>('settings');
-  const [settingsSubTab, setSettingsSubTab] = useState<'buttons' | 'macros' | 'rumble' | 'power'>('buttons');
-  const [isModified, setIsModified] = useState<boolean>(false);
-  const [appliedToast, setAppliedToast] = useState<boolean>(false);
+  const running = useRef(false);
+  const [updatesEnabled, setUpdatesEnabled] = useState(true);
+  const [update, setUpdate] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
+  const [version, setVersion] = useState("2.0.0-dev");
+  const [tab, setTab] = useState<Tab>("buttons");
+  const [profile, setProfile] = useState<Profile>(() => newProfile());
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [device, setDevice] = useState<Device | null>(null);
+  const [dirty, setDirty] = useState<Set<Category>>(new Set());
+  const [busy, setBusy] = useState("");
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const [scanner, setScanner] = useState(false);
+  const [devices, setDevices] = useState<{ address: string; name: string }[]>(
+    [],
+  );
+  const [scanned, setScanned] = useState(false);
+  const [help, setHelp] = useState(false);
+  const [resetConfirm, setResetConfirm] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const onDisconnect = useCallback(() => setDevice(null), []);
+  const { liveState, hardwareDetected, slot } = useGamepad(ready, onDisconnect);
 
-  // Modals state
-  const [isTutorialOpen, setIsTutorialOpen] = useState<boolean>(false);
-  const [isThemeOpen, setIsThemeOpen] = useState<boolean>(false);
-  const [currentThemeId, setCurrentThemeId] = useState<string>('matte-obsidian');
-  const [showScanner, setShowScanner] = useState<boolean>(false);
-
-  // Active Controller state (EasySMX X20 Pro)
-  const [activeController, setActiveController] = useState<ControllerSlot>({
-    slot: 0,
-    connected: true,
-    name: 'EasySMX X20 PRO Gamepad',
-    customName: 'EasySMX X20 PRO',
-    batteryLevel: 75, // 3/4 bars
-    isCharging: false,
-    firmwareVersion: 'v1.4.2',
-    hardwareType: 'EasySMX X20 PRO',
-    connectionMode: 'dongle',
-    activeProfileId: profiles[0]?.id || 'default-stock',
-  });
-
-  const activeProfile = profiles.find((p) => p.id === activeProfileId) || profiles[0];
-
-  const {
-    liveState,
-    hardwareDetected,
-    controllerName,
-    triggerHaptic,
-    setSimulatedInput,
-    setSimulatedStick,
-    setSimulatedTrigger,
-  } = useGamepad(true);
-
-  // Hardware detection sync
-  useEffect(() => {
-    if (hardwareDetected && controllerName) {
-      setActiveController((prev) => ({
-        ...prev,
-        connected: true,
-        name: controllerName,
-        customName: prev.customName || controllerName,
-      }));
-    }
-  }, [hardwareDetected, controllerName]);
-
-  // Profile management
-  const handleSelectProfile = (id: string) => {
-    setActiveProfileIdState(id);
-    setActiveProfileId(id);
-    setIsModified(false);
-  };
-
-  const handleUpdateActiveProfile = (updater: (prev: Profile) => Profile) => {
-    setProfiles((prev) => {
-      const next = prev.map((p) => (p.id === activeProfile.id ? updater(p) : p));
-      saveProfiles(next);
-      return next;
-    });
-    setIsModified(true);
-  };
-
-  const handleCreateProfile = () => {
-    const newId = 'profile-' + Math.random().toString(36).substring(2, 9);
-    const newProfile: Profile = {
-      id: newId,
-      name: `Custom Preset ${profiles.length + 1}`,
-      createdAt: Date.now(),
-      remaps: { ...DEFAULT_KEY_REMAPS },
-      macros: { M1: [], M2: [], M3: [], M4: [] },
-      vibration: 70,
-      idleTimeoutMinutes: 10,
-      stickCurves: {
-        left: { ...DEFAULT_CURVE_CONFIG },
-        right: { ...DEFAULT_CURVE_CONFIG },
-      },
-      triggerCurves: {
-        left: { ...DEFAULT_CURVE_CONFIG },
-        right: { ...DEFAULT_CURVE_CONFIG },
-      },
-    };
-    const next = [...profiles, newProfile];
-    setProfiles(next);
-    saveProfiles(next);
-    handleSelectProfile(newId);
-  };
-
-  const handleDuplicateProfile = (id: string) => {
-    const source = profiles.find((p) => p.id === id);
-    if (!source) return;
-    const newId = 'profile-' + Math.random().toString(36).substring(2, 9);
-    const duplicated: Profile = {
-      ...JSON.parse(JSON.stringify(source)),
-      id: newId,
-      name: `${source.name} (Copy)`,
-      createdAt: Date.now(),
-    };
-    const next = [...profiles, duplicated];
-    setProfiles(next);
-    saveProfiles(next);
-    handleSelectProfile(newId);
-  };
-
-  const handleDeleteProfile = (id: string) => {
-    if (profiles.length <= 1) return;
-    const next = profiles.filter((p) => p.id !== id);
-    setProfiles(next);
-    saveProfiles(next);
-    if (activeProfileId === id) {
-      handleSelectProfile(next[0].id);
+  const run = async (label: string, work: () => Promise<void>) => {
+    if (running.current) return;
+    running.current = true;
+    setBusy(label);
+    setError("");
+    setMessage("");
+    try {
+      await work();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      running.current = false;
+      setBusy("");
     }
   };
 
-  const handleRenameProfile = (id: string, newName: string) => {
-    setProfiles((prev) => {
-      const next = prev.map((p) => (p.id === id ? { ...p, name: newName } : p));
-      saveProfiles(next);
-      return next;
-    });
-  };
+  useEffect(
+    () =>
+      whenNativeReady(() => {
+        setReady(true);
+        void request<{
+          version: string;
+          profiles: Profile[];
+          warning: string | null;
+          updatesEnabled: boolean;
+        }>("bootstrap")
+          .then((data) => {
+            setUpdatesEnabled(data.updatesEnabled);
+            setVersion(data.version);
+            setProfiles(data.profiles);
+            if (data.warning) setError(data.warning);
+            if (data.updatesEnabled)
+              void request<{ version: string } | null>("check_updates")
+                .then((latest) => setUpdate(latest?.version ?? null))
+                .catch(() => {});
+          })
+          .catch((e) => setError(e.message));
+      }),
+    [],
+  );
 
-  const handleApplyToPad = () => {
-    setIsModified(false);
-    setAppliedToast(true);
-    triggerHaptic(200, 0.5, 0.3);
-    setTimeout(() => {
-      setAppliedToast(false);
-    }, 2500);
-  };
-
-  const handleUpdateControllerName = (newName: string) => {
-    setActiveController((prev) => ({
-      ...prev,
-      customName: newName || prev.name,
-    }));
-  };
-
-  const handleChangeConnectionMode = (mode: ConnectionType) => {
-    setActiveController((prev) => ({
-      ...prev,
-      connectionMode: mode,
-    }));
-  };
-
-  // Get active theme colors
-  const activeTheme = THEMES.find((t) => t.id === currentThemeId) || THEMES[1];
-
-  // If user opened the scanner view
-  if (showScanner) {
-    return (
-      <IntroScanner
-        hardwareDetected={hardwareDetected}
-        controllerName={controllerName}
-        onConnect={(name: string, mode: ConnectionType) => {
-          setActiveController((prev) => ({
-            ...prev,
-            connected: true,
-            name,
-            customName: name,
-            connectionMode: mode,
-          }));
-          setShowScanner(false);
-        }}
-        onSkip={() => setShowScanner(false)}
-      />
+  const adoptDevice = (next: Device) => {
+    setDevice(next);
+    setProfile((old) => ({ ...old, ...next.values }));
+    setDirty(new Set());
+    setMessage(
+      next.warnings.length
+        ? next.warnings.join(" · ")
+        : "Settings read from your controller.",
     );
-  }
+  };
+  const edit = (category: Category, value: unknown) => {
+    setProfile((old) =>
+      category.startsWith("M")
+        ? { ...old, macros: { ...old.macros, [category]: value } }
+        : { ...old, [category]: value },
+    );
+    setDirty((old) => new Set([...old, category]));
+    setProfile((old) => ({
+      ...old,
+      categories: [
+        ...new Set([
+          ...(old.categories ?? [
+            "remaps",
+            "stickCurves",
+            "triggerCurves",
+            "vibration",
+            "idleTimeoutMinutes",
+            "M1",
+            "M2",
+            "M3",
+            "M4",
+          ]),
+          category,
+        ]),
+      ],
+    }));
+  };
+  const canWrite = (category: Category) => {
+    if (!device) return false;
+    if (category.startsWith("M"))
+      return !!(device.capabilities.macros & (1 << (Number(category[1]) - 1)));
+    return Object.prototype.hasOwnProperty.call(device.values, category);
+  };
+  const apply = () =>
+    run("Applying changes", async () => {
+      for (const category of dirty) {
+        if (!canWrite(category))
+          throw new Error(
+            `${category} is unavailable. Read the controller before applying this setting.`,
+          );
+      }
+      const reports: string[] = [];
+      for (const category of dirty) {
+        const macro = category.startsWith("M");
+        const result = await request<{ message: string }>("apply", {
+          category,
+          value: macro
+            ? profile.macros[category as "M1"]
+            : profile[category as keyof Profile],
+          loopMs: macro ? profile.macroLoops[category as "M1"] : 0,
+        });
+        reports.push(`${category}: ${result.message}`);
+        setDirty((old) => {
+          const next = new Set(old);
+          next.delete(category);
+          return next;
+        });
+        setMessage(reports.join(" "));
+      }
+    });
+  const scan = () =>
+    run("Scanning Bluetooth", async () => {
+      setDevices([]);
+      setScanned(false);
+      setDevices(await request("scan"));
+      setScanned(true);
+    });
+  const persist = async (next: Profile[]) => {
+    await request("save_profiles", { profiles: next });
+    setProfiles(next);
+  };
+  const save = () =>
+    run("Saving setup", async () => {
+      const stored = {
+        ...profile,
+        name: profile.name.trim() || "Untitled setup",
+      };
+      await persist([...profiles.filter((p) => p.id !== stored.id), stored]);
+      setMessage("Setup saved on this computer.");
+    });
+  const loadProfile = (saved: Profile) => {
+    if (dirty.size && !window.confirm("Replace the current unsent draft?"))
+      return;
+    setProfile(structuredClone(saved));
+    setDirty(
+      new Set(
+        (saved.categories ?? [
+          "remaps",
+          "stickCurves",
+          "triggerCurves",
+          "vibration",
+          "idleTimeoutMinutes",
+          "M1",
+          "M2",
+          "M3",
+          "M4",
+        ]) as Category[],
+      ),
+    );
+    setMessage("Setup loaded into the editor. Review it before applying.");
+  };
+  const current = navigation.find((item) => item.id === tab)!;
 
   return (
-    <div
-      className="flex h-screen w-screen overflow-hidden text-[#F4F0EB] select-none"
-      style={{
-        backgroundColor: activeTheme.colors.bg,
-        color: activeTheme.colors.textPrimary,
-      }}
-    >
-      {/* Left Sidebar (Only shows current active controller in roster, no download/upload buttons) */}
-      <Sidebar
-        profiles={profiles}
-        activeProfileId={activeProfileId}
-        onSelectProfile={handleSelectProfile}
-        onCreateProfile={handleCreateProfile}
-        onDuplicateProfile={handleDuplicateProfile}
-        onDeleteProfile={handleDeleteProfile}
-        onRenameProfile={handleRenameProfile}
-        activeController={activeController}
-        onOpenScanner={() => setShowScanner(true)}
-      />
-
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Top Header */}
-        <Header
-          currentTab={currentTab}
-          setCurrentTab={setCurrentTab}
-          activeController={activeController}
-          activeProfile={activeProfile}
-          isModified={isModified}
-          onApply={handleApplyToPad}
-          appliedToast={appliedToast}
-          onOpenTutorial={() => setIsTutorialOpen(true)}
-          onOpenTheme={() => setIsThemeOpen(true)}
-          onUpdateControllerName={handleUpdateControllerName}
-          onChangeConnectionMode={handleChangeConnectionMode}
-        />
-
-        {/* Workspace Body */}
-        <main className="flex-1 overflow-y-auto p-6 md:p-8">
-          {currentTab === 'settings' && (
-            <div className="space-y-6 max-w-5xl mx-auto">
-              {/* Settings Subtabs bar */}
-              <div className="flex items-center gap-2 border-b border-[#332C29] pb-3">
+    <div className="desktop-shell">
+      <aside className="app-sidebar">
+        <div className="brand">
+          <div className="brand-symbol">
+            <Gamepad2 size={25} />
+          </div>
+          <div>
+            x20ctl<span>CONTROLLER STUDIO</span>
+          </div>
+        </div>
+        <div className="side-label">WORKSPACE</div>
+        <nav>
+          {navigation.map((item) => (
+            <button
+              key={item.id}
+              aria-current={tab === item.id ? "page" : undefined}
+              onClick={() => setTab(item.id)}
+            >
+              <item.icon size={18} />
+              <span>{item.label}</span>
+              {tab === item.id && <ChevronRight size={14} />}
+            </button>
+          ))}
+        </nav>
+        <div className="side-label setup-label">
+          SAVED SETUPS
+          <button
+            title="New setup"
+            disabled={!!busy}
+            onClick={() => {
+              if (
+                dirty.size &&
+                !window.confirm("Discard unsent draft changes?")
+              )
+                return;
+              setProfile(newProfile());
+              setDirty(new Set());
+            }}
+          >
+            <Plus size={16} />
+          </button>
+        </div>
+        <div className="saved-list">
+          {profiles.length ? (
+            profiles.map((saved) => (
+              <div className="saved-item" key={saved.id}>
                 <button
-                  onClick={() => setSettingsSubTab('buttons')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg transition-all ${
-                    settingsSubTab === 'buttons'
-                      ? 'bg-[#241F1D] text-[#FF8A5B] font-bold border border-[#FF8A5B]/30'
-                      : 'text-[#D6CEC6] hover:text-[#F4F0EB]'
-                  }`}
+                  disabled={!!busy}
+                  key={saved.id}
+                  onClick={() => loadProfile(saved)}
                 >
-                  <Settings className="w-3.5 h-3.5" />
-                  <span>Button Remapping</span>
+                  <Layers3 size={15} />
+                  <span>{saved.name}</span>
                 </button>
-
                 <button
-                  onClick={() => setSettingsSubTab('macros')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg transition-all ${
-                    settingsSubTab === 'macros'
-                      ? 'bg-[#241F1D] text-[#FF8A5B] font-bold border border-[#FF8A5B]/30'
-                      : 'text-[#D6CEC6] hover:text-[#F4F0EB]'
-                  }`}
+                  className="delete-setup"
+                  aria-label={`Delete ${saved.name}`}
+                  disabled={!!busy}
+                  onClick={() => {
+                    if (
+                      !window.confirm(
+                        `Delete saved setup "${saved.name}"? The current draft will stay open.`,
+                      )
+                    )
+                      return;
+                    void run("Deleting setup", async () => {
+                      await persist(profiles.filter((p) => p.id !== saved.id));
+                      setMessage(
+                        "Saved setup deleted. The current draft is unchanged.",
+                      );
+                    });
+                  }}
                 >
-                  <Sliders className="w-3.5 h-3.5" />
-                  <span>Rear Paddle Macros</span>
-                </button>
-
-                <button
-                  onClick={() => setSettingsSubTab('rumble')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg transition-all ${
-                    settingsSubTab === 'rumble'
-                      ? 'bg-[#241F1D] text-[#FF8A5B] font-bold border border-[#FF8A5B]/30'
-                      : 'text-[#D6CEC6] hover:text-[#F4F0EB]'
-                  }`}
-                >
-                  <Volume2 className="w-3.5 h-3.5" />
-                  <span>Vibration & Haptics</span>
-                </button>
-
-                <button
-                  onClick={() => setSettingsSubTab('power')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg transition-all ${
-                    settingsSubTab === 'power'
-                      ? 'bg-[#241F1D] text-[#FF8A5B] font-bold border border-[#FF8A5B]/30'
-                      : 'text-[#D6CEC6] hover:text-[#F4F0EB]'
-                  }`}
-                >
-                  <Power className="w-3.5 h-3.5" />
-                  <span>Power & Safety</span>
+                  <Trash2 size={13} />
                 </button>
               </div>
+            ))
+          ) : (
+            <p>
+              Your favorite settings,
+              <br />
+              ready for the next session.
+            </p>
+          )}
+        </div>
+        <div className="sidebar-bottom">
+          <span className="version">v{version} · Desktop preview</span>
+          <button onClick={() => setHelp(true)}>
+            <CircleHelp size={16} /> Connection guide
+          </button>
+        </div>
+      </aside>
 
-              {/* Subtab content */}
-              {settingsSubTab === 'buttons' && (
-                <ButtonsPage
-                  remaps={activeProfile.remaps}
-                  onUpdateRemap={(source, target) => {
-                    handleUpdateActiveProfile((p) => ({
-                      ...p,
-                      remaps: { ...p.remaps, [source]: target },
-                    }));
-                  }}
-                  onResetRemaps={() => {
-                    handleUpdateActiveProfile((p) => ({
-                      ...p,
-                      remaps: { ...DEFAULT_KEY_REMAPS },
-                    }));
-                  }}
-                  liveState={liveState}
-                />
-              )}
-
-              {settingsSubTab === 'macros' && (
-                <MacrosPage
-                  macros={activeProfile.macros}
-                  onUpdateMacros={(paddle, steps) => {
-                    handleUpdateActiveProfile((p) => ({
-                      ...p,
-                      macros: { ...p.macros, [paddle]: steps },
-                    }));
-                  }}
-                  onClearMacro={(paddle) => {
-                    handleUpdateActiveProfile((p) => ({
-                      ...p,
-                      macros: { ...p.macros, [paddle]: [] },
-                    }));
-                  }}
-                />
-              )}
-
-              {settingsSubTab === 'rumble' && (
-                <RumblePage
-                  vibration={activeProfile.vibration}
-                  onUpdateVibration={(val) => {
-                    handleUpdateActiveProfile((p) => ({ ...p, vibration: val }));
-                  }}
-                  onTriggerHaptic={triggerHaptic}
-                />
-              )}
-
-              {settingsSubTab === 'power' && (
-                <PowerPage
-                  idleTimeout={activeProfile.idleTimeoutMinutes}
-                  onUpdateIdleTimeout={(mins) => {
-                    handleUpdateActiveProfile((p) => ({
-                      ...p,
-                      idleTimeoutMinutes: mins,
-                    }));
-                  }}
-                  onFactoryReset={() => {
-                    handleUpdateActiveProfile((p) => ({
-                      ...p,
-                      remaps: { ...DEFAULT_KEY_REMAPS },
-                      macros: { M1: [], M2: [], M3: [], M4: [] },
-                      vibration: 70,
-                      idleTimeoutMinutes: 10,
-                      stickCurves: {
-                        left: { ...DEFAULT_CURVE_CONFIG },
-                        right: { ...DEFAULT_CURVE_CONFIG },
-                      },
-                      triggerCurves: {
-                        left: { ...DEFAULT_CURVE_CONFIG },
-                        right: { ...DEFAULT_CURVE_CONFIG },
-                      },
-                    }));
-                  }}
-                  firmwareVersion={activeController.firmwareVersion}
-                />
-              )}
+      <div className="workspace">
+        <header className="topbar">
+          <div className="connection-summary">
+            <span className={`status-dot ${device ? "online" : ""}`} />
+            <div>
+              <strong>
+                {device
+                  ? device.name || "Controller connected"
+                  : "No controller connected"}
+              </strong>
+              <small>
+                {device
+                  ? `Bluetooth LE configuration · Firmware ${device.device.version}`
+                  : "Connect via Bluetooth LE to read and apply settings"}
+              </small>
+            </div>
+          </div>
+          <button
+            className="button secondary"
+            disabled={!ready || !!busy}
+            onClick={() => {
+              setScanner(true);
+              void scan();
+            }}
+          >
+            <Bluetooth size={16} />
+            {device ? "Devices" : "Connect controller"}
+          </button>
+        </header>
+        <main>
+          <div className="page-heading">
+            <div>
+              <div className="eyebrow">YOUR CONTROLLER, YOUR WAY</div>
+              <h1>{current.label}</h1>
+              <p>{current.description}</p>
+            </div>
+            <div className="input-badge">
+              <Monitor size={15} />
+              {hardwareDetected
+                ? `XInput player ${(slot ?? 0) + 1} detected`
+                : "No gameplay input"}
+            </div>
+          </div>
+          {!ready && (
+            <div className="notice">
+              Desktop connection unavailable. Launch the packaged x20ctl
+              application to configure hardware.
             </div>
           )}
-
-          {currentTab === 'curves' && (
-            <CurvesPage
-              stickCurves={activeProfile.stickCurves}
-              triggerCurves={activeProfile.triggerCurves}
-              onUpdateStickCurve={(which, cfg) => {
-                handleUpdateActiveProfile((p) => ({
-                  ...p,
-                  stickCurves: { ...p.stickCurves, [which]: cfg },
-                }));
-              }}
-              onUpdateTriggerCurve={(which, cfg) => {
-                handleUpdateActiveProfile((p) => ({
-                  ...p,
-                  triggerCurves: { ...p.triggerCurves, [which]: cfg },
-                }));
-              }}
-              liveState={liveState}
-              onSimulateStickMove={(which, x, y) => setSimulatedStick(which, x, y)}
-              onSimulateTriggerPull={(which, val) => setSimulatedTrigger(which, val)}
-            />
+          {update && (
+            <div className="notice">
+              Version {update} is available.
+              <button onClick={() => void request("open_releases")}>
+                View release
+              </button>
+            </div>
           )}
-
-          {currentTab === 'tester' && (
-            <TesterPage
-              liveState={liveState}
-              onSimulateButton={setSimulatedInput}
-              onSimulateStick={setSimulatedStick}
-              onSimulateTrigger={setSimulatedTrigger}
-            />
+          {error && (
+            <div role="alert" className="notice error">
+              {error}
+              <button aria-label="Dismiss error" onClick={() => setError("")}>
+                <X size={16} />
+              </button>
+            </div>
           )}
+          {message && (
+            <div role="status" className="notice success">
+              {message}
+              <button
+                aria-label="Dismiss message"
+                onClick={() => setMessage("")}
+              >
+                <X size={16} />
+              </button>
+            </div>
+          )}
+          <div className="profile-bar">
+            <Layers3 size={17} />
+            <input
+              aria-label="Setup name"
+              disabled={!!busy}
+              value={profile.name}
+              maxLength={100}
+              onChange={(e) => setProfile({ ...profile, name: e.target.value })}
+            />
+            <span className="draft-label">
+              {dirty.size
+                ? `${dirty.size} unsent ${dirty.size === 1 ? "change" : "changes"}`
+                : device
+                  ? "Read from device"
+                  : "Offline draft"}
+            </span>
+            <button
+              title="Save setup locally"
+              disabled={!ready || !!busy}
+              onClick={save}
+            >
+              <Save size={17} />
+              <span>Save</span>
+            </button>
+            <button
+              title="Import setup"
+              disabled={!ready || !!busy}
+              onClick={() =>
+                void run("Importing setup", async () => {
+                  const imported = await request<Profile | null>(
+                    "open_profile",
+                  );
+                  if (imported) {
+                    await persist([...profiles, imported]);
+                    loadProfile(imported);
+                  }
+                })
+              }
+            >
+              <ArrowDownToLine size={17} />
+            </button>
+            <button
+              title="Export setup"
+              disabled={!ready || !!busy}
+              onClick={() =>
+                void run("Exporting setup", async () => {
+                  const result = await request("export_profile", { profile });
+                  if (result) setMessage("Setup exported.");
+                })
+              }
+            >
+              <ArrowUpFromLine size={17} />
+            </button>
+          </div>
+          <fieldset disabled={!!busy} className="editor">
+            {tab === "buttons" && (
+              <ButtonsPage
+                remaps={profile.remaps}
+                liveState={liveState}
+                onUpdateRemap={(key, target) =>
+                  edit("remaps", { ...profile.remaps, [key]: target })
+                }
+                onResetRemaps={() => edit("remaps", newProfile().remaps)}
+              />
+            )}
+            {tab === "curves" && (
+              <CurvesPage
+                stickCurves={profile.stickCurves}
+                triggerCurves={profile.triggerCurves}
+                liveState={liveState}
+                onUpdateStickCurve={(side, cfg) =>
+                  edit("stickCurves", { ...profile.stickCurves, [side]: cfg })
+                }
+                onUpdateTriggerCurve={(side, cfg) =>
+                  edit("triggerCurves", {
+                    ...profile.triggerCurves,
+                    [side]: cfg,
+                  })
+                }
+              />
+            )}
+            {tab === "macros" && (
+              <>
+                <div className="macro-record">
+                  <span>
+                    Capture real buttons and left-stick directions. Timing uses
+                    the controller’s 5 ms grid.
+                  </span>
+                  <button
+                    className="button secondary"
+                    disabled={!ready || (!recording && !hardwareDetected)}
+                    onClick={() =>
+                      void run(
+                        recording
+                          ? "Finishing recording"
+                          : "Starting recording",
+                        async () => {
+                          if (recording) {
+                            setRecording(false);
+                            const rows =
+                              await request<Profile["macros"]["M1"]>(
+                                "record_stop",
+                              );
+                            edit("M1", rows);
+                            setMessage(
+                              "Recording placed in M1. Review before applying.",
+                            );
+                          } else {
+                            await request("record_start");
+                            setRecording(true);
+                          }
+                        },
+                      )
+                    }
+                  >
+                    <Radio size={15} />
+                    {recording ? "Stop recording → M1" : "Record to M1"}
+                  </button>
+                </div>
+                <MacrosPage
+                  loops={profile.macroLoops}
+                  onUpdateLoop={(key, value) => {
+                    setProfile((old) => ({
+                      ...old,
+                      macroLoops: { ...old.macroLoops, [key]: value },
+                    }));
+                    edit(key, profile.macros[key]);
+                  }}
+                  macros={profile.macros}
+                  onUpdateMacros={(key, steps) => edit(key, steps)}
+                  onClearMacro={(key) => edit(key, [])}
+                />
+              </>
+            )}
+            {tab === "rumble" && (
+              <section className="settings-card">
+                <div className="card-icon">
+                  <Volume2 size={30} />
+                </div>
+                <h2>Vibration strength</h2>
+                <p>
+                  Set the stored strength for both motors. Changes are sent when
+                  you select Apply changes.
+                </p>
+                <div className="large-value">
+                  {profile.vibration}
+                  <small>%</small>
+                </div>
+                <input
+                  aria-label="Vibration strength"
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={profile.vibration}
+                  onChange={(e) => edit("vibration", Number(e.target.value))}
+                />
+                <div className="preset-row">
+                  {[0, 30, 70, 100].map((v, i) => (
+                    <button
+                      key={v}
+                      onClick={() => edit("vibration", v)}
+                      className={profile.vibration === v ? "selected" : ""}
+                    >
+                      {["Off", "Gentle", "Standard", "Maximum"][i]}
+                    </button>
+                  ))}
+                </div>
+              </section>
+            )}
+            {tab === "power" && (
+              <div className="power-grid">
+                <section className="settings-card">
+                  <Power className="accent" size={27} />
+                  <h2>Sleep timer</h2>
+                  <p>Turn off your controller after a period of inactivity.</p>
+                  <div className="preset-row wrap">
+                    {[5, 10, 15, 30, 0].map((v) => (
+                      <button
+                        key={v}
+                        onClick={() => edit("idleTimeoutMinutes", v)}
+                        className={
+                          profile.idleTimeoutMinutes === v ? "selected" : ""
+                        }
+                      >
+                        {v ? `${v} minutes` : "Never"}
+                      </button>
+                    ))}
+                  </div>
+                </section>
+                <section className="settings-card">
+                  <h2>Device information</h2>
+                  <dl>
+                    <dt>Firmware</dt>
+                    <dd>{device?.device.version || "Unavailable"}</dd>
+                    <dt>Configuration link</dt>
+                    <dd>{device ? "Bluetooth LE" : "Disconnected"}</dd>
+                    <dt>Battery estimate</dt>
+                    <dd>
+                      {device?.battery
+                        ? `${device.battery.level}/4 bars${device.battery.charging ? " · Charging" : ""}`
+                        : "Unavailable"}
+                    </dd>
+                  </dl>
+                  <p className="fine-print">
+                    Battery uses the controller’s four-step report. Intermediate
+                    levels are not fully validated.
+                  </p>
+                </section>
+                <section className="settings-card danger-card">
+                  <h2>Reset controller settings</h2>
+                  <p>
+                    Clears saved mappings, macros, response curves and other
+                    configuration. Firmware is untouched.
+                  </p>
+                  <button
+                    className="button danger"
+                    disabled={!device}
+                    onClick={() => setResetConfirm(true)}
+                  >
+                    Factory reset…
+                  </button>
+                </section>
+              </div>
+            )}
+            {tab === "tester" && <TesterPage liveState={liveState} />}
+          </fieldset>
         </main>
+        <footer className="actionbar">
+          <span>
+            {busy ? (
+              <>
+                <LoaderCircle className="spin" size={15} />
+                {busy}…
+              </>
+            ) : (
+              <>
+                <span className={`status-dot ${device ? "online" : ""}`} />
+                {device
+                  ? "Configuration link ready"
+                  : "Drafts stay on this computer"}
+              </>
+            )}
+          </span>
+          <div>
+            <button
+              className="button secondary"
+              disabled={!device || !!busy}
+              onClick={() => {
+                if (
+                  dirty.size &&
+                  !window.confirm(
+                    "Replace unsent changes with settings read from the controller?",
+                  )
+                )
+                  return;
+                void run("Reading controller", async () =>
+                  adoptDevice(await request("read")),
+                );
+              }}
+            >
+              <RefreshCw size={15} />
+              Read controller
+            </button>
+            <button
+              className="button primary"
+              disabled={!device || !dirty.size || !!busy}
+              onClick={apply}
+            >
+              <Check size={16} />
+              Apply changes
+            </button>
+          </div>
+        </footer>
       </div>
 
-      {/* Tutorial Guide Modal */}
-      <TutorialModal
-        isOpen={isTutorialOpen}
-        onClose={() => setIsTutorialOpen(false)}
-      />
-
-      {/* Theme Selector Modal */}
-      <ThemeSelector
-        isOpen={isThemeOpen}
-        onClose={() => setIsThemeOpen(false)}
-        currentThemeId={currentThemeId}
-        onSelectTheme={(themeId) => setCurrentThemeId(themeId)}
-      />
+      {scanner && (
+        <div className="modal-backdrop">
+          <section className="dialog">
+            <button
+              className="dialog-close"
+              aria-label="Close devices"
+              onClick={() => setScanner(false)}
+            >
+              <X />
+            </button>
+            <div className="dialog-symbol">
+              <Bluetooth size={30} />
+            </div>
+            <div className="eyebrow">BLUETOOTH LE CONFIGURATION</div>
+            <h2>Find your controller</h2>
+            <p>
+              Turn on Bluetooth and keep your X20 nearby. Its configuration
+              peripheral usually appears as <strong>Xpert2</strong>. USB or
+              receiver gameplay can stay connected.
+            </p>
+            <div className="device-results">
+              {busy ? (
+                <div className="scan-state">
+                  <LoaderCircle className="spin" /> {busy}…
+                </div>
+              ) : devices.length ? (
+                devices.map((found) => (
+                  <button
+                    className="device-result"
+                    key={found.address}
+                    onClick={() =>
+                      void run("Connecting and reading", async () => {
+                        const next = await request<Device>("connect", {
+                          address: found.address,
+                        });
+                        if (dirty.size) {
+                          setDevice(next);
+                          setMessage(
+                            "Connected. Your unsent draft was preserved. Read controller to replace it.",
+                          );
+                        } else adoptDevice(next);
+                        setScanner(false);
+                      })
+                    }
+                  >
+                    <Gamepad2 />
+                    <span>
+                      <strong>{found.name || "Controller"}</strong>
+                      <small>{found.address}</small>
+                    </span>
+                    <ChevronRight />
+                  </button>
+                ))
+              ) : (
+                <div className="scan-state">
+                  {scanned
+                    ? "No supported controllers found. Wake the controller and try again."
+                    : "Ready to scan."}
+                </div>
+              )}
+            </div>
+            {error && (
+              <p className="error-text" role="alert">
+                {error}
+              </p>
+            )}
+            <div className="dialog-actions">
+              {device && (
+                <button
+                  className="button secondary"
+                  disabled={!!busy}
+                  onClick={() =>
+                    void run("Disconnecting", async () => {
+                      await request("disconnect");
+                      setDevice(null);
+                      setRecording(false);
+                    })
+                  }
+                >
+                  Disconnect
+                </button>
+              )}
+              <button
+                className="button primary"
+                disabled={!!busy}
+                onClick={scan}
+              >
+                <RefreshCw size={15} />
+                Scan again
+              </button>
+            </div>
+            <p className="fine-print">
+              EasySMX X05 is not supported by the KeyLinker protocol.
+            </p>
+          </section>
+        </div>
+      )}
+      {help && (
+        <div className="modal-backdrop">
+          <section className="dialog">
+            <button
+              className="dialog-close"
+              aria-label="Close guide"
+              onClick={() => setHelp(false)}
+            >
+              <X />
+            </button>
+            <h2>Two connections. One controller.</h2>
+            <p>
+              <strong>Bluetooth LE</strong> carries configuration: remaps,
+              macros, curves and power settings. Use Connect controller to
+              discover the separate Xpert2 peripheral.
+            </p>
+            <p>
+              <strong>USB, the receiver or Bluetooth gameplay mode</strong>{" "}
+              carries input to Windows. The tester reads XInput separately. A
+              connected gameplay device does not establish the configuration
+              link.
+            </p>
+            <p>
+              Keep Bluetooth enabled, wake the controller, and disconnect any
+              phone app currently using its configuration link.
+            </p>
+            <label className="update-preference">
+              <input
+                type="checkbox"
+                checked={updatesEnabled}
+                onChange={(e) =>
+                  void run("Saving preference", async () =>
+                    setUpdatesEnabled(
+                      await request("set_updates", {
+                        enabled: e.target.checked,
+                      }),
+                    ),
+                  )
+                }
+              />
+              Check GitHub for updates at startup
+            </label>
+            <p className="fine-print">
+              Optional. Only the public release API is queried; no controller
+              data or setups are uploaded. Closing the window keeps x20ctl in
+              the system tray. Use the tray menu to quit.
+            </p>
+          </section>
+        </div>
+      )}
+      {resetConfirm && (
+        <div className="modal-backdrop">
+          <section className="dialog">
+            <h2>Reset every controller setting?</h2>
+            <p>
+              This clears the controller’s mappings, macros and curves. Saved
+              setups on this computer are kept.
+            </p>
+            <div className="dialog-actions">
+              <button
+                className="button secondary"
+                onClick={() => setResetConfirm(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="button danger"
+                disabled={!!busy}
+                onClick={() =>
+                  void run("Resetting controller", async () => {
+                    const result = await request<{ message: string }>("reset", {
+                      confirmation: "RESET",
+                    });
+                    setDevice(null);
+                    setResetConfirm(false);
+                    setMessage(result.message);
+                  })
+                }
+              >
+                Reset controller
+              </button>
+            </div>
+            {error && <p className="error-text">{error}</p>}
+          </section>
+        </div>
+      )}
     </div>
   );
 }
-
-export default App;

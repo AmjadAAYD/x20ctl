@@ -27,3 +27,9 @@ dist/
 
 .vscode/
 .idea/
+node_modules/
+.pytest_cache/
+.ruff_cache/
+*.log
+artifacts/
+dist-ui/

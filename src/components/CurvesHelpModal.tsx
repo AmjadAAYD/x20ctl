@@ -1,12 +1,23 @@
-import React from 'react';
-import { HelpCircle, X, Compass, Zap, Target, Gauge, Check } from 'lucide-react';
+import React from "react";
+import {
+  HelpCircle,
+  X,
+  Compass,
+  Zap,
+  Target,
+  Gauge,
+  Check,
+} from "lucide-react";
 
 interface CurvesHelpModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-export const CurvesHelpModal: React.FC<CurvesHelpModalProps> = ({ isOpen, onClose }) => {
+export const CurvesHelpModal: React.FC<CurvesHelpModalProps> = ({
+  isOpen,
+  onClose,
+}) => {
   if (!isOpen) return null;
 
   return (
@@ -23,7 +34,8 @@ export const CurvesHelpModal: React.FC<CurvesHelpModalProps> = ({ isOpen, onClos
                 Don&apos;t Understand What To Do?
               </h3>
               <p className="text-xs text-[#A79C92] mt-0.5">
-                Simple, jargon-free explanations for sticks, triggers, and deadzones.
+                Simple, jargon-free explanations for sticks, triggers, and
+                deadzones.
               </p>
             </div>
           </div>
@@ -47,10 +59,16 @@ export const CurvesHelpModal: React.FC<CurvesHelpModalProps> = ({ isOpen, onClos
                 1. Inner Deadzone (Fixing Drift)
               </h4>
               <p className="mt-1 text-[#A79C92]">
-                <strong className="text-[#FF8A5B]">What it is:</strong> A small invisible circle around the resting center of your thumbstick where nothing happens.
+                <strong className="text-[#FF8A5B]">What it is:</strong> A small
+                invisible circle around the resting center of your thumbstick
+                where nothing happens.
               </p>
               <p className="mt-1">
-                <strong className="text-[#F4F0EB]">When to change it:</strong> If your game camera or character slowly creeps/drifts on its own when your fingers are completely off the stick, <em>turn this up slightly</em> (e.g. from 5% to 8%) until the creeping stops!
+                <strong className="text-[#F4F0EB]">When to change it:</strong>{" "}
+                If your game camera or character slowly creeps/drifts on its own
+                when your fingers are completely off the stick,{" "}
+                <em>turn this up slightly</em> (e.g. from 5% to 8%) until the
+                creeping stops!
               </p>
             </div>
           </div>
@@ -65,10 +83,15 @@ export const CurvesHelpModal: React.FC<CurvesHelpModalProps> = ({ isOpen, onClos
                 2. Outer Deadzone (Hitting Max Speed)
               </h4>
               <p className="mt-1 text-[#A79C92]">
-                <strong className="text-[#86C08A]">What it is:</strong> The point where pushing the stick counts as 100% full sprint.
+                <strong className="text-[#86C08A]">What it is:</strong> The
+                point where pushing the stick counts as 100% full sprint.
               </p>
               <p className="mt-1">
-                <strong className="text-[#F4F0EB]">When to change it:</strong> If you feel like you have to push the stick super hard against the plastic edge to sprint, <em>lower this to around 85%–90%</em>. You will reach top speed earlier and easier!
+                <strong className="text-[#F4F0EB]">When to change it:</strong>{" "}
+                If you feel like you have to push the stick super hard against
+                the plastic edge to sprint,{" "}
+                <em>lower this to around 85%–90%</em>. You will reach top speed
+                earlier and easier!
               </p>
             </div>
           </div>
@@ -84,16 +107,31 @@ export const CurvesHelpModal: React.FC<CurvesHelpModalProps> = ({ isOpen, onClos
               </h4>
               <ul className="space-y-1.5 pl-1">
                 <li>
-                  <strong className="text-[#F4F0EB]">Linear (Stock):</strong> Normal feel. 50% stick push gives exactly 50% movement speed. Great for all games.
+                  <strong className="text-[#F4F0EB]">Linear (Stock):</strong>{" "}
+                  Proportional control points. In-game response still depends on
+                  game settings and firmware.
                 </li>
                 <li>
-                  <strong className="text-[#FF8A5B]">Aggressive (Fast Aim):</strong> Quick reaction. Small stick nudges turn your screen faster. Awesome for fast FPS shooters and 180° turns.
+                  <strong className="text-[#FF8A5B]">
+                    Aggressive (Fast Aim):
+                  </strong>{" "}
+                  Quick reaction. Small stick nudges turn your screen faster.
+                  Awesome for fast FPS shooters and 180° turns.
                 </li>
                 <li>
-                  <strong className="text-[#86C08A]">Relaxed (Sniper Precision):</strong> Micro-aiming. Small stick movements are smoothed down and extra slow, so you can lock your crosshairs on a distant headshot without over-aiming.
+                  <strong className="text-[#86C08A]">
+                    Relaxed (Sniper Precision):
+                  </strong>{" "}
+                  Micro-aiming. Small stick movements are smoothed down and
+                  extra slow, so you can lock your crosshairs on a distant
+                  headshot without over-aiming.
                 </li>
                 <li>
-                  <strong className="text-[#FFB020]">Instant (Hair Trigger):</strong> The instant you tap the trigger or stick, it acts like a mouse click! Best for LT/RT triggers to shoot immediately.
+                  <strong className="text-[#FFB020]">
+                    Instant (Hair Trigger):
+                  </strong>{" "}
+                  Reaches high output earlier in the travel. This preset does
+                  not turn an analog input into a digital switch.
                 </li>
               </ul>
             </div>
@@ -109,7 +147,9 @@ export const CurvesHelpModal: React.FC<CurvesHelpModalProps> = ({ isOpen, onClos
                 4. What are the P1 and P2 dots on the graph?
               </h4>
               <p className="mt-1">
-                Think of the curve like a rubber band. Dragging the P1 and P2 dots pulls and shapes the line. The higher the line arches, the quicker and more sensitive the controller will feel!
+                P1 and P2 are stored response points. Use Edit Curve to adjust
+                their coordinates. The line passes through those points, but
+                firmware interpolation between them is not known.
               </p>
             </div>
           </div>
