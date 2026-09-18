@@ -62,6 +62,24 @@ def test_invalid_profile_never_overwrites_saved_setups(tmp_path):
     assert path.read_text() == "broken original"
 
 
+def test_saved_setup_and_macro_identifiers_must_be_unique(tmp_path):
+    from x20ctl.desktop.settings import import_profile
+
+    service = DeviceService(directory=tmp_path)
+    profile = import_profile({"name": "Setup", "macros": {}, "vibration": None})
+    duplicate = dict(profile)
+    duplicate["name"] = "Duplicate"
+    with pytest.raises(ValueError, match="identifiers must be unique"):
+        asyncio.run(service.dispatch("save_profiles", {"profiles": [profile, duplicate]}))
+
+    profile["macros"]["M1"] = [
+        {"id": "same", "buttons": ["A"], "duration": 10},
+        {"id": "same", "buttons": ["B"], "duration": 10},
+    ]
+    with pytest.raises(ValueError, match="macro steps need unique identifiers"):
+        asyncio.run(service.dispatch("save_profiles", {"profiles": [profile]}))
+
+
 def test_bridge_rejects_wrong_payload_types():
     api = DesktopApi()
     try:

@@ -162,6 +162,10 @@ def validate_profile(profile):
             )
     loops = profile.get("macroLoops", {})
     for slot in ("M1", "M2", "M3", "M4"):
+        rows = profile["macros"][slot]
+        ids = [row.get("id") for row in rows] if isinstance(rows, list) else []
+        if any(not isinstance(value, str) or not value for value in ids) or len(set(ids)) != len(ids):
+            raise ValueError(f"{slot}: macro steps need unique identifiers")
         macro_from_ui(profile["macros"][slot], loop_ms=loops.get(slot, 0))
     return profile
 

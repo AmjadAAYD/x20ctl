@@ -1,8 +1,6 @@
 """Entry point for the packaged executable.
 
-PyInstaller needs a script rather than a module, and `x20ctl/gui/__main__.py`
-uses a relative import that only resolves when run with `-m`. This is that
-file's contents with an absolute import.
+PyInstaller's entry script loads the local desktop runtime and native bridge.
 """
 
 import sys

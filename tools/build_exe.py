@@ -41,6 +41,8 @@ def main() -> None:
     run([npm, "ci", "--ignore-scripts"], "installing locked UI dependencies")
     run([npm, "run", "lint"], "checking the UI")
     run([npm, "run", "build"], "compiling local UI assets")
+    from licenses import collect
+    collect(Path(ROOT))
     if args.bundled_runtime:
         from runtime import prepare
         os.environ["X20CTL_BUNDLE_RUNTIME"] = str(prepare(Path(ROOT)))
@@ -54,6 +56,7 @@ def main() -> None:
         raise SystemExit("build reported success but dist/x20ctl.exe is missing")
 
     size = os.path.getsize(exe) / (1024 * 1024)
+    shutil.copy2(Path(ROOT) / "artifacts" / "THIRD_PARTY_LICENSES.txt", Path(ROOT) / "dist" / "THIRD_PARTY_LICENSES.txt")
     print(f"\n=== done in {time.time() - started:.0f}s")
     print(f"    {exe}")
     print(f"    {size:.1f} MB, runs without Python installed")
