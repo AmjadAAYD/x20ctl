@@ -1,9 +1,18 @@
-import React, { useState } from 'react';
-import { CurveConfig, LiveGamepadState } from '../../types/gamepad';
-import { Sliders, RotateCcw, Zap, Activity, HelpCircle, Edit3, Check } from 'lucide-react';
-import { LiveStickModule } from '../LiveStickModule';
-import { LiveTriggerModule } from '../LiveTriggerModule';
-import { CurvesHelpModal } from '../CurvesHelpModal';
+import { curvePreview } from "../../curve";
+import React, { useState } from "react";
+import { CurveConfig, LiveGamepadState } from "../../types/gamepad";
+import {
+  Sliders,
+  RotateCcw,
+  Zap,
+  Activity,
+  HelpCircle,
+  Edit3,
+  Check,
+} from "lucide-react";
+import { LiveStickModule } from "../LiveStickModule";
+import { LiveTriggerModule } from "../LiveTriggerModule";
+import { CurvesHelpModal } from "../CurvesHelpModal";
 
 interface CurvesPageProps {
   stickCurves: {
@@ -14,14 +23,12 @@ interface CurvesPageProps {
     left: CurveConfig;
     right: CurveConfig;
   };
-  onUpdateStickCurve: (which: 'left' | 'right', config: CurveConfig) => void;
-  onUpdateTriggerCurve: (which: 'left' | 'right', config: CurveConfig) => void;
+  onUpdateStickCurve: (which: "left" | "right", config: CurveConfig) => void;
+  onUpdateTriggerCurve: (which: "left" | "right", config: CurveConfig) => void;
   liveState: LiveGamepadState;
-  onSimulateStickMove?: (which: 'left' | 'right', x: number, y: number) => void;
-  onSimulateTriggerPull?: (which: 'left' | 'right', val: number) => void;
 }
 
-type ChannelKey = 'leftStick' | 'rightStick' | 'leftTrigger' | 'rightTrigger';
+type ChannelKey = "leftStick" | "rightStick" | "leftTrigger" | "rightTrigger";
 
 export const CurvesPage: React.FC<CurvesPageProps> = ({
   stickCurves,
@@ -29,75 +36,82 @@ export const CurvesPage: React.FC<CurvesPageProps> = ({
   onUpdateStickCurve,
   onUpdateTriggerCurve,
   liveState,
-  onSimulateStickMove,
-  onSimulateTriggerPull,
 }) => {
-  const [activeChannel, setActiveChannel] = useState<ChannelKey>('leftStick');
+  const [activeChannel, setActiveChannel] = useState<ChannelKey>("leftStick");
   const [isHelpOpen, setIsHelpOpen] = useState<boolean>(false);
   const [isEditCurveOpen, setIsEditCurveOpen] = useState<boolean>(false);
 
   const getChannelConfig = (ch: ChannelKey): CurveConfig => {
     switch (ch) {
-      case 'leftStick':
+      case "leftStick":
         return stickCurves.left;
-      case 'rightStick':
+      case "rightStick":
         return stickCurves.right;
-      case 'leftTrigger':
+      case "leftTrigger":
         return triggerCurves.left;
-      case 'rightTrigger':
+      case "rightTrigger":
         return triggerCurves.right;
     }
   };
 
-  const updateChannelConfig = (ch: ChannelKey, updates: Partial<CurveConfig>) => {
+  const updateChannelConfig = (
+    ch: ChannelKey,
+    updates: Partial<CurveConfig>,
+  ) => {
     const current = getChannelConfig(ch);
     const updated: CurveConfig = { ...current, ...updates };
 
-    if (ch === 'leftStick') onUpdateStickCurve('left', updated);
-    else if (ch === 'rightStick') onUpdateStickCurve('right', updated);
-    else if (ch === 'leftTrigger') onUpdateTriggerCurve('left', updated);
-    else if (ch === 'rightTrigger') onUpdateTriggerCurve('right', updated);
+    if (ch === "leftStick") onUpdateStickCurve("left", updated);
+    else if (ch === "rightStick") onUpdateStickCurve("right", updated);
+    else if (ch === "leftTrigger") onUpdateTriggerCurve("left", updated);
+    else if (ch === "rightTrigger") onUpdateTriggerCurve("right", updated);
   };
 
   const currentConfig = getChannelConfig(activeChannel);
 
   // Live input magnitude (0.0 to 1.0)
   let liveMagnitude = 0;
-  if (activeChannel === 'leftStick') {
-    liveMagnitude = Math.min(1, Math.hypot(liveState.leftStick.x, liveState.leftStick.y));
-  } else if (activeChannel === 'rightStick') {
-    liveMagnitude = Math.min(1, Math.hypot(liveState.rightStick.x, liveState.rightStick.y));
-  } else if (activeChannel === 'leftTrigger') {
+  if (activeChannel === "leftStick") {
+    liveMagnitude = Math.min(
+      1,
+      Math.hypot(liveState.leftStick.x, liveState.leftStick.y),
+    );
+  } else if (activeChannel === "rightStick") {
+    liveMagnitude = Math.min(
+      1,
+      Math.hypot(liveState.rightStick.x, liveState.rightStick.y),
+    );
+  } else if (activeChannel === "leftTrigger") {
     liveMagnitude = liveState.leftTrigger;
   } else {
     liveMagnitude = liveState.rightTrigger;
   }
 
   // Presets applicator
-  const applyPreset = (preset: CurveConfig['preset']) => {
-    if (preset === 'linear') {
+  const applyPreset = (preset: CurveConfig["preset"]) => {
+    if (preset === "linear") {
       updateChannelConfig(activeChannel, {
-        preset: 'linear',
-        p1: { x: 33, y: 33 },
-        p2: { x: 66, y: 66 },
+        preset: "linear",
+        p1: { x: 100 / 3, y: 100 / 3 },
+        p2: { x: 200 / 3, y: 200 / 3 },
       });
-    } else if (preset === 'instant') {
+    } else if (preset === "instant") {
       updateChannelConfig(activeChannel, {
-        preset: 'instant',
+        preset: "instant",
         p1: { x: 15, y: 70 },
         p2: { x: 45, y: 98 },
         innerDeadzone: 2,
         outerDeadzone: 75,
       });
-    } else if (preset === 'relaxed') {
+    } else if (preset === "relaxed") {
       updateChannelConfig(activeChannel, {
-        preset: 'relaxed',
+        preset: "relaxed",
         p1: { x: 50, y: 25 },
         p2: { x: 80, y: 65 },
       });
-    } else if (preset === 'aggressive') {
+    } else if (preset === "aggressive") {
       updateChannelConfig(activeChannel, {
-        preset: 'aggressive',
+        preset: "aggressive",
         p1: { x: 25, y: 45 },
         p2: { x: 65, y: 85 },
       });
@@ -105,7 +119,7 @@ export const CurvesPage: React.FC<CurvesPageProps> = ({
   };
 
   // SVG dimensions for curve
-  const svgSize = 300;
+  const svgSize = 260;
   const padding = 28;
   const plotSize = svgSize - padding * 2;
 
@@ -117,19 +131,16 @@ export const CurvesPage: React.FC<CurvesPageProps> = ({
   const p2 = { x: toSvgX(currentConfig.p2.x), y: toSvgY(currentConfig.p2.y) };
   const p3 = { x: toSvgX(100), y: toSvgY(100) };
 
-  const t = Math.max(0, Math.min(1, liveMagnitude));
-  const liveX =
-    Math.pow(1 - t, 3) * 0 +
-    3 * Math.pow(1 - t, 2) * t * currentConfig.p1.x +
-    3 * (1 - t) * Math.pow(t, 2) * currentConfig.p2.x +
-    Math.pow(t, 3) * 100;
-  const liveY =
-    Math.pow(1 - t, 3) * 0 +
-    3 * Math.pow(1 - t, 2) * t * currentConfig.p1.y +
-    3 * (1 - t) * Math.pow(t, 2) * currentConfig.p2.y +
-    Math.pow(t, 3) * 100;
+  const liveX = liveMagnitude * 100;
+  const liveY = curvePreview(currentConfig, liveX);
+  const curvePath = Array.from(
+    { length: 101 },
+    (_, x) =>
+      `${x ? "L" : "M"} ${toSvgX(x)} ${toSvgY(curvePreview(currentConfig, x))}`,
+  ).join(" ");
 
-  const isStick = activeChannel === 'leftStick' || activeChannel === 'rightStick';
+  const isStick =
+    activeChannel === "leftStick" || activeChannel === "rightStick";
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto select-none">
@@ -140,7 +151,8 @@ export const CurvesPage: React.FC<CurvesPageProps> = ({
             Sticks & Triggers Response Curves
           </h2>
           <p className="text-xs text-[#A79C92] mt-0.5">
-            Calibrate deadzones, sensitivity curves, and test live response alongside physical hardware visualizers.
+            Edit stored control points. The curve is an illustration, not
+            measured firmware output.
           </p>
         </div>
 
@@ -151,10 +163,10 @@ export const CurvesPage: React.FC<CurvesPageProps> = ({
             onClick={() => setIsHelpOpen(true)}
             id="curves-help-btn"
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-[#FF8A5B]/15 hover:bg-[#FF8A5B]/25 text-[#FF8A5B] border border-[#FF8A5B]/40 transition-all shadow-sm"
-            title="Explain Like I'm 5 Guide"
+            title="How response curves work"
           >
             <HelpCircle className="w-3.5 h-3.5" />
-            <span>Don&apos;t understand what to do? 💡</span>
+            <span>Curve guide</span>
           </button>
         </div>
       </div>
@@ -164,10 +176,10 @@ export const CurvesPage: React.FC<CurvesPageProps> = ({
         <div className="flex rounded-xl bg-[#141211] p-1 border border-[#332C29]">
           {(
             [
-              ['leftStick', 'Left Stick'],
-              ['rightStick', 'Right Stick'],
-              ['leftTrigger', 'Left Trigger (LT)'],
-              ['rightTrigger', 'Right Trigger (RT)'],
+              ["leftStick", "Left Stick"],
+              ["rightStick", "Right Stick"],
+              ["leftTrigger", "Left Trigger (LT)"],
+              ["rightTrigger", "Right Trigger (RT)"],
             ] as const
           ).map(([key, label]) => (
             <button
@@ -175,8 +187,8 @@ export const CurvesPage: React.FC<CurvesPageProps> = ({
               onClick={() => setActiveChannel(key)}
               className={`px-3.5 py-1.5 text-xs rounded-lg font-bold transition-all ${
                 activeChannel === key
-                  ? 'bg-[#241F1D] text-[#FF8A5B] shadow-sm border border-[#FF8A5B]/30'
-                  : 'text-[#A79C92] hover:text-[#F4F0EB]'
+                  ? "bg-[#241F1D] text-[#FF8A5B] shadow-sm border border-[#FF8A5B]/30"
+                  : "text-[#A79C92] hover:text-[#F4F0EB]"
               }`}
             >
               {label}
@@ -189,27 +201,28 @@ export const CurvesPage: React.FC<CurvesPageProps> = ({
           onClick={() => setIsEditCurveOpen(!isEditCurveOpen)}
           className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all border ${
             isEditCurveOpen
-              ? 'bg-[#FF8A5B] text-[#131110] border-[#FF8A5B]'
-              : 'bg-[#241F1D] hover:bg-[#2C2624] text-[#D6CEC6] border-[#332C29]'
+              ? "bg-[#FF8A5B] text-[#131110] border-[#FF8A5B]"
+              : "bg-[#241F1D] hover:bg-[#2C2624] text-[#D6CEC6] border-[#332C29]"
           }`}
         >
           <Edit3 className="w-3.5 h-3.5" />
-          <span>{isEditCurveOpen ? 'Done Editing Curve' : 'Edit Curve'}</span>
+          <span>{isEditCurveOpen ? "Done Editing Curve" : "Edit Curve"}</span>
         </button>
       </div>
 
       {/* Main Two-Column Layout: Response Curve on Left, Live SVG Visualizer on Right */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Column (Col 7): Response Curve Graph & Controls */}
+        {/* Left Column (Col 7): Curve illustration & Controls */}
         <div className="lg:col-span-7 p-5 rounded-2xl bg-[#1B1817] border border-[#332C29] shadow-lg flex flex-col items-center">
           <div className="w-full flex items-center justify-between mb-3">
             <span className="text-xs font-bold text-[#F4F0EB]">
               Response Curve Graph
             </span>
             <div className="flex items-center gap-2 text-xs">
-              <span className="text-[#A79C92]">Live Output:</span>
+              <span className="text-[#A79C92]">Preview:</span>
               <span className="font-mono text-[#86C08A] font-bold">
-                {(liveY / 100).toFixed(2)} ({Math.round(liveMagnitude * 100)}% In)
+                {(liveY / 100).toFixed(2)} ({Math.round(liveMagnitude * 100)}%
+                In)
               </span>
             </div>
           </div>
@@ -270,29 +283,9 @@ export const CurvesPage: React.FC<CurvesPageProps> = ({
                 strokeDasharray="4 4"
               />
 
-              {/* Bezier control tangents */}
-              <line
-                x1={p0.x}
-                y1={p0.y}
-                x2={p1.x}
-                y2={p1.y}
-                stroke="#FF8A5B"
-                strokeWidth="1"
-                strokeOpacity="0.4"
-              />
-              <line
-                x1={p3.x}
-                y1={p3.y}
-                x2={p2.x}
-                y2={p2.y}
-                stroke="#FF8A5B"
-                strokeWidth="1"
-                strokeOpacity="0.4"
-              />
-
               {/* Curve path */}
               <path
-                d={`M ${p0.x} ${p0.y} C ${p1.x} ${p1.y}, ${p2.x} ${p2.y}, ${p3.x} ${p3.y}`}
+                d={curvePath}
                 fill="none"
                 stroke="#FF8A5B"
                 strokeWidth="3"
@@ -333,7 +326,13 @@ export const CurvesPage: React.FC<CurvesPageProps> = ({
               <text x={padding} y={svgSize - 8} fill="#A79C92" fontSize="9">
                 0% Center
               </text>
-              <text x={svgSize - padding} y={svgSize - 8} fill="#A79C92" fontSize="9" textAnchor="end">
+              <text
+                x={svgSize - padding}
+                y={svgSize - 8}
+                fill="#A79C92"
+                fontSize="9"
+                textAnchor="end"
+              >
                 100% Edge
               </text>
             </svg>
@@ -341,28 +340,32 @@ export const CurvesPage: React.FC<CurvesPageProps> = ({
 
           {/* Presets Row */}
           <div className="w-full mt-4 flex items-center justify-center gap-2">
-            {(['linear', 'aggressive', 'relaxed', 'instant'] as const).map((pr) => (
-              <button
-                key={pr}
-                onClick={() => applyPreset(pr)}
-                className={`px-2.5 py-1 text-xs rounded-lg capitalize font-semibold transition-all border ${
-                  currentConfig.preset === pr
-                    ? 'bg-[#FF8A5B] text-[#131110] border-[#FF8A5B]'
-                    : 'bg-[#141211] text-[#A79C92] border-[#332C29] hover:text-[#F4F0EB]'
-                }`}
-              >
-                {pr}
-              </button>
-            ))}
+            {(["linear", "aggressive", "relaxed", "instant"] as const).map(
+              (pr) => (
+                <button
+                  key={pr}
+                  onClick={() => applyPreset(pr)}
+                  className={`px-2.5 py-1 text-xs rounded-lg capitalize font-semibold transition-all border ${
+                    currentConfig.preset === pr
+                      ? "bg-[#FF8A5B] text-[#131110] border-[#FF8A5B]"
+                      : "bg-[#141211] text-[#A79C92] border-[#332C29] hover:text-[#F4F0EB]"
+                  }`}
+                >
+                  {pr}
+                </button>
+              ),
+            )}
           </div>
 
           {/* Edit Curve Fine Tuning Controls (revealed when Edit Curve is active) */}
           {isEditCurveOpen && (
             <div className="w-full mt-4 pt-4 border-t border-[#332C29] grid grid-cols-2 gap-4 text-xs">
               <div className="p-3 rounded-xl bg-[#141211] border border-[#332C29] space-y-2">
-                <span className="font-bold text-[#FF8A5B] block">P1 Control Point</span>
+                <span className="font-bold text-[#FF8A5B] block">
+                  P1 Control Point
+                </span>
                 <div className="flex items-center justify-between text-[11px] text-[#A79C92]">
-                  <span>X: {currentConfig.p1.x}%</span>
+                  <span>X: {Number(currentConfig.p1.x.toFixed(1))}%</span>
                   <input
                     type="range"
                     min="0"
@@ -370,15 +373,21 @@ export const CurvesPage: React.FC<CurvesPageProps> = ({
                     value={currentConfig.p1.x}
                     onChange={(e) =>
                       updateChannelConfig(activeChannel, {
-                        p1: { ...currentConfig.p1, x: parseInt(e.target.value) },
-                        preset: 'custom',
+                        p1: {
+                          ...currentConfig.p1,
+                          x: Math.min(
+                            currentConfig.p2.x,
+                            parseInt(e.target.value),
+                          ),
+                        },
+                        preset: "custom",
                       })
                     }
                     className="w-24 accent-[#FF8A5B]"
                   />
                 </div>
                 <div className="flex items-center justify-between text-[11px] text-[#A79C92]">
-                  <span>Y: {currentConfig.p1.y}%</span>
+                  <span>Y: {Number(currentConfig.p1.y.toFixed(1))}%</span>
                   <input
                     type="range"
                     min="0"
@@ -386,8 +395,11 @@ export const CurvesPage: React.FC<CurvesPageProps> = ({
                     value={currentConfig.p1.y}
                     onChange={(e) =>
                       updateChannelConfig(activeChannel, {
-                        p1: { ...currentConfig.p1, y: parseInt(e.target.value) },
-                        preset: 'custom',
+                        p1: {
+                          ...currentConfig.p1,
+                          y: parseInt(e.target.value),
+                        },
+                        preset: "custom",
                       })
                     }
                     className="w-24 accent-[#FF8A5B]"
@@ -396,9 +408,11 @@ export const CurvesPage: React.FC<CurvesPageProps> = ({
               </div>
 
               <div className="p-3 rounded-xl bg-[#141211] border border-[#332C29] space-y-2">
-                <span className="font-bold text-[#FF8A5B] block">P2 Control Point</span>
+                <span className="font-bold text-[#FF8A5B] block">
+                  P2 Control Point
+                </span>
                 <div className="flex items-center justify-between text-[11px] text-[#A79C92]">
-                  <span>X: {currentConfig.p2.x}%</span>
+                  <span>X: {Number(currentConfig.p2.x.toFixed(1))}%</span>
                   <input
                     type="range"
                     min="0"
@@ -406,15 +420,21 @@ export const CurvesPage: React.FC<CurvesPageProps> = ({
                     value={currentConfig.p2.x}
                     onChange={(e) =>
                       updateChannelConfig(activeChannel, {
-                        p2: { ...currentConfig.p2, x: parseInt(e.target.value) },
-                        preset: 'custom',
+                        p2: {
+                          ...currentConfig.p2,
+                          x: Math.max(
+                            currentConfig.p1.x,
+                            parseInt(e.target.value),
+                          ),
+                        },
+                        preset: "custom",
                       })
                     }
                     className="w-24 accent-[#FF8A5B]"
                   />
                 </div>
                 <div className="flex items-center justify-between text-[11px] text-[#A79C92]">
-                  <span>Y: {currentConfig.p2.y}%</span>
+                  <span>Y: {Number(currentConfig.p2.y.toFixed(1))}%</span>
                   <input
                     type="range"
                     min="0"
@@ -422,8 +442,11 @@ export const CurvesPage: React.FC<CurvesPageProps> = ({
                     value={currentConfig.p2.y}
                     onChange={(e) =>
                       updateChannelConfig(activeChannel, {
-                        p2: { ...currentConfig.p2, y: parseInt(e.target.value) },
-                        preset: 'custom',
+                        p2: {
+                          ...currentConfig.p2,
+                          y: parseInt(e.target.value),
+                        },
+                        preset: "custom",
                       })
                     }
                     className="w-24 accent-[#FF8A5B]"
@@ -439,23 +462,35 @@ export const CurvesPage: React.FC<CurvesPageProps> = ({
           {/* Hardware Live SVG Test Section */}
           {isStick ? (
             <LiveStickModule
-              label={activeChannel === 'leftStick' ? 'Left Stick' : 'Right Stick'}
-              x={activeChannel === 'leftStick' ? liveState.leftStick.x : liveState.rightStick.x}
-              y={activeChannel === 'leftStick' ? liveState.leftStick.y : liveState.rightStick.y}
+              label={
+                activeChannel === "leftStick" ? "Left Stick" : "Right Stick"
+              }
+              x={
+                activeChannel === "leftStick"
+                  ? liveState.leftStick.x
+                  : liveState.rightStick.x
+              }
+              y={
+                activeChannel === "leftStick"
+                  ? liveState.leftStick.y
+                  : liveState.rightStick.y
+              }
               innerDeadzonePercent={currentConfig.innerDeadzone}
               outerDeadzonePercent={currentConfig.outerDeadzone}
-              onSimulateMove={(sx, sy) =>
-                onSimulateStickMove?.(activeChannel === 'leftStick' ? 'left' : 'right', sx, sy)
-              }
             />
           ) : (
             <LiveTriggerModule
-              label={activeChannel === 'leftTrigger' ? 'Left Trigger (LT)' : 'Right Trigger (RT)'}
-              value={activeChannel === 'leftTrigger' ? liveState.leftTrigger : liveState.rightTrigger}
-              hairTrigger={currentConfig.preset === 'instant'}
-              onSimulatePull={(val) =>
-                onSimulateTriggerPull?.(activeChannel === 'leftTrigger' ? 'left' : 'right', val)
+              label={
+                activeChannel === "leftTrigger"
+                  ? "Left Trigger (LT)"
+                  : "Right Trigger (RT)"
               }
+              value={
+                activeChannel === "leftTrigger"
+                  ? liveState.leftTrigger
+                  : liveState.rightTrigger
+              }
+              hairTrigger={currentConfig.preset === "instant"}
             />
           )}
 
@@ -470,7 +505,7 @@ export const CurvesPage: React.FC<CurvesPageProps> = ({
               <div className="flex justify-between text-xs">
                 <span className="text-[#A79C92]">Inner Deadzone (Slack)</span>
                 <span className="font-mono text-[#FF8A5B] font-bold">
-                  {currentConfig.innerDeadzone}%
+                  {Number(currentConfig.innerDeadzone.toFixed(1))}%
                 </span>
               </div>
               <input
@@ -479,7 +514,9 @@ export const CurvesPage: React.FC<CurvesPageProps> = ({
                 max="30"
                 value={currentConfig.innerDeadzone}
                 onChange={(e) =>
-                  updateChannelConfig(activeChannel, { innerDeadzone: parseInt(e.target.value) })
+                  updateChannelConfig(activeChannel, {
+                    innerDeadzone: parseInt(e.target.value),
+                  })
                 }
                 className="w-full accent-[#FF8A5B] h-1.5 bg-[#241F1D] rounded cursor-pointer"
               />
@@ -488,9 +525,11 @@ export const CurvesPage: React.FC<CurvesPageProps> = ({
             {/* Outer deadzone slider */}
             <div className="space-y-1">
               <div className="flex justify-between text-xs">
-                <span className="text-[#A79C92]">Outer Deadzone (Max Push)</span>
+                <span className="text-[#A79C92]">
+                  Outer Deadzone (Max Push)
+                </span>
                 <span className="font-mono text-[#86C08A] font-bold">
-                  {currentConfig.outerDeadzone}%
+                  {Number(currentConfig.outerDeadzone.toFixed(1))}%
                 </span>
               </div>
               <input
@@ -499,7 +538,9 @@ export const CurvesPage: React.FC<CurvesPageProps> = ({
                 max="100"
                 value={currentConfig.outerDeadzone}
                 onChange={(e) =>
-                  updateChannelConfig(activeChannel, { outerDeadzone: parseInt(e.target.value) })
+                  updateChannelConfig(activeChannel, {
+                    outerDeadzone: parseInt(e.target.value),
+                  })
                 }
                 className="w-full accent-[#86C08A] h-1.5 bg-[#241F1D] rounded cursor-pointer"
               />
@@ -509,7 +550,10 @@ export const CurvesPage: React.FC<CurvesPageProps> = ({
       </div>
 
       {/* ELIF Guide Modal */}
-      <CurvesHelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
+      <CurvesHelpModal
+        isOpen={isHelpOpen}
+        onClose={() => setIsHelpOpen(false)}
+      />
     </div>
   );
 };

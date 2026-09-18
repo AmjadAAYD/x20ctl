@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 
 interface LiveStickModuleProps {
   label: string;
@@ -6,7 +6,6 @@ interface LiveStickModuleProps {
   y: number; // -1.0 to 1.0
   innerDeadzonePercent: number; // e.g. 5
   outerDeadzonePercent: number; // e.g. 95
-  onSimulateMove?: (x: number, y: number) => void;
   className?: string;
 }
 
@@ -16,8 +15,7 @@ export const LiveStickModule: React.FC<LiveStickModuleProps> = ({
   y,
   innerDeadzonePercent,
   outerDeadzonePercent,
-  onSimulateMove,
-  className = '',
+  className = "",
 }) => {
   // SVG radius is 80px (well radius = 70px)
   const wellRadius = 60;
@@ -30,30 +28,14 @@ export const LiveStickModule: React.FC<LiveStickModuleProps> = ({
   const innerDeadzoneRadius = (innerDeadzonePercent / 100) * wellRadius;
   const outerDeadzoneRadius = (outerDeadzonePercent / 100) * wellRadius;
 
-  const handlePointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (!onSimulateMove || (e.buttons !== 1 && e.type !== 'pointerdown')) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
-    const clickX = (e.clientX - centerX) / (rect.width / 2);
-    const clickY = (e.clientY - centerY) / (rect.height / 2);
-    const clampedX = Math.max(-1, Math.min(1, clickX));
-    const clampedY = Math.max(-1, Math.min(1, clickY));
-    onSimulateMove(clampedX, clampedY);
-  };
-
-  const handlePointerUp = () => {
-    if (onSimulateMove) {
-      onSimulateMove(0, 0);
-    }
-  };
-
   return (
     <div
       className={`p-4 rounded-xl bg-[#141211] border border-[#332C29] flex flex-col items-center select-none ${className}`}
     >
       <div className="w-full flex items-center justify-between text-xs mb-3">
-        <span className="font-bold text-[#F4F0EB]">{label} Live Hardware View</span>
+        <span className="font-bold text-[#F4F0EB]">
+          {label} Live Hardware View
+        </span>
         <span className="font-mono text-[11px] text-[#FF8A5B] bg-[#241F1D] px-2 py-0.5 rounded border border-[#332C29]">
           Mag: {Math.round(magnitude * 100)}%
         </span>
@@ -61,13 +43,7 @@ export const LiveStickModule: React.FC<LiveStickModuleProps> = ({
 
       {/* High Detail Interactive SVG */}
       <div className="relative w-48 h-48 flex items-center justify-center">
-        <svg
-          viewBox="-80 -80 160 160"
-          className="w-full h-full cursor-crosshair"
-          onPointerDown={handlePointerMove}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-        >
+        <svg viewBox="-80 -80 160 160" className="w-full h-full">
           <defs>
             <radialGradient id="knurlCollar" cx="50%" cy="50%" r="50%">
               <stop offset="0%" stopColor="#8A92A0" />
@@ -83,10 +59,24 @@ export const LiveStickModule: React.FC<LiveStickModuleProps> = ({
           </defs>
 
           {/* Outer Housing Well */}
-          <circle cx="0" cy="0" r={wellRadius + 10} fill="#181A20" stroke="#332C29" strokeWidth="2" />
+          <circle
+            cx="0"
+            cy="0"
+            r={wellRadius + 10}
+            fill="#181A20"
+            stroke="#332C29"
+            strokeWidth="2"
+          />
 
           {/* Knurled Tension Ring Gear */}
-          <circle cx="0" cy="0" r={wellRadius + 4} fill="url(#knurlCollar)" stroke="#4A5260" strokeWidth="1" />
+          <circle
+            cx="0"
+            cy="0"
+            r={wellRadius + 4}
+            fill="url(#knurlCollar)"
+            stroke="#4A5260"
+            strokeWidth="1"
+          />
           <circle
             cx="0"
             cy="0"
@@ -98,8 +88,24 @@ export const LiveStickModule: React.FC<LiveStickModuleProps> = ({
           />
 
           {/* Crosshair guide lines */}
-          <line x1={-wellRadius} y1="0" x2={wellRadius} y2="0" stroke="#2D3340" strokeWidth="1" strokeDasharray="2 2" />
-          <line x1="0" y1={-wellRadius} x2="0" y2={wellRadius} stroke="#2D3340" strokeWidth="1" strokeDasharray="2 2" />
+          <line
+            x1={-wellRadius}
+            y1="0"
+            x2={wellRadius}
+            y2="0"
+            stroke="#2D3340"
+            strokeWidth="1"
+            strokeDasharray="2 2"
+          />
+          <line
+            x1="0"
+            y1={-wellRadius}
+            x2="0"
+            y2={wellRadius}
+            stroke="#2D3340"
+            strokeWidth="1"
+            strokeDasharray="2 2"
+          />
 
           {/* Outer Deadzone Ring (Sprint boundary) */}
           <circle
@@ -139,12 +145,40 @@ export const LiveStickModule: React.FC<LiveStickModuleProps> = ({
           {/* Thumbstick Cap (Moves instantly with 1:1 deflection) */}
           <g transform={`translate(${stickPxX}, ${stickPxY})`}>
             {/* Rubber Cap Body */}
-            <circle cx="0" cy="0" r="30" fill="url(#thumbCapGrad)" stroke="#FF8A5B" strokeWidth="2" />
-            <circle cx="0" cy="0" r="24" fill="none" stroke="#484F5D" strokeWidth="1.5" />
-            <circle cx="0" cy="0" r="16" fill="#1C1E24" stroke="#121418" strokeWidth="1" />
+            <circle
+              cx="0"
+              cy="0"
+              r="30"
+              fill="url(#thumbCapGrad)"
+              stroke="#FF8A5B"
+              strokeWidth="2"
+            />
+            <circle
+              cx="0"
+              cy="0"
+              r="24"
+              fill="none"
+              stroke="#484F5D"
+              strokeWidth="1.5"
+            />
+            <circle
+              cx="0"
+              cy="0"
+              r="16"
+              fill="#1C1E24"
+              stroke="#121418"
+              strokeWidth="1"
+            />
 
             {/* EasySMX Brand Mark */}
-            <text x="0" y="3" fill="#B4BAC6" fontSize="7" fontWeight="bold" textAnchor="middle">
+            <text
+              x="0"
+              y="3"
+              fill="#B4BAC6"
+              fontSize="7"
+              fontWeight="bold"
+              textAnchor="middle"
+            >
               EasySMX
             </text>
             <circle cx="0" cy="0" r="2.5" fill="#FF8A5B" />

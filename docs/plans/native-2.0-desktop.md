@@ -5,11 +5,11 @@ specification: ../specs/native-2.0-desktop.md
 base_commit: 4bb2560
 git_policy: required
 execution_mode: continuous
-current_checkpoint: CP-01
+current_checkpoint: CP-03
 checkpoint_status: In Progress
 lifecycle_owner: Plumbline Execute
 last_verified_commit: 4bb2560
-next_safe_action: Restore the proven backend and build a local desktop bridge.
+next_safe_action: Finish isolated packaging, bundled runtime and executable acceptance; reconcile documentation and publish only the validated build.
 delegation_roles: Direct - no project-local roles configured
 delegation_status: direct
 ready_for_acceptance: false
@@ -17,19 +17,19 @@ ready_for_acceptance: false
 
 # Native 2.0 implementation
 
-The approved specification controls product behavior. Preserve React's visual direction, restore the verified Python engine, and deliver a locally packaged Windows application. No remote publication is authorized at this stage.
+The approved specification controls product behavior. Preserve React's visual direction, restore the verified Python engine, and deliver a locally packaged Windows application. The user's September 18 overnight instruction authorizes commits, pushes and a 2.0.0 GitHub release after validation. Do not block on the powered-off controller; disclose the absence of fresh physical write testing.
 
 ## CP-01: Desktop and hardware foundation
 
-Status: In Progress. Restore `x20ctl`, tests, tools and packaging metadata from `94cd363`; retain the legacy GUI as regression evidence. Introduce the desktop launcher and restricted asynchronous bridge. Validate disconnected startup, API validation, device identity, serialization, connection loss and shutdown. Join condition: Python regression/bridge tests pass and local desktop assets load.
+Status: Complete. Restored the proven engine and regression baseline. Added a serialized, allowlisted native bridge. Native startup, handshake rejection, persistence, read-back failure and disconnected writes have focused tests. Full suite: 500 passing; isolated desktop tests: 13 passing.
 
 ## CP-02: Real configuration and polished UI
 
-Status: Pending. Depends on CP-01. Wire discovery, hardware reads, category-scoped writes, macros, curves, profiles, live inputs and reset to native services. Remove fabricated data and simulations. Keep errors and partial writes visible. Improve layout while retaining the dark visual style, controller diagram and curve/macro editors. Proof: frontend tests, bridge failure scenarios and actual window interaction.
+Status: Complete. Native configuration/UI wiring, real XInput recording, curves, profiles and corrected macro semantics are implemented. Synthetic recording and unsupported controls removed. Two frontend curve tests pass. Expanded native-window smoke exercises six pages, edits, persistence, invalid import, BLE discovery, disconnected-write rejection and external-navigation blocking. Real capture review identified and corrected startup readiness and layout defects. No supported hardware was active during verification.
 
 ## CP-03: Packaged application and truthful evidence
 
-Status: Pending. Depends on CP-02. Package the executable, launch it, exercise disconnected flows and available hardware, capture real window screenshots, reconcile README/changelog/security/release draft and restore CI. Proof: executable launch, screenshot inspection, artifact hash, full tests and documented hardware acceptance status.
+Status: In Progress. Initial 25.6 MB executable passed native-window smoke. Final build will use a clean, pinned environment and include a Microsoft-signed WebView2 fallback for machines without the runtime. Finish documentation, full executable acceptance, genuine release screenshots and actual artifact hashes before publication.
 
 ## Risk and proof
 
@@ -46,5 +46,5 @@ Status: Pending. Depends on CP-02. Package the executable, launch it, exercise d
 
 ## Residuals
 
-- Acceptance blocker: physical-controller proof depends on available supported hardware. Safe discovery and reads may run; hardware writes for acceptance require a connected user-owned test device and deliberate test selection.
-- Operational follow-up: publishing or pushing requires the final user decision.
+- Residual risk: no fresh physical-controller write/replay test is possible with the controller off. The user explicitly requested continued release preparation without waiting for hardware. Publish this limitation clearly and retain 1.2.0 as a rollback option.
+- Publication authority: September 18 overnight request allows commit, push and release after software/executable validation. Never claim zero bugs or invent hardware proof.

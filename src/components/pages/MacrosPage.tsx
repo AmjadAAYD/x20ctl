@@ -1,26 +1,47 @@
-import React, { useState } from 'react';
-import { MacroStep, KeyName, StickDirection, STICK_DIRECTION_NAMES, KEY_LABELS } from '../../types/gamepad';
-import { Plus, Trash2, Disc, Music, CheckCircle2, Sliders } from 'lucide-react';
-import { PianoRollModal } from '../PianoRollModal';
+import React, { useState } from "react";
+import {
+  MacroStep,
+  KeyName,
+  StickDirection,
+  STICK_DIRECTION_NAMES,
+  KEY_LABELS,
+} from "../../types/gamepad";
+import { Plus, Trash2, Music, CheckCircle2, Sliders } from "lucide-react";
+import { PianoRollModal } from "../PianoRollModal";
 
 interface MacrosPageProps {
+  loops: Record<"M1" | "M2" | "M3" | "M4", number>;
+  onUpdateLoop: (paddle: "M1" | "M2" | "M3" | "M4", value: number) => void;
   macros: {
     M1: MacroStep[];
     M2: MacroStep[];
     M3: MacroStep[];
     M4: MacroStep[];
   };
-  onUpdateMacros: (paddle: 'M1' | 'M2' | 'M3' | 'M4', steps: MacroStep[]) => void;
-  onClearMacro: (paddle: 'M1' | 'M2' | 'M3' | 'M4') => void;
+  onUpdateMacros: (
+    paddle: "M1" | "M2" | "M3" | "M4",
+    steps: MacroStep[],
+  ) => void;
+  onClearMacro: (paddle: "M1" | "M2" | "M3" | "M4") => void;
 }
 
-const PADDLES: Array<'M1' | 'M2' | 'M3' | 'M4'> = ['M1', 'M2', 'M3', 'M4'];
+const PADDLES: Array<"M1" | "M2" | "M3" | "M4"> = ["M1", "M2", "M3", "M4"];
 
 const TOGGLEABLE_BUTTONS: KeyName[] = [
-  'A', 'B', 'X', 'Y',
-  'LB', 'RB', 'LT', 'RT',
-  'L3', 'R3',
-  'DPAD_UP', 'DPAD_DOWN', 'DPAD_LEFT', 'DPAD_RIGHT',
+  "A",
+  "B",
+  "X",
+  "Y",
+  "LB",
+  "RB",
+  "LT",
+  "RT",
+  "L3",
+  "R3",
+  "DPAD_UP",
+  "DPAD_DOWN",
+  "DPAD_LEFT",
+  "DPAD_RIGHT",
 ];
 
 // Interactive 8-way directional dial component
@@ -51,8 +72,8 @@ const StickDirectionDial: React.FC<{
           title="Neutral"
           className={`w-3.5 h-3.5 rounded-full z-10 transition-colors ${
             value === StickDirection.NEUTRAL
-              ? 'bg-[#FF8A5B] shadow-[0_0_6px_rgba(255,138,91,0.5)]'
-              : 'bg-[#241F1D] hover:bg-[#453B36]'
+              ? "bg-[#FF8A5B] shadow-[0_0_6px_rgba(255,138,91,0.5)]"
+              : "bg-[#241F1D] hover:bg-[#453B36]"
           }`}
         />
 
@@ -68,8 +89,8 @@ const StickDirectionDial: React.FC<{
               style={{ left: `${d.x - 4}px`, top: `${d.y - 4}px` }}
               className={`absolute w-2.5 h-2.5 rounded-full transition-all ${
                 isSelected
-                  ? 'bg-[#FF8A5B] scale-125 shadow-[0_0_6px_rgba(255,138,91,0.6)]'
-                  : 'bg-[#332C29] hover:bg-[#A79C92]'
+                  ? "bg-[#FF8A5B] scale-125 shadow-[0_0_6px_rgba(255,138,91,0.6)]"
+                  : "bg-[#332C29] hover:bg-[#A79C92]"
               }`}
             />
           );
@@ -83,13 +104,15 @@ const StickDirectionDial: React.FC<{
 };
 
 export const MacrosPage: React.FC<MacrosPageProps> = ({
+  loops,
+  onUpdateLoop,
   macros,
   onUpdateMacros,
   onClearMacro,
 }) => {
-  const [selectedPaddle, setSelectedPaddle] = useState<'M1' | 'M2' | 'M3' | 'M4'>('M1');
-  const [isRecording, setIsRecording] = useState<boolean>(false);
-  const [recordCountdown, setRecordCountdown] = useState<number | null>(null);
+  const [selectedPaddle, setSelectedPaddle] = useState<
+    "M1" | "M2" | "M3" | "M4"
+  >("M1");
   const [isPianoRollOpen, setIsPianoRollOpen] = useState<boolean>(false);
   const [savedBanner, setSavedBanner] = useState<boolean>(false);
 
@@ -98,7 +121,7 @@ export const MacrosPage: React.FC<MacrosPageProps> = ({
   const handleAddStep = () => {
     const newStep: MacroStep = {
       id: Math.random().toString(36).substring(2, 9),
-      buttons: ['A'],
+      buttons: ["A"],
       leftStick: StickDirection.NEUTRAL,
       rightStick: StickDirection.NEUTRAL,
       durationMs: 40,
@@ -108,7 +131,9 @@ export const MacrosPage: React.FC<MacrosPageProps> = ({
   };
 
   const handleUpdateStep = (stepId: string, updates: Partial<MacroStep>) => {
-    const updated = currentSteps.map((s) => (s.id === stepId ? { ...s, ...updates } : s));
+    const updated = currentSteps.map((s) =>
+      s.id === stepId ? { ...s, ...updates } : s,
+    );
     onUpdateMacros(selectedPaddle, updated);
   };
 
@@ -121,7 +146,9 @@ export const MacrosPage: React.FC<MacrosPageProps> = ({
     const step = currentSteps.find((s) => s.id === stepId);
     if (!step) return;
     const exists = step.buttons.includes(btn);
-    const newButtons = exists ? step.buttons.filter((b) => b !== btn) : [...step.buttons, btn];
+    const newButtons = exists
+      ? step.buttons.filter((b) => b !== btn)
+      : [...step.buttons, btn];
     handleUpdateStep(stepId, { buttons: newButtons });
   };
 
@@ -131,61 +158,22 @@ export const MacrosPage: React.FC<MacrosPageProps> = ({
     setTimeout(() => setSavedBanner(false), 2500);
   };
 
-  const startLiveRecord = () => {
-    setRecordCountdown(3);
-    const countTimer = setInterval(() => {
-      setRecordCountdown((prev) => {
-        if (prev === null || prev <= 1) {
-          clearInterval(countTimer);
-          setIsRecording(true);
-          setTimeout(() => {
-            setIsRecording(false);
-            const recorded: MacroStep[] = [
-              { id: 'rec-1', buttons: ['DPAD_DOWN'], leftStick: StickDirection.DOWN, rightStick: StickDirection.NEUTRAL, durationMs: 45, intervalMs: 16 },
-              { id: 'rec-2', buttons: ['DPAD_RIGHT'], leftStick: StickDirection.RIGHT, rightStick: StickDirection.NEUTRAL, durationMs: 45, intervalMs: 16 },
-              { id: 'rec-3', buttons: ['RB', 'Y'], leftStick: StickDirection.NEUTRAL, rightStick: StickDirection.NEUTRAL, durationMs: 60, intervalMs: 20 },
-            ];
-            onUpdateMacros(selectedPaddle, recorded);
-          }, 2500);
-          return null;
-        }
-        return prev - 1;
-      });
-    }, 800);
-  };
-
   return (
     <div className="space-y-6 max-w-5xl mx-auto select-none">
       {/* Header text */}
       <div className="flex items-center justify-between pb-4 border-b border-[#332C29]">
         <div>
-          <h2 className="text-base font-bold text-[#F4F0EB]">Rear Paddle Macros & Combos</h2>
+          <h2 className="text-base font-bold text-[#F4F0EB]">
+            Rear Paddle Macros & Combos
+          </h2>
           <p className="text-xs text-[#A79C92] mt-0.5">
-            Configure step sequences for M1, M2, M3, and M4 with millisecond precision, or launch the interactive Piano-Roll editor.
+            Configure step sequences for M1, M2, M3, and M4 with 5 ms timing, or
+            launch the interactive Piano-Roll editor.
           </p>
         </div>
 
         {/* Record & Clear Actions */}
         <div className="flex items-center gap-2">
-          {recordCountdown !== null ? (
-            <div className="px-3 py-1.5 rounded-lg bg-[#FF8A5B]/20 border border-[#FF8A5B] text-xs font-bold text-[#FF8A5B] animate-pulse">
-              Starting in {recordCountdown}...
-            </div>
-          ) : isRecording ? (
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#E5645E]/20 border border-[#E5645E] text-xs font-bold text-[#E5645E] animate-pulse">
-              <Disc className="w-3.5 h-3.5" />
-              <span>Recording controller inputs...</span>
-            </div>
-          ) : (
-            <button
-              onClick={startLiveRecord}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-[#241F1D] hover:bg-[#2C2624] text-[#D6CEC6] hover:text-[#F4F0EB] border border-[#332C29] transition-colors"
-            >
-              <Disc className="w-3.5 h-3.5 text-[#FF8A5B]" />
-              <span>Record Macro</span>
-            </button>
-          )}
-
           {currentSteps.length > 0 && (
             <button
               onClick={() => onClearMacro(selectedPaddle)}
@@ -202,7 +190,10 @@ export const MacrosPage: React.FC<MacrosPageProps> = ({
       {savedBanner && (
         <div className="p-3 rounded-xl bg-[#86C08A]/15 border border-[#86C08A]/30 text-xs text-[#86C08A] flex items-center gap-2 animate-fade-in font-medium">
           <CheckCircle2 className="w-4 h-4" />
-          <span>Piano Roll changes successfully compiled into {selectedPaddle} hardware sequence!</span>
+          <span>
+            Piano Roll changes successfully compiled into {selectedPaddle}{" "}
+            draft. Select Apply changes to send it.
+          </span>
         </div>
       )}
 
@@ -218,24 +209,28 @@ export const MacrosPage: React.FC<MacrosPageProps> = ({
               onClick={() => setSelectedPaddle(paddle)}
               className={`p-3.5 rounded-xl border text-left transition-all ${
                 isSelected
-                  ? 'bg-[#241F1D] border-[#FF8A5B] shadow-md shadow-[#FF8A5B]/10'
-                  : 'bg-[#1B1817] border-[#332C29] hover:border-[#4A3F3B]'
+                  ? "bg-[#241F1D] border-[#FF8A5B] shadow-md shadow-[#FF8A5B]/10"
+                  : "bg-[#1B1817] border-[#332C29] hover:border-[#4A3F3B]"
               }`}
             >
               <div className="flex items-center justify-between">
-                <span className="text-sm font-black text-[#F4F0EB]">{paddle}</span>
+                <span className="text-sm font-black text-[#F4F0EB]">
+                  {paddle}
+                </span>
                 <span
                   className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-bold ${
                     stepCount > 0
-                      ? 'bg-[#FF8A5B]/20 text-[#FF8A5B]'
-                      : 'bg-[#131110] text-[#A79C92]'
+                      ? "bg-[#FF8A5B]/20 text-[#FF8A5B]"
+                      : "bg-[#131110] text-[#A79C92]"
                   }`}
                 >
-                  {stepCount} {stepCount === 1 ? 'step' : 'steps'}
+                  {stepCount} {stepCount === 1 ? "step" : "steps"}
                 </span>
               </div>
               <p className="text-[11px] text-[#A79C92] mt-1">
-                {paddle === 'M1' || paddle === 'M3' ? 'Left rear paddle' : 'Right rear paddle'}
+                {paddle === "M1" || paddle === "M3"
+                  ? "Left rear paddle"
+                  : "Right rear paddle"}
               </p>
             </button>
           );
@@ -243,6 +238,20 @@ export const MacrosPage: React.FC<MacrosPageProps> = ({
       </div>
 
       {/* Piano-Roll / Steps Sequence */}
+      <label className="flex items-center gap-3 text-xs text-[#A79C92]">
+        Loop interval (0 = run once)
+        <input
+          aria-label="Macro loop interval"
+          type="number"
+          min="0"
+          max="20475"
+          step="5"
+          value={loops[selectedPaddle]}
+          onChange={(e) => onUpdateLoop(selectedPaddle, Number(e.target.value))}
+          className="bg-[#241F1D] border border-[#332C29] rounded-md p-2 w-24"
+        />{" "}
+        ms
+      </label>
       <div className="p-5 rounded-2xl bg-[#1B1817] border border-[#332C29] space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#332C29]">
           <div>
@@ -251,11 +260,17 @@ export const MacrosPage: React.FC<MacrosPageProps> = ({
                 {selectedPaddle} Step Sequence
               </span>
               <span className="text-[11px] text-[#A79C92]">
-                ({currentSteps.length} of 42 hardware slots)
+                (
+                {currentSteps.reduce(
+                  (n, s) => n + 1 + (s.intervalMs > 0 ? 1 : 0),
+                  0,
+                )}{" "}
+                of 47 wire entries)
               </span>
             </div>
             <p className="text-xs text-[#A79C92] mt-0.5">
-              Click &ldquo;Edit in Piano Roll&rdquo; to visually adjust hold times and notes on a timeline.
+              Click &ldquo;Edit in Piano Roll&rdquo; to visually adjust hold
+              times and notes on a timeline.
             </p>
           </div>
 
@@ -272,7 +287,12 @@ export const MacrosPage: React.FC<MacrosPageProps> = ({
 
             <button
               onClick={handleAddStep}
-              disabled={currentSteps.length >= 42}
+              disabled={
+                currentSteps.reduce(
+                  (n, s) => n + 1 + (s.intervalMs > 0 ? 1 : 0),
+                  0,
+                ) > 45
+              }
               className="flex items-center gap-1 px-3 py-1.5 text-xs rounded-lg bg-[#241F1D] hover:bg-[#2C2624] text-[#D6CEC6] font-semibold border border-[#332C29] transition-colors disabled:opacity-50"
             >
               <Plus className="w-3.5 h-3.5" />
@@ -284,9 +304,12 @@ export const MacrosPage: React.FC<MacrosPageProps> = ({
         {currentSteps.length === 0 ? (
           <div className="py-14 text-center text-xs text-[#A79C92] bg-[#141211] rounded-xl border border-dashed border-[#332C29] space-y-2">
             <Music className="w-8 h-8 text-[#A79C92]/50 mx-auto" />
-            <p className="font-semibold text-[#D6CEC6]">No sequence currently assigned to {selectedPaddle}.</p>
+            <p className="font-semibold text-[#D6CEC6]">
+              No sequence in this draft for {selectedPaddle}.
+            </p>
             <p className="text-[11px] text-[#A79C92]">
-              Click &ldquo;Edit in Piano Roll&rdquo; or &ldquo;Add Step&rdquo; to program your custom combo.
+              Click &ldquo;Edit in Piano Roll&rdquo; or &ldquo;Add Step&rdquo;
+              to program your custom combo.
             </p>
           </div>
         ) : (
@@ -306,14 +329,18 @@ export const MacrosPage: React.FC<MacrosPageProps> = ({
                   <StickDirectionDial
                     label="Left Stick"
                     value={step.leftStick}
-                    onChange={(dir) => handleUpdateStep(step.id, { leftStick: dir })}
+                    onChange={(dir) =>
+                      handleUpdateStep(step.id, { leftStick: dir })
+                    }
                   />
 
                   {/* Right Stick Direction */}
                   <StickDirectionDial
                     label="Right Stick"
                     value={step.rightStick}
-                    onChange={(dir) => handleUpdateStep(step.id, { rightStick: dir })}
+                    onChange={(dir) =>
+                      handleUpdateStep(step.id, { rightStick: dir })
+                    }
                   />
                 </div>
 
@@ -332,8 +359,8 @@ export const MacrosPage: React.FC<MacrosPageProps> = ({
                           onClick={() => toggleButtonInStep(step.id, btn)}
                           className={`px-2 py-0.5 rounded text-[10px] font-mono transition-all border ${
                             active
-                              ? 'bg-[#FF8A5B] text-[#131110] border-[#FF8A5B] font-bold'
-                              : 'bg-[#1B1817] text-[#A79C92] border-[#332C29] hover:text-[#F4F0EB]'
+                              ? "bg-[#FF8A5B] text-[#131110] border-[#FF8A5B] font-bold"
+                              : "bg-[#1B1817] text-[#A79C92] border-[#332C29] hover:text-[#F4F0EB]"
                           }`}
                         >
                           {KEY_LABELS[btn]}
@@ -346,30 +373,38 @@ export const MacrosPage: React.FC<MacrosPageProps> = ({
                 {/* Timing controls, Edit in Piano Roll, & Delete */}
                 <div className="flex items-center gap-3 shrink-0">
                   <div className="text-right">
-                    <span className="text-[10px] text-[#A79C92] block">Hold (ms)</span>
+                    <span className="text-[10px] text-[#A79C92] block">
+                      Hold (ms)
+                    </span>
                     <input
                       type="number"
-                      min="10"
+                      min="5"
                       max="1000"
-                      step="10"
+                      step="5"
                       value={step.durationMs}
                       onChange={(e) =>
-                        handleUpdateStep(step.id, { durationMs: parseInt(e.target.value) || 20 })
+                        handleUpdateStep(step.id, {
+                          durationMs: parseInt(e.target.value) || 20,
+                        })
                       }
                       className="w-16 bg-[#241F1D] border border-[#332C29] text-xs font-mono text-[#F4F0EB] rounded-md px-1.5 py-1 text-center outline-none focus:border-[#FF8A5B]"
                     />
                   </div>
 
                   <div className="text-right">
-                    <span className="text-[10px] text-[#A79C92] block">Pause (ms)</span>
+                    <span className="text-[10px] text-[#A79C92] block">
+                      Pause (ms)
+                    </span>
                     <input
                       type="number"
                       min="0"
                       max="1000"
-                      step="10"
+                      step="5"
                       value={step.intervalMs}
                       onChange={(e) =>
-                        handleUpdateStep(step.id, { intervalMs: parseInt(e.target.value) || 0 })
+                        handleUpdateStep(step.id, {
+                          intervalMs: parseInt(e.target.value) || 0,
+                        })
                       }
                       className="w-16 bg-[#241F1D] border border-[#332C29] text-xs font-mono text-[#F4F0EB] rounded-md px-1.5 py-1 text-center outline-none focus:border-[#FF8A5B]"
                     />
