@@ -1,18 +1,18 @@
 ---
-status: active
+status: complete
 feature: native-2.0-desktop
 specification: ../specs/native-2.0-desktop.md
 base_commit: 4bb2560
 git_policy: required
 execution_mode: continuous
 current_checkpoint: CP-03
-checkpoint_status: In Progress
+checkpoint_status: Complete
 lifecycle_owner: Plumbline Execute
 last_verified_commit: 914fe46
-next_safe_action: Commit and publish the verified source and genuine captures, then rebuild the release artifact with final notices and publish it only after a second executable acceptance pass.
+next_safe_action: Monitor the published release and collect physical-controller evidence when hardware is available.
 delegation_roles: Direct - no project-local roles configured
 delegation_status: direct
-ready_for_acceptance: false
+ready_for_acceptance: true
 ---
 
 # Native 2.0 implementation
@@ -29,7 +29,7 @@ Status: Complete. Native configuration/UI wiring, real XInput recording, curves,
 
 ## CP-03: Packaged application and truthful evidence
 
-Status: In Progress. The 332,108,921-byte self-contained executable passed all 16 native-window acceptance checks with its Microsoft-signed bundled WebView2 fallback forced on. Eight genuine captures from that executable now replace the prototype images. Source publication is ready; rebuild and re-run acceptance after final notice/version metadata before publishing the release artifact.
+Status: Complete. The final 332,117,406-byte self-contained executable passed all 16 native-window acceptance checks with its Microsoft-signed bundled WebView2 fallback forced on. Windows file/product version 2.0.0 and complete third-party notices are embedded. Eight genuine captures from the accepted packaged app replace the prototype images. The final SHA-256 is recorded in the release checksum and desktop validation document.
 
 ## Risk and proof
 

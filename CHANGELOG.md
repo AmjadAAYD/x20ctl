@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.0.0 - release candidate
+## 2.0.0 - 2026-09-18
 
 The first native desktop release of the new controller-studio interface.
 Compared with 1.2.0, the primary UI changes while the proven Python protocol
