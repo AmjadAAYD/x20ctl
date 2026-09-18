@@ -29,7 +29,7 @@ Status: Complete. Native configuration/UI wiring, real XInput recording, curves,
 
 ## CP-03: Packaged application and truthful evidence
 
-Status: Complete. The final 332,117,406-byte self-contained executable passed all 16 native-window acceptance checks with its Microsoft-signed bundled WebView2 fallback forced on. Windows file/product version 2.0.0 and complete third-party notices are embedded. Eight genuine captures from the accepted packaged app replace the prototype images. The final SHA-256 is recorded in the release checksum and desktop validation document.
+Status: Complete. The final 332,165,214-byte self-contained executable passed all 16 native-window acceptance checks with its Microsoft-signed bundled WebView2 fallback forced on. Windows file/product version 2.0.0, patched release dependencies and complete third-party notices are embedded. Eight genuine captures from the accepted packaged app replace the prototype images. The final SHA-256 is recorded in the release checksum and desktop validation document.
 
 ## Risk and proof
 

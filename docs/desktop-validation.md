@@ -27,10 +27,10 @@ This hash identifies the executable used for the screenshots below. The publishe
 
 ## Final release artifact
 
-After embedding Windows file/product version 2.0.0 and the complete third-party notice bundle, the final 332,117,406-byte executable repeated the same 16-check acceptance run successfully. Its SHA-256 is:
+After embedding Windows file/product version 2.0.0, the complete third-party notice bundle and patched Pillow 12.3.0, the final 332,165,214-byte executable repeated the same 16-check acceptance run successfully. Its SHA-256 is:
 
 ```text
-D8DBF5B425A1A7B582F7CDB626569FCB4A1CD043848E2DD650B1D1D2ECDB0E8B
+2FF0AECF0C6377521E4C3AB74A0A2D29EE691C566C919EB3760068666649D6DD
 ```
 
 The final run used the bundled WebView2 fallback and exited with code 0. `SHA256SUMS.txt` attached to the GitHub release contains the same value.
