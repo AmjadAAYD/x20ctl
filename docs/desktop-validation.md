@@ -54,3 +54,15 @@ No image generator, mock webpage, browser developer preview or compositing tool 
 BLE discovery found no active supported configuration peripheral during either packaged acceptance run. The screenshot-producing run detected no XInput gamepad; the final release run detected an XInput-compatible device but did not identify it as an EasySMX X20 or replay a macro. Neither run performed a physical configuration write or controller read-back.
 
 The protocol engine retains its regression and simulated-transport coverage from the native 1.x application, but that is not presented as fresh physical-device evidence. Version 1.2.0 remains available as a rollback. Hardware-specific problems should be reported with the controller firmware, connection mode and the application log.
+
+## Live controller follow-up (2.0.1)
+
+Later on September 18, the user powered on the controller for a live test. The native service connected to Xpert2, firmware 9.01, and read remappings, both stick and trigger curves, motor strengths, idle timeout, M1-M4 and battery without warnings. Repeated reads were stable.
+
+The timer was changed from 10 to 11 minutes through the desktop service's normal Apply operation, verified by controller read-back, then restored to 10 in a cleanup block. A full reread confirmed every settings category matched the initial snapshot. No reset or macro playback occurred.
+
+This revealed a missed firmware case: M2-M4 returned neutral zero-duration macro entries. The 2.0.0 adapter turned them into invalid editable holds, preventing setup saves. The 2.0.1 adapter omits only entries with no input and no duration. Two regression tests demonstrated the failure before the fix and passed afterward, including preservation of a real initial delay.
+
+The corrected source application was then launched in its actual Windows desktop window with isolated test storage. UI interaction connected the controller, read its settings, saved the setup, reread native storage and opened all six pages. The controller settings remained unchanged. These are source-window hardware checks, distinct from the packaged acceptance tests recorded above.
+
+Live XInput sampling captured left-stick motion, D-pad, A, B, X, Select and Start. A further 30-second sample remained connected throughout but contained only neutral controls. Right-stick movement, trigger movement, unobserved buttons, remapping writes, curve writes and macro playback are not claimed tested.

@@ -207,6 +207,30 @@ def test_macro_roundtrip_and_hardware_limit():
         macro_from_ui([{**rows[0], "intervalMs": 16}])
 
 
+def test_empty_hardware_macro_sentinel_can_be_saved(tmp_path):
+    from x20ctl.desktop.settings import import_profile
+
+    # Xpert2 firmware 9.01 returned a released, zero-duration wire entry
+    # for unused M2-M4 slots. It must not become an invalid editable hold.
+    profile = import_profile({"name": "Read from controller", "macros": {}})
+    for slot in ("M2", "M3", "M4"):
+        profile["macros"][slot] = macro_to_ui(p.MacroProgram([p.MacroStep.released(0)]))
+    service = DeviceService(directory=tmp_path)
+    asyncio.run(service.dispatch("save_profiles", {"profiles": [profile]}))
+    saved = asyncio.run(service.dispatch("bootstrap", {}))["profiles"][0]
+    assert saved["macros"] == {"M1": [], "M2": [], "M3": [], "M4": []}
+
+
+def test_macro_translation_keeps_real_initial_delay():
+    program = p.MacroProgram([p.MacroStep.released(0), p.MacroStep.released(50), p.MacroStep(p.mask_for([p.Key.A]), 100)])
+    rows = macro_to_ui(program)
+    assert len(rows) == 2
+    assert rows[0]["buttons"] == []
+    assert rows[0]["durationMs"] == 50
+    assert rows[1]["buttons"] == ["A"]
+    assert rows[1]["durationMs"] == 100
+
+
 def test_readback_mismatch_never_reports_success():
     class Pad:
         _client = SimpleNamespace(is_connected=True)

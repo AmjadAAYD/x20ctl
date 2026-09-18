@@ -101,6 +101,10 @@ def macro_to_ui(program, layout=None):
     rows = []
     for index, entry in enumerate(program.steps):
         tokens = p.describe_mask(entry.mask, layout)
+        # Firmware 9.01 can represent an unused slot as one neutral 0 ms
+        # entry. It has no input or elapsed time and is not an editable hold.
+        if not tokens and entry.duration_ms == 0:
+            continue
         row = {
             "id": f"read-{index}",
             "buttons": [],

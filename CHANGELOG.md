@@ -1,5 +1,23 @@
 # Changelog
 
+## 2.0.1 - 2026-09-18
+
+### Fixed
+
+- Firmware 9.01 can report an unused macro slot as a neutral, zero-duration
+  entry. Treat it as empty so saving a setup read from the controller succeeds.
+  Preserve real initial delays and valid macro steps.
+- Added regression coverage for both empty-slot saving and initial-delay preservation.
+
+### Verified on hardware
+
+- Connected to Xpert2 firmware 9.01 and read mappings, both stick/trigger curves,
+  vibration, power, all four macro slots and battery without warnings.
+- Changed the idle timer from 10 to 11 minutes, verified read-back, restored 10,
+  and confirmed all settings matched the original snapshot.
+- Detected live XInput button and left-stick changes. Saved the real setup in
+  the connected desktop UI after the fix. Macro playback was not tested.
+
 ## 2.0.0 - 2026-09-18
 
 The first native desktop release of the new controller-studio interface.
