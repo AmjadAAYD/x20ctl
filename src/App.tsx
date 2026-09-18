@@ -99,7 +99,7 @@ export function App() {
   const [updatesEnabled, setUpdatesEnabled] = useState(true);
   const [update, setUpdate] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
-  const [version, setVersion] = useState("2.0.0-dev");
+  const [version, setVersion] = useState("2.0.0");
   const [tab, setTab] = useState<Tab>("buttons");
   const [profile, setProfile] = useState<Profile>(() => newProfile());
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -360,7 +360,7 @@ export function App() {
           )}
         </div>
         <div className="sidebar-bottom">
-          <span className="version">v{version} · Desktop preview</span>
+          <span className="version">v{version} · Windows desktop</span>
           <button onClick={() => setHelp(true)}>
             <CircleHelp size={16} /> Connection guide
           </button>

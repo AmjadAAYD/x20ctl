@@ -11,7 +11,7 @@ import traceback
 from pathlib import Path
 
 
-def exercise(window, directory, result):
+def exercise(window, directory, result, lifecycle=None):
     from PIL import Image, ImageStat
     from x20ctl import __version__
 
@@ -164,6 +164,15 @@ def exercise(window, directory, result):
         time.sleep(0.5)
         assert window.evaluate_js("location.href") == original_url
         report["checks"].append("External navigation blocked in the native renderer")
+        if lifecycle:
+            assert lifecycle["tray"] is not None and lifecycle["tray"].visible
+            window.destroy()
+            time.sleep(0.3)
+            assert not window.native.Visible, "Window close did not hide to tray"
+            lifecycle["show"]()
+            time.sleep(0.3)
+            assert window.native.Visible, "Tray Open did not restore the window"
+            report["checks"].append("Native tray close, hide and restore verified")
         report["passed"] = True
         result["code"] = 0
     except Exception:
@@ -173,4 +182,7 @@ def exercise(window, directory, result):
         (directory / "smoke-report.json").write_text(
             json.dumps(report, indent=2), encoding="utf-8"
         )
-        window.destroy()
+        if lifecycle:
+            lifecycle["quit"]()
+        else:
+            window.destroy()

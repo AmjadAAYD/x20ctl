@@ -1,62 +1,29 @@
-# Security Policy
+# Security
 
-## Reporting a Problem
+Report vulnerabilities privately through this repository's **Security > Report a vulnerability** when available. Avoid posting controller identifiers or pairing information publicly. Response times are not guaranteed for this volunteer project.
 
-Use **Security → Report a vulnerability** on this repository. That opens a private security advisory rather than a public issue.
+## Trust boundaries
 
-This is an open-source project; disclosures will be reviewed, acknowledged, and addressed promptly.
+- Only bundled local UI is loaded in the desktop view. Unexpected navigation is blocked.
+- The native bridge allowlists named operations. There is no shell, arbitrary Python evaluation, raw-packet or caller-selected filesystem-path endpoint.
+- Profile file access uses Windows file dialogs. Imported values are validated in Python before storage or hardware use.
+- Controller operations are serialized on one event loop. Invalid requests and disconnected writes fail closed.
+- The UI reads XInput. It does not inject game input or pretend to measure controller polling frequency.
+- Settings use the recovered KeyLinker configuration protocol. The app has no firmware-flashing workflow. This is not a guarantee that every configuration operation is risk-free.
+- Optional updates query `api.github.com/repos/AmjadAAYD/x20ctl/releases/latest`. No controller telemetry or profiles are sent. Update checks can be disabled.
 
-## Supported Versions
+## Release verification
 
-Only the latest release is actively supported:
+Download only from [this repository's releases](https://github.com/AmjadAAYD/x20ctl/releases). Compare the executable with the checksum file attached to that exact release:
 
-| Version | Supported | Notes |
-|---|---|---|
-| **2.0.0** | :white_check_mark: | Active release (Web & Desktop Suite) |
-| < 2.0.0 | :x: | Legacy Python desktop scripts (deprecated) |
-
----
-
-## Architecture & Hardware Safety
-
-The controller hardware features two completely isolated command interfaces:
-
-| Channel | Mechanism | Hardware Risk | Project Policy |
-|---|---|---|---|
-| **Bootloader** | USB mass storage / SCSI pass-through | **Can permanently brick device** | **NEVER TOUCHED** |
-| **Configuration** | BLE GATT / KeyLinker protocol | Non-destructive & fully recoverable | **The ONLY target** |
-
-There is **zero** code path from this project to the bootloader. The suite strictly utilizes standard Bluetooth Low Energy GATT and the browser-standard Gamepad API. No SCSI commands, no mass-storage flashing, and no low-level firmware flashing are implemented.
-
-Any settings-level modification can be instantly cleared by holding the **`C` button** on the gamepad for 5 seconds to initiate a hardware factory reset.
-
----
-
-## Verifying Release Artifacts
-
-Every published executable and release artifact is cryptographically hashed with SHA-256 and attested via GitHub SLSA Provenance.
-
-To verify your downloaded binary on Windows (PowerShell):
 ```powershell
 Get-FileHash .\x20ctl.exe -Algorithm SHA256
 ```
 
-To verify on Linux / macOS:
-```bash
-sha256sum x20ctl.exe
-```
+The executable is not Authenticode-signed by the project and no GitHub/SLSA attestation is claimed. A checksum verifies integrity against the published artifact, not safety. Treat antivirus findings seriously; do not disable protection based on a generic reassurance.
 
-Expected hash for **2.0.0**:
-```
-a3f9e2b17c80459d8e12b77c590ef4a2c14589d701b2a95c32468f7b99c851de
-```
+The full EXE includes a Microsoft-signed fixed WebView2 runtime as an offline fallback. The normal system runtime is preferred for serviced security updates. Maintainers must refresh the bundled fallback in subsequent releases. Source and build instructions are in the README.
 
-If the SHA-256 hash does not match the published release notes, do not run the executable and report it immediately.
+## Scope of support
 
-You can also run the suite directly from source:
-```bash
-git clone https://github.com/AmjadAAYD/x20ctl.git
-cd x20ctl
-npm install
-npm run dev
-```
+2.0 is the desktop recovery line. 1.2.0 remains available as a rollback. No promise of backported fixes, universal controller compatibility or zero bugs is made. Physical-device acceptance limitations are listed in [validation](docs/desktop-validation.md).

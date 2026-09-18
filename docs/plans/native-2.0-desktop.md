@@ -8,8 +8,8 @@ execution_mode: continuous
 current_checkpoint: CP-03
 checkpoint_status: In Progress
 lifecycle_owner: Plumbline Execute
-last_verified_commit: 4bb2560
-next_safe_action: Finish isolated packaging, bundled runtime and executable acceptance; reconcile documentation and publish only the validated build.
+last_verified_commit: 914fe46
+next_safe_action: Commit and publish the verified source and genuine captures, then rebuild the release artifact with final notices and publish it only after a second executable acceptance pass.
 delegation_roles: Direct - no project-local roles configured
 delegation_status: direct
 ready_for_acceptance: false
@@ -21,7 +21,7 @@ The approved specification controls product behavior. Preserve React's visual di
 
 ## CP-01: Desktop and hardware foundation
 
-Status: Complete. Restored the proven engine and regression baseline. Added a serialized, allowlisted native bridge. Native startup, handshake rejection, persistence, read-back failure and disconnected writes have focused tests. Full suite: 500 passing; isolated desktop tests: 13 passing.
+Status: Complete. Restored the proven engine and regression baseline. Added a serialized, allowlisted native bridge. Native startup, handshake rejection, persistence, read-back failure and disconnected writes have focused tests. Full suite: 501 passing; isolated desktop tests: 14 passing.
 
 ## CP-02: Real configuration and polished UI
 
@@ -29,7 +29,7 @@ Status: Complete. Native configuration/UI wiring, real XInput recording, curves,
 
 ## CP-03: Packaged application and truthful evidence
 
-Status: In Progress. Initial 25.6 MB executable passed native-window smoke. Final build will use a clean, pinned environment and include a Microsoft-signed WebView2 fallback for machines without the runtime. Finish documentation, full executable acceptance, genuine release screenshots and actual artifact hashes before publication.
+Status: In Progress. The 332,108,921-byte self-contained executable passed all 16 native-window acceptance checks with its Microsoft-signed bundled WebView2 fallback forced on. Eight genuine captures from that executable now replace the prototype images. Source publication is ready; rebuild and re-run acceptance after final notice/version metadata before publishing the release artifact.
 
 ## Risk and proof
 

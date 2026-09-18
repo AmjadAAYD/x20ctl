@@ -106,11 +106,6 @@ def _run(args):
 
     def setup():
         nonlocal tray
-        if args.smoke_test:
-            from .smoke import exercise
-
-            exercise(window, args.smoke_test, result)
-            return
         try:
             import pystray
             from PIL import Image
@@ -146,6 +141,9 @@ def _run(args):
             window.events.closing += closing
         except Exception:
             logging.exception("Tray unavailable; window close will exit")
+        if args.smoke_test:
+            from .smoke import exercise
+            exercise(window, args.smoke_test, result, {"tray": tray, "show": show, "quit": quit_app})
 
     try:
         webview.start(setup, gui="edgechromium", debug=False, private_mode=True)

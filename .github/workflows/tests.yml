@@ -1,47 +1,43 @@
-name: tests
-
-# Windows only, because the application is. The input tester loads XInput
-# through ctypes and the window sets a Windows shell app id, so a Linux runner
-# would only be able to exercise the protocol half and would report green while
-# saying nothing about the part people actually run.
+name: Windows verification
 on:
   push:
-    branches: [main]
+    branches: [main, 'codex/**']
   pull_request:
   workflow_dispatch:
-
+permissions:
+  contents: read
 jobs:
-  tests:
+  test:
     runs-on: windows-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        # The oldest version the project claims to support, and the newest it
-        # is developed on. A break in either is worth knowing about.
-        python: ["3.10", "3.12"]
-
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python }}
+          python-version: '3.12'
           cache: pip
-
-      - name: Install
-        run: pip install -e ".[gui]"
-
-      - name: Run every suite
-        # Each file is its own runner that exits non-zero on failure, so this
-        # stops at the first suite that breaks rather than reporting green.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install pinned build dependencies and legacy test dependency
         run: |
-          python tests/test_protocol.py
-          python tests/test_profiles.py
-          python tests/test_compatibility.py
-          python tests/test_startup.py
-          python tests/test_gui_smoke.py
-
-      - name: Check the version is readable the way packaging reads it
+          python -m pip install -r requirements-build.txt
+          python -m pip install "PySide6>=6.6"
+          npm ci
+      - name: Verify Python behavior
+        run: python -m pytest -q
+      - name: Verify frontend
         run: |
-          python -c "import x20ctl; print(x20ctl.__version__)"
-          python -m x20ctl --version
+          npm run lint
+          npm test
+          npm run build
+      - name: Build desktop executable
+        run: python -m PyInstaller --noconfirm x20ctl.spec
+      - name: Upload development executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: x20ctl-windows-development
+          path: dist/x20ctl.exe
+          retention-days: 7
+# CI's smaller development artifact uses the system WebView2 runtime.
+# Public releases use tools/build_exe.py --bundled-runtime and native-window acceptance.

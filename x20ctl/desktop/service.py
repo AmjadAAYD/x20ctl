@@ -146,6 +146,8 @@ class DeviceService:
             raise ValueError("Expected at most 100 profiles")
         for profile in profiles:
             validate_profile(profile)
+        if len({profile["id"] for profile in profiles}) != len(profiles):
+            raise ValueError("Saved setup identifiers must be unique")
         self._directory.mkdir(parents=True, exist_ok=True)
         temporary = self._directory / "profiles.tmp"
         temporary.write_text(json.dumps(profiles, indent=2), encoding="utf-8")

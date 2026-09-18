@@ -1,56 +1,42 @@
-# If Your Controller Isn't Working
+# Connection and recovery guide
 
-Work down this list. Most problems are one of the first three. If none of it helps, the last section tells you how to report what your controller reports.
+## The input tester works, but settings do not
 
----
+Gameplay and configuration are separate. USB or the receiver provides XInput; configuration uses Bluetooth LE. Enable PC Bluetooth, wake the X20 and select **Connect controller**. The separate configuration peripheral is normally named **Xpert2**.
 
-## 1. Bluetooth Is Off, or the Controller Isn't Paired
+Do not use a browser's Bluetooth dialog. This version discovers controllers through the native desktop app.
 
-**Settings travel over Bluetooth Low Energy (BLE), even if you play wired or on the 2.4 GHz receiver.**
-The controller exposes its configuration channel on a separate Bluetooth peripheral (`Xpert2`) from the game input channel. Both can be active at the same time:
+## Nothing appears in the scan
 
-- Make sure Bluetooth is enabled on your computer or device.
-- Pair the controller via Bluetooth if you have never done so.
-- If using the **Web Suite** in Google Chrome or Microsoft Edge, ensure Web Bluetooth is allowed when prompted by the browser.
-- Playing over USB or the 2.4 GHz wireless dongle is completely supported; the live input tester functions over any connection type.
+- Check Windows Bluetooth is enabled and the controller is awake and nearby.
+- Disconnect a phone configuration app that may already hold the BLE connection.
+- Rescan. If Windows reports an adapter error, correct that first.
+- X05 is not compatible with this protocol. See [findings](docs/00-findings.md#7-other-controllers-checked).
 
-## 2. The Controller Has Gone to Sleep
+## The app connects, but a category is unavailable
 
-The controller drops its Bluetooth link after its idle timeout (default 10 minutes). Press any button on the controller to wake it up and reconnect.
+The controller may not expose that category, or its read may have timed out. The app reports the failed read. Reconnect or select **Read controller** before applying. Unread settings are not silently replaced with invented hardware values.
 
-## 3. The Controller Is Connected to Another Device
+## A write failed
 
-If the gamepad was previously paired to your mobile phone or another computer, it may connect there first. Disconnect it or turn off Bluetooth on that device so your computer can claim the link.
+Read-back is checked where supported. A timeout or mismatch means success is not established. Earlier categories may already have applied, so review the status messages and reread the controller. Do not repeatedly reset or write blindly.
 
----
+## The tester shows no input
 
-## 4. Browser Web Bluetooth Permissions (Web Suite)
+Use an XInput-compatible gameplay mode. The app reads the first available Windows XInput slot and labels its player number. A BLE configuration connection alone does not provide gameplay input. Browser/HID-only devices are not automatically XInput-compatible.
 
-When connecting through the Web Suite:
-- Use a browser supporting Web Bluetooth (Chrome, Edge, Opera, Brave).
-- Click **"Scan for Controller"** in the top navigation or introductory scanner.
-- Select your controller (`Xpert2` or `KeyLinker`) in the browser's pairing dialog and click **Pair**.
-- Note: Safari and Firefox currently do not support the Web Bluetooth API standard natively; use Chrome or Edge for BLE configuration.
+## I closed the app, but it is still running
 
-## 5. It Connects, but a Written Setting Doesn't Change
+Window close hides it to the system tray. Choose **Open x20ctl** to return or **Quit** to exit and disconnect. A second launch directs you to the running instance.
 
-Every write in the app validates against the controller's confirmed packet protocol. If a value does not take effect:
-- Check if your controller model exposes that feature (e.g. RGB lighting and gyro are not exposed by the X20 firmware).
-- Check the battery level; low battery can cause the controller to reject configuration writes to conserve power.
+## Startup or saved-profile error
 
----
+Use the full `x20ctl.exe` release download. Give the self-contained executable time to unpack. Source and smaller development builds require WebView2 to be installed separately. Diagnostic logs are in `%LOCALAPPDATA%\x20ctl\desktop.log`.
 
-## 6. How to Report an Issue
+Profiles are in `%APPDATA%\x20ctl\desktop\profiles.json`. If this file is malformed, the app preserves it and blocks overwriting it. Back it up before repairing it. Older profiles are still in `%APPDATA%\x20ctl\profiles` and can be imported.
 
-If you encounter unexpected behavior:
-1. Note your controller model, firmware version, and connection mode.
-2. Note your operating system and browser version (if using the Web Suite).
-3. Open an issue on GitHub:
-   https://github.com/AmjadAAYD/x20ctl/issues
+## Reset and reporting
 
----
+Factory reset is destructive to the controller's settings and requires confirmation. Saved local setups remain. If hardware controls are unusable, consult the manufacturer's instructions for your exact model rather than assuming a universal reset combination.
 
-## Emergency Reset: If Everything Breaks
-
-Hold the **`C` button** on the controller for **5 seconds**.
-This executes an instantaneous hardware factory reset of all configuration settings back to manufacturer defaults. The firmware is never altered, so a factory reset always restores factory behavior.
+For a [bug report](https://github.com/AmjadAAYD/x20ctl/issues), include app version, Windows version, exact controller model, firmware if readable, steps to reproduce and the error shown. Remove addresses, serials and personal paths from logs. State separately whether gameplay input and BLE configuration work.

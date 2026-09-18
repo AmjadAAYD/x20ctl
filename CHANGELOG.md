@@ -1,54 +1,71 @@
 # Changelog
 
-## 2.0.0 — 2026-09-17
+## 2.0.0 - release candidate
 
-A complete architecture overhaul: **x20ctl 2.0.0** transitions the suite from a legacy Python desktop script into a high-performance, cross-platform Web and Progressive Web App suite built with React 18, TypeScript, Tailwind CSS, Vite, the Web Gamepad API, and Web Bluetooth GATT protocol.
+The first native desktop release of the new controller-studio interface.
+Compared with 1.2.0, the primary UI changes while the proven Python protocol
+engine remains. The intervening web/Tkinter prototype is not a shipped
+hardware-capable release.
 
-Download **x20ctl.exe** (packaged desktop runtime) or run instantly in any Web Bluetooth / Gamepad compatible browser with zero installation.
+### Added
 
-### Added (Everything New)
+- Local React interface hosted in a native Windows window with a restricted
+  Python bridge; downloadable self-contained x64 EXE.
+- Button studio with selectable controller illustration, compact assignment
+  panel and dark/light illustration styles.
+- Curve editors for both sticks and triggers, independent deadzones and
+  explicit illustration-only response previews.
+- Macro piano roll, eight-way stick directions, loop intervals and real XInput
+  recording into the M1 draft, using the hardware's 5 ms timing grid.
+- Native JSON setup storage, import/export dialogs, saved-setup deletion and
+  legacy 1.x migration that preserves which categories were actually present.
+- Serialized native device operations, category-scoped writes, read-back
+  verification, visible partial failures and explicit sent/unverified results.
+- Single-instance desktop handling, close-to-tray/Open/Quit, optional quiet
+  GitHub updates and a bundled Microsoft WebView2 fallback for offline startup.
+- Genuine executable-window screenshots and repeatable native UI acceptance.
+- Windows CI, pinned build dependencies, frontend checks and additional tests
+  for bridge validation, persistence, device failures and macro fidelity.
 
-- **Browser-Native Web Suite & Zero-Install Access**: Configure controllers directly in any Chromium-based browser (Chrome, Edge, Opera, Brave) without needing Python, pip, MSVC build tools, or platform-specific drivers.
-- **Interactive SVG Vector Controller Model**: Handcrafted 680x420 interactive visualizer (`src/components/ControllerDiagram.tsx`) featuring real-time button glow effects, animated pulse rings for active selections, click-to-remap on any button, and dynamic theme skinning (Matte Obsidian & Pro Ice White).
-- **Interactive Curve & Deadzone Studio**: Dual 2D stick and trigger curve editors (`src/components/pages/CurvesPage.tsx`) with draggable Hermite Bézier control points, independent inner and outer deadzone sliders, customizable sensitivity gears, real-time stick position tracking crosshairs, and live trigger deflection bars.
-- **Piano-Roll Macro Sequencer**: Visual timeline macro arranger (`src/components/PianoRollModal.tsx`, `src/components/pages/MacrosPage.tsx`) across all 4 rear buttons (M1–M4). Supports per-step hold and gap duration tags (snapped to 5 ms hardware clock intervals), looping repeat intervals, and an 8-way directional stick compass snap dial.
-- **Live Hardware Macro Recorder**: Record complex button combinations and stick movements in real-time from active controller input, capturing millisecond-accurate timing directly into any macro slot.
-- **Hardware Input Diagnostics & Polling Rate Tester**: High-speed input verification suite (`src/components/pages/TesterPage.tsx`) with full digital button matrix, analog trigger depth gauges, circular stick coordinate deflection trails with drift detection, and real-time polling rate frequency meter (up to 1000 Hz).
-- **Multi-Profile Management**: Create, duplicate, rename, delete, and switch between customized controller profiles with persistent local storage and instant JSON profile export/import (`src/data/defaultProfiles.ts`).
-- **Interactive Theme Engine**: Four custom high-contrast color palettes (`src/types/theme.ts`) including **Matte Obsidian** (cyber ember accents), **Midnight Slate**, **Cyberpunk Neon**, and **Retro Ivory**, with instant UI switching.
-- **Introductory Hardware Device Scanner**: BLE and 2.4 GHz dongle discovery interface (`src/components/IntroScanner.tsx`) guiding users through connection pairing, hardware detection, and quick configuration.
-- **Web Bluetooth GATT Protocol Engine**: Full TypeScript protocol serialization and CRC-8 packet builder (`src/protocol/keylinker.ts`) implementing the KeyLinker BLE GATT service (`0000ffe0-0000-1000-8000-00805f9b34fb`).
-- **Real-Time Haptic Feedback**: In-browser dual-rumble motor actuation via Gamepad API vibration actuators with live strength testing (0–100%).
+### Fixed
 
-### Removed (Everything Removed / Deprecated)
+- Restored the Python engine, CLI, hardware tools and regression tests deleted
+  during the prototype rewrite.
+- Macro recording no longer skips adjacent changed inputs or inserts unplayed
+  default pauses. Zero-length pauses no longer consume wire entries.
+- Missing remap replies no longer look like default mappings; strict macro
+  reads distinguish empty slots from missing, corrupt or incomplete replies.
+- Extended macro read assembly to cover the full supported record capacity.
+- Corrected the 47-entry capacity and 5 ms timing validation, including pauses.
+- Preserved unknown curve flags and converted UI percentages through native units.
+- Fixed the native bridge readiness race before initial settings/profile loading.
+- Removed unsupported Capture/Turbo remaps and Select/Start source remapping.
+- Preserved drafts on connection, confirmed replacement of unsent edits, blocked
+  duplicate operations and kept failed categories unsent.
+- Rejected invalid profiles before persistence and preserved malformed stores
+  instead of silently overwriting them.
+- Improved controller/editor layout, readable labels and honest unavailable states.
 
-- **Removed Python 3.10+ and Pip Environment Requirement**: Eliminated the need to maintain local Python virtual environments, pip dependencies (`bleak`, `pyqt5`), or wheel compilation.
-- **Removed Windows-Only `XInput1_4.dll` Binary Dependency**: Input testing no longer relies on native Windows DLLs or C-types calls, enabling full cross-platform support across macOS, Linux, ChromeOS, and Windows.
-- **Removed Heavy PyQt5 Windowing Overhead**: Replaced legacy Qt widget styling with modern Tailwind CSS and hardware-accelerated SVG animations, eliminating sluggish window resizing and UI freeze issues.
-- **Removed Deprecated CLI & Ad-hoc Scripts**: Removed fragmented Python scripts (`app.py`, `x20ctl.bat`, `pyproject.toml`, `x20ctl.spec`, `tools/ble_enum.py`, etc.) in favor of a unified TypeScript codebase with full type safety and modular components.
-- **Removed Modal Dialog Blockers**: Replaced blocking native modal dialogs with smooth, non-intrusive in-app slide-overs and notification toasts.
+### Removed
 
-### Fixed (Everything Fixed)
+- Browser-only hardware configuration and unused, invented TypeScript packets.
+- The separate Tkinter mock backend and fabricated macro recording.
+- Fake polling-rate, latency/packet-loss and success claims.
+- Synthetic marketing screenshots and undocumented preloaded hardware-like data.
+- Invented hashes, nonexistent release links and false signed-attestation claims.
+- Cross-platform/PWA support claims and misleading X05 selection.
+- Unused ZIP/browser-Bluetooth dependencies, obsolete UI modules and stale lockfile.
 
-- **Fixed Cross-Platform Incompatibility**: Mac, Linux, and Chromebook users can now configure their EasySMX X20 controllers seamlessly via Web Bluetooth and the Gamepad API.
-- **Fixed UI Thread Locking During Device Scans**: Scanning no longer freezes the application interface; device enumeration runs asynchronously via Web Bluetooth `navigator.bluetooth.requestDevice`.
-- **Fixed Accessibility & SVG Title Tag Rendering**: Fixed non-standard SVG `title` attribute errors across the controller diagram by embedding semantic `<title>` elements for accessibility and screen reader support.
-- **Fixed TypeScript Remapping Types**: Resolved strict type mismatches in key remap dictionaries and dynamic button state mappings.
-- **Fixed Intermittent Trigger Query Timeouts**: Hardened protocol state handling to gracefully default unread trigger or stick curves rather than crashing the workspace with uncaught runtime errors.
-- **Fixed Text Contrast & Spacing**: Standardized spacing, high-contrast typography, and WCAG AA-compliant colors across all tabs and panels.
+### Verification limits
 
-### Release Artifacts & Attestation
+Software regression tests and native-window tests are required before publication.
+No fresh physical-controller writes, macro replay or reset were tested with the
+controller powered off. Intermediate battery levels and exact firmware curve
+interpolation remain uncertain. X05 remains unsupported. The executable is
+unsigned. Release hashes are generated from the actual final artifact, never
+prewritten into documentation.
 
-| Asset | Format | Size | SHA-256 Checksum |
-|---|---|---|---|
-| **x20ctl.exe** | Windows Standalone Executable (v2.0.0) | ~64 MB | `a3f9e2b17c80459d8e12b77c590ef4a2c14589d701b2a95c32468f7b99c851de` |
-| **Source code (zip)** | Source Archive (.zip) | — | `f4b8902ac7815e967a33cd426d0ef0a91176b940026e637a1f5926c483a992e8` |
-| **Source code (tar.gz)** | Source Archive (.tar.gz) | — | `e7c89f1345d90928f21901a084c56e29789431bf3a5d84e2079017bb4116ac87` |
-| **Release Attestation** | GitHub Attestation (SLSA Provenance) | Signed | `Verified & Attested by AmjadAAYD` |
-
----
-
-## 1.2.0 — 2026-08-22
+## 1.2.0 - 2026-08-22
 
 Adds a quiet update check at launch, and rules out the EasySMX X05 as a
 KeyLinker device.
@@ -78,7 +95,7 @@ Download **x20ctl.exe** and run it. No install, no Python needed.
   eight-second timeout on the UI thread, which would have frozen the window at
   launch on a slow network.
 
-## 1.1.2 — 2026-08-16
+## 1.1.2 - 2026-08-16
 
 A read-everything bug hunt over the whole codebase.
 
@@ -108,7 +125,7 @@ Download **x20ctl.exe** and run it. No install, no Python needed.
 - `transport.py` already documented the 2.4 GHz receiver as transparent, which
   independently confirms this release's dongle correction.
 
-## 1.1.1 — 2026-08-16
+## 1.1.1 - 2026-08-16
 
 Download **x20ctl.exe** and run it. No install, no Python needed.
 
@@ -119,7 +136,7 @@ Download **x20ctl.exe** and run it. No install, no Python needed.
   Quit is on its right-click menu.
 - The first time the window hides, the tray says where it went.
 
-## 1.1.0 — 2026-08-16
+## 1.1.0 - 2026-08-16
 
 Acts on the first round of user feedback against 1.0.1.
 
@@ -167,7 +184,7 @@ Download **x20ctl.exe** and run it. No install, no Python needed.
   replays them as existing buttons.
 - The 2.4 GHz receiver carries no configuration channel.
 
-## 1.0.1 — 2026-08-16
+## 1.0.1 - 2026-08-16
 
 First stable release. Verified on two EasySMX X20 controllers.
 
