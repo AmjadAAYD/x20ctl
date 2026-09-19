@@ -1,446 +1,365 @@
-import React, { useState } from "react";
+import { useState } from "react";
+import { Check, Layers3, ListMusic, Plus, Trash2 } from "lucide-react";
 import {
   MacroStep,
-  KeyName,
   StickDirection,
   STICK_DIRECTION_NAMES,
-  KEY_LABELS,
 } from "../../types/gamepad";
-import { Plus, Trash2, Music, CheckCircle2, Sliders } from "lucide-react";
-import { PianoRollModal } from "../PianoRollModal";
+import {
+  PianoRollModal,
+  MACRO_BUTTONS,
+  STICK_OPTIONS,
+  StepInspector,
+  createMacroStep,
+  countWireEntries,
+  shortKeyLabel,
+} from "../PianoRollModal";
+import "../metal-macros.css";
 
+type Paddle = "M1" | "M2" | "M3" | "M4";
 interface MacrosPageProps {
-  loops: Record<"M1" | "M2" | "M3" | "M4", number>;
-  onUpdateLoop: (paddle: "M1" | "M2" | "M3" | "M4", value: number) => void;
-  macros: {
-    M1: MacroStep[];
-    M2: MacroStep[];
-    M3: MacroStep[];
-    M4: MacroStep[];
-  };
-  onUpdateMacros: (
-    paddle: "M1" | "M2" | "M3" | "M4",
-    steps: MacroStep[],
-  ) => void;
-  onClearMacro: (paddle: "M1" | "M2" | "M3" | "M4") => void;
+  loops: Record<Paddle, number>;
+  onUpdateLoop: (paddle: Paddle, value: number) => void;
+  macros: Record<Paddle, MacroStep[]>;
+  onUpdateMacros: (paddle: Paddle, steps: MacroStep[]) => void;
+  onClearMacro: (paddle: Paddle) => void;
 }
+const PADDLES: Paddle[] = ["M1", "M2", "M3", "M4"];
 
-const PADDLES: Array<"M1" | "M2" | "M3" | "M4"> = ["M1", "M2", "M3", "M4"];
-
-const TOGGLEABLE_BUTTONS: KeyName[] = [
-  "A",
-  "B",
-  "X",
-  "Y",
-  "LB",
-  "RB",
-  "LT",
-  "RT",
-  "L3",
-  "R3",
-  "DPAD_UP",
-  "DPAD_DOWN",
-  "DPAD_LEFT",
-  "DPAD_RIGHT",
-];
-
-// Interactive 8-way directional dial component
-const StickDirectionDial: React.FC<{
-  value: StickDirection;
-  onChange: (dir: StickDirection) => void;
-  label: string;
-}> = ({ value, onChange, label }) => {
-  const directions = [
-    { dir: StickDirection.UP, angle: 0, x: 25, y: 5 },
-    { dir: StickDirection.UP_RIGHT, angle: 45, x: 39, y: 11 },
-    { dir: StickDirection.RIGHT, angle: 90, x: 45, y: 25 },
-    { dir: StickDirection.DOWN_RIGHT, angle: 135, x: 39, y: 39 },
-    { dir: StickDirection.DOWN, angle: 180, x: 25, y: 45 },
-    { dir: StickDirection.DOWN_LEFT, angle: 225, x: 11, y: 39 },
-    { dir: StickDirection.LEFT, angle: 270, x: 5, y: 25 },
-    { dir: StickDirection.UP_LEFT, angle: 315, x: 11, y: 11 },
-  ];
-
-  return (
-    <div className="flex flex-col items-center gap-1">
-      <span className="text-[10px] text-[#A79C92]">{label}</span>
-      <div className="relative w-[52px] h-[52px] rounded-full bg-[#131110] border border-[#332C29] p-1 flex items-center justify-center">
-        {/* Neutral center */}
-        <button
-          type="button"
-          onClick={() => onChange(StickDirection.NEUTRAL)}
-          title="Neutral"
-          className={`w-3.5 h-3.5 rounded-full z-10 transition-colors ${
-            value === StickDirection.NEUTRAL
-              ? "bg-[#FF8A5B] shadow-[0_0_6px_rgba(255,138,91,0.5)]"
-              : "bg-[#241F1D] hover:bg-[#453B36]"
-          }`}
-        />
-
-        {/* 8 direction dots */}
-        {directions.map((d) => {
-          const isSelected = value === d.dir;
-          return (
-            <button
-              key={d.dir}
-              type="button"
-              onClick={() => onChange(d.dir)}
-              title={STICK_DIRECTION_NAMES[d.dir]}
-              style={{ left: `${d.x - 4}px`, top: `${d.y - 4}px` }}
-              className={`absolute w-2.5 h-2.5 rounded-full transition-all ${
-                isSelected
-                  ? "bg-[#FF8A5B] scale-125 shadow-[0_0_6px_rgba(255,138,91,0.6)]"
-                  : "bg-[#332C29] hover:bg-[#A79C92]"
-              }`}
-            />
-          );
-        })}
-      </div>
-      <span className="text-[10px] text-[#D6CEC6] font-mono h-3.5">
-        {STICK_DIRECTION_NAMES[value]}
-      </span>
-    </div>
-  );
-};
-
-export const MacrosPage: React.FC<MacrosPageProps> = ({
+export function MacrosPage({
   loops,
   onUpdateLoop,
   macros,
   onUpdateMacros,
   onClearMacro,
-}) => {
-  const [selectedPaddle, setSelectedPaddle] = useState<
-    "M1" | "M2" | "M3" | "M4"
-  >("M1");
-  const [isPianoRollOpen, setIsPianoRollOpen] = useState<boolean>(false);
-  const [savedBanner, setSavedBanner] = useState<boolean>(false);
+}: MacrosPageProps) {
+  const [paddle, setPaddle] = useState<Paddle>("M1");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [pianoOpen, setPianoOpen] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
+  const steps = macros[paddle] || [];
+  const selected = steps.find((step) => step.id === selectedId) ?? steps[0];
+  const entries = countWireEntries(steps);
+  const totalMs = steps.reduce(
+    (sum, step) => sum + step.durationMs + step.intervalMs,
+    0,
+  );
 
-  const currentSteps = macros[selectedPaddle] || [];
-
-  const handleAddStep = () => {
-    const newStep: MacroStep = {
-      id: Math.random().toString(36).substring(2, 9),
-      buttons: ["A"],
-      leftStick: StickDirection.NEUTRAL,
-      rightStick: StickDirection.NEUTRAL,
-      durationMs: 40,
-      intervalMs: 20,
-    };
-    onUpdateMacros(selectedPaddle, [...currentSteps, newStep]);
-  };
-
-  const handleUpdateStep = (stepId: string, updates: Partial<MacroStep>) => {
-    const updated = currentSteps.map((s) =>
-      s.id === stepId ? { ...s, ...updates } : s,
+  function update(next: MacroStep[]) {
+    if (countWireEntries(next) > 47) {
+      setError(
+        "This sequence is full. Remove a step or pause before adding another.",
+      );
+      return;
+    }
+    setError("");
+    setNotice("");
+    onUpdateMacros(paddle, next);
+  }
+  function updateStep(id: string, patch: Partial<MacroStep>) {
+    update(
+      steps.map((step) => (step.id === id ? { ...step, ...patch } : step)),
     );
-    onUpdateMacros(selectedPaddle, updated);
-  };
-
-  const handleDeleteStep = (stepId: string) => {
-    const updated = currentSteps.filter((s) => s.id !== stepId);
-    onUpdateMacros(selectedPaddle, updated);
-  };
-
-  const toggleButtonInStep = (stepId: string, btn: KeyName) => {
-    const step = currentSteps.find((s) => s.id === stepId);
-    if (!step) return;
-    const exists = step.buttons.includes(btn);
-    const newButtons = exists
-      ? step.buttons.filter((b) => b !== btn)
-      : [...step.buttons, btn];
-    handleUpdateStep(stepId, { buttons: newButtons });
-  };
-
-  const handleSaveFromPianoRoll = (updatedSteps: MacroStep[]) => {
-    onUpdateMacros(selectedPaddle, updatedSteps);
-    setSavedBanner(true);
-    setTimeout(() => setSavedBanner(false), 2500);
-  };
+  }
+  function addStep() {
+    if (entries >= 47) return;
+    const step = createMacroStep(entries === 46 ? 0 : 20);
+    update([...steps, step]);
+    setSelectedId(step.id);
+  }
+  const columns = steps.length
+    ? steps
+    : Array.from({ length: 8 }, (_, index) => ({ id: `empty-${index}` }));
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto select-none">
-      {/* Header text */}
-      <div className="flex items-center justify-between pb-4 border-b border-[#332C29]">
+    <section className="macro-studio" aria-label="Paddle macro studio">
+      <header className="macro-heading">
         <div>
-          <h2 className="text-base font-bold text-[#F4F0EB]">
-            Rear Paddle Macros & Combos
-          </h2>
-          <p className="text-xs text-[#A79C92] mt-0.5">
-            Configure step sequences for M1, M2, M3, and M4 with 5 ms timing, or
-            launch the interactive Piano-Roll editor.
+          <span className="macro-eyebrow">PADDLE AUTOMATION / M1–M4</span>
+          <h2>Macro studio</h2>
+          <p>
+            Build a sequence, adjust its timing, then apply your draft to the
+            controller.
           </p>
         </div>
-
-        {/* Record & Clear Actions */}
-        <div className="flex items-center gap-2">
-          {currentSteps.length > 0 && (
+        <div className="macro-heading-stat">
+          <span>Timing resolution</span>
+          <strong>
+            5 <small>ms</small>
+          </strong>
+        </div>
+      </header>
+      <div className="macro-console-bar">
+        <div className="macro-paddles" role="group" aria-label="Macro paddle">
+          {PADDLES.map((slot) => (
             <button
-              onClick={() => onClearMacro(selectedPaddle)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-[#241F1D] hover:bg-[#2C2624] text-[#A79C92] hover:text-[#E5645E] border border-[#332C29] transition-colors"
+              key={slot}
+              className={`macro-paddle ${paddle === slot ? "is-selected" : ""}`}
+              aria-pressed={paddle === slot}
+              onClick={() => {
+                setPaddle(slot);
+                setSelectedId(null);
+                setError("");
+                setNotice("");
+              }}
             >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>Clear Slot</span>
+              <strong>{slot}</strong>
+              <span>{macros[slot]?.length ?? 0} steps</span>
+              <i aria-hidden="true" />
             </button>
+          ))}
+        </div>
+        <div className="macro-slot-summary">
+          <Layers3 size={21} />
+          <div>
+            <strong>{paddle} sequence</strong>
+            <span>
+              {steps.length
+                ? `${steps.length} steps · ${totalMs.toLocaleString()} ms`
+                : "Empty draft"}
+            </span>
+          </div>
+        </div>
+        <label className="macro-loop">
+          <span>Loop interval</span>
+          <div>
+            <input
+              aria-label="Macro loop interval"
+              type="number"
+              min={0}
+              max={20475}
+              step={5}
+              value={loops[paddle]}
+              onChange={(event) =>
+                onUpdateLoop(
+                  paddle,
+                  Math.min(
+                    20475,
+                    Math.max(0, Math.round(Number(event.target.value) / 5) * 5),
+                  ),
+                )
+              }
+            />
+            <span>ms</span>
+          </div>
+          <small>0 = run once</small>
+        </label>
+      </div>
+      {notice && (
+        <p className="macro-notice" role="status">
+          <Check size={15} />
+          {notice}
+        </p>
+      )}
+      {error && (
+        <p className="macro-error" role="alert">
+          {error}
+        </p>
+      )}
+      <section className="sequencer-panel">
+        <header className="sequencer-heading">
+          <div>
+            <ListMusic size={17} />
+            <strong>Step sequencer</strong>
+            <span>{entries} / 47 entries</span>
+          </div>
+          <div className="macro-actions">
+            <button className="macro-button" onClick={() => setPianoOpen(true)}>
+              <ListMusic size={15} />
+              Edit in Piano Roll
+            </button>
+            <button
+              className="macro-button macro-button-primary"
+              onClick={addStep}
+              disabled={entries >= 47}
+            >
+              <Plus size={15} />
+              Add Step
+            </button>
+          </div>
+        </header>
+        <div
+          className="sequencer-scroll"
+          tabIndex={0}
+          aria-label="Macro step matrix"
+        >
+          <table className="sequencer-matrix">
+            <thead>
+              <tr>
+                <th scope="col" className="sequencer-label">
+                  Input / step
+                </th>
+                {columns.map((step, index) => (
+                  <th key={step.id} scope="col">
+                    <button
+                      className={`sequencer-step-heading ${selected?.id === step.id ? "is-selected" : ""}`}
+                      disabled={!steps.length}
+                      onClick={() => setSelectedId(step.id)}
+                    >
+                      <strong>Step {String(index + 1).padStart(2, "0")}</strong>
+                      <span>
+                        {"durationMs" in step ? `${step.durationMs} ms` : "—"}
+                      </span>
+                    </button>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {(["leftStick", "rightStick"] as const).map((stick) => (
+                <tr key={stick}>
+                  <th scope="row" className="sequencer-label">
+                    <span className="sequencer-input-dot" />
+                    {stick === "leftStick" ? "Left stick" : "Right stick"}
+                  </th>
+                  {steps.length
+                    ? steps.map((step, index) => (
+                        <td
+                          key={step.id}
+                          className={
+                            selected?.id === step.id ? "is-selected-column" : ""
+                          }
+                        >
+                          <select
+                            className={`sequencer-stick ${step[stick] !== StickDirection.NEUTRAL ? "is-active" : ""}`}
+                            aria-label={`${stick === "leftStick" ? "Left" : "Right"} stick, step ${index + 1}`}
+                            value={step[stick]}
+                            onFocus={() => setSelectedId(step.id)}
+                            onChange={(event) =>
+                              updateStep(step.id, {
+                                [stick]: Number(event.target.value),
+                              })
+                            }
+                          >
+                            {STICK_OPTIONS.map((direction) => (
+                              <option key={direction} value={direction}>
+                                {STICK_DIRECTION_NAMES[direction]}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                      ))
+                    : columns.map((step) => (
+                        <td key={step.id}>
+                          <div className="sequencer-empty-cell" />
+                        </td>
+                      ))}
+                </tr>
+              ))}
+              {MACRO_BUTTONS.map((key) => (
+                <tr key={key}>
+                  <th scope="row" className="sequencer-label">
+                    <span className="sequencer-input-dot" />
+                    {shortKeyLabel(key)}
+                  </th>
+                  {steps.length
+                    ? steps.map((step, index) => (
+                        <td
+                          key={step.id}
+                          className={
+                            selected?.id === step.id ? "is-selected-column" : ""
+                          }
+                        >
+                          <button
+                            className={`sequencer-cell ${step.buttons.includes(key) ? "is-active" : ""}`}
+                            aria-label={`${shortKeyLabel(key)}, step ${index + 1}`}
+                            aria-pressed={step.buttons.includes(key)}
+                            onClick={() => {
+                              setSelectedId(step.id);
+                              updateStep(step.id, {
+                                buttons: step.buttons.includes(key)
+                                  ? step.buttons.filter(
+                                      (button) => button !== key,
+                                    )
+                                  : [...step.buttons, key],
+                              });
+                            }}
+                          >
+                            {step.buttons.includes(key) ? (
+                              shortKeyLabel(key)
+                            ) : (
+                              <span aria-hidden="true">·</span>
+                            )}
+                          </button>
+                        </td>
+                      ))
+                    : columns.map((step) => (
+                        <td key={step.id}>
+                          <div className="sequencer-empty-cell" />
+                        </td>
+                      ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {!steps.length && (
+            <div className="sequencer-empty">
+              <ListMusic size={28} />
+              <h3>Start your {paddle} sequence</h3>
+              <p>Add a step to choose buttons and stick directions.</p>
+              <button
+                className="macro-button macro-button-primary"
+                onClick={addStep}
+              >
+                <Plus size={15} />
+                Create first step
+              </button>
+            </div>
           )}
         </div>
-      </div>
-
-      {/* Success Banner when saved from Piano Roll */}
-      {savedBanner && (
-        <div className="p-3 rounded-xl bg-[#86C08A]/15 border border-[#86C08A]/30 text-xs text-[#86C08A] flex items-center gap-2 animate-fade-in font-medium">
-          <CheckCircle2 className="w-4 h-4" />
+        <footer className="sequencer-footer">
           <span>
-            Piano Roll changes successfully compiled into {selectedPaddle}{" "}
-            draft. Select Apply changes to send it.
+            <i />
+            {steps.length
+              ? "Click a cell to toggle its input"
+              : "No sequence in this draft"}
           </span>
-        </div>
+          <span>Eight-way sticks · Digital triggers · 5 ms timing</span>
+        </footer>
+      </section>
+      {selected && (
+        <StepInspector
+          step={selected}
+          index={steps.findIndex((step) => step.id === selected.id)}
+          onUpdate={(patch) => updateStep(selected.id, patch)}
+          onDelete={() =>
+            update(steps.filter((step) => step.id !== selected.id))
+          }
+        />
       )}
-
-      {/* Paddle Selector Tabs */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-        {PADDLES.map((paddle) => {
-          const isSelected = selectedPaddle === paddle;
-          const stepCount = (macros[paddle] || []).length;
-
-          return (
-            <button
-              key={paddle}
-              onClick={() => setSelectedPaddle(paddle)}
-              className={`p-3.5 rounded-xl border text-left transition-all ${
-                isSelected
-                  ? "bg-[#241F1D] border-[#FF8A5B] shadow-md shadow-[#FF8A5B]/10"
-                  : "bg-[#1B1817] border-[#332C29] hover:border-[#4A3F3B]"
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-black text-[#F4F0EB]">
-                  {paddle}
-                </span>
-                <span
-                  className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-bold ${
-                    stepCount > 0
-                      ? "bg-[#FF8A5B]/20 text-[#FF8A5B]"
-                      : "bg-[#131110] text-[#A79C92]"
-                  }`}
-                >
-                  {stepCount} {stepCount === 1 ? "step" : "steps"}
-                </span>
-              </div>
-              <p className="text-[11px] text-[#A79C92] mt-1">
-                {paddle === "M1" || paddle === "M3"
-                  ? "Left rear paddle"
-                  : "Right rear paddle"}
-              </p>
-            </button>
-          );
-        })}
+      <div className="macro-bottom">
+        <p>
+          A hold uses one entry. A nonzero pause uses another. Changes stay in
+          your draft until you select Apply changes.
+        </p>
+        <button
+          className="macro-button"
+          disabled={!steps.length}
+          onClick={() => {
+            onClearMacro(paddle);
+            setNotice("");
+            setError("");
+          }}
+        >
+          <Trash2 size={14} />
+          Clear Slot
+        </button>
       </div>
-
-      {/* Piano-Roll / Steps Sequence */}
-      <label className="flex items-center gap-3 text-xs text-[#A79C92]">
-        Loop interval (0 = run once)
-        <input
-          aria-label="Macro loop interval"
-          type="number"
-          min="0"
-          max="20475"
-          step="5"
-          value={loops[selectedPaddle]}
-          onChange={(e) => onUpdateLoop(selectedPaddle, Number(e.target.value))}
-          className="bg-[#241F1D] border border-[#332C29] rounded-md p-2 w-24"
-        />{" "}
-        ms
-      </label>
-      <div className="p-5 rounded-2xl bg-[#1B1817] border border-[#332C29] space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#332C29]">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-bold text-[#F4F0EB]">
-                {selectedPaddle} Step Sequence
-              </span>
-              <span className="text-[11px] text-[#A79C92]">
-                (
-                {currentSteps.reduce(
-                  (n, s) => n + 1 + (s.intervalMs > 0 ? 1 : 0),
-                  0,
-                )}{" "}
-                of 47 wire entries)
-              </span>
-            </div>
-            <p className="text-xs text-[#A79C92] mt-0.5">
-              Click &ldquo;Edit in Piano Roll&rdquo; to visually adjust hold
-              times and notes on a timeline.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {/* Direct Edit in Piano Roll Button */}
-            <button
-              onClick={() => setIsPianoRollOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-[#FF8A5B] hover:bg-[#E77445] text-[#131110] font-bold transition-all shadow-sm"
-              title="Open Piano Roll Visual Sequencer"
-            >
-              <Music className="w-3.5 h-3.5" />
-              <span>🎹 Edit in Piano Roll</span>
-            </button>
-
-            <button
-              onClick={handleAddStep}
-              disabled={
-                currentSteps.reduce(
-                  (n, s) => n + 1 + (s.intervalMs > 0 ? 1 : 0),
-                  0,
-                ) > 45
-              }
-              className="flex items-center gap-1 px-3 py-1.5 text-xs rounded-lg bg-[#241F1D] hover:bg-[#2C2624] text-[#D6CEC6] font-semibold border border-[#332C29] transition-colors disabled:opacity-50"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Add Step</span>
-            </button>
-          </div>
-        </div>
-
-        {currentSteps.length === 0 ? (
-          <div className="py-14 text-center text-xs text-[#A79C92] bg-[#141211] rounded-xl border border-dashed border-[#332C29] space-y-2">
-            <Music className="w-8 h-8 text-[#A79C92]/50 mx-auto" />
-            <p className="font-semibold text-[#D6CEC6]">
-              No sequence in this draft for {selectedPaddle}.
-            </p>
-            <p className="text-[11px] text-[#A79C92]">
-              Click &ldquo;Edit in Piano Roll&rdquo; or &ldquo;Add Step&rdquo;
-              to program your custom combo.
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {currentSteps.map((step, idx) => (
-              <div
-                key={step.id}
-                className="p-4 rounded-xl bg-[#141211] border border-[#332C29] flex flex-col md:flex-row items-start md:items-center justify-between gap-4 transition-all hover:border-[#4A3F3B]"
-              >
-                {/* Step Index & Sticks */}
-                <div className="flex items-center gap-4 shrink-0">
-                  <div className="w-8 h-8 rounded-lg bg-[#241F1D] border border-[#332C29] flex items-center justify-center text-xs font-mono font-black text-[#FF8A5B]">
-                    #{idx + 1}
-                  </div>
-
-                  {/* Left Stick Direction */}
-                  <StickDirectionDial
-                    label="Left Stick"
-                    value={step.leftStick}
-                    onChange={(dir) =>
-                      handleUpdateStep(step.id, { leftStick: dir })
-                    }
-                  />
-
-                  {/* Right Stick Direction */}
-                  <StickDirectionDial
-                    label="Right Stick"
-                    value={step.rightStick}
-                    onChange={(dir) =>
-                      handleUpdateStep(step.id, { rightStick: dir })
-                    }
-                  />
-                </div>
-
-                {/* Buttons in step */}
-                <div className="flex-1 min-w-[200px]">
-                  <span className="text-[10px] text-[#A79C92] block mb-1.5 font-medium">
-                    Gamepad buttons active in this step:
-                  </span>
-                  <div className="flex flex-wrap gap-1">
-                    {TOGGLEABLE_BUTTONS.map((btn) => {
-                      const active = step.buttons.includes(btn);
-                      return (
-                        <button
-                          key={btn}
-                          type="button"
-                          onClick={() => toggleButtonInStep(step.id, btn)}
-                          className={`px-2 py-0.5 rounded text-[10px] font-mono transition-all border ${
-                            active
-                              ? "bg-[#FF8A5B] text-[#131110] border-[#FF8A5B] font-bold"
-                              : "bg-[#1B1817] text-[#A79C92] border-[#332C29] hover:text-[#F4F0EB]"
-                          }`}
-                        >
-                          {KEY_LABELS[btn]}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Timing controls, Edit in Piano Roll, & Delete */}
-                <div className="flex items-center gap-3 shrink-0">
-                  <div className="text-right">
-                    <span className="text-[10px] text-[#A79C92] block">
-                      Hold (ms)
-                    </span>
-                    <input
-                      type="number"
-                      min="5"
-                      max="1000"
-                      step="5"
-                      value={step.durationMs}
-                      onChange={(e) =>
-                        handleUpdateStep(step.id, {
-                          durationMs: parseInt(e.target.value) || 20,
-                        })
-                      }
-                      className="w-16 bg-[#241F1D] border border-[#332C29] text-xs font-mono text-[#F4F0EB] rounded-md px-1.5 py-1 text-center outline-none focus:border-[#FF8A5B]"
-                    />
-                  </div>
-
-                  <div className="text-right">
-                    <span className="text-[10px] text-[#A79C92] block">
-                      Pause (ms)
-                    </span>
-                    <input
-                      type="number"
-                      min="0"
-                      max="1000"
-                      step="5"
-                      value={step.intervalMs}
-                      onChange={(e) =>
-                        handleUpdateStep(step.id, {
-                          intervalMs: parseInt(e.target.value) || 0,
-                        })
-                      }
-                      className="w-16 bg-[#241F1D] border border-[#332C29] text-xs font-mono text-[#F4F0EB] rounded-md px-1.5 py-1 text-center outline-none focus:border-[#FF8A5B]"
-                    />
-                  </div>
-
-                  {/* Step-specific Edit Button to launch Piano Roll */}
-                  <button
-                    onClick={() => setIsPianoRollOpen(true)}
-                    title="Edit in Piano Roll"
-                    className="p-2 rounded-lg bg-[#241F1D] hover:bg-[#2C2624] text-[#FF8A5B] border border-[#332C29] transition-colors"
-                  >
-                    <Sliders className="w-3.5 h-3.5" />
-                  </button>
-
-                  <button
-                    onClick={() => handleDeleteStep(step.id)}
-                    title="Remove Step"
-                    className="p-2 rounded-lg text-[#A79C92] hover:text-[#E5645E] hover:bg-[#241F1D] transition-colors"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Piano Roll Modal */}
-      <PianoRollModal
-        isOpen={isPianoRollOpen}
-        onClose={() => setIsPianoRollOpen(false)}
-        paddle={selectedPaddle}
-        steps={currentSteps}
-        onSaveSteps={handleSaveFromPianoRoll}
-      />
-    </div>
+      {pianoOpen && (
+        <PianoRollModal
+          isOpen={pianoOpen}
+          onClose={() => setPianoOpen(false)}
+          paddle={paddle}
+          steps={steps}
+          onSaveSteps={(updated) => {
+            update(updated);
+            setNotice(
+              `Timeline changes saved to the ${paddle} draft. Apply changes when ready.`,
+            );
+          }}
+        />
+      )}
+    </section>
   );
-};
+}

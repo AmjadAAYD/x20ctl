@@ -31,13 +31,14 @@ Playing over USB does not establish the configuration link. Enable your PC's Blu
 
 ## Inside the app
 
-- **Button studio:** selectable controller illustration, per-button assignments and dark/light illustration styles. Select and Start are destinations only; unsupported Capture/Turbo mappings are not offered.
+- **Metallic desktop studio:** graphite and brushed-steel surfaces, illuminated cyan selections, horizontal workspace tabs and a persistent read/apply strip. Every screen and in-app dialog uses the new interface.
+- **Button studio:** interactive metallic controller illustration and per-button assignment inspector. Select and Start are destinations only; unsupported Capture/Turbo mappings are not offered.
 - **Response curves:** independent left/right stick and trigger control points, deadzones and presets. Curve lines are illustrations through stored points, not measurements of unknown firmware interpolation.
 - **Paddle macros:** M1 to M4, button chords, eight-way stick directions, per-step timing, loop intervals and a piano-roll editor. Timing follows the controller's 5 ms grid; the limit is 47 wire entries, including pauses.
 - **Real recording:** records XInput buttons and left-stick directions into the M1 draft. Review before applying. Recording is not fabricated, and overflow/disconnection is an error rather than silent truncation.
 - **Vibration and power:** stored motor strength and idle shutdown timer. No pretend rumble test.
 - **Input tester:** actual Windows XInput states. No invented polling rate, packet loss or latency measurement.
-- **Saved setups:** native local storage, JSON import/export, legacy 1.x profile migration, rename and delete. Importing a partial legacy setup does not overwrite categories it never contained.
+- **Saved setups:** dedicated local library, JSON import/export, legacy 1.x profile migration, rename and confirmed deletion. Importing a partial legacy setup does not overwrite categories it never contained.
 - **Desktop behavior:** single instance, close-to-tray, Open/Quit tray actions and optional quiet GitHub update checks.
 
 Offline edits are **drafts**, not controller values. **Apply changes** writes only edited categories. Successful read-back is reported as verified; commands without reliable confirmation are labeled sent. A partial failure retains the remaining draft and reports what succeeded.
@@ -54,6 +55,10 @@ These are captures of the running packaged desktop app's native WebView2 surface
 |---|---|
 | ![XInput tester](assets/screenshots/desktop/tester.png) | ![Power settings](assets/screenshots/desktop/power.png) |
 
+| Vibration console | Saved setup library |
+|---|---|
+| ![Vibration controls](assets/screenshots/desktop/vibration.png) | ![Saved setups](assets/screenshots/desktop/profiles.png) |
+
 Capture method and verification scope: [desktop validation](docs/desktop-validation.md).
 
 ## Local first
@@ -66,11 +71,11 @@ The embedded Microsoft WebView2 component has its own diagnostic/security behavi
 
 The React interface is bundled inside the EXE and talks to a restricted Python API. It is **not a hosted website or PWA**. Native BLE and XInput access stay in Python. The embedded view cannot navigate to arbitrary remote content.
 
-## What changed from 1.2.0?
+## What changed in 3.0.0?
 
-The verified Python protocol engine, CLI, hardware findings and regression suites are retained. The primary interface is now a new local React desktop studio with a native bridge. The intervening browser prototype and Tkinter mock were removed, along with fabricated recording, unsupported telemetry, synthetic marketing screenshots, fake checksums and false attestation claims.
+The verified Python protocol engine, CLI, hardware findings and regression suites are retained. Version 3.0.0 replaces the entire studio interface with a metallic-grey local React desktop studio and native bridge. The intervening browser prototype and Tkinter mock were removed, along with fabricated recording, unsupported telemetry, synthetic marketing screenshots, fake checksums and false attestation claims.
 
-Version 2.0 has software and executable acceptance tests. The 2.0.1 follow-up was also tested with a live Xpert2 controller on firmware 9.01: full settings reads, a timer write/read-back/restore, live XInput changes and saving the connected setup passed. Macro playback and every individual control have not been verified. See the [hardware test record](docs/desktop-validation.md#live-controller-follow-up-201). Version [1.2.0](https://github.com/AmjadAAYD/x20ctl/releases/tag/v1.2.0) remains available as a rollback.
+Version 3.0.0 passed source regression and a packaged native-window acceptance run covering 23 checks. The 2.0.1 follow-up was also tested with a live Xpert2 controller on firmware 9.01: full settings reads, a timer write/read-back/restore, live XInput changes and saving the connected setup passed. Macro playback and every individual control have not been verified. See the [hardware test record](docs/desktop-validation.md#live-controller-follow-up-201). Version [1.2.0](https://github.com/AmjadAAYD/x20ctl/releases/tag/v1.2.0) remains available as a rollback.
 
 ## Run from source
 

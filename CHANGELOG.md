@@ -1,5 +1,52 @@
 # Changelog
 
+## 3.0.0 - 2026-09-19
+
+### Added
+
+- Added the metallic-grey studio shell with horizontal navigation, cyan state
+  lighting, silver bevels and persistent read/apply controls.
+- Added the saved-setup library, redesigned connection discovery, curve guide,
+  help surfaces and themed confirmation dialogs.
+- Added focus trapping, Escape handling and focus restoration for native dialogs.
+- Added a 23-check native-window acceptance suite covering all seven pages,
+  minimum-window layouts, persistence, cancellation and tray behavior.
+
+### Changed
+
+- Replaced the complete studio UI with metallic grey panels, silver bevels,
+  cyan selections, horizontal navigation and persistent read/apply controls.
+- Rebuilt the interactive controller drawing and button assignment inspector.
+- Replaced stick and trigger curve editors, deadzone controls and live meters.
+- Rebuilt M1-M4 macro sequencing and the piano-roll editor while preserving
+  hardware limits, button chords, directional sticks and 5 ms timing.
+- Redesigned vibration controls, battery/device information and auto-sleep.
+- Rebuilt the input tester using actual XInput button, trigger and stick values.
+
+### Fixed
+
+- Unavailable gameplay input is explicitly distinct from a connected neutral
+  reading throughout the redesigned instruments.
+- In-app confirmation dialogs preserve the metallic theme, contain keyboard
+  focus, support Escape, and restore focus to the triggering control.
+- Expanded desktop acceptance to all seven pages, minimum-window layouts,
+  setup replacement/deletion cancellation and saved-setup reload.
+- Corrected the smoke harness to edit values inside the active dialog instead of
+  accidentally targeting same-named controls behind the modal.
+
+### Preserved
+
+- Native Windows EXE packaging, BLE configuration, XInput, local setup files,
+  category-scoped writes and read-back, tray behavior and optional updates.
+- No invented hardware polling rate, latency, temperature, battery percentage,
+  motor frequency or power-consumption displays. Battery remains four bars.
+- The 2.0.1 firmware empty-macro-slot fix and previous controller compatibility.
+
+### Removed
+
+- Four unused synthetic JPG interface mockups left under `src/assets/images`.
+  Product screenshots now come only from the running desktop application.
+
 ## 2.0.1 - 2026-09-18
 
 ### Fixed

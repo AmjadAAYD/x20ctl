@@ -1,157 +1,135 @@
-import React from "react";
+import { useId } from "react";
+import { Gauge } from "lucide-react";
+import "./metal-curves.css";
 
 interface LiveTriggerModuleProps {
-  label: string; // "Left Trigger (LT)" | "Right Trigger (RT)"
-  value: number; // 0.0 to 1.0
+  label: string;
+  value: number;
   hairTrigger: boolean;
   className?: string;
+  connected?: boolean;
 }
 
-export const LiveTriggerModule: React.FC<LiveTriggerModuleProps> = ({
+export function LiveTriggerModule({
   label,
   value,
   hairTrigger,
   className = "",
-}) => {
-  const percent = Math.round(value * 100);
-  const strokeDash = value * 180;
-
-  // Visual trigger compression rotation angle (0 to 22 degrees)
-  const rotAngle = value * 22;
-
+  connected,
+}: LiveTriggerModuleProps) {
+  const id = useId().replace(/:/g, "");
+  const travel = Math.max(0, Math.min(1, value));
   return (
-    <div
-      className={`p-4 rounded-xl bg-[#141211] border border-[#332C29] flex flex-col items-center select-none ${className}`}
+    <section
+      className={`instrument-module ${className}`}
+      aria-label={`${label} live input`}
     >
-      <div className="w-full flex items-center justify-between text-xs mb-3">
-        <span className="font-bold text-[#F4F0EB]">
-          {label} Live Hardware View
+      <header className="curve-panel-heading">
+        <span>
+          <Gauge size={15} />
+          {label}
         </span>
         <span
-          className={`font-mono text-[11px] px-2 py-0.5 rounded border ${
-            hairTrigger
-              ? "bg-[#FF8A5B]/15 text-[#FF8A5B] border-[#FF8A5B]/30"
-              : "bg-[#241F1D] text-[#86C08A] border-[#332C29]"
-          }`}
+          className={`curve-tag ${connected === false ? "" : "instrument-ready"}`}
         >
-          {hairTrigger ? "Hair-Trigger Active" : "Linear Hall-Effect"}
+          {connected === false ? "No XInput" : "XInput"}
         </span>
-      </div>
-
-      {/* 3D Trigger Visualizer */}
-      <div className="w-48 h-48 relative flex items-center justify-center">
-        <svg viewBox="0 0 160 160" className="w-full h-full">
+      </header>
+      <div className="instrument-trigger-layout">
+        <svg
+          className="instrument-trigger"
+          viewBox="0 0 180 170"
+          role="img"
+          aria-label={
+            connected === false
+              ? "No live controller input"
+              : `Trigger travel ${Math.round(travel * 100)} percent`
+          }
+        >
           <defs>
-            <linearGradient id="paddleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#434A57" />
-              <stop offset="50%" stopColor="#2A2F38" />
-              <stop offset="100%" stopColor="#1B1E24" />
-            </linearGradient>
-
-            <linearGradient id="gaugeGrad" x1="0%" y1="100%" x2="0%" y2="0%">
-              <stop offset="0%" stopColor="#86C08A" />
-              <stop offset="60%" stopColor="#FFB020" />
-              <stop offset="100%" stopColor="#FF8A5B" />
+            <linearGradient id={id} x1="0" y1="0" x2="1" y2="1">
+              <stop stopColor="#a0a9b0" />
+              <stop offset=".25" stopColor="#525c65" />
+              <stop offset=".75" stopColor="#242c33" />
+              <stop offset="1" stopColor="#515b63" />
             </linearGradient>
           </defs>
-
-          {/* Trigger Mount Chassis Hinge */}
-          <rect
-            x="25"
-            y="20"
-            width="110"
-            height="24"
-            rx="6"
-            fill="#1C1F26"
-            stroke="#332C29"
-            strokeWidth="2"
-          />
-          <circle
-            cx="80"
-            cy="32"
-            r="6"
-            fill="#4B5362"
-            stroke="#242831"
-            strokeWidth="2"
-          />
-          <circle cx="80" cy="32" r="2.5" fill="#8A92A0" />
-
-          {/* Curved Travel Gauge Arc */}
-          <path
-            d="M 30 135 A 65 65 0 0 1 130 135"
-            fill="none"
-            stroke="#241F1D"
-            strokeWidth="10"
-            strokeLinecap="round"
-          />
-          <path
-            d="M 30 135 A 65 65 0 0 1 130 135"
-            fill="none"
-            stroke="url(#gaugeGrad)"
-            strokeWidth="8"
-            strokeLinecap="round"
-            strokeDasharray="180"
-            strokeDashoffset={180 - strokeDash}
-            className="transition-all duration-75"
-          />
-
-          {/* Mechanical Trigger Paddle (Rotates on hinge based on pull value) */}
-          <g
-            transform={`rotate(${rotAngle}, 80, 32)`}
-            className="transition-transform duration-75"
-          >
-            {/* Paddle Body */}
+          <path d="M25 34 H98 V48 H25 Z" fill="#313a42" stroke="#75838d" />
+          <circle cx="61" cy="40" r="8" fill="#0e141a" stroke="#919ca4" />
+          <circle cx="61" cy="40" r="3" fill="#77838c" />
+          <g transform={`rotate(${travel * 18} 61 40)`}>
             <path
-              d="
-                M 56 32
-                C 56 32, 50 80, 52 110
-                C 54 125, 70 132, 80 132
-                C 90 132, 106 125, 108 110
-                C 110 80, 104 32, 104 32
-                Z
-              "
-              fill="url(#paddleGrad)"
-              stroke={value > 0.05 ? "#FF8A5B" : "#4F5868"}
-              strokeWidth="2.5"
+              d="M40 44 H82 L96 106 Q98 129 83 141 Q69 149 52 141 L43 124 Z"
+              fill={`url(#${id})`}
+              stroke={
+                connected !== false && travel > 0.05 ? "#64dce4" : "#8b969f"
+              }
+              strokeWidth="1.5"
             />
-            {/* Grip rib notches */}
-            <line
-              x1="62"
-              y1="80"
-              x2="98"
-              y2="80"
-              stroke="#16181D"
-              strokeWidth="2"
-            />
-            <line
-              x1="64"
-              y1="92"
-              x2="96"
-              y2="92"
-              stroke="#16181D"
-              strokeWidth="2"
-            />
-            <line
-              x1="66"
-              y1="104"
-              x2="94"
-              y2="104"
-              stroke="#16181D"
-              strokeWidth="2"
-            />
+            {[83, 93, 103, 113].map((position) => (
+              <line
+                key={position}
+                x1="52"
+                y1={position}
+                x2="81"
+                y2={position + 2}
+                stroke="#151d24"
+                strokeWidth="2"
+              />
+            ))}
           </g>
+          <rect
+            x="132"
+            y="25"
+            width="17"
+            height="126"
+            rx="7"
+            fill="#0c1115"
+            stroke="#56616b"
+          />
+          {connected !== false && (
+            <rect
+              x="135"
+              y={148 - travel * 120}
+              width="11"
+              height={travel * 120}
+              rx="4"
+              fill="#64dce4"
+            />
+          )}
+          {[0, 25, 50, 75, 100].map((tick) => (
+            <g key={tick}>
+              <line
+                x1="153"
+                x2="157"
+                y1={148 - tick * 1.2}
+                y2={148 - tick * 1.2}
+                stroke="#66747f"
+              />
+              <text x="161" y={151 - tick * 1.2} fill="#94a1aa" fontSize="7">
+                {tick}
+              </text>
+            </g>
+          ))}
         </svg>
-
-        {/* Live % Badge in Center */}
-        <div className="absolute bottom-2 font-mono text-base font-black text-[#F4F0EB] flex items-baseline gap-1">
-          <span>{percent}</span>
-          <span className="text-[10px] text-[#A79C92]">% Travel</span>
+        <div className="instrument-readout-stack">
+          <div>
+            <span>Trigger travel</span>
+            <strong>
+              {connected === false ? "--" : Math.round(travel * 100)}
+              <small>%</small>
+            </strong>
+          </div>
+          <span className="curve-tag">
+            {hairTrigger ? "Instant draft" : "Analog input"}
+          </span>
+          <p>
+            {connected === false
+              ? "Connect a Windows gamepad to view its input."
+              : "Windows trigger position"}
+          </p>
         </div>
       </div>
-
-      <p className="text-[10px] text-[#A79C92] mt-3">
-        Read-only XInput trigger state
-      </p>
-    </div>
+    </section>
   );
-};
+}

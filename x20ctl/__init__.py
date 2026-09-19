@@ -7,4 +7,4 @@ read is a number that goes stale. Packaging reads it back out of this module.
 
 from __future__ import annotations
 
-__version__ = "2.0.1"
+__version__ = "3.0.0"

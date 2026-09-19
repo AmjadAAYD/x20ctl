@@ -1,202 +1,159 @@
-import React from "react";
+import { useId } from "react";
+import { Crosshair } from "lucide-react";
+import "./metal-curves.css";
 
 interface LiveStickModuleProps {
   label: string;
-  x: number; // -1.0 to 1.0
-  y: number; // -1.0 to 1.0
-  innerDeadzonePercent: number; // e.g. 5
-  outerDeadzonePercent: number; // e.g. 95
+  x: number;
+  y: number;
+  innerDeadzonePercent: number;
+  outerDeadzonePercent: number;
   className?: string;
+  connected?: boolean;
 }
 
-export const LiveStickModule: React.FC<LiveStickModuleProps> = ({
+export function LiveStickModule({
   label,
   x,
   y,
   innerDeadzonePercent,
   outerDeadzonePercent,
   className = "",
-}) => {
-  // SVG radius is 80px (well radius = 70px)
-  const wellRadius = 60;
-  const maxDeflection = 40;
-
-  const stickPxX = x * maxDeflection;
-  const stickPxY = y * maxDeflection;
-
-  const magnitude = Math.min(1, Math.sqrt(x * x + y * y));
-  const innerDeadzoneRadius = (innerDeadzonePercent / 100) * wellRadius;
-  const outerDeadzoneRadius = (outerDeadzonePercent / 100) * wellRadius;
-
+  connected,
+}: LiveStickModuleProps) {
+  const id = useId().replace(/:/g, "");
+  const radius = 68;
+  const magnitude = Math.min(1, Math.hypot(x, y));
+  const clamp = (value: number) => Math.max(-1, Math.min(1, value));
   return (
-    <div
-      className={`p-4 rounded-xl bg-[#141211] border border-[#332C29] flex flex-col items-center select-none ${className}`}
+    <section
+      className={`instrument-module ${className}`}
+      aria-label={`${label} live input`}
     >
-      <div className="w-full flex items-center justify-between text-xs mb-3">
-        <span className="font-bold text-[#F4F0EB]">
-          {label} Live Hardware View
+      <header className="curve-panel-heading">
+        <span>
+          <Crosshair size={15} />
+          {label}
         </span>
-        <span className="font-mono text-[11px] text-[#FF8A5B] bg-[#241F1D] px-2 py-0.5 rounded border border-[#332C29]">
-          Mag: {Math.round(magnitude * 100)}%
+        <span
+          className={`curve-tag ${connected === false ? "" : "instrument-ready"}`}
+        >
+          {connected === false ? "No XInput" : "XInput"}
         </span>
-      </div>
-
-      {/* High Detail Interactive SVG */}
-      <div className="relative w-48 h-48 flex items-center justify-center">
-        <svg viewBox="-80 -80 160 160" className="w-full h-full">
+      </header>
+      <div className="instrument-stick-layout">
+        <svg
+          className="instrument-stick"
+          viewBox="-84 -84 168 168"
+          role="img"
+          aria-label={
+            connected === false
+              ? "No live controller input"
+              : `Stick coordinates X ${x.toFixed(3)}, Y ${y.toFixed(3)}`
+          }
+        >
           <defs>
-            <radialGradient id="knurlCollar" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="#8A92A0" />
-              <stop offset="50%" stopColor="#D5D9E0" />
-              <stop offset="85%" stopColor="#555D6C" />
-              <stop offset="100%" stopColor="#2E333D" />
-            </radialGradient>
-            <radialGradient id="thumbCapGrad" cx="40%" cy="40%" r="60%">
-              <stop offset="0%" stopColor="#555C69" />
-              <stop offset="70%" stopColor="#242831" />
-              <stop offset="100%" stopColor="#14161C" />
-            </radialGradient>
+            <linearGradient id={id} x1="0" y1="0" x2="1" y2="1">
+              <stop stopColor="#d4dadd" />
+              <stop offset=".35" stopColor="#606971" />
+              <stop offset=".65" stopColor="#272d33" />
+              <stop offset="1" stopColor="#b2bdc5" />
+            </linearGradient>
           </defs>
-
-          {/* Outer Housing Well */}
           <circle
-            cx="0"
-            cy="0"
-            r={wellRadius + 10}
-            fill="#181A20"
-            stroke="#332C29"
+            r="77"
+            fill={`url(#${id})`}
+            stroke="#070a0d"
             strokeWidth="2"
           />
-
-          {/* Knurled Tension Ring Gear */}
+          <circle r="72" fill="#12171c" stroke="#070a0d" strokeWidth="2" />
+          {[0.25, 0.5, 0.75, 1].map((scale) => (
+            <circle
+              key={scale}
+              r={radius * scale}
+              fill="none"
+              stroke="#35414a"
+              strokeWidth=".7"
+            />
+          ))}
+          {[0, 45, 90, 135].map((angle) => (
+            <line
+              key={angle}
+              x1={-radius}
+              x2={radius}
+              stroke="#35414a"
+              strokeWidth=".7"
+              transform={`rotate(${angle})`}
+            />
+          ))}
           <circle
-            cx="0"
-            cy="0"
-            r={wellRadius + 4}
-            fill="url(#knurlCollar)"
-            stroke="#4A5260"
-            strokeWidth="1"
+            r={(Math.max(0, innerDeadzonePercent) / 100) * radius}
+            fill="#b9c4cb"
+            fillOpacity=".15"
+            stroke="#7b8790"
+            strokeWidth=".8"
+            strokeDasharray="2 2"
           />
           <circle
-            cx="0"
-            cy="0"
-            r={wellRadius}
-            fill="#121418"
-            stroke="#30353E"
-            strokeWidth="3"
+            r={(Math.max(0, outerDeadzonePercent) / 100) * radius}
+            fill="none"
+            stroke="#64dce4"
+            strokeOpacity=".55"
+            strokeWidth="1"
             strokeDasharray="3 3"
           />
-
-          {/* Crosshair guide lines */}
-          <line
-            x1={-wellRadius}
-            y1="0"
-            x2={wellRadius}
-            y2="0"
-            stroke="#2D3340"
-            strokeWidth="1"
-            strokeDasharray="2 2"
-          />
-          <line
-            x1="0"
-            y1={-wellRadius}
-            x2="0"
-            y2={wellRadius}
-            stroke="#2D3340"
-            strokeWidth="1"
-            strokeDasharray="2 2"
-          />
-
-          {/* Outer Deadzone Ring (Sprint boundary) */}
-          <circle
-            cx="0"
-            cy="0"
-            r={outerDeadzoneRadius}
-            fill="none"
-            stroke="#86C08A"
-            strokeWidth="1.2"
-            strokeDasharray="4 3"
-            opacity="0.6"
-          />
-
-          {/* Inner Deadzone Ring (Drift zone) */}
-          <circle
-            cx="0"
-            cy="0"
-            r={innerDeadzoneRadius}
-            fill="#FF8A5B"
-            fillOpacity="0.15"
-            stroke="#FF8A5B"
-            strokeWidth="1.2"
-            strokeDasharray="2 2"
-          />
-
-          {/* Deflection Vector Line */}
-          <line
-            x1="0"
-            y1="0"
-            x2={stickPxX}
-            y2={stickPxY}
-            stroke="#FF8A5B"
-            strokeWidth="2"
-            strokeLinecap="round"
-          />
-
-          {/* Thumbstick Cap (Moves instantly with 1:1 deflection) */}
-          <g transform={`translate(${stickPxX}, ${stickPxY})`}>
-            {/* Rubber Cap Body */}
-            <circle
-              cx="0"
-              cy="0"
-              r="30"
-              fill="url(#thumbCapGrad)"
-              stroke="#FF8A5B"
-              strokeWidth="2"
-            />
-            <circle
-              cx="0"
-              cy="0"
-              r="24"
-              fill="none"
-              stroke="#484F5D"
-              strokeWidth="1.5"
-            />
-            <circle
-              cx="0"
-              cy="0"
-              r="16"
-              fill="#1C1E24"
-              stroke="#121418"
-              strokeWidth="1"
-            />
-
-            {/* EasySMX Brand Mark */}
-            <text
-              x="0"
-              y="3"
-              fill="#B4BAC6"
-              fontSize="7"
-              fontWeight="bold"
-              textAnchor="middle"
-            >
-              EasySMX
-            </text>
-            <circle cx="0" cy="0" r="2.5" fill="#FF8A5B" />
-          </g>
+          {connected !== false && (
+            <g>
+              <line
+                x1="0"
+                y1="0"
+                x2={clamp(x) * radius}
+                y2={clamp(y) * radius}
+                stroke="#64dce4"
+                strokeWidth="1.5"
+              />
+              <circle
+                cx={clamp(x) * radius}
+                cy={clamp(y) * radius}
+                r="6"
+                fill="#d4ffff"
+                stroke="#1d727c"
+                strokeWidth="2"
+              />
+            </g>
+          )}
+          <text x="0" y="-59" textAnchor="middle" fill="#788791" fontSize="6">
+            Y
+          </text>
+          <text x="61" y="3" fill="#788791" fontSize="6">
+            X
+          </text>
         </svg>
-      </div>
-
-      {/* Coordinate & Deadzone Readout */}
-      <div className="w-full mt-3 grid grid-cols-2 gap-2 text-[11px] font-mono text-[#A79C92] pt-2 border-t border-[#332C29]">
-        <div className="flex justify-between">
-          <span>X-Axis:</span>
-          <span className="text-[#F4F0EB] font-bold">{x.toFixed(3)}</span>
+        <div className="instrument-readout-stack">
+          <div>
+            <span>Deflection</span>
+            <strong>
+              {connected === false ? "--" : Math.round(magnitude * 100)}
+              <small>%</small>
+            </strong>
+          </div>
+          <dl>
+            <div>
+              <dt>X axis</dt>
+              <dd>{connected === false ? "--" : x.toFixed(3)}</dd>
+            </div>
+            <div>
+              <dt>Y axis</dt>
+              <dd>{connected === false ? "--" : y.toFixed(3)}</dd>
+            </div>
+          </dl>
+          <p>
+            {connected === false
+              ? "Connect a Windows gamepad to view its input."
+              : "Windows stick position"}
+          </p>
         </div>
-        <div className="flex justify-between">
-          <span>Y-Axis:</span>
-          <span className="text-[#F4F0EB] font-bold">{y.toFixed(3)}</span>
-        </div>
       </div>
-    </div>
+    </section>
   );
-};
+}
