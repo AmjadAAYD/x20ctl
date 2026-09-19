@@ -8,7 +8,7 @@ Lifecycle owner: Plumbline Execute. The existing user-approved design and this
 work order control the task. The user authorized implementation, verification,
 commits, pushes and release publication without repeated permission prompts.
 
-Current checkpoint: packaged verification, in progress. All UI work is integrated.
+Current checkpoint: complete and published as v3.0.0. All UI work is integrated.
 Code review found no actionable logic regressions. Native source acceptance
 passed 23 checks, with 14 real captures and both normal/minimum page layouts.
 Expanded checks protect remap changes, macro chords, both stick directions,
@@ -18,10 +18,11 @@ corrected to target the active dialog, not its background editor.
 All 503 Python regressions, 170 focused native tests, two frontend curve tests,
 TypeScript and formatting checks passed. The current run has no BLE/XInput
 device; Windows Bluetooth discovery reports the adapter is not ready. This is
-an observed environment limit, not fresh hardware proof. Next action: verify
-the bundled 3.0.0 EXE, replace repository screenshots with its direct captures,
-reconcile validation notes and publish. Final commit is deferred until the
-complete result is verified, as the user requested.
+an observed environment limit, not fresh hardware proof. The bundled
+`dist/x20ctl.exe` exited with code 0 and passed all 23 packaged checks. Its
+3.0.0 screenshots are tracked under `assets/screenshots/desktop`, the
+validation notes and changelog are reconciled, and GitHub `main`, tag `v3.0.0`
+and the release assets are published.
 
 ## Visual specification
 
