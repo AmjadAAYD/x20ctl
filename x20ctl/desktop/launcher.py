@@ -77,7 +77,7 @@ def _run(args):
         width=1400,
         height=940,
         min_size=(1060, 760),
-        background_color="#131110",
+        background_color="#101215",
     )
     api._window = window
     webview.settings["ALLOW_DOWNLOADS"] = False

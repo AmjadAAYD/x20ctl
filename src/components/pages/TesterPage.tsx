@@ -1,301 +1,331 @@
-import React from "react";
+import {
+  Activity,
+  Crosshair,
+  Gamepad2,
+  Radio,
+  SlidersHorizontal,
+} from "lucide-react";
 import { LiveGamepadState, KEY_LABELS, KeyName } from "../../types/gamepad";
-import { Activity, Gauge, Zap } from "lucide-react";
+import "../metal-controls.css";
 
 interface TesterPageProps {
   liveState: LiveGamepadState;
+  inputConnected?: boolean;
+  inputSlot?: number | null;
 }
+const TEST_KEYS: KeyName[] = [
+  "LB",
+  "RB",
+  "DPAD_UP",
+  "Y",
+  "DPAD_LEFT",
+  "DPAD_RIGHT",
+  "X",
+  "B",
+  "DPAD_DOWN",
+  "A",
+  "L3",
+  "R3",
+  "SELECT",
+  "START",
+];
+const KEY_SYMBOLS: Partial<Record<KeyName, string>> = {
+  DPAD_UP: "↑",
+  DPAD_DOWN: "↓",
+  DPAD_LEFT: "←",
+  DPAD_RIGHT: "→",
+  SELECT: "BACK",
+};
 
-export const TesterPage: React.FC<TesterPageProps> = ({ liveState }) => {
-  const stickBoxSize = 160;
-  const stickRadius = 60;
-  const center = stickBoxSize / 2;
-
+function StickRadar({
+  label,
+  value,
+  trail,
+  pressed,
+  connected,
+}: {
+  label: string;
+  value: { x: number; y: number };
+  trail: Array<{ x: number; y: number }>;
+  pressed: boolean;
+  connected: boolean;
+}) {
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
-      {/* Header with Hardware rate unavailable */}
-      <div className="flex items-center justify-between pb-4 border-b border-[#332C29]">
-        <div>
-          <h2 className="text-base font-semibold text-[#F4F0EB]">
-            Live Input Tester
-          </h2>
-          <p className="text-xs text-[#A79C92] mt-0.5">
-            Samples buttons, analog sticks with 2D history trails, triggers, and
-            native XInput state.
-          </p>
-        </div>
-
-        <span className="text-xs text-[#A79C92]">
-          XInput states · hardware polling rate not measured
+    <div className="tester-stick-module">
+      <header>
+        <h3>{label}</h3>
+        <span
+          className={`tester-click-indicator ${connected && pressed ? "is-on" : ""}`}
+        >
+          {connected ? (pressed ? "CLICKED" : "RELEASED") : "NO SIGNAL"}
         </span>
-      </div>
-
-      {/* Main Tester Visualizer Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Left Stick Visualizer */}
-        <div className="p-5 rounded-xl bg-[#1B1817] border border-[#332C29] flex flex-col items-center">
-          <div className="w-full flex items-center justify-between mb-3 text-xs">
-            <span className="font-semibold text-[#F4F0EB]">
-              Left Stick (LS)
-            </span>
-            <span className="font-mono text-[#A79C92]">
-              X: {liveState.leftStick.x.toFixed(3)} | Y:{" "}
-              {liveState.leftStick.y.toFixed(3)}
-            </span>
-          </div>
-
-          <div className="relative">
-            <svg
-              width={stickBoxSize}
-              height={stickBoxSize}
-              className="bg-[#131110] rounded-full border border-[#332C29]"
-            >
-              {/* Center crosshairs */}
-              <line
-                x1={center}
-                y1={10}
-                x2={center}
-                y2={stickBoxSize - 10}
-                stroke="#241F1D"
-                strokeWidth="1"
-              />
-              <line
-                x1={10}
-                y1={center}
-                x2={stickBoxSize - 10}
-                y2={center}
-                stroke="#241F1D"
-                strokeWidth="1"
-              />
-              <circle
-                cx={center}
-                cy={center}
-                r={stickRadius}
-                fill="none"
-                stroke="#241F1D"
-                strokeWidth="1"
-              />
-              <circle
-                cx={center}
-                cy={center}
-                r={stickRadius * 0.5}
-                fill="none"
-                stroke="#241F1D"
-                strokeWidth="1"
-                strokeDasharray="2 2"
-              />
-
-              {/* Trail */}
-              {liveState.trail.left.map((pt, i) => (
-                <circle
-                  key={i}
-                  cx={center + pt.x * stickRadius}
-                  cy={center + pt.y * stickRadius}
-                  r="2"
-                  fill="#FF8A5B"
-                  fillOpacity={((i + 1) / liveState.trail.left.length) * 0.4}
-                />
-              ))}
-
-              {/* Current stick position */}
-              <circle
-                cx={center + liveState.leftStick.x * stickRadius}
-                cy={center + liveState.leftStick.y * stickRadius}
-                r="10"
-                fill={liveState.buttons.L3 ? "#FF8A5B" : "#241F1D"}
-                stroke={liveState.buttons.L3 ? "#171310" : "#FF8A5B"}
-                strokeWidth="2"
-              />
-            </svg>
-          </div>
-
-          <div className="mt-3 flex items-center gap-2">
-            <span
-              className={`text-[10px] px-2 py-0.5 rounded font-mono border ${
-                liveState.buttons.L3
-                  ? "bg-[#FF8A5B] text-[#171310] border-[#FF8A5B] font-bold"
-                  : "bg-[#131110] text-[#A79C92] border-[#332C29]"
-              }`}
-            >
-              L3 Stick Click
-            </span>
-          </div>
-        </div>
-
-        {/* Right Stick Visualizer */}
-        <div className="p-5 rounded-xl bg-[#1B1817] border border-[#332C29] flex flex-col items-center">
-          <div className="w-full flex items-center justify-between mb-3 text-xs">
-            <span className="font-semibold text-[#F4F0EB]">
-              Right Stick (RS)
-            </span>
-            <span className="font-mono text-[#A79C92]">
-              X: {liveState.rightStick.x.toFixed(3)} | Y:{" "}
-              {liveState.rightStick.y.toFixed(3)}
-            </span>
-          </div>
-
-          <div className="relative">
-            <svg
-              width={stickBoxSize}
-              height={stickBoxSize}
-              className="bg-[#131110] rounded-full border border-[#332C29]"
-            >
-              {/* Center crosshairs */}
-              <line
-                x1={center}
-                y1={10}
-                x2={center}
-                y2={stickBoxSize - 10}
-                stroke="#241F1D"
-                strokeWidth="1"
-              />
-              <line
-                x1={10}
-                y1={center}
-                x2={stickBoxSize - 10}
-                y2={center}
-                stroke="#241F1D"
-                strokeWidth="1"
-              />
-              <circle
-                cx={center}
-                cy={center}
-                r={stickRadius}
-                fill="none"
-                stroke="#241F1D"
-                strokeWidth="1"
-              />
-              <circle
-                cx={center}
-                cy={center}
-                r={stickRadius * 0.5}
-                fill="none"
-                stroke="#241F1D"
-                strokeWidth="1"
-                strokeDasharray="2 2"
-              />
-
-              {/* Trail */}
-              {liveState.trail.right.map((pt, i) => (
-                <circle
-                  key={i}
-                  cx={center + pt.x * stickRadius}
-                  cy={center + pt.y * stickRadius}
-                  r="2"
-                  fill="#FF8A5B"
-                  fillOpacity={((i + 1) / liveState.trail.right.length) * 0.4}
-                />
-              ))}
-
-              {/* Current stick position */}
-              <circle
-                cx={center + liveState.rightStick.x * stickRadius}
-                cy={center + liveState.rightStick.y * stickRadius}
-                r="10"
-                fill={liveState.buttons.R3 ? "#FF8A5B" : "#241F1D"}
-                stroke={liveState.buttons.R3 ? "#171310" : "#FF8A5B"}
-                strokeWidth="2"
-              />
-            </svg>
-          </div>
-
-          <div className="mt-3 flex items-center gap-2">
-            <span
-              className={`text-[10px] px-2 py-0.5 rounded font-mono border ${
-                liveState.buttons.R3
-                  ? "bg-[#FF8A5B] text-[#171310] border-[#FF8A5B] font-bold"
-                  : "bg-[#131110] text-[#A79C92] border-[#332C29]"
-              }`}
-            >
-              R3 Stick Click
-            </span>
-          </div>
-        </div>
-
-        {/* Analog Triggers Travel */}
-        <div className="md:col-span-2 p-5 rounded-xl bg-[#1B1817] border border-[#332C29] space-y-4">
-          <span className="text-xs font-semibold text-[#F4F0EB] block">
-            Analog Triggers Travel
-          </span>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-            {/* Left Trigger */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-[#D6CEC6]">
-                  LT (Left Trigger)
-                </span>
-                <span className="font-mono text-[#FF8A5B] font-bold">
-                  {(liveState.leftTrigger * 100).toFixed(1)}%
-                </span>
-              </div>
-              <div className="h-4 rounded-full bg-[#131110] border border-[#332C29] overflow-hidden p-0.5">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-[#FF8A5B] to-[#FF8A5B] transition-all duration-75"
-                  style={{
-                    width: `${Math.min(100, liveState.leftTrigger * 100)}%`,
-                  }}
-                />
-              </div>
-            </div>
-
-            {/* Right Trigger */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-[#D6CEC6]">
-                  RT (Right Trigger)
-                </span>
-                <span className="font-mono text-[#FF8A5B] font-bold">
-                  {(liveState.rightTrigger * 100).toFixed(1)}%
-                </span>
-              </div>
-              <div className="h-4 rounded-full bg-[#131110] border border-[#332C29] overflow-hidden p-0.5">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-[#FF8A5B] to-[#FF8A5B] transition-all duration-75"
-                  style={{
-                    width: `${Math.min(100, liveState.rightTrigger * 100)}%`,
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Buttons State Matrix */}
-        <div className="md:col-span-2 p-5 rounded-xl bg-[#1B1817] border border-[#332C29] space-y-3">
-          <span className="text-xs font-semibold text-[#F4F0EB] block">
-            Button Press Matrix
-          </span>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2">
-            {(Object.keys(liveState.buttons) as KeyName[]).map((btnKey) => {
-              const pressed = liveState.buttons[btnKey];
-              return (
-                <button
-                  key={btnKey}
-                  type="button"
-                  className={`p-2.5 rounded-lg border text-xs flex items-center justify-between font-mono transition-all ${
-                    pressed
-                      ? "bg-[#FF8A5B] text-[#171310] border-[#FF8A5B] font-bold shadow-[0_0_10px_rgba(255,138,91,0.4)]"
-                      : "bg-[#131110] text-[#D6CEC6] border-[#332C29] hover:border-[#453B36]"
-                  }`}
-                >
-                  <span className="truncate">{KEY_LABELS[btnKey]}</span>
-                  <div
-                    className={`w-2 h-2 rounded-full ${
-                      pressed ? "bg-[#171310]" : "bg-[#241F1D]"
-                    }`}
-                  />
-                </button>
-              );
-            })}
-          </div>
-          <p className="text-[11px] text-[#A79C92] pt-1">
-            Press buttons on your connected gamepad to verify response. The
-            tester reads native XInput; it does not measure USB polling rate.
-          </p>
-        </div>
+      </header>
+      <svg
+        viewBox="0 0 250 250"
+        role="img"
+        aria-label={`${label}: ${connected ? `X ${value.x.toFixed(3)}, Y ${value.y.toFixed(3)}` : "unavailable"}`}
+        className="tester-stick-radar"
+      >
+        <circle cx="125" cy="125" r="113" className="tester-radar-rim" />
+        <circle cx="125" cy="125" r="106" className="tester-radar-well" />
+        {[25, 50, 75, 100].map((r) => (
+          <circle
+            key={r}
+            cx="125"
+            cy="125"
+            r={r}
+            fill="none"
+            className="tester-radar-ring"
+          />
+        ))}
+        <path
+          d="M25 125H225M125 25V225M54.3 54.3 195.7 195.7M54.3 195.7 195.7 54.3"
+          className="tester-radar-crosshair"
+        />
+        <text x="125" y="20" textAnchor="middle">
+          Y
+        </text>
+        <text x="235" y="129" textAnchor="middle">
+          X
+        </text>
+        {connected &&
+          trail.map((point, index) => (
+            <circle
+              key={index}
+              cx={125 + point.x * 100}
+              cy={125 + point.y * 100}
+              r="2.3"
+              fill="var(--accent, #64dce4)"
+              opacity={((index + 1) / trail.length) * 0.45}
+            />
+          ))}
+        {connected && (
+          <g>
+            <line
+              x1="125"
+              y1="125"
+              x2={125 + value.x * 100}
+              y2={125 + value.y * 100}
+              className="tester-radar-vector"
+            />
+            <circle
+              cx={125 + value.x * 100}
+              cy={125 + value.y * 100}
+              r={pressed ? 8 : 6}
+              className="tester-radar-cursor"
+            />
+          </g>
+        )}
+        {!connected && (
+          <text
+            x="125"
+            y="130"
+            textAnchor="middle"
+            className="tester-radar-offline"
+          >
+            WAITING FOR INPUT
+          </text>
+        )}
+      </svg>
+      <div className="tester-coordinate-strip">
+        <span>
+          X <strong>{connected ? value.x.toFixed(3) : "—"}</strong>
+        </span>
+        <span>
+          Y <strong>{connected ? value.y.toFixed(3) : "—"}</strong>
+        </span>
+        <span>
+          TRAVEL{" "}
+          <strong>
+            {connected
+              ? `${Math.round(Math.min(1, Math.hypot(value.x, value.y)) * 100)}%`
+              : "—"}
+          </strong>
+        </span>
       </div>
     </div>
   );
-};
+}
+
+export function TesterPage({
+  liveState,
+  inputConnected = false,
+  inputSlot,
+}: TesterPageProps) {
+  const pressed = TEST_KEYS.filter(
+    (key) => inputConnected && liveState.buttons[key],
+  );
+  return (
+    <div className="tester-console">
+      <section className="tester-signal-bar">
+        <div>
+          <Radio size={18} />
+          <span>
+            XINPUT SIGNAL
+            <strong>
+              {inputConnected
+                ? `Player ${(inputSlot ?? 0) + 1} detected`
+                : "Waiting for a gamepad"}
+            </strong>
+          </span>
+        </div>
+        <span className={`mapping-status ${inputConnected ? "is-live" : ""}`}>
+          <i />
+          {inputConnected ? "LIVE" : "NO SIGNAL"}
+        </span>
+        <p>
+          {inputConnected
+            ? "Move the sticks, squeeze the triggers and press a button."
+            : "Connect your controller to Windows by USB, receiver or a supported XInput mode."}
+        </p>
+      </section>
+      <div className="tester-primary-grid">
+        <section className="tester-panel tester-stick-panel">
+          <header className="mapping-panel-heading">
+            <div>
+              <Crosshair size={17} />
+              <h2>Stick coordinates</h2>
+            </div>
+            <span className="tester-heading-detail">X / Y AXES</span>
+          </header>
+          <div className="tester-stick-pair">
+            <StickRadar
+              label="Left stick"
+              value={liveState.leftStick}
+              trail={liveState.trail.left}
+              pressed={!!liveState.buttons.L3}
+              connected={inputConnected}
+            />
+            <StickRadar
+              label="Right stick"
+              value={liveState.rightStick}
+              trail={liveState.trail.right}
+              pressed={!!liveState.buttons.R3}
+              connected={inputConnected}
+            />
+          </div>
+          <footer className="tester-panel-caption">
+            The fading trace shows recent stick positions. Stick clicks light
+            the center point.
+          </footer>
+        </section>
+        <section className="tester-panel tester-buttons-panel">
+          <header className="mapping-panel-heading">
+            <div>
+              <Gamepad2 size={17} />
+              <h2>Button actuation</h2>
+            </div>
+            <span className="mapping-count">{pressed.length} active</span>
+          </header>
+          <div className="tester-button-matrix">
+            {TEST_KEYS.map((key) => (
+              <div
+                key={key}
+                className={`tester-button-indicator ${inputConnected && liveState.buttons[key] ? "is-pressed" : ""}`}
+                title={KEY_LABELS[key]}
+                aria-label={`${KEY_LABELS[key]}: ${inputConnected ? (liveState.buttons[key] ? "pressed" : "released") : "unavailable"}`}
+              >
+                <span>{KEY_SYMBOLS[key] ?? key}</span>
+                <i />
+              </div>
+            ))}
+          </div>
+          <p className="tester-buttons-caption">
+            {inputConnected
+              ? pressed.length
+                ? `Pressed: ${pressed.map((key) => KEY_LABELS[key]).join(", ")}`
+                : "All buttons released"
+              : "Button state unavailable"}
+          </p>
+        </section>
+      </div>
+      <div className="tester-secondary-grid">
+        <section className="tester-panel tester-trigger-panel">
+          <header className="mapping-panel-heading">
+            <div>
+              <SlidersHorizontal size={17} />
+              <h2>Analog trigger travel</h2>
+            </div>
+            <span className="tester-heading-detail">0–100%</span>
+          </header>
+          <div className="tester-trigger-pair">
+            {(
+              [
+                ["LT", liveState.leftTrigger],
+                ["RT", liveState.rightTrigger],
+              ] as const
+            ).map(([label, value]) => (
+              <div key={label} className="tester-trigger-module">
+                <div className="tester-trigger-label">
+                  <span>
+                    {label}
+                    <small>
+                      {label === "LT" ? "LEFT TRIGGER" : "RIGHT TRIGGER"}
+                    </small>
+                  </span>
+                  <strong>
+                    {inputConnected ? (value * 100).toFixed(1) : "—"}
+                    <small>{inputConnected ? "%" : ""}</small>
+                  </strong>
+                </div>
+                <div
+                  className="tester-trigger-track"
+                  role="meter"
+                  aria-label={`${label} travel`}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={inputConnected ? value * 100 : undefined}
+                  aria-valuetext={
+                    inputConnected
+                      ? `${(value * 100).toFixed(1)} percent`
+                      : "Unavailable"
+                  }
+                >
+                  <i
+                    style={{
+                      width: `${inputConnected ? Math.max(0, Math.min(100, value * 100)) : 0}%`,
+                    }}
+                  />
+                </div>
+                <div className="tester-trigger-scale">
+                  <span>0</span>
+                  <span>25</span>
+                  <span>50</span>
+                  <span>75</span>
+                  <span>100</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+        <section className="tester-panel tester-signal-details">
+          <header className="mapping-panel-heading">
+            <div>
+              <Activity size={17} />
+              <h2>Signal details</h2>
+            </div>
+          </header>
+          <dl>
+            <div>
+              <dt>Input source</dt>
+              <dd>Windows XInput</dd>
+            </div>
+            <div>
+              <dt>Player slot</dt>
+              <dd>
+                {inputConnected ? `P${(inputSlot ?? 0) + 1}` : "Unavailable"}
+              </dd>
+            </div>
+            <div>
+              <dt>Hardware polling rate</dt>
+              <dd>Not measured</dd>
+            </div>
+          </dl>
+          <p>
+            Gameplay input is separate from the Bluetooth configuration link.
+          </p>
+        </section>
+      </div>
+    </div>
+  );
+}

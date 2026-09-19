@@ -1,171 +1,89 @@
-import React from "react";
-import {
-  HelpCircle,
-  X,
-  Compass,
-  Zap,
-  Target,
-  Gauge,
-  Check,
-} from "lucide-react";
+import { Crosshair, Gauge, SlidersHorizontal, Activity } from "lucide-react";
+import { MetalDialog } from "./MetalDialog";
+import "./metal-curves.css";
 
 interface CurvesHelpModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-export const CurvesHelpModal: React.FC<CurvesHelpModalProps> = ({
-  isOpen,
-  onClose,
-}) => {
+export function CurvesHelpModal({ isOpen, onClose }: CurvesHelpModalProps) {
   if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-      <div className="w-full max-w-2xl bg-[#1B1817] border border-[#332C29] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-        {/* Header */}
-        <div className="p-4 border-b border-[#332C29] flex items-center justify-between bg-[#171413]">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-[#FF8A5B]/15 border border-[#FF8A5B]/30 text-[#FF8A5B]">
-              <HelpCircle className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-[#F4F0EB]">
-                Don&apos;t Understand What To Do?
-              </h3>
-              <p className="text-xs text-[#A79C92] mt-0.5">
-                Simple, jargon-free explanations for sticks, triggers, and
-                deadzones.
-              </p>
-            </div>
+    <MetalDialog
+      title="Response curve guide"
+      subtitle="Signal shaping reference"
+      closeLabel="Close curve guide"
+      className="curve-help-dialog"
+      onClose={onClose}
+    >
+      <div className="curve-help-grid">
+        <article>
+          <Crosshair size={20} />
+          <div>
+            <h3>Inner deadzone</h3>
+            <p>
+              The small area near the resting position where input is ignored.
+              Increase it a little if the stick moves your character or camera
+              while untouched.
+            </p>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-[#A79C92] hover:text-[#F4F0EB] hover:bg-[#241F1D] transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Content Body */}
-        <div className="p-6 space-y-6 overflow-y-auto text-xs leading-relaxed text-[#D6CEC6]">
-          {/* Card 1: Inner Deadzone */}
-          <div className="p-4 rounded-xl bg-[#141211] border border-[#332C29] flex gap-3.5">
-            <div className="p-2 rounded-lg bg-[#241F1D] text-[#FF8A5B] shrink-0 h-fit">
-              <Compass className="w-5 h-5" />
-            </div>
-            <div>
-              <h4 className="text-sm font-bold text-[#F4F0EB]">
-                1. Inner Deadzone (Fixing Drift)
-              </h4>
-              <p className="mt-1 text-[#A79C92]">
-                <strong className="text-[#FF8A5B]">What it is:</strong> A small
-                invisible circle around the resting center of your thumbstick
-                where nothing happens.
-              </p>
-              <p className="mt-1">
-                <strong className="text-[#F4F0EB]">When to change it:</strong>{" "}
-                If your game camera or character slowly creeps/drifts on its own
-                when your fingers are completely off the stick,{" "}
-                <em>turn this up slightly</em> (e.g. from 5% to 8%) until the
-                creeping stops!
-              </p>
-            </div>
+        </article>
+        <article>
+          <Gauge size={20} />
+          <div>
+            <h3>Full-output threshold</h3>
+            <p>
+              The input level that reaches maximum output. A value of 90%
+              reaches full output before the end of the travel. This is the
+              controller's outer-deadzone setting.
+            </p>
           </div>
-
-          {/* Card 2: Outer Deadzone */}
-          <div className="p-4 rounded-xl bg-[#141211] border border-[#332C29] flex gap-3.5">
-            <div className="p-2 rounded-lg bg-[#241F1D] text-[#86C08A] shrink-0 h-fit">
-              <Gauge className="w-5 h-5" />
-            </div>
-            <div>
-              <h4 className="text-sm font-bold text-[#F4F0EB]">
-                2. Outer Deadzone (Hitting Max Speed)
-              </h4>
-              <p className="mt-1 text-[#A79C92]">
-                <strong className="text-[#86C08A]">What it is:</strong> The
-                point where pushing the stick counts as 100% full sprint.
-              </p>
-              <p className="mt-1">
-                <strong className="text-[#F4F0EB]">When to change it:</strong>{" "}
-                If you feel like you have to push the stick super hard against
-                the plastic edge to sprint,{" "}
-                <em>lower this to around 85%–90%</em>. You will reach top speed
-                earlier and easier!
-              </p>
-            </div>
+        </article>
+        <article>
+          <Activity size={20} />
+          <div>
+            <h3>Choose a starting curve</h3>
+            <dl>
+              <dt>Linear</dt>
+              <dd>Proportional response points.</dd>
+              <dt>Aggressive</dt>
+              <dd>Higher output earlier in the movement.</dd>
+              <dt>Relaxed</dt>
+              <dd>Lower output near the center for finer adjustments.</dd>
+              <dt>Instant</dt>
+              <dd>
+                Earlier high output with a 2% inner deadzone and 75% full-output
+                threshold. It remains an analog input.
+              </dd>
+            </dl>
           </div>
-
-          {/* Card 3: Curve Presets */}
-          <div className="p-4 rounded-xl bg-[#141211] border border-[#332C29] flex gap-3.5">
-            <div className="p-2 rounded-lg bg-[#241F1D] text-[#FFB020] shrink-0 h-fit">
-              <Target className="w-5 h-5" />
-            </div>
-            <div className="space-y-2">
-              <h4 className="text-sm font-bold text-[#F4F0EB]">
-                3. Response Curve Presets (How Aiming Feels)
-              </h4>
-              <ul className="space-y-1.5 pl-1">
-                <li>
-                  <strong className="text-[#F4F0EB]">Linear (Stock):</strong>{" "}
-                  Proportional control points. In-game response still depends on
-                  game settings and firmware.
-                </li>
-                <li>
-                  <strong className="text-[#FF8A5B]">
-                    Aggressive (Fast Aim):
-                  </strong>{" "}
-                  Quick reaction. Small stick nudges turn your screen faster.
-                  Awesome for fast FPS shooters and 180° turns.
-                </li>
-                <li>
-                  <strong className="text-[#86C08A]">
-                    Relaxed (Sniper Precision):
-                  </strong>{" "}
-                  Micro-aiming. Small stick movements are smoothed down and
-                  extra slow, so you can lock your crosshairs on a distant
-                  headshot without over-aiming.
-                </li>
-                <li>
-                  <strong className="text-[#FFB020]">
-                    Instant (Hair Trigger):
-                  </strong>{" "}
-                  Reaches high output earlier in the travel. This preset does
-                  not turn an analog input into a digital switch.
-                </li>
-              </ul>
-            </div>
+        </article>
+        <article>
+          <SlidersHorizontal size={20} />
+          <div>
+            <h3>Fine-tune P1 and P2</h3>
+            <p>
+              Use Edit Curve to adjust each point's input and output
+              coordinates. P1 cannot move past P2 on the input axis.
+            </p>
+            <p>
+              The drawn line illustrates the stored points. It is not a
+              measurement of the controller's firmware interpolation or a game's
+              response.
+            </p>
           </div>
-
-          {/* Card 4: P1 & P2 Dots */}
-          <div className="p-4 rounded-xl bg-[#141211] border border-[#332C29] flex gap-3.5">
-            <div className="p-2 rounded-lg bg-[#241F1D] text-[#6BA0FA] shrink-0 h-fit">
-              <Zap className="w-5 h-5" />
-            </div>
-            <div>
-              <h4 className="text-sm font-bold text-[#F4F0EB]">
-                4. What are the P1 and P2 dots on the graph?
-              </h4>
-              <p className="mt-1">
-                P1 and P2 are stored response points. Use Edit Curve to adjust
-                their coordinates. The line passes through those points, but
-                firmware interpolation between them is not known.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="p-4 border-t border-[#332C29] bg-[#171413] flex justify-end">
-          <button
-            onClick={onClose}
-            className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-lg bg-[#FF8A5B] hover:bg-[#E77445] text-[#131110] transition-colors"
-          >
-            <Check className="w-4 h-4" />
-            <span>Got It, Thanks!</span>
-          </button>
-        </div>
+        </article>
       </div>
-    </div>
+      <div className="curve-help-footer">
+        <p>
+          Edits stay in the current setup draft until you apply them to the
+          controller.
+        </p>
+        <button className="curve-button is-active" onClick={onClose}>
+          Back to curves
+        </button>
+      </div>
+    </MetalDialog>
   );
-};
+}

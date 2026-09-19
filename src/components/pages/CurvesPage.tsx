@@ -1,559 +1,442 @@
-import { curvePreview } from "../../curve";
-import React, { useState } from "react";
-import { CurveConfig, LiveGamepadState } from "../../types/gamepad";
+import { useId, useState } from "react";
 import {
-  Sliders,
-  RotateCcw,
-  Zap,
   Activity,
   HelpCircle,
-  Edit3,
-  Check,
+  SlidersHorizontal,
+  Crosshair,
+  ArrowDownToLine,
 } from "lucide-react";
+import { curvePreview } from "../../curve";
+import type { CurveConfig, LiveGamepadState } from "../../types/gamepad";
 import { LiveStickModule } from "../LiveStickModule";
 import { LiveTriggerModule } from "../LiveTriggerModule";
 import { CurvesHelpModal } from "../CurvesHelpModal";
+import "../metal-curves.css";
 
 interface CurvesPageProps {
-  stickCurves: {
-    left: CurveConfig;
-    right: CurveConfig;
-  };
-  triggerCurves: {
-    left: CurveConfig;
-    right: CurveConfig;
-  };
+  stickCurves: { left: CurveConfig; right: CurveConfig };
+  triggerCurves: { left: CurveConfig; right: CurveConfig };
   onUpdateStickCurve: (which: "left" | "right", config: CurveConfig) => void;
   onUpdateTriggerCurve: (which: "left" | "right", config: CurveConfig) => void;
   liveState: LiveGamepadState;
+  liveConnected?: boolean;
 }
 
 type ChannelKey = "leftStick" | "rightStick" | "leftTrigger" | "rightTrigger";
+const channels = [
+  {
+    key: "leftStick",
+    label: "Left Stick",
+    short: "LS",
+    description: "Horizontal + vertical",
+  },
+  {
+    key: "rightStick",
+    label: "Right Stick",
+    short: "RS",
+    description: "Horizontal + vertical",
+  },
+  {
+    key: "leftTrigger",
+    label: "Left Trigger (LT)",
+    short: "LT",
+    description: "Analog travel",
+  },
+  {
+    key: "rightTrigger",
+    label: "Right Trigger (RT)",
+    short: "RT",
+    description: "Analog travel",
+  },
+] as const;
 
-export const CurvesPage: React.FC<CurvesPageProps> = ({
+export function CurvesPage({
   stickCurves,
   triggerCurves,
   onUpdateStickCurve,
   onUpdateTriggerCurve,
   liveState,
-}) => {
+  liveConnected,
+}: CurvesPageProps) {
   const [activeChannel, setActiveChannel] = useState<ChannelKey>("leftStick");
-  const [isHelpOpen, setIsHelpOpen] = useState<boolean>(false);
-  const [isEditCurveOpen, setIsEditCurveOpen] = useState<boolean>(false);
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const [isEditCurveOpen, setIsEditCurveOpen] = useState(false);
+  const chartId = useId().replace(/:/g, "");
+  const channel = channels.find((item) => item.key === activeChannel)!;
+  const isStick =
+    activeChannel === "leftStick" || activeChannel === "rightStick";
+  const which =
+    activeChannel === "leftStick" || activeChannel === "leftTrigger"
+      ? "left"
+      : "right";
+  const config = isStick ? stickCurves[which] : triggerCurves[which];
+  const stick = which === "left" ? liveState.leftStick : liveState.rightStick;
+  const input = isStick
+    ? Math.min(1, Math.hypot(stick.x, stick.y))
+    : which === "left"
+      ? liveState.leftTrigger
+      : liveState.rightTrigger;
+  const update = (changes: Partial<CurveConfig>) =>
+    (isStick ? onUpdateStickCurve : onUpdateTriggerCurve)(which, {
+      ...config,
+      ...changes,
+    });
 
-  const getChannelConfig = (ch: ChannelKey): CurveConfig => {
-    switch (ch) {
-      case "leftStick":
-        return stickCurves.left;
-      case "rightStick":
-        return stickCurves.right;
-      case "leftTrigger":
-        return triggerCurves.left;
-      case "rightTrigger":
-        return triggerCurves.right;
-    }
-  };
-
-  const updateChannelConfig = (
-    ch: ChannelKey,
-    updates: Partial<CurveConfig>,
-  ) => {
-    const current = getChannelConfig(ch);
-    const updated: CurveConfig = { ...current, ...updates };
-
-    if (ch === "leftStick") onUpdateStickCurve("left", updated);
-    else if (ch === "rightStick") onUpdateStickCurve("right", updated);
-    else if (ch === "leftTrigger") onUpdateTriggerCurve("left", updated);
-    else if (ch === "rightTrigger") onUpdateTriggerCurve("right", updated);
-  };
-
-  const currentConfig = getChannelConfig(activeChannel);
-
-  // Live input magnitude (0.0 to 1.0)
-  let liveMagnitude = 0;
-  if (activeChannel === "leftStick") {
-    liveMagnitude = Math.min(
-      1,
-      Math.hypot(liveState.leftStick.x, liveState.leftStick.y),
-    );
-  } else if (activeChannel === "rightStick") {
-    liveMagnitude = Math.min(
-      1,
-      Math.hypot(liveState.rightStick.x, liveState.rightStick.y),
-    );
-  } else if (activeChannel === "leftTrigger") {
-    liveMagnitude = liveState.leftTrigger;
-  } else {
-    liveMagnitude = liveState.rightTrigger;
-  }
-
-  // Presets applicator
   const applyPreset = (preset: CurveConfig["preset"]) => {
-    if (preset === "linear") {
-      updateChannelConfig(activeChannel, {
-        preset: "linear",
+    if (preset === "linear")
+      update({
+        preset,
         p1: { x: 100 / 3, y: 100 / 3 },
         p2: { x: 200 / 3, y: 200 / 3 },
       });
-    } else if (preset === "instant") {
-      updateChannelConfig(activeChannel, {
-        preset: "instant",
+    if (preset === "aggressive")
+      update({ preset, p1: { x: 25, y: 45 }, p2: { x: 65, y: 85 } });
+    if (preset === "relaxed")
+      update({ preset, p1: { x: 50, y: 25 }, p2: { x: 80, y: 65 } });
+    if (preset === "instant")
+      update({
+        preset,
         p1: { x: 15, y: 70 },
         p2: { x: 45, y: 98 },
         innerDeadzone: 2,
         outerDeadzone: 75,
       });
-    } else if (preset === "relaxed") {
-      updateChannelConfig(activeChannel, {
-        preset: "relaxed",
-        p1: { x: 50, y: 25 },
-        p2: { x: 80, y: 65 },
-      });
-    } else if (preset === "aggressive") {
-      updateChannelConfig(activeChannel, {
-        preset: "aggressive",
-        p1: { x: 25, y: 45 },
-        p2: { x: 65, y: 85 },
-      });
-    }
   };
-
-  // SVG dimensions for curve
-  const svgSize = 260;
-  const padding = 28;
-  const plotSize = svgSize - padding * 2;
-
-  const toSvgX = (xPct: number) => padding + (xPct / 100) * plotSize;
-  const toSvgY = (yPct: number) => padding + plotSize - (yPct / 100) * plotSize;
-
-  const p0 = { x: toSvgX(0), y: toSvgY(0) };
-  const p1 = { x: toSvgX(currentConfig.p1.x), y: toSvgY(currentConfig.p1.y) };
-  const p2 = { x: toSvgX(currentConfig.p2.x), y: toSvgY(currentConfig.p2.y) };
-  const p3 = { x: toSvgX(100), y: toSvgY(100) };
-
-  const liveX = liveMagnitude * 100;
-  const liveY = curvePreview(currentConfig, liveX);
+  const x = (value: number) => 46 + value * 3.15;
+  const y = (value: number) => 235 - value * 2.05;
   const curvePath = Array.from(
     { length: 101 },
-    (_, x) =>
-      `${x ? "L" : "M"} ${toSvgX(x)} ${toSvgY(curvePreview(currentConfig, x))}`,
+    (_, value) =>
+      `${value ? "L" : "M"} ${x(value)} ${y(curvePreview(config, value))}`,
   ).join(" ");
-
-  const isStick =
-    activeChannel === "leftStick" || activeChannel === "rightStick";
+  const display = (value: number) => Number(value.toFixed(1));
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto select-none">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[#332C29]">
+    <section className="curve-workbench" aria-label="Response curves workbench">
+      <header className="curve-page-heading">
         <div>
-          <h2 className="text-base font-bold text-[#F4F0EB]">
-            Sticks & Triggers Response Curves
-          </h2>
-          <p className="text-xs text-[#A79C92] mt-0.5">
-            Edit stored control points. The curve is an illustration, not
-            measured firmware output.
+          <span className="curve-eyebrow">Signal shaping</span>
+          <h2>Response curves</h2>
+          <p>
+            Fine-tune each stick and trigger. Changes stay in your draft until
+            applied.
           </p>
         </div>
-
-        {/* Action Buttons: "Don't understand what to do?" + Channel Selector */}
-        <div className="flex items-center gap-2">
-          {/* ELIF Simplified Guide Button */}
-          <button
-            onClick={() => setIsHelpOpen(true)}
-            id="curves-help-btn"
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-[#FF8A5B]/15 hover:bg-[#FF8A5B]/25 text-[#FF8A5B] border border-[#FF8A5B]/40 transition-all shadow-sm"
-            title="How response curves work"
-          >
-            <HelpCircle className="w-3.5 h-3.5" />
-            <span>Curve guide</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Channel Switcher */}
-      <div className="flex items-center justify-between">
-        <div className="flex rounded-xl bg-[#141211] p-1 border border-[#332C29]">
-          {(
-            [
-              ["leftStick", "Left Stick"],
-              ["rightStick", "Right Stick"],
-              ["leftTrigger", "Left Trigger (LT)"],
-              ["rightTrigger", "Right Trigger (RT)"],
-            ] as const
-          ).map(([key, label]) => (
-            <button
-              key={key}
-              onClick={() => setActiveChannel(key)}
-              className={`px-3.5 py-1.5 text-xs rounded-lg font-bold transition-all ${
-                activeChannel === key
-                  ? "bg-[#241F1D] text-[#FF8A5B] shadow-sm border border-[#FF8A5B]/30"
-                  : "text-[#A79C92] hover:text-[#F4F0EB]"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
-        {/* Edit Curve Toggle Button */}
         <button
-          onClick={() => setIsEditCurveOpen(!isEditCurveOpen)}
-          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all border ${
-            isEditCurveOpen
-              ? "bg-[#FF8A5B] text-[#131110] border-[#FF8A5B]"
-              : "bg-[#241F1D] hover:bg-[#2C2624] text-[#D6CEC6] border-[#332C29]"
-          }`}
+          className="curve-button"
+          id="curves-help-btn"
+          onClick={() => setIsHelpOpen(true)}
         >
-          <Edit3 className="w-3.5 h-3.5" />
-          <span>{isEditCurveOpen ? "Done Editing Curve" : "Edit Curve"}</span>
+          <HelpCircle size={15} />
+          Curve guide
         </button>
-      </div>
-
-      {/* Main Two-Column Layout: Response Curve on Left, Live SVG Visualizer on Right */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Column (Col 7): Curve illustration & Controls */}
-        <div className="lg:col-span-7 p-5 rounded-2xl bg-[#1B1817] border border-[#332C29] shadow-lg flex flex-col items-center">
-          <div className="w-full flex items-center justify-between mb-3">
-            <span className="text-xs font-bold text-[#F4F0EB]">
-              Response Curve Graph
+      </header>
+      <div
+        className="curve-channel-rail"
+        role="group"
+        aria-label="Input channel"
+      >
+        {channels.map((item) => (
+          <button
+            key={item.key}
+            className={`curve-channel ${activeChannel === item.key ? "is-active" : ""}`}
+            aria-pressed={activeChannel === item.key}
+            onClick={() => setActiveChannel(item.key)}
+          >
+            <span className="curve-channel-mark">{item.short}</span>
+            <span>
+              <strong>{item.label}</strong>
+              <small>{item.description}</small>
             </span>
-            <div className="flex items-center gap-2 text-xs">
-              <span className="text-[#A79C92]">Preview:</span>
-              <span className="font-mono text-[#86C08A] font-bold">
-                {(liveY / 100).toFixed(2)} ({Math.round(liveMagnitude * 100)}%
-                In)
-              </span>
-            </div>
-          </div>
-
-          {/* Curve SVG */}
-          <div className="relative select-none">
+            <span className="curve-channel-led" />
+          </button>
+        ))}
+      </div>
+      <div className="curve-console-grid">
+        <section className="curve-panel curve-chart-panel">
+          <header className="curve-panel-heading">
+            <span>
+              <Activity size={15} />
+              Response editor
+            </span>
+            <span className="curve-tag">Draft preview</span>
+          </header>
+          <div className="curve-graph-wrap">
             <svg
-              width={svgSize}
-              height={svgSize}
-              className="bg-[#131110] rounded-xl border border-[#332C29]"
+              className="curve-graph"
+              viewBox="0 0 400 270"
+              role="img"
+              aria-label={`${channel.label} response curve preview, not measured firmware output`}
             >
-              {/* Grid lines */}
-              <line
-                x1={padding}
-                y1={padding + plotSize / 2}
-                x2={padding + plotSize}
-                y2={padding + plotSize / 2}
-                stroke="#241F1D"
-                strokeWidth="1"
-                strokeDasharray="4"
-              />
-              <line
-                x1={padding + plotSize / 2}
-                y1={padding}
-                x2={padding + plotSize / 2}
-                y2={padding + plotSize}
-                stroke="#241F1D"
-                strokeWidth="1"
-                strokeDasharray="4"
-              />
-
-              {/* Deadzone regions */}
+              <defs>
+                <linearGradient id={chartId} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#64dce4" stopOpacity=".2" />
+                  <stop offset="100%" stopColor="#64dce4" stopOpacity=".015" />
+                </linearGradient>
+              </defs>
+              {[0, 25, 50, 75, 100].map((tick) => (
+                <g key={tick} className="curve-grid-line">
+                  <line x1={x(tick)} x2={x(tick)} y1={y(100)} y2={y(0)} />
+                  <line x1={x(0)} x2={x(100)} y1={y(tick)} y2={y(tick)} />
+                  <text x={x(tick)} y={251} textAnchor="middle">
+                    {tick}
+                  </text>
+                  <text x={34} y={y(tick) + 3} textAnchor="end">
+                    {tick}
+                  </text>
+                </g>
+              ))}
               <rect
-                x={padding}
-                y={padding}
-                width={(currentConfig.innerDeadzone / 100) * plotSize}
-                height={plotSize}
-                fill="#FF8A5B"
-                fillOpacity="0.08"
+                x={x(0)}
+                y={y(100)}
+                width={config.innerDeadzone * 3.15}
+                height={205}
+                fill="#b9c1c9"
+                fillOpacity=".1"
               />
               <rect
-                x={padding + (currentConfig.outerDeadzone / 100) * plotSize}
-                y={padding}
-                width={(1 - currentConfig.outerDeadzone / 100) * plotSize}
-                height={plotSize}
-                fill="#86C08A"
-                fillOpacity="0.08"
+                x={x(config.outerDeadzone)}
+                y={y(100)}
+                width={(100 - config.outerDeadzone) * 3.15}
+                height={205}
+                fill="#64dce4"
+                fillOpacity=".07"
               />
-
-              {/* Linear reference diagonal */}
               <line
-                x1={toSvgX(0)}
-                y1={toSvgY(0)}
-                x2={toSvgX(100)}
-                y2={toSvgY(100)}
-                stroke="#453B36"
-                strokeWidth="1.5"
-                strokeDasharray="4 4"
+                x1={x(0)}
+                y1={y(0)}
+                x2={x(100)}
+                y2={y(100)}
+                stroke="#77818b"
+                strokeDasharray="4 5"
+                opacity=".6"
               />
-
-              {/* Curve path */}
+              <path
+                d={`${curvePath} L ${x(100)} ${y(0)} Z`}
+                fill={`url(#${chartId})`}
+              />
               <path
                 d={curvePath}
                 fill="none"
-                stroke="#FF8A5B"
-                strokeWidth="3"
+                stroke="#64dce4"
+                strokeWidth="2.5"
               />
-
-              {/* Control Points P1 and P2 */}
-              <circle
-                cx={p1.x}
-                cy={p1.y}
-                r="6.5"
-                fill="#FF8A5B"
-                stroke="#131110"
-                strokeWidth="2"
-                className="cursor-pointer hover:scale-125 transition-transform"
-              />
-              <circle
-                cx={p2.x}
-                cy={p2.y}
-                r="6.5"
-                fill="#FF8A5B"
-                stroke="#131110"
-                strokeWidth="2"
-                className="cursor-pointer hover:scale-125 transition-transform"
-              />
-
-              {/* Live position tracking point */}
-              <circle
-                cx={toSvgX(liveX)}
-                cy={toSvgY(liveY)}
-                r="7.5"
-                fill="#86C08A"
-                stroke="#131110"
-                strokeWidth="2"
-                className="shadow-sm"
-              />
-
-              {/* Labels */}
-              <text x={padding} y={svgSize - 8} fill="#A79C92" fontSize="9">
-                0% Center
+              {(["p1", "p2"] as const).map((point, i) => (
+                <g key={point}>
+                  <circle
+                    cx={x(config[point].x)}
+                    cy={y(config[point].y)}
+                    r="5"
+                    fill="#dce5e9"
+                    stroke="#0d171b"
+                    strokeWidth="2"
+                  />
+                  <text
+                    x={x(config[point].x) + 10}
+                    y={y(config[point].y) - 8}
+                    fill="#dce5e9"
+                    fontSize="10"
+                  >
+                    P{i + 1}
+                  </text>
+                </g>
+              ))}
+              {liveConnected !== false && (
+                <circle
+                  cx={x(input * 100)}
+                  cy={y(curvePreview(config, input * 100))}
+                  r="5"
+                  fill="#101519"
+                  stroke="#64dce4"
+                  strokeWidth="2"
+                />
+              )}
+              <text x="46" y="16" className="curve-axis-label">
+                OUTPUT %
               </text>
               <text
-                x={svgSize - padding}
-                y={svgSize - 8}
-                fill="#A79C92"
-                fontSize="9"
+                x="361"
+                y="267"
                 textAnchor="end"
+                className="curve-axis-label"
               >
-                100% Edge
+                INPUT %
               </text>
             </svg>
+            <div className="curve-chart-readouts">
+              <span>
+                Windows input{" "}
+                <strong>
+                  {liveConnected === false
+                    ? "Unavailable"
+                    : `${Math.round(input * 100)}%`}
+                </strong>
+              </span>
+              <span>
+                Curve <strong>{config.preset}</strong>
+              </span>
+            </div>
           </div>
-
-          {/* Presets Row */}
-          <div className="w-full mt-4 flex items-center justify-center gap-2">
+          <div
+            className="curve-presets"
+            role="group"
+            aria-label="Response presets"
+          >
             {(["linear", "aggressive", "relaxed", "instant"] as const).map(
-              (pr) => (
+              (preset) => (
                 <button
-                  key={pr}
-                  onClick={() => applyPreset(pr)}
-                  className={`px-2.5 py-1 text-xs rounded-lg capitalize font-semibold transition-all border ${
-                    currentConfig.preset === pr
-                      ? "bg-[#FF8A5B] text-[#131110] border-[#FF8A5B]"
-                      : "bg-[#141211] text-[#A79C92] border-[#332C29] hover:text-[#F4F0EB]"
-                  }`}
+                  key={preset}
+                  className={`curve-button ${config.preset === preset ? "is-active" : ""}`}
+                  aria-pressed={config.preset === preset}
+                  onClick={() => applyPreset(preset)}
                 >
-                  {pr}
+                  {preset}
                 </button>
               ),
             )}
           </div>
-
-          {/* Edit Curve Fine Tuning Controls (revealed when Edit Curve is active) */}
-          {isEditCurveOpen && (
-            <div className="w-full mt-4 pt-4 border-t border-[#332C29] grid grid-cols-2 gap-4 text-xs">
-              <div className="p-3 rounded-xl bg-[#141211] border border-[#332C29] space-y-2">
-                <span className="font-bold text-[#FF8A5B] block">
-                  P1 Control Point
-                </span>
-                <div className="flex items-center justify-between text-[11px] text-[#A79C92]">
-                  <span>X: {Number(currentConfig.p1.x.toFixed(1))}%</span>
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    value={currentConfig.p1.x}
-                    onChange={(e) =>
-                      updateChannelConfig(activeChannel, {
-                        p1: {
-                          ...currentConfig.p1,
-                          x: Math.min(
-                            currentConfig.p2.x,
-                            parseInt(e.target.value),
-                          ),
-                        },
-                        preset: "custom",
-                      })
-                    }
-                    className="w-24 accent-[#FF8A5B]"
-                  />
-                </div>
-                <div className="flex items-center justify-between text-[11px] text-[#A79C92]">
-                  <span>Y: {Number(currentConfig.p1.y.toFixed(1))}%</span>
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    value={currentConfig.p1.y}
-                    onChange={(e) =>
-                      updateChannelConfig(activeChannel, {
-                        p1: {
-                          ...currentConfig.p1,
-                          y: parseInt(e.target.value),
-                        },
-                        preset: "custom",
-                      })
-                    }
-                    className="w-24 accent-[#FF8A5B]"
-                  />
-                </div>
-              </div>
-
-              <div className="p-3 rounded-xl bg-[#141211] border border-[#332C29] space-y-2">
-                <span className="font-bold text-[#FF8A5B] block">
-                  P2 Control Point
-                </span>
-                <div className="flex items-center justify-between text-[11px] text-[#A79C92]">
-                  <span>X: {Number(currentConfig.p2.x.toFixed(1))}%</span>
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    value={currentConfig.p2.x}
-                    onChange={(e) =>
-                      updateChannelConfig(activeChannel, {
-                        p2: {
-                          ...currentConfig.p2,
-                          x: Math.max(
-                            currentConfig.p1.x,
-                            parseInt(e.target.value),
-                          ),
-                        },
-                        preset: "custom",
-                      })
-                    }
-                    className="w-24 accent-[#FF8A5B]"
-                  />
-                </div>
-                <div className="flex items-center justify-between text-[11px] text-[#A79C92]">
-                  <span>Y: {Number(currentConfig.p2.y.toFixed(1))}%</span>
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    value={currentConfig.p2.y}
-                    onChange={(e) =>
-                      updateChannelConfig(activeChannel, {
-                        p2: {
-                          ...currentConfig.p2,
-                          y: parseInt(e.target.value),
-                        },
-                        preset: "custom",
-                      })
-                    }
-                    className="w-24 accent-[#FF8A5B]"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Right Column (Col 5): Live Hardware Test Visualizer & Deadzone Sliders */}
-        <div className="lg:col-span-5 space-y-4">
-          {/* Hardware Live SVG Test Section */}
+          <p className="curve-caption">
+            Illustration through stored P1 / P2 points. Firmware interpolation
+            may differ.
+          </p>
+        </section>
+        <div className="curve-side-stack">
           {isStick ? (
             <LiveStickModule
-              label={
-                activeChannel === "leftStick" ? "Left Stick" : "Right Stick"
-              }
-              x={
-                activeChannel === "leftStick"
-                  ? liveState.leftStick.x
-                  : liveState.rightStick.x
-              }
-              y={
-                activeChannel === "leftStick"
-                  ? liveState.leftStick.y
-                  : liveState.rightStick.y
-              }
-              innerDeadzonePercent={currentConfig.innerDeadzone}
-              outerDeadzonePercent={currentConfig.outerDeadzone}
+              label={channel.label}
+              x={stick.x}
+              y={stick.y}
+              innerDeadzonePercent={config.innerDeadzone}
+              outerDeadzonePercent={config.outerDeadzone}
+              connected={liveConnected}
             />
           ) : (
             <LiveTriggerModule
-              label={
-                activeChannel === "leftTrigger"
-                  ? "Left Trigger (LT)"
-                  : "Right Trigger (RT)"
-              }
-              value={
-                activeChannel === "leftTrigger"
-                  ? liveState.leftTrigger
-                  : liveState.rightTrigger
-              }
-              hairTrigger={currentConfig.preset === "instant"}
+              label={channel.label}
+              value={input}
+              hairTrigger={config.preset === "instant"}
+              connected={liveConnected}
             />
           )}
-
-          {/* Deadzone Sliders */}
-          <div className="p-4 rounded-xl bg-[#1B1817] border border-[#332C29] space-y-3">
-            <span className="text-xs font-bold text-[#F4F0EB] block">
-              Hardware Deadzones
-            </span>
-
-            {/* Inner deadzone slider */}
-            <div className="space-y-1">
-              <div className="flex justify-between text-xs">
-                <span className="text-[#A79C92]">Inner Deadzone (Slack)</span>
-                <span className="font-mono text-[#FF8A5B] font-bold">
-                  {Number(currentConfig.innerDeadzone.toFixed(1))}%
-                </span>
-              </div>
+          <section className="curve-panel curve-deadzones">
+            <header className="curve-panel-heading">
+              <span>
+                <Crosshair size={15} />
+                Travel limits
+              </span>
+              <span className="curve-tag">%</span>
+            </header>
+            <div className="curve-slider-field">
+              <label htmlFor="curve-inner">
+                Inner deadzone <output>{display(config.innerDeadzone)}%</output>
+              </label>
               <input
+                id="curve-inner"
                 type="range"
                 min="0"
                 max="30"
-                value={currentConfig.innerDeadzone}
-                onChange={(e) =>
-                  updateChannelConfig(activeChannel, {
-                    innerDeadzone: parseInt(e.target.value),
-                  })
+                value={config.innerDeadzone}
+                onChange={(event) =>
+                  update({ innerDeadzone: Number(event.target.value) })
                 }
-                className="w-full accent-[#FF8A5B] h-1.5 bg-[#241F1D] rounded cursor-pointer"
               />
+              <p>Ignore small movements near the center.</p>
             </div>
-
-            {/* Outer deadzone slider */}
-            <div className="space-y-1">
-              <div className="flex justify-between text-xs">
-                <span className="text-[#A79C92]">
-                  Outer Deadzone (Max Push)
-                </span>
-                <span className="font-mono text-[#86C08A] font-bold">
-                  {Number(currentConfig.outerDeadzone.toFixed(1))}%
-                </span>
-              </div>
+            <div className="curve-slider-field">
+              <label htmlFor="curve-outer">
+                Full-output threshold{" "}
+                <output>{display(config.outerDeadzone)}%</output>
+              </label>
               <input
+                id="curve-outer"
                 type="range"
                 min="70"
                 max="100"
-                value={currentConfig.outerDeadzone}
-                onChange={(e) =>
-                  updateChannelConfig(activeChannel, {
-                    outerDeadzone: parseInt(e.target.value),
-                  })
+                value={config.outerDeadzone}
+                onChange={(event) =>
+                  update({ outerDeadzone: Number(event.target.value) })
                 }
-                className="w-full accent-[#86C08A] h-1.5 bg-[#241F1D] rounded cursor-pointer"
               />
+              <p>Reach maximum output at this input level.</p>
             </div>
-          </div>
+          </section>
         </div>
       </div>
-
-      {/* ELIF Guide Modal */}
+      <section className="curve-panel curve-point-editor">
+        <header className="curve-panel-heading">
+          <span>
+            <SlidersHorizontal size={15} />
+            Control points
+          </span>
+          <button
+            className="curve-button curve-button-small"
+            aria-expanded={isEditCurveOpen}
+            aria-controls="curve-point-controls"
+            onClick={() => setIsEditCurveOpen(!isEditCurveOpen)}
+          >
+            {isEditCurveOpen ? "Done Editing Curve" : "Edit Curve"}
+          </button>
+        </header>
+        {isEditCurveOpen ? (
+          <div id="curve-point-controls" className="curve-point-grid">
+            {(["p1", "p2"] as const).map((point, i) => (
+              <div key={point} className="curve-point">
+                <h3>P{i + 1} Control Point</h3>
+                {(["x", "y"] as const).map((axis) => (
+                  <div className="curve-slider-field" key={axis}>
+                    <label htmlFor={`curve-${point}-${axis}`}>
+                      {axis === "x" ? "Input" : "Output"}{" "}
+                      <output>{display(config[point][axis])}%</output>
+                    </label>
+                    <input
+                      id={`curve-${point}-${axis}`}
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={config[point][axis]}
+                      onChange={(event) => {
+                        let value = Number(event.target.value);
+                        if (axis === "x")
+                          value =
+                            point === "p1"
+                              ? Math.min(config.p2.x, value)
+                              : Math.max(config.p1.x, value);
+                        update({
+                          [point]: { ...config[point], [axis]: value },
+                          preset: "custom",
+                        });
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="curve-point-summary">
+            <span>
+              P1{" "}
+              <strong>
+                {display(config.p1.x)} / {display(config.p1.y)}
+              </strong>
+            </span>
+            <span>
+              P2{" "}
+              <strong>
+                {display(config.p2.x)} / {display(config.p2.y)}
+              </strong>
+            </span>
+            <p>
+              <ArrowDownToLine size={13} />
+              Coordinates are input / output percentages.
+            </p>
+          </div>
+        )}
+      </section>
       <CurvesHelpModal
         isOpen={isHelpOpen}
         onClose={() => setIsHelpOpen(false)}
       />
-    </div>
+    </section>
   );
-};
+}
