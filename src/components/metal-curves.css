@@ -60,7 +60,7 @@
 }
 .curve-button:focus-visible,
 .curve-channel:focus-visible {
-  outline: 2px solid #64dce4;
+  outline: 2px solid var(--accent);
   outline-offset: 3px;
 }
 .curve-button.is-active {
@@ -68,7 +68,7 @@
   border-color: #70b6bf;
   box-shadow:
     inset 0 1px #c5faff38,
-    0 0 0 1px #64dce412;
+    0 0 0 1px color-mix(in srgb, var(--accent) 7%, transparent);
   color: #bcf5f8;
 }
 .curve-button-small {
@@ -145,7 +145,7 @@
 }
 .curve-channel.is-active .curve-channel-led {
   background: #79f0ed;
-  box-shadow: 0 0 7px #64dce488;
+  box-shadow: 0 0 7px color-mix(in srgb, var(--glow) 53%, transparent);
 }
 .curve-console-grid {
   display: grid;

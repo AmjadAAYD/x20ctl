@@ -137,7 +137,7 @@
   cursor: pointer;
 }
 .controller-hit[role="button"]:focus-visible {
-  filter: drop-shadow(0 0 3px #64dce4);
+  filter: drop-shadow(0 0 3px var(--glow));
 }
 .controller-hit:hover {
   filter: brightness(1.17);
@@ -235,7 +235,7 @@
 .mapping-trigger-readout i {
   display: block;
   height: 100%;
-  background: #64dce4;
+  background: var(--accent);
 }
 .mapping-footnote {
   color: #929fac;
@@ -355,7 +355,7 @@
 }
 .mapping-assignment-row.is-selected {
   background: #4dbccb13;
-  border-left-color: #64dce4;
+  border-left-color: var(--accent);
 }
 .mapping-assignment-row > button {
   display: flex;
@@ -514,8 +514,8 @@
 }
 .tester-click-indicator.is-on {
   color: #8cf2f4;
-  border-color: #64dce4;
-  background: #64dce415;
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
 }
 .tester-stick-radar {
   width: 100%;
@@ -548,7 +548,7 @@
     monospace;
 }
 .tester-radar-vector {
-  stroke: #64dce4;
+  stroke: var(--accent);
   stroke-width: 1.3;
   opacity: 0.7;
 }
@@ -624,12 +624,12 @@
   border-color: #a8e3ed;
   box-shadow:
     inset 0 1px 1px #d6fcff91,
-    0 0 10px #64dce425;
+    0 0 10px color-mix(in srgb, var(--glow) 15%, transparent);
   color: #efffff;
 }
 .tester-button-indicator.is-pressed i {
   background: #a6faff;
-  box-shadow: 0 0 5px #64dce4;
+  box-shadow: 0 0 5px var(--glow);
 }
 .tester-buttons-caption {
   min-height: 29px;
@@ -681,7 +681,7 @@
 .tester-trigger-track i {
   display: block;
   height: 100%;
-  background: linear-gradient(90deg, #698491, #a2d1d7, #64dce4);
+  background: linear-gradient(90deg, var(--surface), var(--glow), var(--accent));
   border-radius: 2px;
 }
 .tester-trigger-scale {

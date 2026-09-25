@@ -90,6 +90,73 @@ def test_bridge_rejects_wrong_payload_types():
         api._close()
 
 
+def test_model_switch_blocks_x20_profiles_and_writes(tmp_path, monkeypatch):
+    from x20ctl.desktop import pro_discovery
+
+    service = DeviceService(directory=tmp_path)
+    (tmp_path / "profiles.json").write_text("[]", encoding="utf-8")
+
+    async def empty_scan():
+        return []
+
+    monkeypatch.setattr(pro_discovery, "scan", empty_scan)
+    assert asyncio.run(service.dispatch("select_model", {"model": "x20_pro"})) == {"model": "x20_pro"}
+    assert asyncio.run(service.dispatch("pro_bootstrap", {}))["profiles"] == []
+    assert (tmp_path / "x20_pro" / "profiles.json").read_text(encoding="utf-8") == "[]"
+    api = DesktopApi(service)
+    try:
+        assert not api.request("open_profile", {})["ok"]
+        assert not api.request("export_profile", {"profile": {}})["ok"]
+    finally:
+        api._close()
+    assert asyncio.run(service.dispatch("pro_scan", {})) == []
+    for operation, payload in (
+        ("bootstrap", {}),
+        ("save_profiles", {"profiles": []}),
+        ("import_profile", {"profile": {}}),
+        ("apply", {"category": "vibration", "value": 30}),
+        ("scan", {}),
+    ):
+        with pytest.raises(ValueError, match="unavailable"):
+            asyncio.run(service.dispatch(operation, payload))
+    assert (tmp_path / "profiles.json").read_text(encoding="utf-8") == "[]"
+    asyncio.run(service.dispatch("select_model", {"model": "x20"}))
+    assert asyncio.run(service.dispatch("bootstrap", {}))["profiles"] == []
+    with pytest.raises(ValueError, match="unavailable"):
+        asyncio.run(service.dispatch("pro_scan", {}))
+
+
+def test_pro_inspection_requires_current_discovery(tmp_path, monkeypatch):
+    from x20ctl.desktop import pro_discovery
+
+    inspected = []
+
+    async def inspect(address):
+        inspected.append(address)
+        return {"address": address}
+
+    monkeypatch.setattr(pro_discovery, "inspect", inspect)
+    service = DeviceService(directory=tmp_path)
+    asyncio.run(service.dispatch("select_model", {"model": "x20_pro"}))
+    with pytest.raises(ValueError, match="returned by Pro discovery"):
+        asyncio.run(service.dispatch("pro_inspect", {"address": "unscanned"}))
+    assert inspected == []
+
+
+def test_webview2_missing_path_never_installs(monkeypatch):
+    from x20ctl.desktop import runtime
+
+    status = iter([False, False, True])
+    monkeypatch.setattr(runtime, "system_runtime_installed", lambda: next(status))
+    choices = iter(["download", "retry"])
+    opened = []
+    assert runtime.ensure_runtime(lambda: next(choices), opened.append)
+    assert opened == [runtime.WEBVIEW2_DOWNLOAD]
+    monkeypatch.setattr(runtime, "system_runtime_installed", lambda: False)
+    assert runtime.ensure_runtime(lambda: "cancel", opened.append) is False
+    assert opened == [runtime.WEBVIEW2_DOWNLOAD]
+
+
 def test_device_operations_are_serialized():
     active = 0
 

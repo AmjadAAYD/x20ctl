@@ -1,8 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 import os
 
-runtime = os.environ.get('X20CTL_BUNDLE_RUNTIME')
-extra_data = [(runtime, 'webview2-runtime')] if runtime else []
+extra_data = []
 if os.path.exists('artifacts/THIRD_PARTY_LICENSES.txt'):
     extra_data += [('artifacts/THIRD_PARTY_LICENSES.txt', '.')]
 

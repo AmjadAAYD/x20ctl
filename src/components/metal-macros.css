@@ -121,7 +121,7 @@
 }
 .macro-paddle.is-selected i {
   background: var(--accent, #64dce4);
-  box-shadow: 0 0 7px #64dce477;
+  box-shadow: 0 0 7px color-mix(in srgb, var(--glow) 47%, transparent);
 }
 .macro-paddle.is-selected strong {
   color: #f0fcff;
@@ -344,7 +344,7 @@
 }
 .sequencer-step-heading.is-selected {
   border-color: #6b9ba5;
-  box-shadow: inset 0 -2px #64dce4;
+  box-shadow: inset 0 -2px var(--accent);
 }
 .sequencer-step-heading:disabled {
   opacity: 0.6;
@@ -532,7 +532,7 @@
   border-color: #78b6c4;
   color: #c9f8ff;
   background: #254653;
-  box-shadow: inset 0 0 5px #64dce444;
+  box-shadow: inset 0 0 5px color-mix(in srgb, var(--glow) 27%, transparent);
 }
 .macro-direction small {
   font-size: 9px;

@@ -97,7 +97,7 @@ export function LiveStickModule({
           <circle
             r={(Math.max(0, outerDeadzonePercent) / 100) * radius}
             fill="none"
-            stroke="#64dce4"
+            stroke="var(--accent)"
             strokeOpacity=".55"
             strokeWidth="1"
             strokeDasharray="3 3"
@@ -109,7 +109,7 @@ export function LiveStickModule({
                 y1="0"
                 x2={clamp(x) * radius}
                 y2={clamp(y) * radius}
-                stroke="#64dce4"
+                stroke="var(--accent)"
                 strokeWidth="1.5"
               />
               <circle

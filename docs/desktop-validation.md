@@ -1,6 +1,24 @@
 # Desktop validation
 
-This document records what was actually tested for x20ctl 3.0.0 and separates software evidence from hardware evidence.
+This document records what was actually tested and separates software evidence from hardware evidence. The 3.1.0 results come first; the 3.0.0 record remains below for comparison.
+
+## 3.1.0 packaged desktop validation
+
+On September 25, 2026, the 3.1.0 Windows x64 EXE launched using the installed Microsoft WebView2 Runtime. The packaged native-window acceptance run exited with code 0, passed 27 checks and captured 28 unretouched screenshots using WebView2's native capture API. It opened Controllers, every X20 page, both X20 Pro SVG views, all four theme presets, the theme editor and dialogs. The X20 pages, hub and Pro view were checked at the 1060 × 760 minimum window size. The suite confirmed local X20 setup save/reload, no X20 profile exposure or writes while Pro is selected, a read-only Windows HID inventory, blocked external navigation and tray behavior. It also verified that XInput requests stop after leaving X20 for the Controllers hub.
+
+The final executable is **22,183,651 bytes (21.16 MiB)** with SHA-256:
+
+```text
+1417b3d61f36167219079d29cf2a63c1c1b6135f9e33b0b1d668e511075b3870
+```
+
+The 3.0.0 EXE was 332,176,864 bytes. On this PC, one timed cold-ish launch of each build to the visible window measured 10.12 seconds for 3.0.0 and 2.30 seconds for 3.1.0. Ten seconds of initial-screen process CPU time measured 1.172 versus 0.266 seconds. These are single-run local observations, not a statistical benchmark or a claim about every PC. The smaller build removes the 308 MB bundled WebView2 fallback and requires the shared runtime. Its runtime-present launch was tested; the missing-runtime Download/Retry/Cancel decision path was unit-tested with a mocked detection function, not by uninstalling WebView2 from this PC.
+
+Focused Python desktop/protocol/profile/compatibility/link tests: **173 passed, 1 skipped**. Frontend type-check, two frontend tests and the production build passed. The broad `pytest -q` collection is not usable in this build environment because the retained legacy PySide6 GUI smoke module calls `sys.exit(0)` when PySide6 is not installed. The supported focused suites ran explicitly.
+
+There was no X20 or X20 Pro configuration peripheral and no XInput gamepad available in this 3.1.0 packaged run. No 3.1.0 physical settings read-back, write, macro playback or Pro identification is claimed. BLE discovery reported the actual Windows adapter-not-ready error; Pro configuration remains locked. The Pro SVG is labeled as an illustration and does not represent a photograph or detected hardware data.
+
+## 3.0.0 record
 
 ## Packaged application acceptance
 

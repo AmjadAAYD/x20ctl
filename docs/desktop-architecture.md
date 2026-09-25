@@ -8,7 +8,9 @@ The API accepts named operations and bounded object payloads. A dedicated asynci
 
 `settings.py` translates percentages and macro rows through the restored protocol, preserving curve flags. `service.py` owns discovery, handshake, reads, category writes, profiles and recording. Existing CLI/legacy GUI code remains for regression coverage; Qt is excluded from the new EXE.
 
-The normal system WebView2 runtime is preferred. The full EXE includes an app-private fixed-version fallback. No renderer installation or registry change is made. Windows 10 requires read/execute permissions on that extracted runtime directory per Microsoft's documented deployment rules; no unrelated directory is modified.
+Version 3.1.0 uses the installed Evergreen WebView2 Runtime; the fixed-version copy was removed from the EXE. If absent, a native dialog offers Microsoft's download page and Retry or Cancel. The app never downloads or installs it automatically.
+
+The Controllers hub selects a model before opening a workspace. The native service records the active model, disconnects and clears discovery state on a switch, and refuses X20 profile, input and configuration operations while Pro is active. Pro actions cannot execute while X20 is selected. A distinct `%APPDATA%\x20ctl\desktop\x20_pro\profiles.json` is reserved for future Pro setups; its schema and writes are unavailable until hardware validation. The Pro adapter performs only BLE advertisement scans, GATT enumeration and allowlisted standard Battery/Device Information reads, plus Windows HID inventory.
 
 ## Profiles
 
@@ -30,6 +32,6 @@ The preview's monotone curve passes through the stored points. Exact firmware in
 
 ## Building and capture
 
-`tools/build_exe.py --bundled-runtime` installs the locked frontend dependencies, type-checks/builds the UI, verifies Microsoft's pinned runtime download/hash/signature, and runs PyInstaller. The release build uses the pinned Python environment in `requirements-build.txt`.
+`tools/build_exe.py` installs locked frontend dependencies, type-checks/builds the UI, runs PyInstaller and rejects an EXE over 40 MiB. The release build uses the pinned Python environment in `requirements-build.txt`.
 
-`x20ctl.exe --smoke-test DIRECTORY --bundled-runtime` forces the included renderer, uses isolated profile storage, interacts with the actual UI and writes a JSON report. Screenshots use WebView2 `CapturePreviewAsync` because Windows `PrintWindow` can return blank GPU surfaces. Captures are unretouched native client-area pixels; no generated hardware state or image-generation service is involved.
+`x20ctl.exe --smoke-test DIRECTORY` uses isolated profile storage, interacts with the actual UI and writes a JSON report. Screenshots use WebView2 `CapturePreviewAsync` because Windows `PrintWindow` can return blank GPU surfaces. Captures are unretouched native client-area pixels; no generated hardware state or image-generation service is involved.
