@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   Activity,
   ArrowDownToLine,
@@ -26,7 +26,14 @@ import {
   ShieldCheck,
   Clock3,
   Settings2,
+  ArrowLeft,
+  Palette,
 } from "lucide-react";
+import { ControllerHub } from "./components/ControllerHub";
+import { ProWorkspace } from "./components/ProWorkspace";
+import { ThemeStudio } from "./components/ThemeStudio";
+import { Appearance, loadAppearance } from "./theme";
+import "./themes.css";
 import { MetalDialog } from "./components/MetalDialog";
 import { ButtonsPage } from "./components/pages/ButtonsPage";
 import { CurvesPage } from "./components/pages/CurvesPage";
@@ -109,12 +116,12 @@ const navigation: {
   },
 ];
 
-export function App() {
+function X20Workspace({ active, onBack, onTheme }: { active: boolean; onBack: () => void; onTheme: () => void }) {
   const running = useRef(false);
   const [updatesEnabled, setUpdatesEnabled] = useState(true);
   const [update, setUpdate] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
-  const [version, setVersion] = useState("3.0.0");
+  const [version, setVersion] = useState("3.1.0");
   const [tab, setTab] = useState<Tab>("buttons");
   const [profile, setProfile] = useState<Profile>(() => newProfile());
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -137,7 +144,14 @@ export function App() {
     action: () => void;
   } | null>(null);
   const onDisconnect = useCallback(() => setDevice(null), []);
-  const { liveState, hardwareDetected, slot } = useGamepad(ready, onDisconnect);
+  useEffect(() => {
+    if (!active) {
+      setDevice(null);
+      setRecording(false);
+    }
+  }, [active]);
+  const inputActive = active && (tab === "buttons" || tab === "curves" || tab === "macros" || tab === "tester" || recording);
+  const { liveState, hardwareDetected, slot } = useGamepad(ready && inputActive, onDisconnect);
 
   const run = async (label: string, work: () => Promise<void>) => {
     if (running.current) return;
@@ -372,6 +386,12 @@ export function App() {
           </span>
         </div>
         <div className="header-actions">
+          <button className="button secondary" onClick={onBack}>
+            <ArrowLeft size={15} /> Controllers
+          </button>
+          <button className="icon-button" title="Themes" aria-label="Themes" onClick={onTheme}>
+            <Palette size={17} />
+          </button>
           <button
             className="button secondary"
             disabled={!ready || !!busy}
@@ -1281,6 +1301,58 @@ export function App() {
           </div>
         </MetalDialog>
       )}
+    </div>
+  );
+}
+
+export function App() {
+  const [view, setView] = useState<"controllers" | "x20" | "x20_pro">("controllers");
+  const [visitedX20, setVisitedX20] = useState(false);
+  const [appearance, setAppearance] = useState<Appearance>(loadAppearance);
+  const [themeOpen, setThemeOpen] = useState(false);
+  const [modelError, setModelError] = useState("");
+  const openModel = async (model: "x20" | "x20_pro") => {
+    setModelError("");
+    try {
+      await request("select_model", { model });
+      if (model === "x20") setVisitedX20(true);
+      setView(model);
+    } catch (reason) {
+      setModelError(reason instanceof Error ? reason.message : String(reason));
+    }
+  };
+  const style = {
+    "--bg": appearance.background,
+    "--surface": appearance.surface,
+    "--line": appearance.outline,
+    "--text": appearance.text,
+    "--accent": appearance.accent,
+    "--glow": appearance.glow,
+    "--motion-duration": appearance.motion === "vivid" ? "260ms" : "170ms",
+  } as CSSProperties;
+  return (
+    <div className="studio-root" style={style} data-motion={appearance.motion}>
+      {view === "controllers" && (
+        <ControllerHub
+          onX20={() => void openModel("x20")}
+          onPro={() => void openModel("x20_pro")}
+          onTheme={() => setThemeOpen(true)}
+        />
+      )}
+      {modelError && <div role="alert" className="notice error model-error">{modelError}</div>}
+      {visitedX20 && (
+        <div hidden={view !== "x20"}>
+          <X20Workspace
+            active={view === "x20"}
+            onBack={() => setView("controllers")}
+            onTheme={() => setThemeOpen(true)}
+          />
+        </div>
+      )}
+      {view === "x20_pro" && (
+        <ProWorkspace onBack={() => setView("controllers")} onTheme={() => setThemeOpen(true)} />
+      )}
+      {themeOpen && <ThemeStudio value={appearance} onSave={setAppearance} onClose={() => setThemeOpen(false)} />}
     </div>
   );
 }

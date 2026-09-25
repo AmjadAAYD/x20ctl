@@ -1,5 +1,35 @@
 # Changelog
 
+## 3.1.0 - 2026-09-25
+
+### Added
+
+- Controllers entry page with separate X20 and X20 Pro workspaces.
+- Dedicated front/rear X20 Pro SVG illustration, read-only BLE/GATT/HID discovery and an isolated Pro setup-store location. Pro configuration is explicitly unavailable until hardware validation.
+- Four metallic theme presets, local advanced color editor, contrast checks, motion controls and reduced-motion support.
+- Native missing-WebView2 dialog linking to Microsoft's installer, with Retry and Cancel.
+- Model-isolation tests and packaged native-window checks for controller switching, Pro illustrations, themes and compact layouts.
+
+### Changed
+
+- Removed the private 308 MB WebView2 runtime from the download; the one-file Windows app now uses the serviced system runtime.
+- XInput polling pauses outside live-input pages and when the X20 workspace is hidden. Unchanged samples no longer redraw the workspace.
+- Pro hardware descriptions distinguish published features from observed data; smart-display image/GIF capabilities remain unverified.
+
+### Fixed
+
+- Backend operations now reject X20 profile exposure, import, reads and writes while Pro is selected; model changes disconnect the previous configuration link.
+- Theme accent reaches controller drawings and primary interactive indicators instead of leaving them cyan under non-cyan palettes.
+- Legacy X20 profiles retain their existing schema and location without migration.
+
+### Removed
+
+- Bundled fixed-version WebView2 fallback and its previous build/startup flags.
+
+### Not included
+
+- Pro configuration writes, macro uploads, lighting/display controls or GIF transfer. These require the physical X20 Pro, repeatable reads, backups and write/read-back verification before a later release.
+
 ## 3.0.0 - 2026-09-19
 
 ### Added

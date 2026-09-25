@@ -15,7 +15,6 @@ from urllib.parse import urlsplit
 
 def main():
     parser = argparse.ArgumentParser(description="x20ctl desktop application")
-    parser.add_argument("--bundled-runtime", action="store_true", help="Test the included runtime without using the system installation")
     parser.add_argument(
         "--smoke-test",
         metavar="DIRECTORY",
@@ -39,6 +38,22 @@ def main():
 
 
 def _run(args):
+    import webbrowser
+    from .runtime import ensure_runtime
+
+    def prompt_runtime():
+        answer = ctypes.windll.user32.MessageBoxW(
+            None,
+            "x20ctl needs Microsoft's WebView2 Runtime.\n\n"
+            "Yes: open the official Microsoft download page.\n"
+            "No: retry after installing it.\n"
+            "Cancel: close x20ctl.",
+            "WebView2 Runtime required", 0x33,
+        )
+        return {6: "download", 7: "retry"}.get(answer, "cancel")
+
+    if not ensure_runtime(prompt_runtime, webbrowser.open):
+        return 1
     import webview
     from .service import DesktopApi, DeviceService
 
@@ -47,7 +62,7 @@ def _run(args):
     if not index.exists():
         raise RuntimeError("Desktop assets are missing. Run npm run build first.")
     from .runtime import configure
-    renderer = configure(webview, root, args.bundled_runtime)
+    renderer = configure(webview)
     logging.info("Desktop renderer: %s", renderer)
     kernel = ctypes.WinDLL("kernel32", use_last_error=True)
     kernel.CreateMutexW.restype = ctypes.c_void_p

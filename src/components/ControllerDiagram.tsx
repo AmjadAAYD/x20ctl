@@ -22,7 +22,7 @@ export function ControllerDiagram({
   onButtonClick,
   selectedKey,
   className = "",
-  themeAccent = "#64dce4",
+  themeAccent = "var(--accent)",
   preset = "x20-pro-black",
 }: ControllerDiagramProps) {
   const id = useId().replace(/:/g, "");

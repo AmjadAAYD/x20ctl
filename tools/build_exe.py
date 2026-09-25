@@ -13,7 +13,6 @@ import subprocess
 import sys
 import time
 import shutil
-import argparse
 from pathlib import Path
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -27,9 +26,6 @@ def run(argv: list[str], label: str) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--bundled-runtime", action="store_true", help="Include Microsoft's fixed runtime for offline, dependency-free startup")
-    args = parser.parse_args()
     try:
         import PyInstaller  # noqa: F401
     except ImportError:
@@ -43,9 +39,6 @@ def main() -> None:
     run([npm, "run", "build"], "compiling local UI assets")
     from licenses import collect
     collect(Path(ROOT))
-    if args.bundled_runtime:
-        from runtime import prepare
-        os.environ["X20CTL_BUNDLE_RUNTIME"] = str(prepare(Path(ROOT)))
 
     started = time.time()
     run([sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean",
@@ -59,7 +52,9 @@ def main() -> None:
     shutil.copy2(Path(ROOT) / "artifacts" / "THIRD_PARTY_LICENSES.txt", Path(ROOT) / "dist" / "THIRD_PARTY_LICENSES.txt")
     print(f"\n=== done in {time.time() - started:.0f}s")
     print(f"    {exe}")
-    print(f"    {size:.1f} MB, runs without Python installed")
+    if size > 40:
+        raise SystemExit(f"Release exceeds the 40 MiB size ceiling: {size:.1f} MiB")
+    print(f"    {size:.1f} MiB, runs without Python installed (WebView2 Runtime required)")
 
 
 if __name__ == "__main__":

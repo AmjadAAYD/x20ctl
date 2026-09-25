@@ -13,6 +13,7 @@ from pathlib import Path
 from x20ctl import __version__, protocol as p
 from x20ctl.client import ControllerError, X20, find_controllers
 from x20ctl.input import XInputReader, MacroRecorder
+from . import pro_discovery
 from .settings import (
     TARGETS,
     curve_to_ui,
@@ -33,11 +34,14 @@ class DeviceService:
         self._factory = client_factory
         self._scanner = scanner
         self._found = {}
+        self._pro_found = {}
+        self._active_model = "x20"
         self._lock = asyncio.Lock()
         self._directory = Path(
             directory
             or Path(os.environ.get("APPDATA", str(Path.home()))) / "x20ctl" / "desktop"
         )
+        self._pro_profiles_path = self._directory / "x20_pro" / "profiles.json"
         self._reader = XInputReader()
         self._recorder = None
         self._record_task = None
@@ -54,11 +58,23 @@ class DeviceService:
         return self.pad
 
     async def dispatch(self, operation, payload):
+        if operation == "select_model":
+            async with self._lock:
+                return await self.select_model(payload)
+        x20_only = {"bootstrap", "input", "scan", "connect", "read", "apply", "reset", "save_profiles", "record_start", "record_stop", "import_profile"}
+        pro_only = {"pro_scan", "pro_inspect", "pro_hid"}
+        pro_only.add("pro_bootstrap")
         if operation == "input":
+            if self._active_model != "x20":
+                raise ValueError("X20 input is unavailable in the X20 Pro workspace")
             return self.input_state()
         if operation == "check_updates":
             return await self.check_updates(payload)
         async with self._lock:
+            if operation in x20_only and self._active_model != "x20":
+                raise ValueError("X20 operations are unavailable in the X20 Pro workspace")
+            if operation in pro_only and self._active_model != "x20_pro":
+                raise ValueError("Pro discovery is unavailable in the X20 workspace")
             actions = {
                 "bootstrap": self.bootstrap,
                 "scan": self.scan,
@@ -72,10 +88,38 @@ class DeviceService:
                 "record_stop": self.record_stop,
                 "import_profile": self.import_profile,
                 "set_updates": self.set_updates,
+                "pro_scan": self.pro_scan,
+                "pro_inspect": self.pro_inspect,
+                "pro_hid": self.pro_hid,
+                "pro_bootstrap": self.pro_bootstrap,
             }
             if operation not in actions:
                 raise ValueError("Unknown desktop operation")
             return await actions[operation](payload)
+
+    async def select_model(self, payload):
+        model = payload.get("model")
+        if model not in {"x20", "x20_pro"}:
+            raise ValueError("Unknown controller model")
+        if model != self._active_model:
+            await self.disconnect({})
+            self._found.clear()
+            self._pro_found.clear()
+            self._active_model = model
+        if model == "x20_pro" and not self._pro_profiles_path.exists():
+            self._pro_profiles_path.parent.mkdir(parents=True, exist_ok=True)
+            self._pro_profiles_path.write_text("[]", encoding="utf-8")
+        return {"model": model}
+
+    async def pro_bootstrap(self, _payload):
+        """Separate, read-only Pro state until a hardware-tested profile schema exists."""
+        try:
+            profiles = json.loads(self._pro_profiles_path.read_text(encoding="utf-8"))
+            if profiles != []:
+                raise ValueError("Pro settings formats have not been verified")
+        except (OSError, ValueError) as exc:
+            return {"model": "x20_pro", "profiles": [], "warning": str(exc), "capabilities": []}
+        return {"model": "x20_pro", "profiles": [], "warning": None, "capabilities": []}
 
     async def bootstrap(self, _payload):
         path = self._directory / "profiles.json"
@@ -159,6 +203,20 @@ class DeviceService:
             device.address: device for device in await self._scanner(timeout=5)
         }
         return [asdict(device) for device in self._found.values()]
+
+    async def pro_scan(self, _payload):
+        devices = await pro_discovery.scan()
+        self._pro_found = {device["address"]: device for device in devices}
+        return devices
+
+    async def pro_inspect(self, payload):
+        address = payload.get("address")
+        if not isinstance(address, str) or address not in self._pro_found:
+            raise ValueError("Select a peripheral returned by Pro discovery")
+        return await pro_discovery.inspect(address)
+
+    async def pro_hid(self, _payload):
+        return await asyncio.to_thread(pro_discovery.hid_inventory)
 
     async def connect(self, payload):
         address = payload["address"]
@@ -437,6 +495,8 @@ class DesktopApi:
             if len(json.dumps(payload or {})) > 2_000_000:
                 raise ValueError("Request too large")
             if operation in ("open_profile", "export_profile"):
+                if self._service._active_model != "x20":
+                    raise ValueError("X20 file dialogs are unavailable in the X20 Pro workspace")
                 return {
                     "ok": True,
                     "data": self._profile_dialog(operation, payload or {}),

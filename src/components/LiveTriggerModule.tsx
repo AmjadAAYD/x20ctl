@@ -62,7 +62,7 @@ export function LiveTriggerModule({
               d="M40 44 H82 L96 106 Q98 129 83 141 Q69 149 52 141 L43 124 Z"
               fill={`url(#${id})`}
               stroke={
-                connected !== false && travel > 0.05 ? "#64dce4" : "#8b969f"
+                connected !== false && travel > 0.05 ? "var(--accent)" : "#8b969f"
               }
               strokeWidth="1.5"
             />
@@ -94,7 +94,7 @@ export function LiveTriggerModule({
               width="11"
               height={travel * 120}
               rx="4"
-              fill="#64dce4"
+              fill="var(--accent)"
             />
           )}
           {[0, 25, 50, 75, 100].map((tick) => (

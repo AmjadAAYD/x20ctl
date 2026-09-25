@@ -2,11 +2,11 @@
 
 ### Your controller. Your setup. A real Windows app.
 
-A downloadable desktop configurator for the **EasySMX X20**. Remap buttons, tune response curves, build paddle macros and save your favorite setups, all in one local application.
+A downloadable desktop configurator for the **EasySMX X20**, with a separate read-only discovery workspace for the upcoming X20 Pro. Remap buttons, tune response curves, build paddle macros and save your favorite X20 setups locally.
 
 [Download for Windows](https://github.com/AmjadAAYD/x20ctl/releases/latest) · [Changelog](CHANGELOG.md) · [Connection help](IF-YOUR-CONTROLLER-ISNT-WORKING.md) · [Report an issue](https://github.com/AmjadAAYD/x20ctl/issues)
 
-![x20ctl desktop button studio](assets/screenshots/desktop/buttons.png)
+![Real packaged x20ctl Controllers workspace](assets/screenshots/desktop/controllers.png)
 
 ## Download and run
 
@@ -14,7 +14,7 @@ A downloadable desktop configurator for the **EasySMX X20**. Remap buttons, tune
 2. Download **x20ctl.exe**, not the source-code archive.
 3. Run it. No Python, Node.js, browser tab, account or paid service is needed.
 
-Windows 10/11 **x64** is the target. The full executable bundles Python, the compiled interface and a Microsoft WebView2 fallback. It prefers the serviced system WebView2 runtime when available. The full download is larger because it includes that fallback; first launch takes time to unpack it. Windows .NET Framework 4.6.2 or later is required, as included in supported, updated Windows installations.
+Windows 10/11 **x64** is the target. The 3.1.0 executable bundles Python and the interface, but uses the installed Microsoft WebView2 Runtime instead of carrying a 308 MB private copy. If WebView2 is missing, a native dialog offers the official Microsoft download page and Retry. It never installs anything silently. Windows .NET Framework 4.6.2 or later is required, as included in supported, updated Windows installations.
 
 The executable is **unsigned**. A Windows reputation warning is possible. Verify its SHA-256 against the release's `SHA256SUMS.txt`; do not disable antivirus to run it. [Security details](SECURITY.md).
 
@@ -31,6 +31,9 @@ Playing over USB does not establish the configuration link. Enable your PC's Blu
 
 ## Inside the app
 
+- **Controllers workspace:** choose X20 or X20 Pro. Selecting Pro disconnects the X20 configuration link and blocks X20 settings/profile API operations. X20 saved setups are unchanged.
+- **X20 Pro preview:** dedicated front/rear SVG illustration, BLE advertisement discovery, standard GATT information and Windows HID inventory. This workspace is strictly read-only; all Pro settings are marked Coming soon until tested on actual hardware. A smart display does not prove GIF support.
+- **Themes:** four metallic palettes plus local color editor for background, panels, outline, text, accent and glow. Unsafe contrast cannot be saved. Off/subtle/vivid motion options and OS reduced-motion preference are respected.
 - **Metallic desktop studio:** graphite and brushed-steel surfaces, illuminated cyan selections, horizontal workspace tabs and a persistent read/apply strip. Every screen and in-app dialog uses the new interface.
 - **Button studio:** interactive metallic controller illustration and per-button assignment inspector. Select and Start are destinations only; unsupported Capture/Turbo mappings are not offered.
 - **Response curves:** independent left/right stick and trigger control points, deadzones and presets. Curve lines are illustrations through stored points, not measurements of unknown firmware interpolation.
@@ -45,7 +48,11 @@ Offline edits are **drafts**, not controller values. **Apply changes** writes on
 
 ## Real screenshots
 
-These are captures of the running packaged desktop app's native WebView2 surface, not AI-generated product images. They show the disconnected/offline state honestly. The controller drawing inside the app is a stylized illustration, not a photograph.
+These are captures of the running 3.1.0 packaged desktop app's native WebView2 surface, not AI-generated product images. They show the disconnected/offline state honestly. Controller drawings inside the app are stylized illustrations, not photographs.
+
+| Controllers | X20 Pro illustration |
+|---|---|
+| ![Controllers workspace](assets/screenshots/desktop/controllers.png) | ![X20 Pro front illustration](assets/screenshots/desktop/pro-front.png) |
 
 | Response curves | Macro editor |
 |---|---|
@@ -70,6 +77,10 @@ The optional startup update check contacts GitHub's public latest-release API. D
 The embedded Microsoft WebView2 component has its own diagnostic/security behavior, including Microsoft Defender SmartScreen, and may send information to Microsoft under [Microsoft's privacy statement](https://aka.ms/privacy). This is separate from x20ctl's update check. See [third-party notices](THIRD_PARTY.md).
 
 The React interface is bundled inside the EXE and talks to a restricted Python API. It is **not a hosted website or PWA**. Native BLE and XInput access stay in Python. The embedded view cannot navigate to arbitrary remote content.
+
+## What changed in 3.1.0?
+
+The downloadable EXE is now about 21.2 MiB instead of 316.9 MiB (332 MB), with the shared WebView2 Runtime required. Controllers is the new entry page, X20 Pro has isolated read-only discovery, and app-wide metallic themes are available. The X20 protocol and saved setups remain in place. See the [3.1.0 validation record](docs/desktop-validation.md#310-packaged-desktop-validation).
 
 ## What changed in 3.0.0?
 
@@ -99,8 +110,8 @@ Source launch uses the system WebView2 runtime. `npm run dev` is an **interface 
 npm run lint
 npm test
 .venv\Scripts\python -m pytest tests/test_desktop.py tests/test_protocol.py tests/test_profiles.py tests/test_compatibility.py -q
-.venv\Scripts\python tools/build_exe.py --bundled-runtime
-$p = Start-Process .\dist\x20ctl.exe -ArgumentList '--smoke-test artifacts\acceptance --bundled-runtime' -Wait -PassThru
+.venv\Scripts\python tools/build_exe.py
+$p = Start-Process .\dist\x20ctl.exe -ArgumentList '--smoke-test artifacts\acceptance' -Wait -PassThru
 $p.ExitCode
 ```
 

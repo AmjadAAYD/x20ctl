@@ -166,10 +166,36 @@ def exercise(window, directory, result, lifecycle=None):
         )
         wait_for("!document.body.innerText.includes('Desktop connection unavailable')")
         wait_for(
-            "document.querySelector('.version')?.textContent.includes(" + json.dumps(__version__) + ")"
+            "document.querySelector('.edition-tag')?.textContent.includes('3.1')"
         )
         assert not window.evaluate_js("!!document.querySelector('[role=alert]')"), "Unexpected startup error"
-        assert window.evaluate_js("document.querySelector('h1').textContent") == "Buttons"
+        assert window.evaluate_js("document.querySelector('h1').textContent") == "Controllers"
+        capture("controllers")
+        window.resize(1060, 760)
+        time.sleep(0.4)
+        assert window.evaluate_js("document.documentElement.scrollWidth <= document.documentElement.clientWidth + 2")
+        capture("controllers-compact")
+        window.resize(1400, 940)
+        time.sleep(0.4)
+        click("Themes")
+        check_dialog_keyboard()
+        for theme_name in ("Graphite Cyan", "Titanium Amber", "Obsidian Violet", "Silver Ice"):
+            click(theme_name, "document.querySelector('[role=dialog]')")
+            assert window.evaluate_js("!!document.querySelector('[role=dialog] .theme-preset.selected')")
+            capture("theme-" + theme_name.lower().replace(" ", "-"))
+        select_value("Motion level", "off")
+        click("Save theme", "document.querySelector('[role=dialog]')")
+        assert window.evaluate_js("document.querySelector('.studio-root').dataset.motion") == "off"
+        capture("hub-silver-ice")
+        for theme_name in ("Titanium Amber", "Obsidian Violet", "Graphite Cyan"):
+            click("Themes")
+            click(theme_name, "document.querySelector('[role=dialog]')")
+            click("Save theme", "document.querySelector('[role=dialog]')")
+            capture("hub-" + theme_name.lower().replace(" ", "-"))
+        report["checks"].append("Controllers entry, four presets, theme editor, and motion-off setting opened in native window")
+        click("Open X20 studio")
+        wait_for("document.querySelector('h1')?.textContent === 'Buttons'")
+        wait_for("document.querySelector('.version')?.textContent.includes(" + json.dumps(__version__) + ")")
         assert window.evaluate_js(
             "['Connection guide','New setup','Import setup','Export setup'].every(label=>"
             "!![...document.querySelectorAll('button')].find(b=>b.getAttribute('aria-label')===label))"
@@ -324,6 +350,41 @@ def exercise(window, directory, result, lifecycle=None):
         )
         wait_for("window.__smokeRejected === true")
         report["checks"].append("Unknown bridge operation rejected")
+        click("Controllers")
+        wait_for("document.querySelector('h1')?.textContent === 'Controllers'")
+        time.sleep(0.2)
+        window.evaluate_js(
+            "window.__inputCalls=0;const original=window.pywebview.api.request;"
+            "window.pywebview.api.request=function(operation,payload){"
+            "if(operation==='input')window.__inputCalls++;return original.call(this,operation,payload)}"
+        )
+        time.sleep(0.25)
+        assert window.evaluate_js("window.__inputCalls") == 0, "XInput polling continued in Controllers hub"
+        report["checks"].append("XInput polling stops while the X20 workspace is hidden")
+        click("Explore X20 Pro")
+        wait_for("document.querySelector('.pro-workspace h1')?.textContent === 'X20 Pro'")
+        assert window.evaluate_js("!!document.querySelector('.pro-controller-svg')")
+        capture("pro-front")
+        click("Rear")
+        capture("pro-rear")
+        window.resize(1060, 760)
+        time.sleep(0.4)
+        assert window.evaluate_js("document.documentElement.scrollWidth <= document.documentElement.clientWidth + 2")
+        capture("pro-rear-compact")
+        window.resize(1400, 940)
+        time.sleep(0.4)
+        assert window.evaluate_js("document.body.innerText.includes('GIF support has not been established')")
+        assert not api("bootstrap")["ok"]
+        assert not api("apply", {"category": "vibration", "value": 30})["ok"]
+        assert not api("import_profile", {"profile": saved_profile})["ok"]
+        assert api("pro_hid")["ok"]
+        capture("pro-discovery")
+        report["checks"].append("Pro front/rear illustrations and read-only inventory opened; X20 profiles and writes blocked")
+        click("Controllers")
+        click("Open X20 studio")
+        wait_for("document.querySelector('.version')?.textContent.includes(" + json.dumps(__version__) + ")")
+        assert api("bootstrap")["ok"]
+        report["checks"].append("Switching back restores X20-only API access")
         original_url = window.evaluate_js("location.href")
         window.evaluate_js("location.href='https://example.invalid/'")
         time.sleep(0.5)
