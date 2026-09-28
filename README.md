@@ -11,10 +11,10 @@ A downloadable desktop configurator for the **EasySMX X20**, with a separate rea
 ## Download and run
 
 1. Open [GitHub Releases](https://github.com/AmjadAAYD/x20ctl/releases).
-2. Download **x20ctl.exe**, not the source-code archive.
-3. Run it. No Python, Node.js, browser tab, account or paid service is needed.
+2. Download **x20ctl-4.0.0-win-x64.zip**, not the source-code archive.
+3. Extract the archive and keep **x20ctl.exe** beside **x20ctl-scanner.exe**. Run x20ctl.exe. No Python, Node.js, browser tab, account or paid service is needed.
 
-Windows 10/11 **x64** is the target. The 3.1.0 executable bundles Python and the interface, but uses the installed Microsoft WebView2 Runtime instead of carrying a 308 MB private copy. If WebView2 is missing, a native dialog offers the official Microsoft download page and Retry. It never installs anything silently. Windows .NET Framework 4.6.2 or later is required, as included in supported, updated Windows installations.
+Windows 10/11 **x64** is the target. The 4.0.0 desktop executable bundles Python and the interface, but uses the installed Microsoft WebView2 Runtime. If WebView2 is missing, a native dialog offers the official Microsoft download page and Retry. It never installs anything silently. Windows .NET Framework 4.6.2 or later is required, as included in supported, updated Windows installations.
 
 The executable is **unsigned**. A Windows reputation warning is possible. Verify its SHA-256 against the release's `SHA256SUMS.txt`; do not disable antivirus to run it. [Security details](SECURITY.md).
 
@@ -32,9 +32,8 @@ Playing over USB does not establish the configuration link. Enable your PC's Blu
 ## Inside the app
 
 - **Controllers workspace:** choose X20 or X20 Pro. Selecting Pro disconnects the X20 configuration link and blocks X20 settings/profile API operations. X20 saved setups are unchanged.
-- **X20 Pro preview:** dedicated front/rear SVG illustration, BLE advertisement discovery, standard GATT information and Windows HID inventory. This workspace is strictly read-only; all Pro settings are marked Coming soon until tested on actual hardware. A smart display does not prove GIF support.
-- **Themes:** four metallic palettes plus local color editor for background, panels, outline, text, accent and glow. Unsafe contrast cannot be saved. Off/subtle/vivid motion options and OS reduced-motion preference are respected.
-- **Metallic desktop studio:** graphite and brushed-steel surfaces, illuminated cyan selections, horizontal workspace tabs and a persistent read/apply strip. Every screen and in-app dialog uses the new interface.
+- **X20 Pro preview:** front illustration, BLE advertisement discovery, standard GATT information and Windows HID inventory. This workspace is strictly read-only; all Pro settings are marked Coming soon until tested on actual hardware. A smart display does not prove GIF support.
+- **Desktop studio:** fixed navy palette, left navigation rail, compact controller status header and a page-end read/apply bar. Theme Studio and the Pro rear view have been removed; Windows reduced-motion preference remains respected.
 - **Button studio:** interactive metallic controller illustration and per-button assignment inspector. Select and Start are destinations only; unsupported Capture/Turbo mappings are not offered.
 - **Response curves:** independent left/right stick and trigger control points, deadzones and presets. Curve lines are illustrations through stored points, not measurements of unknown firmware interpolation.
 - **Paddle macros:** M1 to M4, button chords, eight-way stick directions, per-step timing, loop intervals and a piano-roll editor. Timing follows the controller's 5 ms grid; the limit is 47 wire entries, including pauses.
@@ -43,12 +42,14 @@ Playing over USB does not establish the configuration link. Enable your PC's Blu
 - **Input tester:** actual Windows XInput states. No invented polling rate, packet loss or latency measurement.
 - **Saved setups:** dedicated local library, JSON import/export, legacy 1.x profile migration, rename and confirmed deletion. Importing a partial legacy setup does not overwrite categories it never contained.
 - **Desktop behavior:** single instance, close-to-tray, Open/Quit tray actions and optional quiet GitHub update checks.
+- **Compatibility reports:** a separate SHA-256-verified helper collects standard Bluetooth LE diagnostics for a selected device. X20ctl validates and stores the report locally, shows a preview, and uploads it to X20ADMIN only after explicit consent. Hardware support beyond the tested X20 configuration workflow is not claimed.
+- **Support X20ctl:** an optional dialog opens the official Ko-fi page in the default browser. No payment or support status is handled by the app.
 
 Offline edits are **drafts**, not controller values. **Apply changes** writes only edited categories. Successful read-back is reported as verified; commands without reliable confirmation are labeled sent. A partial failure retains the remaining draft and reports what succeeded.
 
 ## Real screenshots
 
-These are captures of the running 3.1.0 packaged desktop app's native WebView2 surface, not AI-generated product images. They show the disconnected/offline state honestly. Controller drawings inside the app are stylized illustrations, not photographs.
+These are captures of the running 4.0.0 packaged desktop app's native WebView2 surface. They show the disconnected/offline state honestly. Controller drawings inside the app are stylized illustrations, not photographs.
 
 | Controllers | X20 Pro illustration |
 |---|---|
@@ -72,11 +73,15 @@ Capture method and verification scope: [desktop validation](docs/desktop-validat
 
 Settings are stored under `%APPDATA%\x20ctl\desktop`. Existing 1.x profiles under `%APPDATA%\x20ctl\profiles` are not moved or deleted. Import them from the setup toolbar.
 
-The optional startup update check contacts GitHub's public latest-release API. Disable it in **Connection guide**. Controller data and profiles are not uploaded. Updates open the real GitHub Releases page; the app never silently replaces its executable.
+The optional startup update check contacts GitHub's public latest-release API. Disable it in **Connection guide**. Settings and profiles are not uploaded. A compatibility report is uploaded only after you preview it and explicitly consent. Updates open the real GitHub Releases page; the app never silently replaces its executable.
 
 The embedded Microsoft WebView2 component has its own diagnostic/security behavior, including Microsoft Defender SmartScreen, and may send information to Microsoft under [Microsoft's privacy statement](https://aka.ms/privacy). This is separate from x20ctl's update check. See [third-party notices](THIRD_PARTY.md).
 
 The React interface is bundled inside the EXE and talks to a restricted Python API. It is **not a hosted website or PWA**. Native BLE and XInput access stay in Python. The embedded view cannot navigate to arbitrary remote content.
+
+## What changed in 4.0.0?
+
+The desktop has a fixed navy interface, controller preview changes, optional compatibility reports, and Support X20ctl. The Theme Studio/color editor and X20 Pro rear view are intentionally removed. Reports use a separate scanner executable that must remain beside x20ctl.exe; see the [4.0.0 release notes](RELEASES/4.0.0.md).
 
 ## What changed in 3.1.0?
 
@@ -119,7 +124,7 @@ The full regression suite also includes the retained Qt interface: install `.[gu
 
 `--smoke-test` uses isolated profile storage, exercises the actual desktop UI, captures rendered pixels and performs only read-only discovery/input checks. It never writes controller settings. Build dependencies are pinned in [requirements-build.txt](requirements-build.txt); frontend dependencies are locked in `package-lock.json`.
 
-Build output is `dist/x20ctl.exe`. [Architecture and profile schema](docs/desktop-architecture.md). [Protocol reference](docs/01-protocol.md).
+Build output is `dist/x20ctl-4.0.0-win-x64.zip`, containing the paired desktop and scanner executables. [Architecture and profile schema](docs/desktop-architecture.md). [Protocol reference](docs/01-protocol.md).
 
 ## Safety and credits
 

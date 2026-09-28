@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Activity,
   ArrowDownToLine,
@@ -26,13 +26,10 @@ import {
   ShieldCheck,
   Clock3,
   Settings2,
-  ArrowLeft,
-  Palette,
 } from "lucide-react";
 import { ControllerHub } from "./components/ControllerHub";
 import { ProWorkspace } from "./components/ProWorkspace";
-import { ThemeStudio } from "./components/ThemeStudio";
-import { Appearance, loadAppearance } from "./theme";
+import { ReportPanel } from "./components/ReportPanel";
 import "./themes.css";
 import { MetalDialog } from "./components/MetalDialog";
 import { ButtonsPage } from "./components/pages/ButtonsPage";
@@ -43,6 +40,8 @@ import { Profile } from "./types/gamepad";
 import { newProfile } from "./data/defaultProfiles";
 import { request, whenNativeReady } from "./native";
 import { useGamepad } from "./hooks/useGamepad";
+import brandMark from "./assets/brand-mark.png";
+import x20Hero from "./assets/x20-hero.png";
 
 type Tab =
   "buttons" | "curves" | "macros" | "rumble" | "power" | "tester" | "profiles";
@@ -116,12 +115,12 @@ const navigation: {
   },
 ];
 
-function X20Workspace({ active, onBack, onTheme }: { active: boolean; onBack: () => void; onTheme: () => void }) {
+function X20Workspace({ active, onBack }: { active: boolean; onBack: () => void }) {
   const running = useRef(false);
   const [updatesEnabled, setUpdatesEnabled] = useState(true);
   const [update, setUpdate] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
-  const [version, setVersion] = useState("3.1.0");
+  const [version, setVersion] = useState("4.0.0");
   const [tab, setTab] = useState<Tab>("buttons");
   const [profile, setProfile] = useState<Profile>(() => newProfile());
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -131,6 +130,7 @@ function X20Workspace({ active, onBack, onTheme }: { active: boolean; onBack: ()
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [scanner, setScanner] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   const [devices, setDevices] = useState<{ address: string; name: string }[]>(
     [],
   );
@@ -360,37 +360,54 @@ function X20Workspace({ active, onBack, onTheme }: { active: boolean; onBack: ()
   ).length;
 
   return (
-    <div className="metal-app">
+    <div className="metal-app rebranded-workspace" data-page={tab}>
       <a className="skip-link" href="#workspace">
         Skip to editor
       </a>
-      <header className="chassis-header">
+      <aside className="chassis-sidebar">
         <div className="chassis-brand">
-          <div className="brand-emblem">
-            <Gamepad2 size={24} strokeWidth={1.5} />
-          </div>
-          <div>
-            <strong>x20ctl</strong>
-            <span>CONTROLLER STUDIO</span>
-          </div>
-          <span className="edition-tag">METAL</span>
+          <img className="brand-emblem" src={brandMark} alt="" />
+          <strong>x20ctl</strong>
         </div>
-        <div className="connection-lights" aria-label="Connection status">
-          <span>
-            <i className={device ? "led on" : "led"} /> CONFIG{" "}
-            <b>{device ? "LINKED" : "OFFLINE"}</b>
-          </span>
-          <span>
-            <i className={hardwareDetected ? "led on" : "led"} /> XINPUT{" "}
-            <b>{hardwareDetected ? "P" + ((slot ?? 0) + 1) : "OFFLINE"}</b>
-          </span>
+        <nav className="chassis-nav" aria-label="Workspace">
+          <button onClick={onBack}>
+            <Gamepad2 size={19} /> <span>Controllers</span>
+          </button>
+          {navigation.map((item) => (
+            <button
+              key={item.id}
+              aria-current={tab === item.id ? "page" : undefined}
+              onClick={() => setTab(item.id)}
+            >
+              <item.icon size={19} />
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </nav>
+      </aside>
+      <header className="chassis-header">
+        <div className="header-controller">
+          <div className="header-controller-art" aria-hidden="true">
+            <img src={x20Hero} alt="" />
+          </div>
+          <div className="header-controller-copy">
+            <strong>X20 Controller</strong>
+            <div className="connection-lights" aria-label="Connection status">
+              <span>
+                <i className={device ? "led on" : "led"} />
+                <span>Config Connection <b>{device ? "Connected" : "Not Connected"}</b></span>
+              </span>
+              <span>
+                <i className={hardwareDetected ? "led on" : "led"} />
+                <span>XInput (Gameplay) <b>{hardwareDetected ? `Player ${(slot ?? 0) + 1}` : "Not Connected"}</b></span>
+              </span>
+            </div>
+          </div>
         </div>
         <div className="header-actions">
+          <button className="button secondary" disabled={!ready || !!busy} onClick={() => setReportOpen(true)}>Compatibility report</button>
           <button className="button secondary" onClick={onBack}>
-            <ArrowLeft size={15} /> Controllers
-          </button>
-          <button className="icon-button" title="Themes" aria-label="Themes" onClick={onTheme}>
-            <Palette size={17} />
+            <Gamepad2 size={17} /> Controllers
           </button>
           <button
             className="button secondary"
@@ -414,51 +431,8 @@ function X20Workspace({ active, onBack, onTheme }: { active: boolean; onBack: ()
         </div>
       </header>
 
-      <nav className="chassis-nav" aria-label="Workspace">
-        {navigation.map((item) => (
-          <button
-            key={item.id}
-            aria-current={tab === item.id ? "page" : undefined}
-            onClick={() => setTab(item.id)}
-          >
-            <item.icon size={16} />
-            <span>{item.label}</span>
-          </button>
-        ))}
-      </nav>
-
       <main id="workspace" className="metal-workspace">
-        <section className="device-strip">
-          <div className="device-identity">
-            <div className="device-chip">
-              <Cpu size={25} strokeWidth={1.3} />
-            </div>
-            <div>
-              <span className="engraved">
-                EASYSMX X20 / CONFIGURATION STUDIO
-              </span>
-              <h1>{current.label}</h1>
-              <p>{current.description}</p>
-            </div>
-          </div>
-          <div className="device-readouts">
-            <span>
-              <small>CONFIGURATION</small>
-              <b>{device?.name || "Not connected"}</b>
-            </span>
-            <span>
-              <small>FIRMWARE</small>
-              <b>{device?.device.version || "—"}</b>
-            </span>
-            <span className="battery-readout">
-              <Battery size={20} />
-              <b>
-                {battery ? battery.level + "/4 bars" : "—"}
-                {battery?.charging ? " · Charging" : ""}
-              </b>
-            </span>
-          </div>
-        </section>
+        <h1 className="workspace-page-title">{current.label}</h1>
 
         {!ready && (
           <div className="notice">
@@ -507,8 +481,7 @@ function X20Workspace({ active, onBack, onTheme }: { active: boolean; onBack: ()
 
         <div className="setup-toolbar">
           <div className="setup-name">
-            <Layers3 size={17} />
-            <label htmlFor="setup-name">SETUP</label>
+            <label htmlFor="setup-name">Active Setup</label>
             <input
               id="setup-name"
               aria-label="Setup name"
@@ -519,11 +492,12 @@ function X20Workspace({ active, onBack, onTheme }: { active: boolean; onBack: ()
             />
           </div>
           <span className={"draft-indicator " + (dirty.size ? "pending" : "")}>
-            {dirty.size
+            <i className="draft-led" />
+            <span>{dirty.size
               ? `${dirty.size} unsent ${dirty.size === 1 ? "change" : "changes"}`
               : device
                 ? "Read from device"
-                : "Offline draft"}
+                : "Editing offline draft"}</span>
           </span>
           <div className="toolbar-actions">
             <button
@@ -634,6 +608,37 @@ function X20Workspace({ active, onBack, onTheme }: { active: boolean; onBack: ()
                   <h2>Unified motor control</h2>
                   <span className="panel-code">HAPTICS / 01</span>
                 </div>
+                <div className="controller-hero-art vibration-controller-art" aria-hidden="true">
+                  <div className="vibration-controller-frame">
+                    <img src={x20Hero} alt="" />
+                    <svg
+                      className="vibration-grip-overlay"
+                      viewBox="0 0 1536 1024"
+                      data-strength={profile.vibration}
+                      style={{ opacity: profile.vibration / 100 }}
+                    >
+                      <defs>
+                        <clipPath id="vibration-left-grip">
+                          <path d="M148 342 C240 390 334 555 365 646 C347 774 264 918 174 992 C88 995 36 881 36 730 C37 580 82 427 148 342 Z" />
+                        </clipPath>
+                        <clipPath id="vibration-right-grip">
+                          <path d="M1388 342 C1296 390 1202 555 1171 646 C1189 774 1272 918 1362 992 C1448 995 1500 881 1500 730 C1499 580 1454 427 1388 342 Z" />
+                        </clipPath>
+                      </defs>
+                      <g className="grip-pulse grip-pulse-left" clipPath="url(#vibration-left-grip)">
+                        <ellipse className="grip-wave grip-wave-outer" cx="218" cy="688" rx="105" ry="223" transform="rotate(-13 218 688)" />
+                        <ellipse className="grip-wave grip-wave-middle" cx="218" cy="688" rx="75" ry="166" transform="rotate(-13 218 688)" />
+                        <ellipse className="grip-wave grip-wave-inner" cx="218" cy="688" rx="44" ry="104" transform="rotate(-13 218 688)" />
+                      </g>
+                      <g className="grip-pulse grip-pulse-right" clipPath="url(#vibration-right-grip)">
+                        <ellipse className="grip-wave grip-wave-outer" cx="1318" cy="688" rx="105" ry="223" transform="rotate(13 1318 688)" />
+                        <ellipse className="grip-wave grip-wave-middle" cx="1318" cy="688" rx="75" ry="166" transform="rotate(13 1318 688)" />
+                        <ellipse className="grip-wave grip-wave-inner" cx="1318" cy="688" rx="44" ry="104" transform="rotate(13 1318 688)" />
+                      </g>
+                    </svg>
+                  </div>
+                  <span className="vibration-preview-caption">Draft strength preview</span>
+                </div>
                 <div className="haptics-master">
                   <span className="engraved">STORED VIBRATION STRENGTH</span>
                   <div className="large-value">
@@ -690,8 +695,7 @@ function X20Workspace({ active, onBack, onTheme }: { active: boolean; onBack: ()
                     </div>
                   ))}
                 </div>
-              </section>
-              <aside className="haptics-presets metal-panel">
+                <aside className="haptics-presets metal-panel">
                 <div className="panel-heading">
                   <SlidersHorizontal size={17} />
                   <h2>Strength presets</h2>
@@ -735,7 +739,8 @@ function X20Workspace({ active, onBack, onTheme }: { active: boolean; onBack: ()
                   </p>
                   <p>Games control when the motors run.</p>
                 </div>
-              </aside>
+                </aside>
+              </section>
             </div>
           )}
           {tab === "power" && (
@@ -745,44 +750,36 @@ function X20Workspace({ active, onBack, onTheme }: { active: boolean; onBack: ()
                   <Battery size={18} />
                   <h2>Battery status</h2>
                 </div>
-                <div className="battery-dial">
-                  <svg viewBox="0 0 220 220" aria-hidden="true">
-                    <circle cx="110" cy="110" r="92" />
-                    <circle
-                      className="battery-ring"
-                      cx="110"
-                      cy="110"
-                      r="92"
-                      strokeDasharray={`${battery ? (battery.level / 4) * 578 : 0} 578`}
-                    />
-                  </svg>
-                  <div>
-                    <span className="engraved">CONTROLLER REPORT</span>
-                    <strong>
-                      {battery ? battery.level : "—"}
-                      <small>{battery ? "/4" : ""}</small>
-                    </strong>
-                    <span>
-                      {battery
-                        ? battery.charging
-                          ? "Charging"
-                          : "Battery bars"
-                        : "Connect to read"}
-                    </span>
+                <div className="battery-status-content">
+                  <div className="battery-segments" role="img" aria-label={battery ? `Battery level ${battery.level} of 4` : "Battery level unavailable"}>
+                    {[1, 2, 3, 4].map((i) => (
+                      <span
+                        key={i}
+                        className={battery && battery.level >= i ? "filled" : ""}
+                      />
+                    ))}
                   </div>
+                  <div className="battery-dial">
+                    <div>
+                      <span className="engraved">CONTROLLER REPORT</span>
+                      <strong>
+                        {battery ? battery.level : "—"}
+                        <small>{battery ? "/4" : ""}</small>
+                      </strong>
+                      <span>
+                        {battery
+                          ? battery.charging
+                            ? "Charging"
+                            : "Battery bars"
+                          : "Connect to read"}
+                      </span>
+                    </div>
+                  </div>
+                  <p className="panel-footnote">
+                    The X20 reports four battery levels. An exact percentage or
+                    remaining time is not available.
+                  </p>
                 </div>
-                <div className="battery-segments">
-                  {[1, 2, 3, 4].map((i) => (
-                    <span
-                      key={i}
-                      className={battery && battery.level >= i ? "filled" : ""}
-                    />
-                  ))}
-                </div>
-                <p className="panel-footnote">
-                  The X20 reports four battery levels. An exact percentage or
-                  remaining time is not available.
-                </p>
               </section>
               <div className="power-settings">
                 <section className="metal-panel">
@@ -1054,6 +1051,7 @@ function X20Workspace({ active, onBack, onTheme }: { active: boolean; onBack: ()
         </div>
       </footer>
 
+      {reportOpen && <ReportPanel onClose={() => setReportOpen(false)} selected={!!device} onPrepareStart={() => setDevice(null)} />}
       {scanner && (
         <MetalDialog
           title="Link your controller"
@@ -1308,9 +1306,19 @@ function X20Workspace({ active, onBack, onTheme }: { active: boolean; onBack: ()
 export function App() {
   const [view, setView] = useState<"controllers" | "x20" | "x20_pro">("controllers");
   const [visitedX20, setVisitedX20] = useState(false);
-  const [appearance, setAppearance] = useState<Appearance>(loadAppearance);
-  const [themeOpen, setThemeOpen] = useState(false);
   const [modelError, setModelError] = useState("");
+  const [supportOpen, setSupportOpen] = useState(false);
+  const [supportError, setSupportError] = useState("");
+  const closeSupport = () => {
+    setSupportOpen(false);
+    setSupportError("");
+  };
+  const openSupportLink = (operation: "open_support" | "open_github") => {
+    setSupportError("");
+    void request(operation).catch((reason) =>
+      setSupportError(reason instanceof Error ? reason.message : String(reason)),
+    );
+  };
   const openModel = async (model: "x20" | "x20_pro") => {
     setModelError("");
     try {
@@ -1321,23 +1329,32 @@ export function App() {
       setModelError(reason instanceof Error ? reason.message : String(reason));
     }
   };
-  const style = {
-    "--bg": appearance.background,
-    "--surface": appearance.surface,
-    "--line": appearance.outline,
-    "--text": appearance.text,
-    "--accent": appearance.accent,
-    "--glow": appearance.glow,
-    "--motion-duration": appearance.motion === "vivid" ? "260ms" : "170ms",
-  } as CSSProperties;
   return (
-    <div className="studio-root" style={style} data-motion={appearance.motion}>
+    <div className="studio-root">
       {view === "controllers" && (
         <ControllerHub
           onX20={() => void openModel("x20")}
           onPro={() => void openModel("x20_pro")}
-          onTheme={() => setThemeOpen(true)}
+          onSupport={() => setSupportOpen(true)}
         />
+      )}
+      {supportOpen && (
+        <MetalDialog title="Support X20ctl" subtitle="OPTIONAL" onClose={closeSupport}>
+          <p>X20ctl is free and independently developed.</p>
+          <p>
+            If you find it useful, you can support continued development,
+            controller compatibility work, testing, and hosting costs.
+          </p>
+          <div className="dialog-actions">
+            <button className="button primary" onClick={() => openSupportLink("open_support")}>Support X20ctl on Ko-fi</button>
+          </div>
+          <p className="fine-print">Other ways to help: star X20ctl on GitHub or submit an unsupported controller report from X20 Pro read-only discovery.</p>
+          <div className="dialog-actions">
+            <button className="button secondary" onClick={() => openSupportLink("open_github")}>Star on GitHub</button>
+            <button className="button secondary" onClick={closeSupport}>Close</button>
+          </div>
+          {supportError && <p className="error-text" role="alert">{supportError}</p>}
+        </MetalDialog>
       )}
       {modelError && <div role="alert" className="notice error model-error">{modelError}</div>}
       {visitedX20 && (
@@ -1345,14 +1362,12 @@ export function App() {
           <X20Workspace
             active={view === "x20"}
             onBack={() => setView("controllers")}
-            onTheme={() => setThemeOpen(true)}
           />
         </div>
       )}
       {view === "x20_pro" && (
-        <ProWorkspace onBack={() => setView("controllers")} onTheme={() => setThemeOpen(true)} />
+        <ProWorkspace onBack={() => setView("controllers")} />
       )}
-      {themeOpen && <ThemeStudio value={appearance} onSave={setAppearance} onClose={() => setThemeOpen(false)} />}
     </div>
   );
 }

@@ -1,5 +1,31 @@
 # Changelog
 
+## 4.0.0 - 2026-09-28
+
+### Added
+
+- Local compatibility reports for an explicitly selected Bluetooth LE device. A separate scanner writes standard GATT diagnostics locally; the desktop validates and previews them, then uploads to X20ADMIN only after explicit consent. Failed uploads retain the same ZIP and submission UUID for retry.
+- SHA-256 verification of the release-paired scanner before execution and upload. A missing or modified helper fails closed.
+- Optional Support X20ctl dialog with an external link to the official Ko-fi page.
+- Keyboard and pointer controller preview for visual testing without changing controller settings.
+
+### Changed
+
+- Replaced the metallic multi-theme desktop with a fixed navy interface, controller imagery, left navigation, and compact status header.
+- Windows builds now package `x20ctl.exe` and `x20ctl-scanner.exe` together in one archive and verify their hash pairing after packaging.
+
+### Removed
+
+- Theme Studio, local color editor, and X20 Pro rear illustration/view. X20 Pro configuration remains read-only.
+
+### Fixed
+
+- Windows fixed-file and displayed version metadata now agree on 4.0.0.
+
+### Limits
+
+- The scanner reads selected-device Bluetooth LE information only. USB/HID descriptors, input captures, and new hardware compatibility are not claimed.
+
 ## 3.1.0 - 2026-09-25
 
 ### Added

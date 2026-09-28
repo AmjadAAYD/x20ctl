@@ -90,6 +90,18 @@ def test_bridge_rejects_wrong_payload_types():
         api._close()
 
 
+def test_support_links_open_only_fixed_external_urls(monkeypatch):
+    opened = []
+    monkeypatch.setattr("webbrowser.open", lambda url: opened.append(url) or True)
+    api = DesktopApi()
+    try:
+        assert api.request("open_support", {"url": "https://example.invalid"})["ok"]
+        assert api.request("open_github", {})["ok"]
+    finally:
+        api._close()
+    assert opened == ["https://ko-fi.com/x20ctl", "https://github.com/AmjadAAYD/x20ctl"]
+
+
 def test_model_switch_blocks_x20_profiles_and_writes(tmp_path, monkeypatch):
     from x20ctl.desktop import pro_discovery
 

@@ -115,6 +115,11 @@ def exercise(window, directory, result, lifecycle=None):
         ), "Dialog body overflows horizontally; only its timeline may scroll"
 
     def check_layout(page, size):
+        wait_for(
+            "document.querySelector('.metal-workspace')?.clientWidth>0"
+            "&&document.querySelector('.editor')?.clientWidth>0"
+            "&&document.querySelector('.chassis-footer')?.getClientRects().length>0"
+        )
         metrics = window.evaluate_js(
             "(()=>{const selectors=['html','body','.metal-app','.metal-workspace','.editor'];"
             "return {viewport:{width:innerWidth,height:innerHeight},elements:selectors.map(selector=>{"
@@ -128,9 +133,10 @@ def exercise(window, directory, result, lifecycle=None):
         ]
         assert not failures, f"Horizontal workspace overflow on {page} at {size}: {failures}"
         assert window.evaluate_js(
-            "(()=>{const e=document.querySelector('.chassis-footer');const r=e?.getBoundingClientRect();"
-            "return r&&r.bottom<=innerHeight+2&&r.top>=0})()"
-        ), f"Apply footer is outside the window on {page} at {size}"
+            "(()=>{const e=document.querySelector('.chassis-footer');"
+            "return !!e&&e.getClientRects().length>0&&getComputedStyle(e).position!=='fixed'"
+            "&&e.scrollHeight>0})()"
+        ), f"Apply footer is missing or obscuring controls on {page} at {size}"
 
     def capture(name):
         from System import Action
@@ -165,11 +171,9 @@ def exercise(window, directory, result, lifecycle=None):
             "typeof window.pywebview?.api?.request === 'function' && !!document.querySelector('h1')"
         )
         wait_for("!document.body.innerText.includes('Desktop connection unavailable')")
-        wait_for(
-            "document.querySelector('.edition-tag')?.textContent.includes('3.1')"
-        )
+        wait_for("!!document.querySelector('.rebranded-hub')")
         assert not window.evaluate_js("!!document.querySelector('[role=alert]')"), "Unexpected startup error"
-        assert window.evaluate_js("document.querySelector('h1').textContent") == "Controllers"
+        assert window.evaluate_js("document.querySelector('h1').textContent") == "Add a Controller"
         capture("controllers")
         window.resize(1060, 760)
         time.sleep(0.4)
@@ -177,25 +181,53 @@ def exercise(window, directory, result, lifecycle=None):
         capture("controllers-compact")
         window.resize(1400, 940)
         time.sleep(0.4)
-        click("Themes")
-        check_dialog_keyboard()
-        for theme_name in ("Graphite Cyan", "Titanium Amber", "Obsidian Violet", "Silver Ice"):
-            click(theme_name, "document.querySelector('[role=dialog]')")
-            assert window.evaluate_js("!!document.querySelector('[role=dialog] .theme-preset.selected')")
-            capture("theme-" + theme_name.lower().replace(" ", "-"))
-        select_value("Motion level", "off")
-        click("Save theme", "document.querySelector('[role=dialog]')")
-        assert window.evaluate_js("document.querySelector('.studio-root').dataset.motion") == "off"
-        capture("hub-silver-ice")
-        for theme_name in ("Titanium Amber", "Obsidian Violet", "Graphite Cyan"):
-            click("Themes")
-            click(theme_name, "document.querySelector('[role=dialog]')")
-            click("Save theme", "document.querySelector('[role=dialog]')")
-            capture("hub-" + theme_name.lower().replace(" ", "-"))
-        report["checks"].append("Controllers entry, four presets, theme editor, and motion-off setting opened in native window")
+        wait_for("document.querySelectorAll('.controller-card').length===4")
+        assert not window.evaluate_js("!!document.querySelector('[aria-label=Appearance]')")
+        report["checks"].append("Four-slot Controllers entry opened with fixed rebrand palette and no Theme Studio")
         click("Open X20 studio")
         wait_for("document.querySelector('h1')?.textContent === 'Buttons'")
+        assert window.evaluate_js(
+            "(()=>{const rail=document.querySelector('.chassis-sidebar');"
+            "const brand=document.querySelector('.chassis-brand');"
+            "const nav=document.querySelector('.chassis-nav');"
+            "if(!rail||!brand||!nav)return false;"
+            "return getComputedStyle(rail).backgroundImage==='none'"
+            "&&getComputedStyle(brand).backgroundImage!=='none'"
+            "&&getComputedStyle(nav).backgroundImage!=='none'"
+            "&&nav.getBoundingClientRect().top-brand.getBoundingClientRect().bottom>=8"
+            "&&rail.getBoundingClientRect().bottom-nav.getBoundingClientRect().bottom>=24})()"
+        ), "Sidebar brand and navigation are not separate panels"
         wait_for("document.querySelector('.version')?.textContent.includes(" + json.dumps(__version__) + ")")
+        assert window.evaluate_js("!!document.querySelector('.photo-control-overlay')"), "Visible controller control layer missing"
+        assert window.evaluate_js(
+            "(()=>{const image=document.querySelector('.mapping-controller-photo');"
+            "const stick=document.querySelector('.photo-stick-control');"
+            "if(!image||!stick)return false;const box=image.getBoundingClientRect();"
+            "const scale=Math.min(box.width/1536,box.height/1024);"
+            "const expectedX=box.left+(box.width-1536*scale)/2+385*scale;"
+            "const expectedY=box.top+(box.height-1024*scale)/2+302*scale;"
+            "const matrix=stick.getScreenCTM();"
+            "return !!matrix&&Math.hypot(matrix.e-expectedX,matrix.f-expectedY)<5})()"
+        ), "Left SVG thumbstick is not centered on the photographed stick"
+        assert window.evaluate_js(
+            "(()=>{const button=document.querySelector('.photo-control-overlay [aria-label=\"Select B\"]');"
+            "if(!button)return false;button.dispatchEvent(new MouseEvent('click',{bubbles:true}));return true})()"
+        ), "Clicking a pictured button did not select it"
+        wait_for("document.querySelector('.mapping-selected-control .mapping-key-large')?.textContent==='B'")
+        click("Keyboard preview")
+        assert window.evaluate_js("document.body.innerText.includes('Keyboard preview active')")
+        window.evaluate_js("window.dispatchEvent(new KeyboardEvent('keydown',{key:'w',bubbles:true}))")
+        wait_for("document.querySelector('.photo-control-overlay')?.getAttribute('data-left-y')==='-1.000'")
+        assert window.evaluate_js(
+            "document.querySelector('.photo-stick-control g')?.getAttribute('transform')"
+            "==='translate(0 -17)'"
+        ), "WASD state did not visibly move the SVG stick cap"
+        capture("buttons-keyboard-preview")
+        assert window.evaluate_js("document.querySelector('.connection-lights')?.textContent.includes('Not Connected')"), "Preview impersonated connected hardware"
+        window.evaluate_js("window.dispatchEvent(new KeyboardEvent('keyup',{key:'w',bubbles:true}))")
+        wait_for("document.querySelector('.photo-control-overlay')?.getAttribute('data-left-y')==='0.000'")
+        click("Keyboard preview")
+        report["checks"].append("Visible picture controls select mappings and opt-in WASD preview stays local")
         assert window.evaluate_js(
             "['Connection guide','New setup','Import setup','Export setup'].every(label=>"
             "!![...document.querySelectorAll('button')].find(b=>b.getAttribute('aria-label')===label))"
@@ -205,6 +237,32 @@ def exercise(window, directory, result, lifecycle=None):
         for title, filename in pages:
             click(title, "document.querySelector('.chassis-nav')")
             assert window.evaluate_js("document.querySelector('h1').textContent") == title
+            if title == "Vibration":
+                assert window.evaluate_js(
+                    "(()=>{const overlay=document.querySelector('.vibration-grip-overlay');"
+                    "return !!overlay&&overlay.querySelectorAll('.grip-pulse').length===2"
+                    "&&overlay.getAttribute('data-strength')==='70'})()"
+                ), "Vibration page is missing its two-grip visual preview"
+                assert window.evaluate_js(
+                    "(()=>{const image=document.querySelector('.vibration-controller-frame img');"
+                    "const rings=document.querySelectorAll('.grip-wave-outer');"
+                    "if(!image||rings.length!==2)return false;"
+                    "const art=image.getBoundingClientRect(),left=rings[0].getBoundingClientRect(),right=rings[1].getBoundingClientRect();"
+                    "return left.left>=art.left+10&&right.right<=art.right-10})()"
+                ), "Vibration contours extend beyond the controller art"
+                assert window.evaluate_js(
+                    "matchMedia('(prefers-reduced-motion: reduce)').matches"
+                    "||getComputedStyle(document.querySelector('.grip-wave')).animationName.includes('grip-swell')"
+                ), "Grip preview animation is not active"
+            if title == "Power & device":
+                assert window.evaluate_js(
+                    "(()=>{const panel=document.querySelector('.battery-panel');"
+                    "const content=panel?.querySelector('.battery-status-content');"
+                    "if(!panel||!content||panel.querySelector('.power-controller-art'))return false;"
+                    "const a=panel.getBoundingClientRect(),b=content.getBoundingClientRect();"
+                    "return Math.abs((a.left+a.right)/2-(b.left+b.right)/2)<6"
+                    "&&content.querySelectorAll('.battery-segments span').length===4})()"
+                ), "Battery status is not centered without controller artwork"
             check_layout(title, "normal")
             capture(filename)
             report["checks"].append(f"Opened {title}")
@@ -244,8 +302,14 @@ def exercise(window, directory, result, lifecycle=None):
         report["checks"].append("Changed the A-to-Y assignment in the remap inspector")
 
         click("Vibration", "document.querySelector('.chassis-nav')")
+        click("Off")
+        wait_for("document.querySelector('.vibration-grip-overlay')?.getAttribute('data-strength')==='0'")
+        assert window.evaluate_js(
+            "getComputedStyle(document.querySelector('.vibration-grip-overlay')).opacity==='0'"
+        ), "Zero vibration must hide the grip effect"
         click("Gentle")
         assert window.evaluate_js("document.querySelector('.large-value').textContent") == "30%"
+        wait_for("document.querySelector('.vibration-grip-overlay')?.getAttribute('data-strength')==='30'")
         click("Power & device", "document.querySelector('.chassis-nav')")
         click("Never")
         assert window.evaluate_js("document.querySelector('.preset-row button.selected').textContent") == "Never"
@@ -306,7 +370,7 @@ def exercise(window, directory, result, lifecycle=None):
         click("New setup", "document.querySelector('.toolbar-actions')")
         click("Continue", "document.querySelector('[role=dialog]')")
         wait_for("document.body.innerText.includes('New local draft created.')")
-        assert window.evaluate_js("document.querySelector('.draft-indicator').textContent") == "Offline draft"
+        assert window.evaluate_js("document.querySelector('.draft-indicator').textContent") == "Editing offline draft"
         click("Load setup")
         wait_for("document.body.innerText.includes('Setup loaded into the editor. Review it before applying.')")
         assert window.evaluate_js("document.querySelector('[aria-label=\"Setup name\"]').value") == "Smoke test setup"
@@ -351,7 +415,7 @@ def exercise(window, directory, result, lifecycle=None):
         wait_for("window.__smokeRejected === true")
         report["checks"].append("Unknown bridge operation rejected")
         click("Controllers")
-        wait_for("document.querySelector('h1')?.textContent === 'Controllers'")
+        wait_for("document.querySelector('h1')?.textContent === 'Add a Controller'")
         time.sleep(0.2)
         window.evaluate_js(
             "window.__inputCalls=0;const original=window.pywebview.api.request;"
@@ -361,16 +425,14 @@ def exercise(window, directory, result, lifecycle=None):
         time.sleep(0.25)
         assert window.evaluate_js("window.__inputCalls") == 0, "XInput polling continued in Controllers hub"
         report["checks"].append("XInput polling stops while the X20 workspace is hidden")
-        click("Explore X20 Pro")
+        click("Explore X20 Pro read-only discovery")
         wait_for("document.querySelector('.pro-workspace h1')?.textContent === 'X20 Pro'")
         assert window.evaluate_js("!!document.querySelector('.pro-controller-svg')")
         capture("pro-front")
-        click("Rear")
-        capture("pro-rear")
         window.resize(1060, 760)
         time.sleep(0.4)
         assert window.evaluate_js("document.documentElement.scrollWidth <= document.documentElement.clientWidth + 2")
-        capture("pro-rear-compact")
+        capture("pro-front-compact")
         window.resize(1400, 940)
         time.sleep(0.4)
         assert window.evaluate_js("document.body.innerText.includes('GIF support has not been established')")
@@ -379,7 +441,7 @@ def exercise(window, directory, result, lifecycle=None):
         assert not api("import_profile", {"profile": saved_profile})["ok"]
         assert api("pro_hid")["ok"]
         capture("pro-discovery")
-        report["checks"].append("Pro front/rear illustrations and read-only inventory opened; X20 profiles and writes blocked")
+        report["checks"].append("Pro front illustration and read-only inventory opened; X20 profiles and writes blocked")
         click("Controllers")
         click("Open X20 studio")
         wait_for("document.querySelector('.version')?.textContent.includes(" + json.dumps(__version__) + ")")

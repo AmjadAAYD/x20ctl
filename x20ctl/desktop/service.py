@@ -14,6 +14,7 @@ from x20ctl import __version__, protocol as p
 from x20ctl.client import ControllerError, X20, find_controllers
 from x20ctl.input import XInputReader, MacroRecorder
 from . import pro_discovery
+from .reports import ReportWorkflow
 from .settings import (
     TARGETS,
     curve_to_ui,
@@ -29,7 +30,7 @@ log = logging.getLogger(__name__)
 
 
 class DeviceService:
-    def __init__(self, client_factory=X20, scanner=find_controllers, directory=None):
+    def __init__(self, client_factory=X20, scanner=find_controllers, directory=None, report_workflow=None):
         self.pad = None
         self._factory = client_factory
         self._scanner = scanner
@@ -42,6 +43,7 @@ class DeviceService:
             or Path(os.environ.get("APPDATA", str(Path.home()))) / "x20ctl" / "desktop"
         )
         self._pro_profiles_path = self._directory / "x20_pro" / "profiles.json"
+        self._reports = report_workflow or ReportWorkflow()
         self._reader = XInputReader()
         self._recorder = None
         self._record_task = None
@@ -92,6 +94,9 @@ class DeviceService:
                 "pro_inspect": self.pro_inspect,
                 "pro_hid": self.pro_hid,
                 "pro_bootstrap": self.pro_bootstrap,
+                "report_prepare": self.report_prepare,
+                "report_pending": self.report_pending,
+                "report_send": self.report_send,
             }
             if operation not in actions:
                 raise ValueError("Unknown desktop operation")
@@ -217,6 +222,28 @@ class DeviceService:
 
     async def pro_hid(self, _payload):
         return await asyncio.to_thread(pro_discovery.hid_inventory)
+
+    async def report_prepare(self, payload):
+        if self._active_model == "x20":
+            pad = self.require_pad()
+            address = pad.address
+            if address not in self._found:
+                raise ValueError("Select a controller returned by Scan")
+            name = self._found[address].name or "EasySMX X20"
+            # Release the selected BLE connection so the separate helper can inspect it.
+            await self.disconnect({})
+        else:
+            address = payload.get("address")
+            if not isinstance(address, str) or address not in self._pro_found:
+                raise ValueError("Select a peripheral returned by Pro discovery")
+            name = self._pro_found[address]["name"] or "Selected controller"
+        return await asyncio.to_thread(self._reports.prepare, address, name)
+
+    async def report_pending(self, _payload):
+        return await asyncio.to_thread(self._reports.pending)
+
+    async def report_send(self, payload):
+        return await asyncio.to_thread(self._reports.send, payload.get("scanId"), payload.get("consent"))
 
     async def connect(self, payload):
         address = payload["address"]
@@ -505,6 +532,16 @@ class DesktopApi:
                 import webbrowser
 
                 webbrowser.open("https://github.com/AmjadAAYD/x20ctl/releases")
+                return {"ok": True, "data": None}
+            if operation in ("open_support", "open_github"):
+                import webbrowser
+
+                url = {
+                    "open_support": "https://ko-fi.com/x20ctl",
+                    "open_github": "https://github.com/AmjadAAYD/x20ctl",
+                }[operation]
+                if not webbrowser.open(url):
+                    raise OSError("Could not open the default browser")
                 return {"ok": True, "data": None}
             future = asyncio.run_coroutine_threadsafe(
                 self._service.dispatch(operation, payload or {}), self._loop

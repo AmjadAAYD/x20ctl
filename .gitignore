@@ -33,3 +33,12 @@ node_modules/
 *.log
 artifacts/
 dist-ui/
+
+# Separate private X20ADMIN receiver; never include it in this repository.
+receiver/
+docs/SUBMISSIONS_SETUP.md
+
+# Local configuration and diagnostic archives.
+.env*
+!.env.example
+*.zip

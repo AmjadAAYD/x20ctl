@@ -20,7 +20,15 @@ def main():
         metavar="DIRECTORY",
         help="Run read-only UI acceptance and capture real window screenshots",
     )
+    parser.add_argument("--verify-scanner", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
+    if args.verify_scanner:
+        from .scanner_integrity import packaged_scanner_path, verify_scanner
+        try:
+            verify_scanner(packaged_scanner_path())
+            return 0
+        except ValueError:
+            return 2
     log_dir = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "x20ctl"
     log_dir.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(filename=log_dir / "desktop.log", level=logging.INFO)
