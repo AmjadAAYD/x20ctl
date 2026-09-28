@@ -2,29 +2,25 @@
 
 ## 4.0.0 - 2026-09-28
 
-### Added
+### What's added
 
-- Local compatibility reports for an explicitly selected Bluetooth LE device. A separate scanner writes standard GATT diagnostics locally; the desktop validates and previews them, then uploads to X20ADMIN only after explicit consent. Failed uploads retain the same ZIP and submission UUID for retry.
-- SHA-256 verification of the release-paired scanner before execution and upload. A missing or modified helper fails closed.
-- Optional Support X20ctl dialog with an external link to the official Ko-fi page.
-- Keyboard and pointer controller preview for visual testing without changing controller settings.
+- A fixed navy desktop interface with controller imagery, left navigation, and a compact status header.
+- Keyboard and pointer controller preview for visual testing. Preview input does not change controller settings.
+- Compatibility reports for a selected Bluetooth LE device. A separate scanner writes standard GATT diagnostics locally; X20ctl validates and previews the report, then uploads it to X20ADMIN only after explicit consent. Failed uploads retain the same ZIP and submission UUID for retry.
+- SHA-256 verification of the release-paired scanner. A missing or modified helper fails closed.
+- Optional Support X20ctl dialog opening the official Ko-fi page in the default browser.
+- One Windows archive containing `x20ctl.exe` and `x20ctl-scanner.exe`, with their hash pairing verified after packaging.
 
-### Changed
+### What's removed
 
-- Replaced the metallic multi-theme desktop with a fixed navy interface, controller imagery, left navigation, and compact status header.
-- Windows builds now package `x20ctl.exe` and `x20ctl-scanner.exe` together in one archive and verify their hash pairing after packaging.
+- Theme Studio, the local color editor and metallic theme presets.
+- The X20 Pro rear illustration/view. Its configuration controls remain unavailable.
 
-### Removed
+### What's done so far
 
-- Theme Studio, local color editor, and X20 Pro rear illustration/view. X20 Pro configuration remains read-only.
-
-### Fixed
-
-- Windows fixed-file and displayed version metadata now agree on 4.0.0.
-
-### Limits
-
-- The scanner reads selected-device Bluetooth LE information only. USB/HID descriptors, input captures, and new hardware compatibility are not claimed.
+- Existing X20 configuration and saved setups remain available; X20 Pro discovery remains read-only.
+- The 4.0.0 packaged desktop passed 28 automated smoke checks. Windows file and displayed version metadata both report 4.0.0.
+- The scanner currently reads selected-device Bluetooth LE information only. USB/HID descriptors, input captures, new controller compatibility, and a live desktop-to-X20ADMIN report upload have not been verified for this release.
 
 ## 3.1.0 - 2026-09-25
 
