@@ -31,13 +31,13 @@ jobs:
           npm run lint
           npm test
           npm run build
-      - name: Build desktop executable
-        run: python -m PyInstaller --noconfirm x20ctl.spec
-      - name: Upload development executable
+      - name: Build and verify paired Windows archive
+        run: python tools/build_exe.py
+      - name: Upload paired development archive
         uses: actions/upload-artifact@v4
         with:
-          name: x20ctl-windows-development
-          path: dist/x20ctl.exe
+          name: x20ctl-windows-paired-development
+          path: dist/x20ctl-4.0.0-win-x64.zip
           retention-days: 7
-# CI's smaller development artifact uses the system WebView2 runtime.
-# Public releases use tools/build_exe.py --bundled-runtime and native-window acceptance.
+# The archive contains both executables. Public release still requires native-window
+# acceptance, release checksums, and an explicit publication step.

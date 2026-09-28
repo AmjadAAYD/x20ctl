@@ -1,0 +1,198 @@
+/* Visual-fidelity layer. All controller values, commands, and controls remain unchanged. */
+.studio-root .metal-app {
+  font-family: "Segoe UI Variable Text", "Segoe UI", sans-serif;
+  font-size: 13px;
+  background-color: #080e1c;
+}
+.studio-root .metal-app.rebranded-workspace {
+  --page-halo: #2559e4;
+  background-image:
+    radial-gradient(ellipse 38% 30% at 92% 32%, color-mix(in srgb, var(--page-halo) 34%, transparent), transparent 84%),
+    radial-gradient(ellipse 31% 38% at 12% 86%, #6624a75c, transparent 84%),
+    radial-gradient(ellipse 42% 27% at 66% 108%, #b6592f38, transparent 85%),
+    linear-gradient(116deg, #0b1224, #060c19 60%, #101426);
+}
+.studio-root .metal-app.rebranded-workspace[data-page="curves"] { --page-halo: #185ee8; }
+.studio-root .metal-app.rebranded-workspace[data-page="macros"] { --page-halo: #b14b6a; }
+.studio-root .metal-app.rebranded-workspace[data-page="rumble"] { --page-halo: #bd5e2b; }
+.studio-root .metal-app.rebranded-workspace[data-page="power"] { --page-halo: #ad5439; }
+.studio-root .metal-app.rebranded-workspace[data-page="tester"] { --page-halo: #1f62bb; }
+.studio-root .metal-app.rebranded-workspace[data-page="profiles"] { --page-halo: #8143dc; }
+.studio-root .rebranded-workspace::before,
+.studio-root .rebranded-hub::before { animation: ambient-drift 26s ease-in-out infinite alternate; background-size: 112% 112%; }
+@keyframes ambient-drift {
+  from { background-position: 41% 49%; filter: saturate(.95); }
+  to { background-position: 59% 52%; filter: saturate(1.15); }
+}
+.studio-root .chassis-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+.studio-root .chassis-brand,
+.studio-root .chassis-nav {
+  border: 1px solid #6686c13a;
+  border-radius: 17px;
+  background: linear-gradient(164deg, #14223be8, #091324ec 70%, #0a1322e3);
+  box-shadow: inset 1px 1px #c3dcff18, inset -1px -1px #4169ae12, 0 18px 39px #01071480;
+  backdrop-filter: blur(24px);
+}
+.studio-root .chassis-brand { min-height: 68px; padding: 14px 16px; }
+.studio-root .chassis-brand strong { font-weight: 620; letter-spacing: -.055em; }
+.studio-root .chassis-nav { gap: 3px; margin: 0; padding: 9px 8px 11px; }
+.studio-root .chassis-nav button {
+  position: relative;
+  min-height: 52px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 430;
+  transition: background .2s ease, box-shadow .2s ease, transform .2s ease;
+}
+.studio-root .chassis-nav button svg { stroke-width: 1.9; flex: none; }
+.studio-root .chassis-nav button[aria-current="page"] {
+  border-color: color-mix(in srgb, var(--page-accent) 72%, white 10%);
+  background: linear-gradient(115deg, color-mix(in srgb, var(--page-accent) 49%, #131b34), #111e37 88%);
+  box-shadow: inset 3px 0 var(--page-accent), inset 0 1px #ffffff24, 0 0 24px color-mix(in srgb, var(--page-accent) 40%, transparent);
+}
+.studio-root .chassis-nav button:active,
+.studio-root .button:active:not(:disabled) { transform: translateY(1px) scale(.99); }
+.studio-root .chassis-header,
+.studio-root .setup-toolbar {
+  border-color: #5772a145;
+  background: linear-gradient(110deg, #15223ad9, #081323e9 76%);
+  box-shadow: inset 0 1px #e9f3ff17, 0 14px 30px #0005;
+  backdrop-filter: blur(18px);
+}
+.studio-root .header-controller-art { border-radius: 11px; }
+.studio-root .header-controller-art img { width: 150px; height: 86px; object-fit: cover; object-position: center 48%; mix-blend-mode: lighten; filter: drop-shadow(0 8px 9px #0008); }
+.studio-root .header-controller-copy > strong { font-size: 20px; font-weight: 590; letter-spacing: -.025em; }
+.studio-root .connection-lights > span { background: #101b2edc; border-color: #536b944a; box-shadow: inset 0 1px #ffffff0d; }
+.studio-root .workspace-page-title { font-weight: 580; font-size: 26px; letter-spacing: -.035em; line-height: 1.07; }
+.studio-root .button,
+.studio-root .icon-button {
+  border-color: #5b71964d;
+  background: linear-gradient(155deg, #263751dc, #111d31e0);
+  box-shadow: inset 0 1px #f6fbff1c, 0 5px 14px #0004;
+  transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease, background .2s ease;
+}
+.studio-root .button.primary {
+  border-color: #67a4ff;
+  background: linear-gradient(145deg, #159bff 0%, #1669ff 42%, #1648f4 100%);
+  box-shadow: inset 0 1px #ffffff5c, inset 0 -1px #0844db, 0 0 0 1px #1041db7d, 0 6px 25px #0a65ec84;
+}
+.studio-root .button.primary:not(:disabled):hover { box-shadow: inset 0 1px #ffffff8a, 0 0 0 1px #78b7ff, 0 7px 30px #0b75ffad; }
+.studio-root .metal-panel,
+.studio-root .mapping-canvas-panel,
+.studio-root .mapping-inspector-panel,
+.studio-root .tester-panel,
+.studio-root .curve-panel,
+.studio-root .instrument-module {
+  border-color: #53678943;
+  background: linear-gradient(138deg, #14233aeb, #091525ed 65%, #0e1a2dec);
+  box-shadow: inset 0 1px #ffffff14, inset 1px 0 #d5e5ff08, 0 16px 34px #0107167a;
+  backdrop-filter: blur(16px);
+}
+.studio-root .panel-heading,
+.studio-root .mapping-panel-heading,
+.studio-root .curve-panel-heading,
+.studio-root .sequencer-heading {
+  background: linear-gradient(90deg, #1a2a4380, #0d1a2f25);
+  border-bottom-color: #7a91b526;
+}
+.studio-root .panel-heading h2,
+.studio-root .mapping-panel-heading h2 { font-weight: 590; }
+.studio-root .rebranded-hub {
+  background-image:
+    radial-gradient(ellipse 33% 28% at 16% 55%, #343dd058, transparent 85%),
+    radial-gradient(ellipse 35% 24% at 84% 100%, #9a3c644e, transparent 86%),
+    linear-gradient(120deg, #10172a, #070d1a 63%, #171128);
+}
+.studio-root .rebranded-hub .hub-intro { padding-bottom: 30px; }
+.studio-root .rebranded-hub .hub-intro h1 { font-weight: 600; letter-spacing: -.045em; }
+.studio-root .rebranded-hub .controller-cards { gap: 15px; }
+.studio-root .rebranded-hub .controller-card {
+  min-height: 395px;
+  background: linear-gradient(153deg, #17243ad9, #0b1527e9 68%, #142139d1);
+  border-color: #4f648548;
+  box-shadow: inset 0 1px #ffffff11, 0 18px 30px #02091678;
+}
+.studio-root .rebranded-hub .controller-card.featured {
+  background: linear-gradient(150deg, #1d3261eb, #111c35e8 70%, #1b2852df);
+  border-color: #75a5ff;
+  box-shadow: inset 0 1px #dae8ff36, 0 0 0 1px #2662ff, 0 0 28px #2a57ff82, 0 20px 35px #0008;
+}
+.studio-root .rebranded-hub .controller-card-icon { height: 160px; margin-bottom: 9px; overflow: hidden; }
+.studio-root .rebranded-hub .controller-card-icon img { display: block; width: 100%; height: 100%; object-fit: contain; mix-blend-mode: lighten; filter: drop-shadow(0 10px 13px #000a); -webkit-mask-image: radial-gradient(ellipse 72% 70% at center, #000 63%, transparent 100%); mask-image: radial-gradient(ellipse 72% 70% at center, #000 63%, transparent 100%); }
+.studio-root .rebranded-hub .controller-card.empty .controller-card-icon img { opacity: .5; filter: grayscale(1) brightness(.7); }
+.studio-root .mapping-controller-stage { position: relative; min-height: 340px; aspect-ratio: 700 / 455; overflow: hidden; background: #08111f; border: 0; box-shadow: inset 0 0 80px #1b34684d; }
+.studio-root .mapping-controller-photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+.studio-root .mapping-controller-stage .mapping-canvas-caption { position: absolute; z-index: 2; bottom: 0; padding: 10px 16px; border-radius: 8px 8px 0 0; background: #0915259e; }
+.studio-root .mapping-toolbar-actions { display: flex; align-items: center; gap: 9px; }
+.studio-root .keyboard-preview-toggle { display: inline-flex; align-items: center; gap: 7px; min-height: 30px; padding: 5px 10px; border: 1px solid #4a648c; border-radius: 7px; background: #13243b; color: #c7d9f3; font-size: 11px; cursor: pointer; }
+.studio-root .keyboard-preview-toggle:hover,
+.studio-root .keyboard-preview-toggle[aria-pressed="true"] { border-color: #74baff; background: #164278; color: white; box-shadow: 0 0 13px #1a7fff66; }
+.studio-root .keyboard-preview-toggle:focus-visible { outline: 2px solid #8ac5ff; outline-offset: 2px; }
+.studio-root .mapping-status.is-preview { color: #91c7ff; }
+.studio-root .mapping-status.is-preview i { background: #65b8ff; box-shadow: 0 0 9px #308bff; }
+.studio-root .keyboard-preview-note { margin: 6px 17px 0; padding: 8px 11px; border: 1px solid #4772b365; border-radius: 8px; background: linear-gradient(90deg, #14335fba, #0a1a2d91); color: #bddbff; font-size: 11px; }
+.studio-root .controller-hero-art { position: relative; background: radial-gradient(ellipse 70% 55% at center, #1834617a, #08132300 80%) !important; }
+.studio-root .controller-hero-art img { display: block; width: 100%; max-width: 570px; height: auto; object-fit: contain; mix-blend-mode: lighten; filter: drop-shadow(0 15px 18px #000a); -webkit-mask-image: radial-gradient(ellipse 79% 69% at center, #000 70%, transparent 100%); mask-image: radial-gradient(ellipse 79% 69% at center, #000 70%, transparent 100%); }
+.studio-root .vibration-controller-art { min-height: 360px; }
+.studio-root .vibration-controller-frame { position: relative; width: min(100%, 570px); aspect-ratio: 1536 / 1024; }
+.studio-root .vibration-controller-frame img { width: 100%; height: 100%; max-width: none; }
+.studio-root .vibration-grip-overlay { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; mix-blend-mode: screen; }
+.studio-root .grip-wave { fill: none; stroke: #ff9b54; stroke-width: 6; filter: drop-shadow(0 0 13px #ff733d); animation: grip-swell 2.1s ease-in-out infinite; }
+.studio-root .grip-wave-middle { stroke: #ffbd78; stroke-width: 5; animation-duration: 1.8s; animation-delay: -.45s; }
+.studio-root .grip-wave-inner { stroke: #ff8b4d; stroke-width: 5; animation-duration: 1.55s; animation-delay: -.85s; }
+@keyframes grip-swell {
+  0%, 100% { opacity: .22; }
+  50% { opacity: .8; }
+}
+.studio-root .vibration-preview-caption { position: absolute; bottom: 12px; color: #e4ac82; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+.studio-root .rebranded-workspace[data-page="rumble"] .haptics-console { align-items: start; grid-template-columns: minmax(0, .98fr) minmax(0, 1.02fr); }
+.studio-root .rebranded-workspace[data-page="rumble"] .haptics-master { grid-column: 2; grid-row: 2; padding: 25px 22px 6px; }
+.studio-root .rebranded-workspace[data-page="rumble"] .haptics-presets { grid-column: 2; grid-row: 3; margin: 0 18px 18px 0; border-radius: 12px; background: #0b1829b8; box-shadow: inset 0 1px #ffffff15; }
+.studio-root .rebranded-workspace[data-page="rumble"] .strength-presets { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.studio-root .rebranded-workspace[data-page="rumble"] .strength-presets > button { min-height: 72px; }
+.studio-root .rebranded-workspace[data-page="rumble"] .motor-pair { grid-column: 1 / -1; grid-row: 4; padding: 0 20px 17px; }
+.studio-root .pro-controller-svg { display: none; }
+.studio-root .pro-controller-photo { display: block; width: calc(100% - 32px); max-height: 430px; margin: 12px auto; object-fit: contain; border-radius: 12px; }
+.studio-root .pro-controller-panel { min-height: 0; }
+.studio-root .rebranded-workspace[data-page="curves"] .curve-graph-wrap { background: radial-gradient(ellipse at 70% 65%, #063e85, #07162c 60%); border-color: #4276ca66; box-shadow: inset 0 0 35px #075ee03d, 0 0 27px #1d63e329; }
+.studio-root .rebranded-workspace[data-page="curves"] .curve-graph { min-height: 300px; filter: drop-shadow(0 0 7px #168bff8a); }
+.studio-root .rebranded-workspace[data-page="curves"] .curve-channel.is-active { box-shadow: inset 0 1px #ffffff38, 0 0 20px #1486ff88; }
+.studio-root .rebranded-workspace[data-page="macros"] .macro-console-bar { background: linear-gradient(150deg, #192238e0, #0b1426ec); box-shadow: inset 0 1px #ffffff17, 0 18px 35px #0006; }
+.studio-root .rebranded-workspace[data-page="macros"] .sequencer-panel:has(.sequencer-empty) .sequencer-scroll { background: radial-gradient(ellipse at 50% 46%, #7b405069, #10192e 46%, #081322 88%); }
+.studio-root .rebranded-workspace[data-page="macros"] .sequencer-panel:has(.sequencer-empty) .sequencer-empty { border: 1px dashed #a56d9b86; background: #142039a8; box-shadow: 0 0 80px #e67b6542, inset 0 1px #ffffff13; }
+.studio-root .rebranded-workspace[data-page="profiles"] .profile-card.active { background: linear-gradient(135deg, #172747e8, #0c1629ed); box-shadow: inset 0 1px #ffffff25, 0 0 0 1px #347cff, 0 0 25px #1c52f061; }
+.studio-root .rebranded-workspace[data-page="profiles"] .profile-card { background: linear-gradient(135deg, #19243aec, #0d1729ee); }
+.studio-root .rebranded-workspace[data-page="rumble"] .haptics-console { box-shadow: inset 0 1px #ffffff18, 0 0 42px #e36f3a26, 0 16px 34px #0008; }
+.studio-root .rebranded-workspace[data-page="power"] .battery-panel { box-shadow: inset 0 1px #ffffff18, 0 0 37px #e26b3b20, 0 16px 34px #0008; }
+@media (max-width: 900px) {
+  .studio-root .chassis-sidebar { padding: 0; }
+  .studio-root .chassis-sidebar .chassis-brand { justify-content: center; padding: 11px 5px; }
+  .studio-root .chassis-nav { padding: 7px 4px; }
+  .studio-root .mapping-canvas-toolbar { flex-wrap: wrap; }
+  .studio-root .mapping-toolbar-actions { flex-wrap: wrap; }
+  .studio-root .rebranded-workspace[data-page="rumble"] .haptics-console { grid-template-columns: 1fr; }
+  .studio-root .vibration-controller-art,
+  .studio-root .rebranded-workspace[data-page="rumble"] .haptics-master,
+  .studio-root .rebranded-workspace[data-page="rumble"] .motor-pair,
+  .studio-root .rebranded-workspace[data-page="rumble"] .haptics-presets { grid-column: 1; grid-row: auto; }
+  .studio-root .rebranded-workspace[data-page="rumble"] .haptics-presets { margin: 8px 18px 18px; }
+  .studio-root .rebranded-workspace[data-page="power"] .power-layout { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .studio-root .grip-wave { animation: none; opacity: .65; }
+  .studio-root .rebranded-workspace::before,
+  .studio-root .rebranded-hub::before { animation: none; background-position: center; filter: none; }
+  .studio-root .chassis-nav button,
+  .studio-root .button,
+  .studio-root .icon-button { transition-duration: .01ms; }
+}

@@ -1,13 +1,17 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowRight,
   Crosshair,
   Cpu,
+  Keyboard,
   MousePointer2,
   RotateCcw,
   SlidersHorizontal,
 } from "lucide-react";
 import { ControllerDiagram } from "../ControllerDiagram";
+import { PhotoControllerOverlay } from "../PhotoControllerOverlay";
+import { keyboardStickVector } from "../../controller-preview";
+import x20Hero from "../../assets/x20-hero.png";
 import {
   KeyName,
   KEY_LABELS,
@@ -48,6 +52,9 @@ const SHORT_KEYS: Partial<Record<KeyName, string>> = {
   SELECT: "BACK",
 };
 const shortKey = (key: KeyName) => SHORT_KEYS[key] ?? key;
+const PREVIEW_BUTTONS = Object.fromEntries(
+  (Object.keys(KEY_LABELS) as KeyName[]).map((key) => [key, false]),
+) as Record<KeyName, boolean>;
 
 export function ButtonsPage({
   remaps,
@@ -59,6 +66,54 @@ export function ButtonsPage({
   const [selected, setSelected] = useState<KeyName>("A");
   const [appearance, setAppearance] =
     useState<ControllerPreset>("x20-pro-black");
+  const [previewEnabled, setPreviewEnabled] = useState(false);
+  const [previewKeys, setPreviewKeys] = useState<ReadonlySet<string>>(() => new Set());
+  const [pointerLeft, setPointerLeft] = useState<{ x: number; y: number } | null>(null);
+  const [pointerRight, setPointerRight] = useState<{ x: number; y: number } | null>(null);
+  useEffect(() => {
+    if (!previewEnabled) {
+      setPreviewKeys(new Set());
+      setPointerLeft(null);
+      setPointerRight(null);
+      return;
+    }
+    function onKeyDown(event: globalThis.KeyboardEvent) {
+      const key = event.key.toLowerCase();
+      if (!["w", "a", "s", "d"].includes(key)) return;
+      if (event.altKey || event.ctrlKey || event.metaKey) return;
+      const target = event.target instanceof Element ? event.target : null;
+      if (target?.closest("input, textarea, select, [contenteditable='true']")) return;
+      event.preventDefault();
+      setPreviewKeys((current) => {
+        if (current.has(key)) return current;
+        return new Set([...current, key]);
+      });
+    }
+    function onKeyUp(event: globalThis.KeyboardEvent) {
+      const key = event.key.toLowerCase();
+      setPreviewKeys((current) => {
+        if (!current.has(key)) return current;
+        const next = new Set(current);
+        next.delete(key);
+        return next;
+      });
+    }
+    function resetKeys() { setPreviewKeys(new Set()); }
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", resetKeys);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", resetKeys);
+    };
+  }, [previewEnabled]);
+  const leftStick = previewEnabled ? pointerLeft ?? keyboardStickVector(previewKeys) : liveState.leftStick;
+  const rightStick = previewEnabled ? pointerRight ?? { x: 0, y: 0 } : liveState.rightStick;
+  const visualState = previewEnabled
+    ? { ...liveState, leftStick, rightStick, buttons: PREVIEW_BUTTONS }
+    : liveState;
+  const showStickValues = previewEnabled || inputConnected;
   const changed = SOURCES.filter((key) => (remaps[key] ?? key) !== key).length;
   const target = remaps[selected] ?? selected;
   return (
@@ -69,19 +124,26 @@ export function ButtonsPage({
             <Cpu size={17} />
             <h2>Hardware canvas</h2>
           </div>
-          <span className={`mapping-status ${inputConnected ? "is-live" : ""}`}>
+          <span className={`mapping-status ${previewEnabled ? "is-preview" : inputConnected ? "is-live" : ""}`}>
             <i />
-            {inputConnected ? "LIVE INPUT" : "OFFLINE DRAFT"}
+            {previewEnabled ? "KEYBOARD PREVIEW" : inputConnected ? "LIVE INPUT" : "OFFLINE DRAFT"}
           </span>
         </header>
         <div className="mapping-canvas-toolbar">
           <span>
             EasySMX X20 <small>/ front view</small>
           </span>
-          <div
-            className="mapping-finish-switch"
-            aria-label="Illustration finish"
-          >
+          <div className="mapping-toolbar-actions">
+            <button
+              type="button"
+              className="keyboard-preview-toggle"
+              aria-label="Keyboard preview"
+              aria-pressed={previewEnabled}
+              onClick={() => setPreviewEnabled((current) => !current)}
+            >
+              <Keyboard size={14} /> Keyboard preview
+            </button>
+          <div className="mapping-finish-switch" aria-label="Illustration finish">
             <button
               aria-label="Graphite illustration"
               aria-pressed={appearance === "x20-pro-black"}
@@ -97,33 +159,55 @@ export function ButtonsPage({
               Silver
             </button>
           </div>
+          </div>
         </div>
         <div className="mapping-controller-stage">
+          {appearance === "x20-pro-black" && <img className="mapping-controller-photo" src={x20Hero} alt="" aria-hidden="true" />}
           <span className="mapping-corner mapping-corner-tl" />
           <span className="mapping-corner mapping-corner-tr" />
           <span className="mapping-corner mapping-corner-bl" />
           <span className="mapping-corner mapping-corner-br" />
-          <ControllerDiagram
-            liveState={liveState}
-            selectedKey={selected}
-            onButtonClick={(key) => {
-              if (SOURCES.includes(key)) setSelected(key);
-            }}
-            preset={appearance}
-          />
+          {appearance === "x20-pro-black" ? (
+            <PhotoControllerOverlay
+              selectedKey={selected}
+              pressedButtons={previewEnabled || !inputConnected ? {} : liveState.buttons}
+              leftStick={leftStick}
+              rightStick={rightStick}
+              previewEnabled={previewEnabled}
+              onSelect={setSelected}
+              onStickPreview={(key, value) => {
+                if (key === "L3") setPointerLeft(value);
+                else setPointerRight(value);
+              }}
+            />
+          ) : (
+            <ControllerDiagram
+              liveState={visualState}
+              selectedKey={selected}
+              onButtonClick={(key) => {
+                if (SOURCES.includes(key)) setSelected(key);
+              }}
+              preset={appearance}
+            />
+          )}
           <div className="mapping-canvas-caption">
             <MousePointer2 size={13} />
             <span>Select a control to inspect its assignment</span>
           </div>
         </div>
+        {previewEnabled && (
+          <p className="keyboard-preview-note" role="status">
+            Keyboard preview active. Hold WASD for the left stick or drag either stick. Visual test only; no controller input or settings are sent.
+          </p>
+        )}
         <div className="mapping-input-strip">
           <div>
             <Crosshair size={18} />
             <span>
               LEFT STICK
               <strong>
-                {inputConnected
-                  ? `${liveState.leftStick.x.toFixed(2)} / ${liveState.leftStick.y.toFixed(2)}`
+                {showStickValues
+                  ? `${leftStick.x.toFixed(2)} / ${leftStick.y.toFixed(2)}`
                   : "— / —"}
               </strong>
             </span>
@@ -167,8 +251,8 @@ export function ButtonsPage({
             <span>
               RIGHT STICK
               <strong>
-                {inputConnected
-                  ? `${liveState.rightStick.x.toFixed(2)} / ${liveState.rightStick.y.toFixed(2)}`
+                {showStickValues
+                  ? `${rightStick.x.toFixed(2)} / ${rightStick.y.toFixed(2)}`
                   : "— / —"}
               </strong>
             </span>

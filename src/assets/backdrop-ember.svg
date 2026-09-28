@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1024" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="blueEdge" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#3162da" stop-opacity=".54"/><stop offset=".48" stop-color="#202d71" stop-opacity=".26"/><stop offset="1" stop-color="#0a1124" stop-opacity="0"/></linearGradient>
+    <linearGradient id="orangeEdge" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ff9952" stop-opacity=".68"/><stop offset=".38" stop-color="#ba503e" stop-opacity=".29"/><stop offset="1" stop-color="#101025" stop-opacity="0"/></linearGradient>
+    <linearGradient id="purpleEdge" x1="0" y1="1" x2="1" y2="0"><stop stop-color="#a94de6" stop-opacity=".55"/><stop offset=".55" stop-color="#4d2d88" stop-opacity=".27"/><stop offset="1" stop-color="#0a1124" stop-opacity="0"/></linearGradient>
+    <radialGradient id="warmGlow"><stop stop-color="#f7743a" stop-opacity=".34"/><stop offset="1" stop-color="#f7743a" stop-opacity="0"/></radialGradient>
+    <radialGradient id="coolGlow"><stop stop-color="#205cdb" stop-opacity=".34"/><stop offset="1" stop-color="#205cdb" stop-opacity="0"/></radialGradient>
+    <filter id="blur"><feGaussianBlur stdDeviation="40"/></filter>
+  </defs>
+  <ellipse cx="-40" cy="360" rx="275" ry="460" fill="url(#warmGlow)" filter="url(#blur)"/>
+  <ellipse cx="1510" cy="180" rx="410" ry="350" fill="url(#coolGlow)" filter="url(#blur)"/>
+  <ellipse cx="1560" cy="915" rx="430" ry="260" fill="url(#warmGlow)" filter="url(#blur)"/>
+  <ellipse cx="280" cy="1010" rx="380" ry="260" fill="url(#coolGlow)" filter="url(#blur)"/>
+  <path d="M0 0H250L98 317 0 489Z" fill="url(#orangeEdge)" opacity=".55"/>
+  <path d="M0 0H99L0 225Z" fill="#ffaf73" opacity=".19"/>
+  <path d="M118 0H292L149 222 16 368Z" fill="url(#purpleEdge)" opacity=".43"/>
+  <path d="M238 0H585L420 135 292 202Z" fill="url(#blueEdge)" opacity=".44"/>
+  <path d="M470 0H774L657 100 574 142Z" fill="#3564c0" opacity=".12"/>
+  <path d="M1160 0H1490L1600 215V421L1403 154Z" fill="url(#blueEdge)" opacity=".40"/>
+  <path d="M1395 0H1600V231Z" fill="url(#orangeEdge)" opacity=".35"/>
+  <path d="M1528 0H1600V571L1546 384Z" fill="#d67a60" opacity=".14"/>
+  <path d="M0 578 237 817 87 1024H0Z" fill="url(#purpleEdge)" opacity=".56"/>
+  <path d="M0 740 213 1024H0Z" fill="url(#orangeEdge)" opacity=".44"/>
+  <path d="M0 1024 343 734 402 789 225 1024Z" fill="url(#blueEdge)" opacity=".58"/>
+  <path d="M218 1024 512 832 667 870 470 1024Z" fill="#4c327c" opacity=".22"/>
+  <path d="M787 1024 1087 821 1184 866 1051 1024Z" fill="url(#purpleEdge)" opacity=".36"/>
+  <path d="M1147 1024 1452 718 1600 692V1024Z" fill="url(#orangeEdge)" opacity=".53"/>
+  <path d="M1435 1024 1600 780V1024Z" fill="#e8894f" opacity=".20"/>
+  <path d="M0 323 120 112" fill="none" stroke="#fd9c69" stroke-width="3" opacity=".24"/>
+  <path d="M1533 743 1600 634" fill="none" stroke="#ef7b50" stroke-width="3" opacity=".27"/>
+</svg>

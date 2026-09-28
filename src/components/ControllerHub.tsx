@@ -1,10 +1,53 @@
-import { ArrowRight, Gamepad2, Layers3, Palette } from "lucide-react";
+import { ArrowRight, Bluetooth, CircleHelp, Plus, Radio, Usb } from "lucide-react";
+import brandMark from "../assets/brand-mark.png";
+import x20Hero from "../assets/x20-hero.png";
 
-export function ControllerHub({ onX20, onPro, onTheme }: { onX20: () => void; onPro: () => void; onTheme: () => void }) {
-  return <div className="metal-app controller-hub"><header className="chassis-header"><div className="chassis-brand"><div className="brand-emblem"><Gamepad2 size={24}/></div><div><strong>x20ctl</strong><span>CONTROLLER STUDIO</span></div><span className="edition-tag">3.1</span></div><div className="header-actions"><button className="button secondary" onClick={onTheme}><Palette size={16}/>Themes</button></div></header>
-    <main id="workspace" className="metal-workspace"><div className="hub-intro"><span className="engraved">YOUR HARDWARE / YOUR SPACE</span><h1>Controllers</h1><p>Choose a workspace. Each model keeps its own connection, capabilities and setups.</p></div>
-      <div className="controller-cards"><button className="controller-card metal-panel" aria-label="Open X20 studio" onClick={onX20}><span className="controller-card-index">01 / SUPPORTED</span><div className="controller-card-icon"><Gamepad2 size={37}/></div><h2>EasySMX X20</h2><p>Open the complete mapping, curves, macros and device studio.</p><span className="controller-card-action">Open X20 studio <ArrowRight size={18}/></span></button>
-        <button className="controller-card metal-panel" aria-label="Explore X20 Pro" onClick={onPro}><span className="controller-card-index">02 / DISCOVERY</span><div className="controller-card-icon"><Layers3 size={37}/></div><h2>EasySMX X20 Pro</h2><p>Explore the distinct six-control hardware and its read-only investigation tools.</p><span className="controller-card-action">Explore X20 Pro <ArrowRight size={18}/></span></button></div>
-      <div className="hub-footnote"><span className="led on"/> X20 settings are available. Pro configuration remains locked until verified on real hardware.</div>
-    </main></div>;
+interface ControllerHubProps {
+  onX20: () => void;
+  onPro: () => void;
+  onSupport: () => void;
+}
+
+export function ControllerHub({ onX20, onPro, onSupport }: ControllerHubProps) {
+  return (
+    <div className="metal-app controller-hub rebranded-hub">
+      <header className="hub-header">
+        <div className="chassis-brand">
+          <img className="brand-emblem" src={brandMark} alt="" />
+          <strong>x20ctl</strong>
+        </div>
+      </header>
+      <main id="workspace" className="hub-main">
+        <div className="hub-intro">
+          <h1>Add a Controller</h1>
+          <p>Connect an X20 to open its configuration studio. Windows can show up to four XInput player slots.</p>
+          <div className="hub-guidance"><CircleHelp size={19} /> Connect your controller via USB, a wireless receiver, or a supported XInput mode.</div>
+        </div>
+        <div className="controller-cards">
+          {[1, 2, 3, 4].map((number) => (
+            <article className={`controller-card metal-panel ${number === 1 ? "featured" : "empty"}`} key={number}>
+              <span className="controller-card-index">{number}</span>
+              <div className="controller-card-icon"><img src={x20Hero} alt={number === 1 ? "Front illustration of the X20 controller" : ""} /></div>
+              <h2>{number === 1 ? "X20 Controller" : `Controller ${number}`}</h2>
+              <p className="controller-slot-status"><i className="led" /> Not connected</p>
+              {number === 1 ? (
+                <button className="button primary" onClick={onX20}><Plus size={21} /> Open X20 studio <ArrowRight size={17} /></button>
+              ) : (
+                <button className="button secondary" disabled title="Additional independent controller sessions are not supported yet"><Plus size={21} /> Add Controller</button>
+              )}
+            </article>
+          ))}
+        </div>
+        <div className="hub-connection-guide">
+          <div><Usb size={28} /><span><strong>USB Connection</strong><small>Connect via USB cable for gameplay input.</small></span></div>
+          <div><Radio size={28} /><span><strong>Wireless Receiver</strong><small>Use the receiver in XInput mode.</small></span></div>
+          <div><Bluetooth size={28} /><span><strong>Bluetooth Configuration</strong><small>Discover a supported X20 in the studio.</small></span></div>
+        </div>
+        <div className="hub-footer-links">
+          <button className="hub-pro-link" onClick={onPro}>Explore X20 Pro read-only discovery <ArrowRight size={15} /></button>
+          <button className="hub-pro-link" onClick={onSupport}>Support X20ctl</button>
+        </div>
+      </main>
+    </div>
+  );
 }
