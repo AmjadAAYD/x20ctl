@@ -8,6 +8,7 @@ import {
   ChevronRight,
   CircleHelp,
   Gamepad2,
+  Heart,
   Layers3,
   LoaderCircle,
   Monitor,
@@ -115,12 +116,12 @@ const navigation: {
   },
 ];
 
-function X20Workspace({ active, onBack }: { active: boolean; onBack: () => void }) {
+function X20Workspace({ active, onBack, onSupport }: { active: boolean; onBack: () => void; onSupport: () => void }) {
   const running = useRef(false);
   const [updatesEnabled, setUpdatesEnabled] = useState(true);
   const [update, setUpdate] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
-  const [version, setVersion] = useState("4.0.0");
+  const [version, setVersion] = useState("4.0.1");
   const [tab, setTab] = useState<Tab>("buttons");
   const [profile, setProfile] = useState<Profile>(() => newProfile());
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -384,6 +385,9 @@ function X20Workspace({ active, onBack }: { active: boolean; onBack: () => void 
             </button>
           ))}
         </nav>
+        <button className="sidebar-support" onClick={onSupport} title="Support X20ctl">
+          <Heart size={19} /> <span>Support X20ctl</span>
+        </button>
       </aside>
       <header className="chassis-header">
         <div className="header-controller">
@@ -651,6 +655,7 @@ function X20Workspace({ active, onBack }: { active: boolean; onBack: () => void 
                     min="0"
                     max="100"
                     value={profile.vibration}
+                    style={{ background: `linear-gradient(90deg, #ffa85e 0%, #ff6f50 ${profile.vibration}%, #1d2b44 ${profile.vibration}%)` }}
                     onChange={(e) => edit("vibration", Number(e.target.value))}
                   />
                   <div className="scale-labels">
@@ -1334,8 +1339,6 @@ export function App() {
       {view === "controllers" && (
         <ControllerHub
           onX20={() => void openModel("x20")}
-          onPro={() => void openModel("x20_pro")}
-          onSupport={() => setSupportOpen(true)}
         />
       )}
       {supportOpen && (
@@ -1345,10 +1348,10 @@ export function App() {
             If you find it useful, you can support continued development,
             controller compatibility work, testing, and hosting costs.
           </p>
-          <div className="dialog-actions">
+          <div className="dialog-actions support-primary-action">
             <button className="button primary" onClick={() => openSupportLink("open_support")}>Support X20ctl on Ko-fi</button>
           </div>
-          <p className="fine-print">Other ways to help: star X20ctl on GitHub or submit an unsupported controller report from X20 Pro read-only discovery.</p>
+          <p className="fine-print">Other ways to help: star X20ctl on GitHub or submit a controller compatibility report.</p>
           <div className="dialog-actions">
             <button className="button secondary" onClick={() => openSupportLink("open_github")}>Star on GitHub</button>
             <button className="button secondary" onClick={closeSupport}>Close</button>
@@ -1362,6 +1365,7 @@ export function App() {
           <X20Workspace
             active={view === "x20"}
             onBack={() => setView("controllers")}
+            onSupport={() => setSupportOpen(true)}
           />
         </div>
       )}

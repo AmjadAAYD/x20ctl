@@ -2,7 +2,7 @@
 
 ### Your controller. Your setup. A real Windows app.
 
-A downloadable desktop configurator for the **EasySMX X20**, with a separate read-only discovery workspace for the upcoming X20 Pro. Remap buttons, tune response curves, build paddle macros and save your favorite X20 setups locally.
+A downloadable desktop configurator for the **EasySMX X20**. Remap buttons, tune response curves, build paddle macros and save your favorite X20 setups locally.
 
 [Download for Windows](https://github.com/AmjadAAYD/x20ctl/releases/latest) · [Changelog](CHANGELOG.md) · [Connection help](IF-YOUR-CONTROLLER-ISNT-WORKING.md) · [Report an issue](https://github.com/AmjadAAYD/x20ctl/issues)
 
@@ -11,10 +11,10 @@ A downloadable desktop configurator for the **EasySMX X20**, with a separate rea
 ## Download and run
 
 1. Open [GitHub Releases](https://github.com/AmjadAAYD/x20ctl/releases).
-2. Download **x20ctl-4.0.0-win-x64.zip**, not the source-code archive.
+2. Download **x20ctl-4.0.1-win-x64.zip**, not the source-code archive.
 3. Extract the archive and keep **x20ctl.exe** beside **x20ctl-scanner.exe**. Run x20ctl.exe. No Python, Node.js, browser tab, account or paid service is needed.
 
-Windows 10/11 **x64** is the target. The 4.0.0 desktop executable bundles Python and the interface, but uses the installed Microsoft WebView2 Runtime. If WebView2 is missing, a native dialog offers the official Microsoft download page and Retry. It never installs anything silently. Windows .NET Framework 4.6.2 or later is required, as included in supported, updated Windows installations.
+Windows 10/11 **x64** is the target. The 4.0.1 desktop executable bundles Python and the interface, but uses the installed Microsoft WebView2 Runtime. If WebView2 is missing, a native dialog offers the official Microsoft download page and Retry. It never installs anything silently. Windows .NET Framework 4.6.2 or later is required, as included in supported, updated Windows installations.
 
 The executable is **unsigned**. A Windows reputation warning is possible. Verify its SHA-256 against the release's `SHA256SUMS.txt`; do not disable antivirus to run it. [Security details](SECURITY.md).
 
@@ -31,8 +31,7 @@ Playing over USB does not establish the configuration link. Enable your PC's Blu
 
 ## Inside the app
 
-- **Controllers workspace:** choose X20 or X20 Pro. Selecting Pro disconnects the X20 configuration link and blocks X20 settings/profile API operations. X20 saved setups are unchanged.
-- **X20 Pro preview:** front illustration, BLE advertisement discovery, standard GATT information and Windows HID inventory. This workspace is strictly read-only; all Pro settings are marked Coming soon until tested on actual hardware. A smart display does not prove GIF support.
+- **Controllers workspace:** open the X20 studio. The unfinished X20 Pro discovery entry has been removed from the visible interface; its read-only API boundary remains in place.
 - **Desktop studio:** fixed navy palette, left navigation rail, compact controller status header and a page-end read/apply bar. Theme Studio and the Pro rear view have been removed; Windows reduced-motion preference remains respected.
 - **Button studio:** interactive metallic controller illustration and per-button assignment inspector. Select and Start are destinations only; unsupported Capture/Turbo mappings are not offered.
 - **Response curves:** independent left/right stick and trigger control points, deadzones and presets. Curve lines are illustrations through stored points, not measurements of unknown firmware interpolation.
@@ -49,11 +48,9 @@ Offline edits are **drafts**, not controller values. **Apply changes** writes on
 
 ## Real screenshots
 
-These are captures of the running 4.0.0 packaged desktop app's native WebView2 surface. They show the disconnected/offline state honestly. Controller drawings inside the app are stylized illustrations, not photographs.
+These are captures of the running 4.0.1 packaged desktop app's native WebView2 surface. They show the disconnected/offline state honestly. Controller drawings inside the app are stylized illustrations, not photographs.
 
-| Controllers | X20 Pro illustration |
-|---|---|
-| ![Controllers workspace](assets/screenshots/desktop/controllers.png) | ![X20 Pro front illustration](assets/screenshots/desktop/pro-front.png) |
+![Controllers workspace](assets/screenshots/desktop/controllers.png)
 
 | Response curves | Macro editor |
 |---|---|
@@ -78,6 +75,10 @@ The optional startup update check contacts GitHub's public latest-release API. D
 The embedded Microsoft WebView2 component has its own diagnostic/security behavior, including Microsoft Defender SmartScreen, and may send information to Microsoft under [Microsoft's privacy statement](https://aka.ms/privacy). This is separate from x20ctl's update check. See [third-party notices](THIRD_PARTY.md).
 
 The React interface is bundled inside the EXE and talks to a restricted Python API. It is **not a hosted website or PWA**. Native BLE and XInput access stay in Python. The embedded view cannot navigate to arbitrary remote content.
+
+## What changed in 4.0.1?
+
+The vibration strength track now follows its value. Support X20ctl is visible in the X20 studio sidebar, and its Ko-fi button is left aligned in the optional dialog. The unfinished X20 Pro discovery link is removed from the Controllers page. See the [4.0.1 release notes](RELEASES/4.0.1.md).
 
 ## What changed in 4.0.0?
 
@@ -124,7 +125,7 @@ The full regression suite also includes the retained Qt interface: install `.[gu
 
 `--smoke-test` uses isolated profile storage, exercises the actual desktop UI, captures rendered pixels and performs only read-only discovery/input checks. It never writes controller settings. Build dependencies are pinned in [requirements-build.txt](requirements-build.txt); frontend dependencies are locked in `package-lock.json`.
 
-Build output is `dist/x20ctl-4.0.0-win-x64.zip`, containing the paired desktop and scanner executables. [Architecture and profile schema](docs/desktop-architecture.md). [Protocol reference](docs/01-protocol.md).
+Build output is `dist/x20ctl-4.0.1-win-x64.zip`, containing the paired desktop and scanner executables. [Architecture and profile schema](docs/desktop-architecture.md). [Protocol reference](docs/01-protocol.md).
 
 ## Safety and credits
 

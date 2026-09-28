@@ -4,11 +4,9 @@ import x20Hero from "../assets/x20-hero.png";
 
 interface ControllerHubProps {
   onX20: () => void;
-  onPro: () => void;
-  onSupport: () => void;
 }
 
-export function ControllerHub({ onX20, onPro, onSupport }: ControllerHubProps) {
+export function ControllerHub({ onX20 }: ControllerHubProps) {
   return (
     <div className="metal-app controller-hub rebranded-hub">
       <header className="hub-header">
@@ -42,10 +40,6 @@ export function ControllerHub({ onX20, onPro, onSupport }: ControllerHubProps) {
           <div><Usb size={28} /><span><strong>USB Connection</strong><small>Connect via USB cable for gameplay input.</small></span></div>
           <div><Radio size={28} /><span><strong>Wireless Receiver</strong><small>Use the receiver in XInput mode.</small></span></div>
           <div><Bluetooth size={28} /><span><strong>Bluetooth Configuration</strong><small>Discover a supported X20 in the studio.</small></span></div>
-        </div>
-        <div className="hub-footer-links">
-          <button className="hub-pro-link" onClick={onPro}>Explore X20 Pro read-only discovery <ArrowRight size={15} /></button>
-          <button className="hub-pro-link" onClick={onSupport}>Support X20ctl</button>
         </div>
       </main>
     </div>

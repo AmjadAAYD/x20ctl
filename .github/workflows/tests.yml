@@ -37,7 +37,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: x20ctl-windows-paired-development
-          path: dist/x20ctl-4.0.0-win-x64.zip
+          path: dist/x20ctl-4.0.1-win-x64.zip
           retention-days: 7
 # The archive contains both executables. Public release still requires native-window
 # acceptance, release checksums, and an explicit publication step.
