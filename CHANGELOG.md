@@ -1,5 +1,16 @@
 # Changelog
 
+## 4.0.1 - 2026-09-28
+
+### Fixed
+
+- The orange vibration strength track now follows the selected value.
+- Support X20ctl has a visible entry below the X20 studio navigation; the Ko-fi action is left aligned in its optional dialog.
+- Removed the unfinished X20 Pro discovery footer link from the Controllers page. The Pro backend remains read-only, but its workspace is no longer offered in the visible navigation.
+- Updated the desktop screenshots to reflect the current interface.
+
+The paired scanner integrity check, report consent flow, and existing X20 functionality remain unchanged.
+
 ## 4.0.0 - 2026-09-28
 
 ### What's added

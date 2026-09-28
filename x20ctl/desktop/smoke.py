@@ -303,13 +303,21 @@ def exercise(window, directory, result, lifecycle=None):
 
         click("Vibration", "document.querySelector('.chassis-nav')")
         click("Off")
+        assert "0%" in window.evaluate_js("document.querySelector('.haptics-master input[type=range]').style.background")
         wait_for("document.querySelector('.vibration-grip-overlay')?.getAttribute('data-strength')==='0'")
         assert window.evaluate_js(
             "getComputedStyle(document.querySelector('.vibration-grip-overlay')).opacity==='0'"
         ), "Zero vibration must hide the grip effect"
         click("Gentle")
         assert window.evaluate_js("document.querySelector('.large-value').textContent") == "30%"
+        assert "30%" in window.evaluate_js("document.querySelector('.haptics-master input[type=range]').style.background")
         wait_for("document.querySelector('.vibration-grip-overlay')?.getAttribute('data-strength')==='30'")
+        click("Support X20ctl", "document.querySelector('.chassis-sidebar')")
+        assert window.evaluate_js("document.querySelector('[role=dialog]')?.textContent.includes('Support X20ctl on Ko-fi')")
+        assert window.evaluate_js("getComputedStyle(document.querySelector('.support-primary-action')).justifyContent") == "flex-start"
+        capture("support-dialog")
+        click("Close", "document.querySelector('[role=dialog]')")
+        assert not window.evaluate_js("!!document.querySelector('[role=dialog]')")
         click("Power & device", "document.querySelector('.chassis-nav')")
         click("Never")
         assert window.evaluate_js("document.querySelector('.preset-row button.selected').textContent") == "Never"
@@ -425,24 +433,13 @@ def exercise(window, directory, result, lifecycle=None):
         time.sleep(0.25)
         assert window.evaluate_js("window.__inputCalls") == 0, "XInput polling continued in Controllers hub"
         report["checks"].append("XInput polling stops while the X20 workspace is hidden")
-        click("Explore X20 Pro read-only discovery")
-        wait_for("document.querySelector('.pro-workspace h1')?.textContent === 'X20 Pro'")
-        assert window.evaluate_js("!!document.querySelector('.pro-controller-svg')")
-        capture("pro-front")
-        window.resize(1060, 760)
-        time.sleep(0.4)
-        assert window.evaluate_js("document.documentElement.scrollWidth <= document.documentElement.clientWidth + 2")
-        capture("pro-front-compact")
-        window.resize(1400, 940)
-        time.sleep(0.4)
-        assert window.evaluate_js("document.body.innerText.includes('GIF support has not been established')")
+        assert not window.evaluate_js("document.body.innerText.includes('Explore X20 Pro read-only discovery')")
+        assert api("select_model", {"model": "x20_pro"})["ok"]
         assert not api("bootstrap")["ok"]
         assert not api("apply", {"category": "vibration", "value": 30})["ok"]
         assert not api("import_profile", {"profile": saved_profile})["ok"]
         assert api("pro_hid")["ok"]
-        capture("pro-discovery")
-        report["checks"].append("Pro front illustration and read-only inventory opened; X20 profiles and writes blocked")
-        click("Controllers")
+        report["checks"].append("Placeholder Pro link absent; Pro API remains read-only")
         click("Open X20 studio")
         wait_for("document.querySelector('.version')?.textContent.includes(" + json.dumps(__version__) + ")")
         assert api("bootstrap")["ok"]

@@ -311,7 +311,7 @@
 .studio-root .vibration-controller-art { grid-column: 1; grid-row: 2 / 4; min-height: 345px; padding: 20px 0; background: radial-gradient(ellipse at center, #a7492560, transparent 64%); }
 .studio-root .rebranded-workspace[data-page="rumble"] .haptics-master { grid-column: 2; grid-row: 2; padding: 18px 22px 8px; text-align: left; }
 .studio-root .rebranded-workspace[data-page="rumble"] .haptics-master .large-value { margin: 4px 0 10px; font-size: 52px; color: #ffac6e; }
-.studio-root .rebranded-workspace[data-page="rumble"] .haptics-master input[type="range"] { height: 14px; width: 100%; background: linear-gradient(90deg, #ffa85e, #ff6f50 70%, #1d2b44 70%); border: 0; box-shadow: none; padding: 0; }
+.studio-root .rebranded-workspace[data-page="rumble"] .haptics-master input[type="range"] { height: 14px; width: 100%; border: 0; box-shadow: none; padding: 0; }
 .studio-root .rebranded-workspace[data-page="rumble"] .haptics-master input[type="range"]::-webkit-slider-thumb { width: 27px; height: 27px; background: #fff5ed; border: 0; box-shadow: 0 0 14px #ff8e6d88; }
 .studio-root .rebranded-workspace[data-page="rumble"] .sync-caption { margin-top: 10px; border: 0; background: transparent; color: #b6c4dd; padding: 0; }
 .studio-root .rebranded-workspace[data-page="rumble"] .motor-pair { grid-column: 2; grid-row: 3; padding: 0 22px 18px; gap: 8px; }
@@ -460,8 +460,6 @@
 .studio-root .hub-connection-guide span { display: grid; gap: 4px; }
 .studio-root .hub-connection-guide strong { font-size: 14px; font-weight: 550; }
 .studio-root .hub-connection-guide small { color: #a9b9d6; font-size: 12px; max-width: 180px; line-height: 1.4; }
-.studio-root .hub-pro-link { display: inline-flex; align-items: center; gap: 7px; margin-top: 15px; border: 0; color: #a9bde7; background: none; font-size: 12px; text-decoration: underline; }
-.studio-root .hub-footer-links { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
 
 @media (max-width: 1180px) {
   .studio-root .rebranded-workspace { grid-template-columns: 174px minmax(0, 1fr); padding: 10px; column-gap: 10px; }
