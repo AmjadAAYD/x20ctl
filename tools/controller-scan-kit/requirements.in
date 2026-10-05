@@ -1,6 +1,6 @@
 # Runtime dependency intent; regenerate hash lock when updating.
 bleak==3.0.2
-typing_extensions==4.15.0
+typing_extensions==4.16.0
 winrt-runtime==3.2.1
 winrt-Windows.Devices.Bluetooth==3.2.1
 winrt-Windows.Devices.Bluetooth.Advertisement==3.2.1
