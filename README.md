@@ -18,6 +18,19 @@ Windows 10/11 **x64** is the target. The 4.0.1 desktop executable bundles Python
 
 The executable is **unsigned**. A Windows reputation warning is possible. Verify its SHA-256 against the release's `SHA256SUMS.txt`; do not disable antivirus to run it. [Security details](SECURITY.md).
 
+## Volunteer Controller Scan Kit
+
+To help research controllers that are not yet supported, use the separate
+[Controller Scan Kit](tools/controller-scan-kit/README.md). Its complete Python source,
+[data collection table](tools/controller-scan-kit/DATA_COLLECTED.md), and
+[release verification instructions](tools/controller-scan-kit/VERIFY_RELEASE.md) are public.
+It reads selected controller information and creates local results; it has no uploader.
+Run the Python source directly or download a **Controller Scan Kit** release from
+[Releases](https://github.com/AmjadAAYD/x20ctl/releases).
+Scanner releases use `scanner-v…` tags and are separate from desktop app updates.
+Optional raw HID/protocol captures can contain identifiers and require review.
+This standalone kit is distinct from the desktop app's integrated `x20ctl-scanner.exe` helper.
+
 ## Two connections, clearly separated
 
 | Connection | What it does |

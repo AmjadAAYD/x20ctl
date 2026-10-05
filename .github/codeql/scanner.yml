@@ -1,0 +1,5 @@
+name: Standalone controller scanner
+paths:
+  - tools/controller-scan-kit/src
+queries:
+  - uses: security-extended

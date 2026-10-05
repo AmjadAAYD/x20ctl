@@ -42,3 +42,11 @@ docs/SUBMISSIONS_SETUP.md
 .env*
 !.env.example
 *.zip
+
+# Volunteer scanner output and raw protocol traces stay private.
+results/
+scan-*/
+*.pcap
+*.pcapng
+*.btsnoop
+bugreport*
