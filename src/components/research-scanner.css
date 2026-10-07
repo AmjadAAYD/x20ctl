@@ -1,0 +1,207 @@
+.studio-root .research-scanner {
+  width: min(960px, calc(100vw - 36px));
+}
+.research-section,
+.input-controller-panel {
+  padding: 22px;
+}
+.research-scanner p {
+  line-height: 1.55;
+  color: #bdcde0;
+}
+.research-scanner .research-status {
+  padding: 13px 16px;
+  border: 1px solid #7db9d83a;
+  border-radius: 12px;
+  background: #18374d50;
+  overflow-wrap: anywhere;
+}
+.research-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin: 18px 0;
+}
+.research-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.research-fields input,
+.research-fields select,
+.research-prompt textarea {
+  min-width: 0;
+  width: 100%;
+  border: 1px solid #516884;
+  border-radius: 9px;
+  padding: 11px;
+  background: #0a1728;
+  color: #e7edf8;
+}
+.research-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 0;
+  line-height: 1.5;
+  color: #d4e1ef;
+}
+.research-check input {
+  width: 18px;
+  height: 18px;
+  margin-top: 3px;
+  flex-shrink: 0;
+  accent-color: #77bfff;
+}
+.research-prompt {
+  padding: 23px;
+  border: 1px solid #6085a768;
+  border-radius: 14px;
+  background: #112339b0;
+  margin: 15px 0;
+}
+.research-prompt h2 {
+  font-size: clamp(18px, 2vw, 24px);
+  line-height: 1.45;
+  margin: 10px 0 18px;
+}
+.research-prompt textarea {
+  min-height: 90px;
+  resize: vertical;
+}
+.research-choice {
+  display: block;
+  width: 100%;
+  margin: 10px 0;
+  text-align: left;
+}
+.research-coverage {
+  padding: 13px 0;
+}
+.research-coverage > div {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 13px;
+}
+.research-coverage article {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 12px;
+  border: 1px solid #5873974a;
+  background: #102037;
+  border-radius: 9px;
+}
+.research-coverage strong {
+  text-transform: capitalize;
+}
+.research-coverage span {
+  color: #9fcdef;
+  font-size: 12px;
+}
+.research-coverage small {
+  color: #aebed1;
+  line-height: 1.4;
+}
+.research-review ul {
+  max-height: 260px;
+  overflow-y: auto;
+  list-style: none;
+  padding: 0;
+}
+.research-review li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid #63769430;
+  overflow-wrap: anywhere;
+}
+.research-handoff,
+.research-contacts {
+  margin: 16px 0;
+  padding: 18px;
+  border-radius: 12px;
+  border: 1px solid #7593b74d;
+  background: #152a4250;
+  overflow-wrap: anywhere;
+}
+.research-handoff > button,
+.research-contacts > button {
+  margin: 5px 8px 5px 0;
+}
+.research-history {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 10px 0;
+}
+.input-controller-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(210px, 0.7fr);
+  gap: 22px;
+  align-items: center;
+}
+.input-controller-grid .controller-view {
+  min-width: 0;
+}
+.input-inspector {
+  padding: 20px;
+  border: 1px solid #6586aa45;
+  border-radius: 12px;
+  background: #112137b0;
+}
+.input-inspector p {
+  color: #bccde1;
+  line-height: 1.5;
+}
+.input-value-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 13px 0;
+  border-bottom: 1px solid #7495b62a;
+}
+.input-workspace .header-controller-copy > strong {
+  font-size: 24px;
+}
+.input-workspace .header-controller-copy > strong small {
+  font-size: 12px;
+  color: #b6c7dc;
+}
+.input-workspace .metal-workspace {
+  min-width: 0;
+}
+@media (max-width: 1100px) {
+  .research-fields,
+  .research-coverage > div {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .input-controller-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .input-inspector {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .input-inspector p {
+    margin: 5px 0;
+  }
+}
+@media (max-width: 600px) {
+  .research-fields,
+  .research-coverage > div {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .research-prompt {
+    padding: 15px;
+  }
+  .research-review li,
+  .research-history {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

@@ -249,8 +249,8 @@ def test_service_scans_only_currently_selected_peripheral(tmp_path):
         def pending(self): return []
     workflow = FakeReports()
     service = DeviceService(directory=tmp_path, report_workflow=workflow)
-    asyncio.run(service.dispatch("select_model", {"model": "x20_pro"}))
-    service._pro_found = {"AA:BB:CC:DD:EE:FF": {"name": "Selected", "address": "AA:BB:CC:DD:EE:FF"}}
+    asyncio.run(service.dispatch("select_model", {"model": "x20"}))
+    service._support_found = {"AA:BB:CC:DD:EE:FF": {"name": "Selected", "address": "AA:BB:CC:DD:EE:FF"}}
     with pytest.raises(ValueError):
         asyncio.run(service.dispatch("report_prepare", {"address": "11:22:33:44:55:66"}))
     assert workflow.calls == []

@@ -16,6 +16,7 @@ classifiers = [
     "Intended Audience :: End Users/Desktop",
     "License :: OSI Approved :: MIT License",
     "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -29,7 +30,7 @@ dependencies = ["bleak>=0.22"]
 
 [project.optional-dependencies]
 gui = ["PySide6>=6.6"]
-desktop = ["pywebview==6.1", "pystray==0.19.5", "Pillow>=10", "packaging>=23"]
+desktop = ["pywebview==6.1", "pystray==0.19.5", "Pillow>=10", "packaging>=23", "evdev>=1.4; sys_platform == 'linux'"]
 dev = ["pytest>=8", "ruff>=0.9", "pyinstaller>=6"]
 
 [project.scripts]
@@ -42,7 +43,11 @@ x20ctl = "x20ctl.desktop.launcher:main"
 Homepage = "https://github.com/AmjadAAYD/x20ctl"
 
 [tool.setuptools]
-packages = ["x20ctl", "x20ctl.gui", "x20ctl.desktop"]
+packages = ["x20ctl", "x20ctl.gui", "x20ctl.desktop", "x20ctl.controllers", "x20ctl.scanning"]
+
+[tool.setuptools.package-data]
+"x20ctl.controllers" = ["catalog.json"]
+"x20ctl.scanning" = ["PROVENANCE.json"]
 
 # One source of truth, read straight out of the package.
 [tool.setuptools.dynamic]

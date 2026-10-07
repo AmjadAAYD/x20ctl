@@ -136,6 +136,11 @@ def validate_profile(profile):
         raise ValueError("Profile name must be 1–100 characters")
     if profile.get("schemaVersion") != 2:
         raise ValueError("Unsupported profile version")
+    if profile.get("controllerId", "x20") != "x20":
+        raise ValueError("Profile belongs to another controller")
+    profile["controllerId"] = "x20"
+    if any(slot not in ("M1", "M2", "M3", "M4") for slot in profile.get("macros", {})):
+        raise ValueError("Macro slot does not belong to X20")
     if not isinstance(profile.get("id"), str) or not 1 <= len(profile["id"]) <= 100:
         raise ValueError("Profile must have a valid identifier")
     categories = profile.get("categories", CATEGORIES)
@@ -188,6 +193,8 @@ def import_profile(value):
 
     legacy = Profile.from_dict(value)
     legacy.validate()
+    if legacy.controller_id != "x20":
+        raise ValueError("Profile belongs to another controller")
     linear = curve_to_ui(p.Curve(0, 0, (85, 85), (170, 170)))
     result = {
         "schemaVersion": 2,

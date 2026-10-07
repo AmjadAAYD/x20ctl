@@ -8,6 +8,10 @@ A downloadable desktop configurator for the **EasySMX X20**. Remap buttons, tune
 
 ![Real packaged x20ctl Controllers workspace](assets/screenshots/desktop/controllers.png)
 
+## 4.1.0 preview
+
+[Download the preview](https://github.com/AmjadAAYD/x20ctl/releases/tag/v4.1.0-preview.1). Seven controller previews, experimental X15 input and the built-in guided scanner are included. Extract the preview ZIP and run **x20ctl.exe**; the integrated scanner does not need a helper executable. Hardware and native-window verification limits are documented in the [preview notes](RELEASES/4.1.0-preview.1.md). Automatic report submission awaits the website receiver update. The documentation below describes stable 4.0.1.
+
 ## Download and run
 
 1. Open [GitHub Releases](https://github.com/AmjadAAYD/x20ctl/releases).

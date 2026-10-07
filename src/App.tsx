@@ -30,7 +30,8 @@ import {
 } from "lucide-react";
 import { ControllerHub } from "./components/ControllerHub";
 import { ProWorkspace } from "./components/ProWorkspace";
-import { ReportPanel } from "./components/ReportPanel";
+import { ControllerResearchScanner } from "./components/ControllerResearchScanner";
+import { InputWorkspace } from "./components/InputWorkspace";
 import "./themes.css";
 import { MetalDialog } from "./components/MetalDialog";
 import { ButtonsPage } from "./components/pages/ButtonsPage";
@@ -42,7 +43,11 @@ import { newProfile } from "./data/defaultProfiles";
 import { request, whenNativeReady } from "./native";
 import { useGamepad } from "./hooks/useGamepad";
 import brandMark from "./assets/brand-mark.png";
-import x20Hero from "./assets/x20-hero.png";
+import { controller, controllers, unavailableController, type ControllerId } from "./controllers";
+import { ControllerCanvas } from "./components/ControllerCanvas";
+import { ModelWorkspace } from "./components/ModelWorkspace";
+import { MetalSlider } from "./components/MetalSlider";
+import { AmbientSpace, MotionNav } from "./components/Motion";
 
 type Tab =
   "buttons" | "curves" | "macros" | "rumble" | "power" | "tester" | "profiles";
@@ -116,13 +121,32 @@ const navigation: {
   },
 ];
 
-function X20Workspace({ active, onBack, onSupport }: { active: boolean; onBack: () => void; onSupport: () => void }) {
+function X20Workspace({
+  active,
+  player,
+  onBack,
+  onSupport,
+  connectIntent,
+  onScan,
+}: {
+  active: boolean;
+  player: number;
+  onBack: () => void;
+  onSupport: () => void;
+  connectIntent: number;
+  onScan: () => void;
+}) {
   const running = useRef(false);
+  const consumedConnectIntent = useRef(0);
+  const checkedUpdates = useRef(false);
   const [updatesEnabled, setUpdatesEnabled] = useState(true);
   const [update, setUpdate] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
-  const [version, setVersion] = useState("4.0.1");
+  const [version, setVersion] = useState("4.1.0-preview.1");
+  const [inputBackend, setInputBackend] = useState("Gameplay input");
+  const [closeToTray, setCloseToTray] = useState(true);
   const [tab, setTab] = useState<Tab>("buttons");
+  const [macroSlot, setMacroSlot] = useState<"M1" | "M2" | "M3" | "M4">("M1");
   const [profile, setProfile] = useState<Profile>(() => newProfile());
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [device, setDevice] = useState<Device | null>(null);
@@ -131,7 +155,6 @@ function X20Workspace({ active, onBack, onSupport }: { active: boolean; onBack: 
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [scanner, setScanner] = useState(false);
-  const [reportOpen, setReportOpen] = useState(false);
   const [devices, setDevices] = useState<{ address: string; name: string }[]>(
     [],
   );
@@ -139,6 +162,7 @@ function X20Workspace({ active, onBack, onSupport }: { active: boolean; onBack: 
   const [help, setHelp] = useState(false);
   const [resetConfirm, setResetConfirm] = useState(false);
   const [recording, setRecording] = useState(false);
+  const recordingSlot = useRef<"M1" | "M2" | "M3" | "M4">("M1");
   const [confirmation, setConfirmation] = useState<{
     title: string;
     description: string;
@@ -151,8 +175,17 @@ function X20Workspace({ active, onBack, onSupport }: { active: boolean; onBack: 
       setRecording(false);
     }
   }, [active]);
-  const inputActive = active && (tab === "buttons" || tab === "curves" || tab === "macros" || tab === "tester" || recording);
-  const { liveState, hardwareDetected, slot } = useGamepad(ready && inputActive, onDisconnect);
+  const inputActive =
+    active &&
+    (tab === "buttons" ||
+      tab === "curves" ||
+      tab === "macros" ||
+      tab === "tester" ||
+      recording);
+  const { liveState, hardwareDetected, slot } = useGamepad(
+    ready && inputActive,
+    onDisconnect,
+  );
 
   const run = async (label: string, work: () => Promise<void>) => {
     if (running.current) return;
@@ -170,30 +203,40 @@ function X20Workspace({ active, onBack, onSupport }: { active: boolean; onBack: 
     }
   };
 
-  useEffect(
-    () =>
-      whenNativeReady(() => {
-        setReady(true);
-        void request<{
-          version: string;
-          profiles: Profile[];
-          warning: string | null;
-          updatesEnabled: boolean;
-        }>("bootstrap")
-          .then((data) => {
-            setUpdatesEnabled(data.updatesEnabled);
-            setVersion(data.version);
-            setProfiles(data.profiles);
-            if (data.warning) setError(data.warning);
-            if (data.updatesEnabled)
-              void request<{ version: string } | null>("check_updates")
-                .then((latest) => setUpdate(latest?.version ?? null))
-                .catch(() => {});
-          })
-          .catch((e) => setError(e.message));
-      }),
-    [],
-  );
+  useEffect(() => whenNativeReady(() => setReady(true)), []);
+  useEffect(() => {
+    if (!active || !ready) return;
+    let current = true;
+    void request<{
+      version: string;
+      profiles: Profile[];
+      warning: string | null;
+      updatesEnabled: boolean;
+      inputBackend?: string;
+      closeToTray?: boolean;
+    }>("bootstrap")
+      .then((data) => {
+        if (!current) return;
+        setUpdatesEnabled(data.updatesEnabled);
+        setVersion(data.version);
+        setInputBackend(data.inputBackend ?? "Windows XInput");
+        setCloseToTray(data.closeToTray ?? true);
+        setProfiles(data.profiles);
+        if (data.warning) setError(data.warning);
+        if (data.updatesEnabled && !checkedUpdates.current) {
+          checkedUpdates.current = true;
+          void request<{ version: string } | null>("check_updates")
+            .then((latest) => setUpdate(latest?.version ?? null))
+            .catch(() => {});
+        }
+      })
+      .catch((e) => {
+        if (current) setError(e.message);
+      });
+    return () => {
+      current = false;
+    };
+  }, [active, ready]);
 
   const adoptDevice = (next: Device) => {
     setDevice(next);
@@ -344,14 +387,22 @@ function X20Workspace({ active, onBack, onSupport }: { active: boolean; onBack: 
         if (recording) {
           setRecording(false);
           const rows = await request<Profile["macros"]["M1"]>("record_stop");
-          edit("M1", rows);
-          setMessage("Recording placed in M1. Review before applying.");
+          edit(recordingSlot.current, rows);
+          setMessage(`Recording placed in ${recordingSlot.current}. Review before applying.`);
         } else {
           await request("record_start");
+          recordingSlot.current = macroSlot;
           setRecording(true);
         }
       },
     );
+  useEffect(() => {
+    if (connectIntent > consumedConnectIntent.current && active && ready) {
+      consumedConnectIntent.current = connectIntent;
+      setScanner(true);
+      void scan();
+    }
+  }, [connectIntent, active, ready]);
   const battery = device?.battery;
   const changedMappings = Object.entries(profile.remaps).filter(
     ([key, value]) => key !== value,
@@ -360,23 +411,23 @@ function X20Workspace({ active, onBack, onSupport }: { active: boolean; onBack: 
     (rows) => rows.length,
   ).length;
 
+  if (!active) return null;
   return (
     <div className="metal-app rebranded-workspace" data-page={tab}>
       <a className="skip-link" href="#workspace">
         Skip to editor
       </a>
-      <aside className="chassis-sidebar">
+      <aside className="chassis-sidebar has-sidebar-actions">
         <div className="chassis-brand">
           <img className="brand-emblem" src={brandMark} alt="" />
           <strong>x20ctl</strong>
         </div>
-        <nav className="chassis-nav" aria-label="Workspace">
-          <button onClick={onBack}>
-            <Gamepad2 size={19} /> <span>Controllers</span>
-          </button>
+        <MotionNav active={tab}>
           {navigation.map((item) => (
             <button
               key={item.id}
+              aria-label={item.label}
+              title={item.label}
               aria-current={tab === item.id ? "page" : undefined}
               onClick={() => setTab(item.id)}
             >
@@ -384,34 +435,65 @@ function X20Workspace({ active, onBack, onSupport }: { active: boolean; onBack: 
               <span>{item.label}</span>
             </button>
           ))}
-        </nav>
-        <button className="sidebar-support" onClick={onSupport} title="Support X20ctl">
+        </MotionNav>
+        <button
+          className="sidebar-support"
+          onClick={onSupport}
+          title="Support X20ctl"
+        >
           <Heart size={19} /> <span>Support X20ctl</span>
+        </button>
+        <button
+          className="button secondary sidebar-controller-help"
+          disabled={!ready || !!busy}
+          onClick={onScan}
+          aria-label="Can’t find your controller?"
+          title="Can’t find your controller?"
+        >
+          <CircleHelp size={18} />
+          <span>Can’t find your controller?</span>
         </button>
       </aside>
       <header className="chassis-header">
         <div className="header-controller">
           <div className="header-controller-art" aria-hidden="true">
-            <img src={x20Hero} alt="" />
+            <ControllerCanvas model="x20" emphasis={device ? "connected" : "default"} disabled />
           </div>
           <div className="header-controller-copy">
-            <strong>X20 Controller</strong>
+            <strong>
+              X20 Controller{" "}
+              <small className="studio-player-label">Player {player}</small>
+            </strong>
             <div className="connection-lights" aria-label="Connection status">
               <span>
                 <i className={device ? "led on" : "led"} />
-                <span>Config Connection <b>{device ? "Connected" : "Not Connected"}</b></span>
+                <span>
+                  Config Connection{" "}
+                  <b>{device ? "Connected" : "Not Connected"}</b>
+                </span>
               </span>
               <span>
                 <i className={hardwareDetected ? "led on" : "led"} />
-                <span>XInput (Gameplay) <b>{hardwareDetected ? `Player ${(slot ?? 0) + 1}` : "Not Connected"}</b></span>
+                <span>
+                  Gameplay input{" "}
+                  <b>
+                    {hardwareDetected
+                      ? `Player ${(slot ?? 0) + 1}`
+                      : "Not Connected"}
+                  </b>
+                </span>
               </span>
             </div>
           </div>
         </div>
         <div className="header-actions">
-          <button className="button secondary" disabled={!ready || !!busy} onClick={() => setReportOpen(true)}>Compatibility report</button>
-          <button className="button secondary" onClick={onBack}>
-            <Gamepad2 size={17} /> Controllers
+          <button className="button secondary" onClick={onScan}>Controller scanner</button>
+          <button
+            className="button secondary"
+            disabled={!!busy}
+            onClick={onBack}
+          >
+            <Gamepad2 size={17} /> Switch Controller
           </button>
           <button
             className="button secondary"
@@ -440,7 +522,7 @@ function X20Workspace({ active, onBack, onSupport }: { active: boolean; onBack: 
 
         {!ready && (
           <div className="notice">
-            Desktop connection unavailable. Launch x20ctl.exe to connect your
+            Desktop connection unavailable. Launch the x20ctl app to connect your
             controller.
           </div>
         )}
@@ -497,11 +579,13 @@ function X20Workspace({ active, onBack, onSupport }: { active: boolean; onBack: 
           </div>
           <span className={"draft-indicator " + (dirty.size ? "pending" : "")}>
             <i className="draft-led" />
-            <span>{dirty.size
-              ? `${dirty.size} unsent ${dirty.size === 1 ? "change" : "changes"}`
-              : device
-                ? "Read from device"
-                : "Editing offline draft"}</span>
+            <span>
+              {dirty.size
+                ? `${dirty.size} unsent ${dirty.size === 1 ? "change" : "changes"}`
+                : device
+                  ? "Read from device"
+                  : "Editing offline draft"}
+            </span>
           </span>
           <div className="toolbar-actions">
             <button
@@ -542,9 +626,15 @@ function X20Workspace({ active, onBack, onSupport }: { active: boolean; onBack: 
           </div>
         </div>
 
-        <fieldset disabled={!!busy} className="editor">
+        <fieldset key={tab} disabled={!!busy} className="editor motion-page">
           {tab === "buttons" && (
             <ButtonsPage
+              active={active}
+              onOpenMacro={(slot) => {
+                if (!["M1", "M2", "M3", "M4"].includes(slot)) return;
+                setMacroSlot(slot as "M1" | "M2" | "M3" | "M4");
+                setTab("macros");
+              }}
               remaps={profile.remaps}
               liveState={liveState}
               inputConnected={hardwareDetected}
@@ -577,7 +667,7 @@ function X20Workspace({ active, onBack, onSupport }: { active: boolean; onBack: 
                     {recording ? "RECORDING LIVE INPUT" : "XINPUT RECORDER"}
                   </strong>
                   <span className="muted">
-                    Buttons + left-stick directions · 5 ms timing
+                    Buttons + eight-way stick directions · 5 ms timing
                   </span>
                 </div>
                 <button
@@ -586,17 +676,20 @@ function X20Workspace({ active, onBack, onSupport }: { active: boolean; onBack: 
                   onClick={record}
                 >
                   <Radio size={15} />
-                  {recording ? "Stop recording → M1" : "Record to M1"}
+                  {recording ? `Stop recording → ${recordingSlot.current}` : `Record to ${macroSlot}`}
                 </button>
               </div>
               <MacrosPage
+                initialSlot={macroSlot}
+                onSlotChange={setMacroSlot}
                 loops={profile.macroLoops}
                 onUpdateLoop={(key, value) => {
                   setProfile((old) => ({
                     ...old,
                     macroLoops: { ...old.macroLoops, [key]: value },
+                    categories: old.categories ? [...new Set([...old.categories, key])] : undefined,
                   }));
-                  edit(key, profile.macros[key]);
+                  setDirty((old) => new Set([...old, key]));
                 }}
                 macros={profile.macros}
                 onUpdateMacros={(key, steps) => edit(key, steps)}
@@ -612,36 +705,21 @@ function X20Workspace({ active, onBack, onSupport }: { active: boolean; onBack: 
                   <h2>Unified motor control</h2>
                   <span className="panel-code">HAPTICS / 01</span>
                 </div>
-                <div className="controller-hero-art vibration-controller-art" aria-hidden="true">
+                <div
+                  className="controller-hero-art vibration-controller-art"
+                  aria-hidden="true"
+                >
                   <div className="vibration-controller-frame">
-                    <img src={x20Hero} alt="" />
-                    <svg
-                      className="vibration-grip-overlay"
-                      viewBox="0 0 1536 1024"
-                      data-strength={profile.vibration}
-                      style={{ opacity: profile.vibration / 100 }}
-                    >
-                      <defs>
-                        <clipPath id="vibration-left-grip">
-                          <path d="M148 342 C240 390 334 555 365 646 C347 774 264 918 174 992 C88 995 36 881 36 730 C37 580 82 427 148 342 Z" />
-                        </clipPath>
-                        <clipPath id="vibration-right-grip">
-                          <path d="M1388 342 C1296 390 1202 555 1171 646 C1189 774 1272 918 1362 992 C1448 995 1500 881 1500 730 C1499 580 1454 427 1388 342 Z" />
-                        </clipPath>
-                      </defs>
-                      <g className="grip-pulse grip-pulse-left" clipPath="url(#vibration-left-grip)">
-                        <ellipse className="grip-wave grip-wave-outer" cx="218" cy="688" rx="105" ry="223" transform="rotate(-13 218 688)" />
-                        <ellipse className="grip-wave grip-wave-middle" cx="218" cy="688" rx="75" ry="166" transform="rotate(-13 218 688)" />
-                        <ellipse className="grip-wave grip-wave-inner" cx="218" cy="688" rx="44" ry="104" transform="rotate(-13 218 688)" />
-                      </g>
-                      <g className="grip-pulse grip-pulse-right" clipPath="url(#vibration-right-grip)">
-                        <ellipse className="grip-wave grip-wave-outer" cx="1318" cy="688" rx="105" ry="223" transform="rotate(13 1318 688)" />
-                        <ellipse className="grip-wave grip-wave-middle" cx="1318" cy="688" rx="75" ry="166" transform="rotate(13 1318 688)" />
-                        <ellipse className="grip-wave grip-wave-inner" cx="1318" cy="688" rx="44" ry="104" transform="rotate(13 1318 688)" />
-                      </g>
-                    </svg>
+                    <ControllerCanvas
+                      model="x20"
+                      framing="detail"
+                      lighting="vibration"
+                      motorPower={profile.vibration}
+                    />
                   </div>
-                  <span className="vibration-preview-caption">Draft strength preview</span>
+                  <span className="vibration-preview-caption">
+                    Draft strength preview
+                  </span>
                 </div>
                 <div className="haptics-master">
                   <span className="engraved">STORED VIBRATION STRENGTH</span>
@@ -649,14 +727,11 @@ function X20Workspace({ active, onBack, onSupport }: { active: boolean; onBack: 
                     {profile.vibration}
                     <small>%</small>
                   </div>
-                  <input
+                  <MetalSlider
                     aria-label="Vibration strength"
-                    type="range"
-                    min="0"
-                    max="100"
                     value={profile.vibration}
-                    style={{ background: `linear-gradient(90deg, #ffa85e 0%, #ff6f50 ${profile.vibration}%, #1d2b44 ${profile.vibration}%)` }}
-                    onChange={(e) => edit("vibration", Number(e.target.value))}
+                    tone="amber"
+                    onValueChange={(value) => edit("vibration", value)}
                   />
                   <div className="scale-labels">
                     <span>OFF</span>
@@ -701,49 +776,49 @@ function X20Workspace({ active, onBack, onSupport }: { active: boolean; onBack: 
                   ))}
                 </div>
                 <aside className="haptics-presets metal-panel">
-                <div className="panel-heading">
-                  <SlidersHorizontal size={17} />
-                  <h2>Strength presets</h2>
-                </div>
-                <div className="strength-presets">
-                  {[0, 30, 70, 100].map((v, i) => (
-                    <button
-                      key={v}
-                      className={profile.vibration === v ? "selected" : ""}
-                      onClick={() => edit("vibration", v)}
-                    >
-                      <div>
-                        <strong>
-                          {["Off", "Gentle", "Standard", "Maximum"][i]}
-                        </strong>
-                        <small>
-                          {
-                            [
-                              "No vibration",
-                              "Light feedback",
-                              "Balanced feedback",
-                              "Full stored strength",
-                            ][i]
-                          }
-                        </small>
-                      </div>
-                      <b>
-                        {v}
-                        <small>%</small>
-                      </b>
-                      <div className="preset-meter">
-                        <i style={{ width: v + "%" }} />
-                      </div>
-                    </button>
-                  ))}
-                </div>
-                <div className="panel-footnote">
-                  <p>
-                    This changes the strength stored on the controller. Select
-                    Apply changes to send it.
-                  </p>
-                  <p>Games control when the motors run.</p>
-                </div>
+                  <div className="panel-heading">
+                    <SlidersHorizontal size={17} />
+                    <h2>Strength presets</h2>
+                  </div>
+                  <div className="strength-presets">
+                    {[0, 30, 70, 100].map((v, i) => (
+                      <button
+                        key={v}
+                        className={profile.vibration === v ? "selected" : ""}
+                        onClick={() => edit("vibration", v)}
+                      >
+                        <div>
+                          <strong>
+                            {["Off", "Gentle", "Standard", "Maximum"][i]}
+                          </strong>
+                          <small>
+                            {
+                              [
+                                "No vibration",
+                                "Light feedback",
+                                "Balanced feedback",
+                                "Full stored strength",
+                              ][i]
+                            }
+                          </small>
+                        </div>
+                        <b>
+                          {v}
+                          <small>%</small>
+                        </b>
+                        <div className="preset-meter">
+                          <i style={{ width: v + "%" }} />
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="panel-footnote">
+                    <p>
+                      This changes the strength stored on the controller. Select
+                      Apply changes to send it.
+                    </p>
+                    <p>Games control when the motors run.</p>
+                  </div>
                 </aside>
               </section>
             </div>
@@ -756,11 +831,21 @@ function X20Workspace({ active, onBack, onSupport }: { active: boolean; onBack: 
                   <h2>Battery status</h2>
                 </div>
                 <div className="battery-status-content">
-                  <div className="battery-segments" role="img" aria-label={battery ? `Battery level ${battery.level} of 4` : "Battery level unavailable"}>
+                  <div
+                    className="battery-segments"
+                    role="img"
+                    aria-label={
+                      battery
+                        ? `Battery level ${battery.level} of 4`
+                        : "Battery level unavailable"
+                    }
+                  >
                     {[1, 2, 3, 4].map((i) => (
                       <span
                         key={i}
-                        className={battery && battery.level >= i ? "filled" : ""}
+                        className={
+                          battery && battery.level >= i ? "filled" : ""
+                        }
                       />
                     ))}
                   </div>
@@ -838,7 +923,7 @@ function X20Workspace({ active, onBack, onSupport }: { active: boolean; onBack: 
                     <dt>Gameplay input</dt>
                     <dd>
                       {hardwareDetected
-                        ? `XInput player ${(slot ?? 0) + 1}`
+                        ? `Gameplay slot ${(slot ?? 0) + 1}`
                         : "Not detected"}
                     </dd>
                   </dl>
@@ -867,6 +952,7 @@ function X20Workspace({ active, onBack, onSupport }: { active: boolean; onBack: 
               liveState={liveState}
               inputConnected={hardwareDetected}
               inputSlot={slot}
+              inputBackend={inputBackend}
             />
           )}
           {tab === "profiles" && (
@@ -1056,7 +1142,6 @@ function X20Workspace({ active, onBack, onSupport }: { active: boolean; onBack: 
         </div>
       </footer>
 
-      {reportOpen && <ReportPanel onClose={() => setReportOpen(false)} selected={!!device} onPrepareStart={() => setDevice(null)} />}
       {scanner && (
         <MetalDialog
           title="Link your controller"
@@ -1175,8 +1260,7 @@ function X20Workspace({ active, onBack, onSupport }: { active: boolean; onBack: 
           )}
           <p className="fine-print">
             The X20 configuration peripheral usually appears as Xpert2. Close
-            phone configuration apps before connecting. EasySMX X05 is not
-            supported.
+            phone configuration apps before connecting.
           </p>
         </MetalDialog>
       )}
@@ -1201,7 +1285,7 @@ function X20Workspace({ active, onBack, onSupport }: { active: boolean; onBack: 
               <Monitor size={23} />
               <h3>Gameplay input</h3>
               <p>
-                USB, the receiver or a compatible Bluetooth mode supplies XInput
+                USB, the receiver or a compatible Bluetooth mode supplies gameplay input
                 to the tester and recorder. It can work alongside the
                 configuration link.
               </p>
@@ -1231,9 +1315,9 @@ function X20Workspace({ active, onBack, onSupport }: { active: boolean; onBack: 
             />
           </label>
           <p className="fine-print">
-            Profiles and controller settings stay on this computer. Closing the
-            window keeps x20ctl in the system tray. Choose Quit from the tray
-            menu to exit.
+            Profiles and controller settings stay on this computer. {closeToTray
+              ? "Closing the window keeps x20ctl in the system tray. Choose Quit from the tray menu to exit."
+              : "Closing the window exits x20ctl."}
           </p>
         </MetalDialog>
       )}
@@ -1309,11 +1393,30 @@ function X20Workspace({ active, onBack, onSupport }: { active: boolean; onBack: 
 }
 
 export function App() {
-  const [view, setView] = useState<"controllers" | "x20" | "x20_pro">("controllers");
-  const [visitedX20, setVisitedX20] = useState(false);
+  const [players, setPlayers] = useState<(ControllerId | null)[]>([
+    null,
+    null,
+    null,
+    null,
+  ]);
+  const [studioPlayer, setStudioPlayer] = useState<number | null>(null);
+  const [pickerPlayer, setPickerPlayer] = useState<number | null>(null);
+  const [scanOpen, setScanOpen] = useState(false);
+  const [scanModel, setScanModel] = useState("Unknown");
+  const [scanConsent, setScanConsent] = useState(false);
+  const [unavailableNotice, setUnavailableNotice] = useState<ControllerId | null>(null);
+  const openResearch = (model: string, authorized = false) => { setScanModel(model); setScanConsent(authorized); setScanOpen(true); };
+  const [connectIntents, setConnectIntents] = useState<Record<number, number>>(
+    {},
+  );
+  const [visited, setVisited] = useState<Record<string, boolean>>({});
+  const [selecting, setSelecting] = useState(false);
+  const selectingRef = useRef(false);
   const [modelError, setModelError] = useState("");
   const [supportOpen, setSupportOpen] = useState(false);
   const [supportError, setSupportError] = useState("");
+  const selectedModel = players[studioPlayer ?? pickerPlayer ?? -1];
+  const previewSelected = !!selectedModel && !controller(selectedModel).backend;
   const closeSupport = () => {
     setSupportOpen(false);
     setSupportError("");
@@ -1321,56 +1424,243 @@ export function App() {
   const openSupportLink = (operation: "open_support" | "open_github") => {
     setSupportError("");
     void request(operation).catch((reason) =>
-      setSupportError(reason instanceof Error ? reason.message : String(reason)),
+      setSupportError(
+        reason instanceof Error ? reason.message : String(reason),
+      ),
     );
   };
-  const openModel = async (model: "x20" | "x20_pro") => {
+  const openModel = async (
+    player: number,
+    model: ControllerId,
+    enter: boolean,
+    connect = false,
+  ) => {
+    if (selectingRef.current) return;
+    selectingRef.current = true;
+    setSelecting(true);
     setModelError("");
     try {
-      await request("select_model", { model });
-      if (model === "x20") setVisitedX20(true);
-      setView(model);
+      if (enter && window.pywebview?.api)
+        await request("select_model", { model, player: player + 1 });
+      setPlayers((old) =>
+        old.map((assigned, index) => (index === player ? model : assigned)),
+      );
+      if (enter) {
+        setVisited((old) => ({ ...old, [`${player}:${model}`]: true }));
+        setStudioPlayer(player);
+        setUnavailableNotice(unavailableController(model) ? model : null);
+      }
+      setPickerPlayer(null);
+      if (connect)
+        setConnectIntents((old) => ({
+          ...old,
+          [player]: (old[player] ?? 0) + 1,
+        }));
     } catch (reason) {
       setModelError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      selectingRef.current = false;
+      setSelecting(false);
+    }
+  };
+  const returnToPlayers = async () => {
+    if (selectingRef.current) return;
+    selectingRef.current = true;
+    setSelecting(true);
+    setModelError("");
+    try {
+      if (window.pywebview?.api) await request("disconnect");
+      setStudioPlayer(null);
+      setPickerPlayer(null);
+    } catch (reason) {
+      setModelError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      selectingRef.current = false;
+      setSelecting(false);
     }
   };
   return (
     <div className="studio-root">
-      {view === "controllers" && (
+      <AmbientSpace />
+      {studioPlayer === null && (
         <ControllerHub
-          onX20={() => void openModel("x20")}
+          players={players}
+          busy={selecting}
+          onChoose={setPickerPlayer}
+          onScan={() => openResearch("Unknown")}
+          onEnter={(player) => {
+            const model = players[player];
+            if (model) void openModel(player, model, true);
+          }}
         />
       )}
+      {pickerPlayer !== null && (
+        <MetalDialog
+          title="Switch Controller"
+          subtitle={`PLAYER ${pickerPlayer + 1} / CHOOSE A MODEL`}
+          className="controller-picker"
+          onClose={() => {
+            if (!selecting) setPickerPlayer(null);
+          }}
+        >
+          <p className="picker-note">
+            Assign a model to Player {pickerPlayer + 1}. Hardware connects
+            separately in the Studio.
+          </p>
+          <div className="controller-selection-grid">{controllers
+            .filter((profile) => profile.visible)
+            .map((profile) => (
+              <div className="controller-switch-row" key={profile.id} data-preview={profile.placeholder}
+                data-selected={players[pickerPlayer] === profile.id}>
+                <button
+                  disabled={selecting}
+                  onClick={() =>
+                    void openModel(
+                      pickerPlayer,
+                      profile.id,
+                      studioPlayer !== null,
+                    )
+                  }
+                  aria-label={`Select ${profile.name}`}
+                  aria-pressed={players[pickerPlayer] === profile.id}
+                >
+                  <ControllerCanvas model={profile.id} emphasis={players[pickerPlayer] === profile.id ? "selected" : "default"} disabled />
+                  <span>
+                    <strong>{profile.name}</strong>
+                    <small>
+                      {profile.availability === "input_experimental" ? "Read-only gameplay input" : profile.availability === "unavailable" ? "Help collect controller data" : profile.macroSlots.length > 0
+                        ? `${profile.macroSlots.length} programmable controls`
+                        : `${profile.hardware.sticks} sticks${profile.hardware.rgb ? " · RGB lighting" : ""}`}
+                    </small>
+                    <small className="controller-support-state">
+                      {profile.availability === "unavailable" ? "Not available yet" : profile.availability === "input_experimental" ? "Experimental input support" : profile.backend ? "Supported" : "Preview · protocol unverified"}
+                    </small>
+                  </span>
+                </button>
+                <button
+                  className="button secondary"
+                  disabled={selecting}
+                  title={
+                    !profile.backend
+                      ? "Open a local preview; hardware protocol unverified"
+                      : "Open this player's Studio and scan for an X20"
+                  }
+                  onClick={() =>
+                    void openModel(pickerPlayer, profile.id, true, !!profile.backend)
+                  }
+                >
+                  {profile.availability === "unavailable" ? "View controller" : profile.availability === "input_experimental" ? "Open input Studio" : profile.backend ? "Connect" : "Open preview"}
+                </button>
+              </div>
+            ))}</div>
+          <div className="dialog-actions">
+            <button
+              className="button secondary"
+              disabled={selecting}
+              title={
+                previewSelected
+                  ? "Hardware scans are unavailable for preview models"
+                  : undefined
+              }
+              onClick={() => {
+                setPickerPlayer(null);
+                setScanModel(selectedModel ? controller(selectedModel).name : "Unknown"); setScanConsent(false);
+                setScanOpen(true);
+              }}
+            >
+              Can’t find your controller?
+            </button>
+          </div>
+        </MetalDialog>
+      )}
+      {scanOpen && (
+        <ControllerResearchScanner model={scanModel} preauthorized={scanConsent} onClose={() => setScanOpen(false)} />
+      )}
+      {unavailableNotice && <MetalDialog title={`${controller(unavailableNotice).name} · not available yet`} subtitle="HELP ADD CONTROLLER SUPPORT" onClose={() => setUnavailableNotice(null)}>
+        <p>This controller is not available in x20ctl yet. I do not have enough verified data to support it.</p>
+        <p><strong>Scan now</strong> opens the built-in guided scan. After you review the result, it will be sent to X20CTLADMIN to help research support. Optional raw captures need their own opt-in and review.</p>
+        <p>Discord: <strong>mistermajid</strong> · Email: <strong>aaydamjad@gmail.com</strong></p>
+        <div className="dialog-actions"><button className="button primary" onClick={() => { const name = controller(unavailableNotice).name; setUnavailableNotice(null); openResearch(name, true); }}>Scan now</button><button className="button secondary" onClick={() => setUnavailableNotice(null)}>Scan later</button></div>
+        <button className="button secondary" onClick={() => void request("research_contact", { contact: "kit" }).catch(reason => setModelError(String(reason)))}>Download Controller Scan Kit</button>
+      </MetalDialog>}
       {supportOpen && (
-        <MetalDialog title="Support X20ctl" subtitle="OPTIONAL" onClose={closeSupport}>
+        <MetalDialog
+          title="Support X20ctl"
+          subtitle="OPTIONAL"
+          onClose={closeSupport}
+        >
           <p>X20ctl is free and independently developed.</p>
           <p>
             If you find it useful, you can support continued development,
             controller compatibility work, testing, and hosting costs.
           </p>
           <div className="dialog-actions support-primary-action">
-            <button className="button primary" onClick={() => openSupportLink("open_support")}>Support X20ctl on Ko-fi</button>
+            <button
+              className="button primary"
+              onClick={() => openSupportLink("open_support")}
+            >
+              Support X20ctl on Ko-fi
+            </button>
           </div>
-          <p className="fine-print">Other ways to help: star X20ctl on GitHub or submit a controller compatibility report.</p>
+          <p className="fine-print">
+            Other ways to help: star X20ctl on GitHub or submit a controller
+            scan ZIP.
+          </p>
           <div className="dialog-actions">
-            <button className="button secondary" onClick={() => openSupportLink("open_github")}>Star on GitHub</button>
-            <button className="button secondary" onClick={closeSupport}>Close</button>
+            <button
+              className="button secondary"
+              onClick={() => openSupportLink("open_github")}
+            >
+              Star on GitHub
+            </button>
+            <button className="button secondary" onClick={closeSupport}>
+              Close
+            </button>
           </div>
-          {supportError && <p className="error-text" role="alert">{supportError}</p>}
+          {supportError && (
+            <p className="error-text" role="alert">
+              {supportError}
+            </p>
+          )}
         </MetalDialog>
       )}
-      {modelError && <div role="alert" className="notice error model-error">{modelError}</div>}
-      {visitedX20 && (
-        <div hidden={view !== "x20"}>
-          <X20Workspace
-            active={view === "x20"}
-            onBack={() => setView("controllers")}
-            onSupport={() => setSupportOpen(true)}
-          />
+      {modelError && (
+        <div role="alert" className="notice error model-error">
+          {modelError}
         </div>
       )}
-      {view === "x20_pro" && (
-        <ProWorkspace onBack={() => setView("controllers")} />
+      {players.map((_model, player) =>
+        controllers.map((profile) => {
+          const key = `${player}:${profile.id}`;
+          if (!visited[key]) return null;
+          const visible =
+            studioPlayer === player && players[player] === profile.id;
+          return (
+            <div key={key} hidden={!visible} data-studio-player={player + 1}>
+              {profile.id === "x20" ? (
+                <X20Workspace
+                  active={visible}
+                  player={player + 1}
+                  connectIntent={connectIntents[player] ?? 0}
+                  onBack={() => void returnToPlayers()}
+                  onSupport={() => setSupportOpen(true)}
+                  onScan={() => openResearch(profile.name)}
+                />
+              ) : profile.id === "x15" || unavailableController(profile.id) ? (
+                <InputWorkspace model={profile.id} active={visible} player={player + 1} onBack={() => void returnToPlayers()} onSupport={() => setSupportOpen(true)} onScan={(authorized = false) => openResearch(profile.name, authorized)} />
+              ) : (
+                <ModelWorkspace
+                  model={profile.id}
+                  active={visible}
+                  player={player + 1}
+                  onSwitch={() => void returnToPlayers()}
+                  onSupport={() => setSupportOpen(true)}
+                  onScan={(authorized = false) => openResearch(profile.name, authorized)}
+                />
+              )}
+            </div>
+          );
+        }),
       )}
     </div>
   );

@@ -16,6 +16,7 @@ from urllib import error, request
 from x20ctl import __version__
 from ._scanner_identity import SCANNER_SHA256, SCANNER_VERSION
 from .scanner_integrity import packaged_scanner_path, run_scanner, verify_scanner
+from .platform_support import data_directory
 
 ENDPOINT = "https://x20-admin.vercel.app/api/controller-report"
 ALLOWED = frozenset({"device.json", "usb-descriptors.txt", "hid-report-descriptor.bin",
@@ -75,7 +76,7 @@ def make_zip(directory: Path, destination: Path) -> tuple[list[str], int, str]:
     return [p.name for p in files], len(data), hashlib.sha256(data).hexdigest()
 
 
-def upload_report(ident: str, metadata: dict, data: bytes, endpoint: str = ENDPOINT) -> dict:
+def upload_report(ident: str, metadata: dict, data: bytes, endpoint: str = ENDPOINT, *, max_request=MAX_REQUEST) -> dict:
     boundary = "x20ctl-" + uuid.uuid4().hex
     fields = {"clientSubmissionId": ident, "metadata": json.dumps(metadata, separators=(",", ":"))}
     body = bytearray()
@@ -84,7 +85,7 @@ def upload_report(ident: str, metadata: dict, data: bytes, endpoint: str = ENDPO
     body.extend(f"--{boundary}\r\nContent-Disposition: form-data; name=\"report\"; filename=\"report.zip\"\r\nContent-Type: application/zip\r\n\r\n".encode())
     body.extend(data)
     body.extend(f"\r\n--{boundary}--\r\n".encode())
-    if len(body) > MAX_REQUEST:
+    if len(body) > max_request:
         raise ValueError("Report request exceeds receiver limit")
     outgoing = request.Request(endpoint, bytes(body), {"Content-Type": f"multipart/form-data; boundary={boundary}"}, method="POST")
     try:
@@ -102,7 +103,7 @@ def upload_report(ident: str, metadata: dict, data: bytes, endpoint: str = ENDPO
 class ReportWorkflow:
     def __init__(self, root: Path | None = None, scanner_path: Path | None = None,
                  approved_hash: str | None = SCANNER_SHA256, runner=run_scanner, uploader=upload_report):
-        self.root = Path(root or Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "x20ctl" / "Reports")
+        self.root = Path(root or data_directory() / "Reports")
         self.scanner_path = scanner_path or packaged_scanner_path()
         self.approved_hash = approved_hash
         self.runner = runner
@@ -166,6 +167,19 @@ class ReportWorkflow:
             except (OSError, ValueError, KeyError, TypeError):
                 continue
         return found[:20]
+
+    def export_bytes(self, scan_id: str) -> bytes:
+        """Export only an existing verified report, never arbitrary filesystem data."""
+        if not isinstance(scan_id, str) or not SCAN_ID.fullmatch(scan_id):
+            raise ValueError("Invalid report identifier")
+        folder = self.root / scan_id
+        manifest = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
+        if manifest.get("scanId") != scan_id:
+            raise ValueError("Report is unavailable")
+        data = (folder / "report.zip").read_bytes()
+        if len(data) > MAX_ZIP or hashlib.sha256(data).hexdigest() != manifest.get("zipSha256"):
+            raise ValueError("Local report ZIP changed; export refused")
+        return data
 
     def send(self, scan_id: str, consent: bool) -> dict:
         if consent is not True:

@@ -11,6 +11,7 @@ import type { CurveConfig, LiveGamepadState } from "../../types/gamepad";
 import { LiveStickModule } from "../LiveStickModule";
 import { LiveTriggerModule } from "../LiveTriggerModule";
 import { CurvesHelpModal } from "../CurvesHelpModal";
+import { MetalSlider } from "../MetalSlider";
 import "../metal-curves.css";
 
 interface CurvesPageProps {
@@ -330,15 +331,12 @@ export function CurvesPage({
               <label htmlFor="curve-inner">
                 Inner deadzone <output>{display(config.innerDeadzone)}%</output>
               </label>
-              <input
+              <MetalSlider
                 id="curve-inner"
-                type="range"
-                min="0"
-                max="30"
+                min={0}
+                max={30}
                 value={config.innerDeadzone}
-                onChange={(event) =>
-                  update({ innerDeadzone: Number(event.target.value) })
-                }
+                onValueChange={(value) => update({ innerDeadzone: value })}
               />
               <p>Ignore small movements near the center.</p>
             </div>
@@ -347,15 +345,12 @@ export function CurvesPage({
                 Full-output threshold{" "}
                 <output>{display(config.outerDeadzone)}%</output>
               </label>
-              <input
+              <MetalSlider
                 id="curve-outer"
-                type="range"
-                min="70"
-                max="100"
+                min={70}
+                max={100}
                 value={config.outerDeadzone}
-                onChange={(event) =>
-                  update({ outerDeadzone: Number(event.target.value) })
-                }
+                onValueChange={(value) => update({ outerDeadzone: value })}
               />
               <p>Reach maximum output at this input level.</p>
             </div>
@@ -388,14 +383,13 @@ export function CurvesPage({
                       {axis === "x" ? "Input" : "Output"}{" "}
                       <output>{display(config[point][axis])}%</output>
                     </label>
-                    <input
+                    <MetalSlider
                       id={`curve-${point}-${axis}`}
-                      type="range"
-                      min="0"
-                      max="100"
+                      min={0}
+                      max={100}
                       value={config[point][axis]}
-                      onChange={(event) => {
-                        let value = Number(event.target.value);
+                      onValueChange={(nextValue) => {
+                        let value = nextValue;
                         if (axis === "x")
                           value =
                             point === "p1"

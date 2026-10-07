@@ -1,0 +1,7 @@
+# Acceptance environment: system GTK/WebKit, no Python/Node build environment.
+FROM ubuntu:22.04@sha256:b1066385161d28ddf6bc7e7b28a9170eec11484c821d1a5150d176cbde41d7f7
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgtk-3-0 libwebkit2gtk-4.1-0 libgirepository-1.0-1 libgdk-pixbuf-2.0-0 \
+    libcairo2 libffi8 libgl1 libgl1-mesa-dri fonts-dejavu-core ca-certificates \
+    xvfb xauth dbus-x11 && rm -rf /var/lib/apt/lists/*

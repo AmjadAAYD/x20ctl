@@ -1,0 +1,45 @@
+.controller-canvas { position: relative; width: 100%; isolation: isolate; overflow: hidden; border-radius: 12px; background: radial-gradient(ellipse at 18% 40%, #123b6550, transparent 55%), radial-gradient(ellipse at 86% 48%, #75432330, transparent 55%), #07101e; box-shadow: inset 0 1px #b6d6ff12, inset 0 0 0 1px #31436050; }
+.controller-image-plane { position: absolute; width: 84%; left: 50%; top: 50%; transform: translate(-50%, -50%); }
+.controller-image-plane.is-product-plane { overflow: hidden; }
+.studio-root .controller-canvas .controller-photo { display: block; position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; object-fit: contain; pointer-events: none; filter: none; mask-image: none; -webkit-mask-image: none; mix-blend-mode: normal; border-radius: 8px; }
+/* One artwork frame; only the empty source-image edges fade into its backdrop. */
+.controller-canvas[data-framing="detail"], .controller-rear[data-framing="detail"] { background: #020816; }
+.studio-root .controller-canvas[data-framing="detail"] .controller-photo,
+.controller-rear[data-framing="detail"] .controller-rear-plane > img {
+  border-radius: 0;
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 2%, #000 98%, transparent), linear-gradient(to bottom, transparent, #000 2%, #000 98%, transparent);
+  mask-image: linear-gradient(to right, transparent, #000 2%, #000 98%, transparent), linear-gradient(to bottom, transparent, #000 2%, #000 98%, transparent);
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+}
+.controller-control, .controller-stick { position: absolute; z-index: 2; transform: translate(-50%, -50%); width: 6%; aspect-ratio: 1; padding: 0; border: 2px solid transparent; border-radius: 50%; background: transparent; cursor: pointer; touch-action: none; }
+.controller-dpad { width: 4%; border-radius: 25%; }
+.controller-control:disabled, .controller-stick:disabled { opacity: 1; cursor: default; }
+.controller-control:not(:disabled):hover, .controller-control.is-selected, .controller-control.is-pressed,
+.controller-stick:not(:disabled):hover, .controller-stick.is-selected, .controller-stick.is-pressed { border-color: #83c5ff; background: #398aff25; }
+.controller-control.is-pressed { background: #56abff75; }
+.controller-control:focus-visible, .controller-stick:focus-visible { outline: 2px solid #d4eaff; outline-offset: 3px; }
+.controller-stick { border: 0; }
+.controller-stick-marker-target { border: 1px solid transparent; }
+.controller-stick-marker { position: absolute; width: 8px; aspect-ratio: 1; translate: -50% -50%; border-radius: 50%; background: #c6e6ff; border: 1px solid #2872a1; pointer-events: none; }
+.controller-stick-cap { position: absolute; translate: -50% -50%; border-radius: 50%; background-color: #181c24; background-repeat: no-repeat; opacity: 1; pointer-events: none; }
+.studio-root .controller-canvas .controller-control,
+.studio-root .controller-canvas .controller-stick,
+.studio-root .controller-canvas .controller-stick-cap { box-shadow: none; filter: none; }
+.studio-root .controller-canvas .controller-control:is(:hover, .is-selected, .is-pressed, :focus-visible),
+.studio-root .controller-canvas .controller-stick:is(:hover, .is-selected, .is-pressed, :focus-visible) { box-shadow: none; filter: none; }
+.studio-root .controller-canvas .controller-stick:is(:hover, .is-selected, .is-pressed) { background: transparent; }
+.studio-root .controller-canvas .controller-stick:is(.is-selected, .is-pressed) .controller-stick-cap { outline: 1px solid #a9c0d8; outline-offset: 1px; }
+.controller-screen { position: absolute; z-index: 1; pointer-events: none; }
+.studio-root .controller-canvas .controller-haptics-overlay { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; z-index: 3; pointer-events: none; overflow: hidden; filter: none; opacity: var(--motor-opacity); }
+.controller-motor { color: var(--motor-color); }
+.motor-surface { fill: currentColor; opacity: .07; }
+.motor-contour { fill: none; stroke: currentColor; stroke-width: 6; opacity: .55; }
+.motor-contour-layer { stroke-width: 24; opacity: .16; filter: blur(2px); }
+.motor-wave { fill: none; stroke: currentColor; stroke-width: 18; stroke-linecap: round; stroke-dasharray: 18 82; }
+.motor-wave-echo { stroke-width: 12; stroke-dasharray: 9 91; opacity: .7; }
+.motor-wave-glow { stroke-width: 34; opacity: .75; filter: blur(3px); }
+.controller-motor-trigger .motor-contour { stroke-width: 4; }
+.controller-motor-trigger .motor-contour-layer { stroke-width: 16; }
+.controller-motor-trigger .motor-wave { stroke-width: 10; }
+.controller-motor-trigger .motor-wave-glow { stroke-width: 22; }

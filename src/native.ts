@@ -21,7 +21,7 @@ export async function request<T>(
   payload: object = {},
 ): Promise<T> {
   if (!window.pywebview?.api)
-    throw new Error("Open x20ctl.exe to use the desktop connection.");
+    throw new Error("Open the x20ctl desktop app to use the desktop connection.");
   const result = await window.pywebview.api.request<T>(operation, payload);
   if (!result.ok)
     throw new Error(result.error?.message || "The desktop operation failed.");

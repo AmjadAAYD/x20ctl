@@ -181,6 +181,7 @@
   align-items: center;
   gap: 8px;
 }
+.macro-step-actions { display: flex; align-items: center; gap: 8px; }
 .macro-button {
   display: inline-flex;
   align-items: center;
@@ -232,6 +233,8 @@
   outline-offset: 3px;
 }
 .sequencer-panel {
+  min-width: 0;
+  container-type: inline-size;
   overflow: hidden;
   border: 1px solid var(--line, #4b5259);
   border-radius: 8px;
@@ -243,6 +246,7 @@
   justify-content: space-between;
   align-items: center;
   gap: 14px;
+  flex-wrap: wrap;
   padding: 12px 15px;
   background: linear-gradient(#363d44, #262d33);
   border-bottom: 1px solid #0b0e12;
@@ -251,7 +255,9 @@
   display: flex;
   align-items: center;
   gap: 9px;
+  flex-shrink: 0;
 }
+.sequencer-heading .macro-actions { flex-wrap: wrap; }
 .sequencer-heading strong {
   font-size: 12px;
   font-weight: 600;
@@ -264,18 +270,19 @@
 }
 .sequencer-scroll {
   position: relative;
-  overflow: auto;
-  max-height: 370px;
-  padding: 8px;
+  overflow: visible;
+  padding: 6px;
   background: #11161b;
 }
 .sequencer-matrix {
-  width: 100%;
-  min-width: 880px;
+  width: min(100%, calc(94px + var(--step-count, 8) * 64px));
+  min-width: 0;
   border-collapse: separate;
-  border-spacing: 4px 3px;
+  border-spacing: 1px 2px;
   table-layout: fixed;
 }
+.sequencer-input-column { width: 92px; }
+.sequencer-matrix td { padding: 0; }
 .sequencer-matrix th {
   font-weight: 500;
 }
@@ -289,10 +296,9 @@
   position: sticky;
   left: 0;
   z-index: 2;
-  width: 126px;
   text-align: left;
   white-space: nowrap;
-  padding: 0 10px;
+  padding: 0 6px;
   font-size: 11px;
   color: #d0d8df;
   background: linear-gradient(#383f46, #272e34);
@@ -308,8 +314,7 @@
   color: #aebac4;
 }
 .sequencer-matrix thead th:not(.sequencer-label) {
-  min-width: 95px;
-  width: 95px;
+  padding: 0;
 }
 .sequencer-input-dot {
   display: inline-block;
@@ -326,7 +331,9 @@
   gap: 2px;
   justify-items: center;
   width: 100%;
-  padding: 8px 0;
+  min-width: 0;
+  padding: 4px 0;
+  overflow: hidden;
   color: #dce4eb;
   border: 1px solid #3d4851;
   border-radius: 4px;
@@ -338,7 +345,7 @@
   font-weight: 550;
 }
 .sequencer-step-heading span {
-  font-size: 10px;
+  font-size: 9px;
   color: #a3b0ba;
   font-variant-numeric: tabular-nums;
 }
@@ -354,8 +361,9 @@
 .sequencer-stick,
 .sequencer-empty-cell {
   width: 100%;
-  min-width: 86px;
-  height: 25px;
+  min-width: 0;
+  height: 20px;
+  padding: 0;
   border: 1px solid #3d4851;
   border-radius: 3px;
   background: linear-gradient(#2f373f, #20272d);
@@ -371,8 +379,10 @@
   cursor: pointer;
 }
 .sequencer-stick {
-  padding: 0 5px;
-  font-size: 10px;
+  appearance: none;
+  text-align: center;
+  padding: 0;
+  font-size: 12px;
   color: #98a8b5;
 }
 .sequencer-stick option {
@@ -433,11 +443,21 @@
   display: flex;
   justify-content: space-between;
   gap: 12px;
+  flex-wrap: wrap;
   padding: 9px 14px;
   background: #232a31;
   border-top: 1px solid #45525d;
   color: #a0aeb9;
   font-size: 10px;
+}
+.sequencer-panel[data-dense="true"] .sequencer-step-heading { padding: 5px 0; }
+.sequencer-panel[data-dense="true"] .sequencer-step-heading strong { font-size: 9px; }
+.sequencer-panel[data-dense="true"] .sequencer-step-heading span { display: none; }
+.sequencer-panel[data-dense="true"] .sequencer-cell { font-size: 7px; }
+@container (max-width: 520px) {
+  .sequencer-step-heading span { display: none; }
+  .sequencer-input-column { width: 84px; }
+  .sequencer-matrix { width: min(100%, calc(86px + var(--step-count, 8) * 64px)); }
 }
 .sequencer-footer i,
 .piano-preview-note i {

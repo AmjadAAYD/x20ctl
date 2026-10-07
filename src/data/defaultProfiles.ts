@@ -33,6 +33,7 @@ export const DEFAULT_CURVE_CONFIG = {
 export function newProfile(name = "Untitled setup"): Profile {
   return {
     schemaVersion: 2,
+    controllerId: "x20",
     id: crypto.randomUUID(),
     name,
     createdAt: Date.now(),

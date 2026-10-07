@@ -17,34 +17,15 @@ import {
 } from "../types/gamepad";
 import { MetalDialog } from "./MetalDialog";
 import "./metal-macros.css";
+import { MACRO_INPUTS, countWireEntries } from "../macro-library";
+export { countWireEntries } from "../macro-library";
 
-export const MACRO_BUTTONS: KeyName[] = [
-  "A",
-  "B",
-  "X",
-  "Y",
-  "LB",
-  "RB",
-  "LT",
-  "RT",
-  "L3",
-  "R3",
-  "DPAD_UP",
-  "DPAD_DOWN",
-  "DPAD_LEFT",
-  "DPAD_RIGHT",
-];
+export const MACRO_BUTTONS: KeyName[] = MACRO_INPUTS;
 export const STICK_OPTIONS = Object.values(StickDirection).filter(
   (value): value is StickDirection => typeof value === "number",
 );
 export function shortKeyLabel(key: KeyName) {
   return key === "L3" || key === "R3" ? key : KEY_LABELS[key];
-}
-export function countWireEntries(steps: MacroStep[]) {
-  return steps.reduce(
-    (count, step) => count + 1 + (step.intervalMs > 0 ? 1 : 0),
-    0,
-  );
 }
 export function createMacroStep(intervalMs = 20): MacroStep {
   return {
@@ -108,7 +89,7 @@ export function StepInspector({
   step: MacroStep;
   index: number;
   onUpdate: (patch: Partial<MacroStep>) => void;
-  onDelete: () => void;
+  onDelete?: () => void;
 }) {
   return (
     <section
@@ -118,7 +99,7 @@ export function StepInspector({
       <div className="macro-inspector-title">
         <span className="macro-eyebrow">SELECTED STEP</span>
         <strong>{String(index + 1).padStart(2, "0")}</strong>
-        <button
+        {onDelete && <button
           className="macro-button"
           title="Remove Step"
           aria-label={`Remove Step ${index + 1}`}
@@ -126,7 +107,7 @@ export function StepInspector({
         >
           <Trash2 size={14} />
           Remove
-        </button>
+        </button>}
       </div>
       <div className="macro-inspector-timing">
         <label>
@@ -213,7 +194,7 @@ export function StepInspector({
 interface PianoRollModalProps {
   isOpen: boolean;
   onClose: () => void;
-  paddle: "M1" | "M2" | "M3" | "M4";
+  paddle: string;
   steps: MacroStep[];
   onSaveSteps: (steps: MacroStep[]) => void;
 }
