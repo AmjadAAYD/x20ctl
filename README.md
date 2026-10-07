@@ -6,7 +6,11 @@ A downloadable desktop configurator for the **EasySMX X20**. Remap buttons, tune
 
 [Download for Windows](https://github.com/AmjadAAYD/x20ctl/releases/latest) · [Changelog](CHANGELOG.md) · [Connection help](IF-YOUR-CONTROLLER-ISNT-WORKING.md) · [Report an issue](https://github.com/AmjadAAYD/x20ctl/issues)
 
-![Real packaged x20ctl Controllers workspace](assets/screenshots/desktop/controllers.png)
+![Current four-player controller workspace](assets/screenshots/current/controllers.png)
+
+## 4.1.0 preview
+
+[Download x20ctl.exe](https://github.com/AmjadAAYD/x20ctl/releases/download/v4.1.0-preview.1-exe/x20ctl.exe). The gallery shows this preview; stable-release instructions below still describe 4.0.1.
 
 ## Download and run
 
@@ -59,25 +63,29 @@ Playing over USB does not establish the configuration link. Enable your PC's Blu
 
 Offline edits are **drafts**, not controller values. **Apply changes** writes only edited categories. Successful read-back is reported as verified; commands without reliable confirmation are labeled sent. A partial failure retains the remaining draft and reports what succeeded.
 
-## Real screenshots
+## Current interface screenshots
 
-These are captures of the running 4.0.1 packaged desktop app's native WebView2 surface. They show the disconnected/offline state honestly. Controller drawings inside the app are stylized illustrations, not photographs.
+Captured from the bundled **4.1.0-preview.1** interface on 7 October 2026 in an isolated headless browser at 1583 × 1147. These show offline drafts and locally assigned models, with no physical controller connected. They are interface previews, not native-window or hardware verification.
 
-![Controllers workspace](assets/screenshots/desktop/controllers.png)
-
-| Response curves | Macro editor |
+| Buttons / front view | Buttons / back view |
 |---|---|
-| ![Response curves](assets/screenshots/desktop/curves.png) | ![Piano-roll editor](assets/screenshots/desktop/macro-editor.png) |
+| ![Current X20 button Studio](assets/screenshots/current/buttons.png) | ![Current X20 rear controls](assets/screenshots/current/back-view.png) |
 
-| Input tester | Power and device |
+| Response curves | Vibration |
 |---|---|
-| ![XInput tester](assets/screenshots/desktop/tester.png) | ![Power settings](assets/screenshots/desktop/power.png) |
+| ![Current response curves](assets/screenshots/current/curves.png) | ![Current vibration draft preview](assets/screenshots/current/vibration.png) |
 
-| Vibration console | Saved setup library |
+![Current compact macro sequencer](assets/screenshots/current/macros.png)
+
+![Current piano-roll editor](assets/screenshots/current/macro-editor.png)
+
+| Input tester, disconnected | Power and device, disconnected |
 |---|---|
-| ![Vibration controls](assets/screenshots/desktop/vibration.png) | ![Saved setups](assets/screenshots/desktop/profiles.png) |
+| ![Current disconnected input tester](assets/screenshots/current/tester.png) | ![Current power and device page](assets/screenshots/current/power.png) |
 
-Capture method and verification scope: [desktop validation](docs/desktop-validation.md).
+![Current saved setup library](assets/screenshots/current/profiles.png)
+
+Capture details: [screenshot provenance](assets/screenshots/current/README.md).
 
 ## Local first
 
