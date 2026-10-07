@@ -387,7 +387,8 @@
 .studio-root .instrument-readout-stack strong { color: #7db7ff; }
 .studio-root .macro-studio { display: grid; grid-template-columns: 216px minmax(0, 1fr); gap: 12px; max-width: none; }
 .studio-root .macro-heading { grid-column: 1 / -1; margin-bottom: 0; }
-.studio-root .macro-console-bar { grid-column: 1; grid-row: 2 / span 3; display: flex; align-items: stretch; flex-direction: column; gap: 22px; padding: 15px; margin: 0; border: 1px solid #30405f; border-radius: 15px; background: #101b30ef; }
+.studio-root .macro-controller-preview { grid-column: 1 / -1; grid-row: 2; }
+.studio-root .macro-console-bar { grid-column: 1; grid-row: 3 / span 3; display: flex; align-items: stretch; flex-direction: column; gap: 22px; padding: 15px; margin: 0; border: 1px solid #30405f; border-radius: 15px; background: #101b30ef; }
 .studio-root .macro-console-bar::before { content: "Macro Slots"; font-size: 18px; font-weight: 620; }
 .studio-root .macro-paddles { flex-direction: column; gap: 7px; }
 .studio-root .macro-paddle { min-height: 58px; display: flex; align-items: center; justify-content: space-between; border: 1px solid #344361; border-radius: 9px; background: #18243b; box-shadow: inset 0 1px #ffffff10; text-align: left; padding: 9px 15px; }
@@ -400,7 +401,7 @@
 .studio-root .macro-button { border-color: #395271; border-radius: 8px; color: #e5edff; background: #15243e; box-shadow: inset 0 1px #ffffff12; }
 .studio-root .macro-button-primary,
 .studio-root .macro-button.is-selected { border-color: #547ffc; background: linear-gradient(130deg, #2867ff, #3957dd); color: white; }
-.studio-root .sequencer-panel { grid-column: 2; grid-row: 2; border-color: #314360; border-radius: 15px; background: #0b1729; }
+.studio-root .sequencer-panel { grid-column: 2; grid-row: 3; border-color: #314360; border-radius: 15px; background: #0b1729; }
 .studio-root .sequencer-scroll,
 .studio-root .sequencer-matrix thead th { background: #0a1425; }
 .studio-root .sequencer-matrix th.sequencer-label { background: #17243d; color: #d5e0f6; border-color: #344a6a; }
@@ -424,6 +425,7 @@
 @media (max-width: 900px) {
   .studio-root .macro-studio { grid-template-columns: 1fr; }
   .studio-root .macro-console-bar { grid-column: 1; grid-row: auto; }
+  .studio-root .sequencer-panel { grid-column: 1; grid-row: auto; }
   .studio-root .macro-paddles { flex-direction: row; }
   .studio-root .macro-paddle { flex: 1; min-width: 0; }
   .studio-root .sequencer-panel,

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
   Crosshair,
@@ -8,24 +8,29 @@ import {
   RotateCcw,
   SlidersHorizontal,
 } from "lucide-react";
-import { ControllerDiagram } from "../ControllerDiagram";
-import { PhotoControllerOverlay } from "../PhotoControllerOverlay";
+import { ControllerView } from "../ControllerView";
+import { controller, type ControllerId } from "../../controllers";
 import { keyboardStickVector } from "../../controller-preview";
-import x20Hero from "../../assets/x20-hero.png";
+import { isRearControl } from "../../controller-controls";
+import { triggerStrength } from "../../controller-triggers";
+import { MetalSlider } from "../MetalSlider";
 import {
   KeyName,
   KEY_LABELS,
   LiveGamepadState,
-  ControllerPreset,
 } from "../../types/gamepad";
 import "../metal-controls.css";
 
 interface ButtonsPageProps {
+  active?: boolean;
+  model?: ControllerId;
+  disabled?: boolean;
   remaps: Record<KeyName, KeyName>;
   onUpdateRemap: (source: KeyName, target: KeyName) => void;
   onResetRemaps: () => void;
   liveState: LiveGamepadState;
   inputConnected?: boolean;
+  onOpenMacro?: (slot: string) => void;
 }
 const SOURCES: KeyName[] = [
   "A",
@@ -57,24 +62,35 @@ const PREVIEW_BUTTONS = Object.fromEntries(
 ) as Record<KeyName, boolean>;
 
 export function ButtonsPage({
+  active = true,
+  model = "x20",
+  disabled = false,
   remaps,
   onUpdateRemap,
   onResetRemaps,
   liveState,
   inputConnected = false,
+  onOpenMacro,
 }: ButtonsPageProps) {
   const [selected, setSelected] = useState<KeyName>("A");
-  const [appearance, setAppearance] =
-    useState<ControllerPreset>("x20-pro-black");
+  const [view, setView] = useState<"front" | "back">("front");
+  function selectControl(key: KeyName) {
+    setSelected(key);
+    setView(isRearControl(key) ? "back" : "front");
+  }
   const [previewEnabled, setPreviewEnabled] = useState(false);
+  const [previewTriggers, setPreviewTriggers] = useState({ left: 0, right: 0 });
+  const triggerWasHeld = useRef(false);
   const [previewKeys, setPreviewKeys] = useState<ReadonlySet<string>>(() => new Set());
   const [pointerLeft, setPointerLeft] = useState<{ x: number; y: number } | null>(null);
   const [pointerRight, setPointerRight] = useState<{ x: number; y: number } | null>(null);
   useEffect(() => {
-    if (!previewEnabled) {
+    if (!previewEnabled || !active) {
+      if (!active) setPreviewEnabled(false);
       setPreviewKeys(new Set());
       setPointerLeft(null);
       setPointerRight(null);
+      setPreviewTriggers({ left: 0, right: 0 });
       return;
     }
     function onKeyDown(event: globalThis.KeyboardEvent) {
@@ -107,13 +123,17 @@ export function ButtonsPage({
       window.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("blur", resetKeys);
     };
-  }, [previewEnabled]);
+  }, [previewEnabled, active]);
   const leftStick = previewEnabled ? pointerLeft ?? keyboardStickVector(previewKeys) : liveState.leftStick;
   const rightStick = previewEnabled ? pointerRight ?? { x: 0, y: 0 } : liveState.rightStick;
-  const visualState = previewEnabled
-    ? { ...liveState, leftStick, rightStick, buttons: PREVIEW_BUTTONS }
-    : liveState;
   const showStickValues = previewEnabled || inputConnected;
+  const leftTrigger = triggerStrength(previewEnabled ? previewTriggers.left : inputConnected && active ? liveState.leftTrigger : 0);
+  const rightTrigger = triggerStrength(previewEnabled ? previewTriggers.right : inputConnected && active ? liveState.rightTrigger : 0);
+  useEffect(() => {
+    const held = leftTrigger > .01 || rightTrigger > .01;
+    if (held && !triggerWasHeld.current) setView("back");
+    triggerWasHeld.current = held;
+  }, [leftTrigger, rightTrigger]);
   const changed = SOURCES.filter((key) => (remaps[key] ?? key) !== key).length;
   const target = remaps[selected] ?? selected;
   return (
@@ -131,7 +151,8 @@ export function ButtonsPage({
         </header>
         <div className="mapping-canvas-toolbar">
           <span>
-            EasySMX X20 <small>/ front view</small>
+            EasySMX {controller(model).name}{" "}
+            <small>/ interactive controls</small>
           </span>
           <div className="mapping-toolbar-actions">
             <button
@@ -143,53 +164,29 @@ export function ButtonsPage({
             >
               <Keyboard size={14} /> Keyboard preview
             </button>
-          <div className="mapping-finish-switch" aria-label="Illustration finish">
-            <button
-              aria-label="Graphite illustration"
-              aria-pressed={appearance === "x20-pro-black"}
-              onClick={() => setAppearance("x20-pro-black")}
-            >
-              Graphite
-            </button>
-            <button
-              aria-label="Silver illustration"
-              aria-pressed={appearance === "x20-pro-white"}
-              onClick={() => setAppearance("x20-pro-white")}
-            >
-              Silver
-            </button>
-          </div>
           </div>
         </div>
         <div className="mapping-controller-stage">
-          {appearance === "x20-pro-black" && <img className="mapping-controller-photo" src={x20Hero} alt="" aria-hidden="true" />}
-          <span className="mapping-corner mapping-corner-tl" />
-          <span className="mapping-corner mapping-corner-tr" />
-          <span className="mapping-corner mapping-corner-bl" />
-          <span className="mapping-corner mapping-corner-br" />
-          {appearance === "x20-pro-black" ? (
-            <PhotoControllerOverlay
-              selectedKey={selected}
-              pressedButtons={previewEnabled || !inputConnected ? {} : liveState.buttons}
-              leftStick={leftStick}
-              rightStick={rightStick}
-              previewEnabled={previewEnabled}
-              onSelect={setSelected}
-              onStickPreview={(key, value) => {
-                if (key === "L3") setPointerLeft(value);
-                else setPointerRight(value);
-              }}
-            />
-          ) : (
-            <ControllerDiagram
-              liveState={visualState}
-              selectedKey={selected}
-              onButtonClick={(key) => {
-                if (SOURCES.includes(key)) setSelected(key);
-              }}
-              preset={appearance}
-            />
-          )}
+          <ControllerView
+            model={model}
+            framing="detail"
+            view={view}
+            onViewChange={setView}
+            onMacroSelect={onOpenMacro}
+            disabled={disabled}
+            selectedKey={selected}
+            buttons={previewEnabled || !inputConnected ? {} : liveState.buttons}
+            leftStick={leftStick}
+            rightStick={rightStick}
+            leftTrigger={leftTrigger}
+            rightTrigger={rightTrigger}
+            previewEnabled={previewEnabled}
+            onSelect={selectControl}
+            onStickPreview={(key, value) => {
+              if (key === "L3") setPointerLeft(value);
+              else setPointerRight(value);
+            }}
+          />
           <div className="mapping-canvas-caption">
             <MousePointer2 size={13} />
             <span>Select a control to inspect its assignment</span>
@@ -197,9 +194,16 @@ export function ButtonsPage({
         </div>
         {previewEnabled && (
           <p className="keyboard-preview-note" role="status">
-            Keyboard preview active. Hold WASD for the left stick or drag either stick. Visual test only; no controller input or settings are sent.
+            Keyboard preview active. Hold WASD or drag either stick. Use the sliders to preview trigger travel. Visual test only; no controller input or settings are sent.
           </p>
         )}
+        {previewEnabled && <div className="mapping-trigger-preview" role="group" aria-label="Trigger motion preview">
+          {(["left", "right"] as const).map(side => <label key={side}>
+            <span>{side === "left" ? "LT" : "RT"} travel <output>{Math.round(previewTriggers[side] * 100)}%</output></span>
+            <MetalSlider aria-label={`${side === "left" ? "LT" : "RT"} travel preview`} value={previewTriggers[side] * 100}
+              disabled={disabled} onValueChange={value => { setView("back"); setPreviewTriggers(current => ({ ...current, [side]: value / 100 })); }} />
+          </label>)}
+        </div>}
         <div className="mapping-input-strip">
           <div>
             <Crosshair size={18} />
@@ -216,15 +220,15 @@ export function ButtonsPage({
             <span>
               LT
               <strong>
-                {inputConnected
-                  ? `${Math.round(liveState.leftTrigger * 100)}%`
+                {showStickValues
+                  ? `${Math.round(leftTrigger * 100)}%`
                   : "—"}
               </strong>
             </span>
             <div>
               <i
                 style={{
-                  width: `${inputConnected ? liveState.leftTrigger * 100 : 0}%`,
+                  width: `${leftTrigger * 100}%`,
                 }}
               />
             </div>
@@ -233,15 +237,15 @@ export function ButtonsPage({
             <span>
               RT
               <strong>
-                {inputConnected
-                  ? `${Math.round(liveState.rightTrigger * 100)}%`
+                {showStickValues
+                  ? `${Math.round(rightTrigger * 100)}%`
                   : "—"}
               </strong>
             </span>
             <div>
               <i
                 style={{
-                  width: `${inputConnected ? liveState.rightTrigger * 100 : 0}%`,
+                  width: `${rightTrigger * 100}%`,
                 }}
               />
             </div>
@@ -259,7 +263,7 @@ export function ButtonsPage({
           </div>
         </div>
         <p className="mapping-footnote">
-          Illustrated controls follow XInput. Appearance changes this
+          Illustrated controls follow gameplay input. Appearance changes this
           illustration only.
         </p>
       </section>
@@ -316,7 +320,7 @@ export function ButtonsPage({
               <button
                 type="button"
                 aria-pressed={selected === key}
-                onClick={() => setSelected(key)}
+                onClick={() => selectControl(key)}
               >
                 <span
                   className={`mapping-key-small ${inputConnected && liveState.buttons[key] ? "is-pressed" : ""}`}
@@ -328,7 +332,7 @@ export function ButtonsPage({
               <select
                 aria-label={`Remap ${KEY_LABELS[key]}`}
                 value={remaps[key] ?? key}
-                onFocus={() => setSelected(key)}
+                onFocus={() => selectControl(key)}
                 onChange={(e) => onUpdateRemap(key, e.target.value as KeyName)}
               >
                 {TARGETS.map((destination) => (

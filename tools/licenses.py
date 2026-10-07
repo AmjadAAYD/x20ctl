@@ -26,7 +26,7 @@ def collect(root: Path):
     python_license = Path(sys.base_prefix) / "LICENSE.txt"
     if python_license.exists():
         sections.append("Python runtime\n" + python_license.read_text(encoding="utf-8"))
-    for package in ("react", "react-dom", "scheduler", "lucide-react"):
+    for package in ("react", "react-dom", "scheduler", "lucide-react", "three"):
         folder = root / "node_modules" / package
         for path in folder.glob("LICENSE*"):
             sections.append(f"{package}\n"+path.read_text(encoding="utf-8"))

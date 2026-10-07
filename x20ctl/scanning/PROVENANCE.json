@@ -1,0 +1,52 @@
+{
+  "source_commit": "b9bf6534dab8ea90bde6a84cfa2780fc72e61c1d",
+  "source_tag": "scanner-v1.1.0",
+  "license": "MIT; repository LICENSE",
+  "files": [
+    {
+      "path": "__init__.py",
+      "git_blob_sha": "d22ad6aea68fcff462107c42d0acc08e0553e530",
+      "source_sha256": "19f028ff48e959654469d60b389d32c25c32a2537402243653b4bca9271a14b5"
+    },
+    {
+      "path": "backend.py",
+      "git_blob_sha": "d8449a7a838409c52a7aeac44e78df3157e03aa7",
+      "source_sha256": "f1985479f17528d3217f5b9cbb2a5bebb6a3f786a0f67b3a7f19c94860bf5964"
+    },
+    {
+      "path": "evidence.py",
+      "git_blob_sha": "c1140e16003180af605efb6604223cfef7a1b145",
+      "source_sha256": "3e5d67a04591574a8ea431ff497fa2fdd2ba831fffa249c87af43c5f9b1cfcfd"
+    },
+    {
+      "path": "input_tests.py",
+      "git_blob_sha": "a8debbddf5580cd2d980d128816892d4885b52b7",
+      "source_sha256": "a293e2df2aa4915fce9e4994f34e39eba51cbc4aa56528e5801c0094ec92da8c"
+    },
+    {
+      "path": "windows.py",
+      "git_blob_sha": "2ae0c4d2a0b491c259dc28f7be792dc698d9f7a5",
+      "source_sha256": "4067b64a576d880e29d5b0040b527818ab53b17fd65923aad5b0003233aaf341"
+    },
+    {
+      "path": "usb.py",
+      "git_blob_sha": "e5b4a7eb2ef4522a55f71378a4dbcc823d92c9b1",
+      "source_sha256": "b97830997c7c1d22b02292628ce73321b5c00bebbbc6f9936000ef8f221442d0"
+    },
+    {
+      "path": "ble.py",
+      "git_blob_sha": "8c9d9baf4acc61c7de05fdce16046ab077f33b1f",
+      "source_sha256": "603028bafbd2bcede71af7ad8673d54d16da1cd2b2739134ce202922c9f143c3"
+    },
+    {
+      "path": "app_capture.py",
+      "git_blob_sha": "3a2d0fefc0bf0b0aae9ac58407ae90f797a9051c",
+      "source_sha256": "20d64330616eb2fc3b8b9ba8e27f39a1df552a43889f148a803d4b7b1ad1506f"
+    },
+    {
+      "path": "policy.py",
+      "git_blob_sha": "c5ee07e63047dd6d8eb975bacf94a4f3bcfaf246",
+      "source_sha256": "dcfffacb3942fe4da4d06b1b04eb505e114449673c349154b1276e66f6675f90"
+    }
+  ]
+}

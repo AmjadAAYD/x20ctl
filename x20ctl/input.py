@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import ctypes
 import math
+import sys
 import time
 from ctypes import wintypes
 from dataclasses import dataclass, field
@@ -111,6 +112,8 @@ class XINPUT_STATE(ctypes.Structure):
 
 
 def _load_xinput():
+    if sys.platform != "win32":
+        return None
     for name in ("XInput1_4.dll", "xinput1_3.dll", "XInput9_1_0.dll"):
         try:
             return ctypes.WinDLL(name)
@@ -177,6 +180,10 @@ class GamepadState:
         if direction is not None:
             out.append(p.StickInput(stick=p.Key.LSTICK_ANALOG,
                                     direction=direction))
+        right_direction = stick_direction(*self.right_stick)
+        if right_direction is not None:
+            out.append(p.StickInput(stick=p.Key.RSTICK_ANALOG,
+                                    direction=right_direction))
         return out
 
 
@@ -245,9 +252,8 @@ class RecordedStep:
 class MacroRecorder:
     """Turns live button presses into macro steps.
 
-    Only buttons the pad can put in a macro are captured; pressing Start or Home
-    while recording is ignored rather than producing a macro that can't be
-    written.
+    Only supported macro buttons and eight-way stick headings are captured.
+    Home is ignored; Select and Start use the established digital mask.
     """
 
     reader: XInputReader

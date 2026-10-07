@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.1.0-preview.1] - 2026-10-07
+
+- Seven-model, four-player desktop workspace and shared Studio sections.
+- Experimental X15 read-only input and integrated guided scanner.
+- Controller/control artwork, vibration contours, compact macro editing and launch sizing updates.
+- Preview hardware remains evidence-gated; native acceptance and receiver deployment remain pending.
+
 ## 4.0.1 - 2026-09-28
 
 ### Fixed

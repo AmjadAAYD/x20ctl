@@ -6,6 +6,7 @@ import asyncio
 import json
 import logging
 import os
+import sys
 import threading
 from dataclasses import asdict
 from pathlib import Path
@@ -13,8 +14,11 @@ from pathlib import Path
 from x20ctl import __version__, protocol as p
 from x20ctl.client import ControllerError, X20, find_controllers
 from x20ctl.input import XInputReader, MacroRecorder
+from x20ctl.controllers import get_profile
 from . import pro_discovery
 from .reports import ReportWorkflow
+from .platform_support import data_directory
+from .macro_library import MacroLibrary, validate_macro, MAX_FILE_BYTES
 from .settings import (
     TARGETS,
     curve_to_ui,
@@ -36,18 +40,31 @@ class DeviceService:
         self._scanner = scanner
         self._found = {}
         self._pro_found = {}
+        self._support_found = {}
         self._active_model = "x20"
+        self._active_player = 1
         self._lock = asyncio.Lock()
         self._directory = Path(
             directory
-            or Path(os.environ.get("APPDATA", str(Path.home()))) / "x20ctl" / "desktop"
+            or (data_directory() / "desktop" if sys.platform.startswith("linux") else
+                Path(os.environ.get("APPDATA", str(Path.home()))) / "x20ctl" / "desktop")
         )
         self._pro_profiles_path = self._directory / "x20_pro" / "profiles.json"
+        self._macro_library = MacroLibrary(self._directory)
         self._reports = report_workflow or ReportWorkflow()
-        self._reader = XInputReader()
+        if sys.platform.startswith("linux"):
+            from x20ctl.linux_input import LinuxInputReader
+            self._reader = LinuxInputReader()
+        else:
+            self._reader = XInputReader()
         self._recorder = None
         self._record_task = None
         self._record_error = None
+        from .research_scan import ResearchScanner
+        from .x15_input import InputBindings
+        from x20ctl.scanning.backend import Backend
+        self._research = ResearchScanner()
+        self._input_bindings = InputBindings(Backend())
 
     def connected(self):
         return bool(self.pad and self.pad._client and self.pad._client.is_connected)
@@ -60,6 +77,55 @@ class DeviceService:
         return self.pad
 
     async def dispatch(self, operation, payload):
+        if operation.startswith("research_"):
+            actions = {"research_status": self._research.status, "research_history": self._research.history,
+                       "research_cancel": self._research.cancel, "research_retry": self._research.retry}
+            if operation in actions:
+                return await asyncio.to_thread(actions[operation])
+            async with self._lock:
+                if operation == "research_start":
+                    if sys.platform != "win32":
+                        raise ValueError("The built-in Windows collector is unavailable on this OS")
+                    if payload.get("consent") is not True:
+                        raise ValueError("Upfront scan/submission consent is required")
+                    if self._recorder is not None:
+                        raise ValueError("Stop and save the active macro recording before scanning")
+                    if self._research.busy() or self._research.status()["state"] == "review":
+                        raise ValueError("Finish or cancel the current scan first")
+                    self._input_bindings.close()
+                    await self.disconnect({})
+                    return self._research.start(payload)
+                if operation == "research_answer":
+                    return self._research.answer(payload)
+                if operation == "research_finish":
+                    return await asyncio.to_thread(self._research.finish, payload)
+                if operation == "research_remove":
+                    return self._research.remove_attachment(payload.get("path"))
+            raise ValueError("Unknown research operation")
+        if operation in {"input_discover", "input_attach", "input_detach", "x15_input"}:
+            if self._active_model != "x15" or payload.get("player") != self._active_player:
+                raise ValueError("Select the correct X15 player before accessing input")
+            if sys.platform != "win32":
+                raise ValueError("This experimental X15 input connector currently requires Windows")
+            if self._research.busy():
+                if operation == "x15_input":
+                    return {"connected": False, "input": None, "paused": True}
+                raise ValueError("Finish the active scanner before connecting input")
+            async with self._lock:
+                if operation == "input_discover":
+                    if payload.get("phase") == "before":
+                        self._input_bindings.source_owner = self._active_player
+                    elif self._input_bindings.source_owner != self._active_player:
+                        raise ValueError("Identify this player's controller before selecting a source")
+                    return await asyncio.to_thread(self._input_bindings.discover, payload.get("phase"))
+                if operation == "input_attach":
+                    if self._input_bindings.source_owner != self._active_player:
+                        raise ValueError("This discovery belongs to another player")
+                    return await asyncio.to_thread(self._input_bindings.attach, self._active_player, payload.get("token"))
+                if operation == "input_detach":
+                    self._input_bindings.detach(self._active_player)
+                    return {"connected": False}
+                return await asyncio.to_thread(self._input_bindings.poll, self._active_player)
         if operation == "select_model":
             async with self._lock:
                 return await self.select_model(payload)
@@ -68,16 +134,25 @@ class DeviceService:
         pro_only.add("pro_bootstrap")
         if operation == "input":
             if self._active_model != "x20":
-                raise ValueError("X20 input is unavailable in the X20 Pro workspace")
+                raise ValueError(f"X20 input is unavailable in the {get_profile(self._active_model).name} workspace")
+            if self._research.busy():
+                return {"connected": False, "input": None}
             return self.input_state()
         if operation == "check_updates":
             return await self.check_updates(payload)
         async with self._lock:
+            if self._research.busy() and operation in {"connect", "read", "apply", "reset", "record_start"}:
+                raise ValueError("Finish the scanner before using controller settings or recording")
+            profile = get_profile(self._active_model)
+            preview_blocked = x20_only | {"pro_scan", "pro_inspect", "pro_hid", "controller_scan", "report_prepare", "report_pending", "report_send"}
+            if profile.backend is None and operation in preview_blocked:
+                raise ValueError(f"{profile.name} operations are unavailable until hardware arrives")
             if operation in x20_only and self._active_model != "x20":
-                raise ValueError("X20 operations are unavailable in the X20 Pro workspace")
+                raise ValueError(f"X20 operations are unavailable in the {profile.name} workspace")
             if operation in pro_only and self._active_model != "x20_pro":
-                raise ValueError("Pro discovery is unavailable in the X20 workspace")
+                raise ValueError(f"Pro discovery is unavailable in the {profile.name} workspace")
             actions = {
+                "macro_library": self.macro_library,
                 "bootstrap": self.bootstrap,
                 "scan": self.scan,
                 "connect": self.connect,
@@ -97,6 +172,7 @@ class DeviceService:
                 "report_prepare": self.report_prepare,
                 "report_pending": self.report_pending,
                 "report_send": self.report_send,
+                "controller_scan": self.controller_scan,
             }
             if operation not in actions:
                 raise ValueError("Unknown desktop operation")
@@ -104,26 +180,21 @@ class DeviceService:
 
     async def select_model(self, payload):
         model = payload.get("model")
-        if model not in {"x20", "x20_pro"}:
-            raise ValueError("Unknown controller model")
-        if model != self._active_model:
+        get_profile(model)
+        player = payload.get("player", self._active_player)
+        if type(player) is not int or not 1 <= player <= 4:
+            raise ValueError("Expected a player between 1 and 4")
+        if model != self._active_model or player != self._active_player:
             await self.disconnect({})
             self._found.clear()
             self._pro_found.clear()
+            self._support_found.clear()
             self._active_model = model
-        if model == "x20_pro" and not self._pro_profiles_path.exists():
-            self._pro_profiles_path.parent.mkdir(parents=True, exist_ok=True)
-            self._pro_profiles_path.write_text("[]", encoding="utf-8")
+            self._active_player = player
         return {"model": model}
 
     async def pro_bootstrap(self, _payload):
-        """Separate, read-only Pro state until a hardware-tested profile schema exists."""
-        try:
-            profiles = json.loads(self._pro_profiles_path.read_text(encoding="utf-8"))
-            if profiles != []:
-                raise ValueError("Pro settings formats have not been verified")
-        except (OSError, ValueError) as exc:
-            return {"model": "x20_pro", "profiles": [], "warning": str(exc), "capabilities": []}
+        """Inactive placeholder metadata; no device or profile-store access."""
         return {"model": "x20_pro", "profiles": [], "warning": None, "capabilities": []}
 
     async def bootstrap(self, _payload):
@@ -147,6 +218,8 @@ class DeviceService:
             "targets": TARGETS,
             "warning": warning,
             "updatesEnabled": self._updates_enabled(),
+            "inputBackend": "Linux evdev" if sys.platform.startswith("linux") else "Windows XInput",
+            "closeToTray": sys.platform == "win32",
         }
 
     def _updates_enabled(self):
@@ -223,7 +296,20 @@ class DeviceService:
     async def pro_hid(self, _payload):
         return await asyncio.to_thread(pro_discovery.hid_inventory)
 
+    async def controller_scan(self, _payload):
+        results = await pro_discovery.scan()
+        self._support_found = {item["address"]: item for item in results}
+        # Only a manually selected candidate is passed to the bundle collector.
+        return [{"address": item["address"], "name": item["name"]} for item in results]
+
     async def report_prepare(self, payload):
+        selected = payload.get("address")
+        if selected is not None:
+            if not isinstance(selected, str) or selected not in self._support_found:
+                raise ValueError("Select a peripheral returned by Controller Scan")
+            item = self._support_found[selected]
+            await self.disconnect({})
+            return await asyncio.to_thread(self._reports.prepare, selected, item["name"] or "Selected controller")
         if self._active_model == "x20":
             pad = self.require_pad()
             address = pad.address
@@ -263,6 +349,8 @@ class DeviceService:
             raise
 
     async def disconnect(self, _payload):
+        if hasattr(self, "_input_bindings"):
+            self._input_bindings.detach(self._active_player)
         if self._recorder:
             self._recorder.stop()
             self._recorder = None
@@ -461,9 +549,14 @@ class DeviceService:
             },
         }
 
+    async def macro_library(self, payload):
+        action = payload.get("action", "load")
+        entries = self._macro_library.load() if action == "load" else self._macro_library.change(action, payload)
+        return {"entries": entries, "path": str(self._macro_library.path)}
+
     async def record_start(self, _payload):
         if self._reader.poll() is None:
-            raise ControllerError("Connect an XInput gamepad before recording")
+            raise ControllerError("Connect a gamepad with readable gameplay input before recording")
         if self._recorder:
             raise ValueError("Recording already active")
         self._recorder = MacroRecorder(self._reader)
@@ -521,13 +614,22 @@ class DesktopApi:
                 raise ValueError("Invalid desktop request")
             if len(json.dumps(payload or {})) > 2_000_000:
                 raise ValueError("Request too large")
+            if operation in {"research_export", "research_attach", "research_open_folder", "research_inspect", "research_contact"}:
+                return {"ok": True, "data": self._research_dialog(operation, payload or {})}
+            if operation in ("macro_import", "macro_export"):
+                return {"ok": True, "data": self._macro_dialog(operation, payload or {})}
             if operation in ("open_profile", "export_profile"):
                 if self._service._active_model != "x20":
-                    raise ValueError("X20 file dialogs are unavailable in the X20 Pro workspace")
+                    raise ValueError(f"X20 file dialogs are unavailable in the {get_profile(self._service._active_model).name} workspace")
                 return {
                     "ok": True,
                     "data": self._profile_dialog(operation, payload or {}),
                 }
+            if operation == "report_export":
+                profile = get_profile(self._service._active_model)
+                if profile.backend is None:
+                    raise ValueError(f"{profile.name} scan export is unavailable until hardware arrives")
+                return {"ok": True, "data": self._report_dialog(payload or {})}
             if operation == "open_releases":
                 import webbrowser
 
@@ -553,6 +655,89 @@ class DesktopApi:
                 "ok": False,
                 "error": {"code": type(exc).__name__, "message": str(exc)},
             }
+
+    def _macro_dialog(self, operation, payload):
+        import webview
+        if self._window is None:
+            raise ValueError("Desktop window is unavailable")
+        if operation == "macro_import":
+            selected = self._window.create_file_dialog(webview.FileDialog.OPEN, file_types=("X20CTL macro (*.json)",))
+            if not selected:
+                return None
+            path = Path(selected if isinstance(selected, str) else selected[0])
+            if path.stat().st_size > MAX_FILE_BYTES:
+                raise ValueError("Macro file is too large")
+            return validate_macro(json.loads(path.read_text(encoding="utf-8-sig")))
+        macro = validate_macro(payload.get("entry"))
+        selected = self._window.create_file_dialog(webview.FileDialog.SAVE,
+            save_filename="x20ctl-macro.json", file_types=("X20CTL macro (*.json)",))
+        if not selected:
+            return None
+        path = Path(selected if isinstance(selected, str) else selected[0])
+        path.write_text(json.dumps(macro, indent=2, allow_nan=False), encoding="utf-8")
+        return {"saved": True}
+
+    def _research_dialog(self, operation, payload):
+        import webview
+        import webbrowser
+        from urllib.parse import quote
+        scanner = self._service._research
+        if operation == "research_contact":
+            contact = payload.get("contact")
+            urls = {"kit": "https://github.com/AmjadAAYD/x20ctl/releases/tag/scanner-v1.1.0", "discord": "https://discord.com/app"}
+            if contact == "email":
+                state = scanner.status()
+                subject = "x20ctl controller report - " + str(state.get("model", "Controller"))
+                body = "Report ID: " + str(state.get("reportId", "unknown")) + "\nWebsite receipt: " + str(state.get("receipt") or "not submitted") + "\nPlease attach the reviewed report ZIP before sending."
+                urls["email"] = "mailto:aaydamjad@gmail.com?subject=" + quote(subject) + "&body=" + quote(body)
+            if contact not in urls or not webbrowser.open(urls[contact]):
+                raise ValueError("Could not open this contact link")
+            return {"opened": True}
+        if self._window is None:
+            raise ValueError("Desktop window unavailable")
+        if operation == "research_inspect":
+            if scanner.status()["state"] != "review" or scanner.output.is_symlink():
+                raise ValueError("No active report review")
+            if sys.platform != "win32":
+                raise ValueError("Open evidence folder is currently Windows-only")
+            os.startfile(str(scanner.output))
+            return {"opened": True}
+        if operation == "research_attach":
+            prompt = scanner.status().get("prompt")
+            if not prompt or prompt["id"] != payload.get("promptId") or prompt["kind"] != "file":
+                raise ValueError("No active attachment prompt")
+            selected = self._window.create_file_dialog(webview.FileDialog.OPEN)
+            return scanner.attach_file(prompt["id"], selected[0] if selected else None)
+        ident = payload.get("reportId")
+        data = scanner.export_bytes(ident)
+        if operation == "research_open_folder":
+            folder = scanner.root / ident
+            if sys.platform == "win32":
+                os.startfile(str(folder))
+            else:
+                raise ValueError("Open folder is only available in this Windows collector")
+            return {"opened": True}
+        selected = self._window.create_file_dialog(webview.FileDialog.SAVE, save_filename="x20ctl-controller-report.zip", file_types=("ZIP (*.zip)",))
+        if selected:
+            path = Path(selected[0] if isinstance(selected, (tuple, list)) else selected)
+            path.write_bytes(data)
+            return {"saved": True}
+        return {"saved": False}
+
+    def _report_dialog(self, payload):
+        import webview
+        if self._window is None:
+            raise ValueError("Desktop window is unavailable")
+        data = self._service._reports.export_bytes(payload.get("scanId"))
+        selected = self._window.create_file_dialog(
+            webview.FileDialog.SAVE, save_filename="X20Ctl-Controller-Scan.zip",
+            file_types=("ZIP (*.zip)",),
+        )
+        if not selected:
+            return None
+        destination = Path(selected if isinstance(selected, str) else selected[0])
+        destination.write_bytes(data)
+        return {"saved": True}
 
     def _profile_dialog(self, operation, payload):
         import webview
@@ -582,6 +767,9 @@ class DesktopApi:
         return {"saved": True}
 
     def _close(self):
+        self._service._research.close()
+        self._service._input_bindings.close()
+        self._service._input_bindings.backend.close()
         try:
             asyncio.run_coroutine_threadsafe(
                 self._service.disconnect({}), self._loop
@@ -590,3 +778,6 @@ class DesktopApi:
             log.exception("Disconnect during shutdown")
         self._loop.call_soon_threadsafe(self._loop.stop)
         self._thread.join(timeout=2)
+        close_reader = getattr(getattr(self._service, "_reader", None), "close", None)
+        if close_reader:
+            close_reader()

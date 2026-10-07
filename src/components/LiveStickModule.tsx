@@ -38,7 +38,7 @@ export function LiveStickModule({
         <span
           className={`curve-tag ${connected === false ? "" : "instrument-ready"}`}
         >
-          {connected === false ? "No XInput" : "XInput"}
+          {connected === false ? "No input" : "Live input"}
         </span>
       </header>
       <div className="instrument-stick-layout">

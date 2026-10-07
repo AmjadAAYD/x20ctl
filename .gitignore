@@ -4,6 +4,14 @@ vendor/
 # Packet captures may contain device serials and pairing keys.
 captures/
 
+# Unpublished research and incoming contributions stay outside public source.
+/docs/research/
+/private-research/
+/research-inbox/
+*.pcap
+*.pcapng
+*.7z
+
 # APK and decompiler output
 *.apk
 *.dex

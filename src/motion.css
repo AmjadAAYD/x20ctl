@@ -1,0 +1,548 @@
+/* One motion language. Decorative layers never own input, focus or device state. */
+.studio-root {
+  --motion-fast: 110ms;
+  --motion-standard: 180ms;
+  --motion-panel: 240ms;
+  --motion-hero: 320ms;
+  --motion-ambient: 26s;
+  --ease-out: cubic-bezier(0.2, 0.7, 0.25, 1);
+  --ease-panel: cubic-bezier(0.22, 0.8, 0.3, 1);
+  --ease-ambient: ease-in-out;
+  position: relative;
+  isolation: isolate;
+  background: #080f1d;
+}
+.studio-root .metal-app:is(.rebranded-workspace, .rebranded-hub) {
+  background: transparent;
+}
+.studio-root .metal-app::before,
+.studio-root .metal-app::after {
+  content: none;
+  animation: none;
+}
+/* These existing tinted surfaces are almost opaque. Live backdrop blur buys
+   little depth but repeatedly filters the ambient layer across the window. */
+.studio-root :is(.chassis-brand, .chassis-nav, .chassis-header, .setup-toolbar, .metal-panel, .mapping-canvas-panel, .mapping-inspector-panel, .tester-panel, .curve-panel, .instrument-module) {
+  backdrop-filter: none;
+}
+.ambient-space {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  contain: strict;
+  background: linear-gradient(120deg, #0b1630, #080d21 55%, #17112d);
+}
+.ambient-nebula {
+  position: absolute;
+  inset: -12%;
+  background:
+    radial-gradient(ellipse 44% 52% at 12% 48%, #245ce19e, transparent 80%),
+    radial-gradient(ellipse 48% 35% at 69% 30%, #7b38b989, transparent 80%),
+    radial-gradient(ellipse 38% 46% at 89% 89%, #c47b395e, transparent 78%),
+    radial-gradient(ellipse 43% 26% at 39% 86%, #365dbb80, transparent 80%),
+    radial-gradient(ellipse 32% 23% at 83% 13%, #2868ad70, transparent 78%);
+  animation: nebula-drift var(--motion-ambient) var(--ease-ambient) infinite
+    alternate;
+  will-change: transform;
+}
+.ambient-dust {
+  position: absolute;
+  inset: -12%;
+  background: url("./assets/nebula.svg") center / cover no-repeat;
+  opacity: .58;
+  animation: galaxy-flow 38s var(--ease-ambient) -12s infinite alternate;
+  will-change: transform;
+}
+.ambient-stars {
+  position: absolute;
+  inset: -4%;
+  background: url("./assets/stars.svg") 0 0 / 820px 610px;
+  opacity: .7;
+  animation: star-field 18s var(--ease-ambient) infinite alternate;
+  will-change: transform, opacity;
+}
+.ambient-stars::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: url("./assets/stars.svg") 310px 180px / 1170px 870px;
+  opacity: .45;
+  animation: star-breathe 7s var(--ease-ambient) -3s infinite alternate;
+}
+@keyframes nebula-drift {
+  from {
+    transform: translate(-3%, 1%) scale(1.02);
+  }
+  to {
+    transform: translate(3%, -3%) scale(1.08);
+  }
+}
+@keyframes galaxy-flow {
+  from { transform: translate(2%, -2%) rotate(-3deg) scale(1.03); }
+  to { transform: translate(-3%, 3%) rotate(3deg) scale(1.1); }
+}
+@keyframes star-field {
+  from { transform: translate(-.7%, .5%); opacity: .55; }
+  to { transform: translate(.7%, -.5%); opacity: .9; }
+}
+@keyframes star-breathe {
+  from {
+    opacity: 0.25;
+  }
+  to {
+    opacity: .75;
+  }
+}
+
+/* Fade once on entry or section change, never on controller polling/rerenders. */
+.studio-root .chassis-header {
+  animation: motion-reveal var(--motion-hero) var(--ease-out);
+}
+.studio-root .motion-page {
+  animation: motion-reveal var(--motion-standard) var(--ease-out);
+  min-width: 0;
+}
+@keyframes motion-reveal {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.studio-root .motion-nav {
+  position: relative;
+  isolation: isolate;
+}
+.studio-root .nav-active-light {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: 0;
+  z-index: -1;
+  border: 1px solid color-mix(in srgb, var(--page-accent) 65%, #7e9dbc);
+  border-radius: 10px;
+  background: linear-gradient(
+    110deg,
+    color-mix(in srgb, var(--page-accent) 24%, #14223b),
+    #101d30
+  );
+  box-shadow:
+    inset 3px 0 var(--page-accent),
+    inset 0 1px #dceaff16;
+  pointer-events: none;
+}
+.studio-root .nav-active-light[data-ready="true"] {
+  transition:
+    transform var(--motion-panel) var(--ease-panel),
+    height var(--motion-panel) var(--ease-panel);
+}
+.studio-root .motion-nav button[aria-current="page"] {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+.studio-root .chassis-nav button {
+  transition:
+    color var(--motion-fast),
+    background-color var(--motion-fast),
+    border-color var(--motion-fast);
+}
+.studio-root .chassis-nav button:active {
+  transform: none;
+}
+
+/* Stable targets; press depth and a single light sweep supply the feedback. */
+.studio-root .button,
+.studio-root .icon-button {
+  transition:
+    border-color var(--motion-fast),
+    box-shadow var(--motion-fast),
+    background-color var(--motion-fast);
+}
+.studio-root button:not(:disabled):active {
+  transform: none;
+}
+.studio-root .button:active:not(:disabled),
+.studio-root .icon-button:active:not(:disabled) {
+  transform: none;
+  box-shadow:
+    inset 0 2px 6px #0009,
+    0 0 0 1px #9acbff4d;
+}
+.studio-root .button.primary {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.studio-root .button.primary::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    105deg,
+    transparent 24%,
+    #e5f3ff30 48%,
+    transparent 72%
+  );
+  transform: translateX(-110%);
+  opacity: 0;
+}
+.studio-root .button.primary:not(:disabled):is(:hover, :focus-visible)::after {
+  animation: action-sweep 520ms var(--ease-out);
+}
+@keyframes action-sweep {
+  0% {
+    transform: translateX(-110%);
+    opacity: 0;
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(110%);
+    opacity: 0;
+  }
+}
+.studio-root
+  :is(
+    .button,
+    .icon-button,
+    .macro-paddle,
+    .strength-presets > button,
+    .curve-channel,
+    .preset-row > button
+  ):focus-visible {
+  outline: 2px solid #add6ff;
+  outline-offset: 3px;
+}
+
+/* Player assignment is illuminated without implying a hardware connection. */
+.studio-root .rebranded-hub .controller-card {
+  position: relative;
+  transition:
+    border-color var(--motion-standard),
+    box-shadow var(--motion-standard);
+}
+.studio-root .rebranded-hub .controller-card::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 14%;
+  right: 14%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #8ebfff, transparent);
+  opacity: 0;
+  transition: opacity var(--motion-standard);
+  pointer-events: none;
+}
+.studio-root .rebranded-hub .controller-card:is(:hover, :focus-within)::after {
+  opacity: 0.8;
+}
+.studio-root .rebranded-hub .controller-card:is(:hover, :focus-within) {
+  transform: none;
+  border-color: #82ace094;
+  box-shadow:
+    inset 0 1px #ffffff1a,
+    0 18px 34px #01091699;
+}
+.studio-root .rebranded-hub .controller-card.featured {
+  border-color: #6395d596;
+  box-shadow:
+    inset 0 1px #c9e3ff24,
+    0 0 28px #2762ad72,
+    0 18px 34px #01091699;
+}
+.studio-root .rebranded-hub .controller-card.featured .controller-card-index {
+  border-color: #679ddd9c;
+  color: #d2e6ff;
+  background: #1c3755;
+  animation: assignment-confirm var(--motion-hero) var(--ease-out);
+}
+@keyframes assignment-confirm {
+  from {
+    box-shadow: 0 0 0 3px #77b6ff55;
+  }
+  to {
+    box-shadow: 0 0 0 8px transparent;
+  }
+}
+.studio-root .controller-card-icon .controller-canvas {
+  animation: motion-reveal var(--motion-hero) var(--ease-out);
+}
+
+/* Picker choreography is short enough to remain directly interactive. */
+.studio-root .metal-modal-backdrop {
+  animation: motion-reveal var(--motion-standard) var(--ease-out);
+}
+.studio-root .metal-dialog {
+  animation: dialog-enter var(--motion-panel) var(--ease-panel);
+}
+@keyframes dialog-enter {
+  from {
+    opacity: 0.45;
+    translate: 0 5px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+.studio-root .controller-picker .controller-switch-row {
+  animation: motion-reveal var(--motion-panel) var(--ease-out) both;
+  transition:
+    border-color var(--motion-fast),
+    box-shadow var(--motion-fast);
+}
+.studio-root .controller-picker .controller-switch-row:nth-of-type(2) {
+  animation-delay: 35ms;
+}
+.studio-root
+  .controller-picker
+  .controller-switch-row:is(:hover, :focus-within) {
+  border-color: #78b1f2;
+  box-shadow:
+    inset 0 1px #acd5ff16,
+    0 0 16px #3e8ee61b;
+}
+.studio-root .controller-switch-row .controller-image-plane {
+  transition: scale var(--motion-standard) var(--ease-out);
+}
+.studio-root .controller-switch-row:hover .controller-image-plane {
+  scale: 1.015;
+}
+
+/* Breathe the surrounding light. The photograph and physical overlays stay exact. */
+.studio-root .controller-canvas::before,
+.studio-root .controller-canvas::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+.studio-root .controller-canvas::before {
+  background: radial-gradient(ellipse at 7% 54%, #2477ff99, transparent 48%);
+  animation: rim-breathe 8s var(--ease-ambient) infinite alternate;
+}
+.studio-root .controller-canvas::after {
+  background:
+    radial-gradient(ellipse at 94% 57%, #df913f80, transparent 48%),
+    radial-gradient(ellipse at 50% 91%, #3265a95c, transparent 42%);
+  animation: rim-breathe 10s var(--ease-ambient) -3s infinite alternate-reverse;
+}
+@keyframes rim-breathe {
+  from {
+    opacity: 0.55;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.studio-root .controller-image-plane {
+  z-index: 1;
+}
+.studio-root .header-controller-art .controller-canvas::before,
+.studio-root .header-controller-art .controller-canvas::after {
+  animation: none;
+  opacity: 0.5;
+}
+.studio-root .controller-stick-cap {
+  opacity: 1;
+  transition: none;
+}
+.studio-root .controller-control,
+.studio-root .controller-stick {
+  transition:
+    box-shadow 130ms,
+    background-color 130ms,
+    border-color 130ms;
+}
+.studio-root .controller-control.is-pressed,
+.studio-root .controller-stick.is-pressed {
+  transition-duration: 0s;
+  box-shadow:
+    0 0 0 3px #81bfff30,
+    0 0 16px #438fff80;
+}
+.studio-root .controller-control.is-pressed {
+  background: #a3d8ffb0;
+  border-color: #d1ecff;
+}
+.studio-root .controller-control:not(:disabled):active,
+.studio-root .controller-stick:not(:disabled):active {
+  transform: translate(-50%, -50%);
+}
+
+/* Light travels along traced grip/trigger contours; the artwork never shakes. */
+.studio-root .motor-wave { animation: motor-contour-travel var(--motor-period) linear infinite; }
+.studio-root .motor-wave-echo { animation-delay: calc(var(--motor-period) * -.5); }
+.studio-root .motor-surface { animation: motor-surface-pulse var(--motor-period) ease-in-out infinite; }
+.studio-root .controller-motor-trigger .motor-surface { animation-delay: calc(var(--motor-period) * -.25); }
+@keyframes motor-contour-travel { from { stroke-dashoffset: 100; } to { stroke-dashoffset: 0; } }
+@keyframes motor-surface-pulse { 0%, 100% { opacity: .055; } 50% { opacity: .18; } }
+
+/* Hardware actuation is immediate. Only released light decays. */
+.studio-root .tester-button-indicator {
+  transition:
+    background-color 130ms,
+    border-color 130ms,
+    box-shadow 130ms;
+}
+.studio-root .tester-button-indicator.is-pressed {
+  transition: none;
+  background: #1c5284;
+  border-color: #afd9ff;
+  box-shadow:
+    inset 0 0 10px #72c4ff38,
+    0 0 12px #3797ff38;
+}
+.studio-root .tester-button-indicator.is-pressed i {
+  background: #daf0ff;
+  box-shadow: 0 0 7px #83cbff;
+}
+.studio-root .tester-radar-cursor,
+.studio-root .tester-radar-vector {
+  transition: none;
+}
+.studio-root .tester-trigger-track {
+  position: relative;
+}
+.studio-root .tester-trigger-track i {
+  transition: none;
+  box-shadow: 0 0 12px #5fbaff55;
+}
+.studio-root .tester-trigger-track::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  box-shadow: inset 0 0 8px #65b4ff55;
+  opacity: var(--trigger-depth, 0);
+  pointer-events: none;
+}
+
+/* Quiet feedback is tied to actual draft, recorder and native result states. */
+.studio-root .macro-paddle {
+  transition:
+    border-color var(--motion-fast),
+    box-shadow var(--motion-fast),
+    background-color var(--motion-fast);
+}
+.studio-root .macro-paddle.is-selected {
+  animation: assignment-confirm var(--motion-hero) var(--ease-out);
+}
+.studio-root .draft-indicator.pending .draft-led,
+.studio-root .led.recording {
+  animation: status-breathe 2.8s var(--ease-ambient) infinite alternate;
+}
+@keyframes status-breathe {
+  from {
+    opacity: 0.55;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.studio-root .notice.success {
+  animation: result-confirm 400ms var(--ease-out);
+}
+.studio-root .notice.error {
+  animation: error-confirm var(--motion-hero) var(--ease-out);
+}
+@keyframes result-confirm {
+  from {
+    box-shadow:
+      inset 3px 0 #95c8bb,
+      0 0 16px #76c8b733;
+  }
+  to {
+    box-shadow:
+      inset 3px 0 #95c8bb,
+      0 0 0 transparent;
+  }
+}
+@keyframes error-confirm {
+  from {
+    box-shadow:
+      inset 3px 0 #e99891,
+      0 0 16px #e9989129;
+  }
+  to {
+    box-shadow:
+      inset 3px 0 #e99891,
+      0 0 0 transparent;
+  }
+}
+.studio-root .connection-lights .led.on {
+  animation: assignment-confirm var(--motion-hero) var(--ease-out);
+}
+.studio-root .battery-segments > span {
+  transition:
+    background-color var(--motion-standard),
+    box-shadow var(--motion-standard);
+}
+.studio-root .metal-slider-thumb,
+.studio-root .metal-slider-fill {
+  transition-timing-function: var(--ease-out);
+  transition-duration: var(--motion-standard);
+}
+.studio-root .metal-slider-thumb::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border: 1px solid var(--range-color);
+  border-radius: 50%;
+  opacity: 0;
+  transform: scale(0.85);
+  transition:
+    opacity var(--motion-fast),
+    transform var(--motion-fast);
+  pointer-events: none;
+}
+.studio-root
+  .metal-slider:is(:hover, :focus-within, .is-dragging):not(.is-disabled)
+  .metal-slider-thumb::after {
+  opacity: 0.3;
+  transform: scale(1);
+}
+.studio-root
+  .metal-slider.is-dragging
+  :is(.metal-slider-thumb, .metal-slider-fill) {
+  transition: none;
+}
+
+/* Pause decorative work when the desktop loses focus, hides or minimizes. */
+html[data-motion-paused="true"] .studio-root :is(.ambient-nebula, .ambient-dust, .ambient-stars, .draft-indicator.pending .draft-led, .led.recording),
+html[data-motion-paused="true"] .studio-root .ambient-stars::after,
+html[data-motion-paused="true"] .studio-root .controller-motor path,
+html[data-motion-paused="true"] .studio-root :is(.controller-canvas, .controller-motor)::before,
+html[data-motion-paused="true"] .studio-root :is(.controller-canvas, .controller-motor)::after {
+  animation-play-state: paused !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .studio-root *,
+  .studio-root *::before,
+  .studio-root *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  .studio-root .ambient-nebula {
+    transform: none;
+  }
+  .studio-root .ambient-stars {
+    opacity: 0.65;
+  }
+  .studio-root .controller-canvas::before,
+  .studio-root .controller-canvas::after {
+    opacity: 0.5;
+  }
+  .studio-root .metal-dialog {
+    translate: none;
+  }
+  .studio-root .controller-switch-row:hover .controller-image-plane {
+    scale: 1;
+  }
+}

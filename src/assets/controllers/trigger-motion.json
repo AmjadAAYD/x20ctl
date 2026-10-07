@@ -1,0 +1,218 @@
+{
+  "sourceSize": [
+    1536,
+    1024
+  ],
+  "models": {
+    "x20": {
+      "RT": {
+        "hinge": [
+          [
+            310,
+            216
+          ],
+          [
+            489,
+            199
+          ]
+        ],
+        "restAngle": 32,
+        "travelAngle": 28
+      },
+      "LT": {
+        "hinge": [
+          [
+            1226,
+            216
+          ],
+          [
+            1047,
+            199
+          ]
+        ],
+        "restAngle": 32,
+        "travelAngle": 28
+      }
+    },
+    "x20_pro": {
+      "RT": {
+        "hinge": [
+          [
+            307,
+            266
+          ],
+          [
+            493,
+            246
+          ]
+        ],
+        "restAngle": 32,
+        "travelAngle": 26
+      },
+      "LT": {
+        "hinge": [
+          [
+            1229,
+            266
+          ],
+          [
+            1043,
+            246
+          ]
+        ],
+        "restAngle": 32,
+        "travelAngle": 26
+      }
+    },
+    "x05": {
+      "RT": {
+        "hinge": [
+          [
+            348,
+            272
+          ],
+          [
+            515,
+            255
+          ]
+        ],
+        "restAngle": 32,
+        "travelAngle": 27
+      },
+      "LT": {
+        "hinge": [
+          [
+            1188,
+            272
+          ],
+          [
+            1021,
+            255
+          ]
+        ],
+        "restAngle": 32,
+        "travelAngle": 27
+      }
+    },
+    "x05_pro": {
+      "RT": {
+        "hinge": [
+          [
+            316,
+            335
+          ],
+          [
+            497,
+            320
+          ]
+        ],
+        "restAngle": 32,
+        "travelAngle": 25
+      },
+      "LT": {
+        "hinge": [
+          [
+            1220,
+            335
+          ],
+          [
+            1039,
+            320
+          ]
+        ],
+        "restAngle": 32,
+        "travelAngle": 25
+      }
+    },
+    "x10": {
+      "RT": {
+        "hinge": [
+          [
+            292,
+            256
+          ],
+          [
+            469,
+            240
+          ]
+        ],
+        "restAngle": 32,
+        "travelAngle": 26
+      },
+      "LT": {
+        "hinge": [
+          [
+            1244,
+            256
+          ],
+          [
+            1067,
+            240
+          ]
+        ],
+        "restAngle": 32,
+        "travelAngle": 26
+      }
+    },
+    "d10": {
+      "RT": {
+        "hinge": [
+          [
+            285,
+            239
+          ],
+          [
+            463,
+            224
+          ]
+        ],
+        "restAngle": 32,
+        "travelAngle": 25
+      },
+      "LT": {
+        "hinge": [
+          [
+            1251,
+            239
+          ],
+          [
+            1073,
+            224
+          ]
+        ],
+        "restAngle": 32,
+        "travelAngle": 25
+      }
+    },
+    "x15": {
+      "RT": {
+        "hinge": [
+          [
+            311,
+            174
+          ],
+          [
+            479,
+            151
+          ]
+        ],
+        "restAngle": 32,
+        "travelAngle": 30
+      },
+      "LT": {
+        "hinge": [
+          [
+            1225,
+            174
+          ],
+          [
+            1057,
+            151
+          ]
+        ],
+        "restAngle": 32,
+        "travelAngle": 30
+      }
+    }
+  }
+}

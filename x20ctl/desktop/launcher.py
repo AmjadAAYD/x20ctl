@@ -1,4 +1,4 @@
-"""Windows application hosting only bundled UI, with native tray and cleanup."""
+"""Native desktop host for bundled UI, with navigation protection and cleanup."""
 
 from __future__ import annotations
 
@@ -10,10 +10,14 @@ import sys
 import tempfile
 import threading
 from pathlib import Path
-from urllib.parse import urlsplit
+from .platform_support import InstanceLock, data_directory, notify, protect_navigation
+from .window_geometry import PREFERRED_SIZE, prepare_launch_bounds
 
 
 def main():
+    if sys.argv[1:] == ["--research-worker"]:
+        from .scan_worker import serve
+        return serve()
     parser = argparse.ArgumentParser(description="x20ctl desktop application")
     parser.add_argument(
         "--smoke-test",
@@ -21,6 +25,7 @@ def main():
         help="Run read-only UI acceptance and capture real window screenshots",
     )
     parser.add_argument("--verify-scanner", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--linux-review", metavar="DIRECTORY", help=argparse.SUPPRESS)
     args = parser.parse_args()
     if args.verify_scanner:
         from .scanner_integrity import packaged_scanner_path, verify_scanner
@@ -29,19 +34,15 @@ def main():
             return 0
         except ValueError:
             return 2
-    log_dir = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "x20ctl"
+    log_dir = data_directory()
     log_dir.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(filename=log_dir / "desktop.log", level=logging.INFO)
     try:
         return _run(args)
     except Exception as exc:
         logging.exception("Desktop startup failed")
-        ctypes.windll.user32.MessageBoxW(
-            None,
-            f"x20ctl could not start.\n\n{exc}\n\nInstall Microsoft Edge WebView2 Runtime if it is missing.\nDiagnostic log: {log_dir / 'desktop.log'}",
-            "x20ctl startup error",
-            0x10,
-        )
+        runtime_help = "Install Microsoft Edge WebView2 Runtime if it is missing." if sys.platform == "win32" else "See LINUX-README.txt for Linux runtime requirements."
+        notify(f"x20ctl could not start.\n\n{exc}\n\n{runtime_help}\nDiagnostic log: {log_dir / 'desktop.log'}", error=True)
         return 1
 
 
@@ -60,8 +61,12 @@ def _run(args):
         )
         return {6: "download", 7: "retry"}.get(answer, "cancel")
 
-    if not ensure_runtime(prompt_runtime, webbrowser.open):
+    if sys.platform == "win32" and not ensure_runtime(prompt_runtime, webbrowser.open):
         return 1
+    if args.smoke_test and sys.platform != "win32":
+        raise RuntimeError("--smoke-test uses Windows capture APIs; use the isolated Linux review tool instead")
+    if args.linux_review and (sys.platform != "linux" or os.environ.get("X20CTL_ISOLATED_REVIEW") != "1"):
+        raise RuntimeError("Linux review is only enabled in the isolated build environment")
     import webview
     from .service import DesktopApi, DeviceService
 
@@ -72,33 +77,30 @@ def _run(args):
     from .runtime import configure
     renderer = configure(webview)
     logging.info("Desktop renderer: %s", renderer)
-    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
-    kernel.CreateMutexW.restype = ctypes.c_void_p
-    kernel.CloseHandle.argtypes = [ctypes.c_void_p]
-    mutex = kernel.CreateMutexW(
-        None, False, "Local\\x20ctl.Desktop" + (".Smoke" if args.smoke_test else "")
-    )
-    if not mutex:
-        raise ctypes.WinError(ctypes.get_last_error())
-    if ctypes.get_last_error() == 183:
-        kernel.CloseHandle(mutex)
-        ctypes.windll.user32.MessageBoxW(
-            None,
-            "x20ctl is already running. Open it from the system tray.",
-            "x20ctl",
-            0x40,
-        )
+    # Review windows already use isolated temporary storage. Let independent
+    # reviews coexist without closing an open desktop design preview.
+    lock = InstanceLock(isolated=bool(args.smoke_test or args.linux_review))
+    if not lock.acquire():
+        notify("x20ctl is already running. Open its window or system tray icon.")
         return 0
     temporary = (
-        tempfile.TemporaryDirectory(prefix="x20ctl-smoke-") if args.smoke_test else None
+        tempfile.TemporaryDirectory(prefix="x20ctl-review-") if args.smoke_test or args.linux_review else None
     )
-    api = DesktopApi(DeviceService(directory=temporary.name) if temporary else None)
+    service = DeviceService(directory=temporary.name) if temporary else DeviceService()
+    if args.linux_review:
+        def forbidden(*_args, **_kwargs):
+            raise RuntimeError("Hardware access is forbidden in the isolated Linux review")
+        service._factory = service._scanner = forbidden
+        service._reader.poll = lambda: None
+        (Path(temporary.name) / "preferences.json").write_text('{"updatesEnabled":false}', encoding="utf-8")
+    api = DesktopApi(service)
+    initial_size = PREFERRED_SIZE if sys.platform == "win32" else (1400, 940)
     window = webview.create_window(
         "x20ctl",
         str(index),
         js_api=api,
-        width=1400,
-        height=940,
+        width=initial_size[0],
+        height=initial_size[1],
         min_size=(1060, 760),
         background_color="#101215",
     )
@@ -110,36 +112,29 @@ def _run(args):
     quitting = threading.Event()
     result = {"code": 0}
 
-    def protect_navigation():
-        browser = window.native.browser.webview
-        expected = urlsplit(window.real_url)
+    window.events.before_show += lambda: protect_navigation(window)
+    window.events.before_show += lambda: prepare_launch_bounds(window)
 
-        def guard(_sender, event):
-            target = urlsplit(str(event.Uri))
-            if (target.scheme, target.netloc, target.path) != (
-                expected.scheme,
-                expected.netloc,
-                expected.path,
-            ):
-                event.Cancel = True
+    def show(_icon=None, _item=None):
+        window.show()
+        window.restore()
 
-        browser.NavigationStarting += guard
-
-    window.events.before_show += protect_navigation
+    def quit_app(_icon=None, _item=None):
+        quitting.set()
+        window.destroy()
 
     def setup():
         nonlocal tray
+        if sys.platform == "linux":
+            # Linux desktops differ in tray support (notably GNOME/Wayland).
+            # Keep close-to-exit until a visible native tray can be guaranteed.
+            if args.linux_review:
+                from .linux_review import exercise
+                exercise(window, args.linux_review, result)
+            return
         try:
             import pystray
             from PIL import Image
-
-            def show(_icon=None, _item=None):
-                window.show()
-                window.restore()
-
-            def quit_app(_icon=None, _item=None):
-                quitting.set()
-                window.destroy()
 
             icon_path = root / "assets" / "x20ctl.ico"
             if not icon_path.exists():
@@ -169,14 +164,14 @@ def _run(args):
             exercise(window, args.smoke_test, result, {"tray": tray, "show": show, "quit": quit_app})
 
     try:
-        webview.start(setup, gui="edgechromium", debug=False, private_mode=True)
+        webview.start(setup, gui="edgechromium" if renderer == "system" else renderer, debug=False, private_mode=True)
     finally:
         if tray:
             tray.stop()
         api._close()
         if temporary:
             temporary.cleanup()
-        kernel.CloseHandle(mutex)
+        lock.close()
     return result["code"]
 
 

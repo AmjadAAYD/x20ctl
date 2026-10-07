@@ -15,6 +15,8 @@ jobs:
         with:
           python-version: '3.12'
           cache: pip
+      - name: Check public research boundary
+        run: python tools/check_research_boundary.py
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -31,13 +33,15 @@ jobs:
           npm run lint
           npm test
           npm run build
-      - name: Build and verify paired Windows archive
-        run: python tools/build_exe.py
-      - name: Upload paired development archive
+      - name: Build integrated Windows preview
+        run: |
+          python tools/licenses.py
+          python -m PyInstaller --noconfirm x20ctl.spec --distpath dist/4.1.0-preview.1
+          python tools/package_desktop_preview.py
+      - name: Upload Windows preview archive
         uses: actions/upload-artifact@v4
         with:
-          name: x20ctl-windows-paired-development
-          path: dist/x20ctl-4.0.1-win-x64.zip
+          name: x20ctl-windows-preview
+          path: dist/x20ctl-*-win-x64.zip
           retention-days: 7
-# The archive contains both executables. Public release still requires native-window
-# acceptance, release checksums, and an explicit publication step.
+# Stable publication requires native-window acceptance. This job builds previews.

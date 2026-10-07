@@ -2,6 +2,8 @@
 import os
 
 extra_data = []
+extra_data += [('x20ctl/controllers/catalog.json', 'x20ctl/controllers')]
+extra_data += [('x20ctl/scanning/PROVENANCE.json', 'x20ctl/scanning')]
 if os.path.exists('artifacts/THIRD_PARTY_LICENSES.txt'):
     extra_data += [('artifacts/THIRD_PARTY_LICENSES.txt', '.')]
 

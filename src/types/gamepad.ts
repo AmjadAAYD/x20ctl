@@ -83,6 +83,7 @@ export interface CurveConfig {
 }
 
 export interface Profile {
+  controllerId?: "x20";
   schemaVersion: 2;
   categories?: string[];
   macroLoops: Record<"M1" | "M2" | "M3" | "M4", number>;
@@ -110,7 +111,7 @@ export interface Profile {
 
 export type ConnectionType = "dongle" | "bluetooth" | "wired";
 
-export type ControllerPreset = "x20-pro-black" | "x20-pro-white" | "x05";
+export type ControllerPreset = "x20-pro-black" | "x20-pro-white";
 
 export interface ControllerPresetInfo {
   id: ControllerPreset;

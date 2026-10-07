@@ -1,0 +1,122 @@
+.studio-root .macro-library-dialog {
+  width: min(850px, calc(100vw - 32px));
+}
+.macro-library-dialog .metal-dialog-content {
+  display: grid;
+  gap: 16px;
+}
+.macro-library-description,
+.macro-library-location,
+.macro-library-list > p {
+  color: #aabbd0;
+  font-size: 12px;
+  line-height: 1.6;
+  margin: 0;
+}
+.macro-library-current {
+  padding: 16px;
+  border: 1px solid #344662;
+  border-radius: 12px;
+  background: #0d182a;
+  display: grid;
+  gap: 12px;
+}
+.macro-library-current label {
+  display: grid;
+  gap: 6px;
+  color: #b9c9db;
+  font-size: 12px;
+}
+.macro-library-current input,
+.macro-library-current select {
+  background: #101d31;
+  border: 1px solid #405a77;
+  border-radius: 8px;
+  color: #e2edf7;
+  padding: 9px 11px;
+  min-width: 0;
+  width: 100%;
+}
+.macro-library-actions,
+.macro-library-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.macro-library-heading {
+  justify-content: space-between;
+}
+.macro-library-heading h3 {
+  margin: 0;
+  font-size: 16px;
+}
+.macro-library-heading small,
+.macro-library-current > small {
+  color: #93abc1;
+  font-size: 11px;
+}
+.macro-library-tools {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+.macro-library-tools > button:last-child {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+.macro-library-list {
+  display: grid;
+  gap: 8px;
+}
+.macro-library-list article {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #30445f;
+  background: #111d30;
+  border-radius: 10px;
+}
+.macro-library-list article > div:first-child {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+.macro-library-list strong {
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+.macro-library-list small {
+  color: #94acc3;
+  font-size: 11px;
+}
+.macro-library-notice {
+  color: #a8d7e2;
+  font-size: 12px;
+  margin: 0;
+}
+.macro-library-error {
+  color: #ffb2a7;
+  font-size: 12px;
+  margin: 0;
+}
+.macro-library-location {
+  border-top: 1px solid #30435b;
+  padding-top: 12px;
+  overflow-wrap: anywhere;
+}
+.macro-library-location span {
+  color: #c8d6e5;
+}
+@media (max-width: 650px) {
+  .macro-library-list article {
+    align-items: start;
+    flex-direction: column;
+  }
+  .macro-library-tools {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -1,0 +1,12 @@
+.metal-slider { --range-color: #74baff; --range-glow: #308cff60; --range-thumb-size: 22px; position: relative; width: 100%; height: 34px; }
+.metal-slider[data-tone="amber"] { --range-color: #ffac6d; --range-glow: #ff8d4560; }
+.metal-slider-rail { position: absolute; left: 11px; right: 11px; top: 14px; height: 6px; overflow: hidden; border-radius: 4px; background: #1d2b44; box-shadow: inset 0 1px 3px #0008; }
+.metal-slider-fill { display: block; width: 100%; height: 100%; transform: scaleX(var(--range-ratio)); transform-origin: left; background: var(--range-color); transition: transform 150ms ease-out; }
+.metal-slider-thumb { position: absolute; top: 6px; left: calc(var(--range-ratio) * (100% - var(--range-thumb-size))); width: var(--range-thumb-size); height: var(--range-thumb-size); border: 2px solid var(--range-color); border-radius: 50%; background: radial-gradient(circle at 35% 25%, #f6faff, #bacde1); box-shadow: 0 2px 5px #000a, 0 0 10px var(--range-glow); transition: left 150ms ease-out, box-shadow 140ms, border-color 140ms; pointer-events: none; }
+.studio-root .metal-slider input[type="range"] { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; opacity: 0; cursor: pointer; }
+.metal-slider:hover .metal-slider-thumb { box-shadow: 0 2px 5px #000a, 0 0 16px var(--range-glow); }
+.metal-slider:focus-within .metal-slider-thumb { outline: 2px solid #dcecff; outline-offset: 3px; }
+.metal-slider.is-dragging .metal-slider-thumb, .metal-slider.is-dragging .metal-slider-fill { transition: none; }
+.metal-slider.is-disabled { opacity: .5; }
+.metal-slider.is-disabled input { cursor: default; }
+@media (prefers-reduced-motion: reduce) { .metal-slider-thumb, .metal-slider-fill { transition: none; } }

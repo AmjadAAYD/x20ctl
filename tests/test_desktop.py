@@ -114,14 +114,15 @@ def test_model_switch_blocks_x20_profiles_and_writes(tmp_path, monkeypatch):
     monkeypatch.setattr(pro_discovery, "scan", empty_scan)
     assert asyncio.run(service.dispatch("select_model", {"model": "x20_pro"})) == {"model": "x20_pro"}
     assert asyncio.run(service.dispatch("pro_bootstrap", {}))["profiles"] == []
-    assert (tmp_path / "x20_pro" / "profiles.json").read_text(encoding="utf-8") == "[]"
+    assert not (tmp_path / "x20_pro").exists()
     api = DesktopApi(service)
     try:
         assert not api.request("open_profile", {})["ok"]
         assert not api.request("export_profile", {"profile": {}})["ok"]
     finally:
         api._close()
-    assert asyncio.run(service.dispatch("pro_scan", {})) == []
+    with pytest.raises(ValueError, match="unavailable until hardware arrives"):
+        asyncio.run(service.dispatch("pro_scan", {}))
     for operation, payload in (
         ("bootstrap", {}),
         ("save_profiles", {"profiles": []}),
@@ -150,7 +151,7 @@ def test_pro_inspection_requires_current_discovery(tmp_path, monkeypatch):
     monkeypatch.setattr(pro_discovery, "inspect", inspect)
     service = DeviceService(directory=tmp_path)
     asyncio.run(service.dispatch("select_model", {"model": "x20_pro"}))
-    with pytest.raises(ValueError, match="returned by Pro discovery"):
+    with pytest.raises(ValueError, match="unavailable until hardware arrives"):
         asyncio.run(service.dispatch("pro_inspect", {"address": "unscanned"}))
     assert inspected == []
 

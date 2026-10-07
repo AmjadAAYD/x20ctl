@@ -1,7 +1,7 @@
 {
   "name": "x20ctl-desktop-ui",
   "private": true,
-  "version": "4.0.1",
+  "version": "4.1.0-preview.1",
   "type": "module",
   "scripts": {
     "dev": "vite --port 3000 --host 127.0.0.1",
@@ -14,14 +14,16 @@
   "dependencies": {
     "lucide-react": "^0.475.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "three": "0.186.1"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.0.0",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
-    "prettier": "^3.6.2",
+    "@types/three": "0.186.0",
     "@vitejs/plugin-react": "^4.3.4",
+    "prettier": "^3.6.2",
     "tailwindcss": "^4.0.0",
     "typescript": "^5.7.0",
     "vite": "^6.4.3"

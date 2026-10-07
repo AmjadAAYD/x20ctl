@@ -1,0 +1,45 @@
+.model-inactive { border: 0; padding: 0; margin: 0; min-width: 0; }
+.model-inactive button:disabled, .model-inactive input:disabled, .model-inactive select:disabled { cursor: default; }
+.model-feature { padding: 18px; }
+.model-feature > .controller-canvas, .model-inactive > .controller-canvas { max-width: 480px; margin: auto; border-radius: 12px; }
+.model-control-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 18px 0; }
+.model-control-grid > div, .model-control-grid label { display: grid; gap: 8px; padding: 14px; border: 1px solid #31435e; border-radius: 10px; }
+.model-control-grid small { color: #a0b0c9; }
+.model-control-grid input, .model-control-grid select { width: 100%; }
+.controller-switch-row { display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #2c3e58; padding: 10px 0; }
+.controller-switch-row > button:first-child { flex: 1; text-align: left; display: flex; align-items: center; gap: 14px; background: transparent; border: 0; color: inherit; cursor: pointer; }
+.controller-switch-row .controller-canvas { width: 120px; flex: none; }
+.controller-switch-row small { display: block; color: #a0b0c9; margin-top: 5px; }
+.controller-picker { width: min(720px, calc(100vw - 48px)); }
+.controller-picker .picker-note { margin: 0 0 18px; color: #afc1dc; line-height: 1.5; }
+.controller-picker .controller-switch-row { padding: 12px; margin-bottom: 12px; border: 1px solid #304360; border-radius: 12px; background: linear-gradient(115deg, #10233c, #111b2b); transition: border-color 150ms, background 150ms; }
+.controller-picker .controller-switch-row:has(button[aria-pressed="true"]) { border-color: #629bdb; }
+.controller-picker .controller-switch-row:hover { border-color: #5f80af; }
+.controller-picker .controller-switch-row > button:first-child { padding: 0; min-width: 0; }
+.controller-picker .controller-switch-row > button:first-child:focus-visible { outline: 2px solid #a1cdff; outline-offset: 5px; border-radius: 8px; }
+.controller-picker .controller-switch-row .controller-canvas { width: 168px; }
+.controller-picker .controller-switch-row strong { font-size: 20px; }
+.studio-player-label { display: inline-block; margin-left: 7px; font-size: 10px; font-weight: 500; color: #a5b9d6; }
+.model-workspace .metal-workspace { display: block; min-width: 0; }
+.model-workspace .workspace-page-title { margin-bottom: 16px; }
+.model-feature > p { color: #b3c3da; line-height: 1.6; }
+.model-feature > .button + .button { margin-left: 10px; }
+.model-haptics-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 24px; padding: 18px 0; }
+.model-haptics-body .haptics-master { padding: 8px 18px; min-width: 0; }
+.model-haptics-body .controller-canvas { width: 100%; }
+.model-haptics .strength-presets { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin: 20px 0; }
+.model-haptics .strength-presets > button { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px; min-height: 50px; }
+.model-tester-art { width: min(100%, 480px); margin: 0 auto 16px; }
+.model-control-grid span { font-size: 12px; color: #9cafcb; }
+.model-control-grid strong { font-weight: 500; }
+.studio-root .rebranded-hub .controller-card.empty { opacity: 1; }
+.studio-root .rebranded-hub .controller-card-index { width: auto; min-width: 88px; font-size: 12px; padding: 0 12px; }
+.studio-root .rebranded-hub .controller-card-icon { position: relative; padding: 0; flex: none; cursor: pointer; }
+.studio-root .rebranded-hub .controller-card-icon:focus-visible { outline: 2px solid #9dccff; outline-offset: 5px; border-radius: 12px; }
+.controller-empty-art { display: flex; align-items: center; justify-content: center; gap: 12px; width: 100%; height: 100%; border: 1px dashed #3a516d; border-radius: 12px; color: #7d96b8; background: radial-gradient(ellipse at 20% 45%, #16417238, transparent 70%), #091426; }
+.studio-root .rebranded-hub .controller-card h2 { font-size: clamp(16px, 1.6vw, 20px); }
+.studio-root .rebranded-hub .controller-card-detail { display: block; min-height: 34px; color: #93aac9; font-size: 11px; line-height: 1.5; margin-bottom: 14px; }
+.studio-root .rebranded-hub .controller-card-icon .controller-canvas { opacity: 1; }
+@media (max-width: 1150px) { .model-haptics-body { gap: 12px; } .model-haptics-body .haptics-master { padding: 8px; } }
+.studio-root .mapping-controller-stage { aspect-ratio: auto; }
+@media (max-width: 650px) { .model-control-grid { grid-template-columns: 1fr; } .controller-switch-row .controller-canvas { width: 75px; } }

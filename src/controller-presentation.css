@@ -1,0 +1,210 @@
+/* A glass appearance for desktop WebViews, inspired by Liquid Glass. This is a
+   CSS approximation, with blur confined to navigation rather than editor panels. */
+.studio-root .chassis-nav { background: #0b172acf; border-color: #91b8d32b; }
+.studio-root .motion-nav .nav-active-light {
+  border: 1px solid #d0e7f567;
+  border-radius: 15px;
+  background: radial-gradient(ellipse at 12% 0%, #ecf8ff32, transparent 58%), linear-gradient(125deg, #d0e9ff26, #ffffff08 48%, #a7cde21c), #365d783b;
+  backdrop-filter: blur(14px) saturate(125%);
+  -webkit-backdrop-filter: blur(14px) saturate(125%);
+  box-shadow: inset 0 1px #edf7ff55, inset 0 -1px #dceeff13, 0 6px 18px #0003;
+}
+.studio-root .motion-nav .nav-active-light::after {
+  content: ""; position: absolute; inset: 1px; border-radius: inherit;
+  border: 1px solid #e8f3ff0e; pointer-events: none;
+}
+.studio-root .motion-nav button { border-radius: 15px; color: #b2c3d6; }
+.studio-root .motion-nav button[aria-current="page"] { color: #f5fbff; border-color: transparent; background: transparent; box-shadow: none; }
+.studio-root .motion-nav button:not([aria-current="page"]):hover { background: #bddbff0c; color: #edf7ff; border-color: #b8d9ed29; }
+.studio-root .motion-nav button:focus-visible { outline: 2px solid #bce2ff; outline-offset: -3px; }
+.studio-root .controller-view-switch { width: fit-content; margin: 0 auto 12px; padding: 4px; gap: 3px; border: 1px solid #cce5f522; border-radius: 15px; background: #07121eaa; box-shadow: inset 0 1px #ebf7ff0a; }
+.studio-root .controller-view-switch button { border-radius: 11px; border-color: transparent; background: transparent; color: #b4c7da; }
+.studio-root .controller-view-switch button[aria-pressed="true"], .studio-root .macro-paddle.is-selected {
+  border-color: #cfebff61; background: linear-gradient(130deg, #e7f6ff20, #8ebadc12), #29496480;
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  box-shadow: inset 0 1px #f4fbff45, inset 0 -1px #c6e4f51a, 0 4px 12px #0003; color: #f1f8ff;
+}
+.studio-root .macro-paddle.is-selected { border-color: #e8ba885c; background: linear-gradient(135deg, #f4d9b91b, #ffffff05), #5a412649; }
+
+/* Preserve the opaque photographic body; attenuate only the separate ambient
+   copy, including the baked floor reflection. Both use the same source plane. */
+.studio-root .controller-canvas, .studio-root .controller-rear {
+  --art-ambient: .22;
+  background: radial-gradient(ellipse at 43% 48%, #25456820, transparent 62%), #050c17;
+}
+.studio-root .controller-canvas[data-preview="true"] { --art-ambient: .035; }
+.studio-root .controller-canvas[data-lighting="interactive"] { --art-ambient: .1; }
+.studio-root .controller-canvas[data-lighting="vibration"] { --art-ambient: .06; }
+.studio-root .controller-rear { --art-ambient: .035; }
+.studio-root .controller-canvas .controller-photo:not(.controller-photo-ambient),
+.studio-root .controller-rear-plane > img:not(.controller-photo-ambient) { z-index: 1; opacity: 1; }
+.studio-root .controller-rear-plane > img { position: absolute; inset: 0; width: 100%; height: 100%; }
+.studio-root .controller-canvas .controller-photo-ambient,
+.studio-root .controller-rear-plane > .controller-photo-ambient {
+  position: absolute; inset: 0; z-index: 0; opacity: var(--art-ambient);
+  clip-path: none; transition: opacity 240ms ease-out;
+}
+.studio-root .controller-card-icon:is(:hover, :focus-visible) .controller-canvas:not([data-preview="true"]),
+.studio-root .controller-switch-row:is(:hover, :focus-within):not([data-preview="true"]) .controller-canvas { --art-ambient: .55; }
+.studio-root .controller-canvas[data-emphasis="selected"]:not([data-preview="true"]),
+.studio-root .controller-canvas[data-emphasis="connected"]:not([data-preview="true"]) { --art-ambient: 1; }
+.studio-root .controller-switch-row:is(:hover, :focus-within)[data-preview="true"] .controller-canvas,
+.studio-root .controller-card-icon:is(:hover, :focus-visible) .controller-canvas[data-preview="true"] { --art-ambient: .09; }
+.studio-root .controller-switch-row[data-selected="true"] .controller-canvas:not([data-preview="true"]) { --art-ambient: 1; }
+.controller-lighting-defs { position: absolute; width: 0; height: 0; pointer-events: none; }
+.studio-root .controller-canvas .controller-lighting-defs, .studio-root .controller-rear .controller-lighting-defs { width: 0; height: 0; filter: none; }
+.studio-root .controller-canvas .controller-silhouette-overlay, .studio-root .controller-rear .controller-silhouette-overlay { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; z-index: 2; pointer-events: none; filter: none; }
+.controller-rim-sweep { fill: none; stroke-width: 1.2; stroke-dasharray: 26 74; stroke-linecap: round; opacity: .4; animation: controller-rim-travel 12s linear infinite; }
+@keyframes controller-rim-travel { from { stroke-dashoffset: 100; } to { stroke-dashoffset: 0; } }
+.studio-root .controller-control.is-selected { animation: controller-input-confirm 650ms ease-out; }
+@keyframes controller-input-confirm { 0% { background: #94d5ff50; } 100% { background: #398aff25; } }
+.studio-root .controller-macro-hotspot polygon.macro-outline-sweep { fill: none; stroke: transparent; stroke-width: 1.4; stroke-dasharray: 24 76; }
+.studio-root .controller-macro-hotspot:not(:disabled):is(:hover, :focus-visible) polygon.macro-outline-sweep {
+  stroke: #c3eaff; animation: macro-outline-travel 900ms ease-out both;
+}
+.studio-root .controller-macro-hotspot[aria-pressed="true"] polygon.macro-outline-sweep {
+  stroke: #ffd1a0; animation: macro-outline-travel 900ms ease-out both;
+}
+@keyframes macro-outline-travel { from { stroke-dashoffset: 100; opacity: 1; } to { stroke-dashoffset: 0; opacity: .35; } }
+
+/* A crisp full contour stays readable; the colored packet carries intensity. */
+.studio-root .motor-wave { stroke: var(--motor-gradient); stroke-width: 24; stroke-dasharray: 28 72; stroke-linejoin: round; filter: none; }
+.studio-root .motor-wave-echo { display: none; }
+.studio-root .motor-wave-glow { stroke-width: 42; opacity: .65; filter: blur(2px); }
+.studio-root .motor-wave-core { stroke: #effaff; stroke-width: 6; opacity: .95; }
+.studio-root .motor-contour-shadow { fill: none; stroke: #020812; stroke-width: 18; opacity: .7; stroke-linejoin: round; }
+.studio-root .motor-contour { opacity: .9; stroke-width: 12; stroke-linejoin: round; filter: none; }
+.studio-root .motor-contour-layer { opacity: .24; stroke-width: 30; filter: blur(1.5px); }
+.studio-root .controller-motor-trigger .motor-contour { stroke-width: 8; }
+.studio-root .controller-motor-trigger .motor-contour-shadow { stroke-width: 12; }
+.studio-root .controller-motor-trigger .motor-contour-layer { stroke-width: 20; }
+.studio-root .controller-motor-trigger .motor-wave { stroke-width: 14; }
+.studio-root .controller-motor-trigger .motor-wave-glow { stroke-width: 26; }
+.studio-root .controller-motor-trigger .motor-wave-core { stroke-width: 4; }
+.studio-root .motor-surface { animation: none; opacity: .025; }
+
+/* Two scan-friendly columns; preserve a compact list on narrow windows. */
+.studio-root .controller-picker { width: min(860px, calc(100vw - 40px)); }
+.studio-root .controller-selection-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.studio-root .controller-picker .controller-switch-row { display: flex; flex-direction: column; min-width: 0; margin: 0; padding: 13px; gap: 10px; background: #0c192bc4; border-color: #506b8b52; }
+.studio-root .controller-picker .controller-switch-row[data-selected="true"] { border-color: #9ac8eb; box-shadow: inset 0 0 0 1px #a2c8eb18; }
+.studio-root .controller-picker .controller-switch-row > button:first-child { display: flex; flex-direction: column; gap: 8px; align-items: center; width: 100%; text-align: center; }
+.studio-root .controller-picker .controller-switch-row .controller-canvas { width: min(100%, 198px); }
+.studio-root .controller-picker .controller-switch-row strong { font-size: 18px; }
+.studio-root .controller-picker .controller-switch-row small { font-size: 11px; line-height: 1.4; }
+.studio-root .controller-picker .controller-switch-row .controller-support-state { margin-top: 7px; display: inline-block; color: #a9cee9; padding: 3px 8px; border: 1px solid #73a4bd35; border-radius: 5px; background: #15304455; }
+.studio-root .controller-picker .controller-switch-row[data-preview="true"] .controller-support-state { color: #a6b2c3; border-color: #8692a02b; background: #172232; }
+.studio-root .controller-picker .controller-switch-row > .button { width: 100%; min-height: 34px; font-size: 12px; }
+@media (max-width: 720px) {
+  .studio-root .controller-selection-grid { grid-template-columns: 1fr; gap: 10px; }
+  .studio-root .controller-picker .controller-switch-row > button:first-child { flex-direction: row; text-align: left; gap: 14px; }
+  .studio-root .controller-picker .controller-switch-row .controller-canvas { width: 120px; }
+}
+
+/* Macros keep rear-only artwork; selection and the running step own the accents. */
+.studio-root:has(.rebranded-workspace[data-page="macros"]) .ambient-nebula { opacity: .28; background: radial-gradient(ellipse at 20% 42%, #1d508880, transparent 60%), radial-gradient(ellipse at 75% 20%, #49365b50, transparent 66%); }
+.studio-root:has(.rebranded-workspace[data-page="macros"]) .ambient-dust { opacity: .12; }
+.studio-root:has(.rebranded-workspace[data-page="macros"]) .ambient-stars { opacity: .35; }
+.studio-root .macro-controller-preview { width: min(100%, 510px); }
+.studio-root .sequencer-panel[data-empty="true"] .sequencer-matrix { display: none; }
+.studio-root .sequencer-panel[data-empty="true"] .sequencer-scroll { min-height: 230px; max-height: none; height: auto; padding: 22px; display: grid; place-items: center; }
+.studio-root .sequencer-panel[data-empty="true"] .sequencer-empty { position: static; transform: none; min-width: 0; width: min(100%, 460px); margin: 0; padding: 18px; }
+.studio-root .macro-preview-inputs { display: flex; gap: 7px; justify-content: center; align-items: center; flex-wrap: wrap; min-height: 31px; margin-top: 10px; color: #aabfd2; font-size: 11px; }
+.studio-root .macro-preview-inputs span { border: 1px solid #aacfe135; border-radius: 5px; padding: 5px 9px; background: #0d2033; }
+.studio-root .macro-preview-inputs span.is-active { color: #eff9ff; border-color: #99d3f4; background: #284a668a; }
+.studio-root .macro-preview-inputs small { color: #839ab1; }
+.studio-root .sequencer-step-heading.is-playing { color: #eef9ff; border-color: #9acfe8; background: #254461; box-shadow: inset 0 1px #e4f6ff24; }
+.studio-root .sequencer-matrix td.is-playing-column { background: #6095b317; border-radius: 5px; }
+.studio-root .macro-controller-preview[data-playing="true"] .controller-macro-hotspot[aria-pressed="true"] polygon:first-child { fill: #ffa35722; stroke: #ffd1a0; }
+
+html[data-motion-paused="true"] .controller-rim-sweep { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) {
+  .studio-root .controller-rim-sweep, .studio-root .controller-control.is-selected, .studio-root .controller-macro-hotspot polygon.macro-outline-sweep { animation: none !important; }
+  .studio-root .controller-photo-ambient, .studio-root .controller-view-switch button { transition: none; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .studio-root .nav-active-light, .studio-root .controller-view-switch button[aria-pressed="true"], .studio-root .macro-paddle.is-selected { backdrop-filter: none; -webkit-backdrop-filter: none; background: #233a50; }
+}
+@media (forced-colors: active) {
+  .studio-root .nav-active-light { border: 1px solid Highlight; background: Canvas; }
+  .studio-root .motion-nav button[aria-current="page"] { color: Highlight; }
+}
+
+/* Measured photo contours replace the shared circle/border target. */
+.studio-root .photo-control,
+.studio-root .controller-canvas .controller-control.photo-control,
+.studio-root .controller-rear .photo-control {
+  position: absolute; z-index: 4; transform: none; aspect-ratio: auto;
+  border: 0; border-radius: 0; padding: 0; background: transparent;
+  box-shadow: none; filter: none; cursor: pointer; touch-action: manipulation;
+  animation: none; outline: none; pointer-events: none;
+}
+.studio-root .photo-control svg {
+  position: absolute; inset: 0; width: 100%; height: 100%; max-width: none;
+  overflow: visible; pointer-events: none; filter: none;
+}
+.studio-root .photo-control-outline { fill: transparent; stroke: transparent; stroke-width: 1.4; transition: stroke 120ms, fill 120ms; pointer-events: fill; }
+.studio-root .photo-control:disabled .photo-control-outline { pointer-events: none; }
+.studio-root .photo-control:not(:disabled):is(:hover, :focus-visible) .photo-control-outline { stroke: #b9e1ff; fill: #7bbdff18; }
+.studio-root .photo-control.is-selected .photo-control-outline { stroke: #96ceff; fill: #398aff18; }
+.studio-root .photo-control.is-pressed .photo-control-outline { stroke: #d1ecff; fill: #86cbff65; transition: none; }
+.studio-root .photo-control:focus-visible .photo-control-outline { stroke: #f3faff; stroke-width: 2; }
+.studio-root .photo-control:disabled { cursor: default; opacity: 1; }
+.studio-root .controller-macro-hotspot.is-selected .photo-control-outline { stroke: #ffd1a0; fill: #ffa35720; }
+.studio-root .controller-macro-hotspot span { position: relative; opacity: 0; display: block; font: 600 clamp(8px, .8vw, 11px) monospace; color: #f2f8ff; text-shadow: 0 1px 3px #000; pointer-events: none; }
+.studio-root .controller-macro-hotspot:is(.is-selected, :hover, :focus-visible) span { opacity: 1; }
+.studio-root .controller-macro-hotspot.is-selected .photo-control-outline { animation: paddle-confirm 650ms ease-out; }
+@keyframes paddle-confirm { from { fill: #ffa35745; } to { fill: #ffa35720; } }
+
+/* Keep the image useful without letting its width dictate the whole page height. */
+.studio-root .mapping-workbench { grid-template-columns: minmax(0, 1fr) minmax(320px, .9fr); max-width: 1180px; margin: 0 auto; }
+.studio-root .mapping-controller-stage { display: flex; align-items: center; box-shadow: none; }
+.studio-root .mapping-controller-stage > .controller-view { width: min(100%, 470px); padding-top: 8px; }
+.studio-root .mapping-controller-stage .mapping-canvas-caption { padding: 8px 12px; }
+.studio-root .controller-view-hint { margin: 6px 0 0; font-size: 11px; }
+.studio-root .mapping-canvas-toolbar { padding-top: 10px; padding-bottom: 8px; }
+
+/* Rear preview and slot controls share a compact rail beside the editor. */
+.studio-root .macro-studio { grid-template-columns: clamp(340px, 28vw, 440px) minmax(0, 1fr); align-items: start; }
+.studio-root .macro-controller-preview { grid-column: 1; grid-row: 2; width: 100%; margin: 0; }
+.studio-root .macro-console-bar { grid-column: 1; grid-row: 3 / span 3; gap: 12px; padding: 12px; }
+.studio-root .macro-console-bar::before { font-size: 15px; }
+.studio-root .macro-paddles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+.studio-root .macro-paddle { min-height: 46px; padding: 7px 9px; }
+.studio-root .macro-paddle strong { font-size: 16px; }
+.studio-root .macro-paddle span { font-size: 10px; }
+.studio-root .sequencer-panel { grid-column: 2; grid-row: 2 / span 2; }
+.studio-root .macro-inspector { grid-column: 2; grid-row: 4; }
+.studio-root .macro-bottom { grid-column: 2; grid-row: 5; }
+.studio-root .macro-notice, .studio-root .macro-error { grid-column: 2; grid-row: auto; }
+.studio-root .sequencer-panel[data-empty="true"] .sequencer-scroll { min-height: 200px; padding: 16px; }
+.studio-root .sequencer-panel[data-empty="true"] .sequencer-empty { padding: 16px; }
+@media (max-width: 1050px) {
+  .studio-root .mapping-workbench { grid-template-columns: minmax(0, 1fr); }
+  .studio-root .macro-studio { grid-template-columns: 300px minmax(0, 1fr); }
+}
+@media (max-width: 850px) {
+  .studio-root .macro-studio { grid-template-columns: minmax(0, 1fr); }
+  .studio-root .macro-controller-preview { grid-column: 1; grid-row: 2; width: min(100%, 400px); margin: 0 auto; }
+  .studio-root .macro-console-bar { grid-column: 1; grid-row: 3; }
+  .studio-root .macro-paddles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .studio-root .sequencer-panel { grid-column: 1; grid-row: 4; }
+  .studio-root .macro-inspector { grid-column: 1; grid-row: 5; }
+  .studio-root .macro-bottom { grid-column: 1; grid-row: 6; }
+  .studio-root .macro-notice, .studio-root .macro-error { grid-column: 1; }
+}
+/* Long sequences need the workspace width, rather than squeezed columns beside the rear preview. */
+@media (max-width: 1250px) {
+  .studio-root .macro-studio[data-sequence-dense="true"] { grid-template-columns: minmax(0, 1fr); }
+  .studio-root .macro-studio[data-sequence-dense="true"] .macro-controller-preview { grid-column: 1; grid-row: 2; width: min(100%, 400px); margin: 0 auto; }
+  .studio-root .macro-studio[data-sequence-dense="true"] .macro-console-bar { grid-column: 1; grid-row: 3; }
+  .studio-root .macro-studio[data-sequence-dense="true"] .macro-paddles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .studio-root .macro-studio[data-sequence-dense="true"] .sequencer-panel { grid-column: 1; grid-row: 4; }
+  .studio-root .macro-studio[data-sequence-dense="true"] .macro-inspector { grid-column: 1; grid-row: 5; }
+  .studio-root .macro-studio[data-sequence-dense="true"] .macro-bottom { grid-column: 1; grid-row: 6; }
+  .studio-root .macro-studio[data-sequence-dense="true"] .macro-notice,
+  .studio-root .macro-studio[data-sequence-dense="true"] .macro-error { grid-column: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .studio-root .photo-control-outline { transition: none; animation: none !important; }
+}

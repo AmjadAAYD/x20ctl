@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import {
   Activity,
   Crosshair,
@@ -12,6 +13,8 @@ interface TesterPageProps {
   liveState: LiveGamepadState;
   inputConnected?: boolean;
   inputSlot?: number | null;
+  inputBackend?: string;
+  playerNumber?: number;
 }
 const TEST_KEYS: KeyName[] = [
   "LB",
@@ -151,6 +154,8 @@ export function TesterPage({
   liveState,
   inputConnected = false,
   inputSlot,
+  inputBackend = "Gameplay input",
+  playerNumber,
 }: TesterPageProps) {
   const pressed = TEST_KEYS.filter(
     (key) => inputConnected && liveState.buttons[key],
@@ -161,10 +166,10 @@ export function TesterPage({
         <div>
           <Radio size={18} />
           <span>
-            XINPUT SIGNAL
+            GAMEPLAY SIGNAL
             <strong>
               {inputConnected
-                ? `Player ${(inputSlot ?? 0) + 1} detected`
+                ? `Player ${playerNumber ?? (inputSlot ?? 0) + 1} input connected`
                 : "Waiting for a gamepad"}
             </strong>
           </span>
@@ -176,7 +181,7 @@ export function TesterPage({
         <p>
           {inputConnected
             ? "Move the sticks, squeeze the triggers and press a button."
-            : "Connect your controller to Windows by USB, receiver or a supported XInput mode."}
+            : "Connect your controller by USB, receiver or a supported gamepad mode."}
         </p>
       </section>
       <div className="tester-primary-grid">
@@ -244,7 +249,7 @@ export function TesterPage({
           <header className="mapping-panel-heading">
             <div>
               <SlidersHorizontal size={17} />
-              <h2>Analog trigger travel</h2>
+              <h2>Reported trigger travel</h2>
             </div>
             <span className="tester-heading-detail">0–100%</span>
           </header>
@@ -270,6 +275,13 @@ export function TesterPage({
                 </div>
                 <div
                   className="tester-trigger-track"
+                  style={
+                    {
+                      "--trigger-depth": inputConnected
+                        ? Math.max(0, Math.min(1, value))
+                        : 0,
+                    } as CSSProperties
+                  }
                   role="meter"
                   aria-label={`${label} travel`}
                   aria-valuemin={0}
@@ -308,12 +320,12 @@ export function TesterPage({
           <dl>
             <div>
               <dt>Input source</dt>
-              <dd>Windows XInput</dd>
+              <dd>{inputBackend}</dd>
             </div>
             <div>
-              <dt>Player slot</dt>
+              <dt>{playerNumber ? "Assigned player" : "Player slot"}</dt>
               <dd>
-                {inputConnected ? `P${(inputSlot ?? 0) + 1}` : "Unavailable"}
+                {inputConnected ? `P${playerNumber ?? (inputSlot ?? 0) + 1}` : "Unavailable"}
               </dd>
             </div>
             <div>

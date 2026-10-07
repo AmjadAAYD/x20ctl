@@ -24,8 +24,9 @@ from dataclasses import dataclass, field, asdict
 from datetime import datetime, timezone
 
 from . import protocol as p
+from .controllers import get_profile
 
-SLOTS = ("M1", "M2", "M3", "M4")
+SLOTS = get_profile("x20").macro_slots  # Legacy X20 API only.
 
 DEFAULT_DIR = os.path.join(
     os.environ.get("APPDATA") or os.path.expanduser("~"), "x20ctl", "profiles"
@@ -74,8 +75,7 @@ class MacroSpec:
 @dataclass
 class Profile:
     name: str
-    macros: dict[str, MacroSpec | None] = field(
-        default_factory=lambda: {slot: None for slot in SLOTS})
+    macros: dict[str, MacroSpec | None] = field(default_factory=dict)
     vibration: int | None = None
     updated: str = ""
     # When true, applying clears any slot this profile doesn't define, so the
@@ -90,11 +90,21 @@ class Profile:
     #
     # Set it false per-profile if you have on-pad assignments to preserve.
     clear_undefined: bool = True
+    controller_id: str = "x20"
+
+    def __post_init__(self):
+        slots = get_profile(self.controller_id).macro_slots
+        if not self.macros:
+            self.macros = dict.fromkeys(slots)
+        if any(slot not in slots for slot in self.macros):
+            raise ValueError("Macro slot does not belong to this controller")
 
     # -- serialisation ---------------------------------------------------
 
     def to_dict(self) -> dict:
         return {
+            "schema_version": 2,
+            "controller_id": self.controller_id,
             "name": self.name,
             "vibration": self.vibration,
             "updated": self.updated,
@@ -107,12 +117,17 @@ class Profile:
 
     @classmethod
     def from_dict(cls, data: dict) -> "Profile":
-        macros: dict[str, MacroSpec | None] = {slot: None for slot in SLOTS}
+        controller_id = data.get("controller_id", "x20")
+        slots = get_profile(controller_id).macro_slots
+        if data.get("schema_version", 2) != 2:
+            raise ValueError("Unsupported profile version")
+        macros: dict[str, MacroSpec | None] = {slot: None for slot in slots}
         for slot, spec in (data.get("macros") or {}).items():
-            if slot not in SLOTS:
-                raise ValueError(f"unknown slot {slot!r}; expected one of {SLOTS}")
+            if slot not in slots:
+                raise ValueError(f"unknown slot {slot!r}; expected one of {slots}")
             macros[slot] = MacroSpec(**spec) if spec else None
         return cls(
+            controller_id=controller_id,
             name=data.get("name") or "unnamed",
             macros=macros,
             vibration=data.get("vibration"),
@@ -121,6 +136,8 @@ class Profile:
         )
 
     def validate(self) -> None:
+        if any(slot not in get_profile(self.controller_id).macro_slots for slot in self.macros):
+            raise ValueError("Macro slot does not belong to this controller")
         if self.vibration is not None and not 0 <= self.vibration <= 100:
             raise ValueError("vibration must be 0-100")
         for slot, spec in self.macros.items():
@@ -141,6 +158,10 @@ class Profile:
         human-readable lines describing what happened.
         """
         self.validate()
+        if self.controller_id != "x20":
+            raise ValueError("Configuration backend is unverified for this controller")
+        if getattr(pad, "controller_id", "x20") != self.controller_id:
+            raise ValueError("Profile controller does not match connected controller")
         caps = await pad.capabilities()
         report: list[str] = []
 
@@ -160,7 +181,7 @@ class Profile:
             note("macros skipped: not exposed by this controller")
             return report
 
-        for index, slot in enumerate(SLOTS, start=1):
+        for index, slot in enumerate(get_profile(self.controller_id).macro_slots, start=1):
             spec = self.macros.get(slot)
             if spec is not None:
                 await pad.set_macro(

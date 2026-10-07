@@ -4,6 +4,12 @@ Report vulnerabilities privately through this repository's **Security > Report a
 
 ## Trust boundaries
 
+Unpublished controller research and raw tester evidence stay outside public
+source. See [research policy](docs/research-policy.md) and
+[contributing](CONTRIBUTING.md). The Git-index boundary check prevents recognized
+private files from passing CI; it does not redact file contents or protect
+material already published.
+
 - Only bundled local UI is loaded in the desktop view. Unexpected navigation is blocked.
 - The native bridge allowlists named operations. There is no shell, arbitrary Python evaluation, raw-packet or caller-selected filesystem-path endpoint.
 - Profile file access uses Windows file dialogs. Imported values are validated in Python before storage or hardware use.
