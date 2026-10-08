@@ -35,9 +35,10 @@ const report = { passed: false, mode: 'isolated fixture bridge; no hardware or I
         window.fixtureCalls.push({ operation, payload });
         let data = {};
         if (operation === 'select_model') { selectedPlayer = payload.player; data = { model: payload.model }; }
-        else if (operation === 'input_discover') data = payload.phase === 'before' ? [] : [{ token: 'fixture-source', label: 'Fixture HID source' }];
+        else if (operation === 'input_discover') data = payload.phase === 'before' ? [] : [{ token: 'fixture-source', label: 'Fixture XInput source' }];
         else if (operation === 'input_attach') { if (payload.player !== selectedPlayer) throw Error('wrong player'); data = { connected: true }; }
-        else if (operation === 'x15_input') { if (payload.player !== 2) throw Error('wrong input player'); data = { connected: true, source: 'Fixture HID input', input: { slot: 0, source: 'Fixture HID', buttons: ['A'], leftStick: { x: .25, y: -.4 }, rightStick: { x: 0, y: 0 }, leftTrigger: .5, rightTrigger: 0 } }; }
+        else if (operation === 'gameplay_input') { if (payload.player !== 2) throw Error('wrong input player'); data = { connected: true, source: 'Fixture XInput input', input: { slot: 0, source: 'Fixture XInput', buttons: ['A'], leftStick: { x: .25, y: -.4 }, rightStick: { x: 0, y: 0 }, leftTrigger: .5, rightTrigger: 0 } }; }
+        else if (operation === 'input_evidence') data = { receivers: [], standardControls: [], independentRearInputs: 'unknown' };
         else if (operation === 'research_history') data = [];
         else if (operation === 'research_status') data = scan;
         else if (operation === 'research_start') {
@@ -54,7 +55,7 @@ const report = { passed: false, mode: 'isolated fixture bridge; no hardware or I
         else if (operation === 'research_export') data = { saved: true };
         else if (operation === 'research_contact' || operation === 'research_inspect' || operation === 'research_open_folder') data = { opened: true };
         else if (operation === 'disconnect' || operation === 'input_detach') data = { connected: false };
-        else if (operation === 'bootstrap') data = { version: '4.0.1', profiles: [], warning: null, updatesEnabled: false };
+        else if (operation === 'bootstrap') data = { version: '4.1.0-preview.1', profiles: [], warning: null, updatesEnabled: false };
         else if (operation === 'input') data = { connected: false, input: null };
         else if (operation === 'check_updates') data = null;
         else throw Error('Unexpected fixture operation: ' + operation);
@@ -76,7 +77,7 @@ const report = { passed: false, mode: 'isolated fixture bridge; no hardware or I
     await studio.getByRole('button', { name: 'Connect input', exact: true }).click();
     await page.getByRole('button', { name: 'Controller disconnected · continue', exact: true }).click();
     await page.getByRole('button', { name: 'Controller reconnected · find input', exact: true }).click();
-    await page.getByRole('button', { name: 'Fixture HID source · select', exact: true }).click();
+    await page.getByRole('button', { name: 'Fixture XInput source · select', exact: true }).click();
     await studio.getByText('Gameplay input connected', { exact: true }).waitFor();
     assert.equal(await studio.locator('.controller-macro-hotspot').count(), 0);
     await studio.getByRole('button', { name: 'Input tester', exact: true }).click();
@@ -88,7 +89,34 @@ const report = { passed: false, mode: 'isolated fixture bridge; no hardware or I
     }
     report.checks.push('X15 real fixture input targets Player 2; shared seven-section navigation; unsupported-feature popup; wide/compact layouts');
     await studio.getByRole('button', { name: 'Switch Controller', exact: true }).click();
-    for (const name of ['X05', 'X05 Pro', 'X10', 'D10']) {
+    for (const name of ['D10', 'X05', 'X10']) {
+      await page.getByRole('button', { name: 'Choose controller for Player 2', exact: true }).click();
+      await page.getByRole('button', { name: `Select ${name}`, exact: true }).click();
+      await page.getByRole('button', { name: 'Enter Studio for Player 2', exact: true }).click();
+      const inputStudio = page.locator('.input-workspace:visible');
+      assert.equal(await page.getByRole('dialog').count(), 0);
+      await inputStudio.locator('summary').filter({hasText: 'Known / Missing'}).click();
+      assert.equal(await inputStudio.getByRole('heading', {name: 'Known', exact:true}).count(), 1);
+      assert.equal(await inputStudio.getByRole('heading', {name: 'Missing', exact:true}).count(), 1);
+      await inputStudio.getByRole('button', { name: 'Connect input', exact: true }).click();
+      await page.getByRole('button', { name: 'Controller disconnected · continue', exact: true }).click();
+      await page.getByRole('button', { name: 'Controller reconnected · find input', exact: true }).click();
+      await page.getByRole('button', { name: 'Fixture XInput source · select', exact: true }).click();
+      await inputStudio.getByText('Gameplay input connected', { exact: true }).waitFor();
+      await inputStudio.getByRole('button', { name: 'Input tester', exact: true }).click();
+      await inputStudio.getByText('Player 2 input connected', { exact: true }).waitFor();
+      assert.equal(await inputStudio.locator('.controller-macro-hotspot').count(), 0);
+      await inputStudio.getByRole('button', { name: 'Macros', exact: true }).click();
+      await page.getByRole('dialog').getByRole('button', { name: 'Scan later', exact: true }).click();
+      for (const width of [1400,1060]) {
+        await page.setViewportSize({width, height:940});
+        assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 2));
+        await page.screenshot({path:path.join(out,`${name.toLowerCase()}-phase1-${width}.png`)});
+      }
+      await inputStudio.getByRole('button', { name: 'Switch Controller', exact: true }).click();
+      report.checks.push(`${name}: read-only Player 2 input; Known/Missing; unsupported macros guarded; wide/compact`);
+    }
+    for (const name of ['X05 Pro']) {
       await page.getByRole('button', { name: 'Add controller for Player 1', exact: true }).count() ? await page.getByRole('button', { name: 'Add controller for Player 1', exact: true }).click() : await page.getByRole('button', { name: 'Choose controller for Player 1', exact: true }).click();
       await page.getByRole('button', { name: `Select ${name}`, exact: true }).click();
       await page.getByRole('button', { name: 'Enter Studio for Player 1', exact: true }).click();

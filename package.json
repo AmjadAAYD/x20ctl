@@ -1,7 +1,7 @@
 {
   "name": "x20ctl-desktop-ui",
   "private": true,
-  "version": "4.1.0-preview.1",
+  "version": "4.1.0-preview.2",
   "type": "module",
   "scripts": {
     "dev": "vite --port 3000 --host 127.0.0.1",

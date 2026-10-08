@@ -182,9 +182,17 @@ class Native:
         return result
 
 
+def allowed_collection(row, vendor_input=False):
+    if row.get("usage_page") == 1 and row.get("usage") in (4, 5, 8):
+        return True
+    return (vendor_input is True and row.get("vid") == 0x2345 and row.get("pid") == 0xE062
+            and row.get("usage_page") == 0xFFA0 and row.get("usage") == 1
+            and row.get("input_len") == 64 and row.get("output_len") == 32)
+
+
 class HidReader:
-    def __init__(self, native, row):
-        if row.get("usage_page") != 1 or row.get("usage") not in (4, 5, 8):
+    def __init__(self, native, row, vendor_input=False):
+        if not allowed_collection(row, vendor_input):
             raise ValueError("Only selected gameplay HID collections may be recorded")
         self.length = row.get("input_len", 0)
         if not 1 <= self.length <= 4096: raise ValueError("Invalid input length")

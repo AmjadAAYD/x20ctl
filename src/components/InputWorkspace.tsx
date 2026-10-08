@@ -45,7 +45,10 @@ export function InputWorkspace({
   onScan,
 }: Props) {
   const profile = controller(model);
-  const x15 = model === "x15";
+  const basicInput = profile.availability === "input_experimental";
+  const [receivers, setReceivers] = useState<
+    { model: string | null; status: string }[]
+  >([]);
   const [tab, setTab] = useState("buttons");
   const [missing, setMissing] = useState<string | null>(null);
   const [live, setLive] = useState<LiveGamepadState>(emptyInput);
@@ -63,7 +66,16 @@ export function InputWorkspace({
   const [view, setView] = useState<"front" | "back">("front");
   const [selected, setSelected] = useState<KeyName>("A");
   useEffect(() => {
-    if (!active || !x15 || !bound) {
+    setBound(false);
+    setConnected(false);
+    setLive(emptyInput());
+    setSource("");
+    setReceivers([]);
+    setConnectStep("closed");
+    setSelected("A");
+  }, [model, player]);
+  useEffect(() => {
+    if (!active || !basicInput || !bound) {
       setLive(emptyInput());
       setConnected(false);
       return;
@@ -72,7 +84,7 @@ export function InputWorkspace({
     let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
       try {
-        const result = await request<InputResult>("x15_input", { player });
+        const result = await request<InputResult>("gameplay_input", { player });
         if (stopped) return;
         setConnected(result.connected && !!result.input);
         if (!result.connected) setBound(false);
@@ -107,7 +119,7 @@ export function InputWorkspace({
       stopped = true;
       clearTimeout(timer);
     };
-  }, [active, bound, player, x15]);
+  }, [active, bound, player, basicInput]);
   const perform = async (action: () => Promise<void>) => {
     setBusy(true);
     setError("");
@@ -144,7 +156,7 @@ export function InputWorkspace({
                 setTab(id);
                 if (
                   id !== "buttons" &&
-                  !(x15 && ["tester", "power"].includes(id))
+                  !(basicInput && ["tester", "power"].includes(id))
                 )
                   setMissing(label);
               }}
@@ -169,7 +181,7 @@ export function InputWorkspace({
             {profile.name} Controller <small>Player {player}</small>
           </strong>
           <p role="status">
-            {x15
+            {basicInput
               ? connected
                 ? "Gameplay input connected"
                 : "Gameplay input disconnected"
@@ -180,7 +192,7 @@ export function InputWorkspace({
           <button className="button secondary" onClick={onBack}>
             Switch Controller
           </button>
-          {x15 && (
+          {basicInput && (
             <button
               className="button primary"
               disabled={busy}
@@ -199,15 +211,55 @@ export function InputWorkspace({
           {profile.name}{" "}
           {tab === "tester"
             ? "input tester"
-            : tab === "device"
+            : tab === "power"
               ? "device & connection"
               : "controller"}
         </h1>
         <p className="notice">
-          {x15
-            ? "Experimental gameplay input. Device selection is explicit; configuration programming is unavailable."
+          {basicInput
+            ? "Your controller is supported for basic input testing, but X20CTL still needs additional captures to implement advanced trigger, macro and vibration configuration. Run Scanner to help us complete support."
             : "This controller is not available yet. More verified data is needed. You can help using the built-in scanner."}
         </p>
+        {basicInput && (
+          <details className="metal-panel compatibility-status">
+            <summary>Known / Missing · basic input support</summary>
+            <div className="compatibility-grid">
+              <div>
+                <h2>Known</h2>
+                <ul>
+                  {profile.known?.map((text) => (
+                    <li key={text}>{text}</li>
+                  ))}
+                </ul>
+                <p>
+                  Input Tester maps A/B/X/Y, D-pad, LB/RB, L3/R3, Back/View,
+                  Start/Menu, both sticks and LT/RT when the selected Windows
+                  source reports them. Standard XInput does not expose
+                  Home/Guide or independent M keys.
+                </p>
+                {receivers.map((item, index) => (
+                  <p key={index}>
+                    {item.model?.toUpperCase() ||
+                      "Generic Xbox-compatible identity"}{" "}
+                    · {item.status.replace(/_/g, " ")}; wireless link
+                    unverified.
+                  </p>
+                ))}
+              </div>
+              <div>
+                <h2>Missing</h2>
+                <ul>
+                  {profile.missing?.map((text) => (
+                    <li key={text}>{text}</li>
+                  ))}
+                </ul>
+                <button className="button secondary" onClick={() => onScan()}>
+                  Help complete support · Run Scanner
+                </button>
+              </div>
+            </div>
+          </details>
+        )}
         {error && (
           <p className="error-text" role="alert">
             {error}
@@ -228,17 +280,19 @@ export function InputWorkspace({
                 rightStick={live.rightStick}
                 leftTrigger={live.leftTrigger}
                 rightTrigger={live.rightTrigger}
-                selectedKey={x15 ? selected : null}
-                onSelect={x15 ? select : undefined}
-                disabled={!x15}
+                selectedKey={basicInput ? selected : null}
+                onSelect={basicInput ? select : undefined}
+                disabled={!basicInput}
               />
               <div className="input-inspector">
                 <span className="engraved">
-                  {x15 ? "RECEIVED INPUT" : "RESEARCH PREVIEW"}
+                  {basicInput ? "RECEIVED INPUT" : "RESEARCH PREVIEW"}
                 </span>
-                <h2>{x15 ? KEY_LABELS[selected] : "Help add support"}</h2>
+                <h2>
+                  {basicInput ? KEY_LABELS[selected] : "Help add support"}
+                </h2>
                 <p>
-                  {x15
+                  {basicInput
                     ? connected
                       ? live.buttons[selected]
                         ? "Pressed"
@@ -246,7 +300,7 @@ export function InputWorkspace({
                       : "Connect the controller to receive live input."
                     : "The picture is a preview. It does not establish software or protocol support."}
                 </p>
-                {x15 && (
+                {basicInput && (
                   <>
                     <div className="input-value-row">
                       <span>LT</span>
@@ -292,15 +346,15 @@ export function InputWorkspace({
             <h2>Selected input connection</h2>
             <p>{source || "No input source selected"}</p>
             <p>
-              Firmware and hardware revision: unknown. The observed HID profile
-              is shared and cannot identify an X15 automatically. A receiver
-              input stream does not independently prove the controller's
-              wireless link status.
+              Firmware and hardware revision: unknown. Gameplay compatibility
+              IDs are shared and cannot identify the model automatically. A
+              receiver input stream does not independently prove the
+              controller's wireless link status.
             </p>
             <p>
-              The latest received trigger capture contained only released/full
-              values. Actual intermediate values will be displayed if this mode
-              reports them.
+              Actual intermediate trigger values are displayed if this selected
+              mode reports them. Endpoint-only readings do not prove analog
+              travel.
             </p>
             <button className="button secondary" onClick={() => onScan()}>
               Collect controller data
@@ -340,7 +394,7 @@ export function InputWorkspace({
       </main>
       <footer className="chassis-footer">
         <span>
-          {x15
+          {basicInput
             ? "Read-only gameplay input · no configuration writes"
             : "Preview only · help collect controller data"}
         </span>
@@ -396,6 +450,10 @@ export function InputWorkspace({
                       "input_discover",
                       { phase: "after", player },
                     );
+                    const evidence = await request<{
+                      receivers: typeof receivers;
+                    }>("input_evidence", { player });
+                    setReceivers(evidence.receivers);
                     setChoices(found);
                     setConnectStep("choose");
                   })

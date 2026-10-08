@@ -22,6 +22,10 @@ class Files:
 
 
 def worker(request):
+    if request["operation"] == "rumble_probe":
+        from x20ctl.desktop.rumble import probe
+        return probe(request.get("slot"), request.get("left"), request.get("right"),
+                     request.get("duration"), request.get("confirmed"))
     if request["operation"] == "ble_scan":
         from .ble import scan
 
@@ -62,7 +66,7 @@ def worker(request):
         reader = (
             XInputReader(XInput(), request["slot"])
             if request["source"] == "xinput_state"
-            else HidReader(Native(), request["selected"])
+            else HidReader(Native(), request["selected"], request.get("vendorInput", False))
         )
         try:
             return record_action(
@@ -81,6 +85,7 @@ class Backend:
     def __init__(self):
         self.session = None
         self.progress = None
+        self.rumble_slot = None
 
     def run(self, request, timeout=25):
         from x20ctl.desktop.scan_worker import WorkerSession
@@ -96,9 +101,14 @@ class Backend:
             raise
 
     def close(self):
+        slot = self.rumble_slot
         if self.session:
             self.session.close()
             self.session = None
+        if slot is not None:
+            from x20ctl.desktop.rumble import stop
+            self.rumble_slot = None
+            stop(slot)
 
     def inventory(self):
         return self.run({"operation": "inventory"})
@@ -115,7 +125,17 @@ class Backend:
     def ble_inspect(self, selected):
         return self.run({"operation": "ble_inspect", "selected": selected}, timeout=45)
 
-    def capture(self, report, selected, source, slot, filename, action, duration):
+    def rumble(self, slot, left, right, confirmed):
+        if confirmed is not True or type(slot) is not int or not 0 <= slot <= 3:
+            raise ValueError("Approve a selected XInput slot before rumble")
+        self.rumble_slot = slot
+        try:
+            return self.run({"operation": "rumble_probe", "slot": slot, "left": left,
+                             "right": right, "duration": .35, "confirmed": confirmed}, timeout=5)
+        finally:
+            self.rumble_slot = None
+
+    def capture(self, report, selected, source, slot, filename, action, duration, vendor_input=False):
         return self.run(
             {
                 "operation": "capture",
@@ -126,6 +146,7 @@ class Backend:
                 "filename": filename,
                 "action": action,
                 "duration": duration,
+                "vendorInput": vendor_input,
             },
             timeout=duration + 10,
         )

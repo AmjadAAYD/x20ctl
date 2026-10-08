@@ -1,7 +1,7 @@
 VSVersionInfo(
   ffi=FixedFileInfo(
-    filevers=(4, 1, 0, 1),
-    prodvers=(4, 1, 0, 1),
+    filevers=(4, 1, 0, 2),
+    prodvers=(4, 1, 0, 2),
     mask=0x3F,
     flags=0x0,
     OS=0x40004,
@@ -16,12 +16,12 @@ VSVersionInfo(
         [
           StringStruct('CompanyName', 'x20ctl contributors'),
           StringStruct('FileDescription', 'x20ctl controller configurator'),
-          StringStruct('FileVersion', '4.1.0-preview.1'),
+          StringStruct('FileVersion', '4.1.0-preview.2'),
           StringStruct('InternalName', 'x20ctl'),
           StringStruct('LegalCopyright', 'Copyright (c) x20ctl contributors'),
           StringStruct('OriginalFilename', 'x20ctl.exe'),
           StringStruct('ProductName', 'x20ctl'),
-          StringStruct('ProductVersion', '4.1.0-preview.1')
+          StringStruct('ProductVersion', '4.1.0-preview.2')
         ]
       )
     ]),

@@ -1,7 +1,8 @@
 import catalog from "../x20ctl/controllers/catalog.json";
 import type { KeyName } from "./types/gamepad";
 
-export type ControllerId = "x20" | "x20_pro" | "x05" | "x05_pro" | "x10" | "d10" | "x15";
+export type ControllerId =
+  "x20" | "x20_pro" | "x05" | "x05_pro" | "x10" | "d10" | "x15";
 export type Point = { x: number; y: number };
 export interface ControllerProfile {
   id: ControllerId;
@@ -11,7 +12,10 @@ export interface ControllerProfile {
   visible: boolean;
   placeholder: boolean;
   softwareControl: string;
-  availability?: "configuration" | "preview" | "input_experimental" | "unavailable";
+  known?: string[];
+  missing?: string[];
+  availability?:
+    "configuration" | "preview" | "input_experimental" | "unavailable";
   inputBackend?: string | null;
   connectionModes?: string[];
   macroPlacement?: string;
@@ -33,8 +37,14 @@ export interface ControllerProfile {
     artworkBounds?: Point & { w: number; h: number };
     viewLabel?: string;
     sticks: {
-      left: Point & { radius: number; cap: (Point & { w: number; h: number }) | null };
-      right: Point & { radius: number; cap: (Point & { w: number; h: number }) | null };
+      left: Point & {
+        radius: number;
+        cap: (Point & { w: number; h: number }) | null;
+      };
+      right: Point & {
+        radius: number;
+        cap: (Point & { w: number; h: number }) | null;
+      };
     };
     buttons: Partial<Record<KeyName, Point>>;
     motors: (Point & { id: string; kind: string })[];
@@ -52,7 +62,8 @@ export interface ControllerProfile {
 export const controllers = catalog as ControllerProfile[];
 export const controller = (id: ControllerId) =>
   controllers.find((item) => item.id === id)!;
-export const unavailableController = (id: ControllerId) => controller(id).availability === "unavailable";
+export const unavailableController = (id: ControllerId) =>
+  controller(id).availability === "unavailable";
 const assets = import.meta.glob("./assets/controllers/*/*.{png,jpg,webp}", {
   eager: true,
   import: "default",

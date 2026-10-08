@@ -48,5 +48,12 @@
       "git_blob_sha": "c5ee07e63047dd6d8eb975bacf94a4f3bcfaf246",
       "source_sha256": "dcfffacb3942fe4da4d06b1b04eb505e114449673c349154b1276e66f6675f90"
     }
+  ],
+  "local_adaptations": [
+    "App-owned input source binding and durable capture progress",
+    "Phase 1 action/trigger analysis and guided experiments",
+    "Opt-in bounded XInput rumble delegated to the desktop worker",
+    "D10 vendor INPUT collection allowlist; no vendor outputs",
+    "Original imported source hashes above are provenance, not claims that adapted files remain identical"
   ]
 }

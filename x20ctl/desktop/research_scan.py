@@ -15,6 +15,8 @@ import zipfile
 from urllib import request as http
 
 from x20ctl import __version__
+from x20ctl.scanning import APP_VERSION
+from x20ctl.controllers.compatibility import identify_receiver
 from x20ctl.scanning.backend import Backend
 from x20ctl.scanning.evidence import (
     clean_text,
@@ -338,6 +340,7 @@ class ResearchScanner:
                 "transport": clean_text(payload.get("transport", "unknown")),
                 "rawInput": payload.get("rawInput") is True,
                 "autoSubmit": payload.get("autoSubmit") is True,
+                **{key: clean_text(payload.get(key) or "unknown") for key in ("firmware", "hardwareRevision", "receiverFirmware", "appName", "appVersion")},
             }
             self.attachment_scopes = {}
             self.view = {
@@ -362,15 +365,15 @@ class ResearchScanner:
                     **self.options,
                     "modelDetected": False,
                     "evidenceType": "owner_reported",
-                    "firmware": "unknown",
-                    "hardwareRevision": "unknown",
+                    "firmware": self.options["firmware"],
+                    "hardwareRevision": self.options["hardwareRevision"],
                 },
             )
             self._write(
                 "system.json",
                 {
                     "appVersion": __version__,
-                    "scannerVersion": "1.1.0-app",
+                    "scannerVersion": APP_VERSION,
                     "os": platform.system(),
                     "osVersion": platform.version(),
                     "architecture": platform.machine(),
@@ -426,6 +429,7 @@ class ResearchScanner:
             )
             after = self._step("identity", self.backend.inventory)
             selected = None
+            chosen_source = None
             rows = []
             tests = []
             if before and after:
@@ -458,10 +462,12 @@ class ResearchScanner:
                             )
                             or []
                         )
+                        self._write("device/hid-caps.json", {"devices": [public_device(r) for r in rows if r.get("kind") == "hid"], "originalDescriptorBytes": False})
                         self._write(
                             "device.json",
                             {
                                 "modelDetected": False,
+                                "receiverEvidence": [identify_receiver(r) for r in rows],
                                 "devices": [public_device(r) for r in rows],
                             },
                         )
@@ -527,6 +533,7 @@ class ResearchScanner:
                     )
                     if choice != "skip":
                         source = sources[int(choice)]
+                        chosen_source = source
                         self._mark(
                             "xinput"
                             if source["source"] == "xinput_state"
@@ -548,6 +555,12 @@ class ResearchScanner:
                         self._mark(
                             key, "skipped", "No input source selected or tests skipped"
                         )
+            from x20ctl.scanning.guided import input_sessions, write_mapping, identity_sessions, vendor_session
+            tests += vendor_session(self, rows)
+            if chosen_source:
+                tests += input_sessions(self, chosen_source, selected, rows)
+            write_mapping(self, tests)
+            identity_sessions(self)
             self._write(
                 "session.json", {**self.options, "tests": tests, "modelDetected": False}
             )
@@ -643,6 +656,8 @@ class ResearchScanner:
                 ("three_quarters", 3),
                 ("full", 3),
                 ("release", 3),
+                ("smooth_sweep_up", 5),
+                ("smooth_sweep_down", 5),
             ]:
                 stages.append(
                     (
@@ -836,6 +851,9 @@ class ResearchScanner:
         on = self._step("ble", self.backend.ble_scan) or []
         before = {r["_key"] for r in off}
         options = [r for r in on if r["_key"] not in before]
+        from x20ctl.scanning.model_evidence import ble_hints
+        for row in options:
+            row["researchHint"] = ble_hints(self.options["model"], row)
         if not options:
             self._mark(
                 "ble",
@@ -846,7 +864,7 @@ class ResearchScanner:
         selected = self._ask(
             "Choose your newly appeared BLE peripheral, or Skip if unsure.",
             "choice",
-            [clean_text(r["name"]) for r in options],
+            [clean_text(r["name"]) + (" · discovery candidate" if r["researchHint"]["families"] else "") for r in options],
         )
         if selected == "skip":
             self._mark("ble", "skipped", "No target confirmed")
@@ -859,6 +877,7 @@ class ResearchScanner:
         data = self._step("ble", lambda: self.backend.ble_inspect(item))
         if data:
             self._write("ble/gatt.json", data)
+            self._write("ble/research-hints.json", ble_hints(self.options["model"], item, data))
             self._mark(
                 "battery",
                 "observed"
@@ -908,6 +927,9 @@ class ResearchScanner:
         self._write("observations.json", observations)
 
     def _experiment(self):
+        if self.options["model"].strip().lower() in {"x15", "x10"}:
+            from x20ctl.scanning.protocol_session import collect
+            return collect(self)
         if (
             self._ask(
                 "Optional: record one non-RGB setting change in an app you ALREADY use successfully with this controller? No firmware, reset or calibration.",
@@ -987,7 +1009,7 @@ class ResearchScanner:
         for category, question in [
             (
                 "trace",
-                "Optional: attach ONE existing USBPcap PCAP/PCAPNG or Android Bluetooth log. Raw traces may contain IDs, pairing data or unrelated traffic. No logging driver is installed.",
+                "Optional: attach ONE existing USBPcap, Windows BTVS HCI PCAP/PCAPNG or Android Bluetooth log. Raw traces may contain IDs, pairing data or unrelated traffic. No logging driver is installed.",
             ),
         ]:
             if self._ask(question + " Include it in this report?", "yes") != "yes":
@@ -1036,6 +1058,13 @@ class ResearchScanner:
             raise ValueError(
                 "Photo collection is not supported; only protocol traces can be attached"
             )
+        self._write("attachments/trace-association.json", {
+            **{key: self.options.get(key, "unknown") for key in ("model", "firmware", "hardwareRevision", "receiverFirmware", "appName", "appVersion", "mode", "transport")},
+            "evidenceType": "owner_reported_context", "traceFormat": info["format"],
+            "traceTransport": info["transport"], "sha256": hashlib.sha256(data).hexdigest(),
+            "actionTimeline": [str(p.relative_to(self.output)).replace("\\", "/") for p in sorted((self.output / "experiments").glob("*timeline*.json"))],
+            "commandProtocolVerified": False, "targetIdentityVerified": False,
+        })
         self._write(f"attachments/{category}.{extension}", data, True)
         self.attachment_scopes[category] = True
         self._update(state="collecting")
@@ -1216,7 +1245,10 @@ class ResearchScanner:
         self.responses.put(None)
         close = getattr(self.backend, "close", None)
         if close:
-            close()
+            try:
+                close()
+            except OSError as error:
+                self._update(error=clean_text(str(error)))
         self._update(
             state="cancelled",
             prompt=None,
