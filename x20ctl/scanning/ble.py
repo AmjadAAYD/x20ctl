@@ -31,6 +31,7 @@ async def inspect_client(client):
         for char in service.characteristics:
             if len(record["characteristics"]) >= 128: raise ValueError("GATT characteristic limit exceeded")
             item = {"uuid": char.uuid.lower(), "properties": list(char.properties),
+                    "handle": getattr(char, "handle", None),
                     "descriptor_uuids": [d.uuid for d in char.descriptors][:32]}
             label = STANDARD.get((service.uuid.lower(), char.uuid.lower()))
             if label and "read" in char.properties:

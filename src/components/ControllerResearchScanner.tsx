@@ -49,6 +49,13 @@ export function ControllerResearchScanner({
   const [state, setState] = useState<ScanState>(idle);
   const [printedModel, setModel] = useState(model || "Unknown");
   const [mode, setMode] = useState("");
+  const [metadata, setMetadata] = useState({
+    firmware: "",
+    hardwareRevision: "",
+    receiverFirmware: "",
+    appName: "",
+    appVersion: "",
+  });
   const [transport, setTransport] = useState("receiver");
   const [consent, setConsent] = useState(preauthorized);
   const [autoSubmit, setAutoSubmit] = useState(true);
@@ -163,6 +170,27 @@ export function ControllerResearchScanner({
       {setup && (
         <div className="research-setup">
           <p>
+            Normal capture records input states, available descriptors, trigger
+            and rear-button behavior, and optional standard XInput vibration
+            tests. It cannot see outbound USB/HID commands or another app's BLE
+            traffic.
+          </p>
+          <details className="research-section">
+            <summary>External protocol capture · optional research</summary>
+            <p>
+              For Windows USB/HID, use owner-installed USBPcap with Wireshark
+              while an already-working official app changes one reversible
+              setting, then restores it. For phone BLE configuration, collect
+              the Android phone's Bluetooth HCI snoop log. Import a selected
+              trace at the end. No capture driver is installed or launched here.
+              For a Windows-host BLE connection, Microsoft Bluetooth Virtual
+              Sniffer with Wireshark is an optional HCI capture route; default
+              logs can omit payloads. A PC logger cannot see a separate phone
+              connection.
+            </p>
+          </details>
+
+          <p>
             Identify your controller, follow the exact button/stick/trigger
             prompts, then review and share the report. Unknown data stays
             unknown.
@@ -197,6 +225,32 @@ export function ControllerResearchScanner({
               />
             </label>
           </div>
+          <details>
+            <summary>Firmware / app capture context (optional)</summary>
+            <div className="research-fields">
+              {(
+                [
+                  ["firmware", "Controller firmware"],
+                  ["hardwareRevision", "Hardware revision"],
+                  ["receiverFirmware", "Receiver firmware"],
+                  ["appName", "Configuration app name"],
+                  ["appVersion", "App version"],
+                ] as const
+              ).map(([key, label]) => (
+                <label key={key}>
+                  {label}
+                  <input
+                    maxLength={80}
+                    value={metadata[key]}
+                    onChange={(event) =>
+                      setMetadata({ ...metadata, [key]: event.target.value })
+                    }
+                    placeholder="Unknown"
+                  />
+                </label>
+              ))}
+            </div>
+          </details>
           <label className="research-check">
             <input
               type="checkbox"
@@ -222,7 +276,8 @@ export function ControllerResearchScanner({
               onChange={(e) => setConsent(e.target.checked)}
             />
             I authorize this local scan and the selected submission scope. No
-            settings, firmware or RGB commands are sent.
+            stored settings, firmware or RGB commands are sent. Short standard
+            XInput motor tests require a separate confirmation during the scan.
           </label>
           <button
             className="button primary"
@@ -230,6 +285,7 @@ export function ControllerResearchScanner({
             onClick={() =>
               void run("research_start", {
                 model: printedModel,
+                ...metadata,
                 mode: mode || "unknown",
                 transport,
                 consent,
@@ -363,7 +419,13 @@ export function ControllerResearchScanner({
           <div>
             {Object.entries(state.coverage).map(([name, outcome]) => (
               <article key={name}>
-                <strong>{name === "triggers" ? "Trigger readings" : name === "vibration" ? "Vibration feedback" : name.replace(/_/g, " ")}</strong>
+                <strong>
+                  {name === "triggers"
+                    ? "Trigger readings"
+                    : name === "vibration"
+                      ? "Vibration feedback"
+                      : name.replace(/_/g, " ")}
+                </strong>
                 <span>{outcome.status.replace(/_/g, " ")}</span>
                 <small>{outcome.reason}</small>
               </article>
@@ -381,9 +443,9 @@ export function ControllerResearchScanner({
             Inspect local files
           </button>
           <p>
-            Raw captures may contain identifiers, pairing data,
-            unrelated traffic or location metadata. Optional files can be
-            removed before sending.
+            Raw captures may contain identifiers, pairing data, unrelated
+            traffic or location metadata. Optional files can be removed before
+            sending.
           </p>
           <ul>
             {state.files.map((file) => (

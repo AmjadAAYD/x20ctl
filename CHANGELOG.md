@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.1.0-preview.2] - 2026-10-08
+
+- Experimental selected-source input for D10, X15, X05 and X10, with guarded configuration and Known/Missing status.
+- Extended guided evidence collection, model-specific BLE discovery hints and HCI trace/context import.
+- Reject explicitly named non-X20 peripherals before the X20 settings writer.
+- Direct EXE preview distribution; persistent remapping remains disabled for these four models.
+
 ## [4.1.0-preview.1] - 2026-10-07
 
 - Seven-model, four-player desktop workspace and shared Studio sections.

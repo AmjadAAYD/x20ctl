@@ -142,7 +142,7 @@ function X20Workspace({
   const [updatesEnabled, setUpdatesEnabled] = useState(true);
   const [update, setUpdate] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
-  const [version, setVersion] = useState("4.1.0-preview.1");
+  const [version, setVersion] = useState("4.1.0-preview.2");
   const [inputBackend, setInputBackend] = useState("Gameplay input");
   const [closeToTray, setCloseToTray] = useState(true);
   const [tab, setTab] = useState<Tab>("buttons");
@@ -1646,7 +1646,7 @@ export function App() {
                   onSupport={() => setSupportOpen(true)}
                   onScan={() => openResearch(profile.name)}
                 />
-              ) : profile.id === "x15" || unavailableController(profile.id) ? (
+              ) : profile.availability === "input_experimental" || unavailableController(profile.id) ? (
                 <InputWorkspace model={profile.id} active={visible} player={player + 1} onBack={() => void returnToPlayers()} onSupport={() => setSupportOpen(true)} onScan={(authorized = false) => openResearch(profile.name, authorized)} />
               ) : (
                 <ModelWorkspace

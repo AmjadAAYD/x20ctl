@@ -1,0 +1,46 @@
+Investigate whether enough public, verifiable technical evidence exists to implement controller-side button remapping in X20CTL for EasySMX D10, X15, X05 and X10. Use Deep Research and inspect actual sources. Prioritize remapping; investigate related missing capabilities afterward. Do not write code, release software or claim hardware testing you have not performed.
+
+PROJECT CONTEXT
+X20CTL is a Windows desktop app. A local, unreleased Phase 1 build supports explicitly selected Windows XInput sources for these four models, plus a narrowly matched candidate HID input layout for X15. It includes input testing and a guided scanner. None of these four has a verified remapping/configuration backend. The existing X20 configuration implementation is a reference for comparison, not proof of compatibility with other models.
+
+Input testing, firmware-side onboard programming, host-side software remapping and persistent controller configuration are different capabilities. Our release is on hold pending actual remapping support; do not solve that by relabeling input testing as remapping.
+
+CURRENT EVIDENCE — VERIFY IT, DO NOT OVERSTATE IT
+- D10 receiver: public owner USB/HID dump for VID/PID 2345:E062, Xbox-compatible interface and a separate HID interface. Vendor usage page FFA0 has input Report ID 6 (63-byte payload) and output Report ID 7 (31-byte payload). An output report's existence/size does not establish command meanings, byte layout or acknowledgement semantics.
+- X15 receiver: 1A34:F517 is owner-reported, experimental evidence. Our supplied X15-labelled input sample matched a shared 0079:181C, usage 1/5, input 10/output 5/feature 0 layout. That is not unique model identification or evidence of a configuration channel.
+- 045E:028E is a generic Xbox 360 compatibility identity. Never use it alone to identify X05, X10 or X15. Likewise, a generic Switch identity is not a unique EasySMX fingerprint.
+- X15/KeyLinker is a configuration lead requiring confirmation. X20 uses service d7f010e0-660d-46e9-96c3-19c4148bdab5, write characteristic ending e1 and notify characteristic ending e2. Shared names/UUIDs do not prove shared commands.
+- EasySMX documents an Android configuration app for X10; QMacro is a reported device-name clue. Exact model-specific GATT services and commands still need evidence.
+- Standard XInput exposes ordinary controls and two-channel rumble, not persistent button-remapping commands or documented independent M1/M2 inputs. Our scanner's bounded XInput motor tests do not establish stored vibration configuration or independent trigger-motor support.
+
+QUESTIONS TO ANSWER FOR EACH MODEL
+1. Does a public, usable controller-side remapping protocol actually exist? Search manufacturer/developer documentation, public source implementations, reverse-engineering issues, captured USB/HID/BLE traffic and reproducible owner experiments. Marketing, an app menu or a manual saying "remapping" establishes a feature, not its wire protocol.
+2. Identify exact model/revision/firmware/mode/transport limits. Separate direct USB, receiver, native/DInput, Bluetooth gameplay and any separate configuration connection. Include services/characteristics or USB interfaces/endpoints only when sourced.
+3. If commands are documented, identify framing, opcodes, lengths, source/target key encoding, record order, chunking, counters/checksums, authentication/session setup, supported buttons, write acknowledgement, read-back, persistence and restoration. Give compact cited command examples only where real evidence supports them. Explain whether an implementation was physically tested and by whom.
+4. Are rear/M/extra shoulder controls independent input usages, aliases, firmware macro triggers or mode-dependent? Are mapping and macro programming separate protocols? Do not assume X20's slot count, 47-entry limit or 5 ms timing applies to other controllers.
+5. After remapping, investigate missing trigger-mode/deadzone/curve configuration, macro format/programming/storage and grip/trigger vibration configuration. Distinguish readable trigger axes and ordinary rumble from those configuration features. RGB is completely out of scope.
+6. Find missing original HID descriptors and reliable normal/receiver/firmware-mode fingerprints. Distinguish original descriptors from Windows parsed caps. Firmware-mode enumeration is relevant; flashing instructions or speculative firmware modifications are not.
+
+STARTING SOURCES — OPEN THEM AND FOLLOW RELEVANT REFERENCES
+- https://github.com/AmjadAAYD/x20ctl — inspect the X20 protocol/client. The published v4.1.0-preview.1-exe tag does not include our later unreleased Phase 1 changes.
+- https://github.com/paroj/xpad/issues/344
+- https://github.com/paroj/xpad/pull/345
+- https://www.reddit.com/r/EasySMX/comments/1knlehk — original owner evidence, not manufacturer verification.
+- https://www.easysmx.com/pages/app-use
+- https://www.easysmx.com/pages/support-about-easysmx-x15-controller
+- https://www.easysmx.com/pages/support-about-easysmx-x05-controller
+- https://www.easysmx.com/pages/support-about-easysmx-x10-controller
+- https://www.easysmx.com/pages/support-about-easysmx-d10-controller
+- https://github.com/logicdata1/EasySMX-X10-AC695X-Firmware-RE — firmware research is not automatically a decoded configuration protocol.
+
+EVIDENCE RULES
+Prefer primary technical evidence and inspect the contents of each relevant source. Label manufacturer claims, owner captures, tested implementations and hypotheses separately. Report conflicts across revisions/modes. Cite direct URLs next to claims, with relevant commit/file/date where available. Mark inaccessible evidence unverified. "Not found in the searched public sources" does not prove a protocol does not exist. Do not fabricate VID/PID values, commands, captures or compatibility. Do not recommend sending guessed reports or copying X20 commands onto another model. Do not equate XInput or Steam remapping with controller-side configuration.
+
+OUTPUT
+Begin with a concise decision table for D10/X15/X05/X10: confirmed public remapping protocol, partial evidence, no usable public protocol found, or conflicting evidence. State exactly what each status is based on.
+
+For each model, provide a compact sourced dossier, exact implementation-ready information, remaining blockers and the smallest owner capture needed to close them. If sufficient evidence exists, produce a conservative Codex implementation brief with a simulated test plan and separate physical write/read-back/restore acceptance criteria. Otherwise say explicitly that implementation should remain disabled.
+
+Finish with an evidence-gap matrix for remapping, macros, triggers, vibration, descriptors and identity; rank the next research tasks by usefulness. Explain the appropriate capture route for each missing item: USBPcap/Wireshark for Windows USB/HID app traffic; Microsoft BTVS/Wireshark for this PC's Bluetooth host traffic; Android HCI snoop logs for phone-app traffic. Normal HID input logging cannot intercept another application's outputs or another host's BLE connection.
+
+The goal is a defensible go/no-go decision and actionable evidence requests, not a claim that every controller is now fully supported.

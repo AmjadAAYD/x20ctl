@@ -36,7 +36,7 @@ jobs:
       - name: Build integrated Windows preview
         run: |
           python tools/licenses.py
-          python -m PyInstaller --noconfirm x20ctl.spec --distpath dist/4.1.0-preview.1
+          python -m PyInstaller --noconfirm x20ctl.spec --distpath dist/4.1.0-preview.2
           python tools/package_desktop_preview.py
       - name: Upload Windows preview archive
         uses: actions/upload-artifact@v4

@@ -100,11 +100,16 @@ class InputBindings:
         self.sources = {}
         self.source_owner = None
         self.bindings = {}
+        self.identities = []
 
-    def discover(self, phase):
+    def discover(self, phase, model="x15"):
+        from x20ctl.controllers.compatibility import INPUT_MODELS, identify_receiver
+        if model not in INPUT_MODELS:
+            raise ValueError("Unsupported input model")
         if phase == "before":
             self.before = self.backend.inventory()
             self.sources = {}
+            self.identities = []
             return []
         if phase != "after" or self.before is None:
             raise ValueError(
@@ -116,8 +121,10 @@ class InputBindings:
             [r for r in after["devices"] if r["_key"] not in previous]
         )
         self.sources = {}
+        self.identities = [identify_receiver(row) for row in rows
+                           if identify_receiver(row)["status"] != "unknown"]
         for row in rows:
-            if row.get("kind") == "hid" and known_profile(row):
+            if model == "x15" and row.get("kind") == "hid" and known_profile(row):
                 self.sources[uuid.uuid4().hex] = {
                     "source": "hid_input",
                     "selected": row,
@@ -137,6 +144,12 @@ class InputBindings:
             {"token": token, "label": item["label"]}
             for token, item in self.sources.items()
         ]
+
+    def evidence(self):
+        from x20ctl.controllers.compatibility import STANDARD_CONTROLS
+        return {"receivers": self.identities, "standardControls": list(STANDARD_CONTROLS),
+                "guideSupported": False, "independentRearInputs": "unknown",
+                "scope": "Receiver metadata does not bind an XInput slot or confirm wireless link"}
 
     def attach(self, player, token):
         if type(player) is not int or not 1 <= player <= 4 or token not in self.sources:

@@ -309,7 +309,7 @@
     "backend": null,
     "visible": true,
     "placeholder": true,
-    "softwareControl": "unverified",
+    "softwareControl": "input_only_experimental",
     "connectionModes": [
       "USB",
       "2.4 GHz",
@@ -445,8 +445,19 @@
       ],
       "screen": null
     },
-    "availability": "unavailable",
-    "inputBackend": null
+    "availability": "input_experimental",
+    "inputBackend": "correlated_xinput",
+    "known": [
+      "Ordinary controls can be tested when Windows exposes a correlated XInput source.",
+      "045E:028E is a generic compatibility identity, not an X05 detector.",
+      "Earlier physical X05 findings found no KeyLinker or HID feature-report configuration route on the tested unit; this is bounded negative evidence."
+    ],
+    "missing": [
+      "Unique native/DInput, receiver and Bluetooth fingerprints.",
+      "Original HID descriptors and trigger raw representation per mode.",
+      "Advanced remapping and vibration configuration commands.",
+      "Firmware-mode identity and owner-confirmed revision: earlier findings describe M1/M2, while the current visual profile has no rear controls."
+    ]
   },
   {
     "id": "x05_pro",
@@ -619,7 +630,7 @@
     "backend": null,
     "visible": true,
     "placeholder": true,
-    "softwareControl": "unverified",
+    "softwareControl": "input_only_experimental",
     "connectionModes": [
       "USB",
       "2.4 GHz",
@@ -743,8 +754,18 @@
       "rgb": [],
       "screen": null
     },
-    "availability": "unavailable",
-    "inputBackend": null
+    "availability": "input_experimental",
+    "inputBackend": "correlated_xinput",
+    "known": [
+      "Ordinary controls can be tested when Windows exposes a correlated XInput source.",
+      "The manufacturer documents Android configuration for X10; Its support page documents the separate QMacro configuration connection."
+    ],
+    "missing": [
+      "Unique wired, receiver, Bluetooth and native/DInput fingerprints.",
+      "QMacro services/characteristics and exact command framing.",
+      "Rear-button independence, macro storage/programming/playback and vibration configuration.",
+      "Trigger reports per mode and firmware/bootloader identity."
+    ]
   },
   {
     "id": "d10",
@@ -756,7 +777,7 @@
     "backend": null,
     "visible": true,
     "placeholder": true,
-    "softwareControl": "unverified",
+    "softwareControl": "input_only_experimental",
     "connectionModes": [
       "USB",
       "2.4 GHz",
@@ -880,8 +901,18 @@
       "rgb": [],
       "screen": null
     },
-    "availability": "unavailable",
-    "inputBackend": null
+    "availability": "input_experimental",
+    "inputBackend": "correlated_xinput",
+    "known": [
+      "Receiver 2345:E062 and its USB/HID interfaces are documented in a public owner dump.",
+      "Correlated Windows XInput can expose ordinary buttons, both sticks and LT/RT."
+    ],
+    "missing": [
+      "Long Hall versus short/FPS trigger reports in each mode.",
+      "Independent rear-button visibility and macro programming/storage/playback traffic.",
+      "Meaning of vendor reports 6/7 and advanced grip/trigger vibration commands.",
+      "Direct-controller, DInput/Bluetooth and controller/receiver firmware-mode identities."
+    ]
   },
   {
     "id": "x15",
@@ -1009,6 +1040,17 @@
       "screen": null
     },
     "availability": "input_experimental",
-    "inputBackend": "x15_hid_or_xinput"
+    "inputBackend": "x15_hid_or_xinput",
+    "known": [
+      "Receiver 1A34:F517 is an experimental owner-reported fingerprint.",
+      "Correlated XInput and the narrowly observed 0079:181C gameplay HID layout can expose ordinary inputs.",
+      "Owners report persistent KeyLinker configuration and an X15 GATT dump with d7f010e0/e1/e2 and FF12/FF13/FF14/FF15. These are transport evidence, not verified remap commands."
+    ],
+    "missing": [
+      "Independent model/mode/firmware confirmation and native descriptors.",
+      "LT/RT intermediate values across wired, receiver and Bluetooth modes.",
+      "M1/M2 independent visibility, macro storage/playback and exact configuration framing.",
+      "X15-specific BLE remap framing, key encoding, ACK/readback, persistence/restore acceptance, vibration commands and bootloader identity."
+    ]
   }
 ]

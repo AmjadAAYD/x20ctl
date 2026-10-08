@@ -15,6 +15,7 @@ from x20ctl import __version__, protocol as p
 from x20ctl.client import ControllerError, X20, find_controllers
 from x20ctl.input import XInputReader, MacroRecorder
 from x20ctl.controllers import get_profile
+from x20ctl.controllers.compatibility import known_other_model_name
 from . import pro_discovery
 from .reports import ReportWorkflow
 from .platform_support import data_directory
@@ -102,13 +103,13 @@ class DeviceService:
                 if operation == "research_remove":
                     return self._research.remove_attachment(payload.get("path"))
             raise ValueError("Unknown research operation")
-        if operation in {"input_discover", "input_attach", "input_detach", "x15_input"}:
-            if self._active_model != "x15" or payload.get("player") != self._active_player:
-                raise ValueError("Select the correct X15 player before accessing input")
+        if operation in {"input_discover", "input_attach", "input_detach", "x15_input", "gameplay_input", "input_evidence"}:
+            if get_profile(self._active_model).availability != "input_experimental" or payload.get("player") != self._active_player:
+                raise ValueError("Select the correct input player before accessing input")
             if sys.platform != "win32":
-                raise ValueError("This experimental X15 input connector currently requires Windows")
+                raise ValueError("This experimental input connector currently requires Windows")
             if self._research.busy():
-                if operation == "x15_input":
+                if operation in {"x15_input", "gameplay_input"}:
                     return {"connected": False, "input": None, "paused": True}
                 raise ValueError("Finish the active scanner before connecting input")
             async with self._lock:
@@ -117,11 +118,13 @@ class DeviceService:
                         self._input_bindings.source_owner = self._active_player
                     elif self._input_bindings.source_owner != self._active_player:
                         raise ValueError("Identify this player's controller before selecting a source")
-                    return await asyncio.to_thread(self._input_bindings.discover, payload.get("phase"))
+                    return await asyncio.to_thread(self._input_bindings.discover, payload.get("phase"), self._active_model)
                 if operation == "input_attach":
                     if self._input_bindings.source_owner != self._active_player:
                         raise ValueError("This discovery belongs to another player")
                     return await asyncio.to_thread(self._input_bindings.attach, self._active_player, payload.get("token"))
+                if operation == "input_evidence":
+                    return self._input_bindings.evidence()
                 if operation == "input_detach":
                     self._input_bindings.detach(self._active_player)
                     return {"connected": False}
@@ -189,6 +192,9 @@ class DeviceService:
             self._found.clear()
             self._pro_found.clear()
             self._support_found.clear()
+            self._input_bindings.source_owner = None
+            self._input_bindings.sources = {}
+            self._input_bindings.before = None
             self._active_model = model
             self._active_player = player
         return {"model": model}
@@ -279,6 +285,7 @@ class DeviceService:
     async def scan(self, _payload):
         self._found = {
             device.address: device for device in await self._scanner(timeout=5)
+            if not known_other_model_name(device.name)
         }
         return [asdict(device) for device in self._found.values()]
 
@@ -335,6 +342,8 @@ class DeviceService:
         address = payload["address"]
         if address not in self._found:
             raise ValueError("Select a controller returned by Scan")
+        if known_other_model_name(getattr(self._found[address], "name", "")):
+            raise ValueError("This peripheral requires input/research support; X20 configuration commands are not authorized")
         await self.disconnect({})
         candidate = self._factory(address)
         try:

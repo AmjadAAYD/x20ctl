@@ -38,8 +38,9 @@ def trace_info(data, route):
         endian = "<" if data[:4] in {b"\xd4\xc3\xb2\xa1", b"\x4d\x3c\xb2\xa1"} else ">"
         if len(data) < 24 or struct.unpack_from(endian + "HH", data, 4) != (2, 4):
             raise ValueError("Unsupported PCAP header.")
-        if struct.unpack_from(endian + "I", data, 20)[0] != 249:
-            raise ValueError("Use USBPcap controller traffic, not a network capture.")
+        link = struct.unpack_from(endian + "I", data, 20)[0]
+        if link not in {249, 187, 201}:
+            raise ValueError("Use USBPcap or Bluetooth HCI traffic, not a network capture.")
         offset = 24
         while offset < len(data):
             if len(data) - offset < 16:
@@ -49,9 +50,10 @@ def trace_info(data, route):
                 raise ValueError("USB capture has an incomplete packet.")
             offset += 16 + included
             count += 1
-        kind, extension = "usbpcap", "pcap"
+        kind, extension = ("usbpcap" if link == 249 else "hci_pcap"), "pcap"
     elif data[:4] == b"\x0a\x0d\x0d\x0a":
         offset, endian, interfaces = 0, None, []
+        observed_links = set()
         while offset < len(data):
             if len(data) - offset < 12:
                 raise ValueError("PCAPNG has an incomplete block.")
@@ -67,25 +69,31 @@ def trace_info(data, route):
             if block == 0x0A0D0D0A and size < 28:
                 raise ValueError("PCAPNG section is incomplete.")
             if block == 1:
-                if size < 20 or struct.unpack_from(endian + "H", data, offset + 8)[0] != 249:
-                    raise ValueError("Use only USBPcap interfaces, not network interfaces.")
-                interfaces.append(249)
+                if size < 20:
+                    raise ValueError("Incomplete PCAPNG interface")
+                link = struct.unpack_from(endian + "H", data, offset + 8)[0]
+                if link not in {249, 187, 201}:
+                    raise ValueError("Use USBPcap or Bluetooth HCI interfaces, not network interfaces.")
+                interfaces.append(link)
             elif block == 6:
                 if size < 32:
                     raise ValueError("PCAPNG packet is incomplete.")
                 interface, _, _, included, original = struct.unpack_from(endian + "IIIII", data, offset + 8)
                 if interface >= len(interfaces) or not 0 < included <= original or ((included + 3) & ~3) > size - 32:
                     raise ValueError("PCAPNG packet is invalid.")
+                observed_links.add(interfaces[interface])
                 count += 1
             elif block in {2, 3}:
                 raise ValueError("Save as current Wireshark PCAPNG or USBPcap PCAP.")
             offset += size
-        kind, extension = "usbpcap_ng", "pcapng"
+        kind = "usbpcap_ng" if observed_links == {249} else "hci_pcapng" if 249 not in observed_links else "mixed_usb_hci_pcapng"
+        extension = "pcapng"
     else:
         raise ValueError("Choose the capture file, not a screenshot, executable or full bug report.")
     if not count:
         raise ValueError("The capture contains no packets.")
-    return {"format": kind, "extension": extension, "packets": count, "bytes": len(data),
+    transport = "usb" if kind in {"usbpcap", "usbpcap_ng"} else "mixed_usb_bluetooth" if kind == "mixed_usb_hci_pcapng" else "bluetooth_hci"
+    return {"format": kind, "extension": extension, "transport": transport, "packets": count, "bytes": len(data),
             "contentValidation": "Container and packet boundaries only; commands and target identity not verified"}
 
 

@@ -114,8 +114,12 @@ def serve():
                 ident = request.get("requestId")
                 operation = request.get("operation")
                 if operation == "capabilities":
+                    from x20ctl.scanning import APP_VERSION
                     data = {
-                        "version": "1.1.0-app",
+                        "version": APP_VERSION,
+                        "phase": 1,
+                        "standard_xinput_rumble": "opt_in_bounded",
+                        "outbound_protocol_capture": False,
                         "hardware_access": False,
                         "rgb": False,
                         "same_executable": True,
@@ -176,12 +180,12 @@ def serve():
                         XInputReader,
                     )
                     from x20ctl.scanning.input_tests import record_action
-                    from .x15_input import decode_hid, decode_xinput
+                    from .x15_input import decode_hid, decode_xinput, known_profile
 
                     capture_reader = (
                         XInputReader(XInput(), request["slot"])
                         if request["source"] == "xinput_state"
-                        else HidReader(Native(), request["selected"])
+                        else HidReader(Native(), request["selected"], request.get("vendorInput", False))
                     )
 
                     def progress(sample, count):
@@ -189,8 +193,8 @@ def serve():
                         try:
                             live = (
                                 decode_hid(bytes.fromhex(sample["report_hex"]))
-                                if sample["source"] == "hid_input"
-                                else decode_xinput(sample["values"])
+                                if sample["source"] == "hid_input" and known_profile(request.get("selected", {}))
+                                else decode_xinput(sample["values"]) if sample["source"] == "xinput_state" else None
                             )
                         except (ValueError, KeyError):
                             pass
@@ -222,6 +226,7 @@ def serve():
                     "usb",
                     "ble_scan",
                     "ble_inspect",
+                    "rumble_probe",
                 }:
                     from x20ctl.scanning.backend import worker
 
