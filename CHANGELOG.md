@@ -26,7 +26,7 @@ A pre-release. X20CTL is now a native Windows app, and everything below is new s
 ### Changed
 
 - **Licence:** GPL-3.0-or-later from this release. Releases up to 4.1.0 Preview 2 were MIT, and MIT-contributed code keeps its notice.
-- Download size: one 111 MB ZIP holding everything the app needs.
+- Download: a single 118 MB `X20Ctl.exe` that just runs, or the same app as a 111 MB ZIP.
 - About credits ReynArts' ApexSenseBridge as the design inspiration ("Made by Amjad AAYD").
 
 ### Not included yet

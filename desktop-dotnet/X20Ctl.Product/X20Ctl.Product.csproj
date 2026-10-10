@@ -12,6 +12,8 @@
     <ApplicationIcon>Brand/x20ctl.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <Version>4.1.0-preview.3</Version>
+    <!-- the engine sits beside X20Ctl.exe; a one-exe build (-p:EngineBesideExe=false -p:IncludeAllContentForSelfExtract=true) packs it in -->
+    <EngineBesideExe Condition="'$(EngineBesideExe)' == ''">true</EngineBesideExe>
   </PropertyGroup>
   <ItemGroup>
     <!-- WinForms is used only for the tray NotifyIcon; keep its namespaces out of the WPF code -->
@@ -19,7 +21,7 @@
     <Using Remove="System.Drawing" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="../../artifacts/product-engine-phase/native-build/Release/x20ctl-engine.exe" Link="x20ctl-engine.exe" CopyToOutputDirectory="PreserveNewest" ExcludeFromSingleFile="true" Condition="Exists('../../artifacts/product-engine-phase/native-build/Release/x20ctl-engine.exe')" />
+    <Content Include="../../artifacts/product-engine-phase/native-build/Release/x20ctl-engine.exe" Link="x20ctl-engine.exe" CopyToOutputDirectory="PreserveNewest" ExcludeFromSingleFile="$(EngineBesideExe)" Condition="Exists('../../artifacts/product-engine-phase/native-build/Release/x20ctl-engine.exe')" />
     <ProjectReference Include="../X20Ctl.Zone/X20Ctl.Zone.csproj" />
     <!-- the X20CTL mark in white (tools/build_brand_mark.py); the intro draws the same mark in red -->
     <Resource Include="Brand/x20ctl-mark.png" Link="Assets/brand.png" />
