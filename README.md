@@ -8,7 +8,7 @@
 Remap buttons, shape sticks and triggers, build back-paddle macros, set vibration, and check that a controller really works.</p>
 
 <p align="center">
-  <a href="https://github.com/AmjadAAYD/x20ctl/releases/tag/v4.1.0-preview.3"><b>Download 4.1.0 Preview 3</b></a> ·
+  <a href="https://github.com/AmjadAAYD/x20ctl/releases/tag/v4.1.0-preview.3-exe"><b>Download 4.1.0 Preview 3</b></a> ·
   <a href="CHANGELOG.md">Changelog</a> ·
   <a href="IF-YOUR-CONTROLLER-ISNT-WORKING.md">Controller not working?</a> ·
   <a href="https://github.com/AmjadAAYD/x20ctl/issues">Report an issue</a>
@@ -127,15 +127,15 @@ For a preview model, nothing is written to the controller and nothing is stored 
 
 ## Download
 
-1. Open the [4.1.0 Preview 3 release](https://github.com/AmjadAAYD/x20ctl/releases/tag/v4.1.0-preview.3).
-2. Download **X20CTL-4.1.0-preview.3-windows-x64.zip**, not the source-code archive.
-3. Extract the whole `X20CTL` folder and run **X20Ctl.exe**.
+**Windows:** download **[X20CTL-4.1.0-preview.3-windows-x64.exe](https://github.com/AmjadAAYD/x20ctl/releases/download/v4.1.0-preview.3-exe/X20CTL-4.1.0-preview.3-windows-x64.exe)** and run it. That's it: one file, nothing to extract or install. The first launch unpacks the engine and data into your temp folder, so it takes a moment longer than later launches.
+
+Would you rather have a folder? The [ZIP release](https://github.com/AmjadAAYD/x20ctl/releases/tag/v4.1.0-preview.3) has the same app unpacked: extract the whole `X20CTL` folder and run **X20Ctl.exe**.
 
 You need Windows 10 or 11 (x64). Everything is bundled: you don't need to install .NET, Python, a browser runtime or an account.
 
-The app is **unsigned**, so Windows SmartScreen may warn you. Check the ZIP against the release's `SHA256SUMS.txt`. Never turn off your antivirus to run it.
+The app is **unsigned**, so Windows SmartScreen may warn you. Check the download against the release's `SHA256SUMS.txt`. Never turn off your antivirus to run it.
 
-**Linux.** The Studio is Windows-only for now. The Linux ZIP contains the Controller Check as a standalone script (`x20ctl-check.py`, Python 3). A native Linux build of the full Studio is planned.
+**Linux:** [X20CTL-4.1.0-preview.3-linux-check.zip](https://github.com/AmjadAAYD/x20ctl/releases/download/v4.1.0-preview.3-exe/X20CTL-4.1.0-preview.3-linux-check.zip). The Studio is Windows-only for now; this ZIP contains the Controller Check as a standalone script (`x20ctl-check.py`, Python 3). A native Linux build of the full Studio is planned.
 
 The last stable release is still [4.0.1](https://github.com/AmjadAAYD/x20ctl/releases/tag/v4.0.1).
 
