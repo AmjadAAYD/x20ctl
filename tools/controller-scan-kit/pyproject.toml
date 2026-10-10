@@ -1,0 +1,9 @@
+[project]
+name = "x20ctl-controller-scan-kit"
+version = "1.1.0"
+description = "Standalone local controller evidence collector"
+requires-python = ">=3.12"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120

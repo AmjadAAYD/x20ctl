@@ -1,0 +1,117 @@
+name: Controller Scan Kit
+
+on:
+  push:
+    paths:
+      - 'tools/controller-scan-kit/**'
+      - '.github/workflows/controller-scan-kit.yml'
+      - '.github/codeql/scanner.yml'
+  pull_request:
+    paths:
+      - 'tools/controller-scan-kit/**'
+      - '.github/workflows/controller-scan-kit.yml'
+      - '.github/codeql/scanner.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: controller-scan-kit-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  tests:
+    name: Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, windows-2022]
+    defaults:
+      run:
+        working-directory: tools/controller-scan-kit
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12.10'
+          architecture: x64
+      - name: Install Windows runtime dependencies
+        if: runner.os == 'Windows'
+        run: |
+          python -m pip install --require-hashes --only-binary=:all: -r requirements.lock
+      - name: Unit, consent, privacy and source-policy tests
+        run: python -m unittest discover -s tests -v
+      - name: Syntax check
+        run: python -m compileall -q src scripts tests
+      - name: Source hardware-free smoke checks
+        run: |
+          python src/controller_scan.py --self-check
+          python src/controller_scan.py --capabilities
+          python src/controller_scan.py --privacy
+          python src/controller_scan.py --dry-run
+
+  codeql:
+    name: Scanner CodeQL
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: github/codeql-action/init@1190a975f95ce23525efb6a3fc21ea29567c1b52 # v3
+        with:
+          languages: python
+          build-mode: none
+          config-file: .github/codeql/scanner.yml
+      - uses: github/codeql-action/analyze@1190a975f95ce23525efb6a3fc21ea29567c1b52 # v3
+        with:
+          category: controller-scan-kit
+          output: scanner-codeql-results
+      - name: Fail publication on CodeQL findings
+        run: python tools/controller-scan-kit/scripts/check_codeql.py scanner-codeql-results
+
+  release:
+    name: Build and publish scanner
+    needs: [tests, codeql]
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: windows-2022
+    permissions:
+      contents: write
+      attestations: write
+      id-token: write
+    defaults:
+      run:
+        working-directory: tools/controller-scan-kit
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12.10'
+          architecture: x64
+      - name: Install hash-locked build environment
+        run: |
+          python -m pip install --require-hashes --only-binary=:all: -r requirements-build.lock
+      - name: Build, packaged checks, Defender and package
+        run: ./scripts/build.ps1
+      - name: Preserve verified build artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: controller-scan-kit-windows
+          path: tools/controller-scan-kit/dist/release/*
+          if-no-files-found: error
+      - name: Attest release assets
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-path: tools/controller-scan-kit/dist/release/*
+      - name: Publish separate scanner release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/publish_release.py

@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "internetUpload": false,
+  "telemetry": false,
+  "controllerConfigurationWrites": false,
+  "firmwareOperations": false,
+  "driverInstallation": false,
+  "administratorRequired": false,
+  "serialNumberRequested": false,
+  "automaticPairing": false,
+  "bleNotifications": false,
+  "results": "local; ZIP only after explicit review confirmation",
+  "reads": {
+    "windowsDeviceInventory": "before/after; unrelated identifiers used transiently for correlation",
+    "selectedDeviceMetadata": true,
+    "usbStandardDescriptors": true,
+    "xinputState": "optional, correlated controller slot",
+    "hidInputReports": "optional, selected gameplay collection only",
+    "bleDiscovery": "optional; nearby devices observed transiently, only selected target exported",
+    "bleStandardGattValues": "optional; battery, model, firmware/hardware/software revision, manufacturer",
+    "rawProtocolTrace": "separate --app-capture mode; explicit user-selected local import"
+  },
+  "limits": {
+    "rawHidAndTracesMayContainIdentifiers": true,
+    "rawTracesAutomaticallyAnonymized": false,
+    "userNotesRequireReview": true,
+    "externalCaptureToolsMayRequireElevation": true,
+    "externalSettingsAppChangesPerformedByOwner": true,
+    "physicalControllerTesting": "not established by automated tests"
+  }
+}
