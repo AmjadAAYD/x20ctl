@@ -11,7 +11,7 @@
     <AssemblyName>X20Ctl</AssemblyName>
     <ApplicationIcon>Brand/x20ctl.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>4.1.0-preview.3</Version>
+    <Version>4.1.0-preview.4</Version>
     <!-- the engine sits beside X20Ctl.exe; a one-exe build (-p:EngineBesideExe=false -p:IncludeAllContentForSelfExtract=true) packs it in -->
     <EngineBesideExe Condition="'$(EngineBesideExe)' == ''">true</EngineBesideExe>
   </PropertyGroup>
