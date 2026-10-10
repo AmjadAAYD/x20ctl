@@ -19,7 +19,6 @@ import {
   Save,
   SlidersHorizontal,
   Volume2,
-  Trash2,
   X,
   Battery,
   Cpu,
@@ -38,10 +37,13 @@ import { ButtonsPage } from "./components/pages/ButtonsPage";
 import { CurvesPage } from "./components/pages/CurvesPage";
 import { MacrosPage } from "./components/pages/MacrosPage";
 import { TesterPage } from "./components/pages/TesterPage";
+import { SetupsPage } from "./components/pages/SetupsPage";
+import { studioSectionLabel } from "./components/StudioSections";
 import { Profile } from "./types/gamepad";
 import { newProfile } from "./data/defaultProfiles";
 import { request, whenNativeReady } from "./native";
 import { useGamepad } from "./hooks/useGamepad";
+import { useStudioNavigation } from "./hooks/useStudioNavigation";
 import brandMark from "./assets/brand-mark.png";
 import { controller, controllers, unavailableController, type ControllerId } from "./controllers";
 import { ControllerCanvas } from "./components/ControllerCanvas";
@@ -162,6 +164,7 @@ function X20Workspace({
   const [help, setHelp] = useState(false);
   const [resetConfirm, setResetConfirm] = useState(false);
   const [recording, setRecording] = useState(false);
+  const [gamepadNavigation, setGamepadNavigation] = useState(false);
   const recordingSlot = useRef<"M1" | "M2" | "M3" | "M4">("M1");
   const [confirmation, setConfirmation] = useState<{
     title: string;
@@ -181,11 +184,13 @@ function X20Workspace({
       tab === "curves" ||
       tab === "macros" ||
       tab === "tester" ||
-      recording);
+      recording || gamepadNavigation);
   const { liveState, hardwareDetected, slot } = useGamepad(
     ready && inputActive,
     onDisconnect,
   );
+  const navigationBlocked = !active || tab === "tester" || recording || !!busy || scanner || help || resetConfirm || !!confirmation;
+  useStudioNavigation(liveState, gamepadNavigation, navigationBlocked, onBack);
 
   const run = async (label: string, work: () => Promise<void>) => {
     if (running.current) return;
@@ -404,12 +409,6 @@ function X20Workspace({
     }
   }, [connectIntent, active, ready]);
   const battery = device?.battery;
-  const changedMappings = Object.entries(profile.remaps).filter(
-    ([key, value]) => key !== value,
-  ).length;
-  const programmedPaddles = Object.values(profile.macros).filter(
-    (rows) => rows.length,
-  ).length;
 
   if (!active) return null;
   return (
@@ -417,44 +416,29 @@ function X20Workspace({
       <a className="skip-link" href="#workspace">
         Skip to editor
       </a>
-      <aside className="chassis-sidebar has-sidebar-actions">
-        <div className="chassis-brand">
-          <img className="brand-emblem" src={brandMark} alt="" />
-          <strong>x20ctl</strong>
-        </div>
+      <div className="studio-navigation-area">
         <MotionNav active={tab}>
           {navigation.map((item) => (
             <button
               key={item.id}
+              data-gamepad-action
+              disabled={recording && item.id !== "macros"}
               aria-label={item.label}
               title={item.label}
               aria-current={tab === item.id ? "page" : undefined}
               onClick={() => setTab(item.id)}
             >
               <item.icon size={19} />
-              <span>{item.label}</span>
+              <span>{studioSectionLabel(item.id) ?? item.label}</span>
             </button>
           ))}
         </MotionNav>
-        <button
-          className="sidebar-support"
-          onClick={onSupport}
-          title="Support X20ctl"
-        >
-          <Heart size={19} /> <span>Support X20ctl</span>
-        </button>
-        <button
-          className="button secondary sidebar-controller-help"
-          disabled={!ready || !!busy}
-          onClick={onScan}
-          aria-label="Can’t find your controller?"
-          title="Can’t find your controller?"
-        >
-          <CircleHelp size={18} />
-          <span>Can’t find your controller?</span>
-        </button>
-      </aside>
+      </div>
       <header className="chassis-header">
+        <div className="chassis-brand">
+          <img className="brand-emblem" src={brandMark} alt="" />
+          <strong>x20ctl</strong>
+        </div>
         <div className="header-controller">
           <div className="header-controller-art" aria-hidden="true">
             <ControllerCanvas model="x20" emphasis={device ? "connected" : "default"} disabled />
@@ -465,6 +449,7 @@ function X20Workspace({
               <small className="studio-player-label">Player {player}</small>
             </strong>
             <div className="connection-lights" aria-label="Connection status">
+              {battery && <span aria-label={`Battery level ${battery.level} of 4${battery.charging ? ', charging' : ''}`}><Battery size={13} />{battery.level}/4{battery.charging ? ' · charging' : ''}</span>}
               <span>
                 <i className={device ? "led on" : "led"} />
                 <span>
@@ -487,6 +472,17 @@ function X20Workspace({
           </div>
         </div>
         <div className="header-actions">
+        <button
+          className="sidebar-support"
+          onClick={onSupport}
+          title="Support X20ctl"
+        >
+          <Heart size={19} /> <span>Support X20ctl</span>
+        </button>
+
+
+          <button className="icon-button" aria-label="Gamepad navigation" title="Gamepad navigation (navigation actions only)"
+            aria-pressed={gamepadNavigation} onClick={() => setGamepadNavigation(value => !value)}><Gamepad2 size={18} /></button>
           <button className="button secondary" onClick={onScan}>Controller scanner</button>
           <button
             className="button secondary"
@@ -519,6 +515,9 @@ function X20Workspace({
 
       <main id="workspace" className="metal-workspace">
         <h1 className="workspace-page-title">{current.label}</h1>
+        {gamepadNavigation && hardwareDetected && <p className="gamepad-hints" role="status">{navigationBlocked
+          ? "Gamepad navigation paused · inputs reserved for this activity"
+          : "D-pad / stick · Focus     A · Select     B · Back     LB / RB · Sections"}</p>}
 
         {!ready && (
           <div className="notice">
@@ -660,7 +659,9 @@ function X20Workspace({
           )}
           {tab === "macros" && (
             <>
-              <div className="record-toolbar">
+              <MacrosPage
+                recording={recording}
+                recorder={<div className="record-toolbar">
                 <div>
                   <span className={"led " + (recording ? "recording" : "")} />
                   <strong>
@@ -678,8 +679,7 @@ function X20Workspace({
                   <Radio size={15} />
                   {recording ? `Stop recording → ${recordingSlot.current}` : `Record to ${macroSlot}`}
                 </button>
-              </div>
-              <MacrosPage
+              </div>}
                 initialSlot={macroSlot}
                 onSlotChange={setMacroSlot}
                 loops={profile.macroLoops}
@@ -956,142 +956,22 @@ function X20Workspace({
             />
           )}
           {tab === "profiles" && (
-            <section className="profile-library">
-              <div className="library-heading">
-                <div>
-                  <h2>Local setup library</h2>
-                  <p>
-                    {profiles.length} saved{" "}
-                    {profiles.length === 1 ? "setup" : "setups"} · Select a
-                    setup to load it into the editor
-                  </p>
-                </div>
-                <button className="button secondary" onClick={createSetup}>
-                  <Plus size={16} />
-                  New setup
-                </button>
-              </div>
-              {profiles.length ? (
-                <div className="library-grid">
-                  {profiles.map((saved, i) => (
-                    <article
-                      className={
-                        "metal-panel profile-card " +
-                        (saved.id === profile.id ? "active" : "")
-                      }
-                      key={saved.id}
-                    >
-                      <div className="profile-card-top">
-                        <div className="profile-emblem">
-                          <Layers3 size={30} strokeWidth={1.2} />
-                        </div>
-                        <div>
-                          <span className="engraved">
-                            SETUP {String(i + 1).padStart(2, "0")}
-                          </span>
-                          <h3>{saved.name}</h3>
-                          <p>
-                            {saved.id === profile.id
-                              ? "Open in editor"
-                              : "Stored on this computer"}
-                          </p>
-                        </div>
-                        <button
-                          className="icon-button"
-                          aria-label={"Delete " + saved.name}
-                          onClick={() =>
-                            setConfirmation({
-                              title: "Delete saved setup?",
-                              description: `Remove “${saved.name}” from this computer? The open draft and controller settings will stay as they are.`,
-                              action: () =>
-                                void run("Deleting setup", async () => {
-                                  await persist(
-                                    profiles.filter((p) => p.id !== saved.id),
-                                  );
-                                  setMessage(
-                                    "Saved setup deleted. The current draft is unchanged.",
-                                  );
-                                }),
-                            })
-                          }
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                      <div className="profile-specs">
-                        <span>
-                          {
-                            Object.entries(saved.remaps).filter(
-                              ([k, v]) => k !== v,
-                            ).length
-                          }{" "}
-                          mappings
-                        </span>
-                        <span>
-                          {
-                            Object.values(saved.macros).filter(
-                              (rows) => rows.length,
-                            ).length
-                          }{" "}
-                          paddles
-                        </span>
-                        <span>{saved.vibration}% vibration</span>
-                      </div>
-                      <button
-                        className="button secondary"
-                        onClick={() => confirmDiscard(() => loadProfile(saved))}
-                      >
-                        Load setup
-                        <ChevronRight size={15} />
-                      </button>
-                    </article>
-                  ))}
-                </div>
-              ) : (
-                <div className="metal-panel library-empty">
-                  <FolderOpen size={44} strokeWidth={1} />
-                  <h3>Your setups belong here</h3>
-                  <p>
-                    Save the current setup or import an existing JSON file to
-                    build your library.
-                  </p>
-                  <div>
-                    <button
-                      className="button primary"
-                      disabled={!ready}
-                      onClick={save}
-                    >
-                      <Save size={16} />
-                      Save current setup
-                    </button>
-                    <button
-                      className="button secondary"
-                      disabled={!ready}
-                      onClick={importSetup}
-                    >
-                      <ArrowDownToLine size={16} />
-                      Import JSON
-                    </button>
-                  </div>
-                </div>
-              )}
-              <div className="metal-panel library-current">
-                <span className="engraved">CURRENT DRAFT</span>
-                <strong>{profile.name}</strong>
-                <span>
-                  {changedMappings} remaps · {programmedPaddles} configured
-                  paddles
-                </span>
-                <button
-                  className="button secondary"
-                  disabled={!ready}
-                  onClick={exportSetup}
-                >
-                  <ArrowUpFromLine size={16} />
-                  Export JSON
-                </button>
-              </div>
-            </section>
+            <SetupsPage profiles={profiles} draft={profile} ready={ready}
+              onNew={createSetup} onSave={save} onImport={importSetup} onExport={exportSetup}
+              onLoad={saved => confirmDiscard(() => loadProfile(saved))}
+              onRename={(saved, name) => void run("Renaming setup", async () => {
+                await persist(profiles.map(item => item.id === saved.id ? { ...item, name } : item));
+                setProfile(old => old.id === saved.id ? { ...old, name } : old);
+                setMessage("Setup renamed on this computer.");
+              })}
+              onDelete={saved => setConfirmation({
+                title: "Delete saved setup?",
+                description: `Remove “${saved.name}” from this computer? The open draft and controller settings will stay as they are.`,
+                action: () => void run("Deleting setup", async () => {
+                  await persist(profiles.filter(item => item.id !== saved.id));
+                  setMessage("Saved setup deleted. The current draft is unchanged.");
+                }),
+              })} />
           )}
         </fieldset>
       </main>

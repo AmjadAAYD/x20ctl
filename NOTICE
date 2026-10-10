@@ -1,0 +1,28 @@
+X20CTL
+Copyright (C) 2026 Amjad AAYD
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version. See LICENSE for the full text.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+Licence change: releases up to and including 4.1.0 Preview 2 were published
+under the MIT licence. From 4.1.0 Preview 3 the project is GPL-3.0-or-later.
+Code contributed under MIT keeps its MIT notice, reproduced in
+licenses/MIT-BEFORE-4.1.0-preview.3.txt; MIT code may be combined into a GPL
+work. Third-party notices are in the licenses/ folder.
+
+Not affiliated with EasySMX
+---------------------------
+X20CTL is an independent, unofficial interoperability project. It is not
+affiliated with, endorsed by, sponsored by or supported by EasySMX, ShenZhen
+ZhiXu Technology Co., Ltd., or any other manufacturer. EasySMX and all product
+names are trademarks of their respective owners and are used only to say which
+controllers X20CTL works with.
+
+No manufacturer firmware, application binaries or decompiled source are
+distributed with this project.

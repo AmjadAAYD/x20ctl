@@ -271,7 +271,7 @@ export function ButtonsPage({
         <header className="mapping-panel-heading">
           <div>
             <SlidersHorizontal size={17} />
-            <h2>Remap inspector</h2>
+            <h2>Button assignment</h2>
           </div>
           <span className="mapping-count">{changed} modified</span>
         </header>
@@ -283,7 +283,7 @@ export function ButtonsPage({
           </div>
           <ArrowRight size={21} className="mapping-route-arrow" />
           <div className="mapping-target-field">
-            <label htmlFor="selected-target">OUTPUT ASSIGNMENT</label>
+            <label htmlFor="selected-target">Assignment</label>
             <select
               id="selected-target"
               value={target}
@@ -307,6 +307,8 @@ export function ButtonsPage({
               : `Sends ${KEY_LABELS[target]}`}
           </span>
         </div>
+        <p className="mapping-inspector-guidance">Select a control on the controller, then choose its assignment. Changes stay in your draft until applied.</p>
+        <details className="mapping-all-assignments"><summary>All assignments</summary>
         <div className="mapping-table-head">
           <span>PHYSICAL INPUT</span>
           <span>OUTPUT</span>
@@ -344,6 +346,7 @@ export function ButtonsPage({
             </div>
           ))}
         </div>
+        </details>
         <footer className="mapping-inspector-footer">
           <p>Select and Start are output destinations only.</p>
           <button

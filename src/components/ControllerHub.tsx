@@ -55,8 +55,14 @@ export function ControllerHub({
                 aria-label={`Player ${number}`}
                 data-player={number}
                 data-controller={model ?? ""}
+                onPointerMove={(event) => {
+                  const bounds = event.currentTarget.getBoundingClientRect();
+                  event.currentTarget.style.setProperty('--pointer-x', `${event.clientX - bounds.left}px`);
+                  event.currentTarget.style.setProperty('--pointer-y', `${event.clientY - bounds.top}px`);
+                }}
               >
-                <span className="controller-card-index">Player {number}</span>
+                <div className="controller-card-top"><span className="controller-card-index">Player {number}</span>
+                  <span className="controller-card-state">{selected ? 'Assigned' : 'Empty'}</span></div>
                 <button
                   className="controller-card-icon"
                   disabled={busy}
@@ -64,7 +70,7 @@ export function ControllerHub({
                   aria-label={`Choose controller for Player ${number}`}
                 >
                   {model ? (
-                    <ControllerCanvas model={model} disabled />
+                    <ControllerCanvas model={model} presentation="photo" disabled />
                   ) : (
                     <span className="controller-empty-art">
                       <Gamepad2 size={58} strokeWidth={1} />
@@ -72,10 +78,9 @@ export function ControllerHub({
                     </span>
                   )}
                 </button>
-                <h2>{selected?.name ?? "Choose a controller"}</h2>
+                <h2>{selected?.name ?? "Add a controller"}</h2>
                 <p className="controller-slot-status">
-                  <i className="led" />
-                  {selected ? "Assigned · not connected" : "No model assigned"}
+                  {selected ? "EasySMX · offline" : "Choose a model"}
                 </p>
                 <small className="controller-card-detail">
                   {selected ? (
@@ -96,7 +101,7 @@ export function ControllerHub({
                   onClick={() => (selected ? onEnter(index) : onChoose(index))}
                 >
                   {selected ? <ArrowRight size={18} /> : <Plus size={18} />}
-                  {selected ? "Enter the Studio" : "Add Controller"}
+                  {selected ? "Open Studio" : "Add controller"}
                 </button>
               </article>
             );

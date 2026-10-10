@@ -8,6 +8,7 @@ import { PhotoControl } from "./PhotoControl";
 import { RearTriggerLayers } from "./RearTriggerLayers";
 import { KEY_LABELS, type KeyName } from "../types/gamepad";
 import "./controller-view.css";
+import { ControllerOutline } from './ControllerOutline';
 
 export interface RearGeometry {
   asset: string;
@@ -34,6 +35,7 @@ export function ControllerView({
   hideMacroControls?: boolean;
 }) {
   const [selectedView, setView] = useState(initialView);
+  const [presentation, setPresentation] = useState<'outline' | 'photo'>('outline');
   const lightingId = useId().replace(/:/g, "");
   const view = fixedView ?? controlledView ?? selectedView;
   const profile = controller(model);
@@ -41,17 +43,19 @@ export function ControllerView({
   const rearImage = images[`../assets/controllers/${model}/${geometry.asset}`];
   return (
     <div className="controller-view" data-view={view} data-model={model}>
+      <div className="controller-art-switch" role="group" aria-label="Controller appearance"><button type="button" aria-pressed={presentation === 'outline'} onClick={() => setPresentation('outline')}>Outline</button><button type="button" aria-pressed={presentation === 'photo'} onClick={() => setPresentation('photo')}>Photo</button></div>
       {!fixedView && <div className="controller-view-switch" role="group" aria-label="Controller view">
         {(["front", "back"] as const).map((side) => (
           <button type="button" key={side} aria-pressed={view === side}
             onClick={() => { setView(side); onViewChange?.(side); }}>{side === "front" ? "Front View" : "Back View"}</button>
         ))}
       </div>}
-      {view === "front" ? <ControllerCanvas model={model} framing={framing} lighting={lighting} {...front} /> : (
-        <div className="controller-rear" data-model={model} data-framing={framing} data-lighting="rear" style={{ aspectRatio: geometry.aspect }}
+      {view === "front" ? <ControllerCanvas model={model} framing={framing} lighting={lighting} {...front} presentation={presentation} /> : (
+        <div className="controller-rear" data-model={model} data-framing={framing} data-lighting="rear" data-presentation={presentation} style={{ aspectRatio: geometry.aspect }}
           role="group" aria-label={`${profile.name} back view`}>
           <div className="controller-rear-plane" style={{ aspectRatio: geometry.aspect,
             ...(framing === "detail" ? controllerFraming(model, "back") : {}) }}>
+            {presentation === 'outline' && <ControllerOutline model={model} view="back" buttons={front.buttons} selectedKey={front.selectedKey} selectedMacro={selectedMacro} leftTrigger={front.leftTrigger} rightTrigger={front.rightTrigger} />}
             <img src={rearImage}
               style={{ clipPath: `url(#${lightingId}-body)` }}
               alt={`${geometry.viewLabel} of EasySMX ${profile.name}`} draggable={false} />
@@ -59,9 +63,9 @@ export function ControllerView({
               style={{ clipPath: `url(#${lightingId}-ambient)` }}
               alt="" aria-hidden="true" draggable={false} />
             <ControllerLighting model={model} view="back" id={lightingId} />
-            <RearTriggerLayers model={model} original={rearImage} id={lightingId}
+            {presentation === 'photo' && <RearTriggerLayers model={model} original={rearImage} id={lightingId}
               leftTrigger={front.disabled ? 0 : front.leftTrigger ?? 0} rightTrigger={front.disabled ? 0 : front.rightTrigger ?? 0}
-              selectedKey={front.selectedKey} />
+              selectedKey={front.selectedKey} />}
             {front.onSelect && Object.entries(controlShapes(model).back).map(([key, shape]) =>
               <PhotoControl key={key} shape={shape!} className={`controller-rear-control ${key === "LT" || key === "RT" ? "is-moving-trigger" : ""}`}
                 label={`Select ${KEY_LABELS[key as KeyName]}`} selected={front.selectedKey === key}

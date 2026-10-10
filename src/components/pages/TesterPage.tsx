@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import { useState, type CSSProperties } from "react";
 import {
   Activity,
   Crosshair,
@@ -8,8 +8,11 @@ import {
 } from "lucide-react";
 import { LiveGamepadState, KEY_LABELS, KeyName } from "../../types/gamepad";
 import "../metal-controls.css";
+import { ControllerCanvas } from "../ControllerCanvas";
+import type { ControllerId } from "../../controllers";
 
 interface TesterPageProps {
+  model?: ControllerId;
   liveState: LiveGamepadState;
   inputConnected?: boolean;
   inputSlot?: number | null;
@@ -151,12 +154,14 @@ function StickRadar({
 }
 
 export function TesterPage({
+  model = "x20",
   liveState,
   inputConnected = false,
   inputSlot,
   inputBackend = "Gameplay input",
   playerNumber,
 }: TesterPageProps) {
+  const [readout, setReadout] = useState<'inputs' | 'sticks' | 'buttons' | 'triggers'>('inputs');
   const pressed = TEST_KEYS.filter(
     (key) => inputConnected && liveState.buttons[key],
   );
@@ -184,8 +189,26 @@ export function TesterPage({
             : "Connect your controller by USB, receiver or a supported gamepad mode."}
         </p>
       </section>
+      <section className="metal-panel tester-controller-hero" aria-label="Live controller visualization">
+        <ControllerCanvas model={model} framing="detail" lighting="quiet"
+          buttons={inputConnected ? liveState.buttons : {}}
+          leftStick={inputConnected ? liveState.leftStick : { x: 0, y: 0 }}
+          rightStick={inputConnected ? liveState.rightStick : { x: 0, y: 0 }}
+          leftTrigger={inputConnected ? liveState.leftTrigger : 0}
+          rightTrigger={inputConnected ? liveState.rightTrigger : 0} />
+        <div className="tester-hero-readouts">
+          <span>Left trigger <strong>{inputConnected ? `${Math.round(liveState.leftTrigger * 100)}%` : 'Unavailable'}</strong></span>
+          <span>{inputConnected ? pressed.length ? pressed.map(key => KEY_LABELS[key]).join(' · ') : 'All buttons released' : 'Waiting for input'}</span>
+          <span>Right trigger <strong>{inputConnected ? `${Math.round(liveState.rightTrigger * 100)}%` : 'Unavailable'}</strong></span>
+        </div>
+      </section>
+      <details className="tester-detail-readings" open><summary>Detailed readings · sticks, buttons and signal</summary>
+      <div className="tester-readout-nav" role="group" aria-label="Input readings">
+        {(['inputs', 'sticks', 'buttons', 'triggers'] as const).map(section => <button key={section} className="button secondary"
+          aria-pressed={readout === section} onClick={() => setReadout(section)}>{section[0].toUpperCase() + section.slice(1)}</button>)}
+      </div>
       <div className="tester-primary-grid">
-        <section className="tester-panel tester-stick-panel">
+        {readout === 'sticks' && <section className="tester-panel tester-stick-panel">
           <header className="mapping-panel-heading">
             <div>
               <Crosshair size={17} />
@@ -213,8 +236,8 @@ export function TesterPage({
             The fading trace shows recent stick positions. Stick clicks light
             the center point.
           </footer>
-        </section>
-        <section className="tester-panel tester-buttons-panel">
+        </section>}
+        {(readout === 'inputs' || readout === 'buttons') && <section className="tester-panel tester-buttons-panel">
           <header className="mapping-panel-heading">
             <div>
               <Gamepad2 size={17} />
@@ -242,10 +265,10 @@ export function TesterPage({
                 : "All buttons released"
               : "Button state unavailable"}
           </p>
-        </section>
+        </section>}
       </div>
       <div className="tester-secondary-grid">
-        <section className="tester-panel tester-trigger-panel">
+        {(readout === 'inputs' || readout === 'triggers') && <section className="tester-panel tester-trigger-panel">
           <header className="mapping-panel-heading">
             <div>
               <SlidersHorizontal size={17} />
@@ -309,7 +332,7 @@ export function TesterPage({
               </div>
             ))}
           </div>
-        </section>
+        </section>}
         <section className="tester-panel tester-signal-details">
           <header className="mapping-panel-heading">
             <div>
@@ -338,6 +361,7 @@ export function TesterPage({
           </p>
         </section>
       </div>
+      </details>
     </div>
   );
 }

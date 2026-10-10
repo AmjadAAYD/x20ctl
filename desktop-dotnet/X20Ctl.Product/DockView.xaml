@@ -1,0 +1,45 @@
+﻿<UserControl x:Class="X20Ctl.Product.DockView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:X20Ctl.Product" UseLayoutRounding="True">
+  <UserControl.RenderTransform><TransformGroup><ScaleTransform x:Name="PlacementScale" ScaleX="1" ScaleY="1" /><TranslateTransform x:Name="PlacementOffset" /></TransformGroup></UserControl.RenderTransform>
+  <Grid RenderTransformOrigin=".5,.5">
+    <Grid.RenderTransform><ScaleTransform x:Name="LiftScale" ScaleX="1" ScaleY="1" /></Grid.RenderTransform>
+    <!-- a controller card in Steam's restraint: navy-grey glass, one blue accent for the chosen controller, a white edge
+         for focus; the whole card is the focus/click target -->
+    <Border x:Name="Card" CornerRadius="16" BorderThickness="1" Margin="6" IsHitTestVisible="False">
+      <Border.Background><LinearGradientBrush StartPoint="0,0" EndPoint="0,1"><GradientStop x:Name="CardTop" Color="#E61D2635" Offset="0" /><GradientStop x:Name="CardBottom" Color="#E6141A25" Offset="1" /></LinearGradientBrush></Border.Background>
+      <Border.BorderBrush><SolidColorBrush Color="#3A4A6280" /></Border.BorderBrush>
+      <!-- gloss: a lit top edge, a sheen falling from the top, and a diagonal reflection across the glass -->
+      <Grid>
+        <Border CornerRadius="15,15,0,0" Height="110" VerticalAlignment="Top"><Border.Background><LinearGradientBrush StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#22FFFFFF" Offset="0" /><GradientStop Color="#06FFFFFF" Offset=".5" /><GradientStop Color="#00FFFFFF" Offset="1" /></LinearGradientBrush></Border.Background></Border>
+        <Border CornerRadius="15"><Border.Background><LinearGradientBrush StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#0FFFFFFF" Offset="0" /><GradientStop Color="#08FFFFFF" Offset=".3" /><GradientStop Color="#00FFFFFF" Offset=".31" /><GradientStop Color="#00FFFFFF" Offset="1" /></LinearGradientBrush></Border.Background></Border>
+        <Border CornerRadius="15" BorderThickness="0,1,0,0" BorderBrush="#40FFFFFF" />
+        <!-- an angled inner panel of lighter glass on the right, and its thin seam -->
+        <Path Data="M60,0 L100,0 L100,100 L74,100 L84,48 Z" Stretch="Fill" Margin="0,1,1,1" StrokeThickness="1" Stroke="#14FFFFFF"><Path.Fill><LinearGradientBrush StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#12A8C0E0" Offset="0" /><GradientStop Color="#04A8C0E0" Offset="1" /></LinearGradientBrush></Path.Fill></Path>
+        <!-- the "///" detail -->
+        <Path x:Name="Stripes" Data="M0,9 L5,0 M7,9 L12,0 M14,9 L19,0" Stroke="#5AFFFFFF" StrokeThickness="2.2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,20,22,0" />
+      </Grid>
+    </Border>
+    <Button x:Name="FocusButton" Background="Transparent" Padding="0" Click="SelectPlayer" FocusVisualStyle="{x:Null}" Cursor="Hand">
+      <Button.Template><ControlTemplate TargetType="Button"><Border Background="Transparent" /></ControlTemplate></Button.Template>
+    </Button>
+    <Canvas x:Name="ContentCanvas" IsHitTestVisible="False">
+      <Border x:Name="PlayerPill" CornerRadius="13" Height="26" Padding="12,0" Background="#1CFFFFFF" BorderBrush="#40FFFFFF" BorderThickness="1"><TextBlock x:Name="PlayerLabel" FontFamily="{StaticResource DS.FontDisplay}" FontSize="12" FontWeight="Bold" Foreground="#D2DCEA" VerticalAlignment="Center" /></Border>
+      <Ellipse x:Name="Halo" IsHitTestVisible="False"><Ellipse.Fill><RadialGradientBrush><GradientStop Color="#1CB8CCEA" Offset="0" /><GradientStop Color="#0AB8CCEA" Offset=".55" /><GradientStop Color="#00B8CCEA" Offset="1" /></RadialGradientBrush></Ellipse.Fill></Ellipse>
+      <Ellipse x:Name="ArtShadow" IsHitTestVisible="False"><Ellipse.Fill><RadialGradientBrush><GradientStop Color="#8C000000" Offset="0" /><GradientStop Color="#00000000" Offset="1" /></RadialGradientBrush></Ellipse.Fill></Ellipse>
+      <Grid x:Name="Art" RenderTransformOrigin="0.5,0.5">
+        <Grid.RenderTransform><ScaleTransform x:Name="ArtScale" ScaleX="1" ScaleY="1" /></Grid.RenderTransform>
+        <Viewbox x:Name="Illustration" Stretch="Uniform" Visibility="Collapsed"><Grid x:Name="ImageClip" Width="1536" Height="1024"><Image x:Name="ControllerImage" RenderOptions.BitmapScalingMode="HighQuality" Stretch="Fill" /><local:ControllerOutline x:Name="ArtOutline" /></Grid></Viewbox>
+        <Grid x:Name="Silhouette"><Path x:Name="SilhouettePath" Data="{StaticResource ControllerOutline}" Stretch="Uniform" Stroke="#5A6E8A" StrokeThickness="1.7" StrokeDashArray="3.5 3" Fill="#08B8CCEA" Margin="14" /><Border x:Name="PlusBadge" Width="48" Height="48" CornerRadius="24" Cursor="Hand" RenderTransformOrigin=".5,.5" ToolTip="Choose a controller for this player" BorderBrush="#80FFFFFF" BorderThickness="1.4" HorizontalAlignment="Center" VerticalAlignment="Center"><Border.Background><LinearGradientBrush StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#FF3A4558" Offset="0" /><GradientStop Color="#FF232C3B" Offset="1" /></LinearGradientBrush></Border.Background><TextBlock Text="+" FontFamily="{StaticResource DS.FontDisplay}" FontSize="26" Foreground="{StaticResource DS.Text}" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-4,0,0" /></Border></Grid>
+      </Grid>
+      <Canvas x:Name="Details">
+        <TextBlock x:Name="ModelName" FontFamily="{StaticResource DS.FontDisplay}" FontWeight="SemiBold" Foreground="{StaticResource DS.Text}" />
+        <StackPanel x:Name="StatusLine" Orientation="Horizontal"><Ellipse x:Name="StatusDot" Width="7" Height="7" Margin="1,0,8,0" VerticalAlignment="Center" /><TextBlock x:Name="Connection" FontFamily="{StaticResource DS.FontBody}" FontSize="13" Foreground="#8C9BB2" VerticalAlignment="Center" /></StackPanel>
+      </Canvas>
+      <!-- the arrow: this card leads somewhere -->
+      <Border x:Name="ArrowBadge" Width="46" Height="46" CornerRadius="23" BorderBrush="#4AFFFFFF" BorderThickness="1.2" Background="#1AFFFFFF"><TextBlock Text="&#xE72A;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="{StaticResource DS.Text}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
+    </Canvas>
+    <Canvas x:Name="ActionCanvas" Visibility="Collapsed">
+      <Button x:Name="Primary" Style="{StaticResource DS.ActionPrimary}" Height="48" Click="PrimaryAction" />
+      <Button x:Name="Switch" Content="Switch Controller" Style="{StaticResource DS.ActionSecondary}" Height="48" Width="210" Click="SwitchAction" />
+    </Canvas>
+  </Grid>
+</UserControl>

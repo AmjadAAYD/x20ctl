@@ -2,6 +2,10 @@ import { useEffect, useState } from "react";
 import { request } from "../native";
 import { MetalDialog } from "./MetalDialog";
 import "./research-scanner.css";
+import { controller as getController, controllers } from '../controllers';
+import { ControllerCanvas } from './ControllerCanvas';
+import { Gamepad2 } from 'lucide-react';
+import type { KeyName } from '../types/gamepad';
 
 interface Prompt {
   id: string;
@@ -24,6 +28,33 @@ interface ScanState {
   sha256?: string;
   files: { path: string; size: number }[];
   coverage: Record<string, { status: string; reason: string }>;
+  detectedCapabilities?: {
+    status: string;
+    message: string;
+    profiles: {
+      stream: string;
+      identity: {
+        internalVendorId: string;
+        internalProductId: string;
+        version: string;
+        deviceFamily: number;
+        mode: number | null;
+      } | null;
+      reportedFeatures: {
+        leftStick: boolean;
+        rightStick: boolean;
+        leftTrigger: boolean;
+        rightTrigger: boolean;
+        motorCount: number;
+        macroSlots: string[];
+        remapping: boolean;
+        turbo: boolean;
+      } | null;
+      supportedSourceCodes: number[] | null;
+      supportedDestinationCodes: number[] | null;
+      missing: string[];
+    }[];
+  } | null;
   input?: {
     leftTrigger: number;
     rightTrigger: number;
@@ -160,6 +191,9 @@ export function ControllerResearchScanner({
     state.state,
   );
   const setup = ["idle", "cancelled", "failed"].includes(state.state);
+  const normalizeModel = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const picturedModel = controllers.find(item => normalizeModel(item.name) === normalizeModel(printedModel));
+  const observed = state.state === 'collecting' ? state.input : null;
   return (
     <MetalDialog
       title="Controller scanner"
@@ -167,8 +201,37 @@ export function ControllerResearchScanner({
       className="research-scanner"
       onClose={() => void close()}
     >
+      <ol className="scanner-stepper" aria-label="Collection stages">
+        {['Controller', 'Connection', 'Input test', 'Optional diagnostics', 'Review', 'Save / share'].map((label, index) => {
+          const current = setup ? 0 : terminal || state.state === 'submitting' ? 5 : state.state === 'review' ? 4
+            : state.action ? /vibrat|rumble|motor/i.test(state.action) ? 3 : 2 : 1;
+          return <li key={label} aria-current={index === current ? 'step' : undefined}>{label}</li>;
+        })}
+      </ol>
+      <div className="scanner-workbench">
+        <aside className="scanner-hardware-preview">
+          <h3>{picturedModel ? `EasySMX ${getController(picturedModel.id).name}` : 'Controller reference'}</h3>
+          <p>Chosen model illustration · this does not establish detected identity.</p>
+          {picturedModel ? <ControllerCanvas model={picturedModel.id} framing="detail"
+            buttons={Object.fromEntries((observed?.buttons ?? []).map(key => [key, true])) as Partial<Record<KeyName, boolean>>}
+            leftTrigger={observed?.leftTrigger ?? 0} rightTrigger={observed?.rightTrigger ?? 0} />
+            : <div className="scanner-unknown-model"><Gamepad2 size={140} strokeWidth={.8} /></div>}
+          <div className="scanner-live-values"><span>Left trigger<strong>{observed ? `${Math.round(observed.leftTrigger * 100)}%` : '—'}</strong></span>
+            <span>Right trigger<strong>{observed ? `${Math.round(observed.rightTrigger * 100)}%` : '—'}</strong></span>
+            <span>Samples<strong>{state.samples ?? '—'}</strong></span></div>
+          <p>{observed ? 'Observed during the current capture.' : 'No active input sample. Values appear only during capture.'}</p>
+          <p>Configuration support follows model-specific verified evidence. This scan does not enable new configuration writes.</p>
+        </aside>
+        <div className="scanner-controls">
       {setup && (
         <div className="research-setup">
+          <div className="scanner-expectations">
+            <strong>Before you start</strong><br />
+            Reads available descriptors and standard input; saves evidence locally.<br />
+            Optional vibration tests ask first. No firmware flashing or arbitrary vendor writes.<br />
+            Sharing follows your consent and report review below.
+          </div>
+          <details className="research-section"><summary>Collection scope and limitations</summary>
           <p>
             Normal capture records input states, available descriptors, trigger
             and rear-button behavior, and optional standard XInput vibration
@@ -190,6 +253,7 @@ export function ControllerResearchScanner({
             </p>
           </details>
 
+          </details>
           <p>
             Identify your controller, follow the exact button/stick/trigger
             prompts, then review and share the report. Unknown data stays
@@ -413,6 +477,114 @@ export function ControllerResearchScanner({
           )}
         </section>
       )}
+      {state.detectedCapabilities && (
+        <section
+          className="research-capabilities"
+          aria-label="Captured controller features"
+        >
+          <h2>Features reported in your capture</h2>
+          <p>{state.detectedCapabilities.message}</p>
+          {!!state.detectedCapabilities.profiles.length && (
+            <p>
+              Reported macro slots do not establish independent rear-button
+              inputs or working remapping.
+            </p>
+          )}
+          {state.detectedCapabilities.profiles.length > 1 && (
+            <p>
+              Multiple connections were found. These results have not been
+              assigned to the selected controller.
+            </p>
+          )}
+          {state.detectedCapabilities.profiles.map((profile, index) => (
+            <article key={profile.stream}>
+              <h3>Captured connection {index + 1}</h3>
+              {profile.identity && (
+                <p>
+                  Internal IDs {profile.identity.internalVendorId}:
+                  {profile.identity.internalProductId} · version{" "}
+                  {profile.identity.version} · family{" "}
+                  {profile.identity.deviceFamily}. These are protocol
+                  identifiers, not a verified product name.
+                </p>
+              )}
+              {profile.reportedFeatures && (
+                <dl>
+                  <div>
+                    <dt>Button remapping</dt>
+                    <dd>
+                      {profile.reportedFeatures.remapping
+                        ? "Reported · configuration locked"
+                        : "Not reported"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Macro slots</dt>
+                    <dd>
+                      {profile.reportedFeatures.macroSlots.join(", ") ||
+                        "None reported"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Trigger settings</dt>
+                    <dd>
+                      {[
+                        profile.reportedFeatures.leftTrigger && "LT",
+                        profile.reportedFeatures.rightTrigger && "RT",
+                      ]
+                        .filter(Boolean)
+                        .join(", ") || "None reported"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Stick settings</dt>
+                    <dd>
+                      {[
+                        profile.reportedFeatures.leftStick && "Left",
+                        profile.reportedFeatures.rightStick && "Right",
+                      ]
+                        .filter(Boolean)
+                        .join(", ") || "None reported"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Vibration motors</dt>
+                    <dd>{profile.reportedFeatures.motorCount} reported</dd>
+                  </div>
+                  <div>
+                    <dt>Turbo</dt>
+                    <dd>
+                      {profile.reportedFeatures.turbo
+                        ? "Reported"
+                        : "Not reported"}
+                    </dd>
+                  </div>
+                </dl>
+              )}
+              <p>
+                Remappable source codes:{" "}
+                {profile.supportedSourceCodes
+                  ?.map((code) => `0x${code.toString(16).padStart(2, "0")}`)
+                  .join(", ") ?? "Not captured"}
+              </p>
+              <p>
+                Destination codes:{" "}
+                {profile.supportedDestinationCodes
+                  ?.map((code) => `0x${code.toString(16).padStart(2, "0")}`)
+                  .join(", ") ?? "Not captured"}
+              </p>
+              <details>
+                <summary>Still needed for configuration support</summary>
+                <ul>
+                  {profile.missing.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </details>
+            </article>
+          ))}
+        </section>
+      )}
       {!!Object.keys(state.coverage).length && (
         <details className="research-coverage" open={false}>
           <summary>Collection coverage and limitations</summary>
@@ -604,6 +776,8 @@ export function ControllerResearchScanner({
           ))}
         </details>
       )}
+        </div>
+      </div>
     </MetalDialog>
   );
 }

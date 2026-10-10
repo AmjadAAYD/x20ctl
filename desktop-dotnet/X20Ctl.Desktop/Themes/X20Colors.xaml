@@ -1,0 +1,36 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <SolidColorBrush x:Key="Backdrop" Color="#080E1C" />
+    <SolidColorBrush x:Key="Surface" Color="#CC131E31" />
+    <SolidColorBrush x:Key="ControlSurface" Color="#19253A" />
+    <SolidColorBrush x:Key="Track" Color="#293751" />
+    <SolidColorBrush x:Key="Line" Color="#22ACBCD6" />
+    <SolidColorBrush x:Key="PrimaryText" Color="#F4F6FB" />
+    <SolidColorBrush x:Key="SecondaryText" Color="#AFBDD4" />
+    <SolidColorBrush x:Key="MutedText" Color="#7F90AF" />
+    <SolidColorBrush x:Key="Accent" Color="#297BFA" />
+    <SolidColorBrush x:Key="Cyan" Color="#7ED7FF" />
+    <SolidColorBrush x:Key="Success" Color="#60DCB8" />
+    <SolidColorBrush x:Key="Amber" Color="#EFA65F" />
+    <FontFamily x:Key="UIFont">Segoe UI Variable Display, Segoe UI</FontFamily>
+    <Style TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource PrimaryText}" />
+        <Setter Property="FontFamily" Value="{StaticResource UIFont}" />
+        <Setter Property="FontSize" Value="14" />
+    </Style>
+    <Style x:Key="Eyebrow" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource MutedText}" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style x:Key="SecondaryCopy" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource SecondaryText}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="LineHeight" Value="20" />
+    </Style>
+    <Style x:Key="Mono" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="Cascadia Mono, Consolas" />
+        <Setter Property="Foreground" Value="{StaticResource SecondaryText}" />
+        <Setter Property="FontSize" Value="12" />
+    </Style>
+</ResourceDictionary>

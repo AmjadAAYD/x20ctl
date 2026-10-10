@@ -250,10 +250,9 @@ class ResearchScanner:
             } and status in {"skipped", "unavailable", "failed"}:
                 status = "observed_with_limits"
                 reason = "Some evidence collected; " + reason
-            elif (
-                previous.get("status") == "observed_with_limits"
-                and status == "observed"
-            ):
+            elif previous.get("status") in {
+                "observed_with_limits", "unavailable", "failed",
+            } and status == "observed":
                 status = "observed_with_limits"
                 reason = previous.get("reason", reason)
             self.view["coverage"][stage] = {
@@ -410,7 +409,13 @@ class ResearchScanner:
             raise Cancelled()
         try:
             result = function()
-            self._mark(stage, "observed")
+            if isinstance(result, dict) and "action" in result and result.get("status") in {
+                "failed", "cancelled", "no_samples", "limit_reached",
+                "no_change_observed", "unrelated_change_observed", "inconclusive_source_changed",
+            } and not (result["action"] == "neutral" and result["status"] == "no_change_observed"):
+                self._mark(stage, "unavailable", result.get("interpretation") or result["status"])
+            else:
+                self._mark(stage, "observed")
             return result
         except Cancelled:
             raise
@@ -1066,6 +1071,11 @@ class ResearchScanner:
             "commandProtocolVerified": False, "targetIdentityVerified": False,
         })
         self._write(f"attachments/{category}.{extension}", data, True)
+        from x20ctl.scanning.capability_discovery import analyze_trace
+
+        capabilities = analyze_trace(data)
+        self._write("attachments/capability-profile.json", capabilities)
+        self._update(detectedCapabilities=capabilities)
         self.attachment_scopes[category] = True
         self._update(state="collecting")
         self.responses.put("attached")
@@ -1089,6 +1099,13 @@ class ResearchScanner:
         if not path.resolve().is_relative_to(self.output.resolve()):
             raise ValueError("Invalid attachment")
         path.unlink()
+        if name.startswith("attachments/trace."):
+            # Derived claims belong to this optional trace; remove them with it.
+            derived = self.output / "attachments/capability-profile.json"
+            derived.unlink(missing_ok=True)
+            self._update(detectedCapabilities=None)
+        elif name == "attachments/capability-profile.json":
+            self._update(detectedCapabilities=None)
         self._update(files=self._files())
         return self.status()
 

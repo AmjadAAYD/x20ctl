@@ -1,0 +1,13 @@
+<local:ConsoleWindow x:Class="X20Ctl.Desktop.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:X20Ctl.Desktop"
+        xmlns:controls="clr-namespace:X20Ctl.Desktop.Controls" xmlns:views="clr-namespace:X20Ctl.Desktop.Views"
+        Title="X20CTL · Native development preview" Width="1224" Height="804" MinWidth="1044" MinHeight="704" Background="{StaticResource Backdrop}">
+    <Grid><controls:Atmosphere /><Grid><Grid.RowDefinitions><RowDefinition Height="64" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="32" /></Grid.RowDefinitions>
+        <controls:TitleBar />
+        <DockPanel Grid.Row="1" Margin="30,0,30,0"><TextBlock Text="LB" FontSize="10" Foreground="{StaticResource MutedText}" VerticalAlignment="Center" Margin="0,0,21,0" /><TextBlock Text="RB" FontSize="10" Foreground="{StaticResource MutedText}" VerticalAlignment="Center" DockPanel.Dock="Right" /><StackPanel Orientation="Horizontal"><RadioButton Content="Buttons" Style="{StaticResource NavTab}" IsEnabled="False" ToolTip="Configuration pages follow the visual gate." /><RadioButton Content="Curves" Style="{StaticResource NavTab}" IsEnabled="False" /><RadioButton Content="Macros" Style="{StaticResource NavTab}" IsEnabled="False" /><RadioButton Content="Vibration" Style="{StaticResource NavTab}" IsEnabled="False" /><RadioButton Content="Device" Style="{StaticResource NavTab}" IsEnabled="False" /><RadioButton Content="Tester" Style="{StaticResource NavTab}" IsChecked="True" /><RadioButton Content="Setups" Style="{StaticResource NavTab}" IsEnabled="False" /></StackPanel></DockPanel>
+        <views:InputWorkspace x:Name="InputView" Grid.Row="2" />
+        <Border Grid.Row="3" Background="#50101826" Padding="30,0"><DockPanel VerticalAlignment="Center"><TextBlock Text="NATIVE PREVIEW · 01" FontSize="11" Foreground="{StaticResource MutedText}" /><TextBlock Text="{Binding Model.NavigationHint, ElementName=InputView}" DockPanel.Dock="Right" HorizontalAlignment="Right" FontSize="11" Foreground="{StaticResource MutedText}" /></DockPanel></Border>
+    </Grid></Grid>
+</local:ConsoleWindow>

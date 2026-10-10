@@ -1052,5 +1052,158 @@
       "M1/M2 independent visibility, macro storage/playback and exact configuration framing.",
       "X15-specific BLE remap framing, key encoding, ACK/readback, persistence/restore acceptance, vibration commands and bootloader identity."
     ]
+  },
+  {
+    "id": "dune",
+    "name": "Dune",
+    "macroSlots": [
+      "M1",
+      "M2",
+      "M3",
+      "M4"
+    ],
+    "backend": null,
+    "visible": true,
+    "placeholder": true,
+    "softwareControl": "unverified",
+    "macroPlacement": "rear",
+    "sources": [
+      "Owner product photos, 10 Oct 2026",
+      "Owner research notes, 10 Oct 2026"
+    ],
+    "hardware": {
+      "rgb": true,
+      "vibration": true,
+      "triggerHaptics": true,
+      "motion": null,
+      "display": true,
+      "sticks": "TMR",
+      "triggers": null
+    },
+    "visual": {
+      "asset": "dune/controller.png",
+      "baseAsset": "dune/controller.png",
+      "aspect": 1.5,
+      "viewLabel": "Front view",
+      "sticks": {
+        "left": {
+          "x": 0.3255208333333333,
+          "y": 0.27734375,
+          "radius": 0.037109375,
+          "cap": {
+            "x": 0.3255208333333333,
+            "y": 0.27734375,
+            "w": 0.07421875,
+            "h": 0.111328125
+          }
+        },
+        "right": {
+          "x": 0.5859375,
+          "y": 0.419921875,
+          "radius": 0.037109375,
+          "cap": {
+            "x": 0.5859375,
+            "y": 0.419921875,
+            "w": 0.07421875,
+            "h": 0.111328125
+          }
+        }
+      },
+      "buttons": {
+        "Y": {
+          "x": 0.6653645833333334,
+          "y": 0.2392578125
+        },
+        "X": {
+          "x": 0.6263020833333334,
+          "y": 0.2880859375
+        },
+        "B": {
+          "x": 0.703125,
+          "y": 0.2880859375
+        },
+        "A": {
+          "x": 0.6653645833333334,
+          "y": 0.3388671875
+        },
+        "SELECT": {
+          "x": 0.4264322916666667,
+          "y": 0.185546875
+        },
+        "START": {
+          "x": 0.5729166666666666,
+          "y": 0.185546875
+        },
+        "DPAD_UP": {
+          "x": 0.408203125,
+          "y": 0.3759765625
+        },
+        "DPAD_DOWN": {
+          "x": 0.408203125,
+          "y": 0.4638671875
+        },
+        "DPAD_LEFT": {
+          "x": 0.3763020833333333,
+          "y": 0.419921875
+        },
+        "DPAD_RIGHT": {
+          "x": 0.4401041666666667,
+          "y": 0.419921875
+        },
+        "LB": {
+          "x": 0.3059895833333333,
+          "y": 0.146484375
+        },
+        "RB": {
+          "x": 0.6940104166666666,
+          "y": 0.146484375
+        },
+        "LT": {
+          "x": 0.3059895833333333,
+          "y": 0.125
+        },
+        "RT": {
+          "x": 0.6940104166666666,
+          "y": 0.125
+        }
+      },
+      "motors": [
+        {
+          "id": "left_grip",
+          "x": 0.224609375,
+          "y": 0.564453125,
+          "kind": "grip"
+        },
+        {
+          "id": "right_grip",
+          "x": 0.775390625,
+          "y": 0.564453125,
+          "kind": "grip"
+        },
+        {
+          "id": "left_trigger",
+          "x": 0.3157552083333333,
+          "y": 0.146484375,
+          "kind": "trigger"
+        },
+        {
+          "id": "right_trigger",
+          "x": 0.68359375,
+          "y": 0.146484375,
+          "kind": "trigger"
+        }
+      ],
+      "rgb": [],
+      "screen": null
+    },
+    "availability": "preview",
+    "known": [
+      "Owner photos: front in its charging dock, rear with M3/M4 on the grips and M1/M2 beside the top centre block.",
+      "Research notes: TMR sticks, 8000 Hz (8K edition), 4 programmable buttons, grip and trigger vibration, 1.3 inch LCD."
+    ],
+    "missing": [
+      "USB and receiver identities.",
+      "Any configuration protocol."
+    ]
   }
 ]

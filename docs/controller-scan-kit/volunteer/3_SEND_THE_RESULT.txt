@@ -1,0 +1,26 @@
+YOU FINISHED THE TOOL - WHAT TO SEND
+
+1. Open the "results" folder beside "2_RUN_ME".
+   It normally opens automatically when the tool finishes.
+
+2. Find the ZIP whose name starts with "scan-".
+   Windows may hide ".zip"; its Type says "Compressed (zipped) Folder".
+   If you ran the tool more than once, choose the newest result by date.
+   Send this ZIP, not the original kit Amjad sent you.
+
+3. Send it to Amjad privately in the same conversation where he sent
+   you this kit. Attach the actual file, not just a screenshot of the window.
+
+4. Add this short message, filling in the blanks:
+
+   My controller is: ______
+   I connected it using: cable / USB receiver / Bluetooth
+   The tool finished / I got stuck at: ______
+
+If a step failed, that is okay. Tell Amjad which step it was.
+Do not post the result publicly. If the summary showed personal information
+or you stopped before reviewing it, ask Amjad before sending the file.
+
+That is all for now. Do not install capture tools, change drivers or try
+other tests. Amjad will read this result and tell you the next specific step
+if more information is needed. Use a separate run for a different controller.

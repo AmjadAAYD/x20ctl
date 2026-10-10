@@ -1,0 +1,20 @@
+[
+  {
+    "asset": "src/assets/controllers/x15/controller.png",
+    "tool": "built-in image_gen",
+    "reference": "artifacts/x15-sources/official-front.png",
+    "prompt": "Preserve the exact official X15 Mecha 117 shell, logo, RGB rings/strips, D-pad and controls. Straight-on full front view, centered 1536x1024 navy canvas with comfortable margins; restrained blue LEFT and amber RIGHT rim, neutral readable shell, no dock/hand/cable or extra graphics. X10 artwork is a lighting/framing reference only."
+  },
+  {
+    "asset": "src/assets/controllers/x15/controller-rear.png",
+    "tool": "built-in image_gen",
+    "reference": "artifacts/x15-sources/official-rear.jpg",
+    "prompt": "Preserve X15 rear geometry, full straight-on back, black textured shell, M2 LEFT/M1 RIGHT tilted rectangular buttons, slider/programming button and triggers. Remove advertising text/icons/arrows and blue paddle callouts. Full 1536x1024 frame, restrained blue LEFT/amber RIGHT. Second edit removes ONLY central barcode sticker and fills with original black shell material; preserve all controls, framing and lighting."
+  },
+  {
+    "asset": "src/assets/controllers/x15/controller-base.png",
+    "tool": "built-in image_gen",
+    "reference": "src/assets/controllers/x15/controller.png",
+    "prompt": "Remove ONLY two raised thumbstick caps/shafts; replace with empty dark sockets inside original RGB rings. Preserve exact registration, 1536x1024 canvas, shell, graphics, buttons, background, framing and lighting. Existing renderer samples front image cap textures above this base; no image editing in Python."
+  }
+]

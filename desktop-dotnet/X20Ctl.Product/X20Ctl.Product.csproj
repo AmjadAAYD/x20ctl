@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <!-- English UI only: the framework's 13 other resource languages added 15 MB to the download -->
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>X20Ctl</AssemblyName>
+    <ApplicationIcon>Brand/x20ctl.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Version>4.1.0-preview.3</Version>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- WinForms is used only for the tray NotifyIcon; keep its namespaces out of the WPF code -->
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="../../artifacts/product-engine-phase/native-build/Release/x20ctl-engine.exe" Link="x20ctl-engine.exe" CopyToOutputDirectory="PreserveNewest" ExcludeFromSingleFile="true" Condition="Exists('../../artifacts/product-engine-phase/native-build/Release/x20ctl-engine.exe')" />
+    <ProjectReference Include="../X20Ctl.Zone/X20Ctl.Zone.csproj" />
+    <!-- the X20CTL mark in white (tools/build_brand_mark.py); the intro draws the same mark in red -->
+    <Resource Include="Brand/x20ctl-mark.png" Link="Assets/brand.png" />
+    <Content Include="../../x20ctl/controllers/catalog.json" Link="Data/catalog.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../src/assets/controllers/x20/rear-geometry.json" Link="Data/x20-rear.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../src/assets/controllers/control-shapes.json" Link="Data/control-shapes.json" CopyToOutputDirectory="PreserveNewest" />
+    <Resource Include="../../src/assets/controllers/**/native/*.png" Link="Assets/native/%(RecursiveDir)%(Filename)%(Extension)" />
+    <Content Include="../../src/assets/controllers/native-layers.json" Link="Data/native-layers.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Brand/intro.wav" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../tools/linux_controller_check/x20ctl-check.py" Link="Tools/linux/x20ctl-check.py" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../src/assets/controllers/lighting.json" Link="Data/lighting.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../src/assets/controllers/outlines.json" Link="Data/outlines.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../src/assets/controllers/**/haptics-geometry.json" Link="Data/haptics/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

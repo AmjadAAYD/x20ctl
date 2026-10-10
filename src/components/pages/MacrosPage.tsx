@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { Check, Layers3, ListMusic, Play, Plus, Square, Trash2 } from "lucide-react";
 import {
   MacroStep,
@@ -22,6 +22,8 @@ import { MacroLibrary } from "../MacroLibrary";
 type Paddle = "M1" | "M2" | "M3" | "M4";
 const STICK_SYMBOLS = ["·", "↑", "↗", "→", "↘", "↓", "↙", "←", "↖"];
 interface MacrosPageProps<T extends string> {
+  recorder?: ReactNode;
+  recording?: boolean;
   model?: ControllerId;
   initialSlot?: T;
   onSlotChange?: (slot: T) => void;
@@ -36,6 +38,8 @@ interface MacrosPageProps<T extends string> {
 }
 
 export function MacrosPage<T extends string = Paddle>({
+  recorder,
+  recording = false,
   model = "x20",
   initialSlot,
   onSlotChange,
@@ -51,6 +55,7 @@ export function MacrosPage<T extends string = Paddle>({
   const [paddle, setPaddle] = useState<T>(initialSlot && slots.includes(initialSlot) ? initialSlot : slots[0]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [pianoOpen, setPianoOpen] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [playback, setPlayback] = useState<{ index: number; phase: "hold" | "gap" } | null>(null);
@@ -123,10 +128,40 @@ export function MacrosPage<T extends string = Paddle>({
     ? steps
     : Array.from({ length: 8 }, (_, index) => ({ id: `empty-${index}` }));
 
+  if (!editorOpen && !recording) return (
+    <section className="macro-overview" aria-label="Macro overview">
+      <div className="macro-overview-intro"><h2>Your macros</h2>
+        <p>{draftOnly ? 'Local drafts · hardware configuration unavailable' : 'Choose a control to build or edit its sequence.'}</p></div>
+      <div className="macro-overview-grid">
+        {slots.map(slot => {
+          const sequence = macros[slot] || [];
+          const duration = sequence.reduce((sum, step) => sum + step.durationMs + step.intervalMs, 0);
+          const preview = sequence.slice(0, 4).map(step => {
+            const inputs = step.buttons.map(shortKeyLabel);
+            if (step.leftStick !== StickDirection.NEUTRAL) inputs.push(`L ${STICK_DIRECTION_NAMES[step.leftStick]}`);
+            if (step.rightStick !== StickDirection.NEUTRAL) inputs.push(`R ${STICK_DIRECTION_NAMES[step.rightStick]}`);
+            return inputs.join(' + ') || 'Neutral';
+          }).join(' → ');
+          return <article className="metal-panel macro-summary-card" key={slot}>
+            <header><strong>{slot}</strong><span>{sequence.length ? 'Draft sequence' : 'Empty'}</span></header>
+            <p className="macro-summary-sequence">{preview || 'Create your first sequence'}{sequence.length > 4 ? ' …' : ''}</p>
+            <small>{sequence.length ? `${sequence.length} steps · ${duration.toLocaleString()} ms` : 'Buttons, stick directions and timing'}</small>
+            <button className="button secondary" data-gamepad-action onClick={() => { selectSlot(slot); setEditorOpen(true); }}>
+              {sequence.length ? `Edit ${slot}` : `Create ${slot}`}</button>
+          </article>;
+        })}
+      </div>
+      <p className="muted">{draftOnly ? 'Preview stays in this app session.' : 'Sequences stay in your draft until you select Apply changes.'}</p>
+    </section>
+  );
+
   return (
     <section className="macro-studio" aria-label={`${slotLabel} macro studio`}
       data-sequence-dense={steps.length > 12}
       data-playing-index={playback?.index ?? -1} data-preview-phase={playback?.phase ?? "idle"}>
+      <button className="button secondary macro-overview-back" data-gamepad-action data-macro-back disabled={recording}
+        onClick={() => { setEditorOpen(false); setPlayback(null); setPianoOpen(false); }}>← Macro overview</button>
+      {recorder}
       <header className="macro-heading">
         <div>
           <span className="macro-eyebrow">

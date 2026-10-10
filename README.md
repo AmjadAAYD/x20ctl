@@ -1,144 +1,174 @@
-# x20ctl
+<p align="center">
+  <img src="docs/screenshots/intro.jpg" alt="X20CTL" width="820">
+</p>
 
-### Your controller. Your setup. A real Windows app.
+<h1 align="center">X20CTL</h1>
 
-A downloadable desktop configurator for the **EasySMX X20**. Remap buttons, tune response curves, build paddle macros and save your favorite X20 setups locally.
+<p align="center"><b>A console-style controller studio for EasySMX pads, on your own PC.</b><br>
+Remap buttons, shape sticks and triggers, build back-paddle macros, set vibration, and check that a controller really works.</p>
 
-[Download for Windows](https://github.com/AmjadAAYD/x20ctl/releases/latest) · [Changelog](CHANGELOG.md) · [Connection help](IF-YOUR-CONTROLLER-ISNT-WORKING.md) · [Report an issue](https://github.com/AmjadAAYD/x20ctl/issues)
+<p align="center">
+  <a href="https://github.com/AmjadAAYD/x20ctl/releases/tag/v4.1.0-preview.3"><b>Download 4.1.0 Preview 3</b></a> ·
+  <a href="CHANGELOG.md">Changelog</a> ·
+  <a href="IF-YOUR-CONTROLLER-ISNT-WORKING.md">Controller not working?</a> ·
+  <a href="https://github.com/AmjadAAYD/x20ctl/issues">Report an issue</a>
+</p>
 
-![Current four-player controller workspace](assets/screenshots/current/controllers.png)
+> **Not affiliated with EasySMX.** X20CTL is an independent, open-source project. It is not made, endorsed, sponsored or supported by EasySMX. Product names belong to their owners and are used only to say which controllers X20CTL works with.
 
-## 4.1.0 preview
+---
 
-[Download the preview](https://github.com/AmjadAAYD/x20ctl/releases/tag/v4.1.0-preview.2). Seven controller previews, experimental X15 input and the built-in guided scanner are included. Download and run **x20ctl.exe**; the integrated scanner does not need a helper executable. Hardware and native-window verification limits are documented in the [preview notes](RELEASES/4.1.0-preview.1.md). D10, X15, X05 and X10 offer experimental input testing; their controller-side remapping remains disabled. Automatic report submission awaits the website receiver update. The documentation below describes stable 4.0.1.
+## What's new
 
-## Download and run
+X20CTL is now a **native Windows app**, rebuilt from scratch in WPF on .NET 10. It no longer uses a web page inside a window, and it no longer needs WebView2. Up to four players each pick their own controller. Every model opens the same Studio, and every page can be driven with a gamepad, like a console's big-picture mode.
 
-1. Open [GitHub Releases](https://github.com/AmjadAAYD/x20ctl/releases).
-2. Download **x20ctl-4.0.1-win-x64.zip**, not the source-code archive.
-3. Extract the archive and keep **x20ctl.exe** beside **x20ctl-scanner.exe**. Run x20ctl.exe. No Python, Node.js, browser tab, account or paid service is needed.
+**4.1.0 Preview 3 is a pre-release.** The EasySMX X20 is the only verified controller. The other seven models open as read-only previews. Their layouts, sticks and triggers are drawn and animated, but nothing is written to them. See [Supported controllers](#supported-controllers).
 
-Windows 10/11 **x64** is the target. The 4.0.1 desktop executable bundles Python and the interface, but uses the installed Microsoft WebView2 Runtime. If WebView2 is missing, a native dialog offers the official Microsoft download page and Retry. It never installs anything silently. Windows .NET Framework 4.6.2 or later is required, as included in supported, updated Windows installations.
+## Controller Zone
 
-The executable is **unsigned**. A Windows reputation warning is possible. Verify its SHA-256 against the release's `SHA256SUMS.txt`; do not disable antivirus to run it. [Security details](SECURITY.md).
+Every launch opens with the X20CTL intro and then the Controller Zone. Each of the four players has a card. The selected card grows into the hero spot on the left, and the other three wait on the right. Press **+** on an empty card to choose a controller.
 
-## Two connections, clearly separated
+![Controller Zone with an X20, an X20 Pro and a Dune assigned](docs/screenshots/controller-zone.jpg)
 
-| Connection | What it does |
+## Choose your controller
+
+Pick the model you hold. Each card names what the pad has: stick and trigger type, lighting, screen and back buttons. Choosing a model sets the layout and tools; connecting the hardware is a separate step.
+
+![Choosing between eight EasySMX controllers](docs/screenshots/choose-controller.jpg)
+
+## Studio
+
+### Dashboard
+
+The Studio opens on the Dashboard. It shows the controller, its player slot, your draft changes and saved setups. It also finds the Steam and Epic games installed on this PC, so you can launch them from here. It only reads the launchers' own local files and never goes online.
+
+![Studio dashboard](docs/screenshots/dashboard.jpg)
+
+### Buttons
+
+Pick a button on the controller, then press what it should do. Front and back views are included, plus an Outputs board of every remappable control. Use **Try it** to feel a change before you keep it.
+
+![Remapping A to B](docs/screenshots/buttons.jpg)
+
+### Curves
+
+Shape each stick and trigger separately: presets, inner deadzone and outer travel limit. The graph shows the input-to-output response you are building.
+
+![Stick response curves](docs/screenshots/curves.jpg)
+
+### Macros
+
+Build sequences for the M back paddles, step by step, on a timeline. Each step holds buttons, stick directions or a pause, with its own timing. The M paddles are macro slots that send ordinary buttons. They never become extra buttons of their own.
+
+![A three-step macro on M1](docs/screenshots/macros.jpg)
+
+### Vibration
+
+Set motor strength. The motors pulse on the picture like a heartbeat that speeds up as strength rises. This is a visual preview of your draft, not a reading from the motors. Only the X20 Pro and the Dune have trigger motors; every other model has two grip motors.
+
+![Vibration preview at 70 percent](docs/screenshots/vibration.jpg)
+
+### Device
+
+Shows the controller's battery, firmware, hardware revision and transport. Gameplay and configuration are listed as separate connections, along with what X20CTL supports on this model.
+
+![X20 device page](docs/screenshots/device.jpg)
+
+### Setups
+
+Keep whole-controller setups in a local library: buttons, curves, macros and vibration together. Open, duplicate, rename, export and import them.
+
+![Saved setups](docs/screenshots/setups.jpg)
+
+### Tester
+
+See exactly what Windows receives from the controller: every button, both sticks and both triggers, live, with the front and back views.
+
+![Input tester](docs/screenshots/tester.jpg)
+
+## Every controller gets the full Studio
+
+Models that are not verified yet still open every page: Dashboard, Buttons, Curves, Macros, Vibration, Device, Setups and Tester. Each page wears a banner that states what is known about the controller and what isn't. Where sources disagree, the banner says so instead of guessing. Sticks and triggers move on every model.
+
+![The Dune's device page as a read-only preview](docs/screenshots/dune.jpg)
+
+## Tools
+
+Tools gathers help and extras: the Controller Check, Replay Intro, About, Support X20CTL and the GitHub repository.
+
+![Tools hub](docs/screenshots/tools.jpg)
+
+### Controller Check
+
+Is the controller not working? The Controller Check walks you through every button, stick and trigger, one step at a time. It shows held times, the stick report rate and resolution, battery, and what the controller reports to Windows. It then saves a ZIP report to `Documents\X20CTLInputReports`.
+
+It only reads. It never changes settings, lighting, vibration or firmware. Sending the report is your choice: before the scan starts, pick **Scan and send** or **Scan, keep it on this PC**.
+
+![Controller Check introduction](docs/screenshots/controller-check.jpg)
+
+### About
+
+![About X20CTL](docs/screenshots/about.jpg)
+
+## Supported controllers
+
+| Controller | Status in 4.1.0 Preview 3 |
 |---|---|
-| Bluetooth LE configuration peripheral, usually **Xpert2** | Reads and writes controller settings through the native KeyLinker client |
-| USB, receiver or Windows-compatible Bluetooth gameplay mode | Feeds the read-only **XInput** tester and macro recorder |
+| **EasySMX X20** | Verified. Full Studio: buttons, curves, macros (M1–M4), vibration, setups, tester |
+| EasySMX X20 Pro | Read-only preview: TMR sticks, six back buttons, four motors including the triggers |
+| EasySMX Dune | Read-only preview: TMR sticks, M1–M4, four motors including the triggers |
+| EasySMX X15 | Read-only preview |
+| EasySMX X10 | Read-only preview |
+| EasySMX X05 | Read-only preview |
+| EasySMX X05 Pro | Read-only preview |
+| EasySMX D10 | Read-only preview |
 
-Playing over USB does not establish the configuration link. Enable your PC's Bluetooth, wake the controller and select **Connect controller**. The app lists actual discovery results, then reads settings after a successful connection.
+For a preview model, nothing is written to the controller and nothing is stored as if it had been. A model becomes verified only once its settings can be read back from real hardware. Controller Check reports from owners help get each model there.
 
-**X05 is not supported.** Its hardware does not expose this configuration protocol. Other KeyLinker devices are not claimed compatible merely because they appear in a scan. See the [hardware investigation](docs/00-findings.md#7-other-controllers-checked).
+## Download
 
-## Inside the app
+1. Open the [4.1.0 Preview 3 release](https://github.com/AmjadAAYD/x20ctl/releases/tag/v4.1.0-preview.3).
+2. Download **X20CTL-4.1.0-preview.3-windows-x64.zip**, not the source-code archive.
+3. Extract the whole `X20CTL` folder and run **X20Ctl.exe**.
 
-- **Controllers workspace:** open the X20 studio. The unfinished X20 Pro discovery entry has been removed from the visible interface; its read-only API boundary remains in place.
-- **Desktop studio:** fixed navy palette, left navigation rail, compact controller status header and a page-end read/apply bar. Theme Studio and the Pro rear view have been removed; Windows reduced-motion preference remains respected.
-- **Button studio:** interactive metallic controller illustration and per-button assignment inspector. Select and Start are destinations only; unsupported Capture/Turbo mappings are not offered.
-- **Response curves:** independent left/right stick and trigger control points, deadzones and presets. Curve lines are illustrations through stored points, not measurements of unknown firmware interpolation.
-- **Paddle macros:** M1 to M4, button chords, eight-way stick directions, per-step timing, loop intervals and a piano-roll editor. Timing follows the controller's 5 ms grid; the limit is 47 wire entries, including pauses.
-- **Real recording:** records XInput buttons and left-stick directions into the M1 draft. Review before applying. Recording is not fabricated, and overflow/disconnection is an error rather than silent truncation.
-- **Vibration and power:** stored motor strength and idle shutdown timer. No pretend rumble test.
-- **Input tester:** actual Windows XInput states. No invented polling rate, packet loss or latency measurement.
-- **Saved setups:** dedicated local library, JSON import/export, legacy 1.x profile migration, rename and confirmed deletion. Importing a partial legacy setup does not overwrite categories it never contained.
-- **Desktop behavior:** single instance, close-to-tray, Open/Quit tray actions and optional quiet GitHub update checks.
-- **Compatibility reports:** a separate SHA-256-verified helper collects standard Bluetooth LE diagnostics for a selected device. X20ctl validates and stores the report locally, shows a preview, and uploads it to X20ADMIN only after explicit consent. Hardware support beyond the tested X20 configuration workflow is not claimed.
-- **Support X20ctl:** an optional dialog opens the official Ko-fi page in the default browser. No payment or support status is handled by the app.
+You need Windows 10 or 11 (x64). Everything is bundled: you don't need to install .NET, Python, a browser runtime or an account.
 
-Offline edits are **drafts**, not controller values. **Apply changes** writes only edited categories. Successful read-back is reported as verified; commands without reliable confirmation are labeled sent. A partial failure retains the remaining draft and reports what succeeded.
+The app is **unsigned**, so Windows SmartScreen may warn you. Check the ZIP against the release's `SHA256SUMS.txt`. Never turn off your antivirus to run it.
 
-## Current interface screenshots
+**Linux.** The Studio is Windows-only for now. The Linux ZIP contains the Controller Check as a standalone script (`x20ctl-check.py`, Python 3). A native Linux build of the full Studio is planned.
 
-Captured from the bundled **4.1.0-preview.1** interface on 7 October 2026 in an isolated headless browser at 1583 × 1147. These show offline drafts and locally assigned models, with no physical controller connected. They are interface previews, not native-window or hardware verification.
-
-| Buttons / front view | Buttons / back view |
-|---|---|
-| ![Current X20 button Studio](assets/screenshots/current/buttons.png) | ![Current X20 rear controls](assets/screenshots/current/back-view.png) |
-
-| Response curves | Vibration |
-|---|---|
-| ![Current response curves](assets/screenshots/current/curves.png) | ![Current vibration draft preview](assets/screenshots/current/vibration.png) |
-
-![Current compact macro sequencer](assets/screenshots/current/macros.png)
-
-![Current piano-roll editor](assets/screenshots/current/macro-editor.png)
-
-| Input tester, disconnected | Power and device, disconnected |
-|---|---|
-| ![Current disconnected input tester](assets/screenshots/current/tester.png) | ![Current power and device page](assets/screenshots/current/power.png) |
-
-![Current saved setup library](assets/screenshots/current/profiles.png)
-
-Capture details: [screenshot provenance](assets/screenshots/current/README.md).
+The last stable release is still [4.0.1](https://github.com/AmjadAAYD/x20ctl/releases/tag/v4.0.1).
 
 ## Local first
 
-Settings are stored under `%APPDATA%\x20ctl\desktop`. Existing 1.x profiles under `%APPDATA%\x20ctl\profiles` are not moved or deleted. Import them from the setup toolbar.
+- No account. No telemetry. Your setups, drafts and assignments stay in your user folder.
+- Every change is a **local draft** until it can be sent to a connected, verified controller. X20CTL never writes to a controller it cannot read back.
+- The game shelf reads only the Steam and Epic launchers' own local files.
+- The only uploads are a Controller Check report, and only when you choose **Scan and send**. External links, such as Support and GitHub, open in your browser and only when you click them.
+- X20CTL does not flash firmware.
 
-The optional startup update check contacts GitHub's public latest-release API. Disable it in **Connection guide**. Settings and profiles are not uploaded. A compatibility report is uploaded only after you preview it and explicitly consent. Updates open the real GitHub Releases page; the app never silently replaces its executable.
+## Build from source
 
-The embedded Microsoft WebView2 component has its own diagnostic/security behavior, including Microsoft Defender SmartScreen, and may send information to Microsoft under [Microsoft's privacy statement](https://aka.ms/privacy). This is separate from x20ctl's update check. See [third-party notices](THIRD_PARTY.md).
-
-The React interface is bundled inside the EXE and talks to a restricted Python API. It is **not a hosted website or PWA**. Native BLE and XInput access stay in Python. The embedded view cannot navigate to arbitrary remote content.
-
-## What changed in 4.0.1?
-
-The vibration strength track now follows its value. Support X20ctl is visible in the X20 studio sidebar, and its Ko-fi button is left aligned in the optional dialog. The unfinished X20 Pro discovery link is removed from the Controllers page. See the [4.0.1 release notes](RELEASES/4.0.1.md).
-
-## What changed in 4.0.0?
-
-The desktop has a fixed navy interface, controller preview changes, optional compatibility reports, and Support X20ctl. The Theme Studio/color editor and X20 Pro rear view are intentionally removed. Reports use a separate scanner executable that must remain beside x20ctl.exe; see the [4.0.0 release notes](RELEASES/4.0.0.md).
-
-## What changed in 3.1.0?
-
-The downloadable EXE is now about 21.2 MiB instead of 316.9 MiB (332 MB), with the shared WebView2 Runtime required. Controllers is the new entry page, X20 Pro has isolated read-only discovery, and app-wide metallic themes are available. The X20 protocol and saved setups remain in place. See the [3.1.0 validation record](docs/desktop-validation.md#310-packaged-desktop-validation).
-
-## What changed in 3.0.0?
-
-The verified Python protocol engine, CLI, hardware findings and regression suites are retained. Version 3.0.0 replaces the entire studio interface with a metallic-grey local React desktop studio and native bridge. The intervening browser prototype and Tkinter mock were removed, along with fabricated recording, unsupported telemetry, synthetic marketing screenshots, fake checksums and false attestation claims.
-
-Version 3.0.0 passed source regression and a packaged native-window acceptance run covering 23 checks. The 2.0.1 follow-up was also tested with a live Xpert2 controller on firmware 9.01: full settings reads, a timer write/read-back/restore, live XInput changes and saving the connected setup passed. Macro playback and every individual control have not been verified. See the [hardware test record](docs/desktop-validation.md#live-controller-follow-up-201). Version [1.2.0](https://github.com/AmjadAAYD/x20ctl/releases/tag/v1.2.0) remains available as a rollback.
-
-## Run from source
-
-Use Python 3.12 and Node.js 22.18 or later on Windows:
+You need the .NET 10 SDK on Windows:
 
 ```powershell
 git clone https://github.com/AmjadAAYD/x20ctl.git
 cd x20ctl
-python -m venv .venv
-.venv\Scripts\python -m pip install -r requirements-build.txt
-npm ci
-npm run build
-.venv\Scripts\python app.py
+dotnet build desktop-dotnet\X20Ctl.Product\X20Ctl.Product.csproj -c Release
 ```
 
-Source launch uses the system WebView2 runtime. `npm run dev` is an **interface development preview only** and cannot configure hardware without the desktop bridge.
+The controller art is generated from the source pictures by `tools/build_native_controller_layers.py`, and the outlines by `tools/build_controller_outlines.py`. The protocol research and the earlier Python and React desktop lines are still in the repository: see [docs/](docs/) and the [protocol reference](docs/01-protocol.md).
 
-## Tests and builds
+## Credits
 
-```powershell
-npm run lint
-npm test
-.venv\Scripts\python -m pytest tests/test_desktop.py tests/test_protocol.py tests/test_profiles.py tests/test_compatibility.py -q
-.venv\Scripts\python tools/build_exe.py
-$p = Start-Process .\dist\x20ctl.exe -ArgumentList '--smoke-test artifacts\acceptance' -Wait -PassThru
-$p.ExitCode
-```
+**Made by Amjad AAYD.**
 
-The full regression suite also includes the retained Qt interface: install `.[gui]` to run all tests with `python -m pytest -q`. Qt is excluded from the new executable.
+The console-style look was inspired by [ApexSenseBridge by Kayn arts (ReynArts)](https://github.com/ReynArts/ApexSenseBridge). The credit is for design inspiration only; no code was taken from it. X20CTL has its own branding, artwork and implementation.
 
-`--smoke-test` uses isolated profile storage, exercises the actual desktop UI, captures rendered pixels and performs only read-only discovery/input checks. It never writes controller settings. Build dependencies are pinned in [requirements-build.txt](requirements-build.txt); frontend dependencies are locked in `package-lock.json`.
+If X20CTL helps you, you can [support it on Ko-fi](https://ko-fi.com/x20ctl), or simply star the repo.
 
-Build output is `dist/x20ctl-4.0.1-win-x64.zip`, containing the paired desktop and scanner executables. [Architecture and profile schema](docs/desktop-architecture.md). [Protocol reference](docs/01-protocol.md).
+## License
 
-## Safety and credits
+From 4.1.0 Preview 3, X20CTL is free software under the **[GNU General Public License v3.0 or later](LICENSE)**. You may use, study, share and change it. If you distribute a modified version, it must stay open under the same licence.
 
-The app targets configuration, not firmware. There is no firmware-flashing workflow. Configuration writes can still affect controls, so save your setup first and review changes. A reset erases controller configuration; it is not a universal recovery guarantee.
-
-Thanks to [@SpookyyQ](https://github.com/SpookyyQ) for testing the X05 and documenting its protocol boundary. Existing protocol findings and Git history are preserved.
-
-MIT for x20ctl source. Bundled components retain their own licenses, including Microsoft's runtime: [third-party notices](THIRD_PARTY.md). Independent interoperability project, not affiliated with or endorsed by EasySMX or any controller manufacturer.
+Releases up to and including 4.1.0 Preview 2 were published under MIT, and code contributed under MIT keeps its notice ([licenses/](licenses/)). See [NOTICE](NOTICE) for details and the full non-affiliation statement.

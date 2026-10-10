@@ -1,0 +1,7 @@
+<UserControl x:Class="X20Ctl.Desktop.Controls.Atmosphere" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" IsHitTestVisible="False">
+    <Grid Background="{StaticResource Backdrop}" ClipToBounds="True">
+        <Rectangle><Rectangle.Fill><RadialGradientBrush Center="0.02,0.26" GradientOrigin="0.02,0.26" RadiusX="0.85" RadiusY="0.9"><GradientStop Color="#481A5BA8" Offset="0" /><GradientStop Color="#0021599E" Offset="1" /></RadialGradientBrush></Rectangle.Fill></Rectangle>
+        <Rectangle><Rectangle.Fill><RadialGradientBrush Center="1,0.74" GradientOrigin="1,0.74" RadiusX="0.56" RadiusY="0.92"><GradientStop Color="#26DC6828" Offset="0" /><GradientStop Color="#00DC6828" Offset="1" /></RadialGradientBrush></Rectangle.Fill></Rectangle>
+        <Rectangle Height="1" VerticalAlignment="Top" Fill="#386D9CA5" />
+    </Grid>
+</UserControl>

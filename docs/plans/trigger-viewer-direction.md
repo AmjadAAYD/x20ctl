@@ -1,0 +1,3 @@
+# Trigger press toward the viewer
+
+The user clarified that the original downward press was wanted. Revert the last angular reversal, preserving the independent LT/RT paths and fixed hinges. A flat orthographic transform cannot distinguish approaching from receding; add positive camera depth as the free edge presses downward, and apply perspective to the photographic cap alone. Keep the body and collar stationary. Check downward travel, positive depth, shaft anchoring, mirror symmetry, release registration and both independently driven sides in an isolated browser. Package a separate local Windows build without accessing the user's screen or controller.

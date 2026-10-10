@@ -1,0 +1,13 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <SolidColorBrush x:Key="Ink" Color="#060A16" />
+  <SolidColorBrush x:Key="Text" Color="#F3F6FC" />
+  <SolidColorBrush x:Key="Secondary" Color="#AAB8CE" />
+  <SolidColorBrush x:Key="Muted" Color="#8D9CB5" />
+  <SolidColorBrush x:Key="Rule" Color="#263C546F" />
+  <SolidColorBrush x:Key="Blue" Color="#347EF1" />
+  <SolidColorBrush x:Key="Ice" Color="#A9CFFF" />
+  <SolidColorBrush x:Key="Amber" Color="#E3AB77" />
+  <SolidColorBrush x:Key="Green" Color="#91D8BC" />
+  <FontFamily x:Key="Font">Segoe UI Variable Display, Segoe UI</FontFamily>
+  <Geometry x:Key="ControllerOutline">M347,96 C360,51 483,25 526,60 L563,81 L971,81 L1012,60 C1049,23 1184,54 1196,96 C1278,122 1306,237 1350,385 C1375,485 1428,661 1448,821 C1475,1006 1350,1034 1260,973 C1210,943 1180,865 1103,754 C1075,714 1025,702 952,702 L584,702 C511,702 461,714 433,754 C356,865 327,943 276,973 C187,1034 61,1006 88,821 C109,661 162,485 186,385 C231,237 264,122 347,96 Z</Geometry>
+</ResourceDictionary>

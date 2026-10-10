@@ -1,0 +1,38 @@
+SEND TO AMJAD IN YOUR EXISTING PRIVATE CONVERSATION
+
+First send a short message:
+
+Hi Amjad, I own [exact printed model, Pro/non-Pro].
+I use Windows [version]. My available connections are [USB / receiver / BT].
+The official configuration app I tested is [name/version/source, or none].
+It [connected / did not connect / has not been tested] in [connection/mode].
+I can help with [discovery only / guided capture / later experimental tests].
+
+Then send:
+1. The reviewed results/scan-<id>.zip created by this kit.
+2. A summary of the session modes/connections and any step skipped or failed.
+3. Optional cropped photos: front/back, mode switch, receiver label and printed
+   model with serials/order details covered. Send photos separately.
+
+Do not send the kit ZIP itself back instead of the scan report. Do not send
+only a terminal screenshot: Amjad needs the original JSON/JSONL/BIN evidence
+and manifest, including useful unavailable/failed results.
+
+There is no automatic upload or public submission URL in this kit. Use the
+existing private channel agreed with Amjad. If it rejects ZIP attachments,
+agree on a private file-sharing route; do not rename an EXE as a document.
+
+Owners with several controllers: make one report per model. Owners testing
+USB and receiver/mode variations: use separate sessions or separate runs.
+Do not assume that identical VID/PID values mean identical controller models.
+
+Amjad's next step is to inspect the evidence and assign one short follow-up.
+He may ask for an original HID report descriptor, a manufacturer-app capture,
+or a narrowly defined experimental test. Collection does not promise support.
+
+VOLUNTEERS ALREADY SHOWN IN THE REQUEST
+- X05 non-Pro + X10 + D10 owner: one report per model; prioritize a D10 or X05
+  Windows discovery, then investigate the actual configuration route for X10.
+- Second D10 owner: collect an independent D10 report for comparison.
+- X05 Pro + X20 owner: separate reports; X20 can serve as a known-model control.
+These are suggested priorities, not assumptions about app/protocol compatibility.

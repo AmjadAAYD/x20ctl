@@ -24,6 +24,15 @@ def summarize(action, samples):
     if not samples: return result
     source = samples[0]["source"]
     result["source"] = source
+    # A slot/API change is not a button transition on one selected controller.
+    if len({s["source"] for s in samples}) != 1 or (
+        source == "xinput_state"
+        and len({s.get("values", {}).get("slot") for s in samples}) != 1
+    ):
+        result.update(status="inconclusive_source_changed",
+                      interpretation="Input source changed during this action; select one source and repeat.")
+        return result
+    requested = None
     if source == "xinput_state":
         keys = set().union(*(s.get("values", {}) for s in samples)) - {"packet", "slot"}
         fields = sorted(k for k in keys if len({str(s.get("values", {}).get(k)) for s in samples}) > 1)
@@ -36,6 +45,21 @@ def summarize(action, samples):
                                                    "max": max(s["values"][key] for s in samples)}
                                      for key in fields if all(isinstance(s["values"].get(key), int) for s in samples)}
         changed = bool(fields)
+        masks = {"A": 0x1000, "B": 0x2000, "X": 0x4000, "Y": 0x8000,
+                 "LB": 0x0100, "RB": 0x0200, "Start": 0x0010, "Back": 0x0020,
+                 "L3": 0x0040, "R3": 0x0080, "dpad_up": 1, "dpad_down": 2,
+                 "dpad_left": 4, "dpad_right": 8, "dpad_up_right": 9,
+                 "dpad_down_right": 10, "dpad_down_left": 6, "dpad_up_left": 5}
+        if action in masks:
+            mask = masks[action]
+            requested = (any(value & mask == mask for value in buttons)
+                         and any(value & mask == 0 for value in buttons))
+        elif action in {"LT", "RT"} or action.startswith(("LT_", "RT_")):
+            requested = action[:2].lower() in fields
+        elif action.startswith("left_stick"):
+            requested = bool({"lx", "ly"} & set(fields))
+        elif action.startswith("right_stick"):
+            requested = bool({"rx", "ry"} & set(fields))
     else:
         raw = [bytes.fromhex(s["report_hex"]) for s in samples]
         # Only compare like-sized frames; report IDs can denote distinct layouts.
@@ -46,6 +70,15 @@ def summarize(action, samples):
         result["changed_byte_offsets"] = offsets
         changed = bool(offsets)
     result["status"] = "change_observed" if changed else "no_change_observed"
+    if requested is not None:
+        result["requested_control_observed"] = requested
+        if changed and not requested:
+            result["status"] = "unrelated_change_observed"
+            result["interpretation"] = (
+                "Other inputs changed, but the requested standard control did not. "
+                "Check the selected source or existing button assignments before repeating."
+            )
+            return result
     result["interpretation"] = "Tentative action correlation, not a decoded configuration command"
     return result
 
