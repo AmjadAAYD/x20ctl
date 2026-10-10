@@ -19,6 +19,10 @@ export const STUDIO_SECTIONS = [
   { id: "profiles", label: "Saved setups", icon: FolderOpen },
 ];
 
+export function studioSectionLabel(id: string) {
+  return ({ curves: 'Curves', power: 'Device', tester: 'Tester', profiles: 'Setups' } as Record<string, string>)[id];
+}
+
 export function MissingControllerData({
   model,
   section,

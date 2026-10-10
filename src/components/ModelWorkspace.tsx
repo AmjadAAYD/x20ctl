@@ -24,7 +24,7 @@ import type { MacroStep } from "../types/gamepad";
 import brandMark from "../assets/brand-mark.png";
 import "./model-workspace.css";
 import { MotionNav } from "./Motion";
-import { STUDIO_SECTIONS, MissingControllerData } from "./StudioSections";
+import { STUDIO_SECTIONS, MissingControllerData, studioSectionLabel } from "./StudioSections";
 
 const pages = [
   { id: "buttons", label: "Buttons", icon: Gamepad2 },
@@ -77,11 +77,7 @@ export function ModelWorkspace({
       data-page={tab}
       data-model={model}
     >
-      <aside className="chassis-sidebar has-sidebar-actions">
-        <div className="chassis-brand">
-          <img className="brand-emblem" src={brandMark} alt="" />
-          <strong>x20ctl</strong>
-        </div>
+      <div className="studio-navigation-area">
         <MotionNav active={tab}>
           {availablePages.map((page) => (
             <button
@@ -92,21 +88,16 @@ export function ModelWorkspace({
               onClick={() => { setTab(page.id); if (page.id !== "buttons") setMissing(page.label); }}
             >
               <page.icon size={19} />
-              <span>{page.label}</span>
+              <span>{studioSectionLabel(page.id) ?? page.label}</span>
             </button>
           ))}
         </MotionNav>
-        <button
-          className="sidebar-support"
-          onClick={onSupport}
-          title="Support X20ctl"
-          aria-label="Support X20ctl"
-        >
-          <Heart size={19} />
-          <span>Support X20ctl</span>
-        </button>
-      </aside>
+      </div>
       <header className="chassis-header">
+        <div className="chassis-brand">
+          <img className="brand-emblem" src={brandMark} alt="" />
+          <strong>x20ctl</strong>
+        </div>
         <div className="header-controller">
           <div className="header-controller-art">
             <ControllerCanvas model={model} disabled />
@@ -133,6 +124,16 @@ export function ModelWorkspace({
           </div>
         </div>
         <div className="header-actions">
+        <button
+          className="sidebar-support"
+          onClick={onSupport}
+          title="Support X20ctl"
+          aria-label="Support X20ctl"
+        >
+          <Heart size={19} />
+          <span>Support X20ctl</span>
+        </button>
+
           <button className="button secondary" onClick={() => onScan()}>Controller scanner</button>
           <button className="button secondary" onClick={onSwitch}>
             Switch Controller
@@ -150,8 +151,7 @@ export function ModelWorkspace({
       <main className="metal-workspace" id="workspace">
         <h1 className="workspace-page-title">{current.label}</h1>
         <div className="notice model-draft-notice" role="status">
-          {profile.name} preview Studio. Hardware protocol unverified; edits and
-          previews stay in this app session.
+          {profile.name} preview · configuration research in progress. Edits stay in this app session.
         </div>
         <div className="setup-toolbar">
           <div className="setup-name">
@@ -364,7 +364,7 @@ export function ModelWorkspace({
             </section>
           )}
           {tab === "tester" && (
-            <TesterPage liveState={input} inputConnected={false} />
+            <TesterPage model={model} liveState={input} inputConnected={false} />
           )}
           {tab === "profiles" && (
             <section className="metal-panel model-feature">

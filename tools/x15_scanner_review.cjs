@@ -6,7 +6,7 @@ const http = require('node:http');
 const { chromium } = require('C:/Users/amjad/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
 const root = path.resolve(__dirname, '..');
 const dist = path.join(root, 'dist-ui');
-const out = path.join(root, 'artifacts/x15-scanner-review');
+const out = path.join(root, process.env.X20CTL_REVIEW_OUTPUT || 'artifacts/x15-scanner-review');
 const report = { passed: false, mode: 'isolated fixture bridge; no hardware or Internet submissions', checks: [] };
 (async () => {
   await fs.mkdir(out, { recursive: true });
@@ -47,6 +47,7 @@ const report = { passed: false, mode: 'isolated fixture bridge; no hardware or I
           data = scan;
         } else if (operation === 'research_answer') {
           scan = { ...scan, state: 'review', prompt: null, coverage: { triggers: { status: 'observed', reason: 'Fixture readings only' }, configuration: { status: 'unavailable', reason: 'No verified commands' } }, files: [{ path: 'device.json', size: 200 }, { path: 'input/neutral.jsonl', size: 1000 }] };
+          scan.detectedCapabilities = {status:'reported', message:'Reported features need model-specific verification before configuration can be enabled.', profiles:[{stream:'fixture-connection', identity:{internalVendorId:'1001',internalProductId:'3001',version:'2.24',deviceFamily:3,mode:7},reportedFeatures:{leftStick:true,rightStick:true,leftTrigger:true,rightTrigger:true,motorCount:2,macroSlots:['M1','M2'],remapping:true,turbo:true},supportedSourceCodes:[1,2,93],supportedDestinationCodes:null,missing:['Destination-button list','Verified model association','Model-specific write, ACK, read-back, persistence and restoration']}]};
         } else if (operation === 'research_finish') {
           if (!payload.reviewed) throw Error('review missing');
           scan = { ...scan, state: 'submitting', sha256: 'a'.repeat(64), size: 1200 };
@@ -55,7 +56,7 @@ const report = { passed: false, mode: 'isolated fixture bridge; no hardware or I
         else if (operation === 'research_export') data = { saved: true };
         else if (operation === 'research_contact' || operation === 'research_inspect' || operation === 'research_open_folder') data = { opened: true };
         else if (operation === 'disconnect' || operation === 'input_detach') data = { connected: false };
-        else if (operation === 'bootstrap') data = { version: '4.1.0-preview.1', profiles: [], warning: null, updatesEnabled: false };
+        else if (operation === 'bootstrap') data = { version: '4.1.0-preview.2', profiles: [], warning: null, updatesEnabled: false };
         else if (operation === 'input') data = { connected: false, input: null };
         else if (operation === 'check_updates') data = null;
         else throw Error('Unexpected fixture operation: ' + operation);
@@ -95,7 +96,7 @@ const report = { passed: false, mode: 'isolated fixture bridge; no hardware or I
       await page.getByRole('button', { name: 'Enter Studio for Player 2', exact: true }).click();
       const inputStudio = page.locator('.input-workspace:visible');
       assert.equal(await page.getByRole('dialog').count(), 0);
-      await inputStudio.locator('summary').filter({hasText: 'Known / Missing'}).click();
+      await inputStudio.locator('summary').filter({hasText: 'Technical details'}).click();
       assert.equal(await inputStudio.getByRole('heading', {name: 'Known', exact:true}).count(), 1);
       assert.equal(await inputStudio.getByRole('heading', {name: 'Missing', exact:true}).count(), 1);
       await inputStudio.getByRole('button', { name: 'Connect input', exact: true }).click();
@@ -136,6 +137,14 @@ const report = { passed: false, mode: 'isolated fixture bridge; no hardware or I
     await scanner.getByRole('button', { name: 'Continue', exact: true }).click();
     const finish = scanner.getByRole('button', { name: 'Finish scan', exact: true });
     await finish.waitFor();
+    const capabilities = scanner.getByRole('region', {name:'Captured controller features'});
+    await capabilities.getByText('Reported · configuration locked', {exact:true}).waitFor();
+    assert.equal(await capabilities.getByText('M1, M2', {exact:true}).count(), 1);
+    assert.equal(await capabilities.getByText('Remappable source codes: 0x01, 0x02, 0x5d', {exact:true}).count(), 1);
+    await capabilities.getByText('Still needed for configuration support', {exact:true}).click();
+    await capabilities.getByText('Verified model association', {exact:true}).waitFor();
+    await capabilities.screenshot({path:path.join(out,'captured-capabilities.png')});
+    report.checks.push('Captured features and source codes visible; reported remapping stays locked; missing model and persistence evidence listed');
     assert.equal(await finish.isDisabled(), true);
     await scanner.getByRole('checkbox', { name: 'I reviewed these files and approve the selected sharing scope.', exact: true }).check();
     await finish.click();

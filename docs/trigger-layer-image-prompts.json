@@ -1,0 +1,55 @@
+{
+  "engine": "built-in image_gen",
+  "usage": "Only the two socket regions are used at runtime. Original photographs supply all other body pixels and both movable caps.",
+  "jobs": [
+    {
+      "model": "x20",
+      "editTarget": "src/assets/controllers/x20/controller-rear.png",
+      "savedBase": "src/assets/controllers/x20/controller-rear-trigger-base.png",
+      "generatedFile": "C:\\Users\\amjad\\.codex\\generated_images\\01a0f523-969d-71f1-a640-4b821af7520d\\exec-e45ee575-9755-46a7-9896-d58d1e0c1ea3.png",
+      "prompt": "Edit this x20 controller BACK photo into a registered animation base plate. EXACT same 1536x1024 canvas and pixel alignment, camera, scale, shell, paddles, buttons, textures, lighting and background. Remove ONLY the two movable LT/RT trigger caps: the two lower large trigger faces immediately beneath the thin upper bumper bars at the top left/right. Keep the RB/LB upper bumper bars  completely intact. Where the two trigger caps were, show recessed dark matte trigger housing/socket and its existing border, with no ghost trigger face left. These recesses will be covered by separately animated original-photo trigger sprites. Do not change any other pixel region, proportions, artwork, controls or crop. No new buttons, labels, branding or lights. Produce the full aligned base plate, NOT individual parts and NOT a collage."
+    },
+    {
+      "model": "x20_pro",
+      "editTarget": "src/assets/controllers/x20_pro/controller-rear.png",
+      "savedBase": "src/assets/controllers/x20_pro/controller-rear-trigger-base.png",
+      "generatedFile": "C:\\Users\\amjad\\.codex\\generated_images\\01a0f523-969d-71f1-a640-4b821af7520d\\exec-456d9a21-3915-4d82-877b-3189b7fa137e.png",
+      "prompt": "Edit this x20_pro controller BACK photo into a registered animation base plate. EXACT same 1536x1024 canvas and pixel alignment, camera, scale, shell, paddles, buttons, textures, lighting and background. Remove ONLY the two movable LT/RT trigger caps: the two lower large trigger faces immediately beneath the thin upper bumper bars at the top left/right. Keep the RB/LB upper bumper bars  completely intact. Where the two trigger caps were, show recessed dark matte trigger housing/socket and its existing border, with no ghost trigger face left. These recesses will be covered by separately animated original-photo trigger sprites. Do not change any other pixel region, proportions, artwork, controls or crop. No new buttons, labels, branding or lights. Produce the full aligned base plate, NOT individual parts and NOT a collage."
+    },
+    {
+      "model": "x05",
+      "editTarget": "src/assets/controllers/x05/controller-rear.png",
+      "savedBase": "src/assets/controllers/x05/controller-rear-trigger-base.png",
+      "generatedFile": "C:\\Users\\amjad\\.codex\\generated_images\\01a0f523-969d-71f1-a640-4b821af7520d\\exec-c2492d40-6a85-4a0c-a299-a73c7e94d1f7.png",
+      "prompt": "Edit this x05 controller BACK photo into a registered animation base plate. EXACT same 1536x1024 canvas and pixel alignment, camera, scale, shell, paddles, buttons, textures, lighting and background. Remove ONLY the two movable LT/RT trigger caps: the two lower large trigger faces immediately beneath the thin upper bumper bars at the top left/right. Keep the RB/LB upper bumper bars  completely intact. Where the two trigger caps were, show recessed dark matte trigger housing/socket and its existing border, with no ghost trigger face left. These recesses will be covered by separately animated original-photo trigger sprites. Do not change any other pixel region, proportions, artwork, controls or crop. No new buttons, labels, branding or lights. Produce the full aligned base plate, NOT individual parts and NOT a collage."
+    },
+    {
+      "model": "x05_pro",
+      "editTarget": "src/assets/controllers/x05_pro/controller-rear.png",
+      "savedBase": "src/assets/controllers/x05_pro/controller-rear-trigger-base.png",
+      "generatedFile": "C:\\Users\\amjad\\.codex\\generated_images\\01a0f523-969d-71f1-a640-4b821af7520d\\exec-d2ff057a-622e-4682-b2cd-8406fa17f1d2.png",
+      "prompt": "Edit this x05_pro controller BACK photo into a registered animation base plate. EXACT same 1536x1024 canvas and pixel alignment, camera, scale, shell, paddles, buttons, textures, lighting and background. Remove ONLY the two movable LT/RT trigger caps: the two lower large trigger faces immediately beneath the thin upper bumper bars at the top left/right. Keep the RB/LB upper bumper bars and the M1/M2 shoulder buttons completely intact. Where the two trigger caps were, show recessed dark matte trigger housing/socket and its existing border, with no ghost trigger face left. These recesses will be covered by separately animated original-photo trigger sprites. Do not change any other pixel region, proportions, artwork, controls or crop. No new buttons, labels, branding or lights. Produce the full aligned base plate, NOT individual parts and NOT a collage."
+    },
+    {
+      "model": "x10",
+      "editTarget": "src/assets/controllers/x10/controller-rear.png",
+      "savedBase": "src/assets/controllers/x10/controller-rear-trigger-base.png",
+      "generatedFile": "C:\\Users\\amjad\\.codex\\generated_images\\01a0f523-969d-71f1-a640-4b821af7520d\\exec-505d190e-d23c-4ae6-b435-988e5fabc5a5.png",
+      "prompt": "Edit this x10 controller BACK photo into a registered animation base plate. EXACT same 1536x1024 canvas and pixel alignment, camera, scale, shell, paddles, buttons, textures, lighting and background. Remove ONLY the two movable LT/RT trigger caps: the two lower large trigger faces immediately beneath the thin upper bumper bars at the top left/right. Keep the RB/LB upper bumper bars  completely intact. Where the two trigger caps were, show recessed dark matte trigger housing/socket and its existing border, with no ghost trigger face left. These recesses will be covered by separately animated original-photo trigger sprites. Do not change any other pixel region, proportions, artwork, controls or crop. No new buttons, labels, branding or lights. Produce the full aligned base plate, NOT individual parts and NOT a collage."
+    },
+    {
+      "model": "d10",
+      "editTarget": "src/assets/controllers/d10/controller-rear.png",
+      "savedBase": "src/assets/controllers/d10/controller-rear-trigger-base.png",
+      "generatedFile": "C:\\Users\\amjad\\.codex\\generated_images\\01a0f523-969d-71f1-a640-4b821af7520d\\exec-30b84924-ebfb-49e5-b12f-682e5aa106f0.png",
+      "prompt": "Edit this d10 controller BACK photo into a registered animation base plate. EXACT same 1536x1024 canvas and pixel alignment, camera, scale, shell, paddles, buttons, textures, lighting and background. Remove ONLY the two movable LT/RT trigger caps: the two lower large trigger faces immediately beneath the thin upper bumper bars at the top left/right. Keep the RB/LB upper bumper bars  completely intact. Where the two trigger caps were, show recessed dark matte trigger housing/socket and its existing border, with no ghost trigger face left. These recesses will be covered by separately animated original-photo trigger sprites. Do not change any other pixel region, proportions, artwork, controls or crop. No new buttons, labels, branding or lights. Produce the full aligned base plate, NOT individual parts and NOT a collage."
+    },
+    {
+      "model": "x15",
+      "editTarget": "src/assets/controllers/x15/controller-rear.png",
+      "savedBase": "src/assets/controllers/x15/controller-rear-trigger-base.png",
+      "generatedFile": "C:\\Users\\amjad\\.codex\\generated_images\\01a0f523-969d-71f1-a640-4b821af7520d\\exec-cc67682e-06aa-47b7-9bbf-21fb76386a60.png",
+      "prompt": "Edit this x15 controller BACK photo into a registered animation base plate. EXACT same 1536x1024 canvas and pixel alignment, camera, scale, shell, paddles, buttons, textures, lighting and background. Remove ONLY the two movable LT/RT trigger caps: the two raised black prongs protruding upward behind the shoulder ledge at the top left/right. Keep the RB/LB upper bumper bars  completely intact. Where the two trigger caps were, show recessed dark matte trigger housing/socket and its existing border, with no ghost trigger face left. These recesses will be covered by separately animated original-photo trigger sprites. Do not change any other pixel region, proportions, artwork, controls or crop. No new buttons, labels, branding or lights. Produce the full aligned base plate, NOT individual parts and NOT a collage."
+    }
+  ]
+}

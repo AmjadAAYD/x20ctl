@@ -1,0 +1,33 @@
+BUNDLED SOFTWARE AND SOURCE REFERENCES
+
+x20ctl Controller Scan Kit: MIT, Copyright (c) 2026 Amjad AAYD.
+Project license is included at licenses/X20CTL_LICENSE.txt.
+
+CPython 3.12 runtime: Python Software Foundation license and third-party
+notices included at licenses/PYTHON_LICENSE.txt.
+Source: https://www.python.org/downloads/source/
+
+Bleak 1.1.1: MIT, Copyright (c) 2020 Henrik Blidh.
+Full license: licenses/BLEAK_LICENSE.txt
+Source: https://github.com/hbldh/bleak/tree/v1.1.1
+
+PyWinRT 3.2.1 runtime/Windows projections: MIT.
+Full license: licenses/PYWINRT_LICENSE.txt
+Source: https://github.com/pywinrt/pywinrt/tree/v3.2.1
+Installed packages expose MIT License-Expression metadata. The upstream
+version-specific license is supplied because the wheels omit a license file.
+
+typing_extensions, if bundled: Python Software Foundation license.
+Full installed-package license is copied under licenses/ when present.
+Source: https://github.com/python/typing_extensions
+
+PyInstaller 6.22.0: GPL v2-or-later with its bootloader distribution exception.
+Terms/exception: licenses/PYINSTALLER_COPYING.txt
+Source: https://github.com/pyinstaller/pyinstaller/tree/v6.22.0
+Its runtime hooks are Apache 2.0. No modified PyInstaller code is supplied.
+Reference: https://www.apache.org/licenses/LICENSE-2.0
+
+BUILD_INFO.json gives installed dependency versions and exact source hashes.
+No EasySMX app, firmware, APK, capture driver, Windows system DLL, volunteer
+capture, photograph or existing app build is included. Windows system DLLs
+are loaded from Windows on the contributor's machine.

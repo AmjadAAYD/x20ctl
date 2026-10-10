@@ -1,5 +1,40 @@
 # Changelog
 
+## [4.1.0-preview.3] - 2026-10-10
+
+A pre-release. X20CTL is now a native Windows app, and everything below is new since Preview 2. The EasySMX X20 is the only verified controller; every other model is a read-only preview.
+
+### Added
+
+- **Native app.** The whole interface is rebuilt in WPF on .NET 10, and WebView2 is no longer needed. It ships as one self-contained `X20Ctl.exe`, beside the native input engine.
+- **Brand and intro.** A new hooked-X mark, and a console-style opening that plays on every launch with its own original sound. You can replay it from Tools.
+- **Controller Zone.** Four player cards. The selected card is the hero on the left and the other three wait on the right; swapping is animated. Press **+** on an empty card to choose a controller.
+- **Eight controllers.** X20, X20 Pro, X15, X10, X05, X05 Pro, D10, and the new **Dune**, drawn from photos. The Dune's M1/M2 sit on the top and M3/M4 on the back.
+- **Studio for every controller.** Dashboard, Buttons, Curves, Macros, Vibration, Device, Setups and Tester open for every model. On unverified models they are read-only previews, with a banner stating what is known about the controller, and where sources disagree.
+- **Dashboard.** Controller status, draft and setup counts, and a game shelf. The shelf reads only the Steam and Epic launchers' local files, and you can launch a game from it.
+- **Live controller art.** Sticks move and LT/RT press on every model, on the front and the back.
+- **Clean controller outlines.** Each model has an outline traced from its own picture. The art is clipped to it, so the pixelated cut-out edges no longer show.
+- **Vibration preview.** Each motor's outline pulses like a heartbeat, from 72 bpm at low strength to 180 bpm at full. Only the X20 Pro and the Dune have trigger motors; every other model has two grip motors.
+- **Device page.** Battery card (four levels on the X20), plus firmware, hardware revision and transport. Gameplay and configuration are shown as separate connections, along with what X20CTL supports on the model.
+- **Tools hub.** It replaces Settings and gathers the Controller Check, Replay Intro, About, Support X20CTL and Star on GitHub.
+- **Controller Check.** A guided, read-only scan of every button, stick and trigger, with held times. It also reports stick resolution and report rate, battery, and what the controller reports to Windows. The report is a ZIP in `Documents\X20CTLInputReports`. Sending it is optional and chosen before the scan starts. The first step, **Confirm it's your controller** (press A, then pull LT and RT), proves the scan is reading the pad in your hands.
+- **New receivers recognised.** The X15 (1A34:F517) and D10 (2345:E062) receivers, reported by owners, are known to the check and to the Linux script.
+- **Linux Controller Check.** `x20ctl-check.py`, a standalone Python 3 script.
+- **Gamepad navigation** throughout: LB/RB for tabs, A/B, and footer hints.
+- **"Not affiliated with EasySMX"** notice in the About page, README and NOTICE.
+
+### Changed
+
+- **Licence:** GPL-3.0-or-later from this release. Releases up to 4.1.0 Preview 2 were MIT, and MIT-contributed code keeps its notice.
+- Download size: one 111 MB ZIP holding everything the app needs.
+- About credits ReynArts' ApexSenseBridge as the design inspiration ("Made by Amjad AAYD").
+
+### Not included yet
+
+- Writing settings to any controller other than the X20. Preview models never write or store anything as if it had been applied.
+- RGB lighting, gyro, turbo and firmware updates. These stay untouched by design.
+- A native Linux build of the full Studio. Only the Controller Check runs on Linux for now.
+- Code signing: the app is unsigned, so check the ZIP against `SHA256SUMS.txt`.
 ## [4.1.0-preview.2] - 2026-10-08
 
 - Experimental selected-source input for D10, X15, X05 and X10, with guarded configuration and Known/Missing status.

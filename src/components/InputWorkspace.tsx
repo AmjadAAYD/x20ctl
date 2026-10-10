@@ -10,7 +10,7 @@ import { ControllerView } from "./ControllerView";
 import { TesterPage } from "./pages/TesterPage";
 import { MetalDialog } from "./MetalDialog";
 import { MotionNav } from "./Motion";
-import { STUDIO_SECTIONS, MissingControllerData } from "./StudioSections";
+import { STUDIO_SECTIONS, MissingControllerData, studioSectionLabel } from "./StudioSections";
 import brandMark from "../assets/brand-mark.png";
 import "./research-scanner.css";
 
@@ -142,15 +142,13 @@ export function InputWorkspace({
       data-model={model}
       data-page={tab}
     >
-      <aside className="chassis-sidebar has-sidebar-actions">
-        <div className="chassis-brand">
-          <img className="brand-emblem" src={brandMark} alt="" />
-          <strong>x20ctl</strong>
-        </div>
+      <div className="studio-navigation-area">
         <MotionNav active={tab}>
           {STUDIO_SECTIONS.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
+              aria-label={label}
+              title={label}
               aria-current={tab === id ? "page" : undefined}
               onClick={() => {
                 setTab(id);
@@ -162,20 +160,20 @@ export function InputWorkspace({
               }}
             >
               <Icon size={19} />
-              <span>{label}</span>
+              <span>{studioSectionLabel(id) ?? label}</span>
             </button>
           ))}
-          <button onClick={() => onScan()}>
+          <button aria-label="Controller scanner" title="Controller scanner" onClick={() => onScan()}>
             <Radio size={19} />
-            <span>Controller scanner</span>
+            <span>Scanner</span>
           </button>
         </MotionNav>
-        <button className="sidebar-support" onClick={onSupport}>
-          <Heart size={19} />
-          <span>Support X20ctl</span>
-        </button>
-      </aside>
+      </div>
       <header className="chassis-header">
+        <div className="chassis-brand">
+          <img className="brand-emblem" src={brandMark} alt="" />
+          <strong>x20ctl</strong>
+        </div>
         <div className="header-controller-copy">
           <strong>
             {profile.name} Controller <small>Player {player}</small>
@@ -189,6 +187,11 @@ export function InputWorkspace({
           </p>
         </div>
         <div className="header-actions">
+        <button className="sidebar-support" aria-label="Support X20ctl" title="Support X20ctl" onClick={onSupport}>
+          <Heart size={19} />
+          <span>Support X20ctl</span>
+        </button>
+
           <button className="button secondary" onClick={onBack}>
             Switch Controller
           </button>
@@ -217,12 +220,12 @@ export function InputWorkspace({
         </h1>
         <p className="notice">
           {basicInput
-            ? "Your controller is supported for basic input testing, but X20CTL still needs additional captures to implement advanced trigger, macro and vibration configuration. Run Scanner to help us complete support."
-            : "This controller is not available yet. More verified data is needed. You can help using the built-in scanner."}
+            ? "Input testing available · experimental source association. Configuration research in progress."
+            : "Controller preview · hardware support unavailable. Help complete support with the scanner."}
         </p>
         {basicInput && (
           <details className="metal-panel compatibility-status">
-            <summary>Known / Missing · basic input support</summary>
+            <summary>Technical details · input support and research</summary>
             <div className="compatibility-grid">
               <div>
                 <h2>Known</h2>
@@ -334,6 +337,7 @@ export function InputWorkspace({
         )}
         {tab === "tester" && (
           <TesterPage
+            model={model}
             liveState={live}
             inputConnected={connected}
             inputSlot={null}

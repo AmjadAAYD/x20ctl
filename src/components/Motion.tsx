@@ -22,8 +22,6 @@ export function AmbientSpace() {
   return (
     <div className="ambient-space" aria-hidden="true">
       <div className="ambient-nebula" />
-      <div className="ambient-dust" />
-      <div className="ambient-stars" />
     </div>
   );
 }
@@ -45,13 +43,11 @@ export function MotionNav({
     const update = () => {
       const selected = nav.querySelector<HTMLElement>('[aria-current="page"]');
       if (!selected) return;
-      const y =
-        selected.getBoundingClientRect().top -
-        nav.getBoundingClientRect().top -
-        nav.clientTop +
-        nav.scrollTop;
-      indicator.style.transform = `translateY(${y}px)`;
-      indicator.style.height = `${selected.offsetHeight}px`;
+      const bounds = selected.getBoundingClientRect();
+      const frame = nav.getBoundingClientRect();
+      indicator.style.transform = `translate(${bounds.left - frame.left - nav.clientLeft + nav.scrollLeft}px, ${bounds.bottom - frame.top - nav.clientTop + nav.scrollTop - 2}px)`;
+      indicator.style.width = `${selected.offsetWidth}px`;
+      indicator.style.height = '2px';
       indicator.dataset.ready = "true";
     };
     update();
@@ -60,7 +56,16 @@ export function MotionNav({
     return () => observer.disconnect();
   }, [active]);
   return (
-    <nav ref={ref} className="chassis-nav motion-nav" aria-label="Workspace">
+    <nav ref={ref} className="chassis-nav motion-nav" aria-label="Workspace" onKeyDown={(event) => {
+      if (!['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+      const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'));
+      const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
+      if (index < 0) return;
+      event.preventDefault();
+      const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1
+        : (index + (['ArrowDown', 'ArrowRight'].includes(event.key) ? 1 : -1) + buttons.length) % buttons.length;
+      buttons[next]?.focus();
+    }}>
       <span ref={light} className="nav-active-light" aria-hidden="true" />
       {children}
     </nav>

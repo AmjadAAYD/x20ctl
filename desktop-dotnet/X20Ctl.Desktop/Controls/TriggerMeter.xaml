@@ -1,0 +1,7 @@
+<UserControl x:Class="X20Ctl.Desktop.Controls.TriggerMeter" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Name="Root">
+    <Grid><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="12" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+        <DockPanel><TextBlock Text="{Binding Label, ElementName=Root}" FontSize="13" FontWeight="SemiBold" /><TextBlock Text="{Binding ValueText, ElementName=Root}" FontSize="12" Foreground="{StaticResource SecondaryText}" HorizontalAlignment="Right" /></DockPanel>
+        <Grid Grid.Row="1" Margin="0,5,0,0" SizeChanged="OnSizeChanged"><Border CornerRadius="3" Background="{StaticResource Track}" Height="5" /><Border x:Name="Fill" CornerRadius="3" Background="{StaticResource Cyan}" Height="5" HorizontalAlignment="Left" /></Grid>
+        <TextBlock Grid.Row="2" Text="{Binding PercentText, ElementName=Root}" Style="{StaticResource Mono}" Margin="0,5,0,0" />
+    </Grid>
+</UserControl>

@@ -15,8 +15,10 @@ import {
 import type { KeyName } from "../types/gamepad";
 import { KEY_LABELS } from "../types/gamepad";
 import "./controller-canvas.css";
+import { ControllerOutline } from './ControllerOutline';
 
 export interface ControllerCanvasProps {
+  presentation?: 'outline' | 'photo';
   model?: ControllerId;
   buttons?: Partial<Record<KeyName, boolean>>;
   leftStick?: Point;
@@ -40,10 +42,13 @@ const position = (point: Point): CSSProperties => ({
 });
 
 export function ControllerCanvas({
+  presentation = 'outline',
   model = "x20",
   buttons = {},
   leftStick = { x: 0, y: 0 },
   rightStick = { x: 0, y: 0 },
+  leftTrigger = 0,
+  rightTrigger = 0,
   selectedKey,
   onSelect,
   onStickPreview,
@@ -99,6 +104,7 @@ export function ControllerCanvas({
       data-lighting={lighting}
       data-emphasis={emphasis}
       data-preview={profile.placeholder}
+      data-presentation={presentation}
       data-left-x={inactive ? "0.000" : leftStick.x.toFixed(3)}
       data-left-y={inactive ? "0.000" : leftStick.y.toFixed(3)}
       data-right-x={inactive ? "0.000" : rightStick.x.toFixed(3)}
@@ -116,6 +122,8 @@ export function ControllerCanvas({
           ...(framing === "detail" ? controllerFraming(model, "front") : {}),
         }}
       >
+        {presentation === 'outline' && <ControllerOutline model={model} buttons={inactive ? {} : buttons} leftStick={inactive ? { x: 0, y: 0 } : leftStick}
+          rightStick={inactive ? { x: 0, y: 0 } : rightStick} selectedKey={selectedKey} leftTrigger={leftTrigger} rightTrigger={rightTrigger} />}
         <img
           className="controller-photo"
           src={disabled ? image : controllerBaseImage(profile)}
@@ -193,7 +201,7 @@ export function ControllerCanvas({
                 onPointerCancel={() => onStickPreview?.(key, null)}
                 onLostPointerCapture={() => onStickPreview?.(key, null)}
               >
-                {cap ? (
+                {cap && presentation === 'photo' ? (
                   <span className="controller-stick-cap" style={capStyle} />
                 ) : (value.x !== 0 || value.y !== 0) && (
                   <span

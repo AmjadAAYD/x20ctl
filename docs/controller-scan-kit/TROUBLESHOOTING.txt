@@ -1,0 +1,63 @@
+TROUBLESHOOTING - STOP AFTER ONE INFORMED RETRY
+
+NO DEVICE APPEARED
+Use a known data-capable cable, not a charging-only cable. For receiver mode,
+remove/reinsert the receiver when prompted. Close games/remappers. Record the
+actual documented controller mode. Windows may retain an interface or another
+device may have changed; do not choose a random device. Skip it and report the
+negative result. VID/PID or a Bluetooth name alone does not establish model.
+
+NO INPUT SOURCE
+The documented XInput source is offered only when exactly one new slot appears
+after the target is connected. Gameplay HID requires page 0x01, usage 0x04,
+0x05 or 0x08 and a valid input length. An Xbox-compatible controller may not
+expose a usable HID gameplay collection. Multiple changed slots are ambiguous.
+Skip; this does not prove the controller has no input or cannot be configured.
+
+NO CHANGE OBSERVED / NO SAMPLES
+When the recorder starts, repeat only the requested control slowly until the
+result appears; a worker may take a moment to initialize before its five-second
+window. Release between presses. Skip absent controls. Stick drift/counters may change
+bytes without a button press. A changed byte is tentative correlation only.
+Triggers can be digital in some modes. Read failure/disconnection remains a
+failed test with any partial samples retained, not a passing control test.
+
+USB DESCRIPTORS UNAVAILABLE
+Windows/driver permissions, hub association, cached interfaces or transport
+can prevent standard descriptor queries. The report still contains PnP/HID
+metadata if collected. No elevated retry, driver replacement or vendor-control
+probe is built in. An original HID report descriptor requires a separate
+enumeration capture; do not interpret parsed HID caps as descriptor bytes.
+
+BLE NOT OBSERVED
+Check Windows Bluetooth is on and the controller is in its documented mode.
+Some modes use Classic Bluetooth; the configuration service may advertise
+only under particular documented conditions. The off/on comparison can miss
+intermittent adverts. 'Not observed under tested conditions' is not 'no BLE'.
+If the selected device changes address/name or disconnects, start a new session.
+No vendor characteristic reads, notification subscriptions or pairing are tried.
+
+TOOL STOPS / DEVICE CALL TIMES OUT
+Native calls run in disposable subprocesses: ordinary Windows inventory,
+selected HID metadata and USB queries have 25-second process limits; BLE
+scans 25 seconds and BLE discovery/standard inspection 45 seconds; a five-second
+input test has a 15-second process limit. Partial files remain local. Do not
+repeat indefinitely. Record which stage failed and tell Amjad.
+
+CTRL+C
+During collection: partial files and a marked unreviewed ZIP are retained.
+During final review: folder is retained without ZIP. A sudden window/process
+close may leave only the folder. Do not claim a cancelled test succeeded.
+
+TOO MANY FILES / SIZE LIMIT
+The wizard stops adding sessions near its file budget. The validator allows
+128 entries, 4 MiB per expanded file, 32 MiB total expanded, 16 MiB report ZIP.
+These are report limits, not limits on the larger distribution ZIP with EXE.
+Start another run for additional sessions. Photos/PCAPs belong separately.
+
+BLOCKED OR MISSING EXECUTABLE
+Extract the complete ZIP first. Do not run the launcher from inside the ZIP.
+Use a writable location. The build is unsigned; compare the supplied hashes
+and contact Amjad if blocked. Do not disable security software to run it.
+The optional source path requires Python/Bleak already installed; see
+SOURCE_REVIEW.md. There is no automatic dependency or driver installation.

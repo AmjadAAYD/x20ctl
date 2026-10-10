@@ -1,0 +1,27 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <Resource Include="Assets/controller-scanner-cutout-v1.png" />
+    <ProjectReference Include="..\X20Ctl.Simulation\X20Ctl.Simulation.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <Version>0.1.0</Version>
+    <AssemblyName>X20Ctl.Desktop</AssemblyName>
+    <ApplicationIcon>../../assets/x20ctl.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="../../src/assets/controllers/x20/controller.png" Link="Assets/controller.png" />
+    <Resource Include="../../src/assets/controllers/x20/controller-base.png" Link="Assets/controller-base.png" />
+    <Resource Include="../../src/assets/brand-mark.png" Link="Assets/brand-mark.png" />
+    <Content Include="../../src/assets/controllers/x20/geometry.json" Link="Assets/geometry.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../LICENSE" Link="licenses/X20CTL-MIT.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

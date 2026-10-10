@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "proposal-1",
+  "templateOnly": true,
+  "submissionId": null,
+  "contributorAlias": null,
+  "unitAlias": null,
+  "claimedModel": null,
+  "controllerName": null,
+  "labelText": null,
+  "hardwareRevision": { "value": null, "source": null },
+  "firmwareVersion": { "value": null, "source": null },
+  "collector": { "name": null, "version": null, "sourceCommit": null },
+  "host": { "osVersion": null, "architecture": null },
+  "sessions": [],
+  "artifacts": [],
+  "privacy": {
+    "reviewed": false,
+    "serialsOmitted": null,
+    "uniqueAddressesOmitted": null,
+    "unrelatedDevicesOmitted": null,
+    "fullBugReportExcluded": null,
+    "photosPublicReusePermission": null,
+    "creditPreference": null
+  },
+  "limitations": [
+    "Blank template, not collected evidence or an implemented upload schema.",
+    "Populate sessions with transport, mode, selected-device correlation, UTC time and source API.",
+    "Populate artifacts with relative path, type, session reference, real byte size, SHA-256 and redaction/provenance."
+  ]
+}

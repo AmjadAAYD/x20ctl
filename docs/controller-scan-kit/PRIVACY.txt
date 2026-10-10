@@ -1,0 +1,51 @@
+PRIVACY AND VOLUNTARY SHARING
+
+Nothing is automatically uploaded. Amjad receives only what you choose to send.
+Review the files before sending; keep a copy if you want one. Avoid public
+uploads of device reports or captures.
+
+The collector uses full device paths, PnP instance IDs, driver-key names and
+BLE addresses transiently to associate the selected hardware and open it.
+They travel only between its local processes in memory and are not deliberately
+written to the report. These identifiers are omitted rather than hashed.
+It does not request the HID/BLE serial-number string or USB serial string.
+It also omits hostnames, usernames, raw BLE advertisement payloads and lists
+of unrelated nearby Bluetooth devices from exports.
+
+The report DOES include:
+- Your claimed model and connection/mode labels.
+- Windows version and processor architecture.
+- Selected product/manufacturer descriptions, VID/PID, hardware/compatible IDs,
+  driver service, usage IDs and available report lengths.
+- Standard USB descriptor bytes, which contain a serial STRING INDEX when
+  present, but do not contain that serial string's value.
+- Selected BLE name, advertised service UUIDs/RSSI and GATT UUIDs/properties.
+- Available standard model/manufacturer/firmware/hardware/software revision
+  strings and battery level from the selected BLE device.
+- Optional timestamped input states; raw gameplay HID bytes need extra consent.
+- Your optional notes and labeled physical control instructions.
+
+Text filtering removes obvious Windows paths and MAC-format addresses. It is
+not a complete personal-data detector. Device-provided text, unusual hardware
+IDs, raw input or a note you type can still contain private information.
+Inspect JSON/JSONL/TXT as text before sharing. Binary USB files are descriptor
+bytes, not captures of your whole USB hub. Raw HID bytes are limited to the
+selected gamepad collection, never a keyboard/mouse collection by design.
+
+At the final preview you can choose not to create a ZIP. If an optional file
+contains information you do not want to share, remove it before packaging or
+start a new run without that stage. Keep omitted evidence explicit in your
+message. Already packaged evidence should not be edited without regenerating
+its manifest/hashes: send a new run instead. The userReviewed flag records
+your answer; it does not certify absence of private data.
+
+Screenshots/photos and USBPcap/Bluetooth snoop logs are separate follow-ups.
+Cover printed serials, addresses, order numbers and personal screen content.
+USBPcap can capture other devices on the selected hub. A display filter does
+not remove other packets from a saved file. Ask Amjad for a targeted workflow
+after he reviews this initial report; the kit does not install capture drivers.
+
+There is no built-in account, retention service or deletion endpoint. Agree
+with Amjad which files he may retain and whether redacted evidence may be
+published. Giving research data does not grant permission to publish your
+identity or reuse photos publicly. The photo-consent template is in research/.

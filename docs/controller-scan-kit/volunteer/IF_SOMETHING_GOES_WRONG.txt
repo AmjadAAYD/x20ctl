@@ -1,0 +1,33 @@
+IF YOU GET STUCK
+
+WINDOWS BLOCKS THE TOOL
+Stop. Tell Amjad the exact message or send a cropped screenshot.
+Do not turn off antivirus or change security settings to run it.
+
+THE TOOL FILE IS MISSING
+Make sure you used "Extract All" on the ZIP and opened the extracted folder.
+Keep the "tool" folder next to "2_RUN_ME". Do not move the launcher alone.
+
+NO CONTROLLER APPEARED
+Cable: try another cable you already have; some cables only charge.
+Receiver: unplug/reconnect the little USB receiver, not just the controller.
+Bluetooth: turn the controller off, then on, and wait for its usual connection.
+You can retry once. If it still fails, skip the device and tell Amjad.
+
+YOU DO NOT KNOW WHICH NUMBER TO CHOOSE
+Press ENTER to skip. Do not choose a random device.
+Tell Amjad what the window showed. You do not need to understand device codes.
+
+THE WINDOW CLOSED / YOU STOPPED / NO RESULT ZIP EXISTS
+Open "results" beside "2_RUN_ME", if it exists. Tell Amjad what happened.
+Do not try to combine or edit the files yourself. He will tell you what he needs.
+
+YOU ONLY HAVE A PHONE, MAC OR LINUX COMPUTER
+This particular tool is for Windows. Tell Amjad your controller model and
+what device you have. Do not install Windows just for this task.
+
+Need help? Send Amjad: your controller model, the step where you stopped,
+and the exact message. Cover names, addresses or other private details in
+screenshots. You can stop helping at any time.
+
+If you want to inspect the tool before running it, ask Amjad for the source kit.
