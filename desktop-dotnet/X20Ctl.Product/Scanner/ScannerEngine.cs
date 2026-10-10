@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.IO.Compression;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
@@ -89,6 +89,29 @@ public static class Analysis
         }
         return false;
     }
+    /// <summary>Up, then down: the control was pressed during the step, even if it was still held when the step ended
+    /// (a Dune 8K scan on 10 Oct 2026 held Start straight through to the next step, and Start was marked "not seen").</summary>
+    public static bool Pressed(List<Sample> rows, string key, int mask)
+    {
+        bool off = false;
+        foreach (var row in rows)
+        {
+            int v = row.Get(key); bool active = mask == 0 ? v > 30 : (v & mask) == mask;
+            if (!active) off = true; else if (off) return true;
+        }
+        return false;
+    }
+    /// <summary>M1–M6: a paddle sends whatever ordinary button it is set to, so its step records which one arrived.</summary>
+    public static bool IsPaddle(string action) => action.Length == 2 && action[0] == 'M' && action[1] is >= '1' and <= '6';
+    /// <summary>The ordinary outputs that went down during a step: single buttons and the triggers.</summary>
+    public static List<string> Fired(List<Sample> rows)
+    {
+        var fired = Masks.Where(m => m.Key is not ("dpad_up_right" or "dpad_down_right" or "dpad_down_left" or "dpad_up_left") && Pressed(rows, "buttons", m.Value)).Select(m => m.Key).ToList();
+        if (Pressed(rows, "lt", 0)) fired.Add("LT"); if (Pressed(rows, "rt", 0)) fired.Add("RT");
+        return fired;
+    }
+    /// <summary>Whether a step's status means its control was seen.</summary>
+    public static bool Seen(string status) => status.Contains("observed") && !status.Contains("not_observed") && !status.StartsWith("inconclusive");
     public static bool Verify(List<Sample> rows) =>
         rows.Count >= 3 && rows.Select(x => x.Get("slot")).Distinct().Count() == 1
         && rows.Any(x => x.Get("buttons") == 0 && x.Get("lt") == 0 && x.Get("rt") == 0)
@@ -106,9 +129,17 @@ public static class Analysis
         bool observed;
         if (action == "preflight") observed = Verify(rows);
         else if (action == "neutral") observed = rows.All(x => x.Get("buttons") == 0 && x.Get("lt") == 0 && x.Get("rt") == 0);
-        else if (Masks.ContainsKey(action)) observed = Cycle(rows, "buttons", Masks[action]);
-        else if (action is "LT" or "RT") observed = Cycle(rows, action.ToLowerInvariant(), 0);
-        else if (action is "rear_left" or "rear_right" or "turbo") observed = Masks.Values.Any(mask => Cycle(rows, "buttons", mask)) || Cycle(rows, "lt", 0) || Cycle(rows, "rt", 0);
+        else if (Masks.ContainsKey(action) || action is "LT" or "RT")
+        {
+            string key = Masks.ContainsKey(action) ? "buttons" : action.ToLowerInvariant(); int mask = Masks.GetValueOrDefault(action);
+            observed = Cycle(rows, key, mask);
+            // pressed but still held when the step ended: seen, and said so
+            if (!observed && Pressed(rows, key, mask)) { result["status"] = "requested_control_observed_held_past_step"; result["interpretation"] = "Pressed during the step but not released before it ended."; return result; }
+        }
+        else if (IsPaddle(action) || action == "turbo")
+        {
+            var fired = Fired(rows); result["output"] = fired; observed = fired.Count > 0;
+        }
         else if (action is "left_stick" or "right_stick")
         {
             string x = action == "left_stick" ? "lx" : "rx", y = action == "left_stick" ? "ly" : "ry";
@@ -117,7 +148,7 @@ public static class Analysis
         }
         else observed = false;
         result["status"] = observed ? "requested_control_observed" : "inconclusive_requested_control_not_observed";
-        if (action is "rear_left" or "rear_right" or "turbo") { result["status"] = observed ? "ordinary_output_observed" : "inconclusive_no_ordinary_output"; result["independent_rear_control_verified"] = false; }
+        if (IsPaddle(action) || action == "turbo") { result["status"] = observed ? "ordinary_output_observed" : "inconclusive_no_ordinary_output"; result["independent_rear_control_verified"] = false; }
         result["interpretation"] = "Standard logical input observed in this run; not a sensor, calibration, physical model or configuration verdict.";
         return result;
     }
@@ -212,7 +243,7 @@ public sealed class Evidence
         }
         File.WriteAllText(Path.Combine(folder, "metadata.json"), JsonSerializer.Serialize(new
         {
-            collectorVersion = "2.0.0-local", collectorHost = "x20ctl-native-controller-check", claimedModel = Model, claimedTransport = Transport,
+            collectorVersion = "2.1.0-local", collectorHost = "x20ctl-native-controller-check", claimedModel = Model, claimedTransport = Transport,
             modelDetected = false, source = "xinput_state", slot = Slot, reader = Reader, preflightPassed = Verified,
             configurationWrites = false, automaticUpload = false, hostTimingIsPollingRate = false,
             sessions = Records.Select(x => Analysis.Summary(x.Key, x.Value)).ToList(), events = Events,
@@ -465,5 +496,48 @@ public sealed class RawObserver : IDisposable
         if (!registered) return;
         var items = new ushort[] { 4, 5, 8 }.Select(x => new Registration { page = 1, usage = x, flags = 1, target = IntPtr.Zero }).ToArray();
         RegisterRawInputDevices(items, (uint)items.Length, (uint)Marshal.SizeOf<Registration>()); registered = false;
+    }
+}
+
+/// <summary>
+/// The battery level Windows already keeps for paired Bluetooth devices (the same number Settings shows), read from the
+/// device property {104EA319-6EE2-4701-BD47-8DDBF425BBE5} 2 through SetupAPI. Read-only: nothing is sent to any device.
+/// Only devices whose name looks like a controller are returned, so other paired devices never reach a report.
+/// </summary>
+public static class BluetoothBattery
+{
+    [StructLayout(LayoutKind.Sequential)] struct DevInfo { public int cbSize; public Guid ClassGuid; public int DevInst; public IntPtr Reserved; }
+    [StructLayout(LayoutKind.Sequential)] struct PropKey { public Guid fmtid; public int pid; }
+    [DllImport("setupapi.dll", CharSet = CharSet.Unicode, SetLastError = true)] static extern IntPtr SetupDiGetClassDevsW(IntPtr classGuid, string? enumerator, IntPtr parent, int flags);
+    [DllImport("setupapi.dll", SetLastError = true)] static extern bool SetupDiEnumDeviceInfo(IntPtr set, int index, ref DevInfo info);
+    [DllImport("setupapi.dll", CharSet = CharSet.Unicode, SetLastError = true)] static extern bool SetupDiGetDevicePropertyW(IntPtr set, ref DevInfo info, ref PropKey key, out int type, byte[]? buffer, int size, out int required, int flags);
+    [DllImport("setupapi.dll", CharSet = CharSet.Unicode, SetLastError = true)] static extern bool SetupDiGetDeviceInstanceIdW(IntPtr set, ref DevInfo info, StringBuilder? id, int size, out int required);
+    [DllImport("setupapi.dll", SetLastError = true)] static extern bool SetupDiDestroyDeviceInfoList(IntPtr set);
+    const int DIGCF_PRESENT = 0x2, DIGCF_ALLCLASSES = 0x4;
+    static readonly Guid Battery = new("104EA319-6EE2-4701-BD47-8DDBF425BBE5"), Name = new("b725f130-47ef-101a-a5f1-02608c9ebac0");
+
+    /// <summary>(device name, percent) for each present Bluetooth device named like a controller that reports a level.</summary>
+    public static List<(string Name, int Percent)> Read(IEnumerable<string> controllerNames)
+    {
+        var hints = controllerNames.Where(n => !string.IsNullOrWhiteSpace(n)).Select(n => n.ToLowerInvariant()).Concat(new[] { "easysmx", "controller", "gamepad", "dune", "xbox" }).Distinct().ToList();
+        var found = new List<(string, int)>();
+        IntPtr set = SetupDiGetClassDevsW(IntPtr.Zero, null, IntPtr.Zero, DIGCF_PRESENT | DIGCF_ALLCLASSES);
+        if (set == new IntPtr(-1)) return found;
+        try
+        {
+            var info = new DevInfo { cbSize = Marshal.SizeOf<DevInfo>() };
+            for (int i = 0; SetupDiEnumDeviceInfo(set, i, ref info); i++)
+            {
+                var id = new StringBuilder(512);
+                if (!SetupDiGetDeviceInstanceIdW(set, ref info, id, id.Capacity, out _) || !id.ToString().StartsWith("BTH", StringComparison.OrdinalIgnoreCase)) continue;
+                var key = new PropKey { fmtid = Battery, pid = 2 }; var level = new byte[1];
+                if (!SetupDiGetDevicePropertyW(set, ref info, ref key, out _, level, 1, out _, 0)) continue;
+                var nameKey = new PropKey { fmtid = Name, pid = 10 }; var buffer = new byte[512];
+                string name = SetupDiGetDevicePropertyW(set, ref info, ref nameKey, out _, buffer, buffer.Length, out int used, 0) ? Encoding.Unicode.GetString(buffer, 0, Math.Max(0, used - 2)) : "";
+                if (name.Length > 0 && hints.Any(h => name.ToLowerInvariant().Contains(h)) && level[0] <= 100) found.Add((name, level[0]));
+            }
+        }
+        finally { SetupDiDestroyDeviceInfoList(set); }
+        return found;
     }
 }

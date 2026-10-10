@@ -8,6 +8,11 @@ public partial class App : Application
     {
         try
         {
+            if (e.Args.Length == 3 && e.Args[0] == "--review-scanner-replay")
+            {
+                ShutdownMode = ShutdownMode.OnExplicitShutdown;
+                await Development.ScannerReplay.Run(e.Args[1], e.Args[2]); Shutdown(0); return;
+            }
             if (e.Args.Length == 2 && e.Args[0] is "--review-zone" or "--review-studio" or "--review-console" or "--review-management" or "--review-product" or "--review-models" or "--review-live" or "--review-design" or "--review-showcase" or "--review-dashboard" or "--review-input" or "--review-intro" or "--review-zone-motion" or "--review-windowed" or "--review-pages" or "--review-stress" or "--review-probe" or "--review-readme")
             {
                 ShutdownMode = ShutdownMode.OnExplicitShutdown; IntroView.SoundEnabled = false;

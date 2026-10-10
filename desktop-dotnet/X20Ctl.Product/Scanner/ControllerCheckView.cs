@@ -1,4 +1,4 @@
-﻿using System.Net.Http;
+using System.Net.Http;
 using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
@@ -24,8 +24,12 @@ namespace X20Ctl.Product.Scanner;
 /// </summary>
 public sealed class ControllerCheckView : Grid
 {
-    private static readonly string[] Actions = ["neutral", "A", "B", "X", "Y", "LB", "RB", "dpad_up", "dpad_right", "dpad_down", "dpad_left",
-        "dpad_up_right", "dpad_down_right", "dpad_down_left", "dpad_up_left", "Start", "Back", "L3", "R3", "LT", "RT", "left_stick", "right_stick", "rear_left", "rear_right", "turbo"];
+    // M1–M6 have their own steps since 10 Oct 2026 (owner: "it must be tested"); a model with fewer paddles skips the rest
+    private static readonly string[] AllActions = ["neutral", "A", "B", "X", "Y", "LB", "RB", "dpad_up", "dpad_right", "dpad_down", "dpad_left",
+        "dpad_up_right", "dpad_down_right", "dpad_down_left", "dpad_up_left", "Start", "Back", "L3", "R3", "LT", "RT", "left_stick", "right_stick", "M1", "M2", "M3", "M4", "M5", "M6", "turbo"];
+    /// <summary>The steps being run: every step, or after a scan just the ones that weren't seen.</summary>
+    private string[] Actions = AllActions;
+    private (string Name, string Model)? detected;
     private static readonly string[] Models = ["Unknown", "X05", "X05 Pro", "X10", "X15", "D10", "Dune / D15", "X20 Pro", "X20"];
     private static readonly string[] Transports = ["Receiver", "USB cable", "Bluetooth", "Not sure"];
     private static readonly Color Green = Color.FromRgb(52, 211, 153), Amber = Color.FromRgb(245, 180, 91), Blue = Kit.Blue;
@@ -84,7 +88,7 @@ public sealed class ControllerCheckView : Grid
         DockPanel.SetDock(safe, Dock.Right); bar.Children.Add(safe);
         var mark = new Image { Source = LiveController.Bitmap("Assets/brand.png"), Width = 34, Height = 34, Margin = new(0, 0, 14, 0) }; RenderOptions.SetBitmapScalingMode(mark, BitmapScalingMode.HighQuality);
         bar.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = { mark, Kit.Text("X20CTL", 22, "DS.Text", FontWeights.Bold), new Border { Width = 1, Height = 22, Background = new SolidColorBrush(Color.FromArgb(60, 255, 255, 255)), Margin = new(18, 0, 18, 0) },
-            Kit.Text("Controller Check", 22, "DS.Text", FontWeights.SemiBold), Kit.Text("   Scanner 2.0.0 engine", 14, "DS.TextMuted") } });
+            Kit.Text("Controller Check", 22, "DS.Text", FontWeights.SemiBold), Kit.Text("   Scanner 2.1 engine", 14, "DS.TextMuted") } });
         page.Children.Add(bar);
         Grid.SetRow(steps, 1); page.Children.Add(steps);
 
@@ -212,25 +216,24 @@ public sealed class ControllerCheckView : Grid
                 UpdateControls(); return;
             }
             if (active == null) { if (scanMode) ScanWaiting(); return; }
-            double seconds = clock.Elapsed.TotalSeconds;
-            prompt.Text = active == "preflight" ? "Release everything, press and release A, pull and release LT, then pull and release RT." :
-                active.StartsWith("rear_") ? "Optional: press and release the " + active.Replace('_', ' ') + " button (M1/M2 if present). Skip if absent. This records ordinary output, not independent M keys." :
-                active == "turbo" ? "Optional: hold a normal button with turbo already enabled using controls you know. No settings are changed. Skip if unavailable." :
-                active == "neutral" ? "Keep your hands off the controller. This measures how far the sticks drift at rest." : active.EndsWith("stick") ? "Roll the " + active.Replace('_', ' ') + " slowly round its edge, twice, then let it centre." :
-                scanMode && active is "LT" or "RT" ? $"Pull {active} slowly all the way in, hold it for 2 seconds, then let it out. Twice." :
-                scanMode ? $"Press and hold {Friendly(active)} for 2 seconds, then let go. Do it twice." : "Press / pull and release " + Friendly(active) + " three times.";
-            big.Text = seconds < 3 ? "READY · " + Math.Ceiling(3 - seconds) : "RECORDING · " + Math.Ceiling((active == "preflight" ? 23 : 11) - seconds) + " s";
-            // the step-by-step scan shows the hold as it happens: "Holding B · 1.32 s", then "Held B · 2.04 s"
-            if (scanMode && seconds >= 3 && (Analysis.Masks.ContainsKey(active) || active is "LT" or "RT"))
+            // owner direction 10 Oct 2026: every step says exactly what to do and for how long, with a countdown
+            double seconds = clock.Elapsed.TotalSeconds; var phases = Phases(active);
+            int stepNumber = Array.IndexOf(Actions, active) + 1, stepCount = Actions.Count(a => !Excluded(a));
+            string stepText = active == "preflight" || stepNumber == 0 ? "" : $"Step {stepNumber} of {stepCount} · ";
+            if (seconds < 3)
             {
-                var held = trackers[slot].HeldFor(active, liveClock.Elapsed.TotalMilliseconds); var last = trackers[slot].LastFor(active);
-                big.Text = held is { } h ? $"Holding {Friendly(active)} · {h / 1000:0.00} s" : last is { } l ? $"Held {Friendly(active)} · {l / 1000:0.00} s" : $"Press {Friendly(active)}… {Math.Ceiling(11 - seconds)} s";
-                big.Foreground = new SolidColorBrush(held is { } hh && hh >= 2000 || held == null && last is >= 1800 ? Green : Kit.Ice);
+                big.Text = "Get ready · " + Math.Ceiling(3 - seconds); big.Foreground = new SolidColorBrush(Amber);
+                prompt.Text = stepText + "First: " + phases[0].Say + "."; return;
             }
-            big.Foreground = new SolidColorBrush(seconds < 3 ? Amber : Green);
-            if (seconds < 3) return;
-            evidence.Add(active, new Sample(active, evidence.Slot, selected, (seconds - 3) * 1000));
-            if (seconds < (active == "preflight" ? 23 : 11)) return;
+            double t = seconds - 3, end = phases[0].Seconds; int p = 0;
+            while (p < phases.Length - 1 && t >= end) { p++; end += phases[p].Seconds; }
+            var phase = phases[p];
+            big.Text = $"{phase.Big} · {Math.Ceiling(Math.Max(0.01, end - t))}"; big.Foreground = new SolidColorBrush(phase.Hold ? Green : Kit.Ice);
+            prompt.Text = stepText + phase.Say + "." + (p + 1 < phases.Length ? "   Next: " + phases[p + 1].Say.ToLowerInvariant() + "." : "");
+            if ((Analysis.Masks.ContainsKey(active) || active is "LT" or "RT") && trackers[slot].HeldFor(active, liveClock.Elapsed.TotalMilliseconds) is { } held)
+                prompt.Text += $"\nHolding {Friendly(active)} · {held / 1000:0.0} s";
+            evidence.Add(active, new Sample(active, evidence.Slot, selected, t * 1000));
+            if (t < phases.Sum(x => x.Seconds)) return;
             string completed = active; active = null; clock.Stop();
             var rows = evidence.Records[completed]; var summary = Analysis.Summary(completed, rows);
             if (completed == "preflight")
@@ -327,7 +330,23 @@ public sealed class ControllerCheckView : Grid
     private readonly Stopwatch rateClock = new();
     private readonly Border warning = new(), resultsLayer = new() { Visibility = Visibility.Collapsed };
     public bool ScanRunning => scanMode && !finishing;
-    private static bool Excluded(string action) => action is "rear_left" or "rear_right" or "turbo";
+    /// <summary>Turbo is a firmware script; paddles past the model's count don't exist on it.</summary>
+    private bool Excluded(string action) => action == "turbo" || Analysis.IsPaddle(action) && action[1] - '0' > PaddleCount(ScanModel);
+    private static int PaddleCount(string model) => model switch { "X20 Pro" => 6, "X20" or "Dune / D15" or "Unknown" => 4, _ => 2 };
+    private string ScanModel => (string)model.SelectedItem == "Unknown" && detected is { } d ? d.Model : (string)model.SelectedItem;
+    /// <summary>What each step asks, phase by phase, each with its own countdown. Holds are 2 seconds, matching the hold-timing finding.</summary>
+    private static (string Big, string Say, double Seconds, bool Hold)[] Phases(string a)
+    {
+        string n = Friendly(a);
+        if (a == "preflight") return [("Verify", "Release everything, press and release A, pull and release LT, then pull and release RT", 20, true)];
+        if (a == "neutral") return [("Hands off", "Put the controller down and don't touch it", 8, false)];
+        if (a is "left_stick" or "right_stick")
+            return [("Roll it", $"Roll the {n.ToLowerInvariant()} slowly all the way round its edge", 4, true), ("Let go", "Let it spring back to the centre", 1.5, false),
+                    ("Roll again", "Roll it round its edge once more", 4, true), ("Let go", "Let go of the stick", 1.5, false)];
+        string verb = a is "LT" or "RT" ? "Pull" : "Press", what = Analysis.IsPaddle(a) ? $"{a} (the paddle on the back)" : n;
+        return [($"Hold {n}", $"{verb} and hold {what}", 2, true), ("Let go", $"Let go of {n}", 1.5, false),
+                ($"Hold {n}", $"{verb} and hold {what} again", 2, true), ("Let go", $"Let go of {n}", 1.5, false)];
+    }
 
     private void BuildWarning()
     {
@@ -406,8 +425,8 @@ public sealed class ControllerCheckView : Grid
     {
         if (completed is "left_stick" or "right_stick") StopRateProbe();
         if (completed == "preflight" && !evidence.Verified) { big.Text = "Not verified"; prompt.Text = "The scan didn't see A and both triggers on this slot. Press New source to try again, or another Windows reader."; return; }
-        // macro paddles and turbo are left out by design: paddles send ordinary buttons, turbo is a firmware script
-        while (index < Actions.Length && Excluded(Actions[index])) { evidence.Event("skipped", Actions[index] + ": excluded by design"); results[Actions[index]] = "skipped"; index++; }
+        // turbo is left out (a firmware script), and so are paddles this model doesn't have
+        while (index < Actions.Length && Excluded(Actions[index])) { evidence.Event("skipped", Actions[index] + (Actions[index] == "turbo" ? ": excluded by design" : ": not on this model")); results[Actions[index]] = "skipped"; index++; }
         UpdateControls();
         if (index < Actions.Length) { string next = Actions[index]; Queue(() => { if (next is "left_stick" or "right_stick") StartRateProbe(); Begin(next); }, 1300); }
         else _ = FinishScan();
@@ -424,15 +443,18 @@ public sealed class ControllerCheckView : Grid
         big.Text = "Finishing up"; prompt.Text = "Reading the battery, comparing identities and saving the report…";
         var battery = reader?.Battery(slot) ?? ("unavailable", "unavailable", false);
         if (!inventoryRead) await Detect();
-        var findings = ScanFlow.Interpret(evidence, inventory, battery, reportRates, holdErrors.Count > 0 ? holdErrors.Average() : -1);
-        evidence.Extra["scan-summary.json"] = JsonSerializer.Serialize(new { findings, battery = new { battery.Item1, battery.Item2 }, reportRatesPerSecond = reportRates,
-            excludedByDesign = new[] { "RGB lighting (firmware)", "macro paddles (send ordinary buttons)", "gyro", "turbo (firmware script)" } }, new JsonSerializerOptions(Evidence.Json) { WriteIndented = true });
+        var names = inventory.interfaces.SelectMany(i => new[] { i.product, i.manufacturer }).ToList();
+        List<(string Name, int Percent)> bluetooth;
+        try { bluetooth = await Task.Run(() => BluetoothBattery.Read(names)); } catch (Exception error) when (error is DllNotFoundException or EntryPointNotFoundException or System.Runtime.InteropServices.ExternalException) { bluetooth = new(); }
+        var findings = ScanFlow.Interpret(evidence, inventory, battery, reportRates, holdErrors.Count > 0 ? holdErrors.Average() : -1, bluetooth);
+        evidence.Extra["scan-summary.json"] = JsonSerializer.Serialize(new { findings, battery = new { battery.Item1, battery.Item2 }, bluetoothBattery = bluetooth.Select(b => new { b.Name, b.Percent }), detectedName = detected?.Name, detectedModel = detected?.Model, appVersion = ScanFlow.AppVersion, reportRatesPerSecond = reportRates,
+            excludedByDesign = new[] { "RGB lighting (firmware)", "gyro", "turbo (firmware script)" } }, new JsonSerializerOptions(Evidence.Json) { WriteIndented = true });
         bool saved = Save();
         string? receipt = null, failure = null;
         if (sendReport)
         {
             prompt.Text = "Sending the summary to X20CTLADMIN…";
-            try { receipt = await ScanFlow.Upload(ScanFlow.CompactReport((string)model.SelectedItem, (string)transport.SelectedItem, evidence, inventory, findings), (string)model.SelectedItem, (string)transport.SelectedItem); evidence.Event("submitted", receipt); }
+            try { receipt = await ScanFlow.Upload(ScanFlow.CompactReport(ScanModel, (string)transport.SelectedItem, evidence, inventory, findings), detected?.Name ?? ScanModel, (string)transport.SelectedItem); evidence.Event("submitted", receipt); }
             catch (Exception error) when (error is HttpRequestException or TaskCanceledException or InvalidDataException or JsonException or IOException) { failure = error.Message; evidence.Event("submission_failed", error.Message); }
         }
         ShowResults(findings, saved, receipt, failure);
@@ -450,10 +472,14 @@ public sealed class ControllerCheckView : Grid
         var copy = Action("", "Copy @" + ScanFlow.Discord, "DS.ActionSecondary"); copy.Click += (_, _) => { try { Clipboard.SetText(ScanFlow.Discord); SetLabel(copy, "Copied"); } catch (System.Runtime.InteropServices.ExternalException) { } };
         var open = Action("", "Open reports folder", "DS.ActionSecondary"); open.Click += (_, _) => OpenReports();
         var done = Action("", "Done", "DS.ActionPrimary"); done.Click += (_, _) => Fx.Leave(resultsLayer, () => resultsLayer.Visibility = Visibility.Collapsed, 1.02, 200);
+        var missed = AllActions.Where(a => results.GetValueOrDefault(a) == "inconclusive").ToArray();
+        var redo = Action("", $"Redo the {missed.Length} not seen", "DS.ActionPrimary"); redo.Click += (_, _) => RedoMissed(missed);
+        redo.Visibility = missed.Length > 0 && reader != null ? Visibility.Visible : Visibility.Collapsed;
         var side = new StackPanel { Width = 420, Margin = new(28, 0, 0, 0), Children = {
             Kit.Text("YOUR REPORT", 12, "DS.TextMuted", FontWeights.SemiBold), Wrap(status, 14, "DS.TextSoft").Also(t => t.Margin = new(0, 6, 0, 0)), Wrap(sent, 15, receipt != null ? "DS.Success" : "DS.Text").Also(t => t.Margin = new(0, 12, 0, 0)),
             new Border { CornerRadius = new(14), Margin = new(0, 20, 0, 0), Padding = new(18, 16, 18, 16), Background = new SolidColorBrush(Color.FromArgb(50, 88, 101, 242)), BorderBrush = new SolidColorBrush(Color.FromArgb(150, 88, 101, 242)), BorderThickness = new(1),
                 Child = new StackPanel { Children = { Kit.Text("Send it on Discord", 18, "DS.Text", FontWeights.SemiBold), Wrap($"Send the report ZIP to @{ScanFlow.Discord} on Discord. It helps add full support for your controller.", 14.5, "DS.TextSoft").Also(t => t.Margin = new(0, 6, 0, 12)), copy } } },
+            redo.Also(r => { r.Margin = new(0, 20, 0, 0); r.HorizontalAlignment = HorizontalAlignment.Left; }),
             new StackPanel { Orientation = Orientation.Horizontal, Margin = new(0, 20, 0, 0), Children = { open, done.Also(d => d.Margin = new(10, 0, 0, 0)) } } } };
         var body = new DockPanel { Margin = new(40, 32, 40, 30) };
         DockPanel.SetDock(side, Dock.Right); body.Children.Add(side);
@@ -463,6 +489,18 @@ public sealed class ControllerCheckView : Grid
         big.Text = "All done"; prompt.Text = "The scan is complete. The results are on screen and the report is saved."; scanMode = false; done.Focus();
     }
 
+    /// <summary>Runs just the steps that weren't seen, then saves (and, if chosen, sends) a new report with every result.</summary>
+    private void RedoMissed(string[] missed)
+    {
+        if (missed.Length == 0 || reader == null) return;
+        Fx.Leave(resultsLayer, () => resultsLayer.Visibility = Visibility.Collapsed, 1.02, 200);
+        foreach (var a in missed) results.Remove(a);
+        Actions = missed; index = 0; scanMode = true; finishing = false;
+        outcome.Text = $"Redoing {missed.Length} step{(missed.Length == 1 ? "" : "s")}. Follow the countdown on each one.";
+        UpdateControls();
+        string next = Actions[0]; Queue(() => { if (next is "left_stick" or "right_stick") StartRateProbe(); Begin(next); }, 1300);
+    }
+
     // ================= Windows inventory =================
     private async Task Detect()
     {
@@ -470,9 +508,13 @@ public sealed class ControllerCheckView : Grid
         try { inventory = await Inventory.Bound(Task.Run(() => WindowsInventory.Read(include)), 15000); }
         catch (Exception error) { inventory = new Inventory(); inventory.errors.Add(error.GetBaseException().Message); inventoryText.Text = "Windows inventory failed. Live testing still works."; }
         evidence.Inventory = inventory; inventoryRead = true; detect.IsEnabled = serial.IsEnabled = true; details.IsEnabled = true;
+        // the controller's own name fills the model when the player left it on Unknown; Bluetooth shows in its interface path
+        detected = ScanFlow.DetectModel(inventory);
+        if (detected is { } d && (string)model.SelectedItem == "Unknown") model.SelectedItem = d.Model;
+        if ((string)transport.SelectedItem == "Not sure" && ScanFlow.DetectTransport(inventory) is { } via) transport.SelectedItem = via;
         var groups = Inventory.Group(inventory.interfaces);
         var names = groups.Select(g => (g.FirstOrDefault(x => x.usagePage == 1 && new[] { 4, 5, 8 }.Contains(x.usage)) ?? g[0]).product).Where(p => !string.IsNullOrWhiteSpace(p)).Distinct().Take(2).ToList();
-        inventoryText.Text = $"{groups.Count} Windows group{(groups.Count == 1 ? "" : "s")}{(names.Count > 0 ? " · " + string.Join(", ", names) : "")} · {inventory.rawInput.Count} Raw Input · model unverified";
+        inventoryText.Text = $"{groups.Count} Windows group{(groups.Count == 1 ? "" : "s")}{(names.Count > 0 ? " · " + string.Join(", ", names) : "")} · {inventory.rawInput.Count} Raw Input · " + (detected is { } named ? "names itself " + named.Name : "model unverified");
     }
     private void ShowDetails()
     {

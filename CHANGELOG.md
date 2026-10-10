@@ -1,5 +1,28 @@
 # Changelog
 
+## [4.1.0-preview.4] - 2026-10-10
+
+A pre-release test build, made for the first owner scans of the EasySMX Dune 8K. Everything in [Preview 3](#410-preview3---2026-10-10) is included; the changes below are all in the Controller Check (now scanner 2.1).
+
+### Added
+
+- **A countdown on every step.** Each step says exactly what to do and for how long: hold for 2 seconds, let go, hold again, let go. It also shows "Step 5 of 27", what comes next, and a live "Holding A · 1.4 s".
+- **M paddle steps.** M1 to M6, as many as the model has (4 on the Dune and X20, 6 on the X20 Pro). The report shows what each paddle sends, for example "M1 → A · M2 → B", or "no input seen". This only reads; paddle settings are never changed.
+- **Model and connection filled in automatically.** They come from the name the controller gives Windows, for example "EasySMX D15 Dune 8K", and from its Bluetooth interface, when you leave them on Unknown or Not sure.
+- **Bluetooth battery.** The level Windows keeps for a controller paired over Bluetooth, read-only. Other paired devices never appear in a report.
+- **Redo what wasn't seen.** The results list the controls that weren't seen, with a "Redo the N not seen" button that reruns just those steps and saves an updated report.
+- **Dune 8K identity.** `413D:2131` is recognised, from an owner's two scans. Its two vendor channels (`0xFF70` and `0xFF10`) are listed; nothing is sent to them.
+- `--review-scanner-replay ZIP OUT.json`, a development tool that replays a saved report through the current analysis.
+
+### Fixed
+
+- **A button held past the end of its step was marked "not seen".** It now counts as seen and is listed under "Held past the step". Replaying the Dune 8K owner scan, it now reads 23 of 23 instead of 22.
+- **Uploads to X20ADMIN carry the real app and scanner versions** (`4.1.0-preview.4`, `2.1.0-local`) instead of `native-preview`.
+
+### Not tested yet
+
+- The countdown screens with a controller pressing through them, and the Bluetooth battery read on a real controller. This build is how they get tested.
+- Listening to the vendor channels for battery data is not built yet, and the Linux scanner (`x20ctl-check.py`) doesn't have these changes.
 ## [4.1.0-preview.3] - 2026-10-10
 
 A pre-release. X20CTL is now a native Windows app, and everything below is new since Preview 2. The EasySMX X20 is the only verified controller; every other model is a read-only preview.
