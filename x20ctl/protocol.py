@@ -1304,6 +1304,16 @@ class Capabilities:
         names = ["M1", "M2", "M3", "M4", "M5", "M6", "ML", "MR"]
         return [n for i, n in enumerate(names) if self._bit(self.macros, i)]
 
+    def slot_limits(self, limits: list[int]) -> dict[str, int]:
+        """Pair a kind-6 list with this pad's slots, by position.
+
+        The mapping is the app's own (list index i overlays slot i); it is
+        inferred from how the app consumes the list, and agrees with the X20,
+        which reports 42 for M1-M4 and 0 for the four slots it lacks.
+        """
+        return {slot: limits[i] for i, slot in enumerate(SLOT_ORDER)
+                if i < len(limits) and slot in self.macro_slots}
+
     @property
     def lighting_zones(self) -> int:
         # only zones 1-4 (bits 0-3) are traced in the app; higher bits are unexplained
@@ -1367,6 +1377,22 @@ class Capabilities:
                 f"  motors     {self.motor_count}\n"
                 f"  macros     {', '.join(self.macro_slots) or 'none'}\n"
                 f"  lighting   {self.lighting_zones} zone(s)")
+
+
+SLOT_ORDER = ("M1", "M2", "M3", "M4", "M5", "M6", "ML", "MR")
+
+
+def decode_macro_limits(data: bytes) -> list[int]:
+    """Decode the kind-6 reply: consecutive little-endian u16 limits.
+
+    The app's units are steps in its editor, not bytes and not a measured pad
+    capacity. The list is positional (index i is slot SLOT_ORDER[i]); the reply
+    carries no slot ids. An odd length is refused rather than silently trimmed
+    as the app does, so a malformed reply stays raw for whoever looks at it.
+    """
+    if len(data) % 2:
+        raise ValueError(f"macro limits need whole pairs, got {len(data)} bytes")
+    return [data[i] | data[i + 1] << 8 for i in range(0, len(data), 2)]
 
 
 DESCRIPTOR_FIELDS = ("sticks", "triggers", "motors", "turbo", "macros",

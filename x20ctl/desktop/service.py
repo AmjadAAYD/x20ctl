@@ -464,6 +464,13 @@ class DeviceService:
             values["idleTimeoutMinutes"] = values["idleTimeoutMinutes"] or 0
         if "macros" in values:
             values["macros"], values["macroLoops"] = values["macros"]
+            try:
+                limits = await pad.macro_limits() if hasattr(pad, "macro_limits") else None
+            except Exception as exc:
+                limits = None
+                result["warnings"].append(f"macroLimits: {exc}")
+            if limits:
+                result["macroLimits"] = limits
         try:
             battery = await pad.battery()
             result["battery"] = asdict(battery) if battery else None

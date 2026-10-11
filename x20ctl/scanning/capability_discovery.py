@@ -108,7 +108,7 @@ def discover(events):
                 }
                 profile["descriptor"] = fingerprint.descriptor_of(caps)
             elif kind == 6:
-                profile["macroLimits"] = bytes(data).hex()  # layout not decoded yet
+                profile["macroLimits"] = fingerprint._limits(bytes(data).hex())
             else:
                 keys = p.decode_key_list(data)
                 field = {3: "supportedSourceCodes", 4: "turboKeys", 5: "macroKeys",
