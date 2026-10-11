@@ -287,19 +287,53 @@ firmware path isn't even reachable in this mode.
 
 ### Device info payload
 
-Decoded per `ZXBTHelper.parsingVidAndPidAndVersion`:
+Decoded per `ZXBTHelper.parsingVidAndPidAndVersion`. Like every reply (see 4b),
+the payload starts with a size byte, and the app strips it (`addCache`) before
+this parser sees anything. The X20's payload `07 10 13 20 09 01 23 52` is size 7
+followed by a seven-byte record:
 
-| Bytes | Field | This device |
+| Record bytes | Field | This device |
 |---|---|---|
-| 0-1 | vendor id, hex string | `0710` |
-| 2-3 | product id, hex string | `1320` |
-| 4-5 | version, `major.minor` in hex | `9.01` |
-| n/a | device_id, top 4 bits of pid | `1` |
-| 6 | bitfield: model (low 4), sensor (bit 4), family (bits 5-7) | **only parsed when the payload is exactly 7 bytes** |
+| 0-1 | vendor id, hex string | `1013` |
+| 2-3 | product id, hex string | `2009` |
+| 4-5 | version, `major.minor` in hex | `1.23` |
+| n/a | device_id, top 4 bits of pid | `2` |
+| 6 | flags: operating mode (bits 0-3), sensor (bit 4), generation (bits 5-7) | `52`: mode 2, sensor 1, generation 2 |
 
 These are the vendor's own identifiers and are unrelated to the cloned USB
-`045E:*` descriptors. With an 8-byte payload the app sets `is_new_2_ver = 0` and
-skips the bitfield entirely, so bytes 6 and 7 (`23 52` here) remain unexplained.
+`045E:*` descriptors. The app calls the mode field `model`, but it is an
+operating mode, not a product id. The generation the app routes on
+(`is_new_2_ver`) is derived: raw generation 2 counts as 1 when the mode is 0, 7
+or 8, and stays 2 otherwise, so this X20 is generation 2. The flags byte is only
+read when the record is exactly seven bytes.
+
+**Correction.** Earlier notes, and `x20ctl` before Preview 5, parsed the payload
+with its size byte still on. That shifted every field by one and read this pad
+as `0710` / `1320`, firmware **9.01**, with the flags never decoded. The pad
+runs firmware 1.23; "9.01" elsewhere in older notes is that misreading.
+
+### What x20ctl does with the identity
+
+The identity decides what `x20ctl` will send; the descriptor (section 7) only
+narrows it further. `x20ctl/validation.py` holds what has been measured on real
+hardware, per product, operating mode and firmware, as four separate facts for
+each feature: read, write acknowledged, read-back matches, survives power-off.
+Every request the client builds passes one check before it is sent:
+
+| Controller | Identification (`0x90`, `0x91`, `0xB0`) | Other reads | Writes |
+|---|---|---|---|
+| validated (X20, mode 2, firmware 1.23) | yes | yes | features proven to write |
+| known product, other firmware | yes | yes | the same, each checked by read-back |
+| known product, other operating mode | yes | yes | none: the mode can change the protocol |
+| unknown | yes | only with `unvalidated_reads` (research tools) | none |
+
+Matching uses the technical identity only. The advertised name, the cloned USB
+ids and descriptor flags (the "Pro" bit included) never decide it. An unknown
+controller is still identified and its fingerprint (identity record, raw
+descriptor, B0 lists) is saved to `unknown-controllers.json` in the app's data
+folder; `tools/compare_controllers.py x20 that-file.json` lists how it differs
+from the recorded X20. A row is added to the table from evidence, never from
+what a descriptor offers.
 
 ## 4b. Response payload structure
 
@@ -312,7 +346,7 @@ The index byte on `getHost*` queries is therefore a **chunk number**, not a zone
 `HOST_LIGHTING` answers on index 0 and 1 and is silent from 2 upward, because its
 record is 25 bytes and a single BLE packet carries at most 20.
 
-### Live readings from an X20, firmware 9.01
+### Live readings from an X20, firmware 1.23
 
 | Opcode | Raw payload | Structure |
 |---|---|---|
@@ -625,7 +659,7 @@ anything.
 
 **Factory reset is `RECOVER`, and the trailing byte is a protocol generation,
 not a mode.** `03 DF A9 01` for older pads, `03 DF A9 02` for newer, chosen in
-the app from its `is_new_2_ver` flag. An X20 on 9.01 wants `02`, and **ignores
+the app from its `is_new_2_ver` flag. An X20 on 1.23 wants `02`, and **ignores
 `01` in silence**: no error, no reply, nothing cleared. A reset that seems to do
 nothing is the wrong generation rather than a failure. Verified by setting the
 idle timeout to never, resetting, and watching it return to the ten-minute
@@ -651,7 +685,7 @@ zero there is not "no timeout" but "sleep immediately".
 pad that simply does not support reading. `HOST_MACRO` (`0xB5`) queried as
 `[position, slot]` returns the stored record: the length-prefixed header
 followed by five bytes per step, exactly the layout `build_macro_payload`
-writes. Verified by round trip on an X20 running 9.01, writing
+writes. Verified by round trip on an X20 running 1.23, writing
 `A:100/60,B+X:200/50,LT:150/0` to M4 and reading back the same string, chords
 and per-step timings intact. A cleared slot answers with a declared length of
 zero, so empty is distinguishable from absent. Found by
@@ -675,7 +709,7 @@ here is the app's `iArr[1]`.
 | 4 | macros | bits 0-7: M1-M6, ML, MR |
 | 5 | button remapping | non-zero enables the page |
 | 6 | lighting | one bit per lighting zone |
-| 7 | EQ | audio equaliser — see below |
+| 7 | engine (the app's "EQ") | bit 1: macro limits are asked per slot; see below |
 | 8 | NFC | bits for pro/left/right pad and NFC 1-4 |
 | 9 | sensor | gyro |
 
@@ -683,18 +717,30 @@ The offset mapping is confirmed against the app: `HostActivity` tests
 `iArr[8] > 0` to `setHasEq(true)`, and `iArr[8]` is this table's offset 7 once
 the length prefix is accounted for.
 
-**EQ really is an audio equaliser**, not a second lighting surface. `HostActivity`
-draws it as a bank of `VerticalSeekBar`s and sets `hostPositionType = 8` to enter
-the settings-menu mode first. The X20 reports `eq = 0x02`, so the official app
-*does* offer this page for this pad — making it the one enabled capability
-`x20ctl` does not implement.
+**Offset 7 is not an equaliser.** The legacy `HostActivity` treats any nonzero
+value as "has EQ" and draws a page of `VerticalSeekBar`s, but no equaliser
+command or hardware has ever been found behind it. What the byte does change is
+the macro engine: in KeyLinker, bit 1 set means the app asks the pad for each
+macro slot's limits (query kind 6) instead of assuming them. The X20 reports
+`0x02`. Other bits have no established meaning. `x20ctl` calls the field
+`engine`, exposes bit 1 as `new_macro_engine`, and no longer lists "eq" as a
+configurable feature. Offset 5 bit 1 is the other bit that changes the
+protocol: set, the app reads the remap select list (kind 7). The X20 leaves it
+clear (`0x01`), and its bit 0 is the only set bit in the X20's descriptor that
+nobody has traced.
 
-### Reading from an EasySMX X20, firmware 9.01
+Thirty of the eighty bits are traced (`DESCRIPTOR_BIT_NAMES`). The rest are
+unexplained rather than reserved: `Capabilities.raw` keeps the whole record and
+`unexplained_bits()` lists every set bit outside the thirty, so a meaning found
+later can be checked against old scans without capturing again. (An earlier version of this section called it an audio
+equaliser; that was the label, not the behaviour.)
+
+### Reading from an EasySMX X20, firmware 1.23
 
 Record: `0a | 03 03 03 00 0f 01 00 02 c0 00`
 
 ```
-configurable: sticks, triggers, vibration, macros, button remapping, eq, nfc
+configurable: sticks, triggers, vibration, macros, button remapping, nfc
   sticks     L=True R=True
   triggers   L=True R=True
   motors     2

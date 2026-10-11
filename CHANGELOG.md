@@ -25,9 +25,14 @@ A pre-release. Everything in [Preview 4](#410-preview4---2026-10-10) is included
 - **Controller Check 2.2:** Home, an M button step and a measured turbo test; the battery read every read-only way Windows offers (XInput, Bluetooth, Windows.Gaming.Input) plus a listen on the vendor channels; "Got instead" when a different button arrives, and "Start and Back look swapped".
 - **The X05 has no back paddles**, confirmed by an owner; its scans no longer ask for M1 to M4.
 - [PRIVACY.md](PRIVACY.md), and a release workflow that builds Windows and Linux together.
+- **Controllers are only changed where that's been proven.** Every request is checked against a table of what has been measured on real hardware, per product, operating mode and firmware (`x20ctl/validation.py`), before it is sent. The X20 on firmware 1.23 keeps everything it had. An X20 on other firmware keeps the proven features, each still checked by reading it back. An X20 in an untested operating mode can be read but not changed. A controller that isn't in the table connects and is identified, nothing else is sent to it, and what it reports is saved to `unknown-controllers.json` so it can be validated. Lighting, turbo and mode switches are refused on every pad: none is proven.
+- **The capability descriptor is kept whole.** Scans, status and reports carry the raw bytes and name every set bit nobody has traced, and the remap select-list bit (D6 bit 1) is decoded. Captures also keep the turbo, macro and per-slot macro-limit lists.
+- **`tools/compare_controllers.py`** compares what two controllers report (a capture, the unknown-controllers log or the recorded X20): generation and mode first, then identity, descriptor bits and lists.
 
 ### Fixed
 
+- **The controller's identity was read one byte off.** The reply's size byte was parsed as data, so an X20 showed as `0710`/`1320` on firmware "9.01" and its flags were never decoded. It now reads `1013`/`2009`, firmware 1.23, operating mode 2, sensor 1, generation 2. The flags' low bits are named the operating mode (not a model), and the generation the official app routes on is derived from it.
+- **"EQ" is gone from the supported features.** Descriptor byte 8 is not an equaliser: bit 1 tells the official app to ask each macro slot's limits. The field is now `engine`, with `new_macro_engine` for that bit.
 - **Saving a scan with M paddle steps failed** ("Unknown evidence action"), which also made Back to Tools look broken.
 - **Redo offered paddles a pad doesn't have.** When every paddle step comes back empty, Redo leaves them out.
 - **The Controller Check could stay on "Finishing up" forever** after a redo. A failure now shows a message and leaves the screen usable.
