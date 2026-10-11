@@ -4,9 +4,9 @@ namespace X20Ctl.Zone.Tests;
 public class StudioFlowTests
 {
     private static ControllerCatalog Catalog() => new(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Data", "catalog.json")));
-    [Fact] public void CatalogRetainsAllSevenModelsWithoutGrantingNonX20Configuration()
+    [Fact] public void CatalogRetainsAllEightModelsWithoutGrantingNonX20Configuration()
     {
-        var catalog = Catalog(); Assert.Equal(7, catalog.Models.Count);
+        var catalog = Catalog(); Assert.Equal(8, catalog.Models.Count);
         Assert.Equal("SUPPORTED", catalog.Get("x20").Support);
         Assert.All(catalog.Models.Where(m => m.Id != "x20"), model => Assert.NotEqual("SUPPORTED", model.Support));
     }

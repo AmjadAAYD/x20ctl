@@ -1,5 +1,64 @@
 # Changelog
 
+## [4.1.0-preview.5] - Unreleased
+
+A pre-release. Everything in [Preview 4](#410-preview4---2026-10-10) is included.
+
+### Added
+
+- **PC mode** (Tools). Remaps, turbo, stick and trigger curves and macros for any controller, applied on the PC and handed to games as a virtual Xbox controller while the real one is hidden. Nothing is written to the controller. On by default but inert until a setting is changed; a one-time notice covers closing the app, online-game bans and the two drivers (ViGEmBus 1.22.0 and HidHide 1.5.230 by Nefarius, carried in the exe and checked against pinned SHA-256).
+- **PC mode lives on every controller's tabs.** A new PC mode tab in each controller's Studio holds the switch, the per-game choice, turbo and sharing. While PC mode is on, that controller's own Buttons, Curves (with Advanced) and Macros tabs are PC mode's editor, for any model (the X05, X05 Pro and Dune included), and each change applies right away. Settings the tabs can't show (turbo, a remap of View, Menu or Home, a fifth macro) are kept. The editor that used to sit in Tools → PC mode is gone; Tools keeps the same compact page.
+- **Macros in PC mode are played by a button you pick.** PC mode can't see a back paddle (EasySMX paddles only ever send ordinary buttons), so each Macros slot gets "In PC mode, played by", and that button plays the macro instead of its usual job.
+- **PC mode for up to four controllers at once, each with its own settings**, and each with its own virtual Xbox controller, in the same order. Player N's settings (every-game and per-game) go to the Nth controller Windows sees, and each controller's Studio edits its own; Tools → PC mode has a Controller list. Settings saved before this are Player 1's. A controller plugged in later joins within a second.
+- **PC mode settings per game.** *Settings for* picks *Every game* or a game; *Give a game its own settings* lists what's running and starts from your usual settings. X20CTL follows the window in front and switches within half a second, without dropping the virtual controllers.
+- **Hold View + Menu for a second** to switch PC mode's settings off mid-game and back on, with a notification each time.
+- **Share PC mode settings** as a `.x20pc` file or a code (`X20PC1.…`, compressed, safe to paste in a chat). Only the settings go in; the game name and anything about the PC stay out. Imports are size-capped and checked before anything is used. The Linux script has `export` and `import` with the same codes and files.
+- **Mouse tab: the controller as a mouse.** Pointer on one stick, scrolling (both ways) on the other, every button free to pick: clicks, back/forward, Enter, Escape, Tab, arrows, Windows key, Task view, volume, on-screen keyboard, or a slow pointer while held. Speed, acceleration, dead zone and scroll speed are adjustable; held arrows repeat. Switch it from the tab, the tray, or by holding View + Y. While it's on, PC mode gives games a resting controller and X20CTL's own controller navigation pauses. Default layout after [Gopher360](https://github.com/Tylemagne/Gopher360) (GPL-3.0); written fresh. The Linux script has `mouse` too.
+- **Use as dead zone** in Diagnostics: one click puts a stick's measured drift into PC mode's inner dead zone.
+- **Battery in the tray:** the tooltip shows the controller's battery, and a notification warns once when it runs low.
+- **Button chatter in the Controller Check**: presses shorter than 15 ms, which a finger can't make, are reported as a measured finding.
+- **Curves → Advanced:** fine stick tools for PC mode, for any controller. Dead zones in 0.1% steps, anti-deadzone (an output floor so small moves register), max output, a square gate, up/down speed, and pure raw 1:1. Also one-click presets, copy to the other stick, a number table of what the game gets, and **Measure drift**, which sets each inner dead zone just past how far the stick wanders when left alone. The Linux script has the same settings (`set stick ... --anti --max --raw`).
+- **Diagnostics tab** in the Studio, for every model. It reads the controller live and never writes to it. Each stick gets a range trace, roundness, resting drift (with the dead zone that would hide it) and step size. Triggers get travel and resolution; every button gets a press count, with chatter flagged for presses under 15 ms. The real report rate per controller comes from Raw Input, up to 8000 a second. **Copy report** puts the readings on the clipboard. While it is open it owns the controller's input, like the old Tester: hold B to leave.
+- **Administrator permission at launch** for release builds, so PC mode can install its drivers.
+- **Send feedback** (Tools): a bug, an idea or a note about your controller, straight to the X20CTL inbox, with a receipt.
+- **Keep X20CTL up to date** (Tools, off by default): checks GitHub releases at launch, and the one-file exe downloads, verifies and swaps in the new version.
+- **Controller Check 2.2:** Home, an M button step and a measured turbo test; the battery read every read-only way Windows offers (XInput, Bluetooth, Windows.Gaming.Input) plus a listen on the vendor channels; "Got instead" when a different button arrives, and "Start and Back look swapped".
+- **The X05 has no back paddles**, confirmed by an owner; its scans no longer ask for M1 to M4.
+- [PRIVACY.md](PRIVACY.md), and a release workflow that builds Windows and Linux together.
+
+### Fixed
+
+- **Saving a scan with M paddle steps failed** ("Unknown evidence action"), which also made Back to Tools look broken.
+- **Redo offered paddles a pad doesn't have.** When every paddle step comes back empty, Redo leaves them out.
+- **The Controller Check could stay on "Finishing up" forever** after a redo. A failure now shows a message and leaves the screen usable.
+- Tools tiles no longer let their icons overlap the titles.
+- **A crash, or Windows shutting down, could leave the controller hidden from games** until X20CTL was opened again (HidHide's list survives a reboot). Every way out now gives it back.
+- **PC mode could read its own virtual controller** as the real one after a reconnect. It now only reads the controller it started with.
+- **A broken PC mode settings file stopped PC mode** until the app restarted. It's now refused with a message, and the rest keeps working.
+- **Turning PC mode off and quickly on again could leave it stopped.**
+- **The Controller Check scanned PC mode's virtual controller** when PC mode was active. PC mode now pauses while the check is open.
+- **The macro recorder could record PC mode's virtual controller** instead of the real one.
+- **New source during the turbo step could crash the app** (the turbo sampler kept reading a freed XInput library).
+- **Finishing a scan froze the window for up to 2 seconds** while the vendor-channel listener shut down.
+- **Home was missing from PC mode's button list**, and macro text saved only when the box lost focus (Enter now saves too).
+- The PC mode page no longer stays subscribed after Tools closes.
+- Linux: `--version` printed the help, a controller another program held leaked a file handle, and a device error ended in a traceback instead of a plain message.
+
+### Faster
+
+- **About a quarter of the CPU when idle.** The slow background motion (nebula drift, stars, status-dot pulses) asked for a redraw at the display's full rate, so the idle Studio used about 1.7 CPU cores on the test PC. It now asks for 24 frames a second, and the floating controller moves on a 30 Hz timer: about 0.4 cores, and it looks the same.
+- **Almost nothing while in the tray or minimized** (about 3% of one core, down from up to 80%): nothing is drawn while nobody can see it, which matters while PC mode runs for hours.
+- **Tools opens about 40% faster** (300 → 180 ms; 120 → 70 ms the second time): the PC mode and feedback pages are built the first time you open them.
+- **Screens open 25–30% faster in the release exe**, which is now precompiled (ReadyToRun) for 2 MB more.
+- `--review-timing FILE`, a development tool that measures startup, each screen and idle CPU.
+
+### Not tested yet
+
+- PC mode on a real controller: the virtual pad, the hiding, and whether a game sees one controller. A tester runs it next.
+- PC mode on Linux (`x20ctl-pcmode.py`) on a real distro.
+- Diagnostics and Measure drift on a real controller: the report-rate counter and the bounce flags have only run without a pad.
+- The controller as a mouse, two or more controllers in PC mode, per-game switching and the View + Menu switch: all built and unit-tested, none run with a real controller yet. The Linux `mouse` command and View + Menu in `run` have not run on a real distro.
+
 ## [4.1.0-preview.4] - 2026-10-10
 
 A pre-release test build, made for the first owner scans of the EasySMX Dune 8K. Everything in [Preview 3](#410-preview3---2026-10-10) is included; the changes below are all in the Controller Check (now scanner 2.1).

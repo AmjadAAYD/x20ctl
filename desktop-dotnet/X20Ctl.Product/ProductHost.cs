@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -26,6 +26,11 @@ public sealed class ProductHost : Grid
     public bool IntroWasPlayed {get;private set;}
     private readonly ProductPreferences preferences;
     private readonly bool preferencesHealthy;
+    /// <summary>PC mode (Tools): on by default, but it only does anything once a setting has been changed.</summary>
+    public PcModeService? PcMode { get; }
+    /// <summary>Controller as mouse. A fixture window gets one that never listens to the controller.</summary>
+    public MouseModeService? MouseMode { get; }
+    private readonly X20Ctl.Zone.PcMode.PcModeStore? pcModeStore;
     private readonly Action<string> support;
     private readonly AssignmentStore store;
     private readonly Dictionary<(int, string), ButtonDraft> drafts = new();
@@ -42,6 +47,12 @@ public sealed class ProductHost : Grid
         support=openSupport??ProductLinks.OpenSupport;
         preferences=new(assignmentPath==null?Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),"x20ctl","native","preferences.v1.json"):Path.Combine(Path.GetDirectoryName(Path.GetFullPath(assignmentPath))!,"preferences-fixture.json"));
         try{preferences.Load();preferencesHealthy=true;}catch(Exception error) when(error is IOException or System.Text.Json.JsonException or InvalidOperationException){Zone.FeedbackText.Text="Startup preferences unavailable; original file preserved. "+error.Message;}
+        // Tools → "Keep X20CTL up to date": only when turned on, never for review fixtures
+        if(preferencesHealthy&&preferences.AutoUpdate&&assignmentPath==null)_=CheckUpdatesAtLaunch();
+        // a review or fixture window gets a store beside its own files and a service that never starts
+        pcModeStore=new(assignmentPath==null?X20Ctl.Zone.PcMode.PcModeStore.DefaultPath:Path.Combine(Path.GetDirectoryName(Path.GetFullPath(assignmentPath))!,"pc-mode-fixture.json"));pcModeStore.Load();
+        PcMode=new(pcModeStore){Enabled=assignmentPath==null&&(!preferencesHealthy||preferences.PcMode)};
+        MouseMode=new(assignmentPath==null?X20Ctl.Zone.Mouse.MouseProfile.DefaultPath:Path.Combine(Path.GetDirectoryName(Path.GetFullPath(assignmentPath))!,"mouse-fixture.json"),listen:assignmentPath==null){PcMode=PcMode};
         Zone.SupportRequested+=OpenSupport;Zone.SettingsRequested+=ShowSettings;
         Catalog = new ControllerCatalog(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Data", "catalog.json")));
         store = new(assignmentPath ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "x20ctl", "native", "player-assignments.v1.json"));
@@ -86,7 +97,13 @@ public sealed class ProductHost : Grid
         if (!macros.TryGetValue((player, model.Id), out var macroDraft)) macros[(player, model.Id)] = macroDraft = new(model.Id);
         if (!vibrations.TryGetValue((player, model.Id), out var vibrationDraft)) vibrations[(player, model.Id)] = vibrationDraft = new(model.Id);
         var key=(player,model.Id);activeSetups.TryGetValue(key,out var activeSetup);
-        Studio = new(player, model, draft, Zone.ReducedMotion, curveDraft,macroDraft,vibrationDraft,setupStore,legacySources,activeSetup); Studio.BackRequested += ReturnToZone;Studio.SupportRequested+=OpenSupport;Studio.ActiveSetupChanged+=id=>activeSetups[key]=id;
+        // with PC mode on, the Buttons, Curves and Macros tabs edit PC mode's settings, for any model
+        bool pc=PcMode is {Enabled:true}&&pcModeStore!=null;
+        if(draft.PcMode&&!pc&&model.Id!="x20")PcModeSync.Clear(draft,curveDraft,macroDraft); // while still unlocked
+        draft.PcMode=curveDraft.PcMode=macroDraft.PcMode=pc;
+        if(pcModeStore!=null)PcModePage.UsePlayer(player,pcModeStore); // each controller has its own PC mode settings
+        if(pc)PcModeSync.Prepare(pcModeStore!,draft,curveDraft,macroDraft);
+        Studio = new(player, model, draft, Zone.ReducedMotion, curveDraft,macroDraft,vibrationDraft,setupStore,legacySources,activeSetup); if(PcMode!=null&&pcModeStore!=null)Studio.PcMode=new(pcModeStore,PcMode,preferencesHealthy?preferences:null);Studio.MouseService=MouseMode;Studio.PcModeSwitched+=()=>Dispatcher.BeginInvoke(()=>{EnterStudio(player);Studio?.ShowManagement("PcMode");});Studio.BackRequested += ReturnToZone;Studio.SupportRequested+=OpenSupport;Studio.ActiveSetupChanged+=id=>activeSetups[key]=id;
         Studio.NativeEngineStatus=NativeEngineStatus;
         Studio.InputContextChanged+=()=>_=UpdateNativeContext();
         if(Engine!=null)_=RefreshNativeCapabilities(model.Id);
@@ -99,7 +116,7 @@ public sealed class ProductHost : Grid
     public void ReturnToZone()
     {
         bool back = Studio != null;
-        if (Studio != null) { var leaving = Studio; Studio = null; Fx.Leave(leaving, () => Children.Remove(leaving), 1.06, 300); }
+        if (Studio != null) { var leaving = Studio; Studio = null; leaving.Diagnostics?.Stop(); Fx.Leave(leaving, () => Children.Remove(leaving), 1.06, 300); }
         Zone.BeginAnimation(OpacityProperty, null); Zone.Opacity = 1; Zone.IsHitTestVisible = true; Zone.IsEnabled = Selector == null && Settings == null && Intro == null;
         Zone.Visibility = Visibility.Visible;
         if (back) Fx.Appear(Zone, .94, 380);
@@ -144,12 +161,14 @@ public sealed class ProductHost : Grid
             var pressed=now.Except(lastNativeButtons).ToArray();lastNativeButtons=now;
             long time=value.GetProperty("timestampUs").GetInt64();
             // Home / Guide: bring X20CTL forward from anywhere (tray, behind a game); in front it goes home
-            if(connected&&pressed.Contains("HOME")){HomeRequested?.Invoke();return;}
-            if(Studio?.ManagementPage=="Tester")
+            if(connected&&pressed.Contains("HOME")&&Studio?.ManagementPage!="Diagnostics"){HomeRequested?.Invoke();return;}
+            // the controller is the mouse: its buttons click and type, so they must not also move around X20CTL (Home still comes home)
+            if(MouseMode?.Active==true){nativeArmed=false;return;}
+            if(Studio?.ManagementPage is "Tester" or "Diagnostics")
             {
                 // the Tester owns every input; only a deliberate one-second hold of B leaves it
                 if(now.Contains("B")){if(bHeldSinceUs==0)bHeldSinceUs=time;else if(time-bHeldSinceUs>=1_000_000){bHeldSinceUs=0;Studio.ShowManagement("Device");nativeArmed=false;return;}}else bHeldSinceUs=0;
-                Studio.Tester?.ReceiveNative(value);nativeArmed=false;return;
+                if(Studio.ManagementPage=="Tester")Studio.Tester?.ReceiveNative(value);nativeArmed=false;return;
             }
             if(!connected||Window.GetWindow(this)?.IsActive!=true){nativeArmed=false;return;}if(!nativeArmed){if(now.Count==0)nativeArmed=true;return;}
             if(Intro!=null){if(pressed.Contains("B"))Intro.Finish();return;}
@@ -171,11 +190,13 @@ public sealed class ProductHost : Grid
         if(preferencesHealthy)try{preferences.MarkIntroSeen();}catch(Exception error) when(error is IOException or InvalidOperationException){Zone.FeedbackText.Text="Startup preference could not be saved; original file preserved. "+error.Message;}
     }
     private void OpenSupport(){try{support(ProductLinks.Support);}catch(Exception error){Zone.FeedbackText.Text="Could not open your browser. Support X20CTL: "+ProductLinks.Support+" · "+error.Message;}}
-    public void ShowSettings(){ReturnToZone();CloseSettings();Zone.IsEnabled=false;Settings=new(OpenSupport,StartIntro,CloseSettings,OpenCheck);Children.Add(Settings);Panel.SetZIndex(Settings,20);Fx.Appear(Settings,1.04,320);Settings.FocusFirst();}
+    public void ShowSettings(){ReturnToZone();CloseSettings();Zone.IsEnabled=false;Settings=new(OpenSupport,StartIntro,CloseSettings,OpenCheck,preferencesHealthy?preferences:null,PcMode,pcModeStore);Children.Add(Settings);Panel.SetZIndex(Settings,20);Fx.Appear(Settings,1.04,320);Settings.FocusFirst();}
     /// <summary>"Controller not working?": the Controller Check (Scanner 2.0.0 engine) as its own full-window app over Tools.</summary>
     public Scanner.ControllerCheckView? Check {get;private set;}
-    public void OpenCheck(){if(Check!=null)return;Check=new(CloseCheck);Children.Add(Check);Panel.SetZIndex(Check,40);Fx.Appear(Check,1.06,360);}
-    public void CloseCheck(){if(Check==null||!Check.TryClose())return;var closing=Check;Check=null;closing.Shutdown();Fx.Leave(closing,()=>Children.Remove(closing),1.05,240);Settings?.Check.Focus();}
+    public void OpenCheck(){if(Check!=null)return;if(Studio?.ManagementPage=="Diagnostics")Studio.ShowManagement("Device"); // both use Raw Input, one registration per process
+        if(PcMode!=null)PcMode.Paused=true;Check=new(CloseCheck);Children.Add(Check);Panel.SetZIndex(Check,40);Fx.Appear(Check,1.06,360);}
+    public void CloseCheck(){if(Check==null||!Check.TryClose())return;var closing=Check;Check=null;closing.Shutdown();if(PcMode!=null)PcMode.Paused=false;Fx.Leave(closing,()=>Children.Remove(closing),1.05,240);Settings?.Check.Focus();}
+    private async Task CheckUpdatesAtLaunch(){await Task.Delay(4000);if(await Updater.AutoRun() is { } message)Zone.FeedbackText.Text=message;}
     public void CloseSettings(){if(Settings!=null){var leaving=Settings;Settings=null;Fx.Leave(leaving,()=>Children.Remove(leaving),1.03,220);}Zone.IsEnabled=true;}
     public void ResetTransientInput(){nativeArmed=false;Zone.SuspendNavigation();Studio?.Tester?.ClearKeyboardKeys();Studio?.ReleaseTransientInput();}
     public event Action? HomeRequested;
@@ -188,7 +209,7 @@ public sealed class ProductHost : Grid
         // remapping on the Buttons page: Menu, View and B are buttons being assigned, not navigation
         if(Studio?.CapturingRemap==true && Intro==null && Settings==null){Studio.OnKeyDown(sender,e);return;}
         if(key==InputMap.Settings && Intro==null){if(Settings!=null)CloseSettings();else ShowSettings();e.Handled=true;return;}
-        if(key==InputMap.ControllerZone && Intro==null && Settings==null && Studio!=null && Studio.ManagementPage!="Tester"){ReturnToZone();e.Handled=true;return;}
+        if(key==InputMap.ControllerZone && Intro==null && Settings==null && Studio!=null && Studio.ManagementPage is not ("Tester" or "Diagnostics")){ReturnToZone();e.Handled=true;return;}
         if(Intro!=null){if(e.Key is Key.Escape or Key.B)Intro.Finish();e.Handled=true;return;}
         if(Settings!=null){if(e.Key is Key.Escape or Key.B){if(!Settings.StepBack())CloseSettings();e.Handled=true;}else if(e.Key==Key.A && Keyboard.FocusedElement is Button button){button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));e.Handled=true;}else if(e.Key is Key.Up or Key.Down or Key.Left or Key.Right && Keyboard.FocusedElement is UIElement focused){focused.MoveFocus(new(e.Key==Key.Up?FocusNavigationDirection.Up:e.Key==Key.Down?FocusNavigationDirection.Down:e.Key==Key.Left?FocusNavigationDirection.Left:FocusNavigationDirection.Right));e.Handled=true;}return;}
         // the controller picker: arrows / D-pad move between cards, A / Enter chooses, B / Esc goes back

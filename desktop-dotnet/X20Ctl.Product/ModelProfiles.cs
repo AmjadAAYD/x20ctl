@@ -22,7 +22,7 @@ public static class ModelProfiles
     {
         ["x20"] = new("x20", "Hall", "Hall", ["M1", "M2", "M3", "M4"], "2 grip motors", "Not published", "6-axis gyro", "4-level report", 4, "RGB stick rings · KeyLinker app"),
         ["x20_pro"] = new("x20_pro", "TMR, adjustable tension", "Hall / microswitch", ["M1", "M2", "M3", "M4", "M5", "M6"], "4 motors (grips + triggers), instant brake", "Not published", "Gyro", "1000–1200 mAh (sources disagree)", 0, "Smart display · RGB"),
-        ["x05"] = new("x05", "Hall", "Hall", ["M1", "M2"], "2 grip motors", "1000 / 250 / 125 Hz", "None", "Unknown", 0, "M1/M2 back buttons: sources disagree"),
+        ["x05"] = new("x05", "Hall", "Hall", [], "2 grip motors", "1000 / 250 / 125 Hz", "None", "Unknown", 0, "No back paddles (confirmed by an owner, 10 Oct 2026)"),
         ["x05_pro"] = new("x05_pro", "Hall", "Dual-stage Hall / microswitch", ["M1", "M2"], "2 grip motors", "1000 Hz wired and 2.4G", "Unconfirmed", "Unknown", 0, "RGB"),
         ["x10"] = new("x10", "Hall", "Hall", ["M1", "M2"], "2 grip motors", "Not published", "6-axis (Switch mode)", "Unknown", 0, "Mechanical ABXY · QMacro"),
         ["d10"] = new("d10", "TMR", "Hall / microswitch", ["M1", "M2"], "2 grip motors, 4 strength levels", "1000 Hz wired and 2.4G", "Gyro", "Unknown", 0, "Charging dock · no KeyLinker · receiver 2345:E062"),
@@ -32,13 +32,29 @@ public static class ModelProfiles
     public static ModelProfile For(string id) => all.TryGetValue(id, out var p) ? p : new(id, "Unknown", "Unknown", [], "Unknown", "Unknown", "Unknown", "Unknown", 0, "");
 
     /// <summary>Puts the banner on top of a page grid (a new Auto row above everything already there); verified models wear nothing.</summary>
-    public static void Wear(Grid page, string id, string name)
+    public static void Wear(Grid page, string id, string name, bool pcMode = false)
     {
-        if (For(id).Verified) return;
+        if (For(id).Verified && !pcMode) return;
         if (page.RowDefinitions.Count == 0) page.RowDefinitions.Add(new());
         foreach (UIElement child in page.Children) Grid.SetRow(child, Grid.GetRow(child) + 1);
         page.RowDefinitions.Insert(0, new RowDefinition { Height = GridLength.Auto });
-        var banner = Banner(id, name); Grid.SetColumnSpan(banner, Math.Max(1, page.ColumnDefinitions.Count)); page.Children.Add(banner);
+        var banner = pcMode ? PcBanner(name) : Banner(id, name); Grid.SetColumnSpan(banner, Math.Max(1, page.ColumnDefinitions.Count)); page.Children.Add(banner);
+    }
+    /// <summary>The strip a page wears while PC mode is on: what it edits, and that nothing goes to the controller.</summary>
+    public static Border PcBanner(string page) => Strip("\uE7F8", $"{page} · PC mode · ", page == "Macros"
+        ? "Applies on this PC, to games, for any controller. PC mode can't see a back paddle, so pick the button that plays each slot."
+        : "Applies on this PC, to games, for any controller, as soon as you change it. Nothing is written to the controller.");
+    static Border Strip(string icon, string title, string body)
+    {
+        var text = new TextBlock { TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center, FontSize = 13.5, Foreground = DS.Brush("DS.TextSoft") };
+        text.Inlines.Add(new System.Windows.Documents.Run(title) { Foreground = DS.Brush("DS.Text"), FontWeight = FontWeights.SemiBold });
+        text.Inlines.Add(new System.Windows.Documents.Run(body));
+        return new Border
+        {
+            CornerRadius = new(12), Padding = new(14, 9, 14, 9), Margin = new(0, 0, 0, 10), BorderThickness = new(1),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(90, 125, 182, 255)), Background = new SolidColorBrush(Color.FromArgb(70, 30, 60, 130)),
+            Child = new DockPanel { Children = { new TextBlock { Text = icon, FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"), FontSize = 16, Foreground = DS.Brush("DS.AccentHi"), Margin = new(0, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center }, text } }
+        };
     }
     /// <summary>The strip a placeholder page wears: it says the page is a preview and what this controller has.</summary>
     public static Border Banner(string id, string page)

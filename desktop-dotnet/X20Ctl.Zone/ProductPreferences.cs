@@ -5,15 +5,24 @@ public sealed class ProductPreferences(string path)
 {
     private bool loaded;private string? baseline;private Dictionary<string,JsonElement> data=new();
     public bool IntroSeen {get;private set;}
-    public void Load(){loaded=false;if(File.Exists(path)){byte[] bytes=File.ReadAllBytes(path);data=JsonSerializer.Deserialize<Dictionary<string,JsonElement>>(bytes)??throw new InvalidDataException("Empty preferences.");if(!data.TryGetValue("version",out var version)||version.GetInt32()!=1)throw new InvalidDataException("Unsupported preferences version.");IntroSeen=data.TryGetValue("introSeen",out var seen)&&seen.GetBoolean();baseline=Convert.ToHexString(SHA256.HashData(bytes));}loaded=true;}
-    public void MarkIntroSeen()
+    /// <summary>Tools → "Keep X20CTL up to date": off unless the player turns it on.</summary>
+    public bool AutoUpdate {get;private set;}
+    /// <summary>Tools → PC mode: on unless the player turned it off. It still does nothing until a setting is changed.</summary>
+    public bool PcMode {get;private set;}=true;
+    /// <summary>The one-time "online games, closing the app, the driver" notice has been accepted.</summary>
+    public bool PcModeNoticeSeen {get;private set;}
+    public void Load(){loaded=false;if(File.Exists(path)){byte[] bytes=File.ReadAllBytes(path);data=JsonSerializer.Deserialize<Dictionary<string,JsonElement>>(bytes)??throw new InvalidDataException("Empty preferences.");if(!data.TryGetValue("version",out var version)||version.GetInt32()!=1)throw new InvalidDataException("Unsupported preferences version.");IntroSeen=data.TryGetValue("introSeen",out var seen)&&seen.GetBoolean();AutoUpdate=data.TryGetValue("autoUpdate",out var auto)&&auto.ValueKind==JsonValueKind.True;PcMode=!(data.TryGetValue("pcMode",out var pc)&&pc.ValueKind==JsonValueKind.False);PcModeNoticeSeen=data.TryGetValue("pcModeNoticeSeen",out var seenNotice)&&seenNotice.ValueKind==JsonValueKind.True;baseline=Convert.ToHexString(SHA256.HashData(bytes));}loaded=true;}
+    public void MarkIntroSeen(){if(!loaded)throw new InvalidOperationException("Preferences were not validated.");if(IntroSeen)return;Write("introSeen",true);IntroSeen=true;}
+    public void SetAutoUpdate(bool on){if(!loaded)throw new InvalidOperationException("Preferences were not validated.");if(AutoUpdate==on)return;Write("autoUpdate",on);AutoUpdate=on;}
+    public void SetPcMode(bool on){if(!loaded)throw new InvalidOperationException("Preferences were not validated.");if(PcMode==on)return;Write("pcMode",on);PcMode=on;}
+    public void MarkPcModeNoticeSeen(){if(!loaded)throw new InvalidOperationException("Preferences were not validated.");if(PcModeNoticeSeen)return;Write("pcModeNoticeSeen",true);PcModeNoticeSeen=true;}
+    private void Write(string key,bool value)
     {
-        if(!loaded)throw new InvalidOperationException("Preferences were not validated.");if(IntroSeen)return;
         string absolute=Path.GetFullPath(path),directory=Path.GetDirectoryName(absolute)!;Directory.CreateDirectory(directory);
         using var transaction=new FileStream(absolute+".lock",FileMode.OpenOrCreate,FileAccess.ReadWrite,FileShare.None);byte[]? previous=File.Exists(absolute)?File.ReadAllBytes(absolute):null;
         if((previous==null?null:Convert.ToHexString(SHA256.HashData(previous)))!=baseline)throw new IOException("Preferences changed externally; original preserved.");
-        var next=new Dictionary<string,JsonElement>(data){["version"]=JsonSerializer.SerializeToElement(1),["introSeen"]=JsonSerializer.SerializeToElement(true)};
+        var next=new Dictionary<string,JsonElement>(data){["version"]=JsonSerializer.SerializeToElement(1),[key]=JsonSerializer.SerializeToElement(value)};
         byte[] bytes=JsonSerializer.SerializeToUtf8Bytes(next);string temp=absolute+"."+Guid.NewGuid().ToString("N")+".tmp";
-        try{if(previous!=null){string backup=absolute+"."+baseline+".backup";if(!File.Exists(backup)){using var stream=new FileStream(backup,FileMode.CreateNew);stream.Write(previous);stream.Flush(true);}}using(var stream=new FileStream(temp,FileMode.CreateNew)){stream.Write(bytes);stream.Flush(true);}using var check=JsonDocument.Parse(File.ReadAllBytes(temp));File.Move(temp,absolute,true);IntroSeen=true;data=next;baseline=Convert.ToHexString(SHA256.HashData(bytes));}finally{if(File.Exists(temp))File.Delete(temp);}
+        try{if(previous!=null){string backup=absolute+"."+baseline+".backup";if(!File.Exists(backup)){using var stream=new FileStream(backup,FileMode.CreateNew);stream.Write(previous);stream.Flush(true);}}using(var stream=new FileStream(temp,FileMode.CreateNew)){stream.Write(bytes);stream.Flush(true);}using var check=JsonDocument.Parse(File.ReadAllBytes(temp));File.Move(temp,absolute,true);data=next;baseline=Convert.ToHexString(SHA256.HashData(bytes));}finally{if(File.Exists(temp))File.Delete(temp);}
     }
 }

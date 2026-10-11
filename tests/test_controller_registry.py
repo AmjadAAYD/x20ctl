@@ -14,10 +14,10 @@ PREVIEW_MODELS = tuple(key for key, value in REGISTRY.items() if value.backend i
 
 def test_registry_published_counts_and_preview_models():
     assert {key: len(value.macro_slots) for key, value in REGISTRY.items()} == {
-        "x20": 4, "x20_pro": 6, "x05": 0, "x05_pro": 2, "x10": 2, "d10": 2, "x15": 2,
+        "x20": 4, "x20_pro": 6, "x05": 0, "x05_pro": 2, "x10": 2, "d10": 2, "x15": 2, "dune": 4,
     }
     assert REGISTRY["x20"].backend == "x20_keylinker"
-    assert set(PREVIEW_MODELS) == {"x20_pro", "x05", "x05_pro", "x10", "d10", "x15"}
+    assert set(PREVIEW_MODELS) == {"x20_pro", "x05", "x05_pro", "x10", "d10", "x15", "dune"}
     assert all(REGISTRY[model].visible for model in REGISTRY)
     assert len(REGISTRY["x20_pro"].visual["motors"]) == 4
     assert REGISTRY["x05"].hardware["motion"] is False

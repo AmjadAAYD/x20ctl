@@ -14,6 +14,8 @@
     <Version>4.1.0-preview.4</Version>
     <!-- the engine sits beside X20Ctl.exe; a one-exe build (-p:EngineBesideExe=false -p:IncludeAllContentForSelfExtract=true) packs it in -->
     <EngineBesideExe Condition="'$(EngineBesideExe)' == ''">true</EngineBesideExe>
+    <!-- release builds (-p:ElevateAtLaunch=true) ask for administrator permission when opened, so PC mode can install its drivers; dev builds don't -->
+    <ApplicationManifest Condition="'$(ElevateAtLaunch)' == 'true'">app.elevated.manifest</ApplicationManifest>
   </PropertyGroup>
   <ItemGroup>
     <!-- WinForms is used only for the tray NotifyIcon; keep its namespaces out of the WPF code -->
@@ -23,6 +25,8 @@
   <ItemGroup>
     <Content Include="../../artifacts/product-engine-phase/native-build/Release/x20ctl-engine.exe" Link="x20ctl-engine.exe" CopyToOutputDirectory="PreserveNewest" ExcludeFromSingleFile="$(EngineBesideExe)" Condition="Exists('../../artifacts/product-engine-phase/native-build/Release/x20ctl-engine.exe')" />
     <ProjectReference Include="../X20Ctl.Zone/X20Ctl.Zone.csproj" />
+    <!-- the managed ViGEm client only: it talks to the ViGEmBus driver, which PC mode installs on first use -->
+    <PackageReference Include="Nefarius.ViGEm.Client" Version="1.21.256" />
     <!-- the X20CTL mark in white (tools/build_brand_mark.py); the intro draws the same mark in red -->
     <Resource Include="Brand/x20ctl-mark.png" Link="Assets/brand.png" />
     <Content Include="../../x20ctl/controllers/catalog.json" Link="Data/catalog.json" CopyToOutputDirectory="PreserveNewest" />
@@ -31,6 +35,8 @@
     <Resource Include="../../src/assets/controllers/**/native/*.png" Link="Assets/native/%(RecursiveDir)%(Filename)%(Extension)" />
     <Content Include="../../src/assets/controllers/native-layers.json" Link="Data/native-layers.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Brand/intro.wav" CopyToOutputDirectory="PreserveNewest" />
+    <!-- PC mode's two installers (ViGEmBus, HidHide; see vendor/drivers/README.md), carried inside the exe when present -->
+    <Content Include="../../vendor/drivers/*.exe" Link="drivers/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" Condition="Exists('../../vendor/drivers')" />
     <Content Include="../../tools/linux_controller_check/x20ctl-check.py" Link="Tools/linux/x20ctl-check.py" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../src/assets/controllers/lighting.json" Link="Data/lighting.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../src/assets/controllers/outlines.json" Link="Data/outlines.json" CopyToOutputDirectory="PreserveNewest" />
