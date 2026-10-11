@@ -168,7 +168,7 @@ public sealed class ButtonsConsolePage : Grid
             : waitTarget ? $"Now press what {name} should do: a button on the controller, or one in Outputs below. Esc cancels."
             : !has ? "Click YOU PRESS, then press a button. Then press what it should do."
             : !editable ? "" : changed ? $"Pressing {name} acts like {label(target)}. Click GAME GETS to change it again." : $"{name} works as normal. Click GAME GETS to give it a new job.";
-        readOnly.Text = !has ? "" : model.Id != "x20" ? "Remapping is not verified for this model yet, so it can only be inspected." : editable ? "" : $"{name} can't be remapped. It has no button role to swap.";
+        readOnly.Text = !has ? "" : model.Id != "x20" && !draft.PcMode ? "Remapping is not verified for this model yet, so it can only be inspected." : editable ? "" : $"{name} can't be remapped. It has no button role to swap.";
         readOnly.Visibility = readOnly.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed; sentence.Visibility = sentence.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         restore.Visibility = changed && !waitTarget ? Visibility.Visible : Visibility.Collapsed;
         stepTwoHint.Text = waitTarget ? "Waiting for a press" : editable ? "Click GAME GETS, then press a button" : has ? "Not available for this button" : "Pick a button first";
@@ -199,9 +199,9 @@ public sealed class ButtonsConsolePage : Grid
         ring.BeginAnimation(OpacityProperty, null); s.BeginAnimation(ScaleTransform.ScaleXProperty, null); s.BeginAnimation(ScaleTransform.ScaleYProperty, null);
         if (!on) { ring.Opacity = 0; return; }
         if (!animate) { ring.Opacity = .9; return; }
-        var grow = new System.Windows.Media.Animation.DoubleAnimation(.86, 1.18, TimeSpan.FromMilliseconds(1100)) { RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever, EasingFunction = DS.EaseOut };
+        var grow = Ambient.Rate(new System.Windows.Media.Animation.DoubleAnimation(.86, 1.18, TimeSpan.FromMilliseconds(1100)) { RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever, EasingFunction = DS.EaseOut }, 30);
         s.BeginAnimation(ScaleTransform.ScaleXProperty, grow); s.BeginAnimation(ScaleTransform.ScaleYProperty, grow);
-        ring.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(.95, 0, TimeSpan.FromMilliseconds(1100)) { RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever });
+        ring.BeginAnimation(OpacityProperty, Ambient.Rate(new System.Windows.Media.Animation.DoubleAnimation(.95, 0, TimeSpan.FromMilliseconds(1100)) { RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever }, 30));
     }
     private Border BuildMappingCard()
     {
@@ -269,7 +269,7 @@ public sealed class ButtonsConsolePage : Grid
                 _ => new StackPanel { VerticalAlignment = VerticalAlignment.Center, Children = { Output("HOME", "Guide", false, 96, 50, false) } }
             });
         }
-        var panel = Kit.Panel("Outputs", null, "Local draft · not applied", new DockPanel { Children = { outputsHint.Also(t => { DockPanel.SetDock(t, Dock.Top); t.Margin = new(0, -10, 0, 8); }), g } }, new(20, 14, 20, 14));
+        var panel = Kit.Panel("Outputs", null, draft.PcMode ? "PC mode · applies on this PC" : "Local draft · not applied", new DockPanel { Children = { outputsHint.Also(t => { DockPanel.SetDock(t, Dock.Top); t.Margin = new(0, -10, 0, 8); }), g } }, new(20, 14, 20, 14));
         return panel;
     }
     private Canvas Diamond(bool round, (string Key, string Label) t, (string Key, string Label) l, (string Key, string Label) r, (string Key, string Label) b)
@@ -318,7 +318,7 @@ public sealed class ButtonsConsolePage : Grid
     private void BuildOverview()
     {
         overview.Children.Clear(); overview.Children.Add(Kit.Section("All assignments", 0));
-        if (model.Id != "x20") { overview.Children.Add(Kit.Info("No verified mappings for this model yet.")); return; }
+        if (model.Id != "x20" && !draft.PcMode) { overview.Children.Add(Kit.Info("No verified mappings for this model yet.")); return; }
         foreach (var (name, _, keys) in Groups.Take(4))
         {
             var rows = keys.Where(ButtonDraft.Sources.Contains).Select(k => (label(k), draft.Target(k) == k ? "Default" : "→ " + label(draft.Target(k)), draft.Target(k) == k ? (string?)null : "DS.AccentHi")).ToArray();

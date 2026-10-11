@@ -26,7 +26,12 @@ public partial class StudioScene : UserControl
     public DeviceWorkbench? Device {get;private set;}
     public TesterWorkbench? Tester {get;private set;}
     public SetupsWorkbench? Setups {get;private set;}
-    public InputOwner InputContext=>ManagementPage=="Tester"?InputOwner.TesterCapture:InputOwner.UiNavigation;
+    public InputOwner InputContext=>ManagementPage is "Tester" or "Diagnostics"?InputOwner.TesterCapture:InputOwner.UiNavigation;
+    /// <summary>The Diagnostics tab, built on first open; it only listens while shown.</summary>
+    public Diagnostics.DiagnosticsWorkbench? Diagnostics { get; private set; }
+    /// <summary>Controller as mouse: the service lives in the host; the tab is built on first open.</summary>
+    public MouseModeService? MouseService { get; set; }
+    public MouseWorkbench? Mouse { get; private set; }
     public string NativeEngineStatus {get;set;}="Native core not connected";
     public event Action? InputContextChanged;
     public void EnableNativeNavigation(){if(!navigationMode)SetNavigationPreview(true);StatusNote.Text="Controller navigation";}
@@ -57,21 +62,23 @@ public partial class StudioScene : UserControl
     {
         InitializeComponent(); Player = player; Model = model; Draft = draft;
         setupStore=setups??new(Path.Combine(Path.GetTempPath(),"x20ctl-render-setup-"+Guid.NewGuid().ToString("N")+".json"));legacySources=legacy??Array.Empty<string>();activeSetup=activeId;
-        Unloaded+=(_,_)=>Tester?.ExitCapture();
+        Unloaded+=(_,_)=>{Tester?.ExitCapture();Diagnostics?.Stop();};
         macroDraft=macros ?? new MacroDraft(model.Id);vibrationDraft=vibration??new(model.Id);
         animate = !reducedMotion && SystemParameters.ClientAreaAnimation;
         ControllerContext.Text = $"{model.Name} · Player {player + 1}";
         layout = ControlRegions.Owned(model, File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Data/control-shapes.json")), File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Data/x20-rear.json")));
         TargetChoice.ItemsSource = ButtonDraft.Targets.Select(key => new KeyValuePair<string, string>(key, Label(key))).ToArray();
         RearChoice.IsEnabled = model.Id == "x20";
-        CurvesNav.ToolTip = model.Id == "x20" ? "Local curve drafts · Page Down" : "Curve preview · read-only for this model · Page Down";
+        CurvesNav.ToolTip = draft.PcMode ? "PC mode curves · Page Down" : model.Id == "x20" ? "Local curve drafts · Page Down" : "Curve preview · read-only for this model · Page Down";
+        Unloaded+=(_,_)=>{PcModePage.ProfileChanged-=PcProfileChanged;PcModePage.NoticeAccepted-=PcNoticeAccepted;};
+        Loaded+=(_,_)=>{PcModePage.ProfileChanged-=PcProfileChanged;PcModePage.ProfileChanged+=PcProfileChanged;PcModePage.NoticeAccepted-=PcNoticeAccepted;PcModePage.NoticeAccepted+=PcNoticeAccepted;};
         BuildTargets(); BuildInventory();
         BuildTitlePills();
         buttonsPage = new ButtonsConsolePage(model, layout, draft, Label, animate, SelectControl, OpenMacroSlot, () => { if (IsTrying) StopTry(); else StartTry(); });
         buttonsPage.Changed += RefreshEditor; ButtonsPageHost.Children.Add(buttonsPage);
         PreviewGotKeyboardFocus += (_, _) => Dispatcher.BeginInvoke(UpdateHints, System.Windows.Threading.DispatcherPriority.Background);
         foreach (var h in buttonsPage.Hotspots) RegisterFocus(h);
-        Curves = new(curveDraft ?? new CurveDraft(model.Id), this,animate); ModelProfiles.Wear(Curves.Inspector, model.Id, "Curves"); CurveInspectorHost.Children.Add(Kit.Panel(null, null, null, Curves.Inspector)); CurveShelfHost.Children.Add(Curves.Shelf);
+        Curves = new(curveDraft ?? new CurveDraft(model.Id), this,animate); ModelProfiles.Wear(Curves.Inspector, model.Id, "Curves", draft.PcMode); CurveInspectorHost.Children.Add(Kit.Panel(null, null, null, Curves.Inspector)); CurveShelfHost.Children.Add(Curves.Shelf);
         Curves.ChannelSelected += channel => { SelectControl(channel switch { CurveChannel.LeftStick => "LSTICK_ANALOG", CurveChannel.RightStick => "RSTICK_ANALOG", CurveChannel.LeftTrigger => "LT", _ => "RT" }); UpdateCurveContext(); EnterMotion(CurveInspectorHost,12,220); };
         Curves.Changed += UpdateCurveContext; foreach (Button button in Curves.Buttons) RegisterFocus(button);
         ResetAllCurvesAction=new MenuItem {Header="Reset all curves",ToolTip="Reset local drafts for both sticks and both triggers."};
@@ -312,7 +319,7 @@ public partial class StudioScene : UserControl
             choice.BorderBrush = active ? (Brush)FindResource("Ice") : new SolidColorBrush(Color.FromArgb(54, 88, 121, 163));
         }
         foreach (Button choice in RearControls.Children) choice.Background = (string)choice.Tag == SelectedControl ? (Brush)FindResource("Blue") : new SolidColorBrush(Color.FromArgb(24, 255, 255, 255));
-        FeatureNote.Text = Model.Id != "x20" ? "Configuration is unverified for this model. You can still inspect its controls." : region == null ? "Select a button on the controller. Inspect shoulders and paddles on the back." : macro ? $"{SelectedControl} is a controller-side macro slot. Editing is unavailable; hardware state is unknown." : region.Role == "axis" ? "Movement and click share this stick cap. Analog settings and live input are unavailable here." : !editable ? "This control is present. Remapping is unverified and no write is available." : "Choose an output on the shelf. This draft stays local; hardware settings are unknown.";
+        FeatureNote.Text = Draft.PcMode ? (region == null ? "PC mode: pick a button, then what it should do. It applies on this PC, to games." : macro ? $"PC mode can't see {SelectedControl} itself: in Macros, pick the button that plays its sequence." : !editable ? "PC mode can't change this control." : "PC mode: this applies on this PC, to games, right away. Nothing is written to the controller.") : Model.Id != "x20" ? "Configuration is unverified for this model. You can still inspect its controls." : region == null ? "Select a button on the controller. Inspect shoulders and paddles on the back." : macro ? $"{SelectedControl} is a controller-side macro slot. Editing is unavailable; hardware state is unknown." : region.Role == "axis" ? "Movement and click share this stick cap. Analog settings and live input are unavailable here." : !editable ? "This control is present. Remapping is unverified and no write is available." : "Choose an output on the shelf. This draft stays local; hardware settings are unknown.";
         ChangeCount.Text = Draft.UnsentChanges == 0 ? "No unsent changes" : $"{Draft.UnsentChanges} unsent change{(Draft.UnsentChanges == 1 ? "" : "s")}";
         DraftChip.Text = Draft.UnsentChanges == 0 ? "No local changes" : $"{Draft.UnsentChanges} local change{(Draft.UnsentChanges == 1 ? "" : "s")}";
         if(RearControls.Children.Count>4){RearControls.Columns=RearControls.Children.Count;RearControls.Width=RearControls.Children.Count*90;}
@@ -326,7 +333,7 @@ public partial class StudioScene : UserControl
         DraftRows.Children.Add(new TextBlock { Text = context, FontSize = 15, Foreground = (Brush)FindResource(editable && Draft.Target(SelectedControl) != SelectedControl ? "Ice" : "Muted"), TextWrapping = TextWrapping.Wrap });
         BuildAssignments();
         buttonsPage?.Refresh(SelectedControl);
-        Apply.IsEnabled = false; updating = false;
+        Apply.IsEnabled = false; updating = false; SyncPcMode();
     }
     private void UpdateGlyphScale()
     {
@@ -396,6 +403,7 @@ public partial class StudioScene : UserControl
         AssignmentShelf.Visibility = value ? Visibility.Collapsed : Visibility.Visible;
         OverviewChoice.Visibility=ResetAllChoice.Visibility=value?Visibility.Collapsed:Visibility.Visible;
         ResetCurveChoice.Visibility=CurveMoreChoice.Visibility=value?Visibility.Visible:Visibility.Collapsed;
+        StickToolsChoice.Visibility=value&&PcMode!=null?Visibility.Visible:Visibility.Collapsed;if(!value)CloseStickTools();
         HardwareShortcuts.Visibility=FrontChoice.Visibility=RearChoice.Visibility=value?Visibility.Collapsed:Visibility.Visible;
         foreach (var control in controls.Values) control.IsEnabled = !value || control.Region.Key is "L3" or "R3" or "LT" or "RT";
         FrontChoice.IsEnabled = !value; RearChoice.IsEnabled = !value;
@@ -410,11 +418,46 @@ public partial class StudioScene : UserControl
         DraftChip.Text = count==0 ? "No local changes" : $"{count} local change{(count==1?"":"s")}";
         PrimaryHint.Text = " Select / Adjust"; OverviewHint.Text = " Reset curve";
         ResetCurveChoice.IsEnabled=Curves.Draft.CanEdit && Curves.Draft[Curves.Channel]!=CurveSetting.Default;
-        ResetAllCurvesAction.IsEnabled=Curves.Draft.CanEdit && count>0; Apply.IsEnabled=false;
+        ResetAllCurvesAction.IsEnabled=Curves.Draft.CanEdit && count>0; Apply.IsEnabled=false; SyncPcMode();
         CanvasHint.Text=Curves.Channel is CurveChannel.LeftStick or CurveChannel.RightStick ? "STICK RESPONSE" : "TRIGGER TRAVEL";
         FrontChoice.IsEnabled=RearChoice.IsEnabled=false;
     }
     private void CurvesTab(object sender,RoutedEventArgs e)=>ShowCurves(true);
+    /// <summary>PC mode's settings, set by the host: the Curves tab's Advanced stick tools write to them.</summary>
+    public PcModeLink? PcMode { get => pcLink; set { pcLink = value; pcSync = value != null && Draft.PcMode ? new(value, Draft, Curves.Draft, macroDraft) : null; SyncPcMode(); } }
+    private PcModeLink? pcLink;
+    private PcModeSync? pcSync;
+    /// <summary>The PC mode tab's switch changed: the host reopens the Studio so the tabs unlock (or lock).</summary>
+    public event Action? PcModeSwitched;
+    /// <summary>Saves the tabs to PC mode when it is on, and says so in the status bar.</summary>
+    private void SyncPcMode()
+    {
+        if (pcSync == null || ManagementPage != null) return;
+        pcSync.Save(); ChangeCount.Text = pcSync.Status; DraftChip.Text = "PC mode";
+    }
+    private void PcProfileChanged()
+    {
+        if (pcSync == null) return;
+        pcSync.Reload(); Curves.Refresh(); Macros?.Refresh(); RefreshEditor(); UpdateCurveContext(); UpdateMacroContext();
+    }
+    private void PcNoticeAccepted() => pcSync?.Save();
+    private void PcModeTab(object sender, RoutedEventArgs e) => ShowManagement("PcMode");
+    public StickToolsPanel? StickTools { get; private set; }
+    private Grid? stickToolsLayer;
+    private void OpenStickTools(object sender,RoutedEventArgs e)=>OpenStickTools();
+    /// <summary>Curves → Advanced: the fine stick tools, over the Studio until Done (or B / Esc).</summary>
+    public void OpenStickTools()
+    {
+        if(PcMode==null||stickToolsLayer!=null)return;
+        StickTools=new StickToolsPanel(PcMode,CloseStickTools);
+        stickToolsLayer=new Grid{Background=new SolidColorBrush(Color.FromArgb(200,3,6,16)),Children={StickTools}};
+        Grid.SetZIndex(stickToolsLayer,50);StudioShell.Children.Add(stickToolsLayer);Fx.Appear(stickToolsLayer,1.03,240);StickTools.Done.Focus();
+    }
+    public void CloseStickTools()
+    {
+        if(stickToolsLayer==null)return;var leaving=stickToolsLayer;stickToolsLayer=null;StickTools=null;
+        Fx.Leave(leaving,()=>StudioShell.Children.Remove(leaving),1.02,200);if(IsCurves)StickToolsChoice.Focus();
+    }
     private void ButtonsTab(object sender,RoutedEventArgs e) => ShowButtons();
     /// <summary>Open the Buttons page from anywhere (tab, Dashboard hero, review harnesses).</summary>
     public void ShowButtons() { ShowCurves(false);if(IsMacros)ShowMacros(false);if(IsVibration)ShowVibration(false);HideManagement();ButtonsNav.IsChecked=true;FrontChoice.IsEnabled=true;RearChoice.IsEnabled=Model.Id=="x20";UpdateButtonsPage(); }
@@ -434,7 +477,7 @@ public partial class StudioScene : UserControl
         ResetCurveChoice.Visibility=CurveMoreChoice.Visibility=Visibility.Collapsed;CurveInspectorHost.Visibility=CurveShelfFrame.Visibility=Visibility.Collapsed;
         if(value)
         {
-            if(Macros==null) {Macros=new(macroDraft,layout,this,RegisterFocus,!animate,Model.Id);ModelProfiles.Wear(Macros.Body,Model.Id,"Macros");MacroBodyHost.Children.Add(Macros.Body);Macros.Changed+=UpdateMacroContext;}
+            if(Macros==null) {Macros=new(macroDraft,layout,this,RegisterFocus,!animate,Model.Id);ModelProfiles.Wear(Macros.Body,Model.Id,"Macros",Draft.PcMode);MacroBodyHost.Children.Add(Macros.Body);Macros.Changed+=UpdateMacroContext;}
             UpdateMacroContext();EnterMotion(MacroBodyHost,14,220);
         }
         else {Macros?.StopPreview();RefreshEditor();}UpdateButtonsPage();
@@ -443,7 +486,7 @@ public partial class StudioScene : UserControl
     {
         if(!IsMacros || Macros==null)return;
         ChangeCount.Text=$"{macroDraft.ModifiedSlots} local sequence{(macroDraft.ModifiedSlots==1?"":"s")} · Hardware contents unknown";
-        DraftChip.Text="Local macro drafts";PrimaryHint.Text=" Select / Edit";OverviewHint.Text=" Add event";Apply.IsEnabled=false;
+        DraftChip.Text="Local macro drafts";PrimaryHint.Text=" Select / Edit";OverviewHint.Text=" Add event";Apply.IsEnabled=false;SyncPcMode();
     }
     private void MacrosTab(object sender,RoutedEventArgs e)=>ShowMacros(true);
     public void ShowVibration(bool value)
@@ -463,20 +506,33 @@ public partial class StudioScene : UserControl
     private void ResetVibration(object sender,RoutedEventArgs e)=>Vibration?.Reset();
     public void ShowManagement(string page)
     {
-        if(page is not ("Dashboard" or "Device" or "Tester" or "Setups"))throw new ArgumentException("Unknown Studio page.");
+        if(page is not ("Dashboard" or "PcMode" or "Device" or "Diagnostics" or "Mouse" or "Tester" or "Setups"))throw new ArgumentException("Unknown Studio page.");
         if(IsCurves)ShowCurves(false);if(IsMacros)ShowMacros(false);if(IsVibration)ShowVibration(false);HideManagement();ManagementPage=page;
         HardwareStage.Visibility=InspectorStage.Visibility=AssignmentShelf.Visibility=OverviewChoice.Visibility=ResetAllChoice.Visibility=Visibility.Collapsed;
         ManagementBodyHost.Visibility=ManagementShelfFrame.Visibility=Visibility.Visible;ManagementBodyHost.Children.Clear();ManagementShelfHost.Children.Clear();
-        ButtonsNav.IsChecked=CurvesNav.IsChecked=MacrosNav.IsChecked=VibrationNav.IsChecked=false;DeviceNav.IsChecked=page=="Device";TesterNav.IsChecked=page=="Tester";SetupsNav.IsChecked=page=="Setups";DashboardNav.IsChecked=page=="Dashboard";
+        ButtonsNav.IsChecked=CurvesNav.IsChecked=MacrosNav.IsChecked=VibrationNav.IsChecked=false;DeviceNav.IsChecked=page=="Device";DiagnosticsNav.IsChecked=page=="Diagnostics";MouseNav.IsChecked=page=="Mouse";PcModeNav.IsChecked=page=="PcMode";TesterNav.IsChecked=page=="Tester";SetupsNav.IsChecked=page=="Setups";DashboardNav.IsChecked=page=="Dashboard";
         if(page=="Dashboard"){Dashboard??=CreateDashboard();ManagementBodyHost.Children.Add(Dashboard);ChangeCount.Text="Select the controller to configure it · Your games are found automatically";PrimaryHint.Text=" Select";OverviewHint.Text="";DraftChip.Text="Dashboard";Dashboard.FocusHero();}
         else if(page=="Device"){Device??=new(Model,Player,this,RegisterFocus,()=>{},()=>ShowManagement("Setups"));Device.OpenTester.Visibility=Visibility.Collapsed;Device.UpdateEngineStatus(NativeEngineStatus);ManagementBodyHost.Children.Add(Device.Body);ManagementShelfHost.Children.Add(Device.Shelf);ChangeCount.Text="Assigned model · Gameplay and configuration remain separate";PrimaryHint.Text=" Open";OverviewHint.Text=" My setups";DraftChip.Text="Controller overview";}
+        else if(page=="Diagnostics"){Diagnostics??=new(Player,RegisterFocus,PcMode);ManagementBodyHost.Children.Add(Diagnostics.Body);Diagnostics.Start();ChangeCount.Text="Diagnostics owns the controller's input · Hold B to leave";PrimaryHint.Text="";OverviewHint.Text="";DraftChip.Text="Diagnostics";Diagnostics.Reset.Focus();}
+        else if(page=="PcMode")
+        {
+            if(PcMode==null)ManagementBodyHost.Children.Add(Kit.Text("PC mode isn't available in this window.",16,"DS.TextSoft"));
+            else
+            {
+                var back=new Button{Style=DS.Style("DS.ActionSecondary"),Height=46,MinHeight=0,Padding=new(22,0,24,0),Content=Kit.Text("Back to Dashboard",15.5,"DS.Text",FontWeights.SemiBold)};back.Click+=(_,_)=>ShowManagement("Dashboard");RegisterFocus(back);
+                var pc=new PcModePage(PcMode.Service,PcMode.Store,PcMode.Preferences,back,ShowButtons){Margin=new(30,6,30,24)};pc.Switched+=_=>PcModeSwitched?.Invoke();
+                ManagementBodyHost.Children.Add(new ScrollViewer{Content=pc,VerticalScrollBarVisibility=ScrollBarVisibility.Auto});pc.Switch.Focus();
+            }
+            ChangeCount.Text=Draft.PcMode?"PC mode is on · Buttons, Curves and Macros apply on this PC":"PC mode is off · Switch it on to edit this controller's settings on the PC";PrimaryHint.Text=" Select";OverviewHint.Text="";DraftChip.Text="PC mode";
+        }
+        else if(page=="Mouse"){if(MouseService==null){ManagementBodyHost.Children.Add(Kit.Text("Mouse mode isn't available in this window.",16,"DS.TextSoft"));}else{Mouse??=new(MouseService,RegisterFocus);ManagementBodyHost.Children.Add(Mouse.Body);Mouse.Switch.Focus();}ChangeCount.Text="Controller as mouse · Saved on this PC";PrimaryHint.Text=" Select";OverviewHint.Text="";DraftChip.Text="Mouse";}
         else if(page=="Tester"){Tester??=new(Model,layout,this,RegisterFocus,()=>ShowManagement("Device"),animate);Tester.Enter();ManagementBodyHost.Children.Add(Tester.Body);ManagementShelfHost.Children.Add(Tester.Shelf);ChangeCount.Text="Tester owns gameplay input · UI input navigation paused";PrimaryHint.Text=" Exit Tester";OverviewHint.Text="";DraftChip.Text="Gameplay tester";navigationBeforeTester=navigationMode;navigationMode=true;Tester.Exit.Focus();}
         else {if(Setups==null){Setups=new(setupStore,new ControllerCatalog(File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"Data/catalog.json"))),Model.Id,this,RegisterFocus,()=>SetupSnapshot.Capture(Model.Id,Draft,Curves.Draft,macroDraft,vibrationDraft),LoadSetup,legacySources,activeSetup);Setups.Changed+=UpdateSetupContext;}Setups.RefreshCurrent();ManagementBodyHost.Children.Add(Setups.Body);ManagementShelfHost.Children.Add(Setups.Shelf);UpdateSetupContext();}
-        PrimaryGlyph.Text=page=="Tester"?"↵":"A";BackGlyph.Text=page=="Tester"?"Esc":"B";SecondaryFooterHint.Visibility=ActualWidth<1100 || page=="Tester"?Visibility.Collapsed:Visibility.Visible;
-        Grid.SetRowSpan(StudioBody,page is "Setups" or "Dashboard"?2:1);if(page is "Setups" or "Dashboard")ManagementShelfFrame.Visibility=Visibility.Collapsed;InputContextChanged?.Invoke();Apply.IsEnabled=false;EnterMotion(ManagementBodyHost,14,220);EnterMotion(ManagementShelfHost,14,220);UpdateButtonsPage();
+        PrimaryGlyph.Text=page=="Tester"?"↵":"A";BackGlyph.Text=page is "Tester" or "Diagnostics"?"Esc":"B";SecondaryFooterHint.Visibility=ActualWidth<1100 || page is "Tester" or "Diagnostics"?Visibility.Collapsed:Visibility.Visible;
+        Grid.SetRowSpan(StudioBody,page is "Setups" or "Dashboard" or "Diagnostics" or "Mouse" or "PcMode"?2:1);if(page is "Setups" or "Dashboard" or "Diagnostics" or "Mouse" or "PcMode")ManagementShelfFrame.Visibility=Visibility.Collapsed;InputContextChanged?.Invoke();Apply.IsEnabled=false;EnterMotion(ManagementBodyHost,14,220);EnterMotion(ManagementShelfHost,14,220);UpdateButtonsPage();
     }
-    private void HideManagement(){StopTry();if(ManagementPage==null)return;Grid.SetRowSpan(StudioBody,1);if(ManagementPage=="Tester")navigationMode=navigationBeforeTester;Tester?.ExitCapture();ManagementPage=null;InputContextChanged?.Invoke();PrimaryGlyph.Text="A";BackGlyph.Text="B";SecondaryFooterHint.Visibility=ActualWidth<1100?Visibility.Collapsed:Visibility.Visible;ManagementBodyHost.Children.Clear();ManagementShelfHost.Children.Clear();ManagementBodyHost.Visibility=ManagementShelfFrame.Visibility=Visibility.Collapsed;DeviceNav.IsChecked=TesterNav.IsChecked=SetupsNav.IsChecked=DashboardNav.IsChecked=false;HardwareStage.Visibility=InspectorStage.Visibility=AssignmentShelf.Visibility=OverviewChoice.Visibility=ResetAllChoice.Visibility=Visibility.Visible;UpdateButtonsPage();}
-    private void LoadSetup(SetupSnapshot snapshot){if(snapshot.ModelId!=Model.Id)throw new InvalidOperationException("Setup model does not match this player.");snapshot.LoadInto(Draft,Curves.Draft,macroDraft,vibrationDraft);Curves.Refresh();Macros?.Refresh();Vibration?.Refresh();}
+    private void HideManagement(){StopTry();if(ManagementPage==null)return;if(ManagementPage=="Diagnostics")Diagnostics?.Stop();Grid.SetRowSpan(StudioBody,1);if(ManagementPage=="Tester")navigationMode=navigationBeforeTester;Tester?.ExitCapture();ManagementPage=null;InputContextChanged?.Invoke();PrimaryGlyph.Text="A";BackGlyph.Text="B";SecondaryFooterHint.Visibility=ActualWidth<1100?Visibility.Collapsed:Visibility.Visible;ManagementBodyHost.Children.Clear();ManagementShelfHost.Children.Clear();ManagementBodyHost.Visibility=ManagementShelfFrame.Visibility=Visibility.Collapsed;DeviceNav.IsChecked=DiagnosticsNav.IsChecked=MouseNav.IsChecked=PcModeNav.IsChecked=TesterNav.IsChecked=SetupsNav.IsChecked=DashboardNav.IsChecked=false;HardwareStage.Visibility=InspectorStage.Visibility=AssignmentShelf.Visibility=OverviewChoice.Visibility=ResetAllChoice.Visibility=Visibility.Visible;UpdateButtonsPage();}
+    private void LoadSetup(SetupSnapshot snapshot){if(snapshot.ModelId!=Model.Id)throw new InvalidOperationException("Setup model does not match this player.");snapshot.LoadInto(Draft,Curves.Draft,macroDraft,vibrationDraft);Curves.Refresh();Macros?.Refresh();Vibration?.Refresh();SyncPcMode();}
     private void UpdateSetupContext(){if(ManagementPage!="Setups"||Setups==null)return;activeSetup=Setups.ActiveId;ActiveSetupChanged?.Invoke(activeSetup);ChangeCount.Text=activeSetup==null?"Local setup library · Hardware application unavailable":"Setup open in local editor · Hardware unchanged";PrimaryHint.Text=" Select / Open";OverviewHint.Text=" New setup";DraftChip.Text="My setups";Apply.IsEnabled=false;}
     public bool DeliverGameplayFrame(TesterFrame frame)=>ManagementPage=="Tester" && Tester?.Receive(frame)==true;
 
@@ -581,7 +637,7 @@ public partial class StudioScene : UserControl
         if (map.X != null) hints.Add(("X", map.X));
         if (map.Y != null) hints.Add(("Y", map.Y));
         if (map.Triggers != null) hints.Add(("LT/RT", map.Triggers));
-        if (page != "Tester") hints.Add(("LB/RB", "Tabs"));
+        if (page is not ("Tester" or "Diagnostics")) hints.Add(("LB/RB", "Tabs"));
         LiveHints.Children.Clear(); LiveHints.Children.Add(GlyphHint.Footer(hints.ToArray()));
     }
 
@@ -591,7 +647,7 @@ public partial class StudioScene : UserControl
         if (!MacroDraft.Slots.Contains(key)) return false;
         StopTry(); ShowMacros(true); Macros?.SelectSlot(key); return Macros != null;
     }
-    private void DeviceTab(object sender,RoutedEventArgs e)=>ShowManagement("Device");private void TesterTab(object sender,RoutedEventArgs e)=>ShowManagement("Tester");private void SetupsTab(object sender,RoutedEventArgs e)=>ShowManagement("Setups");
+    private void DeviceTab(object sender,RoutedEventArgs e)=>ShowManagement("Device");private void TesterTab(object sender,RoutedEventArgs e)=>ShowManagement("Tester");private void DiagnosticsTab(object sender,RoutedEventArgs e)=>ShowManagement("Diagnostics");private void MouseTab(object sender,RoutedEventArgs e)=>ShowManagement("Mouse");private void SetupsTab(object sender,RoutedEventArgs e)=>ShowManagement("Setups");
     private void Front(object sender, RoutedEventArgs e) { ShowController(false); ClearSelection(); }
     private void Rear(object sender, RoutedEventArgs e) { ShowController(true); ClearSelection(); }
     private void Back(object sender, RoutedEventArgs e) => BackRequested?.Invoke();
@@ -600,6 +656,8 @@ public partial class StudioScene : UserControl
     public bool CapturingRemap => OnButtonsPage && buttonsPage != null && buttonsPage.Listening != ButtonsConsolePage.Listen.None;
     public void OnKeyDown(object sender, KeyEventArgs e)
     {
+        // the Advanced stick tools own the keyboard while open (arrows nudge their sliders); Esc closes them
+        if (stickToolsLayer != null) { if (e.Key == Key.Escape) { CloseStickTools(); e.Handled = true; } return; }
         if (CapturingRemap)
         {
             e.Handled = true; if (e.IsRepeat) return;
@@ -609,6 +667,7 @@ public partial class StudioScene : UserControl
         }
         if(trial!=null){if(e.Key==Key.Escape){StopTry();e.Handled=true;return;}if(TrialKey(e.Key) is {} down){if(!e.IsRepeat){trial.Press(down);PushTrialFrame();}e.Handled=true;return;}}
         if(ManagementPage=="Setups" && Setups?.HandleKey(e)==true)return;
+        if(ManagementPage=="Diagnostics"&&e.Key==Key.Escape){ShowManagement("Device");e.Handled=true;return;}
         if(ManagementPage=="Tester"){if(Tester?.HandleKeyboard(e.Key,true)==true){e.Handled=true;return;}if(e.Key==Key.Escape){ShowManagement("Device");e.Handled=true;}else if(e.Key is Key.F6 or Key.A or Key.B or Key.Y){e.Handled=true;}return;}
         if(Keyboard.FocusedElement is not TextBox && !e.IsRepeat)
         {
@@ -619,8 +678,15 @@ public partial class StudioScene : UserControl
         if(IsVibration && Vibration?.HandleKey(e)==true)return;
         if(IsMacros && Macros?.HandleKey(e)==true)return;
         if (IsCurves && Curves.HandleKey(e)) return;
-        // LB/RB walk the tabs: Dashboard, Buttons, Curves, Macros, Vibration, Device, Setups (the Tester is no longer a tab)
-        if(e.Key is Key.PageDown or Key.PageUp && !e.IsRepeat){int index=ManagementPage switch {"Dashboard"=>0,"Device"=>5,"Setups"=>6,_=>IsVibration?4:IsMacros?3:IsCurves?2:1};int next=Math.Clamp(index+(e.Key==Key.PageDown?1:-1),0,6);if(Model.Id!="x20"&&next is >=2 and <=4)next=e.Key==Key.PageDown?5:1;if(next==0)ShowManagement("Dashboard");else if(next>=5)ShowManagement(next==5?"Device":"Setups");else if(next==4)ShowVibration(true);else if(next==3)ShowMacros(true);else if(next==2)ShowCurves(true);else ShowButtons();e.Handled=true;return;}
+        // LB/RB walk the tabs: Dashboard, Buttons, Curves, Macros, Vibration, PC mode, Device, Diagnostics, Mouse, Setups (the Tester is no longer a tab)
+        if(e.Key is Key.PageDown or Key.PageUp && !e.IsRepeat)
+        {
+            int step=e.Key==Key.PageDown?1:-1;int index=ManagementPage switch {"Dashboard"=>0,"PcMode"=>5,"Device"=>6,"Diagnostics"=>7,"Mouse"=>8,"Setups"=>9,_=>IsVibration?4:IsMacros?3:IsCurves?2:1};
+            int next=Math.Clamp(index+step,0,9);
+            // a model X20CTL can't write skips the tabs it can't use; with PC mode on only Vibration stays out of reach
+            while(Model.Id!="x20"&&(next==4||!Draft.PcMode&&next is 2 or 3))next+=step;
+            if(next==0)ShowManagement("Dashboard");else if(next>=5)ShowManagement(next switch {5=>"PcMode",6=>"Device",7=>"Diagnostics",8=>"Mouse",_=>"Setups"});else if(next==4)ShowVibration(true);else if(next==3)ShowMacros(true);else if(next==2)ShowCurves(true);else ShowButtons();e.Handled=true;return;
+        }
         if (e.Key == Key.F6) { if (!e.IsRepeat) SetNavigationPreview(!navigationMode); e.Handled = true; return; }
         if (e.Key == Key.Escape || navigationMode && e.Key == Key.B) { if (AssignmentsVisible) ShowAssignments(false);else if(IsVibration && ReferenceEquals(Vibration?.Strength,Keyboard.FocusedElement))FocusSelectedControl(); else if (IsCurves && (Curves.PointHandles.Any(p=>ReferenceEquals(p,Keyboard.FocusedElement)) || ReferenceEquals(Curves.Inner,Keyboard.FocusedElement) || ReferenceEquals(Curves.Outer,Keyboard.FocusedElement))) FocusSelectedControl(); else if (navigationMode && Keyboard.FocusedElement is Button && Keyboard.FocusedElement is not PhysicalHotspot) FocusSelectedControl(); else BackRequested?.Invoke(); e.Handled = true; return; }
         if (navigationMode && e.Key == Key.Y) { if(ManagementPage=="Device")ShowManagement("Setups");else if(ManagementPage=="Setups")Setups?.NewButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));else if(IsVibration)Vibration?.Reset();else if(IsMacros)Macros?.Add();else if(IsCurves) Curves.Reset();else ShowAssignments(!AssignmentsVisible); e.Handled = true; return; }

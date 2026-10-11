@@ -13,6 +13,46 @@ public partial class App : Application
                 ShutdownMode = ShutdownMode.OnExplicitShutdown;
                 await Development.ScannerReplay.Run(e.Args[1], e.Args[2]); Shutdown(0); return;
             }
+            if (e.Args.Length == 2 && e.Args[0] == "--review-update")
+            {
+                ShutdownMode = ShutdownMode.OnExplicitShutdown;
+                var lines = new List<string> { "current " + Updater.Current + " canInstall " + Updater.CanInstall };
+                foreach (var (a, b) in new[] { ("4.1.0-preview.5", "4.1.0-preview.4"), ("4.1.0", "4.1.0-preview.9"), ("4.1.0-preview.10", "4.1.0-preview.9"), ("4.0.1", "4.1.0-preview.1"), ("4.1.0-preview.3", "4.1.0-preview.3") })
+                    lines.Add($"{a} vs {b}: {Updater.Compare(a, b)}");
+                try { var r = await Updater.Latest(); lines.Add("latest newer: " + (r?.ToString() ?? "none")); } catch (Exception failure) { lines.Add("latest failed: " + failure.Message); }
+                File.WriteAllLines(e.Args[1], lines); Shutdown(0); return;
+            }
+            if (e.Args.Length == 2 && e.Args[0] == "--review-pcmode")
+            {   // the PC mode service's state walk on a machine with no drivers (and maybe no pad): nothing is installed or hidden
+                ShutdownMode = ShutdownMode.OnExplicitShutdown;
+                var log = new List<string>();
+                string file = Path.Combine(Path.GetTempPath(), "x20ctl-review-pcmode-" + Guid.NewGuid().ToString("N") + ".json");
+                try {
+                var store = new X20Ctl.Zone.PcMode.PcModeStore(file); store.Load();
+                using var service = new PcModeService(store);
+                void Note(string step) => log.Add($"{step}: {service.State} | {service.Detail}");
+                log.Add("bus installed " + PcModeSetup.BusInstalled + ", hider installed " + HidHide.Installed);
+                // HidHideCLI --dev-gaming's exact shape (HidHideCLI/src/Commands.cpp): one present Xbox-style pad, one unplugged
+                string sample = " [ { \"friendlyName\" : \"X05\" , \"devices\" : [\n{ \"present\" : true ,\n\"gamingDevice\" : true ,\n\"deviceInstancePath\" : \"HID\\\\VID_045E&PID_028E&IG_00\\\\7&1\" ,\n\"xusbDeviceInstancePath\" : \"USB\\\\VID_045E&PID_028E\\\\ABC\" ,\n\"baseContainerDeviceCount\" : 2 } ] } ,\n{ \"friendlyName\" : \"Old\" , \"devices\" : [\n{ \"present\" : false ,\n\"deviceInstancePath\" : \"HID\\OLD\" ,\n\"xusbDeviceInstancePath\" : \"\" ,\n\"baseContainerDeviceCount\" : 1 } ] } ] ";
+                log.Add("parsed: " + string.Join(" | ", HidHide.ParseGamingDevices(sample)));
+                service.Enabled = true; await Task.Delay(600); Note("enabled, neutral profile");
+                store.Save("default", new X20Ctl.Zone.PcMode.PcModeProfile { Remap = { ["A"] = "B" } }); service.Reload(); await Task.Delay(800); Note("A to B saved");
+                service.Enabled = false; await Task.Delay(500); Note("switched off");
+                } catch (Exception failure) { log.Add("FAILED: " + failure); }
+                File.WriteAllLines(e.Args[1], log); try { File.Delete(file); } catch (IOException) { }
+                Shutdown(0); return;
+            }
+            if (e.Args.Length == 2 && e.Args[0] == "--review-timing")
+            {
+                ShutdownMode = ShutdownMode.OnExplicitShutdown; IntroView.SoundEnabled = false;
+                await Development.TimingReview.Run(e.Args[1]); Shutdown(0); return;
+            }
+            if (e.Args.Length == 2 && e.Args[0] == "--review-battery")
+            {
+                ShutdownMode = ShutdownMode.OnExplicitShutdown;
+                try { await Development.BatteryReview.Run(e.Args[1]); } catch (Exception failure) { File.WriteAllText(e.Args[1] + ".failure.txt", failure.ToString()); }
+                Shutdown(0); return;
+            }
             if (e.Args.Length == 2 && e.Args[0] is "--review-zone" or "--review-studio" or "--review-console" or "--review-management" or "--review-product" or "--review-models" or "--review-live" or "--review-design" or "--review-showcase" or "--review-dashboard" or "--review-input" or "--review-intro" or "--review-zone-motion" or "--review-windowed" or "--review-pages" or "--review-stress" or "--review-probe" or "--review-readme")
             {
                 ShutdownMode = ShutdownMode.OnExplicitShutdown; IntroView.SoundEnabled = false;
@@ -51,6 +91,12 @@ public partial class App : Application
             };
             var window = new ProductWindow(e.Args.Contains("--reduced-motion"),firstRun:true,nativeEngine:true,fullscreen:true,trayIcon:true);
             MainWindow = window; window.Show();
+            // HidHide's hide list outlives the app (it survives a reboot): every way out un-hides the controller, not only
+            // the window closing — Windows signing out or shutting down, and a crash on any thread
+            SessionEnding += (_, _) => { window.Host.MouseMode?.Dispose(); window.Host.PcMode?.Dispose(); };
+            Exit += (_, _) => { window.Host.MouseMode?.Dispose(); window.Host.PcMode?.Dispose(); };
+            ForegroundApp.Start();
+            AppDomain.CurrentDomain.UnhandledException += (_, _) => { try { window.Host.MouseMode?.Dispose(); window.Host.PcMode?.Dispose(); } catch (Exception) { } };
         }
         catch (Exception error)
         {

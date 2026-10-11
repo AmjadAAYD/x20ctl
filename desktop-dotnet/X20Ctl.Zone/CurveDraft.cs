@@ -13,7 +13,9 @@ public sealed class CurveDraft(string modelId)
     // UI preset coordinates from the preserved Python reference; this is not codec parity.
     public static readonly IReadOnlyDictionary<string,((int,int) First,(int,int) Second)> Presets =
         new Dictionary<string,((int,int),(int,int))> { ["default"] = ((85,85),(170,170)), ["quick"] = ((35,35),(136,204)), ["slow"] = ((35,35),(219,145)), ["smooth"] = ((142,142),(220,157)), ["fine"] = ((67,67),(72,106)) };
-    public bool CanEdit => modelId == "x20";
+    /// <summary>PC mode applies the draft on the PC, so any model can be edited while it's on.</summary>
+    public bool PcMode { get; set; }
+    public bool CanEdit => modelId == "x20" || PcMode;
     public bool CanApplyHardware => false;
     public int ModifiedChannels => channels.Values.Count(c=>c!=CurveSetting.Default);
     public CurveSetting this[CurveChannel channel] => channels[channel];

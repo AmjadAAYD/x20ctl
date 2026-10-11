@@ -26,11 +26,11 @@ public sealed class ControllerCheckView : Grid
 {
     // M1–M6 have their own steps since 10 Oct 2026 (owner: "it must be tested"); a model with fewer paddles skips the rest
     private static readonly string[] AllActions = ["neutral", "A", "B", "X", "Y", "LB", "RB", "dpad_up", "dpad_right", "dpad_down", "dpad_left",
-        "dpad_up_right", "dpad_down_right", "dpad_down_left", "dpad_up_left", "Start", "Back", "L3", "R3", "LT", "RT", "left_stick", "right_stick", "M1", "M2", "M3", "M4", "M5", "M6", "turbo"];
+        "dpad_up_right", "dpad_down_right", "dpad_down_left", "dpad_up_left", "Start", "Back", "Home", "L3", "R3", "LT", "RT", "left_stick", "right_stick", "M1", "M2", "M3", "M4", "M5", "M6", "M", "turbo"];
     /// <summary>The steps being run: every step, or after a scan just the ones that weren't seen.</summary>
     private string[] Actions = AllActions;
     private (string Name, string Model)? detected;
-    private static readonly string[] Models = ["Unknown", "X05", "X05 Pro", "X10", "X15", "D10", "Dune / D15", "X20 Pro", "X20"];
+    internal static readonly string[] Models = ["Unknown", "X05", "X05 Pro", "X10", "X15", "D10", "Dune / D15", "X20 Pro", "X20"];
     private static readonly string[] Transports = ["Receiver", "USB cable", "Bluetooth", "Not sure"];
     private static readonly Color Green = Color.FromRgb(52, 211, 153), Amber = Color.FromRgb(245, 180, 91), Blue = Kit.Blue;
 
@@ -88,7 +88,7 @@ public sealed class ControllerCheckView : Grid
         DockPanel.SetDock(safe, Dock.Right); bar.Children.Add(safe);
         var mark = new Image { Source = LiveController.Bitmap("Assets/brand.png"), Width = 34, Height = 34, Margin = new(0, 0, 14, 0) }; RenderOptions.SetBitmapScalingMode(mark, BitmapScalingMode.HighQuality);
         bar.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = { mark, Kit.Text("X20CTL", 22, "DS.Text", FontWeights.Bold), new Border { Width = 1, Height = 22, Background = new SolidColorBrush(Color.FromArgb(60, 255, 255, 255)), Margin = new(18, 0, 18, 0) },
-            Kit.Text("Controller Check", 22, "DS.Text", FontWeights.SemiBold), Kit.Text("   Scanner 2.1 engine", 14, "DS.TextMuted") } });
+            Kit.Text("Controller Check", 22, "DS.Text", FontWeights.SemiBold), Kit.Text("   Scanner 2.2 engine", 14, "DS.TextMuted") } });
         page.Children.Add(bar);
         Grid.SetRow(steps, 1); page.Children.Add(steps);
 
@@ -181,6 +181,10 @@ public sealed class ControllerCheckView : Grid
         if (action == "preflight") evidence.Verified = false;
         evidence.Records[action] = new(); dirty = true;
         clock.Restart(); UpdateControls();
+        // a sampler left by an interrupted turbo step is stopped first, or its 1 ms thread would run until the window closes
+        turbo?.Finish(TurboOn, TurboOff, 0); turbo = null;
+        if (action == "turbo") turbo = new TurboSampler(reader, slot, () => clock.Elapsed.TotalSeconds - 3);
+        if (scanMode) StartListening();
     }
     private void TickInput()
     {
@@ -193,6 +197,8 @@ public sealed class ControllerCheckView : Grid
                 bool present = reader.Read(i, out State state);
                 var edges = present ? trackers[i].Update(state, liveClock.Elapsed.TotalMilliseconds) : new List<PressEdge>();
                 if (!present) trackers[i].Disconnect();
+                // a release under 15 ms is faster than a finger: a worn switch chattering (triggers rest noisily, so not them)
+                if (i == slot) foreach (var edge in edges) if (!edge.down && edge.duration_ms < X20Ctl.Zone.Diagnostics.ButtonStats.BounceMs && edge.control is not ("LT" or "RT")) chatter[edge.control] = chatter.GetValueOrDefault(edge.control) + 1;
                 if (i == slot && active != null && clock.Elapsed.TotalSeconds >= 3)
                     foreach (var edge in edges)
                     {
@@ -244,7 +250,12 @@ public sealed class ControllerCheckView : Grid
             }
             else
             {
-                string status = (string)summary["status"]; results[completed] = status.Contains("observed") && !status.Contains("not_observed") && !status.StartsWith("inconclusive") ? "observed" : "inconclusive";
+                string status = (string)summary["status"]; results[completed] = Analysis.Seen(status) ? "observed" : "inconclusive";
+                if (completed == "turbo" && turbo != null)
+                {
+                    evidence.Turbo = turbo.Finish(TurboOn, TurboOff, phases.Sum(x => x.Seconds)); turbo = null;
+                    status = (string)evidence.Turbo["status"]; results[completed] = status.StartsWith("turbo_observed") ? "observed" : "inconclusive";
+                }
                 index++; outcome.Text = Friendly(completed) + ": " + status.Replace('_', ' ') + ". " + (index < Actions.Length ? "Next: " + Friendly(Actions[index]) + (scanMode ? "." : ". Press Record when ready.") : "Input pass complete. Save the report.");
             }
             UpdateControls();
@@ -301,7 +312,8 @@ public sealed class ControllerCheckView : Grid
     private void NewSource()
     {
         if (dirty) { Save(); if (dirty) return; }
-        timer.Stop(); reader?.Dispose(); reader = null;
+        // the turbo sampler reads through this reader on its own thread: stop it before the library is freed
+        timer.Stop(); turbo?.Finish(TurboOn, TurboOff, 0); turbo = null; listener?.Dispose(); listener = null; reader?.Dispose(); reader = null;
         evidence = new Evidence { Inventory = inventory }; index = 0; results.Clear(); autoPicked = false; foreach (var r in readers) r.IsEnabled = true;
         outcome.Text = "Previous results retained" + (lastSaved == null ? "." : ": " + lastSaved) + " Choose a slot / Windows reader, then Start live check.";
         UpdateControls(); RefreshSlots();
@@ -313,7 +325,7 @@ public sealed class ControllerCheckView : Grid
         if (dirty && !Save() && !closeArmed) { closeArmed = true; outcome.Text += " Press Back again to leave without saving."; return false; }
         return true;
     }
-    public void Shutdown() { timer.Stop(); StopRaw(); reader?.Dispose(); reader = null; }
+    public void Shutdown() { timer.Stop(); StopRaw(); listener?.Dispose(); listener = null; turbo?.Finish(TurboOn, TurboOff, 0); turbo = null; reader?.Dispose(); reader = null; }
 
     private void PickSlot(int n, bool automatic)
     {
@@ -325,14 +337,19 @@ public sealed class ControllerCheckView : Grid
     // ================= the full step-by-step scan (owner direction 10 Oct 2026) =================
     private bool scanMode, sendReport, scanQueued, finishing, probing, probeOwnsRaw;
     private readonly List<double> holdErrors = new();
+    private readonly Dictionary<string, int> chatter = new();
     private readonly Dictionary<string, double> reportRates = new();
     private readonly Dictionary<string, Queue<double>> rateWindow = new();
     private readonly Stopwatch rateClock = new();
     private readonly Border warning = new(), resultsLayer = new() { Visibility = Visibility.Collapsed };
     public bool ScanRunning => scanMode && !finishing;
-    /// <summary>Turbo is a firmware script; paddles past the model's count don't exist on it.</summary>
-    private bool Excluded(string action) => action == "turbo" || Analysis.IsPaddle(action) && action[1] - '0' > PaddleCount(ScanModel);
-    private static int PaddleCount(string model) => model switch { "X20 Pro" => 6, "X20" or "Dune / D15" or "Unknown" => 4, _ => 2 };
+    /// <summary>Paddles past the model's count don't exist on it; Home needs a Windows reader that reports it.</summary>
+    private bool Excluded(string action) => action == "Home" && reader is { HomeReadable: false } || Analysis.IsPaddle(action) && action[1] - '0' > PaddleCount(ScanModel);
+    private TurboSampler? turbo;
+    private VendorListener? listener;
+    /// <summary>The turbo step's two hold windows (step seconds): turbo on, then turbo off. They follow its Phases.</summary>
+    private static readonly (double From, double To) TurboOn = (8, 13), TurboOff = (22.5, 25.5);
+    private static int PaddleCount(string model) => model switch { "X20 Pro" => 6, "X20" or "Dune / D15" or "Unknown" => 4, "X05" => 0, _ => 2 }; // the X05 has no back paddles (owner, 10 Oct 2026)
     private string ScanModel => (string)model.SelectedItem == "Unknown" && detected is { } d ? d.Model : (string)model.SelectedItem;
     /// <summary>What each step asks, phase by phase, each with its own countdown. Holds are 2 seconds, matching the hold-timing finding.</summary>
     private static (string Big, string Say, double Seconds, bool Hold)[] Phases(string a)
@@ -340,6 +357,15 @@ public sealed class ControllerCheckView : Grid
         string n = Friendly(a);
         if (a == "preflight") return [("Verify", "Release everything, press and release A, pull and release LT, then pull and release RT", 20, true)];
         if (a == "neutral") return [("Hands off", "Put the controller down and don't touch it", 8, false)];
+        if (a == "M") return [("Tap M", "Tap the M button on the front once, quickly. Don't hold it. If its light starts blinking, tap M once more to leave that mode", 5, true), ("Hands off", "Let go of everything", 1.5, false)];
+        if (a == "turbo")
+            return [("Turbo on", "Turn turbo on for A: hold the Turbo button and press A, then let go (your manual may say a different way)", 8, false),
+                    ("Hold A", "Press and hold A. Keep holding: with turbo on, it fires by itself", 5, true), ("Let go", "Let go of A", 1.5, false),
+                    ("Turbo off", "Turn turbo off for A the same way (on some pads it takes two goes)", 8, false),
+                    ("Hold A", "Press and hold A again: with turbo off it should stay steady", 3, true), ("Let go", "Let go of A", 1.5, false)];
+        if (a == "Home")
+            return [("Hold Home", "Press and hold Home (the logo button). If Xbox Game Bar opens, close it after the step", 2, true), ("Let go", "Let go of Home", 1.5, false),
+                    ("Hold Home", "Press and hold Home again", 2, true), ("Let go", "Let go of Home", 1.5, false)];
         if (a is "left_stick" or "right_stick")
             return [("Roll it", $"Roll the {n.ToLowerInvariant()} slowly all the way round its edge", 4, true), ("Let go", "Let it spring back to the centre", 1.5, false),
                     ("Roll again", "Roll it round its edge once more", 4, true), ("Let go", "Let go of the stick", 1.5, false)];
@@ -426,7 +452,7 @@ public sealed class ControllerCheckView : Grid
         if (completed is "left_stick" or "right_stick") StopRateProbe();
         if (completed == "preflight" && !evidence.Verified) { big.Text = "Not verified"; prompt.Text = "The scan didn't see A and both triggers on this slot. Press New source to try again, or another Windows reader."; return; }
         // turbo is left out (a firmware script), and so are paddles this model doesn't have
-        while (index < Actions.Length && Excluded(Actions[index])) { evidence.Event("skipped", Actions[index] + (Actions[index] == "turbo" ? ": excluded by design" : ": not on this model")); results[Actions[index]] = "skipped"; index++; }
+        while (index < Actions.Length && Excluded(Actions[index])) { evidence.Event("skipped", Actions[index] + (Actions[index] == "Home" ? ": this Windows reader can't see Home" : ": not on this model")); results[Actions[index]] = "skipped"; index++; }
         UpdateControls();
         if (index < Actions.Length) { string next = Actions[index]; Queue(() => { if (next is "left_stick" or "right_stick") StartRateProbe(); Begin(next); }, 1300); }
         else _ = FinishScan();
@@ -437,7 +463,27 @@ public sealed class ControllerCheckView : Grid
         rateWindow.Clear(); rateClock.Restart(); probing = raw != null;
     }
     private void StopRateProbe() { probing = false; if (probeOwnsRaw) StopRaw(); probeOwnsRaw = false; }
+    /// <summary>Listens to the controller's vendor channels for the rest of the scan (read-only), once its devices are listed.</summary>
+    private void StartListening()
+    {
+        if (listener != null || !inventoryRead || ReviewSandbox.Active) return;
+        var pad = inventory.interfaces.FirstOrDefault(i => i.usagePage == 1 && i.usage is 4 or 5 && inventory.interfaces.Any(v => v.vendorDefined && v.vid == i.vid && v.pid == i.pid));
+        if (pad == null) return;
+        try { listener = VendorListener.Start(inventory, pad.vid, pad.pid); } catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArgumentException) { evidence.Event("vendor_listen_failed", error.Message); }
+    }
+    /// <summary>A slip while finishing must never leave the screen on "Finishing up" with no way out (a tester saw a freeze after a redo).</summary>
     private async Task FinishScan()
+    {
+        try { await FinishScanCore(); }
+        catch (Exception error) when (error is not OutOfMemoryException)
+        {
+            evidence.Event("finish_failed", error.Message); scanMode = false; finishing = false;
+            big.Text = "Scan finished"; prompt.Text = "Something went wrong while finishing (" + error.Message + "). The steps are saved: press Back, or New source to scan again.";
+            try { Save(); } catch (Exception) { }
+            UpdateControls();
+        }
+    }
+    private async Task FinishScanCore()
     {
         if (finishing) return; finishing = true;
         big.Text = "Finishing up"; prompt.Text = "Reading the battery, comparing identities and saving the report…";
@@ -446,7 +492,14 @@ public sealed class ControllerCheckView : Grid
         var names = inventory.interfaces.SelectMany(i => new[] { i.product, i.manufacturer }).ToList();
         List<(string Name, int Percent)> bluetooth;
         try { bluetooth = await Task.Run(() => BluetoothBattery.Read(names)); } catch (Exception error) when (error is DllNotFoundException or EntryPointNotFoundException or System.Runtime.InteropServices.ExternalException) { bluetooth = new(); }
-        var findings = ScanFlow.Interpret(evidence, inventory, battery, reportRates, holdErrors.Count > 0 ? holdErrors.Average() : -1, bluetooth);
+        // the battery, every read-only way Windows offers: XInput above, the Bluetooth property, Windows.Gaming.Input, and whatever the vendor channels sent unprompted
+        List<GameInputBattery.Report> gaming; string? gamingError = null;
+        try { gaming = await Task.Run(() => GameInputBattery.Read()); } catch (Exception error) when (error is not OutOfMemoryException) { gaming = new(); gamingError = error.Message; }
+        var heard = listener?.Finish() ?? new List<object>(); listener = null;
+        evidence.BatteryProbe = new { xinput = new { type = battery.Item1, level = battery.Item2 }, deviceProperty = bluetooth.Select(b => new { b.Name, b.Percent }), windowsGamingInput = gaming, windowsGamingInputError = gamingError, vendorListen = heard };
+        evidence.Extra["battery-probe.json"] = JsonSerializer.Serialize(evidence.BatteryProbe, new JsonSerializerOptions(Evidence.Json) { WriteIndented = true });
+        if (evidence.Turbo != null) evidence.Extra["turbo-test.json"] = JsonSerializer.Serialize(evidence.Turbo, new JsonSerializerOptions(Evidence.Json) { WriteIndented = true });
+        var findings = ScanFlow.Interpret(evidence, inventory, battery, reportRates, holdErrors.Count > 0 ? holdErrors.Average() : -1, bluetooth, gaming, heard, chatter);
         evidence.Extra["scan-summary.json"] = JsonSerializer.Serialize(new { findings, battery = new { battery.Item1, battery.Item2 }, bluetoothBattery = bluetooth.Select(b => new { b.Name, b.Percent }), detectedName = detected?.Name, detectedModel = detected?.Model, appVersion = ScanFlow.AppVersion, reportRatesPerSecond = reportRates,
             excludedByDesign = new[] { "RGB lighting (firmware)", "gyro", "turbo (firmware script)" } }, new JsonSerializerOptions(Evidence.Json) { WriteIndented = true });
         bool saved = Save();
@@ -473,6 +526,9 @@ public sealed class ControllerCheckView : Grid
         var open = Action("", "Open reports folder", "DS.ActionSecondary"); open.Click += (_, _) => OpenReports();
         var done = Action("", "Done", "DS.ActionPrimary"); done.Click += (_, _) => Fx.Leave(resultsLayer, () => resultsLayer.Visibility = Visibility.Collapsed, 1.02, 200);
         var missed = AllActions.Where(a => results.GetValueOrDefault(a) == "inconclusive").ToArray();
+        // every paddle step came back empty: the pad most likely has none, so asking again would only repeat it
+        var paddleSteps = AllActions.Where(a => Analysis.IsPaddle(a) && results.ContainsKey(a)).ToArray();
+        if (paddleSteps.Length > 0 && paddleSteps.All(a => results[a] == "inconclusive")) missed = missed.Where(a => !Analysis.IsPaddle(a)).ToArray();
         var redo = Action("", $"Redo the {missed.Length} not seen", "DS.ActionPrimary"); redo.Click += (_, _) => RedoMissed(missed);
         redo.Visibility = missed.Length > 0 && reader != null ? Visibility.Visible : Visibility.Collapsed;
         var side = new StackPanel { Width = 420, Margin = new(28, 0, 0, 0), Children = {
@@ -623,7 +679,7 @@ public sealed class ControllerCheckView : Grid
     {
         "neutral" => "Hands off", "dpad_up" => "D-pad ↑", "dpad_down" => "D-pad ↓", "dpad_left" => "D-pad ←", "dpad_right" => "D-pad →",
         "dpad_up_right" => "D-pad ↗", "dpad_down_right" => "D-pad ↘", "dpad_down_left" => "D-pad ↙", "dpad_up_left" => "D-pad ↖",
-        "left_stick" => "Left stick", "right_stick" => "Right stick", "rear_left" => "Rear left", "rear_right" => "Rear right", "turbo" => "Turbo", "preflight" => "Verify",
+        "left_stick" => "Left stick", "right_stick" => "Right stick", "rear_left" => "Rear left", "rear_right" => "Rear right", "turbo" => "Turbo", "preflight" => "Verify", "M" => "M button",
         _ => action
     };
     private static Border Chip(string text) => new() { CornerRadius = new(14), Padding = new(12, 6, 12, 6), Margin = new(0, 0, 8, 8), BorderThickness = new(1), Child = Kit.Text(text, 13, "DS.Text", FontWeights.SemiBold) };

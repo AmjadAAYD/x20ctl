@@ -39,6 +39,9 @@ public static class InputMap
         "Vibration" => new(focusAction ?? "Select", "Reset", null, "Strength"),
         "Device" => new(focusAction ?? "Open", null, "My setups", null),
         "Tester" => new(null, null, null, null, "Hold to exit"),
+        "Diagnostics" => new(null, null, null, null, "Hold to exit"),
+        "Mouse" => new(focusAction ?? "Select", null, null, null),
+        "PcMode" => new(focusAction ?? "Select", null, null, null),
         "Setups" => new(focusAction ?? "Open", null, "New setup", null),
         _ => new(focusAction ?? "Select", null, null, null)
     };

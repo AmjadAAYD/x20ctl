@@ -70,14 +70,14 @@ public class GalaxyBackdrop : Grid
         var move = new TranslateTransform(); shape.RenderTransform = move;
         if (motion)
         {
-            var x = new DoubleAnimation(-drift, drift, TimeSpan.FromSeconds(seconds)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase(), BeginTime = TimeSpan.FromSeconds(-delay) };
-            var y = new DoubleAnimation(drift * .6, -drift * .6, TimeSpan.FromSeconds(seconds * .73)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase(), BeginTime = TimeSpan.FromSeconds(-delay) };
+            var x = Ambient.Rate(new DoubleAnimation(-drift, drift, TimeSpan.FromSeconds(seconds)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase(), BeginTime = TimeSpan.FromSeconds(-delay) }, 24);
+            var y = Ambient.Rate(new DoubleAnimation(drift * .6, -drift * .6, TimeSpan.FromSeconds(seconds * .73)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase(), BeginTime = TimeSpan.FromSeconds(-delay) }, 24);
             move.BeginAnimation(TranslateTransform.XProperty, x); move.BeginAnimation(TranslateTransform.YProperty, y);
             var pulse = new ScaleTransform(1, 1, 0, 0); shape.RenderTransform = new TransformGroup { Children = { pulse, move } };
             shape.RenderTransformOrigin = new(cx, cy);
-            pulse.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(.92, 1.12, TimeSpan.FromSeconds(seconds * .55)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase() });
-            pulse.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(1.1, .94, TimeSpan.FromSeconds(seconds * .61)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase() });
-            shape.BeginAnimation(OpacityProperty, new DoubleAnimation(.55, 1, TimeSpan.FromSeconds(seconds * .4)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase() });
+            pulse.BeginAnimation(ScaleTransform.ScaleXProperty, Ambient.Rate(new DoubleAnimation(.92, 1.12, TimeSpan.FromSeconds(seconds * .55)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase() }, 24));
+            pulse.BeginAnimation(ScaleTransform.ScaleYProperty, Ambient.Rate(new DoubleAnimation(1.1, .94, TimeSpan.FromSeconds(seconds * .61)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase() }, 24));
+            shape.BeginAnimation(OpacityProperty, Ambient.Rate(new DoubleAnimation(.55, 1, TimeSpan.FromSeconds(seconds * .4)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase() }, 24));
         }
         return shape;
     }
@@ -100,8 +100,8 @@ public class GalaxyBackdrop : Grid
         var move = new TranslateTransform(); layer.RenderTransform = move;
         if (motion)
         {
-            move.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(-drift, drift, TimeSpan.FromSeconds(seconds)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase() });
-            layer.BeginAnimation(OpacityProperty, new DoubleAnimation(.7, 1, TimeSpan.FromSeconds(3 + rng.NextDouble() * 3)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase() });
+            move.BeginAnimation(TranslateTransform.XProperty, Ambient.Rate(new DoubleAnimation(-drift, drift, TimeSpan.FromSeconds(seconds)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase() }, 24));
+            layer.BeginAnimation(OpacityProperty, Ambient.Rate(new DoubleAnimation(.7, 1, TimeSpan.FromSeconds(3 + rng.NextDouble() * 3)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase() }, 24));
         }
         return layer;
     }
@@ -132,8 +132,8 @@ public sealed class FacetBackdrop : Grid
         var drift = new TranslateTransform(); host.RenderTransform = drift;
         if (DS.Motion)
         {
-            drift.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(-14, 14, TimeSpan.FromSeconds(34)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase() });
-            drift.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(8, -8, TimeSpan.FromSeconds(27)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase() });
+            drift.BeginAnimation(TranslateTransform.XProperty, Ambient.Rate(new DoubleAnimation(-14, 14, TimeSpan.FromSeconds(34)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase() }, 24));
+            drift.BeginAnimation(TranslateTransform.YProperty, Ambient.Rate(new DoubleAnimation(8, -8, TimeSpan.FromSeconds(27)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase() }, 24));
         }
         host.Margin = new(-30); Children.Add(host);
     }
@@ -167,7 +167,7 @@ public sealed class StatusChip : Border
         Background = new SolidColorBrush(Color.FromArgb(235, (byte)(6 + c.R / 14), (byte)(12 + c.G / 14), (byte)(22 + c.B / 14)));
         BorderBrush = new SolidColorBrush(Color.FromArgb(200, c.R, c.G, c.B));
         dot.Effect = new DropShadowEffect { Color = c, BlurRadius = 6, ShadowDepth = 0, Opacity = .8 };
-        if (DS.Motion && kind != ChipKind.Neutral) dot.BeginAnimation(OpacityProperty, new DoubleAnimation(1, .35, TimeSpan.FromSeconds(1.1)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase() });
+        if (DS.Motion && kind != ChipKind.Neutral) dot.BeginAnimation(OpacityProperty, Ambient.Rate(new DoubleAnimation(1, .35, TimeSpan.FromSeconds(1.1)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase() }, 24));
         else dot.BeginAnimation(OpacityProperty, null);
     }
 }
@@ -322,5 +322,17 @@ public sealed class BumperBadge : Grid
     {
         get => text.Text;
         set { text.Text = value; shape.RenderTransformOrigin = new(.5, .5); shape.RenderTransform = value.StartsWith('R') ? new ScaleTransform(-1, 1) : Transform.Identity; }
+    }
+}
+
+/// <summary>Slow, endless background motion (nebula drift, star twinkle, status-dot pulse) asks WPF for only a few frames a
+/// second. Left at the display rate, these redraw the whole window 60–144 times a second (measured 11 Oct 2026: the idle
+/// Studio used 1.6 CPU cores at 72 fps); motion of under a pixel per frame looks the same at 24.</summary>
+public static class Ambient
+{
+    public static T Rate<T>(T timeline, int framesPerSecond) where T : System.Windows.Media.Animation.Timeline
+    {
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(timeline, framesPerSecond);
+        return timeline;
     }
 }
