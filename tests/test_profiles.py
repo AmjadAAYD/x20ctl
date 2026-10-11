@@ -140,7 +140,7 @@ class FakePad:
     def __init__(self, motors=3, macros=0x0F):
         self._caps = p.Capabilities(
             sticks=3, triggers=3, motors=motors, turbo=0, macros=macros,
-            changekey=1, lighting=0, eq=0, nfc=0, sensor=0)
+            changekey=1, lighting=0, engine=0, nfc=0, sensor=0)
         self.calls = []
 
     async def capabilities(self):

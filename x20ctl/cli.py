@@ -85,6 +85,10 @@ async def cmd_scan(args) -> None:
 async def cmd_status(args) -> None:
     address = await resolve(args.address)
     async with X20(address) as pad:
+        verdict = await pad.assessment()
+        if not verdict.may_read():
+            await _status_unvalidated(pad, verdict, address)
+            return
         snap = await pad.snapshot()
 
     print(ui.header("Controller", snap.device.vid + " / " + snap.device.pid))
@@ -97,6 +101,7 @@ async def cmd_status(args) -> None:
     if snap.battery is not None:
         state = "charging" if snap.battery.charging else "on battery"
         print(ui.field("battery", f"{snap.battery} · {state}"))
+    print(ui.field("evidence", verdict.reason))
 
     link = transport.detect()
     if link.connected:
@@ -139,6 +144,23 @@ async def cmd_status(args) -> None:
             shape = "linear" if curve.is_linear else "curved"
             print(ui.field(side, f"deadzone {curve.inner_deadzone}, "
                                  f"points {curve.point1} {curve.point2}, {shape}"))
+    print()
+
+
+async def _status_unvalidated(pad, verdict, address) -> None:
+    """Status for a controller not in the evidence table: identification only."""
+    info, caps = await pad.device_info(), await pad.capabilities()
+    print(ui.header("Controller", f"{info.vid} / {info.pid}"))
+    print(ui.field("reports as", await pad.name() or "unknown"))
+    print(ui.field("firmware", info.version))
+    print(ui.field("mode", f"{info.mode}  generation {info.effective_generation}"))
+    print(ui.field("address", address))
+    print(ui.field("evidence", verdict.reason))
+    print(ui.header("Reported"))
+    print(f"  {ui.label('offers'.ljust(12))}{', '.join(caps.supported()) or 'nothing'}")
+    print(f"  {ui.label('descriptor'.ljust(12))}{caps.raw}")
+    unexplained = [p.descriptor_bit_label(*bit) for bit in caps.unexplained_bits()]
+    print(f"  {ui.label('unexplained'.ljust(12))}{', '.join(unexplained) or 'none'}")
     print()
 
 

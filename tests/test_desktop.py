@@ -290,7 +290,7 @@ def test_macro_roundtrip_and_hardware_limit():
 def test_empty_hardware_macro_sentinel_can_be_saved(tmp_path):
     from x20ctl.desktop.settings import import_profile
 
-    # Xpert2 firmware 9.01 returned a released, zero-duration wire entry
+    # Xpert2 firmware 1.23 (read as 9.01 in older notes) returned a released, zero-duration wire entry
     # for unused M2-M4 slots. It must not become an invalid editable hold.
     profile = import_profile({"name": "Read from controller", "macros": {}})
     for slot in ("M2", "M3", "M4"):

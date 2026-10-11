@@ -8,6 +8,7 @@ from uuid import UUID
 
 from x20ctl import protocol as p
 from .app_capture import trace_info
+from . import fingerprint
 
 SERVICE = "d7f010e0-660d-46e9-96c3-19c4148bdab5"
 WRITE = "d7f010e1-660d-46e9-96c3-19c4148bdab5"
@@ -20,8 +21,9 @@ def _profile(stream):
         "evidenceType": "captured_reported_capabilities",
         "modelIdentified": False, "configurationWritesAuthorized": False,
         "commandProtocolVerified": False, "identity": None,
-        "reportedFeatures": None, "supportedSourceCodes": None,
-        "supportedDestinationCodes": None,
+        "reportedFeatures": None, "descriptor": None, "supportedSourceCodes": None,
+        "supportedDestinationCodes": None, "turboKeys": None, "macroKeys": None,
+        "macroLimits": None,
     }
 
 
@@ -60,7 +62,7 @@ def discover(events):
                 context["pending"][packet.serial] = ("identity", 0)
             elif packet.opcode == p.Op.HOST_MENU and len(packet.payload) == 2:
                 position, kind = packet.payload
-                if kind in {1, 3, 7} and position < 18:
+                if kind in {1, 3, 4, 5, 6, 7} and position < 18:
                     if position == 0:
                         context["chunks"].pop(kind, None)
                     context["pending"][packet.serial] = (kind, position)
@@ -89,10 +91,7 @@ def discover(events):
             if kind == "identity":
                 if len(data) not in {6, 7, 8}:
                     raise ValueError("Unknown identity layout")
-                info = p.parse_device_info(data)
-                identity = {"internalVendorId": info.vid, "internalProductId": info.pid,
-                            "version": info.version, "deviceFamily": info.device_id,
-                            "mode": info.model, "protocolGeneration": info.version_family}
+                identity = fingerprint.identity_of(p.parse_device_info(data))
                 if profile["identity"] is not None and profile["identity"] != identity:
                     # Do not blend two identities if a normalized stream was reused.
                     profile = _profile(stream)
@@ -107,9 +106,13 @@ def discover(events):
                     "motorCount": caps.motor_count, "macroSlots": caps.macro_slots,
                     "remapping": bool(caps.changekey), "turbo": bool(caps.turbo),
                 }
+                profile["descriptor"] = fingerprint.descriptor_of(caps)
+            elif kind == 6:
+                profile["macroLimits"] = bytes(data).hex()  # layout not decoded yet
             else:
                 keys = p.decode_key_list(data)
-                field = "supportedSourceCodes" if kind == 3 else "supportedDestinationCodes"
+                field = {3: "supportedSourceCodes", 4: "turboKeys", 5: "macroKeys",
+                         7: "supportedDestinationCodes"}[kind]
                 profile[field] = keys
             profiles[stream] = profile
         except (ValueError, IndexError):
