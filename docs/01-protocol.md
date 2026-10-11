@@ -729,6 +729,14 @@ protocol: set, the app reads the remap select list (kind 7). The X20 leaves it
 clear (`0x01`), and its bit 0 is the only set bit in the X20's descriptor that
 nobody has traced.
 
+Kind 6 answers with the slots' limits: consecutive little-endian 16-bit
+numbers with no slot ids, which the app lays over its eight slots M1, M2, M3,
+M4, M5, M6, ML, MR by position. The recorded X20 reply is `2a00 2a00 2a00 2a00`
+followed by four `0000`: 42 for the four slots it has and zero for those it
+lacks. The app's default when no list arrives is 42 for every slot; a zero it
+does receive replaces the default with zero. The numbers are the editor's step
+limits, not bytes and not a measured capacity.
+
 Thirty of the eighty bits are traced (`DESCRIPTOR_BIT_NAMES`). The rest are
 unexplained rather than reserved: `Capabilities.raw` keeps the whole record and
 `unexplained_bits()` lists every set bit outside the thirty, so a meaning found

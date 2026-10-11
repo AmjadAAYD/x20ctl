@@ -233,3 +233,56 @@ def test_an_unknown_controller_connects_reads_nothing_and_is_logged_once(tmp_pat
     assert entries[0]["descriptor"]["unexplainedBits"] == ["D6.bit0 (changekey)"]
     assert entries[0]["lists"]["turboKeys"] == [1, 2, 3, 4, 5, 6, 7, 8, 13, 14, 15, 16]
     assert "address" not in json.dumps(entries)
+
+
+def test_macro_limits_are_pairs_matched_to_slots_by_position():
+    caps = p.parse_capabilities(p.unwrap(bytes.fromhex(X20_DESCRIPTOR)))
+    # the recorded X20 reply: 42 for M1-M4, then zeros for the four slots it lacks
+    limits = p.decode_macro_limits(bytes.fromhex("2a002a002a002a000000000000000000"))
+    assert limits == [42, 42, 42, 42, 0, 0, 0, 0]
+    assert caps.slot_limits(limits) == {"M1": 42, "M2": 42, "M3": 42, "M4": 42}
+    assert p.decode_macro_limits(bytes([0x00, 0x01, 0xFF, 0xFF])) == [256, 65535]
+    with pytest.raises(ValueError, match="whole pairs"):
+        p.decode_macro_limits(bytes.fromhex("2a002a"))        # the app drops the odd byte; we refuse
+
+
+def test_the_pad_is_asked_for_limits_only_when_its_descriptor_says_so():
+    class Scripted(X20):
+        def __init__(self, descriptor):
+            super().__init__("test")
+            self._caps = p.parse_capabilities(p.unwrap(bytes.fromhex(descriptor)))
+            self.asked = []
+
+        async def read_body(self, opcode, payload=b""):
+            self.asked.append((int(opcode), bytes(payload)))
+            return p.unwrap(bytes.fromhex("10" + "2a002a002a002a000000000000000000"))
+
+    new = Scripted(X20_DESCRIPTOR)
+    assert asyncio.run(new.macro_limits()) == {"M1": 42, "M2": 42, "M3": 42, "M4": 42}
+    assert new.asked == [(int(p.Op.HOST_MENU), bytes([0, 6]))]
+    old = Scripted("0a030303000f010001c000")          # D8 bit 1 clear
+    assert asyncio.run(old.macro_limits()) is None and old.asked == []
+
+
+def test_only_the_apps_three_address_prefixes_count_as_a_pad():
+    from x20ctl.client import is_controller
+    for address in ("98:B6:E9:00:00:01", "98:b6:ec:00:00:01", "98:B6:ED:00:00:01"):
+        assert is_controller("", address), address
+    for address in ("98:B6:E0:00:00:01", "98:B6:EF:00:00:01", "98:B6:C9:00:00:01"):
+        assert not is_controller("", address), address
+    assert is_controller("Xpert2", "11:22:33:44:55:66")
+
+
+def test_a_capture_decodes_limits_into_the_same_shape_as_the_reference():
+    from x20ctl.scanning.capability_discovery import discover
+    from test_capability_discovery import frame
+    # kind 6 as the X20 sends it: 16 declared bytes, 14 in the first packet, 2 in the next
+    head = bytes([16]) + bytes.fromhex("2a002a002a002a0000000000000000")[:14]
+    events = [frame(0x91, b"", 1, "write"), frame(0x91, bytes.fromhex("0710132009012352"), 1, "notify"),
+              frame(p.Op.HOST_MENU, b"\x00", 2, "write"),
+              frame(p.Op.HOST_MENU, bytes([10]) + bytes.fromhex(X20_DESCRIPTOR[2:]), 2, "notify"),
+              frame(p.Op.HOST_MENU, b"\x00", 3, "write"), frame(p.Op.HOST_MENU, head, 3, "notify"),
+              frame(p.Op.HOST_MENU, b"", 4, "write"), frame(p.Op.HOST_MENU, b"\x00\x00", 4, "notify")]
+    profile = discover(events)["profiles"][0]
+    assert profile["macroLimits"] == [42, 42, 42, 42, 0, 0, 0, 0]
+    assert fp.from_discovery(profile)["lists"]["macroLimits"] == fp.X20_REFERENCE["lists"]["macroLimits"]

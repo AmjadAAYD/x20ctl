@@ -91,6 +91,11 @@ async def cmd_status(args) -> None:
             return
         snap = await pad.snapshot()
 
+        try:
+            limits = await pad.macro_limits()
+        except ControllerError:
+            limits = None
+
     print(ui.header("Controller", snap.device.vid + " / " + snap.device.pid))
     print(ui.field("controller", p.product_name(
         snap.name, snap.device.vid, snap.device.pid)))
@@ -113,7 +118,9 @@ async def cmd_status(args) -> None:
         ("sticks", caps.has_left_stick and caps.has_right_stick, "left and right"),
         ("triggers", caps.has_left_trigger and caps.has_right_trigger, "left and right"),
         ("vibration", bool(caps.motors), f"{caps.motor_count} motors"),
-        ("macros", bool(caps.macros), ", ".join(caps.macro_slots) or "none"),
+        ("macros", bool(caps.macros), ", ".join(
+            f"{slot} ({limits[slot]})" if limits and slot in limits else slot
+            for slot in caps.macro_slots) or "none"),
         ("remapping", bool(caps.changekey), "supported"),
         ("lighting", bool(caps.lighting), f"{caps.lighting_zones} zones"),
         ("turbo", bool(caps.turbo), "supported"),

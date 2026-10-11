@@ -32,7 +32,9 @@ CONFIG_NOTIFY = "d7f010e2-660d-46e9-96c3-19c4148bdab5"
 OTA_SERVICE = "2de516f0-50f5-45d5-a1b2-c3565de543ae"
 
 ADVERTISED_NAME = "Xpert2"
-VENDOR_MAC_PREFIX = "98:B6:E"
+# The prefixes the official app's AgreementConfig admits: standard gamepad,
+# two-in-one and Switch-mode devices. Anything else in 98:B6:E_ is not one.
+VENDOR_MAC_PREFIXES = ("98:B6:E9", "98:B6:EC", "98:B6:ED")
 
 DEFAULT_TIMEOUT = 4.0
 
@@ -86,7 +88,7 @@ def is_controller(name: str, address: str) -> bool:
     VID/PID, which the pad clones from Microsoft.
     """
     return (ADVERTISED_NAME.lower() in (name or "").lower()
-            or (address or "").upper().startswith(VENDOR_MAC_PREFIX))
+            or (address or "").upper().startswith(VENDOR_MAC_PREFIXES))
 
 
 async def find_controllers(timeout: float = 8.0) -> list[Found]:
@@ -318,6 +320,26 @@ class X20:
                 raise ControllerError("no reply to the capability query")
             self._caps = p.parse_capabilities(body)
         return self._caps
+
+    async def macro_limits(self) -> dict[str, int] | None:
+        """Each macro slot's limit as the pad reports it, or None if it doesn't.
+
+        Only pads whose descriptor sets D8 bit 1 are asked (kind 6), as the
+        official app does. The numbers are the app's editor limits in steps; they
+        are not used to size writes here, because their relation to the entry
+        cap of this library (macro entries, press and release counted apart) is
+        unmeasured.
+        """
+        caps = await self.capabilities()
+        if not caps.new_macro_engine:
+            return None
+        body = await self.read_body(p.Op.HOST_MENU, bytes([0, p.MenuKind.MACRO_LIMITS]))
+        if body is None:
+            return None
+        try:
+            return caps.slot_limits(p.decode_macro_limits(body.data))
+        except ValueError:
+            return None
 
     async def macro_layout(self, *, refresh: bool = False) -> p.MaskLayout:
         """The mask layout this particular controller uses.

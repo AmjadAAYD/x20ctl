@@ -74,9 +74,20 @@ async def collect(pad) -> dict:
     return fingerprint(info, caps, lists)
 
 
+def _limits(value):
+    """A kind-6 record as a list of per-position limits; the hex stays if it
+    can't be decoded, so nothing is lost."""
+    if isinstance(value, str):
+        try:
+            return p.decode_macro_limits(bytes.fromhex(value))
+        except ValueError:
+            return value
+    return value
+
+
 def _decode_list(name: str, data: bytes):
     if name == "macroLimits":
-        return data.hex()           # layout not decoded yet; kept whole
+        return _limits(data.hex())
     try:
         return p.decode_key_list(data)
     except ValueError:
@@ -88,7 +99,7 @@ def from_discovery(profile: dict) -> dict:
     lists = {"changekeySources": profile.get("supportedSourceCodes"),
              "selectList": profile.get("supportedDestinationCodes")}
     for name in ("turboKeys", "macroKeys", "macroLimits"):
-        lists[name] = profile.get(name)
+        lists[name] = _limits(profile.get(name)) if name == "macroLimits" else profile.get(name)
     return {"identity": profile.get("identity"),
             "descriptor": profile.get("descriptor"),
             "lists": {name: lists.get(name) for name in LISTS}}
@@ -102,7 +113,7 @@ def _reference() -> dict:
         "changekeySources": list(p.CHANGEKEY_DEFAULT_SOURCES),
         "turboKeys": p.decode_key_list(bytes.fromhex("0c01880d84")),
         "macroKeys": list(p.X20_MACRO_KEYS),
-        "macroLimits": "2a002a002a002a000000000000000000",
+        "macroLimits": [42, 42, 42, 42, 0, 0, 0, 0],
     })
 
 
