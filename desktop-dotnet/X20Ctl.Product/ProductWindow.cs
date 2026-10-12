@@ -42,8 +42,29 @@ public sealed class ProductWindow : Window
         StateChanged+=(_,_)=>{Scene.OuterFrame.CornerRadius=new(WindowState==WindowState.Maximized?0:16);if(WindowState==WindowState.Maximized)Dispatcher.BeginInvoke(DispatcherPriority.Loaded,new Action(ApplyWorkArea));else if(WindowState==WindowState.Normal)Dispatcher.BeginInvoke(DispatcherPriority.Loaded,new Action(ApplyWindowedSize));};
         // it always opens fullscreen (F11 or the restore button still give a window for those who want one)
         Loaded+=(_,_)=>{if(StartsMaximized&&WindowState!=WindowState.Maximized)WindowState=WindowState.Maximized;if(WindowState==WindowState.Maximized)ApplyWorkArea();if(nativeEngine)_=Host.InitializeNativeEngineAsync();};
-        Closed+=async(_,_)=>{tray?.Dispose();await Host.StopNativeEngineAsync();};
-        if(trayIcon){tray=new TrayIcon(this);Closing+=(_,e)=>{if(tray.Quitting)return;e.Cancel=true;tray.HideToTray();};}
+        // hidden in the tray or minimized, nothing is drawn: the stage leaves the render tree, so its endless background
+        // motion stops costing CPU while PC mode runs for hours (its animations keep their place and resume on return)
+        void Rest(){Stage.Visibility=IsVisible&&WindowState!=WindowState.Minimized?Visibility.Visible:Visibility.Hidden;}
+        IsVisibleChanged+=(_,_)=>Rest();StateChanged+=(_,_)=>Rest();
+        Closed+=async(_,_)=>{tray?.Dispose();batteryTimer?.Stop();Host.MouseMode?.Dispose();Host.PcMode?.Dispose();await Host.StopNativeEngineAsync();};
+        if(trayIcon){tray=new TrayIcon(this);Closing+=(_,e)=>{if(tray.Quitting)return;e.Cancel=true;tray.HideToTray();};if(Host.PcMode is{} pc){pc.Changed+=()=>Dispatcher.BeginInvoke(()=>tray?.SetStatus(pc.State==PcModeState.Active?(pc.Suspended?"X20CTL · PC mode paused":"X20CTL · PC mode active"):"X20CTL · Controller Studio"));pc.Notice+=text=>Dispatcher.BeginInvoke(()=>tray?.Notify("PC mode",text));}
+            if(Host.MouseMode is{} mouse){tray.AddToggle("Controller as mouse",()=>mouse.Active,on=>mouse.Active=on);mouse.Notice+=text=>Dispatcher.BeginInvoke(()=>tray?.Notify("Controller as mouse",text));}
+            WatchBattery();}
+    }
+    private System.Windows.Threading.DispatcherTimer? batteryTimer; private bool batteryWarned;
+    /// <summary>The controller's battery in the tray tooltip, read once a minute from what Windows reports (XInput's
+    /// documented battery call, read only); a notification once when it turns low. Wired pads and pads that don't
+    /// report a level show nothing rather than a guess.</summary>
+    private void WatchBattery()
+    {
+        if(ReviewSandbox.Active)return;
+        async void Read()
+        {
+            var (text,low)=await Task.Run<(string,bool)>(()=>{try{using var reader=new X20Ctl.Product.Scanner.WindowsReader("XInput1_4.dll");for(int slot=0;slot<4;slot++){if(PcModeService.IsVirtual(slot)||!reader.Read(slot,out _))continue;var (_,level,known)=reader.Battery(slot);return known?("Battery "+level,level is "low" or "empty"):("",false);}}catch(Exception error) when(error is System.IO.IOException or ArgumentException){}return ("",false);});
+            tray?.SetBattery(text);
+            if(low&&!batteryWarned){batteryWarned=true;tray?.Notify("Controller battery low","Charge it soon. Windows reports the level as "+text[8..]+".");}else if(!low)batteryWarned=false;
+        }
+        batteryTimer=new(System.Windows.Threading.DispatcherPriority.Background){Interval=TimeSpan.FromMinutes(1)};batteryTimer.Tick+=(_,_)=>Read();batteryTimer.Start();Read();
     }
     /// <summary>Home / Guide: show X20CTL fullscreen in front of everything (from the tray too), then go to the Dashboard.</summary>
     public void BringHome()

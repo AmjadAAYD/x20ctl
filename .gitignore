@@ -62,3 +62,6 @@ scan-*/
 *.pcapng
 *.btsnoop
 bugreport*
+
+# PC mode driver installers are fetched by the release workflow
+vendor/drivers/*.exe

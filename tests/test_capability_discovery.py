@@ -21,7 +21,10 @@ def test_captured_capabilities_are_dynamic_without_authorizing_writes():
  assert profile["reportedFeatures"]["remapping"] is True
  assert profile["reportedFeatures"]["macroSlots"]==["M1","M2"]
  assert profile["supportedSourceCodes"]==[1,2,93]
- assert profile["identity"]["deviceFamily"]==3
+ assert profile["identity"]["deviceId"]==3
+ assert profile["identity"]["mode"]==7 and profile["identity"]["effectiveGeneration"]==1
+ assert profile["descriptor"]["raw"]=="03030301030100000000"
+ assert profile["descriptor"]["unexplainedBits"]==["D4.bit0 (turbo)","D6.bit0 (changekey)"]
  assert profile["modelIdentified"] is False and profile["configurationWritesAuthorized"] is False
 
 

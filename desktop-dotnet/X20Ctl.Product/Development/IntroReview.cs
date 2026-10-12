@@ -19,10 +19,10 @@ internal static class IntroReview
         try
         {
             window.Show(); window.WindowState = WindowState.Maximized; await Task.Delay(400);
-            window.Host.StartIntro(); var fps = await ShowcaseReviewProbe.Run(6200); await Task.Delay(1500);
+            window.Host.StartIntro(); var fps = await ShowcaseReviewProbe.Run(6300); await Task.Delay(1500);
             File.WriteAllText(Path.Combine(directory, "fps.json"), System.Text.Json.JsonSerializer.Serialize(fps, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
             window.Host.StartIntro(); await Task.Delay(150); if (window.Host.Intro == null) throw new InvalidOperationException("Intro did not start: " + window.Scene.FeedbackText.Text);
-            foreach (double t in new[] { 1.3, 1.5, 1.75, 1.97, 2.4, 2.6, 2.9, 3.3, 3.7, 4.4, 5.0, 5.4 })
+            foreach (double t in new[] { .2, .6, 1.3, 1.97, 2.6, 3.3, 3.61, 4.0, 4.25, 4.7, 5.05, 5.3, 5.55, 5.8, 6.0 })
             {
                 window.Host.Intro!.Seek(t); await Task.Delay(90); window.UpdateLayout();
                 var bmp = new RenderTargetBitmap((int)window.Stage.ActualWidth, (int)window.Stage.ActualHeight, 96, 96, PixelFormats.Pbgra32); bmp.Render(window.Stage);

@@ -75,7 +75,7 @@ public static class Analysis
         { "A", 4096 }, { "B", 8192 }, { "X", 16384 }, { "Y", 32768 }, { "LB", 256 }, { "RB", 512 },
         { "Start", 16 }, { "Back", 32 }, { "L3", 64 }, { "R3", 128 }, { "dpad_up", 1 }, { "dpad_down", 2 },
         { "dpad_left", 4 }, { "dpad_right", 8 }, { "dpad_up_right", 9 }, { "dpad_down_right", 10 },
-        { "dpad_down_left", 6 }, { "dpad_up_left", 5 }
+        { "dpad_down_left", 6 }, { "dpad_up_left", 5 }, { "Home", 1024 }
     };
     public static bool Cycle(List<Sample> rows, string key, int mask)
     {
@@ -111,7 +111,11 @@ public static class Analysis
         return fired;
     }
     /// <summary>Whether a step's status means its control was seen.</summary>
-    public static bool Seen(string status) => status.Contains("observed") && !status.Contains("not_observed") && !status.StartsWith("inconclusive");
+    public static bool Seen(string status) => status.Contains("observed") && !status.Contains("not_observed") && !status.StartsWith("inconclusive") || status == FirmwareOnly;
+    /// <summary>The front M button works inside the controller; nothing reaching Windows is a result, not a miss.</summary>
+    public const string FirmwareOnly = "firmware_function_no_windows_output";
+    /// <summary>A step that tests a controller function rather than a button Windows sees.</summary>
+    public static bool IsFunction(string action) => action is "M" or "turbo";
     public static bool Verify(List<Sample> rows) =>
         rows.Count >= 3 && rows.Select(x => x.Get("slot")).Distinct().Count() == 1
         && rows.Any(x => x.Get("buttons") == 0 && x.Get("lt") == 0 && x.Get("rt") == 0)
@@ -136,7 +140,7 @@ public static class Analysis
             // pressed but still held when the step ended: seen, and said so
             if (!observed && Pressed(rows, key, mask)) { result["status"] = "requested_control_observed_held_past_step"; result["interpretation"] = "Pressed during the step but not released before it ended."; return result; }
         }
-        else if (IsPaddle(action) || action == "turbo")
+        else if (IsPaddle(action) || IsFunction(action))
         {
             var fired = Fired(rows); result["output"] = fired; observed = fired.Count > 0;
         }
@@ -148,7 +152,8 @@ public static class Analysis
         }
         else observed = false;
         result["status"] = observed ? "requested_control_observed" : "inconclusive_requested_control_not_observed";
-        if (IsPaddle(action) || action == "turbo") { result["status"] = observed ? "ordinary_output_observed" : "inconclusive_no_ordinary_output"; result["independent_rear_control_verified"] = false; }
+        if (IsPaddle(action)) { result["status"] = observed ? "ordinary_output_observed" : "inconclusive_no_ordinary_output"; result["independent_rear_control_verified"] = false; }
+        if (action == "M") result["status"] = observed ? "ordinary_output_observed" : FirmwareOnly;
         result["interpretation"] = "Standard logical input observed in this run; not a sensor, calibration, physical model or configuration verdict.";
         return result;
     }
@@ -165,8 +170,12 @@ public sealed class WindowsReader : IReader
     [StructLayout(LayoutKind.Sequential)] public struct BatteryInformation { public byte type, level; }
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] static extern IntPtr LoadLibraryW(string path);
     [DllImport("kernel32.dll", CharSet = CharSet.Ansi, SetLastError = true)] static extern IntPtr GetProcAddress(IntPtr module, string name);
+    [DllImport("kernel32.dll", EntryPoint = "GetProcAddress")] static extern IntPtr GetProcAddressOrdinal(IntPtr module, IntPtr ordinal);
     [DllImport("kernel32.dll")] static extern bool FreeLibrary(IntPtr module);
-    IntPtr module; readonly GetState function; readonly GetCapabilities? capabilities; readonly GetBattery? battery;
+    IntPtr module; readonly GetState function; readonly GetState? withHome;
+    /// <summary>Whether this reader also reports the Home (Guide) button, through XInput's ordinal-100 XInputGetStateEx:
+    /// the same read as XInputGetState plus bit 0x0400. XInput 9.1.0 doesn't have it.</summary>
+    public bool HomeReadable => withHome != null; readonly GetCapabilities? capabilities; readonly GetBattery? battery;
     public string Identity { get; }
     public WindowsReader(string library)
     {
@@ -181,6 +190,8 @@ public sealed class WindowsReader : IReader
         if (address != IntPtr.Zero) capabilities = Marshal.GetDelegateForFunctionPointer<GetCapabilities>(address);
         address = GetProcAddress(module, "XInputGetBatteryInformation");
         if (address != IntPtr.Zero) battery = Marshal.GetDelegateForFunctionPointer<GetBattery>(address);
+        address = library == "XInput9_1_0.dll" ? IntPtr.Zero : GetProcAddressOrdinal(module, 100);
+        if (address != IntPtr.Zero) withHome = Marshal.GetDelegateForFunctionPointer<GetState>(address);
     }
     /// <summary>Documented, read-only XInputGetBatteryInformation for the gamepad: what the driver reports, not a
     /// measured voltage. Wired pads and many receivers report "wired" or "unknown".</summary>
@@ -192,7 +203,7 @@ public sealed class WindowsReader : IReader
         string level = info.type is 1 ? "wired (no battery level)" : info.level switch { 0 => "empty", 1 => "low", 2 => "medium", 3 => "full", _ => "level " + info.level };
         return (type, level, info.type is 2 or 3);
     }
-    public bool Read(int slot, out State state) { if (module == IntPtr.Zero) { state = default; return false; } return function((uint)slot, out state) == 0; }
+    public bool Read(int slot, out State state) { if (module == IntPtr.Zero) { state = default; return false; } return (withHome ?? function)((uint)slot, out state) == 0; }
     public object ReportedCapabilities(int slot)
     {
         if (capabilities == null || capabilities((uint)slot, 1, out var caps) != 0) return new { slot, status = "unavailable" };
@@ -221,6 +232,8 @@ public sealed class Evidence
         RawRecords.Add(row); rawBytes += size; return true;
     }
     public bool Verified;
+    /// <summary>The turbo function test and the battery probe, kept for the report (see TurboSampler and BatteryProbe.cs).</summary>
+    public Dictionary<string, object>? Turbo; public object? BatteryProbe;
     /// <summary>Extra files written into the report folder (and so into its manifest), e.g. the full scan's findings.</summary>
     public readonly Dictionary<string, string> Extra = new();
     public void Add(string action, Sample row)
@@ -237,7 +250,7 @@ public sealed class Evidence
         var utf8 = new UTF8Encoding(false);
         foreach (var entry in Records)
         {
-            if (!new[] { "preflight", "neutral", "LT", "RT", "left_stick", "right_stick", "rear_left", "rear_right", "turbo" }.Contains(entry.Key) && !Analysis.Masks.ContainsKey(entry.Key))
+            if (!new[] { "preflight", "neutral", "LT", "RT", "left_stick", "right_stick", "rear_left", "rear_right", "turbo", "M" }.Contains(entry.Key) && !Analysis.Masks.ContainsKey(entry.Key) && !Analysis.IsPaddle(entry.Key))
                 throw new IOException("Unknown evidence action");
             File.WriteAllLines(Path.Combine(folder, entry.Key + ".jsonl"), entry.Value.Select(x => JsonSerializer.Serialize(x, Json)), utf8);
         }

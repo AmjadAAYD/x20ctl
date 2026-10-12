@@ -682,6 +682,11 @@ class MenuKind(IntEnum):
     CHANGEKEY_SUPPORT = 3
     TURBO_SUPPORT = 4
     MACRO_SUPPORT = 5
+    #: Per-slot macro limits; the app asks only when descriptor D8 bit 1 is set.
+    MACRO_LIMITS = 6
+    #: The remap select list; the app asks only when descriptor D6 bit 1 is set.
+    CHANGEKEY_SELECT_LIST = 7
+    # older names, from before the two were traced in the app
     CHANGEKEY_ALT6 = 6
     CHANGEKEY_ALT7 = 7
 
@@ -916,7 +921,7 @@ def layout_from_key_list(keys) -> MaskLayout:
                       width=max(MASK_WIDTH, position), key_list=tuple(keys))
 
 
-# The list reported by an EasySMX X20 on firmware 9.01. Used when no device has
+# The list reported by an EasySMX X20 on firmware 1.23. Used when no device has
 # been consulted yet, so offline work has something sensible to validate
 # against. A connected controller always supplies its own.
 X20_MACRO_KEYS = (18, 19, 13, 14, 15, 16, 1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 93, 94)
@@ -1258,9 +1263,16 @@ class Capabilities:
     macros: int
     changekey: int
     lighting: int
-    eq: int
+    #: Descriptor byte D8. The app labels any nonzero value "EQ" in a legacy
+    #: menu, but no equalizer exists in the protocol: bit 1 is what matters. When
+    #: it is set the app asks the pad for each macro slot's limits (kind 6)
+    #: instead of assuming them. Other bits have no established meaning.
+    engine: int
     nfc: int
     sensor: int
+    #: The whole record as received, in hex, including any bytes past the ten
+    #: decoded here. Kept so a bit understood later can be read from old scans.
+    raw: str = ""
 
     # bit 0 is the rightmost; the app reads binaryString(x).charAt(7) for bit 0
     @staticmethod
@@ -1292,9 +1304,48 @@ class Capabilities:
         names = ["M1", "M2", "M3", "M4", "M5", "M6", "ML", "MR"]
         return [n for i, n in enumerate(names) if self._bit(self.macros, i)]
 
+    def slot_limits(self, limits: list[int]) -> dict[str, int]:
+        """Pair a kind-6 list with this pad's slots, by position.
+
+        The mapping is the app's own (list index i overlays slot i); it is
+        inferred from how the app consumes the list, and agrees with the X20,
+        which reports 42 for M1-M4 and 0 for the four slots it lacks.
+        """
+        return {slot: limits[i] for i, slot in enumerate(SLOT_ORDER)
+                if i < len(limits) and slot in self.macro_slots}
+
     @property
     def lighting_zones(self) -> int:
-        return sum(self._bit(self.lighting, i) for i in range(8))
+        # only zones 1-4 (bits 0-3) are traced in the app; higher bits are unexplained
+        return sum(self._bit(self.lighting, i) for i in range(4))
+
+    @property
+    def remap_select_list(self) -> bool:
+        """Descriptor D6 bit 1: remapping uses the select list (B0 kind 7)."""
+        return self._bit(self.changekey, 1)
+
+    @property
+    def new_macro_engine(self) -> bool:
+        """Descriptor D8 bit 1: macro limits are discovered per slot (kind 6)."""
+        return self._bit(self.engine, 1)
+
+    def unexplained_bits(self) -> list[tuple[int, int]]:
+        """Every set bit whose meaning nobody has traced, as (offset, bit).
+
+        Offsets index the record without its size byte, as the fields above do;
+        `descriptor_bit_label` gives the D-numbered name the research uses. Bits
+        in the whole-byte gates (turbo, sensor) count as unexplained: the byte
+        being nonzero is understood, which bit was set is not. Bytes past the
+        tenth are unexplained throughout.
+        """
+        data = bytes.fromhex(self.raw) if self.raw else bytes(
+            [self.sticks, self.triggers, self.motors, self.turbo, self.macros,
+             self.changekey, self.lighting, self.engine, self.nfc, self.sensor])
+        out = []
+        for offset, value in enumerate(data):
+            known = DESCRIPTOR_KNOWN_BITS[offset] if offset < len(DESCRIPTOR_KNOWN_BITS) else 0
+            out.extend((offset, bit) for bit in range(8) if value >> bit & 1 and not known >> bit & 1)
+        return out
 
     def supported(self) -> list[str]:
         out = []
@@ -1312,8 +1363,6 @@ class Capabilities:
             out.append("button remapping")
         if self.lighting:
             out.append("lighting")
-        if self.eq:
-            out.append("eq")
         if self.nfc:
             out.append("nfc")
         if self.sensor:
@@ -1330,6 +1379,58 @@ class Capabilities:
                 f"  lighting   {self.lighting_zones} zone(s)")
 
 
+SLOT_ORDER = ("M1", "M2", "M3", "M4", "M5", "M6", "ML", "MR")
+
+
+def decode_macro_limits(data: bytes) -> list[int]:
+    """Decode the kind-6 reply: consecutive little-endian u16 limits.
+
+    The app's units are steps in its editor, not bytes and not a measured pad
+    capacity. The list is positional (index i is slot SLOT_ORDER[i]); the reply
+    carries no slot ids. An odd length is refused rather than silently trimmed
+    as the app does, so a malformed reply stays raw for whoever looks at it.
+    """
+    if len(data) % 2:
+        raise ValueError(f"macro limits need whole pairs, got {len(data)} bytes")
+    return [data[i] | data[i + 1] << 8 for i in range(0, len(data), 2)]
+
+
+DESCRIPTOR_FIELDS = ("sticks", "triggers", "motors", "turbo", "macros",
+                     "changekey", "lighting", "engine", "nfc", "sensor")
+
+#: Every descriptor bit whose meaning is traced in the app, by (offset, bit)
+#: with the size byte stripped. Anything absent is unexplained, not reserved.
+#: The "Pro gamepad" flag is a flag the app tests, not a product identifier:
+#: the X20 sets it.
+DESCRIPTOR_BIT_NAMES = {
+    (0, 0): "right stick", (0, 1): "left stick",
+    (1, 0): "right trigger", (1, 1): "left trigger",
+    (2, 0): "left-up motor", (2, 1): "left-down motor",
+    (2, 2): "right-up motor", (2, 3): "right-down motor",
+    **{(4, i): f"macro {name}" for i, name in
+       enumerate(("M1", "M2", "M3", "M4", "M5", "M6", "ML", "MR"))},
+    (5, 1): "remap select list (B0 kind 7)",
+    **{(6, i): f"lighting zone {i + 1}" for i in range(4)},
+    (7, 1): "macro limits asked per slot (B0 kind 6)",
+    **{(8, i): f"NFC slot {i + 1}" for i in range(4)},
+    (8, 4): "right gamepad flag", (8, 5): "left gamepad flag",
+    (8, 6): '"Pro" gamepad flag', (8, 7): "has NFC",
+}
+
+#: Bits that change how the app talks to the pad, not just which pages it shows.
+DESCRIPTOR_ENGINE_BITS = frozenset({(5, 1), (7, 1)})
+
+DESCRIPTOR_KNOWN_BITS = tuple(
+    sum(1 << bit for bit in range(8) if (offset, bit) in DESCRIPTOR_BIT_NAMES)
+    for offset in range(len(DESCRIPTOR_FIELDS)))
+
+
+def descriptor_bit_label(offset: int, bit: int) -> str:
+    """`D4.bit2` style: the research numbers bytes from the size byte (D0)."""
+    field = DESCRIPTOR_FIELDS[offset] if offset < len(DESCRIPTOR_FIELDS) else "extra"
+    return f"D{offset + 1}.bit{bit} ({field})"
+
+
 def parse_capabilities(body: "Body") -> Capabilities:
     """Decode the HOST_MENU kind 1 reply.
 
@@ -1341,7 +1442,8 @@ def parse_capabilities(body: "Body") -> Capabilities:
     d = body.data
     return Capabilities(
         sticks=d[0], triggers=d[1], motors=d[2], turbo=d[3], macros=d[4],
-        changekey=d[5], lighting=d[6], eq=d[7], nfc=d[8], sensor=d[9],
+        changekey=d[5], lighting=d[6], engine=d[7], nfc=d[8], sensor=d[9],
+        raw=bytes(d).hex(),
     )
 
 
@@ -1474,8 +1576,11 @@ def parse_battery(body: "Body") -> Battery:
 
 # The pad reports its internal name, not the one on the box. Map the ones we
 # know so the app shows what the user actually owns.
+# The key is the pad's internal vendor and product id as KeyLinker reads them
+# (not USB ids). This is our own label for one owner-recorded X20; it is not a
+# vendor catalogue, so any other model keeps the name it reports.
 PRODUCT_NAMES = {
-    ("0710", "1320"): "EasySMX X20",
+    ("1013", "2009"): "EasySMX X20",
 }
 
 # Fallback by reported name, for units whose ids we have not seen.
@@ -1495,52 +1600,98 @@ def product_name(reported: str, vid: str = "", pid: str = "") -> str:
 
 @dataclass
 class DeviceInfo:
-    """Decoded reply to READ_VID_PID_VERSION.
+    """Decoded reply to READ_VID_PID_VERSION (command 0x91).
 
-    Field extraction follows ZXBTHelper.parsingVidAndPidAndVersion exactly. Note
-    that `vid` and `pid` are the vendor's own identifiers rendered as hex strings,
-    not USB ids; the USB descriptor advertises a cloned Microsoft identity that
-    has nothing to do with these.
+    The reply payload is a size byte followed by the identity record. The app
+    strips the size byte before it reads anything (ZXBTHelper.addCache), so
+    the record is: vid(2) pid(2) version(2) flags(1), seven bytes in all. Use
+    parse_identity_reply for a raw payload and parse_device_info for the record.
+
+    `vid` and `pid` are the vendor's own identifiers rendered as hex strings and
+    are not USB ids. `mode` is the operating mode (the app's field is called
+    `model`, but it is not a product id); `raw_generation` is the 3-bit
+    generation as sent, and `effective_generation` is what the app derives
+    from it and the mode.
     """
 
     vid: str
     pid: str
     version: str
     device_id: int
-    model: int | None = None
+    mode: int | None = None
     sensor: int | None = None
-    version_family: int | None = None
+    raw_generation: int | None = None
+    #: The identity record as received (without the size byte), in hex.
+    record: str = ""
+
+    @property
+    def model(self) -> int | None:
+        """Old name for `mode`."""
+        return self.mode
+
+    @property
+    def version_family(self) -> int | None:
+        """Old name for `raw_generation`."""
+        return self.raw_generation
+
+    @property
+    def effective_generation(self) -> int | None:
+        """The generation the app routes on (its is_new_2_ver), or None when the
+        record had no flags byte. Raw generation 2 counts as 1 for modes 0, 7 and
+        8 and stays 2 otherwise; any other raw generation is used as sent."""
+        if self.raw_generation is None or self.mode is None:
+            return None
+        if self.raw_generation == 2 and self.mode in (0, 7, 8):
+            return 1
+        return self.raw_generation
 
     def __str__(self) -> str:
         parts = [f"vid={self.vid} pid={self.pid} version={self.version} device_id={self.device_id}"]
-        if self.model is not None:
-            parts.append(f"model={self.model} sensor={self.sensor} family={self.version_family}")
+        if self.mode is not None:
+            parts.append(f"mode={self.mode} sensor={self.sensor} generation={self.raw_generation}")
         return "  ".join(parts)
 
 
-def parse_device_info(payload: bytes) -> DeviceInfo:
-    """Decode the payload of a RESPONSE to READ_VID_PID_VERSION.
+def parse_device_info(record: bytes) -> DeviceInfo:
+    """Decode the identity record: the reply payload without its size byte.
 
-    The trailing bitfield is only decoded when the payload is exactly 7 bytes.
-    The app explicitly skips it otherwise, and we don't guess in its place.
+    The flags byte is only decoded when the record is exactly 7 bytes. The app
+    skips it otherwise (and, for a six-byte record, then fails), so a shorter
+    or longer record keeps its vid, pid and version and leaves mode, sensor
+    and generation unknown instead of guessing.
     """
-    if len(payload) < 6:
-        raise ValueError(f"device info payload too short: {len(payload)} bytes")
+    if len(record) < 6:
+        raise ValueError(f"device info record too short: {len(record)} bytes")
 
-    vid = f"{payload[0]:02x}{payload[1]:02x}"
-    pid = f"{payload[2]:02x}{payload[3]:02x}"
+    vid = f"{record[0]:02x}{record[1]:02x}"
+    pid = f"{record[2]:02x}{record[3]:02x}"
     # Version is major in bare hex, minor zero-padded to two hex digits.
-    version = f"{payload[4]:x}.{payload[5]:02x}"
+    version = f"{record[4]:x}.{record[5]:02x}"
     device_id = int(pid, 16) >> 12  # top 4 bits of the 16-bit pid
 
-    info = DeviceInfo(vid=vid, pid=pid, version=version, device_id=device_id)
+    info = DeviceInfo(vid=vid, pid=pid, version=version, device_id=device_id,
+                      record=bytes(record).hex())
 
-    if len(payload) == 7:
-        bits = payload[6]
-        info.model = bits & 0x0F
+    if len(record) == 7:
+        bits = record[6]
+        info.mode = bits & 0x0F
         info.sensor = (bits >> 4) & 0x01
-        info.version_family = (bits >> 5) & 0x07
+        info.raw_generation = (bits >> 5) & 0x07
     return info
+
+
+def parse_identity_reply(payload: bytes) -> DeviceInfo:
+    """Decode a raw 0x91 reply payload: size byte, then the identity record.
+
+    The size byte states how long the record is. A payload shorter than that is
+    incomplete (the app keeps collecting fragments), so it is refused rather than
+    decoded from part of a record.
+    """
+    body = unwrap(payload)
+    if len(body.data) < body.declared:
+        raise ValueError(
+            f"identity reply is incomplete: {len(body.data)} of {body.declared} bytes")
+    return parse_device_info(body.data[:body.declared])
 
 
 # Factory reset, guarded by a magic payload. Restores settings only; it doesn't
@@ -1696,7 +1847,7 @@ def encode_shutdown(minutes: int | None) -> bytes:
 
 CHANGEKEY_CHUNK_SIZE = 15
 
-# The changekey source list an X20 on firmware 9.01 reports. Used only when no
+# The changekey source list an X20 on firmware 1.23 reports. Used only when no
 # device has been consulted; a connected pad supplies its own through
 # HOST_MENU kind 3.
 CHANGEKEY_DEFAULT_SOURCES = (1, 2, 3, 4, 5, 6, 7, 8, 13, 14, 15, 16, 11, 12, 93, 94)

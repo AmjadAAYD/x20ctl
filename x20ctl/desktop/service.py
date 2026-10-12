@@ -16,6 +16,7 @@ from x20ctl.client import ControllerError, X20, find_controllers
 from x20ctl.input import XInputReader, MacroRecorder
 from x20ctl.controllers import get_profile
 from x20ctl.controllers.compatibility import known_other_model_name
+from x20ctl.scanning import fingerprint
 from . import pro_discovery
 from .reports import ReportWorkflow
 from .platform_support import data_directory
@@ -32,6 +33,18 @@ from .settings import (
 )
 
 log = logging.getLogger(__name__)
+
+# which descriptor field reports each feature in the evidence table
+_REPORTED_BY = {"remaps": "changekey", "stick_curves": "sticks", "trigger_curves": "triggers",
+                "vibration": "motors", "idle_timeout": "motors", "macros": "macros",
+                "turbo": "turbo", "lighting": "lighting"}
+
+
+def _reported(caps, feature):
+    """Whether the pad's descriptor offers a feature; ones it has no byte for
+    (battery, factory reset) count as offered."""
+    field = _REPORTED_BY.get(feature)
+    return field is None or bool(getattr(caps, field, 0))
 
 
 class DeviceService:
@@ -350,6 +363,9 @@ class DeviceService:
             await candidate.connect()
             await candidate.device_info()
             await candidate.capabilities()
+            verdict = await self._assessment(candidate)
+            if verdict is not None and verdict.status == "unknown":
+                await self._log_unknown(candidate)
             self.pad = candidate
             return await self.read({})
         except Exception:
@@ -372,20 +388,54 @@ class DeviceService:
             await pad.disconnect()
         return {"connected": False}
 
+    @staticmethod
+    async def _assessment(pad):
+        """The evidence verdict for a pad, or None for a stand-in without one."""
+        assess = getattr(pad, "assessment", None)
+        return await assess() if assess else None
+
+    async def _log_unknown(self, pad):
+        """Keep what an unrecognised controller reported, once per identity.
+
+        Local only. The record is what the pad says about itself, with no BLE
+        address, so it can go into a report to get the model validated.
+        """
+        try:
+            seen = await fingerprint.collect(pad)
+            path = self._directory / "unknown-controllers.json"
+            entries = json.loads(path.read_text(encoding="utf-8")) if path.exists() else []
+            record = (seen.get("identity") or {}).get("record")
+            if not any((e.get("identity") or {}).get("record") == record and
+                       e.get("descriptor") == seen.get("descriptor") for e in entries):
+                entries.append({"name": await pad.name(), **seen})
+                self._directory.mkdir(parents=True, exist_ok=True)
+                path.write_text(json.dumps(entries[-50:], indent=2), encoding="utf-8")
+        except Exception:
+            log.warning("could not record an unrecognised controller", exc_info=True)
+
     async def read(self, _payload):
         pad = self.require_pad()
         device = await pad.device_info()
         caps = await pad.capabilities()
+        verdict = await self._assessment(pad)
         result = {
             "connected": True,
             "device": asdict(device),
             "name": await pad.name(),
             "capabilities": asdict(caps),
+            "assessment": verdict.summary() if verdict else None,
+            # reported by the pad AND proven on it: what a UI should offer to change
+            "editable": None if verdict is None else [
+                name for name in verdict.summary()["writable"] if _reported(caps, name)],
             "values": {},
             "warnings": [],
             "battery": None,
         }
         values = result["values"]
+        if verdict is not None and verdict.status != "validated":
+            result["warnings"].append(verdict.reason)
+        if verdict is not None and not verdict.may_read():
+            return result
         reads = []
         if caps.changekey:
             reads.append(("remaps", self._read_remaps))
@@ -414,6 +464,13 @@ class DeviceService:
             values["idleTimeoutMinutes"] = values["idleTimeoutMinutes"] or 0
         if "macros" in values:
             values["macros"], values["macroLoops"] = values["macros"]
+            try:
+                limits = await pad.macro_limits() if hasattr(pad, "macro_limits") else None
+            except Exception as exc:
+                limits = None
+                result["warnings"].append(f"macroLimits: {exc}")
+            if limits:
+                result["macroLimits"] = limits
         try:
             battery = await pad.battery()
             result["battery"] = asdict(battery) if battery else None

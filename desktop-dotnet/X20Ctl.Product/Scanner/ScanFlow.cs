@@ -23,7 +23,8 @@ public static class ScanFlow
     public static readonly (int Vid, int Pid, string Meaning)[] Known =
     [
         (0x045E, 0x028E, "Xbox 360-compatible XInput identity. Most pads in XInput mode, EasySMX included, use it, so it proves nothing about the model."),
-        (0x045E, 0x02E0, "Xbox Wireless (Bluetooth) identity, shared by many pads."),
+        (0x045E, 0x02E0, "Xbox Wireless (Bluetooth) identity, shared by many pads. The EasySMX X05 uses it on Bluetooth (an owner's scan, 10 Oct 2026: \"Xbox Bluetooth Gamepad\", no vendor channels, about 158 reports/s), while the Dune 8K uses 02FD."),
+        (0x045E, 0x02FD, "Xbox Wireless Controller over Bluetooth. A genuine Microsoft controller uses it, and so does the EasySMX Dune 8K on Bluetooth (an owner's scan, 10 Oct 2026: \"Xbox Bluetooth Gamepad\" by Microsoft Corporation, no vendor channels). Pick the model you hold."),
         (0x0079, 0x181C, "Seen with the EasySMX X20 in DInput mode."),
         (0x1D57, 0xFA60, "Seen with the EasySMX X20's 2.4 GHz receiver (Xenta chip)."),
         (0x1A34, 0xF517, "Reported for the EasySMX X15's 2.4 GHz receiver (research notes, not yet seen here)."),
@@ -38,11 +39,12 @@ public static class ScanFlow
     [
         ("Reads, never writes", "The scan only listens to what the controller already tells Windows. No settings, lighting, vibration or firmware are touched."),
         ("Buttons, sticks and triggers", "Every button is pressed and held so its exact timing is recorded; sticks are rolled for their full range and their resting drift; triggers are pulled for their full travel."),
-        ("Battery", "Read two ways: what Windows' controller driver reports, and, over Bluetooth, the level Windows keeps for the paired controller. Wired pads and many receivers report no level at all."),
+        ("Battery", "Read every way Windows allows: the controller driver, the level Windows keeps for paired devices, Windows' game-controller battery report, and anything the controller sends on its own over its vendor channels during the scan. Nothing is ever sent to it."),
         ("Stick resolution and report rate", "The controller's own description says how many bits each stick uses, and the scan measures how often Windows receives reports. That is a measured rate, not a promise of polling speed."),
         ("Lighting (RGB)", "Expected to be unreadable. Lighting is set inside the controller's firmware and isn't exposed to Windows, so this will most likely say \"not readable\"."),
         ("Macro paddles (M buttons)", "Each paddle gets its own step: press it when asked, and the scan records which button it sends (A, B and so on) and whether anything arrives at all. If your controller has fewer paddles, leave that step alone."),
-        ("Every step tells you what to do", "Each step shows what to press and a countdown: hold, let go, hold again, let go. Follow the timer; the scan does the rest. Gyro and turbo are left out: gyro isn't exposed this way, and turbo is a script inside the firmware."),
+        ("Home, M and turbo", "Home is read too. The M button gets a step that records whether anything reaches Windows. For turbo you turn it on for A and hold A, and the scan measures how fast it fires; then you turn it off again."),
+        ("Every step tells you what to do", "Each step shows what to press and a countdown: hold, let go, hold again, let go. Follow the timer; the scan does the rest. Gyro is left out: it isn't exposed this way."),
     ];
 
     /// <summary>The model a controller names itself as, from the product and manufacturer strings Windows lists (the Dune 8K
@@ -65,9 +67,28 @@ public static class ScanFlow
         inventory.interfaces.Any(i => i.usagePage == 1 && i.usage is 4 or 5 && (i.path.Contains("00001124-0000-1000-8000-00805f9b34fb", StringComparison.OrdinalIgnoreCase) || i.path.Contains("BTHLE", StringComparison.OrdinalIgnoreCase) || i.path.Contains("BTHENUM", StringComparison.OrdinalIgnoreCase))) ? "Bluetooth" : null;
     public static string AppVersion => System.Reflection.Assembly.GetExecutingAssembly().GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false).OfType<System.Reflection.AssemblyInformationalVersionAttribute>().FirstOrDefault()?.InformationalVersion.Split('+')[0] ?? "native-preview";
 
-    public static List<Finding> Interpret(Evidence evidence, Inventory inventory, (string Type, string Level, bool Known) battery, IReadOnlyDictionary<string, double> reportRates, double holdError, List<(string Name, int Percent)>? bluetooth = null)
+    public static List<Finding> Interpret(Evidence evidence, Inventory inventory, (string Type, string Level, bool Known) battery, IReadOnlyDictionary<string, double> reportRates, double holdError, List<(string Name, int Percent)>? bluetooth = null,
+        List<GameInputBattery.Report>? gaming = null, List<object>? heard = null, IReadOnlyDictionary<string, int>? chatter = null)
     {
         var f = new List<Finding>();
+        if (chatter != null)
+            f.Add(chatter.Count == 0
+                ? new("Button chatter", "none seen", "No press shorter than 15 ms during the check. A worn switch shows up here as presses too quick for a finger.", "measured")
+                : new("Button chatter", string.Join(" · ", chatter.OrderByDescending(c => c.Value).Select(c => $"{c.Key} {c.Value} time{(c.Value == 1 ? "" : "s")}")),
+                    "Presses shorter than 15 ms, faster than a finger can press and let go. Usually a worn or dirty switch sending an extra press; cleaning or replacing the switch fixes it. The Studio's Diagnostics tab counts it live.", "measured"));
+        if (gaming != null)
+        {
+            var levels = gaming.Where(g => g.Percent != null).ToList();
+            f.Add(levels.Count > 0
+                ? new("Controller battery", string.Join(" · ", levels.Select(g => $"{g.Percent}% {g.Status} ({(g.Name.Length > 0 ? g.Name : "controller")} {g.Vid:X4}:{g.Pid:X4})")), "Windows' game-controller battery report (Windows.Gaming.Input), the same one the Xbox Game Bar shows. Read-only.", "reported")
+                : new("Controller battery", gaming.Count == 0 ? "no controller listed" : "no level", gaming.Count == 0 ? "Windows' game-controller API didn't list a controller during the scan." : "Windows' game-controller API lists " + string.Join(", ", gaming.Select(g => $"{(g.Name.Length > 0 ? g.Name : "a controller")} {g.Vid:X4}:{g.Pid:X4} ({g.Status})")) + ", without a battery level.", "unavailable"));
+        }
+        if (heard != null)
+        {
+            var json = JsonSerializer.SerializeToElement(heard, Evidence.Json);
+            var parts = json.EnumerateArray().Select(c => $"{c.GetProperty("channel").GetString()}: {c.GetProperty("reports").GetInt32()} report{(c.GetProperty("reports").GetInt32() == 1 ? "" : "s")}" + (c.GetProperty("changingBytes").GetArrayLength() is int n and > 0 ? $", {n} changing byte{(n == 1 ? "" : "s")}" : "") + (c.GetProperty("status").GetString() is { } s && s != "listened" ? $" ({s})" : "")).ToList();
+            f.Add(new("Vendor channel listen", parts.Count == 0 ? "nothing to listen to" : string.Join(" · ", parts), parts.Count == 0 ? "No vendor channel was open for listening on this connection." : "What the controller sent on its own over its vendor channels during the scan; nothing was sent to it. A battery level it pushes by itself would appear here as a slowly changing byte.", parts.Count == 0 ? "none" : "observed"));
+        }
         f.Add(new("Battery", battery.Known ? battery.Level : battery.Type, battery.Known ? "Reported by Windows (XInput battery information)." : "Windows didn't report a level for this connection. That is normal for wired pads and many receivers.", battery.Known ? "reported" : "unavailable"));
         f.Add(bluetooth is { Count: > 0 } bt
             ? new("Bluetooth battery", string.Join(" · ", bt.Select(b => $"{b.Percent}% ({b.Name})")), "The level Windows keeps for the paired Bluetooth controller, the same number Settings shows. Read-only.", "reported")
@@ -101,10 +122,18 @@ public static class ScanFlow
         foreach (var t in new[] { "LT", "RT" })
             if (evidence.Records.TryGetValue(t, out var rows) && rows.Count > 0)
                 f.Add(new(t + " travel", $"{rows.Min(r => r.Get(t.ToLowerInvariant()))}…{rows.Max(r => r.Get(t.ToLowerInvariant()))} of 255", "Lowest and highest trigger values seen while pulling it.", "measured"));
-        var steps = evidence.Records.Where(r => r.Key != "preflight" && !Analysis.IsPaddle(r.Key)).Select(r => (r.Key, Status: (string)Analysis.Summary(r.Key, r.Value)["status"])).ToList();
+        var steps = evidence.Records.Where(r => r.Key != "preflight" && !Analysis.IsPaddle(r.Key) && !Analysis.IsFunction(r.Key)).Select(r => (r.Key, Status: (string)Analysis.Summary(r.Key, r.Value)["status"])).ToList();
         var missed = steps.Where(s => !Analysis.Seen(s.Status)).Select(s => s.Key).ToList();
         f.Add(new("Controls", $"{steps.Count - missed.Count} of {steps.Count} recognised", "Each control pressed, held and released on the chosen slot.", "measured"));
         if (missed.Count > 0) f.Add(new("Not seen", string.Join(", ", missed), "These steps didn't see the control they asked for: usually a press that was too short, the wrong button, or one held past the step. Use \"Redo the ones not seen\" to run just these again.", "measured"));
+        // what arrived instead, for buttons that weren't seen; Start and Back swapped get said plainly (a Dune 8K dongle scan, 10 Oct 2026)
+        var instead = missed.Where(Analysis.Masks.ContainsKey).Select(m => (m, Got: Analysis.Fired(evidence.Records[m]).Where(g => g != m).ToList())).Where(x => x.Got.Count > 0).ToList();
+        if (instead.Count > 0)
+        {
+            bool swapped = instead.Any(x => x.m == "Start" && x.Got.SequenceEqual(new[] { "Back" })) && instead.Any(x => x.m == "Back" && x.Got.SequenceEqual(new[] { "Start" }));
+            f.Add(new(swapped ? "Start and Back look swapped" : "Got instead", string.Join(" · ", instead.Select(x => $"{x.m} → {string.Join(" + ", x.Got)}")),
+                swapped ? "Asked for Start, Windows got Back; asked for Back, it got Start. Either the two buttons were mixed up while pressing, or this connection swaps them. Press each once in the live view to be sure." : "When these steps asked for one button, Windows received another: usually the wrong button pressed, or a remapped one.", "measured"));
+        }
         var held = steps.Where(s => s.Status.EndsWith("_held_past_step")).Select(s => s.Key).ToList();
         if (held.Count > 0) f.Add(new("Held past the step", string.Join(", ", held), "Pressed, but still held when the step ended. They count as seen; their hold time isn't measured.", "measured"));
         if (holdError >= 0) f.Add(new("Hold timing", $"±{holdError:0} ms", "How far the measured hold times were from the 2-second holds asked for (includes your own timing).", "measured"));
@@ -112,6 +141,24 @@ public static class ScanFlow
         f.Add(paddles.Count > 0
             ? new("Macro paddles", string.Join(" · ", paddles), "What Windows received when each paddle was pressed: the button it is set to send. Windows can't tell a paddle from that button, so this shows the paddle works and how it's set, not that it's a separate key. \"No input seen\" means nothing arrived, or the controller has no such paddle.", "measured")
             : new("Macro paddles", "not tested", "No paddle step was run.", "none"));
+        if (evidence.Records.TryGetValue("M", out var mRows))
+            f.Add(Analysis.Fired(mRows) is { Count: > 0 } mOut
+                ? new("M button", "sends " + string.Join(" + ", mOut), "Windows received this when the M button was tapped.", "measured")
+                : new("M button", "nothing reaches Windows", "Tapping M sent no input to Windows: it works inside the controller (setting up the paddles), which is normal for EasySMX pads.", "measured"));
+        if (evidence.Turbo is { } turbo)
+        {
+            var on = (Dictionary<string, object>)turbo["turboOn"]; var off = (Dictionary<string, object>)turbo["turboOff"]; string ts = (string)turbo["status"];
+            f.Add(new("Turbo", ts switch
+            {
+                "turbo_observed_then_off" => $"{on["pressesPerSecond"]} presses/s on A, then off",
+                "turbo_observed_still_on_after" => $"{on["pressesPerSecond"]} presses/s on A, still on after",
+                "turbo_observed" => $"{on["pressesPerSecond"]} presses/s on A",
+                "held_without_repeat" => "A stayed held, no repeats",
+                _ => "A wasn't held"
+            }, ts.StartsWith("turbo_observed")
+                ? $"With turbo on, holding A gave {on["presses"]} presses in {(double)on["toSeconds"] - (double)on["fromSeconds"]:0} s ({on["periodMsMin"]}–{on["periodMsMax"]} ms apart), sampled about {turbo["samplesPerSecond"]} times a second." + (ts.EndsWith("then_off") ? " Turned off again, A held steady." : ts.EndsWith("still_on_after") ? " After turning it off, A still repeated: turbo may still be on." : "")
+                : ts == "held_without_repeat" ? "A was held but never repeated: turbo wasn't turned on for A, or this controller's turbo works differently. Check the manual and redo the step." : "A wasn't held during the turbo step.", ts.StartsWith("turbo_observed") ? "measured" : "inconclusive"));
+        }
         f.Add(new("Lighting (RGB)", "not readable", "Lighting lives in the controller's firmware and isn't exposed through Windows input.", "by design"));
         return f;
     }
@@ -125,8 +172,8 @@ public static class ScanFlow
         var files = new Dictionary<string, object>
         {
             ["device.json"] = new { controllerName = claimedModel == "Unknown" ? (first?.product is { Length: > 0 } p ? p : "Unknown controller") : "EasySMX " + claimedModel, claimedModel, connection = transport, vid = first?.vid, pid = first?.pid,
-                interfaces = inventory.interfaces.Select(i => new { i.kind, i.vid, i.pid, i.product, i.manufacturer, i.usagePage, i.usage, i.inputLength, i.outputLength, i.featureLength, i.vendorDefined, i.axes }).ToList() },
-            ["input-captures.json"] = evidence.Records.Select(r => Analysis.Summary(r.Key, r.Value)).ToList(),
+                interfaces = inventory.interfaces.Select(i => new { i.kind, i.vid, i.pid, i.product, i.manufacturer, i.usagePage, i.usage, i.inputLength, i.outputLength, i.featureLength, i.vendorDefined, i.axes }).ToList(), batteryProbe = evidence.BatteryProbe },
+            ["input-captures.json"] = evidence.Records.Select(r => r.Key == "turbo" && evidence.Turbo != null ? evidence.Turbo : Analysis.Summary(r.Key, r.Value)).ToList(),
             ["input-mapping.json"] = findings,
             ["system.json"] = new { reportSchemaVersion = 1, collector = "x20ctl-native-controller-check", collectorVersion = "2.1.0-local", app = "X20CTL " + AppVersion, os = Environment.OSVersion.VersionString },
             ["scanner-version.txt"] = "Controller Scanner 2.1.0-local engine (X20CTL native Controller Check)",
