@@ -162,7 +162,7 @@ It only reads. It never changes settings, lighting, vibration or firmware. Sendi
 
 ![Controller Check introduction](docs/screenshots/controller-check.jpg)
 
-The Controller Check is the **Read scan**. Its partner, the **Write scan** (Tools), learns what an official app writes to a controller. You change one setting in the app on an Android phone or an iPhone while the phone's Bluetooth log records, then open the log here, and you can send the findings to X20CTL. X20CTL shows who the controller says it is, what it offers, and the bytes the app changed. X20CTL sends nothing to the controller. It's slow: plan on 20 to 40 minutes the first time.
+The Controller Check is the **Read scan**. Its partner, the **Write scan** (Tools), learns what KeyLinker, EasySMX's current app, writes to a controller (the older EasySMX app no longer works). You change one setting in KeyLinker on an Android phone or an iPhone while the phone's Bluetooth log records, then open the log here, and you can send the findings to X20CTL. X20CTL shows who the controller says it is, what it offers, and the bytes the app changed. X20CTL sends nothing to the controller. It's slow: plan on 20 to 40 minutes the first time.
 
 Without a phone log, the command line can compare the controller's own settings before and after a change:
 `x20 state save before.json --label before`, change one setting in the official app and close it,
