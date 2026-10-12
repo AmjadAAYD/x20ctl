@@ -1,6 +1,6 @@
 # Changelog
 
-## [4.1.0-preview.5] - Unreleased
+## [4.1.0-preview.5] - 2026-10-12
 
 A pre-release. Everything in [Preview 4](#410-preview4---2026-10-10) is included.
 
