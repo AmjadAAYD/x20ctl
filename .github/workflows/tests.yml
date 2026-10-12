@@ -11,13 +11,13 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
           cache: pip
       - name: Check public research boundary
         run: python tools/check_research_boundary.py
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: npm
@@ -39,7 +39,7 @@ jobs:
           python -m PyInstaller --noconfirm x20ctl.spec --distpath dist/4.1.0-preview.2
           python tools/package_desktop_preview.py
       - name: Upload Windows preview archive
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: x20ctl-windows-preview
           path: dist/x20ctl-*-win-x64.zip
