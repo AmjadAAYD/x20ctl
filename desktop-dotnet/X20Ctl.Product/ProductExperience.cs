@@ -31,10 +31,12 @@ public static class ProductLinks
 /// </summary>
 public sealed class IntroView:Grid
 {
-    private const double Total=6.25, BeatAt=1.9, ReducedFor=.4, Line=9, MorphAt=2.55, MorphFor=1.0, Samples=160;
+    private const double Total=6.05, SloganAt=4.0, FlyAt=4.95, FlyFor=.9, BeatAt=1.9, XBeatAt=3.55, ReducedFor=.4, Line=9, MorphAt=2.55, MorphFor=1.0, Samples=160;
     private static readonly double[] LedAt={.3,.52,.74};
     public IntroView Visual=>this;
-    public Button Skip {get;} public bool Reduced {get;} private bool finished,startRequested,built;
+    public Button Skip {get;} public Button Mute {get;}
+    /// <summary>The player muted the intro (from its button, M or Y). The host remembers it.</summary>
+    public bool Muted {get;private set;} public event Action<bool>? MutedChanged; public bool Reduced {get;} private bool finished,startRequested,built;
     public event Action? Completed; public event Action<double>? ZoneReveal;
     private readonly Storyboard story=new();
     private readonly System.Windows.Shapes.Rectangle fade=new(){Fill=Brushes.Black,Opacity=0,IsHitTestVisible=false}, dark=new(){Fill=Brushes.Black,IsHitTestVisible=false};
@@ -66,10 +68,25 @@ public sealed class IntroView:Grid
     private static readonly Point[] Leds={new(728,295),new(766,295),new(804,295)};
     private const double PadWidth=430, PadTop=50, PadBottom=990, PadLeft=22, PadMidX=766, LedR=13;
 
-    public IntroView(bool reduced)
+    private readonly IIntroHandoff? handoff;
+    // the dark is never empty (owner 12 Oct 2026): a faint graphite light in the middle and slow dust in the air
+    private readonly Grid backLayer=new(), xGroup=new();
+    private readonly Canvas dust=new(){IsHitTestVisible=false,Opacity=0};
+    private readonly System.Windows.Shapes.Rectangle haze=new(){IsHitTestVisible=false,Opacity=0};
+    // the slogan under the X (owner 12 Oct 2026: "Keep it easy, Keep it 20", in a type as cool as the X): squared-off
+    // Bahnschrift capitals, tracked wide and leaning with the X's blade, white shading to silver like the mark, with its
+    // glow and its own run of light
+    private const string SloganText="KEEP IT EASY, KEEP IT 20";
+    private readonly TextBlock slogan=new(){IsHitTestVisible=false,Opacity=0,RenderTransform=new TranslateTransform(0,8),
+        Foreground=new LinearGradientBrush(new GradientStopCollection{new(Color.FromRgb(214,221,234),0),new(Color.FromRgb(214,221,234),.4),new(Colors.White,.5),new(Color.FromRgb(214,221,234),.6),new(Color.FromRgb(196,205,222),1)},new Point(0,0),new Point(1,.4)){RelativeTransform=new TranslateTransform(-1,0)},
+        Effect=new System.Windows.Media.Effects.DropShadowEffect{Color=Color.FromRgb(236,241,250),BlurRadius=18,ShadowDepth=0,Opacity=0}};
+    private readonly Grid sloganBox=new(){IsHitTestVisible=false,HorizontalAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Center,RenderTransform=new SkewTransform(-12,0)};
+    public IntroView(bool reduced,bool muted=false,IIntroHandoff? handoff=null)
     {
-        Reduced=reduced;PrepareSound(); // open the sound now, so it is ready the moment the LEDs blink
-        Children.Add(new System.Windows.Shapes.Rectangle{Fill=new LinearGradientBrush(Color.FromRgb(9,10,14),Color.FromRgb(3,3,5),90)}); // black, as the X20CTL aura wants
+        Reduced=reduced;Muted=muted;this.handoff=handoff;PrepareSound(); // open the sound now, so it is ready the moment the LEDs blink
+        Children.Add(backLayer);
+        backLayer.Children.Add(new System.Windows.Shapes.Rectangle{Fill=new LinearGradientBrush(Color.FromRgb(9,10,14),Color.FromRgb(3,3,5),90)}); // black, as the X20CTL aura wants
+        haze.Fill=new RadialGradientBrush(new GradientStopCollection{new(Color.FromArgb(46,70,88,120),0),new(Color.FromArgb(18,40,52,76),.5),new(Color.FromArgb(0,20,26,40),1)}){RadiusX=.6,RadiusY=.7,Center=new(.5,.5),GradientOrigin=new(.5,.5)};
         // the reveal: a faint grey-white heart behind the mark, soft light from the corners, and a fine orange dot grid on each
         // side fading out toward the middle and the edges
         heart.Fill=new RadialGradientBrush(new GradientStopCollection{new(Color.FromArgb(56,GlowHi.R,GlowHi.G,GlowHi.B),0),new(Color.FromArgb(18,GlowHi.R,GlowHi.G,GlowHi.B),.5),new(Color.FromArgb(0,Glow.R,Glow.G,Glow.B),1)});heart.Width=1400;heart.Height=900;
@@ -82,9 +99,10 @@ public sealed class IntroView:Grid
                 OpacityMask=new RadialGradientBrush(new GradientStopCollection{new(Color.FromArgb(130,255,255,255),0),new(Color.FromArgb(60,255,255,255),.55),new(Color.FromArgb(0,255,255,255),1)}){Center=new(left?.42:.58,.42),GradientOrigin=new(left?.42:.58,.42),RadiusX=.62,RadiusY=.6}});
             return side;
         }
-        Children.Add(Dots(dotsLeft,Orange,true));Children.Add(Dots(dotsRight,Orange,false));Children.Add(aura);Children.Add(heart);
+        backLayer.Children.Add(Dots(dotsLeft,Orange,true));backLayer.Children.Add(Dots(dotsRight,Orange,false));backLayer.Children.Add(aura);backLayer.Children.Add(heart);
         SizeChanged+=(_,_)=>{dotsLeft.Width=dotsRight.Width=ActualWidth/2;};
-        Children.Add(dark); // the opening darkness; it lifts as the body appears
+        backLayer.Children.Add(dark); // the opening darkness; it lifts as the body appears
+        backLayer.Children.Add(haze);backLayer.Children.Add(dust); // above the darkness: seen from the first moment
 
         // the controller and the X share one stage, both centred on it, so the line reshapes in place
         double s=PadWidth/(2*(PadMidX-PadLeft)), stageW=StageW, stageH=StageH; var mid=new Point(stageW/2,stageH/2);
@@ -169,10 +187,24 @@ public sealed class IntroView:Grid
         SizeChanged+=(_,_)=>{double z=Math.Clamp(ActualHeight/1200,.55,1.8);((ScaleTransform)stage.RenderTransform).ScaleX=((ScaleTransform)stage.RenderTransform).ScaleY=z;};
         foreach(var e in new UIElement[]{floor,body,beat,glow,trail,line,tracer})stage.Children.Add(e);
         foreach(var (core,bloom) in leds){stage.Children.Add(bloom);stage.Children.Add(core);}
-        foreach(var e in new UIElement[]{morph,filled,filledBack,shine})stage.Children.Add(e);
-        Children.Add(stage);Children.Add(fade);
-        Skip=new Button{Content="Skip · Esc / B",HorizontalAlignment=HorizontalAlignment.Right,VerticalAlignment=VerticalAlignment.Bottom,Margin=new(0,0,36,36),Style=DS.Style("DS.Secondary"),Opacity=.8};Skip.Click+=(_,_)=>Finish();Children.Add(Skip);
-        PreviewMouseDown+=(_,e)=>{if(e.ChangedButton==MouseButton.Left&&!Skip.IsMouseOver)Finish();};
+        // the X's heartbeat (owner 12 Oct 2026): the mark swells about its own centre, so every piece of it shares one scale
+        var xBounds=Rect.Union(forward.Bounds,back.Bounds);var xBeat=new ScaleTransform(1,1,xBounds.X+xBounds.Width/2,xBounds.Y+xBounds.Height/2);
+        foreach(var e in new UIElement[]{morph,filled,filledBack})e.RenderTransform=xBeat;
+        foreach(var e in new UIElement[]{morph,filled,filledBack,shine})xGroup.Children.Add(e);stage.Children.Add(xGroup);this.xBounds=xBounds;
+        Children.Add(stage);sloganBox.Children.Add(slogan);Children.Add(sloganBox);Children.Add(fade);
+        // WPF has no letter-spacing: hair spaces between the letters track it out, a wider gap between words
+        slogan.Text=string.Join("\u200A",SloganText.Select(c=>c==' '?"\u2009\u2009":c.ToString()));
+        slogan.FontFamily=new FontFamily("Bahnschrift SemiBold, Bahnschrift, Segoe UI");slogan.FontWeight=FontWeights.SemiBold;slogan.FontStretch=FontStretches.SemiExpanded;
+        // under the X: its ink ends 289 below the stage centre at full size
+        SizeChanged+=(_,_)=>{double z=Math.Clamp(ActualHeight/1200,.55,1.8);slogan.FontSize=28*z;sloganBox.Margin=new(0,2*(289+62)*z,0,0);sloganBox.RenderTransformOrigin=new(.5,.5);};
+        Skip=new Button{Content="Skip · Esc / B",HorizontalAlignment=HorizontalAlignment.Right,VerticalAlignment=VerticalAlignment.Bottom,Margin=new(0,0,36,36),Style=DS.Style("DS.Secondary"),Opacity=.8};Skip.Click+=(_,_)=>Finish();
+        // mute (owner request 12 Oct 2026): beside Skip, remembered for the next launch; reduced motion has no sound to mute
+        Mute=new Button{HorizontalAlignment=HorizontalAlignment.Right,VerticalAlignment=VerticalAlignment.Bottom,Margin=new(0,0,36,36),Style=DS.Style("DS.Secondary"),Opacity=.8,Visibility=reduced?Visibility.Collapsed:Visibility.Visible};
+        Mute.Click+=(_,_)=>ToggleMute();ShowMute();
+        Children.Add(new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,VerticalAlignment=VerticalAlignment.Bottom,Children={Mute,Skip}});
+        Mute.Margin=new(0,0,12,36);
+        // a click anywhere else skips; the buttons' own clicks must not
+        PreviewMouseDown+=(_,e)=>{if(e.ChangedButton==MouseButton.Left&&!Skip.IsMouseOver&&!Mute.IsMouseOver)Finish();};
         Loaded+=(_,_)=>{Build();if(startRequested)Begin();if(pendingSeek is double p)Seek(p);};
         Unloaded+=(_,_)=>CompositionTarget.Rendering-=Tick;
     }
@@ -191,6 +223,7 @@ public sealed class IntroView:Grid
         g.Figures.Add(Poly(piece.Select(q=>new Point(c.X-q.x*MarkScale,c.Y-q.y*MarkScale))));
         g.Freeze();return g;
     }
+    private Rect xBounds; private Matrix stageToView; private Rect? markTarget; private bool targetsRead;
     private const int LinePoints=260;
     // the glowing mark and its aura are drawn (invisibly) from the first black frame, so their first real appearance
     // costs nothing: an effect's first render is the slowest frame it ever has
@@ -200,6 +233,7 @@ public sealed class IntroView:Grid
     private void Build()
     {
         if(built)return;built=true;
+        BuildDust();
         var ease=new CubicEase{EasingMode=EasingMode.EaseInOut};var outE=new CubicEase{EasingMode=EasingMode.EaseOut};var inE=new CubicEase{EasingMode=EasingMode.EaseIn};
         void A(DependencyObject target,string path,double a,double b,double at,double dur,IEasingFunction? e=null){var x=new DoubleAnimation(a,b,TimeSpan.FromSeconds(dur)){BeginTime=TimeSpan.FromSeconds(at),EasingFunction=e,FillBehavior=FillBehavior.HoldEnd};Storyboard.SetTarget(x,target);Storyboard.SetTargetProperty(x,new PropertyPath(path));story.Children.Add(x);}
         void DrawOn(System.Windows.Shapes.Path p,double at,double dur,IEasingFunction e){A(p,"Opacity",0,1,at,.01);A(p,"StrokeDashOffset",dash[p],0,at,dur,e);}
@@ -210,7 +244,7 @@ public sealed class IntroView:Grid
             foreach(var p in new[]{line,glow,tracer,trail,beat,morph})p.Visibility=Visibility.Collapsed;
             foreach(var (core,bloom) in leds){core.Visibility=bloom.Visibility=Visibility.Collapsed;}
             // reduced motion: the X, held for a moment, while the zone comes up underneath it
-            A(dark,"Opacity",1,0,0,.1);A(filled,"Opacity",0,1,0,.1);A(filledBack,"Opacity",0,1,0,.1);foreach(var p in new UIElement[]{heart,aura,dotsLeft,dotsRight})A(p,"Opacity",0,1,0,.1);story.Duration=TimeSpan.FromSeconds(ReducedFor);
+            A(dark,"Opacity",1,0,0,.1);A(haze,"Opacity",0,1,0,.1);A(filled,"Opacity",0,1,0,.1);A(filledBack,"Opacity",0,1,0,.1);foreach(var p in new UIElement[]{heart,aura,dotsLeft,dotsRight})A(p,"Opacity",0,1,0,.1);story.Duration=TimeSpan.FromSeconds(ReducedFor);
         }
         else
         {
@@ -223,6 +257,8 @@ public sealed class IntroView:Grid
                 A(bloom,"Opacity",0,1,t,.08);A(bloom,"Opacity",1,.5,t+.12,.4,outE);
                 A(bloom,"(UIElement.RenderTransform).(ScaleTransform.ScaleX)",.3,1,t,.35,pop);A(bloom,"(UIElement.RenderTransform).(ScaleTransform.ScaleY)",.3,1,t,.35,pop);
             }
+            // 0. the dark wakes: the faint middle light and the dust come up before anything else
+            A(haze,"Opacity",0,1,.05,1.2,outE);A(dust,"Opacity",0,1,.05,.9,outE);
             // 2. the dark lifts and the body draws itself out from the eyes, top centre down both sides (0.95-1.7)
             A(dark,"Opacity",1,0,.95,.8,ease);A(body,"Opacity",0,1,1.15,.6,outE);A(floor,"Opacity",0,1,1.25,.6,outE);
             DrawOn(line,.95,.75,ease);TraceOn(tracer,.95,.75,ease);
@@ -250,10 +286,15 @@ public sealed class IntroView:Grid
             double lit=MorphAt+MorphFor-.05;
             A(heart,"Opacity",0,1,lit,.6,outE);A(aura,"Opacity",0,1,lit+.2,.9,outE);A(dotsLeft,"Opacity",0,1,lit+.35,1.0,outE);A(dotsRight,"Opacity",0,1,lit+.35,1.0,outE);
             A(shine,"Opacity",0,1,lit+.2,.05);A(shine,"(Shape.Fill).(Brush.RelativeTransform).(TranslateTransform.X)",-.7,.7,lit+.25,.6,ease);A(shine,"Opacity",1,0,lit+.85,.1);
-            // 7. it holds, then the X slowly darkens and the aura dims with it
-            double dim=lit+1.15;A(filled,"Opacity",1,.12,dim,.8,ease);A(filledBack,"Opacity",1,.12,dim,.8,ease);foreach(var p in new UIElement[]{heart,aura,dotsLeft,dotsRight})A(p,"Opacity",1,.35,dim,.8,ease);
-            // 8. black, then the zone comes up from Frame
-            A(fade,"Opacity",0,1,Total-.85,.35,inE);
+            // the X lands with a heartbeat, dug-dug, timed with the intro sound's two thumps
+            foreach(var (at,swell,rest) in new[]{(XBeatAt,1.06,.14),(XBeatAt+.2,1.035,.45)})
+                foreach(var axis in new[]{"(UIElement.RenderTransform).(ScaleTransform.ScaleX)","(UIElement.RenderTransform).(ScaleTransform.ScaleY)"})
+                {A(filled,axis,1,swell,at,.06);A(filled,axis,swell,1,at+.06,rest,outE);} // the pieces share one transform
+            // 7. the slogan comes into focus under the X; it dissolves as the X leaves for the header (the flight is in Frame)
+            A(slogan,"Opacity",0,1,SloganAt,.45,outE);A(slogan,"(UIElement.RenderTransform).(TranslateTransform.Y)",8,0,SloganAt,.5,outE);
+            A(slogan,"(UIElement.Effect).(DropShadowEffect.Opacity)",0,.75,SloganAt+.1,.5,outE);
+            A(slogan,"(TextBlock.Foreground).(Brush.RelativeTransform).(TranslateTransform.X)",-.8,.8,SloganAt+.35,.6,ease);
+            A(slogan,"Opacity",1,0,FlyAt,.3,inE);
             story.Duration=TimeSpan.FromSeconds(Total);
         }
         story.Completed+=(_,_)=>Finish();
@@ -337,16 +378,17 @@ public sealed class IntroView:Grid
     private DateTime beganAt=DateTime.UtcNow;
     public void Start(){startRequested=true;PrepareSound();if(IsLoaded)Begin();}
     /// <summary>The intro's own sound (tools/build_intro_sound.py: LED pings, the "fwaaah" swell, the heartbeat, a riser,
-    /// then "ba-pa!" as the X lands). Off for reduced motion and for development reviews.</summary>
+    /// then "ba-pa!" as the X lands). Off for reduced motion, for development reviews and when the player muted it.</summary>
     public static bool SoundEnabled {get;set;}=true;
     private System.Windows.Media.MediaPlayer? sound;
     private bool soundReady,soundWanted;
     /// <summary>Opens the sound before the intro starts (opening it on demand made the LED pings lag their lights).</summary>
     private void PrepareSound()
     {
-        if(sound!=null||!SoundEnabled||Reduced||ReviewSandbox.Active)return;
+        if(sound!=null||!SoundEnabled||Muted||Reduced||ReviewSandbox.Active)return;
         string path=System.IO.Path.Combine(AppContext.BaseDirectory,"Brand","intro.wav");if(!System.IO.File.Exists(path))return;
-        try{sound=new System.Windows.Media.MediaPlayer{Volume=.85};sound.MediaOpened+=(_,_)=>{soundReady=true;if(soundWanted)PlayInSync();};sound.Open(new Uri(path));}
+        // a player muted before it opened must not mark its replacement ready
+        try{var player=new System.Windows.Media.MediaPlayer{Volume=.85};soundReady=false;sound=player;player.MediaOpened+=(_,_)=>{if(player!=sound)return;soundReady=true;if(soundWanted)PlayInSync();};player.Open(new Uri(path));}
         catch(Exception error) when(error is InvalidOperationException or System.IO.IOException or UriFormatException){sound=null;}
     }
     private void PlaySound(){PrepareSound();soundWanted=true;if(soundReady)PlayInSync();}
@@ -363,15 +405,91 @@ public sealed class IntroView:Grid
         var fade=new System.Windows.Threading.DispatcherTimer{Interval=TimeSpan.FromMilliseconds(30)};int step=0;double from=playing.Volume;
         fade.Tick+=(_,_)=>{step++;playing.Volume=from*Math.Max(0,1-step/10.0);if(step>=10){fade.Stop();playing.Stop();playing.Close();}};fade.Start();
     }
-    private void Begin(){if(finished)return;Build();beganAt=DateTime.UtcNow;story.Begin(this,true);PlaySound();CompositionTarget.Rendering-=Tick;CompositionTarget.Rendering+=Tick;}
-    public void Finish(){if(finished)return;finished=true;CompositionTarget.Rendering-=Tick;story.Stop(this);if((DateTime.UtcNow-beganAt).TotalSeconds<Total-.3)StopSound();else sound=null;ZoneReveal?.Invoke(1);Completed?.Invoke();}
+    /// <summary>Mute fades the sound out at once; unmuting picks it up again at the picture's moment.</summary>
+    public void ToggleMute()
+    {
+        if(Reduced||finished)return;Muted=!Muted;ShowMute();
+        if(Muted){soundWanted=false;soundReady=false;StopSound();}else if(begun)PlaySound();else PrepareSound();
+        MutedChanged?.Invoke(Muted);
+    }
+    private void ShowMute()=>Mute.Content=Muted?"Unmute · M / Y":"Mute · M / Y";
+    private bool begun;
+    private void Begin(){if(finished)return;Build();beganAt=DateTime.UtcNow;begun=true;story.Begin(this,true);PlaySound();CompositionTarget.Rendering-=Tick;CompositionTarget.Rendering+=Tick;}
+    public void Finish(){if(finished)return;finished=true;CompositionTarget.Rendering-=Tick;story.Stop(this);if((DateTime.UtcNow-beganAt).TotalSeconds<Total-.3)StopSound();else sound=null;ZoneReveal?.Invoke(1);handoff?.HandoffEnd();Completed?.Invoke();}
     /// <summary>Review hook: freeze the cutscene at time t (seconds).</summary>
     public void Seek(double t){if(!IsLoaded){pendingSeek=t;return;}Build();CompositionTarget.Rendering-=Tick;seekAt=TimeSpan.FromSeconds(t);story.Begin(this,true);story.Seek(this,TimeSpan.FromSeconds(t),TimeSeekOrigin.BeginTime);story.Pause(this);Frame(t);}
     private void Tick(object? s,EventArgs e)=>Frame(Elapsed);
     private void Frame(double t)
     {
         Morph(t);
-        double start=Duration-.5,amount=Math.Clamp((t-start)/.5,0,1);amount=1-Math.Pow(1-amount,3);
-        Opacity=1-amount;ZoneReveal?.Invoke(amount);Skip.Opacity=.8*(1-amount);
+        if(Reduced)
+        {
+            double start=Duration-.5,amount=Math.Clamp((t-start)/.5,0,1);amount=1-Math.Pow(1-amount,3);
+            Opacity=1-amount;ZoneReveal?.Invoke(amount);handoff?.Handoff(1,1,1,1);Skip.Opacity=Mute.Opacity=.8*(1-amount);return;
+        }
+        // the hand-over (owner 12 Oct 2026): the X travels from the middle to the logo's place at the top left, shrinking
+        // as it goes, while the dark fades and the Zone grows in around it; it lands on the header mark exactly
+        if(t>=FlyAt&&!targetsRead)ReadTargets();
+        double q=CubicBezier(Win(t,FlyAt,FlyAt+FlyFor),.16,.84,.24,1);
+        if(markTarget is Rect target&&q>0)
+        {
+            var from=Rect.Transform(xBounds,stageToView);var inverse=stageToView;inverse.Invert();
+            xGroup.RenderTransform=new MatrixTransform(stageToView*Fly(from,target,q)*inverse);
+        }
+        else xGroup.RenderTransform=null;
+        double brand=markTarget==null?Smooth(Win(t,FlyAt,FlyAt+.5)):Smooth(Win(q,.85,1));
+        xGroup.Opacity=1-brand;
+        backLayer.Opacity=1-Smooth(Win(t,FlyAt+.05,FlyAt+.7));
+        double landed=Win(t,FlyAt+FlyFor,FlyAt+FlyFor+.14);
+        if(t>=FlyAt)handoff?.Handoff(Win(t,FlyAt,FlyAt+FlyFor+.1),brand,1,landed>0&&landed<1?1+.03*Math.Sin(Math.PI*landed):1);
+        Skip.Opacity=Mute.Opacity=.8*(1-Smooth(Win(t,FlyAt,FlyAt+.3)));
+        // nearly settled: the Zone already answers the mouse
+        IsHitTestVisible=t<Total-.1;
+        if(handoff==null)ZoneReveal?.Invoke(Smooth(Win(t,FlyAt,FlyAt+FlyFor)));
+    }
+    private void ReadTargets()
+    {
+        targetsRead=true;
+        try{stageToView=((Transform)stage.TransformToVisual(this)).Value;markTarget=handoff?.MarkTarget(this);handoff?.HandoffBegin();}
+        catch(Exception error) when(error is InvalidOperationException or InvalidCastException){markTarget=null;}
+    }
+    /// <summary>From the middle to the header: one transform, position and size together, along a curve that runs left
+    /// before it rises into the tile from below, so it never crosses the word beside it.</summary>
+    private static Matrix Fly(Rect from,Rect to,double q)
+    {
+        var m=new Matrix();double scale=Math.Exp(Math.Log(Math.Min(to.Width/from.Width,to.Height/from.Height))*q);
+        Point a=new(from.X+from.Width/2,from.Y+from.Height/2),b=new(to.X+to.Width/2,to.Y+to.Height/2),c=new(a.X+(b.X-a.X)*.9,a.Y+(b.Y-a.Y)*.2);
+        double u=1-q;var at=new Point(u*u*a.X+2*u*q*c.X+q*q*b.X,u*u*a.Y+2*u*q*c.Y+q*q*b.Y);
+        m.Translate(-a.X,-a.Y);m.Scale(scale,scale);m.Translate(at.X,at.Y);return m;
+    }
+    /// <summary>Slow dust: a few dozen faint specks drifting upward across the dark, over the whole intro. Four layers of
+    /// twenty, each cached as one bitmap and moved as one, nearer layers a little faster, so it costs four moves a frame.</summary>
+    private void BuildDust()
+    {
+        double w=ActualWidth>0?ActualWidth:1600,h=ActualHeight>0?ActualHeight:900;var rng=new Random(20261012);
+        dust.Width=w;dust.Height=h;
+        for(int l=0;l<4;l++)
+        {
+            var layer=new Canvas{Width=w,Height=h,IsHitTestVisible=false,CacheMode=new BitmapCache(1)};var drift=new TranslateTransform();layer.RenderTransform=drift;dust.Children.Add(layer);
+            for(int i=0;i<20;i++)
+            {
+                bool soft=rng.NextDouble()<.2;double r=soft?3+rng.NextDouble()*4:.6+rng.NextDouble()*1.2;
+                var speck=new System.Windows.Shapes.Ellipse{Width=2*r,Height=2*r,Opacity=soft?.05+rng.NextDouble()*.06:.08+rng.NextDouble()*.22,
+                    Fill=soft?new RadialGradientBrush(Color.FromArgb(200,220,228,240),Color.FromArgb(0,220,228,240)):new SolidColorBrush(Color.FromRgb(226,232,242))};
+                Canvas.SetLeft(speck,rng.NextDouble()*w);Canvas.SetTop(speck,rng.NextDouble()*h);layer.Children.Add(speck);
+            }
+            foreach(var (path,to) in new[]{("(UIElement.RenderTransform).(TranslateTransform.X)",(l%2==0?1:-1)*(6+5*l)),("(UIElement.RenderTransform).(TranslateTransform.Y)",-(14+10*l))})
+            {var x=new DoubleAnimation(0,to,TimeSpan.FromSeconds(Total)){FillBehavior=FillBehavior.HoldEnd};Storyboard.SetTarget(x,layer);Storyboard.SetTargetProperty(x,new PropertyPath(path));story.Children.Add(x);}
+        }
+    }
+    private static double Win(double t,double a,double b)=>Math.Clamp((t-a)/(b-a),0,1);
+    private static double Smooth(double x){x=Math.Clamp(x,0,1);return x*x*(3-2*x);}
+    /// <summary>CSS-style cubic-bezier(x1, y1, x2, y2) easing.</summary>
+    private static double CubicBezier(double x,double x1,double y1,double x2,double y2)
+    {
+        if(x<=0)return 0;if(x>=1)return 1;double u=x;
+        for(int i=0;i<8;i++){double cx=Bz(u,x1,x2)-x,d=3*(1-u)*(1-u)*x1+6*(1-u)*u*(x2-x1)+3*u*u*(1-x2);if(Math.Abs(d)<1e-6)break;u=Math.Clamp(u-cx/d,0,1);}
+        return Bz(u,y1,y2);
+        static double Bz(double t,double a,double b)=>3*(1-t)*(1-t)*t*a+3*(1-t)*t*t*b+t*t*t;
     }
 }

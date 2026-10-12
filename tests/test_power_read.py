@@ -61,7 +61,7 @@ def test_snapshot_exposes_the_timeout_from_the_motor_record():
 
 
 def test_the_pads_factory_record_reads_as_ten_minutes():
-    """Verbatim from an X20 on firmware 9.01, via tools/report.py."""
+    """Verbatim from an X20 on firmware 1.23 (older notes read it as 9.01), via tools/report.py."""
     assert _snapshot(bytes.fromhex("b2b20000c0d40100")).shutdown == 10
 
 

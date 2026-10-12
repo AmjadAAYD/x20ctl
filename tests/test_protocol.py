@@ -131,22 +131,62 @@ def test_real_hardware_reply_decodes():
 
 
 def test_device_info_from_real_hardware():
-    info = p.parse_device_info(p.parse(CAPTURED_REPLY).payload)
-    assert info.vid == "0710"
-    assert info.pid == "1320"
-    assert info.version == "9.01"
-    assert info.device_id == 0x1
-    # 8-byte payload: the app doesn't decode the trailing bitfield, nor do we
-    assert info.model is None
-    assert info.sensor is None
-
-
-def test_device_info_decodes_bitfield_only_at_seven_bytes():
-    seven = bytes([0x07, 0x10, 0x13, 0x20, 0x09, 0x01, 0b010_1_0011])
-    info = p.parse_device_info(seven)
-    assert info.model == 0b0011
+    # The first payload byte (07) is the size of the record, not part of it.
+    info = p.parse_identity_reply(p.parse(CAPTURED_REPLY).payload)
+    assert info.vid == "1013"
+    assert info.pid == "2009"
+    assert info.version == "1.23"
+    assert info.device_id == 0x2
+    # 0x52 = generation 2, sensor 1, operating mode 2
+    assert info.mode == 2
     assert info.sensor == 1
-    assert info.version_family == 0b010
+    assert info.raw_generation == 2
+    assert info.effective_generation == 2
+    assert str(info).startswith("vid=1013 pid=2009 version=1.23 device_id=2")
+
+
+def test_old_names_still_answer():
+    info = p.parse_identity_reply(p.parse(CAPTURED_REPLY).payload)
+    assert info.model == info.mode == 2
+    assert info.version_family == info.raw_generation == 2
+
+
+def test_device_info_decodes_flags_only_in_a_seven_byte_record():
+    record = bytes([0x10, 0x13, 0x20, 0x09, 0x01, 0x23, 0b010_1_0011])
+    info = p.parse_device_info(record)
+    assert info.mode == 0b0011
+    assert info.sensor == 1
+    assert info.raw_generation == 0b010
+    # six or eight bytes: the fields before the flags are kept, nothing is guessed
+    for other in (record[:6], record + b"\x00"):
+        partial = p.parse_device_info(other)
+        assert (partial.vid, partial.pid, partial.version) == ("1013", "2009", "1.23")
+        assert partial.mode is None and partial.raw_generation is None
+        assert partial.effective_generation is None
+
+
+def test_effective_generation_follows_the_apps_remap():
+    def info(mode, generation):
+        return p.parse_device_info(bytes([0x10, 0x13, 0x20, 0x09, 0x01, 0x23, generation << 5 | mode]))
+    assert info(0, 2).effective_generation == 1
+    assert info(7, 2).effective_generation == 1
+    assert info(8, 2).effective_generation == 1
+    assert info(2, 2).effective_generation == 2
+    assert info(7, 1).effective_generation == 1
+    assert info(3, 3).effective_generation == 3
+
+
+def test_identity_reply_needs_the_whole_record():
+    full = bytes.fromhex("0710132009012352")
+    assert p.parse_identity_reply(full).vid == "1013"
+    # a record longer than its declared size is cut at the declared size
+    assert p.parse_identity_reply(full + b"\xff").mode == 2
+    for bad in (b"", full[:5]):
+        try:
+            p.parse_identity_reply(bad)
+        except ValueError:
+            continue
+        raise AssertionError("expected ValueError for an incomplete reply")
 
 
 def test_device_info_rejects_short_payload():
@@ -322,8 +362,17 @@ def test_x20_exposes_remapping_and_macros():
     assert "button remapping" in caps.supported()
     assert "macros" in caps.supported()
     assert set(caps.supported()) == {
-        "sticks", "triggers", "vibration", "macros", "button remapping", "eq", "nfc",
+        "sticks", "triggers", "vibration", "macros", "button remapping", "nfc",
     }
+
+
+def test_descriptor_byte_8_selects_the_macro_engine_not_an_equalizer():
+    caps = p.parse_capabilities(p.unwrap(CAPABILITY_RECORD))
+    assert caps.engine == 0x02
+    assert caps.new_macro_engine
+    assert "eq" not in caps.supported()
+    legacy = p.parse_capabilities(p.Body(declared=10, data=bytes([3, 3, 3, 0, 0x0F, 1, 0, 0x01, 0xC0, 0])))
+    assert not legacy.new_macro_engine
 
 
 def test_capabilities_rejects_short_record():
@@ -670,7 +719,7 @@ def test_a_short_changekey_record_is_rejected():
 def test_a_list_stops_at_its_count_not_at_the_end_of_the_buffer():
     """The X20 answers kind 4 with its turbo record twice over. Reading to the
     end of the buffer decodes the second copy as a continuation and gives 25
-    keys for a list of 12. Bytes captured from a live pad on 9.01."""
+    keys for a list of 12. Bytes captured from a live pad on 1.23."""
     doubled = bytes.fromhex("0c01880d840c01880d84")
     keys = p.decode_key_list(doubled)
     assert keys == [1, 2, 3, 4, 5, 6, 7, 8, 13, 14, 15, 16]

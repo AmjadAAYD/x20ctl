@@ -1,0 +1,162 @@
+# Builds and publishes a release from a tag (v4.1.0-preview.5 and so on): the single Windows exe, signed through the
+# SignPath Foundation once it is set up, and the Linux Controller Check, always together, then SHA256SUMS.txt. The
+# release is filled as a draft and published last, because releases are immutable once published.
+#
+# Signing turns on by itself when the repository has the variable SIGNPATH_ORGANIZATION_ID and the secret
+# SIGNPATH_API_TOKEN (Settings -> Secrets and variables -> Actions). Optional variables: SIGNPATH_PROJECT_SLUG
+# (default x20ctl) and SIGNPATH_POLICY_SLUG (default release-signing). Without them the exe is published unsigned.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to release, e.g. v4.1.0-preview.5
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  TAG: ${{ github.event.inputs.tag || github.ref_name }}
+
+jobs:
+  windows:
+    name: Windows exe
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Version from the tag
+        shell: pwsh
+        run: |
+          $version = "$env:TAG".TrimStart('v')
+          if ($version -notmatch '^\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$') { throw "Tag $env:TAG is not a version" }
+          "VERSION=$version" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+      - name: Build the native engine
+        run: |
+          cmake -S native-core -B artifacts/product-engine-phase/native-build -A x64
+          cmake --build artifacts/product-engine-phase/native-build --config Release --target x20ctl-engine
+      - name: Fetch PC mode's driver installers (pinned)
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $pins = @{
+            'ViGEmBus_1.22.0_x64_x86_arm64.exe' = @('nefarius/ViGEmBus', 'v1.22.0', '89220a7865076b342892f98865f3499fb7c4cfd673159e89d352c360fd014c6a')
+            'HidHide_1.5.230_x64.exe' = @('nefarius/HidHide', 'v1.5.230.0', 'f4bbbcb82e6258641b887c74bc81c4c5f66e4aa811808dfc304347687b7605f6')
+          }
+          New-Item -ItemType Directory -Force vendor/drivers | Out-Null
+          foreach ($name in $pins.Keys) {
+            $repo, $tag, $sha = $pins[$name]
+            gh release download $tag --repo $repo --pattern $name --dir vendor/drivers --clobber
+            $actual = (Get-FileHash "vendor/drivers/$name" -Algorithm SHA256).Hash.ToLower()
+            if ($actual -ne $sha) { throw "$name has SHA-256 $actual, expected $sha" }
+          }
+      - name: Publish the single exe
+        shell: pwsh
+        run: |
+          dotnet publish desktop-dotnet/X20Ctl.Product/X20Ctl.Product.csproj -c Release -r win-x64 --self-contained true `
+            -p:Version=$env:VERSION -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:PublishReadyToRun=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true -p:IncludeAllContentForSelfExtract=true `
+            -p:EngineBesideExe=false -p:ElevateAtLaunch=true -p:DebugType=none -o publish
+          New-Item -ItemType Directory -Force out | Out-Null
+          Copy-Item publish/X20Ctl.exe "out/X20CTL-$env:VERSION-windows-x64.exe"
+      - name: Upload the unsigned exe
+        id: unsigned
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-unsigned
+          path: out/*.exe
+          if-no-files-found: error
+      - name: Sign through the SignPath Foundation
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG || 'x20ctl' }}
+          signing-policy-slug: ${{ vars.SIGNPATH_POLICY_SLUG || 'release-signing' }}
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed
+      - name: Collect the exe to publish
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force final | Out-Null
+          $from = if (Test-Path signed) { 'signed' } else { 'out' }
+          Copy-Item "$from/*.exe" final/
+          if ($from -eq 'signed') {
+            $sig = Get-AuthenticodeSignature (Get-ChildItem final/*.exe | Select-Object -First 1)
+            if ($sig.Status -ne 'Valid') { throw "The signed exe's signature is $($sig.Status)" }
+            "Signed by: $($sig.SignerCertificate.Subject)"
+          } else { 'Published unsigned: SignPath is not set up for this repository yet.' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: final/*.exe
+          if-no-files-found: error
+
+  linux:
+    name: Linux Controller Check
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+          persist-credentials: false
+      - name: Package it
+        run: |
+          version="${TAG#v}"
+          python3 -m py_compile tools/linux_controller_check/x20ctl-check.py tools/linux_controller_check/x20ctl-pcmode.py
+          mkdir -p pkg out
+          cp tools/linux_controller_check/x20ctl-check.py tools/linux_controller_check/x20ctl-pcmode.py tools/linux_controller_check/README.txt LICENSE NOTICE pkg/
+          chmod 755 pkg/x20ctl-check.py
+          (cd pkg && zip -X "../out/X20CTL-${version}-linux-check.zip" README.txt x20ctl-check.py x20ctl-pcmode.py LICENSE NOTICE)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: out/*.zip
+          if-no-files-found: error
+
+  release:
+    name: Publish the release
+    needs: [windows, linux]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          path: assets
+          pattern: '{windows,linux}'
+          merge-multiple: true
+      - name: Checksums and notes
+        run: |
+          cd assets && sha256sum *.exe *.zip > SHA256SUMS.txt && cat SHA256SUMS.txt && cd ..
+          python3 tools/release_notes.py "$TAG" > notes.md
+      - name: Create, fill, then publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${TAG#v}"
+          title="X20CTL $(echo "$version" | sed -E 's/-preview\.([0-9]+)$/ Preview \1/')"
+          prerelease=""; case "$version" in *-*) prerelease="--prerelease";; esac
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft $prerelease --verify-tag --title "$title" --notes-file notes.md
+          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" assets/*.exe assets/*.zip assets/SHA256SUMS.txt
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false

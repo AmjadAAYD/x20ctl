@@ -28,7 +28,7 @@ public sealed class ControllerShowcase : Grid
     private readonly TranslateTransform scanMove = new();
     private readonly Ellipse floor = new() { Width = 900, Height = 70, VerticalAlignment = VerticalAlignment.Bottom, Margin = new(0, 0, 0, 40), IsHitTestVisible = false };
     private readonly LinearGradientBrush photoMask = Mask(true), holoMask = Mask(false);
-    private bool swaying, motion = DS.Motion; private TimeSpan start; private double swayWeight = 1, manualYaw = double.NaN;
+    private bool swaying, motion = DS.Motion; private double swayWeight = 1, manualYaw = double.NaN;
     private double travelL = 36, travelR = 36;
     public string ModelId { get; private set; } = "";
     /// <summary>Fixed presentation angle (degrees, negative turns the face to the left). The float keeps running.</summary>
@@ -108,14 +108,17 @@ public sealed class ControllerShowcase : Grid
     }
 
     // ----- sway -----
-    private void StartSway() { if (!motion) { yaw.Angle = 0; UpdateFloor(0); return; } if (rendering) return; rendering = true; start = TimeSpan.Zero; CompositionTarget.Rendering += Tick; }
-    private void StopSway() { if (!rendering) return; rendering = false; CompositionTarget.Rendering -= Tick; }
-    private bool rendering;
+    // a 30 Hz timer, not CompositionTarget.Rendering: a Rendering handler makes WPF redraw the whole window at the display
+    // rate for as long as the Studio is open (measured 11 Oct 2026), and this float moves well under a pixel per frame
+    private readonly System.Windows.Threading.DispatcherTimer swayTimer = new(System.Windows.Threading.DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(33) };
+    private readonly System.Diagnostics.Stopwatch swayClock = new();
+    private void StartSway() { if (!motion) { yaw.Angle = 0; UpdateFloor(0); return; } if (rendering) return; rendering = true; swayClock.Restart(); if (!swayHooked) { swayHooked = true; swayTimer.Tick += Tick; } swayTimer.Start(); }
+    private void StopSway() { if (!rendering) return; rendering = false; swayTimer.Stop(); }
+    private bool rendering, swayHooked;
     private void Tick(object? sender, EventArgs e)
     {
-        var now = ((RenderingEventArgs)e).RenderingTime; if (start == TimeSpan.Zero) start = now;
         if (!double.IsNaN(manualYaw)) return;
-        double t = (now - start).TotalSeconds;
+        double t = swayClock.Elapsed.TotalSeconds;
         // weightless float: a slow rise and fall, nothing else (the owner rejected the left/right turn)
         double lift = (Math.Sin(t * 2 * Math.PI / 5.6) * .5 + .5) * swayWeight;
         yaw.Angle = Tilt; pitch.Angle = Tilt == 0 ? 0 : 6; bob.OffsetY = lift * 22;

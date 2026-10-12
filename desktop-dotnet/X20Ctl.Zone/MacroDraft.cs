@@ -8,7 +8,23 @@ public sealed class MacroDraft(string modelId)
     public static readonly string[] Slots=["M1","M2","M3","M4"];
     public static readonly string[] Inputs=["A","B","X","Y","LB","RB","LT","RT","L3","R3","DPAD_UP","DPAD_DOWN","DPAD_LEFT","DPAD_RIGHT","SELECT","START"];
     private readonly Dictionary<string,List<MacroEvent>> sequences=Slots.ToDictionary(s=>s,_=>new List<MacroEvent>());
-    public bool CanEdit=>modelId=="x20";
+    /// <summary>PC mode applies the draft on the PC, so any model can be edited while it's on.</summary>
+    public bool PcMode {get;set;}
+    public bool CanEdit=>modelId=="x20" || PcMode;
+    /// <summary>PC mode can't see a back paddle (EasySMX paddles send ordinary buttons, never their own), so each slot
+    /// is played by a real button picked here. Null: the slot isn't used by PC mode.</summary>
+    private readonly Dictionary<string,string?> triggers=Slots.ToDictionary(s=>s,_=>(string?)null);
+    public static readonly string[] TriggerInputs=[..Inputs,"HOME"];
+    public string? Trigger(string slot)=>triggers[slot];
+    /// <summary>One button plays one slot: giving a button to a slot takes it from any other.</summary>
+    public void SetTrigger(string slot,string? button)
+    {
+        if(!CanEdit)throw new InvalidOperationException("Macro configuration is unverified for this model.");
+        if(!triggers.ContainsKey(slot))throw new ArgumentException("Unknown macro slot.",nameof(slot));
+        if(button!=null && !TriggerInputs.Contains(button))throw new ArgumentException("Unknown button.",nameof(button));
+        if(button!=null)foreach(var other in Slots)if(triggers[other]==button)triggers[other]=null;
+        triggers[slot]=button;
+    }
     public bool CanApplyHardware=>false;
     public int ModifiedSlots=>sequences.Values.Count(s=>s.Count>0);
     public IReadOnlyList<MacroEvent> this[string slot]=>sequences[slot].AsReadOnly();

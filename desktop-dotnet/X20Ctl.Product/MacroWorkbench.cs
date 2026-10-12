@@ -72,6 +72,10 @@ public sealed class MacroWorkbench
     private bool updating;
     private Window? previewWindow;
     private static readonly Color PauseTone=Color.FromRgb(150,165,192);
+    private sealed record TriggerPick(string Key,string Value){public override string ToString()=>Value;}
+    private readonly ComboBox trigger=new(){MinHeight=36,FontSize=14,SelectedValuePath="Key",ToolTip="PC mode can't see a back paddle. Pick the button that plays this slot; it plays the macro instead of its usual job."};
+    private static string TriggerShort(string b)=>b switch{"DPAD_UP"=>"D↑","DPAD_DOWN"=>"D↓","DPAD_LEFT"=>"D←","DPAD_RIGHT"=>"D→","SELECT"=>"View","START"=>"Menu","HOME"=>"Home",_=>b};
+    private static string TriggerLabel(string b)=>b switch{"DPAD_UP"=>"D-pad up","DPAD_DOWN"=>"D-pad down","DPAD_LEFT"=>"D-pad left","DPAD_RIGHT"=>"D-pad right","SELECT"=>"View","START"=>"Menu","HOME"=>"Home","L3"=>"Left stick click","R3"=>"Right stick click","LB"=>"Left bumper","RB"=>"Right bumper","LT"=>"Left trigger","RT"=>"Right trigger",_=>b};
     private const string ReadOnly="Macros for this controller are a preview until its settings are verified. Nothing is stored or sent.";
     public MacroWorkbench(MacroDraft draft,ControllerLayout layout,FrameworkElement owner,Action<Button> register,bool reducedMotion,string model="x20")
     {
@@ -82,14 +86,24 @@ public sealed class MacroWorkbench
 
         // left: the four back paddles on the real (relit) rear controller, large enough to read
         var art=new Grid {Width=1536,Height=1024};art.Children.Add(new PhotoController(model,true));var map=new Canvas();art.Children.Add(map);
-        foreach(var region in layout.Controls.Where(r=>r.Role=="macro")) {var shape=new PhysicalHotspot(region,!reducedMotion,true){ToolTip=$"{region.Key} paddle"};Canvas.SetLeft(shape,region.Bounds.X*1536);Canvas.SetTop(shape,region.Bounds.Y*1024);shape.Click+=(_,_)=>SelectSlot(region.Key);map.Children.Add(shape);paddles.Add(region.Key,shape);}
+        // only the back buttons the draft has a slot for: the X20 Pro also maps M5 and M6, and clicking them threw
+        foreach(var region in layout.Controls.Where(r=>r.Role=="macro" && MacroDraft.Slots.Contains(r.Key))) {var shape=new PhysicalHotspot(region,!reducedMotion,true){ToolTip=$"{region.Key} paddle"};Canvas.SetLeft(shape,region.Bounds.X*1536);Canvas.SetTop(shape,region.Bounds.Y*1024);shape.Click+=(_,_)=>SelectSlot(region.Key);map.Children.Add(shape);paddles.Add(region.Key,shape);}
         var rear=new Viewbox {Child=art,Stretch=Stretch.Uniform,Margin=new(-18,-6,-18,0)};
         var rail=new UniformGrid {Rows=1,Margin=new(-4,10,-4,0)};
         // each model shows its own back buttons (the draft holds M1 to M4)
         var own=ModelProfiles.For(model).Paddles.Where(MacroDraft.Slots.Contains).ToArray();
         foreach(string slot in own.Length>0?own:MacroDraft.Slots) rail.Children.Add(SlotCard(slot));
-        var paddleBody=new DockPanel();DockPanel.SetDock(rail,System.Windows.Controls.Dock.Bottom);paddleBody.Children.Add(rail);paddleBody.Children.Add(rear);
-        top.Children.Add(Kit.Panel("Back paddles","Pick the paddle that plays this sequence",null,paddleBody));
+        var paddleBody=new DockPanel();
+        if(Draft.PcMode)
+        {   // PC mode never sees a paddle (EasySMX paddles send ordinary buttons), so a real button plays each slot
+            var pick=new DockPanel{Margin=new(0,10,0,0)};var label=Kit.Text("In PC mode, played by",14,"DS.TextSoft").Also(t=>{t.VerticalAlignment=VerticalAlignment.Center;t.Margin=new(0,0,10,0);});
+            DockPanel.SetDock(label,System.Windows.Controls.Dock.Left);pick.Children.Add(label);pick.Children.Add(trigger);
+            trigger.ItemsSource=new[]{new TriggerPick("","Not used")}.Concat(MacroDraft.TriggerInputs.Select(b=>new TriggerPick(b,TriggerLabel(b)))).ToList();
+            trigger.SelectionChanged+=(_,_)=>{if(updating||trigger.SelectedValue is not string b)return;Draft.SetTrigger(Slot,b.Length==0?null:b);Refresh();Changed?.Invoke();};
+            DockPanel.SetDock(pick,System.Windows.Controls.Dock.Bottom);paddleBody.Children.Add(pick);
+        }
+        DockPanel.SetDock(rail,System.Windows.Controls.Dock.Bottom);paddleBody.Children.Add(rail);paddleBody.Children.Add(rear);
+        top.Children.Add(Kit.Panel("Back paddles",Draft.PcMode?"Pick a slot, then the button that plays it":"Pick the paddle that plays this sequence",null,paddleBody));
 
         // right: heading and actions, event cards, lane timeline, footer
         var page=new Grid();page.RowDefinitions.Add(new(){Height=GridLength.Auto});page.RowDefinitions.Add(new(){Height=GridLength.Auto});page.RowDefinitions.Add(new());page.RowDefinitions.Add(new(){Height=GridLength.Auto});
@@ -151,7 +165,7 @@ public sealed class MacroWorkbench
         foreach(var (slot,(card,count)) in slotCards)
         {
             bool on=slot==Slot;int events=Draft[slot].Count;
-            count.Text=events==0?"Empty":$"{events} event{(events==1?"":"s")}";
+            count.Text=(events==0?"Empty":$"{events} event{(events==1?"":"s")}")+(Draft.PcMode&&Draft.Trigger(slot) is {} by?" · "+TriggerShort(by):"");
             card.Background=on?new LinearGradientBrush(Color.FromRgb(58,138,255),Color.FromRgb(30,98,232),90):new SolidColorBrush(Color.FromArgb(24,255,255,255));
             card.BorderBrush=on?new SolidColorBrush(Color.FromArgb(200,220,235,255)):new SolidColorBrush(Color.FromArgb(40,255,255,255));
             card.Effect=on?new DropShadowEffect {Color=Kit.Blue,BlurRadius=20,ShadowDepth=0,Opacity=.7}:null;
@@ -338,6 +352,7 @@ public sealed class MacroWorkbench
         if(SelectedIndex>=Draft[Slot].Count)SelectedIndex=Draft[Slot].Count-1;
         heading.Text=Slot+" · Sequence";summary.Text=$"Events {Draft[Slot].Count} · Capacity {Draft.EntryCount(Slot)} / 47 · {Draft.Duration(Slot)} ms";summary.ToolTip="Each hold uses one capacity unit; a nonzero following pause uses another. Hardware contents are unknown.";notice.Text=Draft.EntryCount(Slot)>=47?"Maximum sequence capacity reached.":"Local draft · Hold and pause timing are a sequence preview.";
         PaintSlots();foreach(var (key,shape) in paddles)shape.Illuminate(key==Slot,false);
+        if(Draft.PcMode){bool was=updating;updating=true;trigger.SelectedValue=Draft.Trigger(Slot)??"";updating=was;notice.Text=Draft.Trigger(Slot) is {} by?$"PC mode plays this when you press {TriggerLabel(by)}, instead of what {TriggerShort(by)} usually does.":Draft[Slot].Count>0?"Pick the button that plays this slot (left), or PC mode won't play it.":"PC mode · Add events, then pick the button that plays them.";}
         sequence.Children.Clear();steps.Clear();for(int i=0;i<Draft[Slot].Count;i++)
         {
             int index=i;var item=Draft[Slot][i];var content=new StackPanel {VerticalAlignment=VerticalAlignment.Center};

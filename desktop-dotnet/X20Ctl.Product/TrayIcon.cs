@@ -26,6 +26,22 @@ public sealed class TrayIcon : IDisposable
         icon.DoubleClick += (_, _) => Restore();
     }
 
+    string status = "X20CTL · Controller Studio", battery = "";
+    /// <summary>The icon's tooltip: shows when PC mode is applying settings. Windows allows 63 characters.</summary>
+    public void SetStatus(string text) { status = text; Compose(); }
+    /// <summary>The controller's battery, as Windows reports it ("Battery low"), or empty when it isn't known.</summary>
+    public void SetBattery(string text) { battery = text; Compose(); }
+    void Compose() { string text = battery.Length > 0 ? status + " · " + battery : status; icon.Text = text.Length > 63 ? text[..63] : text; }
+    public void Notify(string title, string text) => icon.ShowBalloonTip(3000, title, text, System.Windows.Forms.ToolTipIcon.None);
+    /// <summary>A checkable menu line (like "Controller as mouse"), kept in step with its state whenever the menu opens.</summary>
+    public void AddToggle(string text, Func<bool> get, Action<bool> set)
+    {
+        var item = new System.Windows.Forms.ToolStripMenuItem(text) { CheckOnClick = true };
+        item.Click += (_, _) => set(item.Checked);
+        icon.ContextMenuStrip!.Opening += (_, _) => item.Checked = get();
+        icon.ContextMenuStrip.Items.Insert(1, item);
+    }
+
     public void HideToTray()
     {
         window.Hide();

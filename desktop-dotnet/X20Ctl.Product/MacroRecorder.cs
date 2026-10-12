@@ -42,7 +42,7 @@ public sealed class MacroRecorder : IDisposable
         {
             double now = clock.Elapsed.TotalMilliseconds;
             if (Slot < 0)
-                for (int i = 0; i < 4 && Slot < 0; i++) if (reader!.Read(i, out var probe) && !Read(probe).Neutral) Slot = i;
+                for (int i = 0; i < 4 && Slot < 0; i++) if (!PcModeService.IsVirtual(i) && reader!.Read(i, out var probe) && !Read(probe).Neutral) Slot = i;
             if (Slot >= 0 && reader!.Read(Slot, out var state)) Feed(Read(state), now);
             if (Heard && now - lastInput > 2500 || now > 30000) { running = false; break; }
             Thread.Sleep(1);

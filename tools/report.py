@@ -143,25 +143,33 @@ async def gatt_table(report: Report, address: str) -> None:
 
 
 async def interrogate(report: Report, address: str) -> None:
-    async with X20(address) as pad:
+    # A research report reads everything it can, from any controller; the
+    # client still refuses every write to one that is not validated.
+    async with X20(address, unvalidated_reads=True) as pad:
         report.section("Device")
         info = await pad.device_info()
         report.add(f"vid/pid          {info.vid} / {info.pid}")
         report.add(f"firmware         {info.version}")
         report.add(f"device_id        {info.device_id}")
-        report.add(f"model            {info.model}")
+        report.add(f"operating mode   {info.mode}")
+        report.add(f"generation       {info.raw_generation} (effective {info.effective_generation})")
         report.add(f"sensor           {info.sensor}")
         report.add(f"reported name    {await pad.name()!r}")
         report.add(f"product guess    {p.product_name('', info.vid, info.pid)!r}")
+        report.add(f"identity record  {info.record}")
+        report.add(f"evidence         {(await pad.assessment()).reason}")
 
         report.section("Capabilities")
         try:
             caps = await pad.capabilities()
             for field in ("sticks", "triggers", "motors", "turbo", "macros",
-                          "changekey", "lighting", "eq", "nfc", "sensor"):
+                          "changekey", "lighting", "engine", "nfc", "sensor"):
                 value = getattr(caps, field)
                 report.add(f"{field:<12} 0x{value:02x}"
                            + ("" if value else "   not exposed"))
+            report.add(f"raw          {caps.raw}")
+            unexplained = [p.descriptor_bit_label(*bit) for bit in caps.unexplained_bits()]
+            report.add(f"unexplained  {', '.join(unexplained) or 'none'}")
         except Exception as exc:
             report.add(f"capability query failed: {exc}")
 

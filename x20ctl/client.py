@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 from bleak import BleakClient, BleakScanner
 
 from . import protocol as p
+from . import validation
 
 CONFIG_SERVICE = "d7f010e0-660d-46e9-96c3-19c4148bdab5"
 CONFIG_WRITE = "d7f010e1-660d-46e9-96c3-19c4148bdab5"
@@ -31,7 +32,9 @@ CONFIG_NOTIFY = "d7f010e2-660d-46e9-96c3-19c4148bdab5"
 OTA_SERVICE = "2de516f0-50f5-45d5-a1b2-c3565de543ae"
 
 ADVERTISED_NAME = "Xpert2"
-VENDOR_MAC_PREFIX = "98:B6:E"
+# The prefixes the official app's AgreementConfig admits: standard gamepad,
+# two-in-one and Switch-mode devices. Anything else in 98:B6:E_ is not one.
+VENDOR_MAC_PREFIXES = ("98:B6:E9", "98:B6:EC", "98:B6:ED")
 
 DEFAULT_TIMEOUT = 4.0
 
@@ -57,6 +60,15 @@ class NotSupported(ControllerError):
     """The pad's capability descriptor says it doesn't expose this setting."""
 
 
+class NotValidated(ControllerError):
+    """Nothing proves this request is right for this controller.
+
+    Raised before anything is sent. The pad identified itself, but its identity
+    is not in the evidence table (x20ctl.validation), or the feature has never
+    been proven on it.
+    """
+
+
 @dataclass(frozen=True)
 class Found:
     """A controller seen while scanning."""
@@ -76,7 +88,7 @@ def is_controller(name: str, address: str) -> bool:
     VID/PID, which the pad clones from Microsoft.
     """
     return (ADVERTISED_NAME.lower() in (name or "").lower()
-            or (address or "").upper().startswith(VENDOR_MAC_PREFIX))
+            or (address or "").upper().startswith(VENDOR_MAC_PREFIXES))
 
 
 async def find_controllers(timeout: float = 8.0) -> list[Found]:
@@ -145,9 +157,16 @@ class X20:
     it speaks BLE GATT to the configuration service and nothing else.
     """
 
-    def __init__(self, address: str, *, timeout: float = DEFAULT_TIMEOUT):
+    def __init__(self, address: str, *, timeout: float = DEFAULT_TIMEOUT,
+                 unvalidated_reads: bool = False):
+        """`unvalidated_reads` lets an unrecognised controller answer read
+        queries as well as identification, for research by its owner. It never
+        allows a write."""
         self.address = address
         self.timeout = timeout
+        self.unvalidated_reads = unvalidated_reads
+        self._assessment: validation.Assessment | None = None
+        self._info: p.DeviceInfo | None = None
         self._client: BleakClient | None = None
         self._serial = p.SerialCounter()
         self._host_counter = 8       # matches CodeHelper.countHost
@@ -166,6 +185,8 @@ class X20:
         await self.disconnect()
 
     async def connect(self) -> None:
+        # whatever answers at this address is identified afresh
+        self._info = self._assessment = self._caps = None
         self._client = BleakClient(self.address)
         await self._client.connect()
         services = {s.uuid.lower() for s in self._client.services}
@@ -207,9 +228,35 @@ class X20:
         self._save_counter += 1
         return self._save_counter
 
+    async def assessment(self) -> validation.Assessment:
+        """What the evidence table says about this controller (identifies it once)."""
+        if self._assessment is None:
+            self._assessment = validation.assess(await self.device_info())
+        return self._assessment
+
+    async def _authorize(self, packet: bytes) -> None:
+        """Refuse, before sending, anything not proven for this controller.
+
+        Every request passes through here, whichever method built it, so a new
+        write path cannot skip the check. Identification is always allowed.
+        """
+        plain = p.unscramble(packet)
+        kind, feature = validation.request_feature(plain[0], plain[4:-1])
+        if kind == "identify":
+            return
+        verdict = await self.assessment()
+        if kind == "read":
+            if verdict.may_read() or self.unvalidated_reads:
+                return
+            raise NotValidated(verdict.reason)
+        if feature is None or not verdict.may_write(feature):
+            what = feature.replace("_", " ") if feature else f"command 0x{plain[0]:02X}"
+            raise NotValidated(f"Changing {what} is not proven on this controller. {verdict.reason}")
+
     async def _send(self, packet: bytes, serial: int, *, expect_reply: bool = True):
         if self._client is None:
             raise ControllerError("not connected")
+        await self._authorize(packet)
         loop = asyncio.get_running_loop()
         future: asyncio.Future = loop.create_future()
         if expect_reply:
@@ -259,10 +306,12 @@ class X20:
     # -- reads -----------------------------------------------------------
 
     async def device_info(self) -> p.DeviceInfo:
-        pkt = await self.query(p.Op.READ_VID_PID_VERSION)
-        if pkt is None:
-            raise ControllerError("no reply to device info")
-        return p.parse_device_info(pkt.payload)
+        if self._info is None:
+            pkt = await self.query(p.Op.READ_VID_PID_VERSION)
+            if pkt is None:
+                raise ControllerError("no reply to device info")
+            self._info = p.parse_identity_reply(pkt.payload)
+        return self._info
 
     async def capabilities(self, *, refresh: bool = False) -> p.Capabilities:
         if self._caps is None or refresh:
@@ -271,6 +320,26 @@ class X20:
                 raise ControllerError("no reply to the capability query")
             self._caps = p.parse_capabilities(body)
         return self._caps
+
+    async def macro_limits(self) -> dict[str, int] | None:
+        """Each macro slot's limit as the pad reports it, or None if it doesn't.
+
+        Only pads whose descriptor sets D8 bit 1 are asked (kind 6), as the
+        official app does. The numbers are the app's editor limits in steps; they
+        are not used to size writes here, because their relation to the entry
+        cap of this library (macro entries, press and release counted apart) is
+        unmeasured.
+        """
+        caps = await self.capabilities()
+        if not caps.new_macro_engine:
+            return None
+        body = await self.read_body(p.Op.HOST_MENU, bytes([0, p.MenuKind.MACRO_LIMITS]))
+        if body is None:
+            return None
+        try:
+            return caps.slot_limits(p.decode_macro_limits(body.data))
+        except ValueError:
+            return None
 
     async def macro_layout(self, *, refresh: bool = False) -> p.MaskLayout:
         """The mask layout this particular controller uses.
@@ -325,6 +394,8 @@ class X20:
         sends NORMAL_MODE afterwards to stop it. Returns None if the pad does
         not answer, which some models may not.
         """
+        # checked first: the reply-less NORMAL_MODE below must not be the one refused
+        await self._authorize(p.build(p.Op.SET_MODE, p.POWER_QUERY_PAYLOAD, serial=0))
         pkt = await self.query(p.Op.SET_MODE, p.POWER_QUERY_PAYLOAD)
         try:
             if pkt is None or not pkt.crc_valid:
