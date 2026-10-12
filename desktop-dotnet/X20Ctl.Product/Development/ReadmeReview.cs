@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -27,8 +27,8 @@ internal static class ReadmeReview
         {
             window.Show(); window.WindowState = WindowState.Maximized; await Task.Delay(500);
             window.Host.StartIntro(); await Task.Delay(150);
-            // the logo alone, without the Skip hint
-            if (window.Host.Intro is { } intro) { intro.Seek(3.7); intro.Skip.Visibility = Visibility.Hidden; await Shot("01-intro", 120); intro.Finish(); }
+            // the logo alone, without the Skip and Mute buttons
+            if (window.Host.Intro is { } intro) { intro.Seek(4.7); intro.Skip.Visibility = intro.Mute.Visibility = Visibility.Hidden; await Shot("01-intro", 120); intro.Finish(); }
             await Task.Delay(600);
             var catalog = window.Host.Catalog;
             window.Scene.AssignController(0, catalog.Get("x20")); window.Scene.AssignController(1, catalog.Get("x20_pro"));

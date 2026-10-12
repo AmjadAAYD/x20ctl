@@ -86,7 +86,8 @@ public sealed class MacroWorkbench
 
         // left: the four back paddles on the real (relit) rear controller, large enough to read
         var art=new Grid {Width=1536,Height=1024};art.Children.Add(new PhotoController(model,true));var map=new Canvas();art.Children.Add(map);
-        foreach(var region in layout.Controls.Where(r=>r.Role=="macro")) {var shape=new PhysicalHotspot(region,!reducedMotion,true){ToolTip=$"{region.Key} paddle"};Canvas.SetLeft(shape,region.Bounds.X*1536);Canvas.SetTop(shape,region.Bounds.Y*1024);shape.Click+=(_,_)=>SelectSlot(region.Key);map.Children.Add(shape);paddles.Add(region.Key,shape);}
+        // only the back buttons the draft has a slot for: the X20 Pro also maps M5 and M6, and clicking them threw
+        foreach(var region in layout.Controls.Where(r=>r.Role=="macro" && MacroDraft.Slots.Contains(r.Key))) {var shape=new PhysicalHotspot(region,!reducedMotion,true){ToolTip=$"{region.Key} paddle"};Canvas.SetLeft(shape,region.Bounds.X*1536);Canvas.SetTop(shape,region.Bounds.Y*1024);shape.Click+=(_,_)=>SelectSlot(region.Key);map.Children.Add(shape);paddles.Add(region.Key,shape);}
         var rear=new Viewbox {Child=art,Stretch=Stretch.Uniform,Margin=new(-18,-6,-18,0)};
         var rail=new UniformGrid {Rows=1,Margin=new(-4,10,-4,0)};
         // each model shows its own back buttons (the draft holds M1 to M4)

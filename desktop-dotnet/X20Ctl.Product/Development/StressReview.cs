@@ -184,7 +184,7 @@ internal static class StressReview
             if (h.Studio is { } s && h.Selector == null && h.Settings == null)
             {
                 string page = s.CurrentPage;
-                var tabs = new (string Page, RadioButton Tab)[] { ("Dashboard", s.DashboardNav), ("Buttons", s.ButtonsNav), ("Curves", s.CurvesNav), ("Macros", s.MacrosNav), ("Vibration", s.VibrationNav), ("Device", s.DeviceNav), ("Setups", s.SetupsNav) };
+                var tabs = new (string Page, RadioButton Tab)[] { ("Dashboard", s.DashboardNav), ("Buttons", s.ButtonsNav), ("Curves", s.CurvesNav), ("Macros", s.MacrosNav), ("Vibration", s.VibrationNav), ("PcMode", s.PcModeNav), ("Device", s.DeviceNav), ("Diagnostics", s.DiagnosticsNav), ("Mouse", s.MouseNav), ("Setups", s.SetupsNav) };
                 var lit = tabs.Where(t => t.Tab.IsChecked == true).Select(t => t.Page).ToList();
                 if (lit.Count != 1 || lit[0] != page) problems.Add($"tab lit [{string.Join(",", lit)}] but page is {page}");
                 bool Shown(FrameworkElement e) => e.Visibility == Visibility.Visible;

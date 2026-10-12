@@ -88,7 +88,7 @@ public sealed class ControllerCheckView : Grid
         DockPanel.SetDock(safe, Dock.Right); bar.Children.Add(safe);
         var mark = new Image { Source = LiveController.Bitmap("Assets/brand.png"), Width = 34, Height = 34, Margin = new(0, 0, 14, 0) }; RenderOptions.SetBitmapScalingMode(mark, BitmapScalingMode.HighQuality);
         bar.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = { mark, Kit.Text("X20CTL", 22, "DS.Text", FontWeights.Bold), new Border { Width = 1, Height = 22, Background = new SolidColorBrush(Color.FromArgb(60, 255, 255, 255)), Margin = new(18, 0, 18, 0) },
-            Kit.Text("Controller Check", 22, "DS.Text", FontWeights.SemiBold), Kit.Text("   Scanner 2.2 engine", 14, "DS.TextMuted") } });
+            Kit.Text("Controller Check", 22, "DS.Text", FontWeights.SemiBold), Kit.Text("   Read scan · Scanner 2.2 engine", 14, "DS.TextMuted") } });
         page.Children.Add(bar);
         Grid.SetRow(steps, 1); page.Children.Add(steps);
 

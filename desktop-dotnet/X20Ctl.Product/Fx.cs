@@ -35,9 +35,16 @@ public static class Fx
     {
         e.IsHitTestVisible = false; e.IsEnabled = false;
         if (!SystemParameters.ClientAreaAnimation) { gone(); return; }
+        // the element is already disabled: if the fade never reports completion it would sit on top, dead to every click,
+        // so it goes when the fade ends or shortly after it should have, whichever comes first, and only once
+        bool done = false;
+        void Finish() { if (done) return; done = true; gone(); }
+        var fallback = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(ms + 400) };
+        fallback.Tick += (_, _) => { fallback.Stop(); Finish(); };
+        fallback.Start();
         var s = OwnScale(e);
         var fade = new DoubleAnimation(e.Opacity, 0, TimeSpan.FromMilliseconds(ms)) { EasingFunction = Out };
-        fade.Completed += (_, _) => gone();
+        fade.Completed += (_, _) => { fallback.Stop(); Finish(); };
         e.BeginAnimation(UIElement.OpacityProperty, fade);
         var shift = new DoubleAnimation(1, toScale, TimeSpan.FromMilliseconds(ms)) { EasingFunction = Out };
         s.BeginAnimation(ScaleTransform.ScaleXProperty, shift); s.BeginAnimation(ScaleTransform.ScaleYProperty, shift);

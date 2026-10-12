@@ -1,11 +1,11 @@
 ﻿"""Synthesises X20CTL's intro sound (owner direction 10 Oct 2026: an aura sound like Steam's opening, "fwaaah ... ba pa!").
 
 Original and fully procedural: nothing is sampled or copied. Timed to IntroView's storyboard:
-  0.30 / 0.52 / 0.74 s  the three LED eyes blink on       -> glassy pings, left / centre / right
-  0.95 - 1.85 s         the outline draws itself         -> a warm pad swells up under a rising "fwaaah" of breath
-  1.90 / 2.10 s         the heartbeat, lub-dub           -> two sub thumps
-  2.55 - 3.45 s         the line re-routes into the X    -> a riser
-  3.05 - 3.52 s         the X lands and fills            -> a breath drawn in, then a deep soft "thoom" resolving into one warm low tone
+  0.30 / 0.52 / 0.74 s  the three LED eyes blink on       -> soft rounded notes, D5 / F#5 / A5, left / centre / right
+  0.95 - 1.85 s         the outline draws itself         -> a soft warm pad swells up (no breath noise)
+  1.90 / 2.10 s         the heartbeat, lub-dub           -> a small, muffled lub-dub
+  2.55 - 3.45 s         the line re-routes into the X    -> a low warm chord swelling in volume, no pitch glide
+  3.05 - 3.52 s         the X lands and fills            -> the X's own heartbeat, "dug dug" at 3.55 / 3.75 s
 Writes desktop-dotnet/X20Ctl.Product/Brand/intro.wav (48 kHz, 16-bit stereo).
 """
 from pathlib import Path
@@ -49,57 +49,60 @@ def add(sig, pan=0.0, gain=1.0):
     R += sig * gain * np.sqrt((1 + pan) / 2)
 
 
-# 1. LED pings: two bell partials with a fast decay
-for at, pan in ((.30, -.6), (.52, 0.0), (.74, .6)):
-    e = np.where(t >= at, np.exp(-(t - at) / .09), 0)
-    ping = (np.sin(2 * np.pi * 1760 * t) * .6 + np.sin(2 * np.pi * 2637 * t) * .35 + np.sin(2 * np.pi * 4186 * t) * .12) * e
-    add(ping, pan, .22)
+# 1. LED blinks (owner direction 12 Oct 2026: the old glassy "ting ting ting" was harsh): three soft, rounded
+#    notes rising D5, F#5, A5 inside the pad's D major. Near-pure sines with a gentle 8 ms attack, a slight pitch
+#    settle like a felt mallet, and the top rolled off, so they land like drops rather than bells.
+for at, pan, f in ((.30, -.45, 587.3), (.52, 0.0, 740.0), (.74, .45, 880.0)):
+    tt = np.clip(t - at, 0, None)
+    pitch = f * (1 + .012 * np.exp(-tt / .03))
+    ph = 2 * np.pi * np.cumsum(pitch) / SR
+    e = np.where(t >= at, (1 - np.exp(-tt / .008)) * np.exp(-tt / .22), 0)
+    note = (np.sin(ph) + .18 * np.sin(2 * ph) + .04 * np.sin(3 * ph)) * e
+    add(lowpass(note, 1800), pan, .16)
 
-# 2. the swell: a detuned D-major-add9 pad opening its filter, under a rising breath of noise ("fwaaah")
-chord = [73.4, 146.8, 220.0, 293.7, 370.0, 440.0, 659.3]
+# 2. the swell (owner direction 12 Oct 2026: the noisy "fwoosh" under it was harsh): no breath noise any more, just a
+#    warm D-major pad, near-pure sines, rising gently while the outline draws, its filter opening only part way
+chord = [146.8, 220.0, 293.7, 370.0, 440.0]
 pad = np.zeros(N)
 for f in chord:
-    for detune in (-.35, .0, .4):
+    for detune in (-.2, .2):
         ph = 2 * np.pi * (f + detune) * t + rng.uniform(0, 6.28)
-        pad += (np.sin(ph) + .5 * np.sin(2 * ph) + .25 * np.sin(3 * ph)) / len(chord)
-swell = env(.9, .95, .1, 1.1, 1.6)
-cut = 250 + 5200 * np.clip((t - .9) / 1.0, 0, 1) ** 1.5 * np.where(t < 2.4, 1, np.exp(-(t - 2.4) * 2))
-pad = lowpass(pad * swell, cut)
-add(pad, -.15, .55); add(np.roll(pad, 220), .15, .55)
-breath = lowpass(rng.normal(0, 1, N), 600 + 7000 * np.clip((t - .95) / .9, 0, 1) ** 2) * env(.95, .85, .05, .5, 2.4)
-add(breath - lowpass(breath, 300), 0, .28)
+        pad += (np.sin(ph) + .12 * np.sin(2 * ph)) / len(chord)
+swell = env(.9, .75, 0, .7, 2.0)   # shorter (owner 12 Oct 2026): gone soon after the heartbeat
+cut = 300 + 1300 * np.clip((t - .9) / 1.0, 0, 1) ** 1.5 * np.where(t < 2.4, 1, np.exp(-(t - 2.4) * 2))
+pad = lowpass(lowpass(pad * swell, cut), 2000)
+add(pad, -.2, .34); add(np.roll(pad, 220), .2, .34)
 
-# 3. heartbeat: sub thumps, the second softer
-for at, g in ((1.9, 1.0), (2.1, .7)):
+# 3. heartbeat, lub-dub with the glow at 1.9 and 2.1 s (owner 12 Oct 2026: the old 45 Hz thumps were too low for laptop
+#    speakers to play at all). A small, muffled thud: a body near 90 Hz with its octave so small speakers carry it,
+#    rolled off above 400 Hz, the second beat softer
+for at, g in ((1.9, 1.0), (2.1, .65)):
     tt = np.clip(t - at, 0, None)
-    pitch = 45 + 85 * np.exp(-tt / .04)
-    ph = 2 * np.pi * np.cumsum(pitch) / SR
-    add(np.sin(ph) * np.where(t >= at, np.exp(-tt / .16), 0), 0, .9 * g)
+    ph = 2 * np.pi * np.cumsum(78 + 40 * np.exp(-tt / .025)) / SR
+    beat = (np.sin(ph) + .45 * np.sin(2 * ph)) * np.where(t >= at, np.exp(-tt / .075) * (1 - np.exp(-tt / .004)), 0)
+    add(lowpass(lowpass(beat, 400), 400), 0, .36 * g)
 
-# 4. the riser while the outline re-routes into the X
-rise = env(2.5, .95, 0, .05, 3.0)
-riser = rng.normal(0, 1, N); riser = riser - lowpass(riser, 900 + 6000 * np.clip((t - 2.5) / .95, 0, 1))
-add(riser * rise, -.3, .16); add(np.roll(riser, 480) * rise, .3, .16)
-tone = np.sin(2 * np.pi * np.cumsum(330 + 900 * np.clip((t - 2.5) / .95, 0, 1) ** 2) / SR) * rise
-add(tone, 0, .07)
+# 4. while the line re-routes into the X (owner 12 Oct 2026: the rising sine glide hurt the owner's ears). No pitch moves at all:
+#    a low, warm D chord (D3, A3, D4) only grows in volume, its tone opening a little, and flows straight into the X
+rise = env(2.5, 1.02, 0, .25, 2.2)
+warm = np.zeros(N)
+for f, g in ((146.8, 1.0), (220.0, .6), (293.7, .35)):
+    for detune in (-.15, .15):
+        warm += g * np.sin(2 * np.pi * (f + detune) * t + rng.uniform(0, 6.28))
+warm = lowpass(lowpass(warm * rise, 250 + 450 * np.clip((t - 2.5) / 1.0, 0, 1)), 900)
+add(warm, -.2, .09); add(np.roll(warm, 300), .2, .09)
 
-# 5. the X lands (owner direction 10 Oct 2026: no "tadaa" chord). A breath is drawn in, then a deep, soft "thoom"
-#    resolves into one warm low tone that slowly closes, with a little air drifting over the aura.
-inhale = rng.normal(0, 1, N); inhale = lowpass(inhale, 400 + 3800 * np.clip((t - 3.05) / .45, 0, 1) ** 2)
-add(inhale * env(3.05, .45, 0, .08, 2.8), -.2, .22); add(np.roll(inhale, 300) * env(3.05, .45, 0, .08, 2.8), .2, .22)
-tt = np.clip(t - 3.52, 0, None)
-thoom = np.sin(2 * np.pi * np.cumsum(41 + 34 * np.exp(-tt / .09)) / SR) * np.where(t >= 3.52, np.exp(-tt / .7) * (1 - np.exp(-tt / .012)), 0)
-add(thoom, 0, 1.0)
-tone = np.zeros(N)
-for f, g in ((73.4, 1.0), (146.8, .55), (220.0, .22)):  # D2, D3 and a soft fifth: one warm note, not a chord
-    for detune in (-.25, .25):
-        tone += g * (np.sin(2 * np.pi * (f + detune) * t) + .3 * np.sin(4 * np.pi * (f + detune) * t))
-tone_env = np.where(t >= 3.52, (1 - np.exp(-tt / .18)) * np.exp(-tt / 1.6), 0)
-tone = lowpass(tone * tone_env, 1600 * np.exp(-tt / 1.2) + 220)
-add(tone, -.1, .42); add(np.roll(tone, 260), .1, .42)
-air = rng.normal(0, 1, N); air = air - lowpass(air, 5000)
-add(air * np.where(t >= 3.6, np.exp(-(t - 3.6) / 1.1) * (1 - np.exp(-(t - 3.6).clip(0) / .3)), 0), -.6, .05)
-add(np.roll(air, 1100) * np.where(t >= 3.6, np.exp(-(t - 3.6) / 1.1) * (1 - np.exp(-(t - 3.6).clip(0) / .3)), 0), .6, .05)
+# 5. the X lands (owner 12 Oct 2026: the chord "braam" at the end was not wanted). Instead the X has a heartbeat of its
+#    own, "dug dug" at 3.55 and 3.75 s, the same moments the mark swells on screen: like the controller's heartbeat but a
+#    little fuller, each beat a round body near 70 Hz with its octave and a muffled knock on top so it reads as "d",
+#    the second beat softer. Nothing above about 700 Hz.
+for at, g in ((3.55, 1.0), (3.75, .7)):
+    tt = np.clip(t - at, 0, None)
+    ph = 2 * np.pi * np.cumsum(66 + 46 * np.exp(-tt / .03)) / SR
+    body = (np.sin(ph) + .5 * np.sin(2 * ph)) * np.where(t >= at, np.exp(-tt / .11) * (1 - np.exp(-tt / .004)), 0)
+    knock = np.sin(2 * np.pi * 180 * t) * np.where(t >= at, np.exp(-tt / .018) * (1 - np.exp(-tt / .002)), 0)
+    add(lowpass(lowpass(body + .35 * knock, 700), 700), 0, .55 * g)
+
 # room: a short stereo reverb from decaying noise
 def reverb(x, seconds=1.8, seed=1):
     r = np.random.default_rng(seed); n = int(seconds * SR)
@@ -109,7 +112,8 @@ def reverb(x, seconds=1.8, seed=1):
 
 L = L + .35 * reverb(L, seed=1); R = R + .35 * reverb(R, seed=2)
 fade = np.clip((DUR - t) / .6, 0, 1); L *= fade; R *= fade
-peak = max(np.abs(L).max(), np.abs(R).max()); L, R = L / peak * .89, R / peak * .89
+peak = max(np.abs(L).max(), np.abs(R).max()); # the loudest moment sits well under full scale, so the outline keeps the level the owner approved (12 Oct 2026)
+L, R = L / peak * .44, R / peak * .44
 pcm = (np.stack([L, R], 1) * 32767).astype("<i2")
 
 out = Path(__file__).resolve().parents[1] / "desktop-dotnet" / "X20Ctl.Product" / "Brand" / "intro.wav"
