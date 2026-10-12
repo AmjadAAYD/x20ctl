@@ -44,6 +44,7 @@ A pre-release. Everything in [Preview 4](#410-preview4---2026-10-10) is included
 
 ### Fixed
 
+- **Fullscreen no longer hides the bottom bar under the taskbar.** X20CTL covers the whole screen only while it is the window you are using, and tells Windows so, which makes the taskbar step back for certain. Click another window or screen and it fits above the taskbar instead, so the footer hints are never left underneath it.
 - **A softer intro sound.** The three bright "ting" pings as the LEDs blink are now soft, rounded notes (D, F#, A, in the key of the swell), about a third as bright and a little quieter. The noisy "fwoosh" while the outline draws is now a short, soft warm pad, and the noise riser while the line becomes the X is a low, warm chord that only grows in volume (no rising pitch). The heartbeat has a small "lub-dub" you can hear on laptop speakers (the old one sat at 45 Hz). The deep "vmmm" drone as the X lands is gone: the X now has a heartbeat of its own, a "dug dug" you hear as the mark swells twice on screen.
 - **Tools tiles cut off their words.** *Support X20CTL* and *Star our GitHub repo* wrapped their titles and lost the end of their description; the titles are a touch smaller and the star tile reads *Star on GitHub*.
 - **The Controller Zone swap stutters less.** The hero card's glow was redrawn on every frame of the move; it now waits until the card lands and fades in (slow frames during a swap down by about 40%). The photos also scale more cheaply while moving.
