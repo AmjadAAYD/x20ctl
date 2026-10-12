@@ -27,8 +27,7 @@ jobs:
           python -m pip install "PySide6>=6.6"
           npm ci
       - name: Verify Python behavior
-        # every test has passed here and the step still ended 1 since 10 Oct; report the real exit code and any
-        # crash at interpreter shutdown, so the cause shows in the log
+        # the real exit code and any native crash are printed, so a red step always says why (tests/conftest.py)
         run: |
           python -X faulthandler -m pytest -q -p no:cacheprovider
           $code = $LASTEXITCODE; Write-Host "pytest exit code: $code"; exit $code
