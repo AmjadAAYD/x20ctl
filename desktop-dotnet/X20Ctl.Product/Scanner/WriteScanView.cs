@@ -94,7 +94,7 @@ public sealed class WriteScanView : Grid
         foreach (var (title, text) in new[]
         {
             ("This can take a long time", "Plan on 20 to 40 minutes the first time: turning on a hidden phone setting, one small test, then getting a file from the phone to this PC. A bug report alone can take a few minutes to make."),
-            ("You need a phone", "Android or iPhone, with KeyLinker (EasySMX's current app; the older EasySMX app no longer works) and the controller connected to it by Bluetooth. Both can record Bluetooth: Android takes about five minutes to set up, an iPhone about fifteen."),
+            ("You need a phone", "Android or iPhone, with KeyLinker and the controller connected to it by Bluetooth. Both can record Bluetooth: Android takes about five minutes to set up, an iPhone about fifteen."),
             ("X20CTL sends nothing", "X20CTL never talks to the controller here. You change one setting in KeyLinker yourself; the phone's own Bluetooth log records it, and X20CTL only reads that log."),
             ("Read scan or Write scan?", "The Read scan (Controller not working?) watches what the controller reports to this PC. The Write scan learns what an app writes to the controller, so X20CTL can learn to change it too."),
         })
