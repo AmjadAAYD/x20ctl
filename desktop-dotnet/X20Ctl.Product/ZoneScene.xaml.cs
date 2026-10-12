@@ -100,8 +100,9 @@ public partial class ZoneScene : UserControl
     {
         var bounds = ZoneLayout.Calculate(DockStage.ActualWidth, DockStage.ActualHeight, State.FocusedPlayer);
         CompositionTarget.Rendering -= MoveFrame;
-        if (duration <= 0) { for (int i = 0; i < 4; i++) docks[i].SetBounds(bounds[i], Role(i).hero, Role(i).secondary); return; }
+        if (duration <= 0) { for (int i = 0; i < 4; i++) { docks[i].SetBounds(bounds[i], Role(i).hero, Role(i).secondary); docks[i].SetMoving(false); } return; }
         moveFrom = docks.Select(d => d.RenderedBounds.Width > 0 ? d.RenderedBounds : bounds[d.Index]).ToArray(); moveTo = bounds; moveMs = duration;
+        foreach (var dock in docks) dock.SetMoving(true);
         moveClock.Restart(); CompositionTarget.Rendering += MoveFrame;
     }
     private (bool hero, bool secondary) Role(int i) => (State.FocusedPlayer == i, State.FocusedPlayer.HasValue && State.FocusedPlayer != i);
@@ -114,9 +115,9 @@ public partial class ZoneScene : UserControl
             var a = moveFrom[i]; var b = moveTo[i];
             docks[i].SetBounds(new(a.X + (b.X - a.X) * k, a.Y + (b.Y - a.Y) * k, a.Width + (b.Width - a.Width) * k, a.Height + (b.Height - a.Height) * k), Role(i).hero, Role(i).secondary);
         }
-        if (t >= 1) CompositionTarget.Rendering -= MoveFrame;
+        if (t >= 1) { CompositionTarget.Rendering -= MoveFrame; foreach (var dock in docks) dock.SetMoving(false, 220); }
     }
-    private void FinishMove() { if (moveTo.Length == 4) { CompositionTarget.Rendering -= MoveFrame; for (int i = 0; i < 4; i++) docks[i].SetBounds(moveTo[i], Role(i).hero, Role(i).secondary); } }
+    private void FinishMove() { if (moveTo.Length == 4) { CompositionTarget.Rendering -= MoveFrame; for (int i = 0; i < 4; i++) { docks[i].SetBounds(moveTo[i], Role(i).hero, Role(i).secondary); docks[i].SetMoving(false, 220); } } }
     public async Task FocusPlayerAsync(int? index)
     {
         if (index == State.FocusedPlayer) return;
@@ -124,7 +125,8 @@ public partial class ZoneScene : UserControl
         var operation = new CancellationTokenSource(); transition = operation;
         if (index.HasValue) State.Activate(index.Value); else State.Collapse();
         FeedbackText.Text = State.Feedback; UpdateOverviewPill();
-        if (DockStage.ActualWidth <= 48 || DockStage.ActualHeight <= 48) { transition = null; operation.Dispose(); return; }
+        // no room to animate (hidden or minimised): an interrupted swap must not leave the cards' words faded out
+        if (DockStage.ActualWidth <= 48 || DockStage.ActualHeight <= 48) { foreach (var dock in docks) dock.FadeHeroDetails(1, 0); IsTransitioning = false; transition = null; operation.Dispose(); return; }
         IsTransitioning = true;
         try
         {

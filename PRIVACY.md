@@ -17,6 +17,7 @@ These are stored on your computer only and never uploaded:
 - your setups, preferences and player assignments (in `%APPDATA%\x20ctl` on Windows);
 - a crash log, if the app hits an error (in `%LOCALAPPDATA%\x20ctl\native\crash.log`);
 - every Controller Check report ZIP (in `Documents\X20CTLInputReports` on Windows, `~/X20CTLInputReports` on Linux).
+- Write scan findings, only when you press Save (in `Documents\X20CTLWriteScans`). The phone's Bluetooth log you open is read where it is; a copy is kept only if you tick "Also save a copy of the Bluetooth log".
 
 Controller serial numbers are read only if you turn on "Include serial numbers", and even then they stay in the local
 report.
@@ -42,6 +43,25 @@ report.
 
 The summary does not include serial numbers, file paths, your user name, other devices, or the full local report.
 Choosing "Scan, keep it on this PC" sends nothing.
+
+**Send to X20CTL** (Write scan results) sends, only after you tick "I've read the summary above and I'm happy to
+send it":
+
+- the summary shown on screen, the findings, and the timeline;
+- every message the official app and the controller exchanged in the recording, decoded. These can include the
+  controller's name and an id it reports;
+- what you typed about the test (controller, app, setting and values) and when you confirmed each step;
+- only if you also tick it, the Bluetooth data packets of the controller's connection, from just before the test to
+  just after it, re-packed without Bluetooth's own messages (the part where device names and addresses travel). The
+  phone's other devices, such as earbuds or a watch, are left out. What the app and the controller said is still in it;
+  re-packing is not anonymising;
+- the X20CTL version, your operating system version, the time and a random submission ID.
+
+It never sends the bug report or sysdiagnose itself, or anything else from the phone.
+
+**`x20 state save`** (the command line) reads the controller's setting records and writes them to the file you name.
+`x20 state diff` compares two such files. Both stay on your PC; nothing is uploaded. Nothing is sent until the inbox
+says it accepts Write scans; until then the findings stay on your PC.
 
 ## Where it goes and who can see it
 

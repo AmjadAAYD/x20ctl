@@ -28,6 +28,9 @@
     x20 profile set   "Save file 1" M1 "A+B" --hold 100
     x20 profile capture "Save file 1"   snapshot the pad's current vibration
 
+    x20 state save before.json --label before   read every setting record
+    x20 state diff before.json after.json       what changed between two reads
+
 The address is remembered after the first successful scan, so most commands
 need no arguments.
 """
@@ -50,6 +53,7 @@ from .client import CURVE_KINDS, X20, ControllerError, NotSupported, find_contro
 from .diagnose import diagnose
 from .config import load_address, save_address
 from .profiles import MacroSpec, Profile, ProfileStore, SLOTS
+from . import state
 
 
 async def resolve(explicit: str | None) -> str:
@@ -499,6 +503,44 @@ async def cmd_remap(args) -> None:
                    "was asked for\n"))
 
 
+# -- state ----------------------------------------------------------------
+
+async def cmd_state_save(args) -> None:
+    """Read every exposed setting record and save it, for comparing later."""
+    # checked before the pad is touched: an earlier read is the one thing a comparison can't do without
+    if os.path.exists(args.file) and not args.replace:
+        raise SystemExit(ui.bad(f"\n  {args.file} already exists. Pick another name, or add --replace.\n"))
+    address = await resolve(args.address)
+    async with X20(address) as pad:
+        try:
+            saved = await state.capture(pad, args.label, args.note or "")
+        except PermissionError as exc:
+            raise SystemExit(ui.bad(f"\n  Not read: {exc}\n"))
+    saved.save(args.file)
+    print(ui.header("Controller state saved", args.label))
+    for name, record in saved.records.items():
+        print(ui.field(name, record.status if record.status != "read" else f"{record.declared} bytes"))
+    print(ui.label(f"\n  {args.file}"))
+    print(ui.label("  X20CTL has let go of the pad. Change one setting in the official app, close it,"))
+    print(ui.label("  then save again with --label after.\n"))
+
+
+async def cmd_state_diff(args) -> None:
+    """Compare saved states: before and after, and optionally restored."""
+    before = state.State.load(args.before)
+    after = state.State.load(args.after)
+    comparisons = [state.compare(before, after)]
+    if args.restored:
+        comparisons.append(state.compare(before, state.State.load(args.restored)))
+    if args.json:
+        print(json.dumps([c.to_json() for c in comparisons], indent=2))
+        return
+    for c in comparisons:
+        print(ui.header("Changed controller state", f"{c.first.label} -> {c.second.label}"))
+        print(c.text())
+        print()
+
+
 # -- profiles -------------------------------------------------------------
 
 def print_profile(profile: Profile) -> None:
@@ -691,6 +733,21 @@ def build_parser() -> argparse.ArgumentParser:
     pdel = psub.add_parser("delete")
     pdel.add_argument("name")
     pdel.set_defaults(fn=cmd_profile_delete)
+
+    st = sub.add_parser("state", help="read setting records and compare them")
+    ssub = st.add_subparsers(dest="sub", required=True)
+    ssave = ssub.add_parser("save", help="read every setting record into a file")
+    ssave.add_argument("file")
+    ssave.add_argument("--label", choices=state.LABELS, default="other")
+    ssave.add_argument("--note", help="what was changed, in your words")
+    ssave.add_argument("--replace", action="store_true", help="overwrite the file if it exists")
+    ssave.set_defaults(fn=cmd_state_save)
+    sdiff = ssub.add_parser("diff", help="what changed between saved states")
+    sdiff.add_argument("before")
+    sdiff.add_argument("after")
+    sdiff.add_argument("restored", nargs="?", help="a third read, after putting it back")
+    sdiff.add_argument("--json", action="store_true")
+    sdiff.set_defaults(fn=cmd_state_diff)
 
     return parser
 

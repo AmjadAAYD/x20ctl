@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -122,7 +122,9 @@ public sealed class ProductHost : Grid
         if (back) Fx.Appear(Zone, .94, 380);
         _=UpdateNativeContext();
     }
-    public void Startup()=>StartIntro(); // every launch opens with the intro, like Steam Big Picture (owner direction 10 Oct 2026)
+    // every launch opens with the intro, like Steam Big Picture (owner direction 10 Oct 2026), unless the player turned it
+    // off in Tools (owner request 12 Oct 2026); Replay Intro still plays it
+    public void Startup(){if(preferencesHealthy&&!preferences.IntroOnLaunch)return;StartIntro();}
     public async Task InitializeNativeEngineAsync()
     {
         if(Engine!=null)return;
@@ -171,7 +173,7 @@ public sealed class ProductHost : Grid
                 if(Studio.ManagementPage=="Tester")Studio.Tester?.ReceiveNative(value);nativeArmed=false;return;
             }
             if(!connected||Window.GetWindow(this)?.IsActive!=true){nativeArmed=false;return;}if(!nativeArmed){if(now.Count==0)nativeArmed=true;return;}
-            if(Intro!=null){if(pressed.Contains("B"))Intro.Finish();return;}
+            if(Intro!=null){if(pressed.Contains("B"))Intro.Finish();else if(pressed.Contains("Y"))Intro.ToggleMute();return;}
             if(Settings!=null){if(pressed.Contains("B"))CloseSettings();else if(pressed.Contains("A")&&Keyboard.FocusedElement is Button focused&&focused.IsEnabled)focused.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));else foreach(var d in new[]{("DPAD_UP",FocusNavigationDirection.Up),("DPAD_DOWN",FocusNavigationDirection.Down),("DPAD_LEFT",FocusNavigationDirection.Left),("DPAD_RIGHT",FocusNavigationDirection.Right)})if(pressed.Contains(d.Item1)&&Keyboard.FocusedElement is UIElement el)el.MoveFocus(new(d.Item2));return;}
             if(Studio!=null)Studio.EnableNativeNavigation();else Zone.EnableNativeNavigation();
             foreach(var (button,key) in InputMap.Controller)
@@ -181,8 +183,13 @@ public sealed class ProductHost : Grid
     public void StartIntro()
     {
         CloseSettings();ReturnToZone();if(Intro!=null)return;IntroWasPlayed=true;Zone.IsEnabled=false;Zone.Opacity=0;
-        try{Intro=new(Zone.ReducedMotion);var zoom=new System.Windows.Media.ScaleTransform(1.06,1.06);Zone.RenderTransformOrigin=new(.5,.5);Zone.RenderTransform=zoom;Intro.ZoneReveal+=amount=>{Zone.Opacity=amount;zoom.ScaleX=zoom.ScaleY=1.06-.06*amount;if(amount>=1)Zone.RenderTransform=null;};Intro.Completed+=CompleteIntro;Children.Add(Intro);Panel.SetZIndex(Intro,30);Intro.Start();}
+        try{Intro=new(Zone.ReducedMotion,muted:preferencesHealthy&&!preferences.IntroSound,handoff:Zone);Intro.MutedChanged+=SaveIntroSound;Intro.ZoneReveal+=amount=>Zone.Opacity=amount;Intro.Completed+=CompleteIntro;Children.Add(Intro);Panel.SetZIndex(Intro,30);Intro.Start();}
         catch(Exception error){CompleteIntro();Zone.FeedbackText.Text="Startup animation unavailable. Controller Zone is ready. "+error.Message;}
+    }
+    private void SaveIntroSound(bool muted)
+    {
+        if(!preferencesHealthy)return;
+        try{preferences.SetIntroSound(!muted);}catch(Exception error) when(error is IOException or InvalidOperationException){Zone.FeedbackText.Text="The intro's sound setting could not be saved; original file preserved. "+error.Message;}
     }
     private void CompleteIntro()
     {
@@ -190,12 +197,18 @@ public sealed class ProductHost : Grid
         if(preferencesHealthy)try{preferences.MarkIntroSeen();}catch(Exception error) when(error is IOException or InvalidOperationException){Zone.FeedbackText.Text="Startup preference could not be saved; original file preserved. "+error.Message;}
     }
     private void OpenSupport(){try{support(ProductLinks.Support);}catch(Exception error){Zone.FeedbackText.Text="Could not open your browser. Support X20CTL: "+ProductLinks.Support+" · "+error.Message;}}
-    public void ShowSettings(){ReturnToZone();CloseSettings();Zone.IsEnabled=false;Settings=new(OpenSupport,StartIntro,CloseSettings,OpenCheck,preferencesHealthy?preferences:null,PcMode,pcModeStore);Children.Add(Settings);Panel.SetZIndex(Settings,20);Fx.Appear(Settings,1.04,320);Settings.FocusFirst();}
+    public void ShowSettings(){ReturnToZone();CloseSettings();Zone.IsEnabled=false;Settings=new(OpenSupport,StartIntro,CloseSettings,OpenCheck,preferencesHealthy?preferences:null,PcMode,pcModeStore,OpenWriteScan);Children.Add(Settings);Panel.SetZIndex(Settings,20);Fx.Appear(Settings,1.04,320);Settings.FocusFirst();}
     /// <summary>"Controller not working?": the Controller Check (Scanner 2.0.0 engine) as its own full-window app over Tools.</summary>
     public Scanner.ControllerCheckView? Check {get;private set;}
     public void OpenCheck(){if(Check!=null)return;if(Studio?.ManagementPage=="Diagnostics")Studio.ShowManagement("Device"); // both use Raw Input, one registration per process
         if(PcMode!=null)PcMode.Paused=true;Check=new(CloseCheck);Children.Add(Check);Panel.SetZIndex(Check,40);Fx.Appear(Check,1.06,360);}
-    public void CloseCheck(){if(Check==null||!Check.TryClose())return;var closing=Check;Check=null;closing.Shutdown();if(PcMode!=null)PcMode.Paused=false;Fx.Leave(closing,()=>Children.Remove(closing),1.05,240);Settings?.Check.Focus();}
+    /// <summary>A scan screen that lost its place (closed, but still drawn) is removed outright, so Back can never be dead.</summary>
+    private bool RemoveOrphans(){var stale=Children.OfType<FrameworkElement>().Where(c=>c is Scanner.ControllerCheckView v&&v!=Check||c is Scanner.WriteScanView w&&w!=WriteScan).ToList();foreach(var c in stale)Children.Remove(c);return stale.Count>0;}
+    public void CloseCheck(){if(Check==null){RemoveOrphans();return;}if(!Check.TryClose())return;var closing=Check;Check=null;closing.Shutdown();if(PcMode!=null)PcMode.Paused=false;Fx.Leave(closing,()=>Children.Remove(closing),1.05,240);Settings?.Check.Focus();}
+    /// <summary>The Write scan: reads a phone's Bluetooth log of the official app changing one setting. It never talks to the controller.</summary>
+    public Scanner.WriteScanView? WriteScan {get;private set;}
+    public void OpenWriteScan(){if(WriteScan!=null)return;WriteScan=new(CloseWriteScan);Children.Add(WriteScan);Panel.SetZIndex(WriteScan,40);Fx.Appear(WriteScan,1.06,360);}
+    public void CloseWriteScan(){if(WriteScan==null){RemoveOrphans();return;}if(!WriteScan.TryClose())return;var closing=WriteScan;WriteScan=null;closing.Shutdown();Fx.Leave(closing,()=>Children.Remove(closing),1.05,240);Settings?.WriteScan.Focus();}
     private async Task CheckUpdatesAtLaunch(){await Task.Delay(4000);if(await Updater.AutoRun() is { } message)Zone.FeedbackText.Text=message;}
     public void CloseSettings(){if(Settings!=null){var leaving=Settings;Settings=null;Fx.Leave(leaving,()=>Children.Remove(leaving),1.03,220);}Zone.IsEnabled=true;}
     public void ResetTransientInput(){nativeArmed=false;Zone.SuspendNavigation();Studio?.Tester?.ClearKeyboardKeys();Studio?.ReleaseTransientInput();}
@@ -206,11 +219,13 @@ public sealed class ProductHost : Grid
         var key=e.Key==Key.System?e.SystemKey:e.Key;
         // the Controller Check is testing the controller: its presses are never navigation; the keyboard's Esc leaves
         if(Check!=null){if(sender is ProductHost){e.Handled=true;return;}if(e.Key==Key.Escape){CloseCheck();e.Handled=true;}return;}
+        // the Write scan is typed into and clicked; the keyboard's Esc leaves, nothing else navigates behind it
+        if(WriteScan!=null){if(sender is not ProductHost && e.Key==Key.Escape){CloseWriteScan();e.Handled=true;}return;}
         // remapping on the Buttons page: Menu, View and B are buttons being assigned, not navigation
         if(Studio?.CapturingRemap==true && Intro==null && Settings==null){Studio.OnKeyDown(sender,e);return;}
         if(key==InputMap.Settings && Intro==null){if(Settings!=null)CloseSettings();else ShowSettings();e.Handled=true;return;}
         if(key==InputMap.ControllerZone && Intro==null && Settings==null && Studio!=null && Studio.ManagementPage is not ("Tester" or "Diagnostics")){ReturnToZone();e.Handled=true;return;}
-        if(Intro!=null){if(e.Key is Key.Escape or Key.B)Intro.Finish();e.Handled=true;return;}
+        if(Intro!=null){if(e.Key is Key.Escape or Key.B)Intro.Finish();else if(e.Key==Key.M&&!e.IsRepeat)Intro.ToggleMute();e.Handled=true;return;}
         if(Settings!=null){if(e.Key is Key.Escape or Key.B){if(!Settings.StepBack())CloseSettings();e.Handled=true;}else if(e.Key==Key.A && Keyboard.FocusedElement is Button button){button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));e.Handled=true;}else if(e.Key is Key.Up or Key.Down or Key.Left or Key.Right && Keyboard.FocusedElement is UIElement focused){focused.MoveFocus(new(e.Key==Key.Up?FocusNavigationDirection.Up:e.Key==Key.Down?FocusNavigationDirection.Down:e.Key==Key.Left?FocusNavigationDirection.Left:FocusNavigationDirection.Right));e.Handled=true;}return;}
         // the controller picker: arrows / D-pad move between cards, A / Enter chooses, B / Esc goes back
         if (Selector != null)
@@ -222,5 +237,5 @@ public sealed class ProductHost : Grid
         }
         if (Studio != null) Studio.OnKeyDown(sender, e); else Zone.OnKeyDown(sender, e);
     }
-    public void OnKeyUp(object sender, KeyEventArgs e) { if(Intro!=null||Settings!=null||Check!=null)return;if(Studio!=null)Studio.OnKeyUp(sender,e);else if (Selector == null) Zone.OnKeyUp(sender, e); }
+    public void OnKeyUp(object sender, KeyEventArgs e) { if(Intro!=null||Settings!=null||Check!=null||WriteScan!=null)return;if(Studio!=null)Studio.OnKeyUp(sender,e);else if (Selector == null) Zone.OnKeyUp(sender, e); }
 }

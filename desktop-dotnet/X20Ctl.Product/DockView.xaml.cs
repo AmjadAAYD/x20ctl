@@ -158,10 +158,22 @@ public partial class DockView : UserControl
         Card.BorderThickness = new(focus || isHero ? 2 : 1);
         Card.BorderBrush = focus ? Brushes.White : isHero ? HeroEdge : RestEdge;
         Card.Background = isHero ? HeroFill : CardFill;
-        Card.Effect = isHero || focus ? new System.Windows.Media.Effects.DropShadowEffect { Color = isHero ? Accent : Colors.White, BlurRadius = isHero ? 46 : 22, ShadowDepth = 0, Opacity = isHero ? .5 : .16 } : null;
+        // no glow while the card is moving: a blur on an element that resizes every frame is redrawn every frame, and that
+        // made the swap stutter (about 40 fps); the bloom travels with the card instead, and the glow fades in once it lands
+        Card.Effect = (isHero || focus) && !moving ? new System.Windows.Media.Effects.DropShadowEffect { Color = isHero ? Accent : Colors.White, BlurRadius = isHero ? 46 : 22, ShadowDepth = 0, Opacity = isHero ? .5 : .16 } : null;
         double lift = focus && !isHero ? 1.025 : 1;
         foreach (var axis in new[] { ScaleTransform.ScaleXProperty, ScaleTransform.ScaleYProperty })
             LiftScale.BeginAnimation(axis, new DoubleAnimation(lift, TimeSpan.FromMilliseconds(160)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+    }
+    private bool moving;
+    /// <summary>The Zone is gliding the cards: the glow is held back until the move ends, then fades in.</summary>
+    public void SetMoving(bool on, int fadeInMs = 0)
+    {
+        if (moving == on) return; moving = on; UpdateCard();
+        // the photo is resampled at every in-between size; high-quality scaling of a 1536 px image each frame is the other cost
+        RenderOptions.SetBitmapScalingMode(ControllerImage, on ? BitmapScalingMode.Linear : BitmapScalingMode.HighQuality);
+        if (!on && fadeInMs > 0 && Card.Effect is System.Windows.Media.Effects.DropShadowEffect glow)
+            glow.BeginAnimation(System.Windows.Media.Effects.DropShadowEffect.OpacityProperty, new DoubleAnimation(0, glow.Opacity, TimeSpan.FromMilliseconds(fadeInMs)));
     }
     public void FadeHeroDetails(double value, int duration)
     {
