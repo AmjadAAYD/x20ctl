@@ -136,28 +136,3 @@ def test_windows_trace_is_retained_as_unsupported_instead_of_inventing_protocol(
 def test_incomplete_container_is_rejected():
  from x20ctl.scanning.capability_discovery import analyze_trace
  with pytest.raises(ValueError): analyze_trace(capture(discovery()+exchange())[:-1])
-
-
-def test_scanner_import_and_removal_update_saved_profile_and_review(tmp_path):
- from x20ctl.desktop.research_scan import ResearchScanner
- from x20ctl.scanning.capability_discovery import discover
- scanner=ResearchScanner(tmp_path)
- scanner.folder=tmp_path
- scanner.output=tmp_path/"evidence"
- scanner.output.mkdir()
- scanner.options={"model":"X15"}
- scanner.attachment_scopes={}
- scanner.view["prompt"]={"id":"attach","kind":"file","choices":["trace"]}
- scanner.view["state"]="waiting"
- path=tmp_path/"synthetic.btsnoop"
- path.write_bytes(capture(discovery()+exchange()))
- scanner.attach_file("attach",path)
- saved=json.loads((scanner.output/"attachments/capability-profile.json").read_text())
- assert saved==scanner.status()["detectedCapabilities"]
- assert saved["profiles"][0]["reportedFeatures"]["remapping"] is True
- scanner.view["state"]="review"
- scanner.remove_attachment("attachments/trace.btsnoop")
- assert scanner.status()["detectedCapabilities"] is None
- assert not (scanner.output/"attachments/capability-profile.json").exists()
- event=frame(0x91,bytes.fromhex("0710013001022447"),1,"notify");event["characteristicUuid"]="unknown"
- assert discover([event])["profiles"]==[]

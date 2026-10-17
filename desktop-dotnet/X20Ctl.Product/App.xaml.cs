@@ -53,10 +53,11 @@ public partial class App : Application
                 try { await Development.BatteryReview.Run(e.Args[1]); } catch (Exception failure) { File.WriteAllText(e.Args[1] + ".failure.txt", failure.ToString()); }
                 Shutdown(0); return;
             }
-            if (e.Args.Length == 2 && e.Args[0] is "--review-zone" or "--review-studio" or "--review-console" or "--review-management" or "--review-product" or "--review-models" or "--review-live" or "--review-design" or "--review-showcase" or "--review-dashboard" or "--review-input" or "--review-intro" or "--review-zone-motion" or "--review-windowed" or "--review-pages" or "--review-stress" or "--review-probe" or "--review-readme")
+            if (e.Args.Length == 2 && e.Args[0] is "--review-zone" or "--review-studio" or "--review-console" or "--review-management" or "--review-product" or "--review-models" or "--review-live" or "--review-design" or "--review-showcase" or "--review-dashboard" or "--review-input" or "--review-intro" or "--review-zone-motion" or "--review-windowed" or "--review-pages" or "--review-stress" or "--review-probe" or "--review-readme" or "--review-talk" or "--agent-bakeoff" or "--agent-drift" or "--agent-m3" or "--agent-phrasebook" or "--agent-m5" or "--agent-phrasebook-clean" or "--review-scanflow" or "--review-agent-look")
             {
                 ShutdownMode = ShutdownMode.OnExplicitShutdown; IntroView.SoundEnabled = false;
-                if(e.Args[0]=="--review-readme")await Development.ReadmeReview.Run(e.Args[1]);
+                if(e.Args[0]=="--review-readme")await Development.ReadmeReview.Run(e.Args[1]); else if(e.Args[0]=="--review-scanflow")await Development.ScanFlowReview.Run(e.Args[1]); else if(e.Args[0]=="--review-agent-look")await Development.AgentLookReview.Run(e.Args[1]);
+                else if(e.Args[0]=="--review-talk")await Development.TalkReview.Run(e.Args[1]);
             else if(e.Args[0]=="--review-models")await Development.ModelAudit.Run(e.Args[1]);
                 else if(e.Args[0]=="--review-live")await Development.LiveReview.Run(e.Args[1]);
                 else if(e.Args[0]=="--review-design")await Development.DesignReview.Run(e.Args[1]);
@@ -89,7 +90,7 @@ public partial class App : Application
                 catch (IOException) { } catch (UnauthorizedAccessException) { }
                 failure.Handled = true;
             };
-            var window = new ProductWindow(e.Args.Contains("--reduced-motion"),firstRun:true,nativeEngine:true,fullscreen:true,trayIcon:true);
+            var window = new ProductWindow(e.Args.Contains("--reduced-motion"),firstRun:true,nativeEngine:true,fullscreen:false,trayIcon:true);
             MainWindow = window; window.Show();
             // HidHide's hide list outlives the app (it survives a reboot): every way out un-hides the controller, not only
             // the window closing — Windows signing out or shutting down, and a crash on any thread
@@ -100,7 +101,7 @@ public partial class App : Application
         }
         catch (Exception error)
         {
-            if (e.Args.Length == 2 && e.Args[0] is "--review-zone" or "--review-studio" or "--review-console" or "--review-management" or "--review-product" or "--review-models" or "--review-live" or "--review-design" or "--review-showcase" or "--review-dashboard" or "--review-input" or "--review-intro" or "--review-zone-motion" or "--review-windowed" or "--review-pages" or "--review-stress" or "--review-probe" or "--review-readme")
+            if (e.Args.Length == 2 && e.Args[0] is "--review-zone" or "--review-studio" or "--review-console" or "--review-management" or "--review-product" or "--review-models" or "--review-live" or "--review-design" or "--review-showcase" or "--review-dashboard" or "--review-input" or "--review-intro" or "--review-zone-motion" or "--review-windowed" or "--review-pages" or "--review-stress" or "--review-probe" or "--review-readme" or "--review-talk" or "--agent-bakeoff" or "--agent-drift" or "--agent-m3" or "--agent-phrasebook" or "--agent-m5" or "--agent-phrasebook-clean" or "--review-scanflow" or "--review-agent-look")
             {
                 Directory.CreateDirectory(e.Args[1]);
                 File.WriteAllText(Path.Combine(e.Args[1], "failure.txt"), error.ToString());

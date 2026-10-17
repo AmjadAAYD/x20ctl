@@ -242,7 +242,7 @@ public sealed class WriteScanReport
     /// decoded message, and the trace only when <paramref name="includeTrace"/> is set. A manifest lists each file with its
     /// size and SHA-256 and records that the owner reviewed and agreed to send it, which the receiver checks.
     /// </summary>
-    public byte[] ResearchZip(bool includeTrace, string appVersion, string? second = null)
+    public byte[] ResearchZip(bool includeTrace, string appVersion, string? second = null, IReadOnlyList<(string Path, byte[] Data)>? attachments = null)
     {
         var files = new List<(string Path, byte[] Data)>
         {
@@ -255,12 +255,14 @@ public sealed class WriteScanReport
             ("experiments/write-scan/messages.txt", Encoding.UTF8.GetBytes(MessagesCsv())),
         };
         if (includeTrace) files.Add(("ble/recording.btsnoop", SharedTrace()));
+        // another report that travels with this one (the Read scan the owner just finished), as plain files under input/
+        if (attachments is not null) files.AddRange(attachments);
         foreach (var f in files)
             if (f.Data.Length > MaxResearchFileBytes)
                 throw new InvalidDataException(f.Path.StartsWith("ble/") ? "The Bluetooth log is over 4 MB, too big to send. Send without it, or record a shorter session." : f.Path + " is over 4 MB, too big to send.");
         var manifest = new
         {
-            schemaVersion = 2, kind = "write-scan", consent = true, reviewed = true, rawTrace = includeTrace,
+            schemaVersion = 2, kind = "write-scan", consent = true, reviewed = true, rawTrace = includeTrace, withReadScan = attachments is { Count: > 0 },
             files = files.Select(f => new { path = f.Path, size = f.Data.Length, sha256 = Convert.ToHexString(SHA256.HashData(f.Data)).ToLowerInvariant() }).ToList(),
         };
         using var stream = new MemoryStream();

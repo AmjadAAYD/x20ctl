@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -11,7 +11,7 @@ namespace X20Ctl.Product.Scanner;
 
 /// <summary>
 /// The Write scan (Tools), the Read scan's partner. The Read scan watches what a controller reports; the Write scan
-/// learns what an official app writes to one. The owner changes one setting in the official app on an Android phone
+/// learns what KeyLinker writes to one. The owner changes one setting in KeyLinker on an Android phone
 /// while the phone's own Bluetooth log records, then brings the log here. X20CTL sends nothing to the controller at
 /// any point: it reads the recording, decodes KeyLinker frames when they are there, and shows the controller's identity,
 /// what it says it offers, how that compares with the recorded X20, and the bytes the app changed.
@@ -31,7 +31,7 @@ public sealed class WriteScanView : Grid
     private readonly TextBox model = Field("X20"), app = Field("KeyLinker"), setting = Field(""), original = Field(""), test = Field("");
     private readonly CheckBox undoable = new() { Style = DS.Style("DS.Toggle"), VerticalAlignment = VerticalAlignment.Center };
     private readonly List<StepNote> notes = new();
-    private readonly Button planNext = Action("", "Next: prepare the phone", "DS.ActionPrimary");
+    private readonly Button planNext = Action("", "Next: prepare the phone", "PrimaryButton");
 
     // the guided test
     private readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromMilliseconds(100) };
@@ -56,23 +56,25 @@ public sealed class WriteScanView : Grid
     private readonly TextBox summary = new() { IsReadOnly = true, FontFamily = new FontFamily("Consolas"), FontSize = 13.5, TextWrapping = TextWrapping.Wrap, VerticalContentAlignment = VerticalAlignment.Top, Padding = new(16), VerticalScrollBarVisibility = ScrollBarVisibility.Auto, BorderThickness = new(0), Background = new SolidColorBrush(Color.FromArgb(70, 0, 0, 0)), Foreground = DS.Brush("DS.Text") };
     private readonly UniformGrid headline = new() { Rows = 1, Margin = new(-8, 0, -8, 14) };
 
-    public WriteScanView(Action close)
+    private readonly ReadReport? read; // the Read scan that came just before, when the player went on from it
+
+    public WriteScanView(Action close, ReadReport? read = null)
     {
-        this.close = close;
+        this.close = close; this.read = read;
         Background = new SolidColorBrush(Color.FromRgb(5, 9, 20)); ClipToBounds = true; AllowDrop = true;
         Children.Add(new FacetBackdrop());
         var page = new Grid { Margin = new(40, 0, 40, 28) }; Children.Add(page);
         page.RowDefinitions.Add(new() { Height = new(84) }); page.RowDefinitions.Add(new() { Height = new(64) }); page.RowDefinitions.Add(new());
 
         var bar = new DockPanel { VerticalAlignment = VerticalAlignment.Center };
-        var back = Action("", "Back to Tools", "DS.ActionSecondary"); back.Click += (_, _) => close(); DockPanel.SetDock(back, Dock.Right); bar.Children.Add(back);
+        var back = Action("", "Back to Tools", "ActionButton"); back.Click += (_, _) => close(); DockPanel.SetDock(back, Dock.Right); bar.Children.Add(back);
         var blue = Kit.Blue;
         var badge = new Border { CornerRadius = new(16), Padding = new(14, 7, 16, 7), Margin = new(0, 0, 16, 0), VerticalAlignment = VerticalAlignment.Center, Background = new SolidColorBrush(Color.FromArgb(40, blue.R, blue.G, blue.B)), BorderBrush = new SolidColorBrush(Color.FromArgb(120, blue.R, blue.G, blue.B)), BorderThickness = new(1),
-            Child = new StackPanel { Orientation = Orientation.Horizontal, Children = { Kit.Icon("", 14, "DS.AccentHi").Also(i => i.Margin = new(0, 0, 9, 0)), Kit.Text("X20CTL never writes · you change one setting in the official app", 13.5, "DS.Text", FontWeights.SemiBold) } } };
+            Child = new StackPanel { Orientation = Orientation.Horizontal, Children = { Kit.Icon("", 14, "DS.AccentHi").Also(i => i.Margin = new(0, 0, 9, 0)), Kit.Text("X20CTL never writes · you change one setting in KeyLinker", 13.5, "DS.Text", FontWeights.SemiBold) } } };
         DockPanel.SetDock(badge, Dock.Right); bar.Children.Add(badge);
         var mark = new Image { Source = LiveController.Bitmap("Assets/brand.png"), Width = 34, Height = 34, Margin = new(0, 0, 14, 0) }; RenderOptions.SetBitmapScalingMode(mark, BitmapScalingMode.HighQuality);
         bar.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = { mark, Kit.Text("X20CTL", 22, "DS.Text", FontWeights.Bold), new Border { Width = 1, Height = 22, Background = new SolidColorBrush(Color.FromArgb(60, 255, 255, 255)), Margin = new(18, 0, 18, 0) },
-            Kit.Text(WriteScanReport.Name, 22, "DS.Text", FontWeights.SemiBold), Kit.Text("   learns what an official app writes", 14, "DS.TextMuted") } });
+            Kit.Text(WriteScanReport.Name, 22, "DS.Text", FontWeights.SemiBold), Kit.Text("   learns what KeyLinker writes", 14, "DS.TextMuted") } });
         page.Children.Add(bar);
         Grid.SetRow(strip, 1); page.Children.Add(strip);
         Grid.SetRow(stage, 2); page.Children.Add(stage);
@@ -94,18 +96,20 @@ public sealed class WriteScanView : Grid
         foreach (var (title, text) in new[]
         {
             ("This can take a long time", "Plan on 20 to 40 minutes the first time: turning on a hidden phone setting, one small test, then getting a file from the phone to this PC. A bug report alone can take a few minutes to make."),
-            ("You need a phone", "Android or iPhone, with the official app and the controller connected to it by Bluetooth. Both can record Bluetooth: Android takes about five minutes to set up, an iPhone about fifteen."),
-            ("X20CTL sends nothing", "X20CTL never talks to the controller here. You change one setting in the official app yourself; the phone's own Bluetooth log records it, and X20CTL only reads that log."),
-            ("Read scan or Write scan?", "The Read scan (Controller not working?) watches what the controller reports to this PC. The Write scan learns what an app writes to the controller, so X20CTL can learn to change it too."),
+            ("You need a phone", "Android or iPhone, with KeyLinker and the controller connected to it by Bluetooth. Both can record Bluetooth: Android takes about five minutes to set up, an iPhone about fifteen."),
+            ("X20CTL sends nothing", "X20CTL never talks to the controller here. You change one setting in KeyLinker yourself; the phone's own Bluetooth log records it, and X20CTL only reads that log."),
+            read is null
+                ? ("Read scan or Write scan?", "The Read scan (Controller not working?) watches what the controller reports to this PC. The Write scan learns what an app writes to the controller, so X20CTL can learn to change it too.")
+                : ("Your Read scan comes along", "The Read scan you just finished (" + read.Describe() + ") is added to this report automatically. At the end you review both and press Send online, once."),
         })
             cards.Children.Add(Card(title, text));
-        var go = Action("", "I have the time, start", "DS.ActionPrimary"); go.Click += (_, _) => Fx.Leave(warning, () => warning.Visibility = Visibility.Collapsed, 1.02, 200);
-        var leave = Action("", "Back to Tools", "DS.ActionSecondary"); leave.Click += (_, _) => close();
+        var go = Action("", "I have the time, start", "PrimaryButton"); go.Click += (_, _) => Fx.Leave(warning, () => warning.Visibility = Visibility.Collapsed, 1.02, 200);
+        var leave = Action("", "Back to Tools", "ActionButton"); leave.Click += (_, _) => close();
         var panel = new StackPanel { MaxWidth = 1180, HorizontalAlignment = HorizontalAlignment.Center, Margin = new(40, 36, 40, 30), Children = {
             Kit.Text("Before you start the " + WriteScanReport.Name, 40, "DS.Text", FontWeights.Bold),
-            Wrap("You'll change one setting in the official app while your phone records its Bluetooth traffic. X20CTL then shows which bytes the app sent for that change. One recording teaches one setting.", 17, "DS.TextSoft").Also(t => t.Margin = new(0, 8, 0, 0)),
+            Wrap("You'll change one setting in KeyLinker while your phone records its Bluetooth traffic. X20CTL then shows which bytes the app sent for that change. One recording teaches one setting.", 17, "DS.TextSoft").Also(t => t.Margin = new(0, 8, 0, 0)),
             cards,
-            Note("Everything stays on this PC. Nothing is uploaded. The findings are saved to Documents\\X20CTLWriteScans only when you press Save, and you choose who to share them with."),
+            Note("Nothing leaves this PC until you press Send online at the end, and you see what goes first. The findings are saved to Documents\\X20CTLWriteScans only when you press Save."),
             new WrapPanel { Margin = new(0, 22, 0, 0), Children = { go, leave.Also(b => b.Margin = new(12, 0, 0, 0)) } } } };
         warning.Child = new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
     }
@@ -137,7 +141,7 @@ public sealed class WriteScanView : Grid
         var form = new Grid { Margin = new(0, 6, 0, 0) };
         form.ColumnDefinitions.Add(new()); form.ColumnDefinitions.Add(new() { Width = new(20) }); form.ColumnDefinitions.Add(new());
         for (int i = 0; i < 5; i++) form.RowDefinitions.Add(new() { Height = GridLength.Auto });
-        Put(form, Labelled("CONTROLLER (YOUR CLAIM: MODEL, OR BRAND AND MODEL)", Detach(model)), 0, 0); Put(form, Labelled("OFFICIAL APP", Detach(app)), 0, 2);
+        Put(form, Labelled("CONTROLLER (YOUR CLAIM: MODEL, OR BRAND AND MODEL)", Detach(model)), 0, 0); Put(form, Labelled("APP", Detach(app)), 0, 2);
         Put(form, Labelled("THE ONE SETTING YOU'LL CHANGE (for example: left motor strength)", Detach(setting)).Also(s => Grid.SetColumnSpan(s, 3)), 1, 0);
         Put(form, Labelled("ITS VALUE NOW", Detach(original)), 2, 0); Put(form, Labelled("WHAT YOU'LL CHANGE IT TO", Detach(test)), 2, 2);
         Put(form, new StackPanel { Orientation = Orientation.Horizontal, Margin = new(0, 18, 0, 0), Children = { Detach(undoable), Kit.Text("I know how to put it back to its value now afterwards", 14.5, "DS.Text").Also(t => t.Margin = new(12, 0, 0, 0)) } }.Also(s => Grid.SetColumnSpan(s, 3)), 3, 0);
@@ -158,9 +162,9 @@ public sealed class WriteScanView : Grid
             r.Checked += (_, _) => { if (phone != kind) { phone = kind; prepareAt = bringAt = 0; Show(1); } };
             choice.Children.Add(r);
         }
-        var picker = new StackPanel { Margin = new(0, 0, 0, 10), Children = { Kit.Text("WHICH PHONE HAS THE OFFICIAL APP?", 12, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(2, 0, 0, 8)),
+        var picker = new StackPanel { Margin = new(0, 0, 0, 10), Children = { Kit.Text("WHICH PHONE HAS KEYLINKER?", 12, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(2, 0, 0, 8)),
             new Border { CornerRadius = new(12), Background = new SolidColorBrush(Color.FromArgb(30, 255, 255, 255)), BorderBrush = new SolidColorBrush(Color.FromArgb(34, 255, 255, 255)), BorderThickness = new(1), Padding = new(1), HorizontalAlignment = HorizontalAlignment.Left, Child = choice },
-            Wrap("It doesn't have to be your phone: a borrowed phone or a tablet with the official app works too.", 13.5, "DS.TextMuted").Also(t => t.Margin = new(2, 8, 0, 6)) } };
+            Wrap("It doesn't have to be your phone: a borrowed phone or a tablet with KeyLinker works too.", 13.5, "DS.TextMuted").Also(t => t.Margin = new(2, 8, 0, 6)) } };
         return new PhoneGuide("Prepare the phone", PhoneGuides.Prepare(phone), prepareAt, i => prepareAt = i,
             () => { notes.Clear(); notes.Add(new(PhoneGuides.Name(phone).ToLowerInvariant() + " ready", DateTime.UtcNow)); part = 0; Show(2); },
             "The phone is ready", above: picker, backOut: () => Show(0));
@@ -171,7 +175,7 @@ public sealed class WriteScanView : Grid
     private (string Title, string Say, string Button, double HandsOff)[] Parts()
     {
         var p = Plan;
-        string a = p.App.Length > 0 ? p.App : "the official app", s = p.Setting, from = p.OriginalValue.Length > 0 ? p.OriginalValue : "its value now", to = p.TestValue.Length > 0 ? p.TestValue : "the new value";
+        string a = p.App.Length > 0 ? p.App : "KeyLinker", s = p.Setting, from = p.OriginalValue.Length > 0 ? p.OriginalValue : "its value now", to = p.TestValue.Length > 0 ? p.TestValue : "the new value";
         return [
             ("Open the app", $"Open {a} on the phone and connect the controller the way you always do. Wait until the app shows it.", "It's connected", 5),
             ("Go to the page", $"Open the page with {s}. Don't change anything yet.", "I'm on that page", 5),
@@ -184,8 +188,8 @@ public sealed class WriteScanView : Grid
     private FrameworkElement TestPage()
     {
         if (part == 0) { bringAt = 0; recordingStatus.Text = ""; }   // a new test: its recording is made from the first step
-        partDone = Action("", "", "DS.ActionPrimary"); partDone.Click += (_, _) => DonePart();
-        var restart = Action("", "Start the test again", "DS.ActionSecondary"); restart.Click += (_, _) => { notes.RemoveAll(n => !n.Event.EndsWith(" ready")); part = 0; Show(2); };
+        partDone = Action("", "", "PrimaryButton"); partDone.Click += (_, _) => DonePart();
+        var restart = Action("", "Start the test again", "ActionButton"); restart.Click += (_, _) => { notes.RemoveAll(n => !n.Event.EndsWith(" ready")); part = 0; Show(2); };
         var help = PhoneGuide.HelpPanel([
             ("The app doesn't find the controller", "Turn the controller off and on, in the mode you always use with the app. Check Bluetooth is on: you restarted it while preparing the phone."),
             ("I changed something else by mistake", "Press Start the test again and begin from the top. One recording should hold one change."),
@@ -193,7 +197,7 @@ public sealed class WriteScanView : Grid
             ("The controller was already paired", "That's fine. Leave it paired."),
             ("I pressed the button too early", "Press Start the test again. The pauses keep each action apart, so the result is easier to read.")]);
         help.Visibility = Visibility.Collapsed;
-        var stuck = Action("", "I'm stuck", "DS.ActionSecondary"); stuck.Click += (_, _) => help.Visibility = help.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
+        var stuck = Action("", "I'm stuck", "ActionButton"); stuck.Click += (_, _) => help.Visibility = help.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
         var left = Kit.Panel("Do the test", "Follow each step on the phone, then confirm here", null, new StackPanel { Children = {
             Detach(partTitle), Detach(partSay).Also(t => t.Margin = new(0, 8, 0, 0)), Detach(partCount).Also(t => t.Margin = new(0, 14, 0, 0)),
             new WrapPanel { Margin = new(0, 22, 0, 0), Children = { partDone, restart.Also(b => b.Margin = new(12, 0, 0, 0)), stuck.Also(b => b.Margin = new(12, 0, 0, 0)) } }, help } });
@@ -316,13 +320,13 @@ public sealed class WriteScanView : Grid
         headline.Children.Add(Card("Changes found", report.IsKeyLinker ? $"{Count(report.KeyLinker.Changes.Count, "write")}, {Count(report.KeyLinker.Changes.Sum(c => c.Bytes.Count), "byte")} changed, {report.KeyLinker.Changes.Count(c => c.ReadBack == "matches")} read back as stored" : $"{report.Shapes.Count} kinds of write"));
         summary.Text = report.Summary() + (secondText is null ? "" : "\n" + secondText);
 
-        var save = Action("", "Save the findings", "DS.ActionPrimary"); save.Click += (_, _) => Save();
-        var open = Action("", "Open the folder", "DS.ActionSecondary"); open.Click += (_, _) => OpenFolder();
-        var compare = Action("", "Compare with a second recording", "DS.ActionSecondary"); compare.Click += async (_, _) => await Choose(true);
+        var save = Action("", "Save the findings", "PrimaryButton"); save.Click += (_, _) => Save();
+        var open = Action("", "Open the folder", "ActionButton"); open.Click += (_, _) => OpenFolder();
+        var compare = Action("", "Compare with a second recording", "ActionButton"); compare.Click += async (_, _) => await Choose(true);
         compare.ToolTip = "The same test recorded twice, or the same change on a second controller: lists the messages only one recording holds";
-        var again = Action("", "Test another setting", "DS.ActionSecondary"); again.Click += (_, _) => { if (unsaved && !closeArmed) { closeArmed = true; resultStatus.Text = "These findings aren't saved. Press again to start over without them."; return; } report = null; log = null; secondText = null; closeArmed = false; unsaved = false; resultStatus.Text = ""; Show(0); };
-        var send = Action("\uE724", "Send to X20CTL", "DS.ActionSecondary"); send.Click += (_, _) => { sendPanel.Visibility = sendPanel.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible; };
-        send.ToolTip = "Send these findings to the X20CTL team, so your controller can be supported";
+        var again = Action("", "Test another setting", "ActionButton"); again.Click += (_, _) => { if (unsaved && !closeArmed) { closeArmed = true; resultStatus.Text = "These findings aren't saved. Press again to start over without them."; return; } report = null; log = null; secondText = null; closeArmed = false; unsaved = false; resultStatus.Text = ""; Show(0); };
+        var send = Action("\uE724", "Send online", "ActionButton"); send.Click += (_, _) => { sendPanel.Visibility = sendPanel.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible; };
+        send.ToolTip = read is null ? "Send these findings to the X20CTL team, so your controller can be supported" : "Send these findings and the Read scan report to the X20CTL team in one go";
         BuildSendPanel();
         var actions = new WrapPanel { Children = { save, send.Also(b => b.Margin = new(12, 0, 0, 0)), open.Also(b => b.Margin = new(12, 0, 0, 0)), compare.Also(b => b.Margin = new(12, 0, 0, 0)), again.Also(b => b.Margin = new(12, 0, 0, 0)) } };
         var keep = new StackPanel { Orientation = Orientation.Horizontal, Margin = new(0, 14, 0, 0), Children = { Detach(keepRaw), Kit.Text("Also save a copy of the Bluetooth log (it can hold other devices' names and addresses)", 13.5, "DS.TextSoft").Also(t => t.Margin = new(12, 0, 0, 0)) } };
@@ -339,12 +343,12 @@ public sealed class WriteScanView : Grid
     private void BuildSendPanel()
     {
         if (sendGo != null) return;
-        sendGo = Action("\uE724", "Send", "DS.ActionPrimary"); sendGo.IsEnabled = false; sendGo.Click += async (_, _) => await Send();
+        sendGo = Action("\uE724", "Send", "PrimaryButton"); sendGo.IsEnabled = false; sendGo.Click += async (_, _) => await Send();
         agree.Checked += (_, _) => sendGo.IsEnabled = receipt is null && !sending; agree.Unchecked += (_, _) => sendGo.IsEnabled = false;
         sendPanel.CornerRadius = new(14); sendPanel.Margin = new(0, 14, 0, 0); sendPanel.Padding = new(18, 14, 18, 14); sendPanel.BorderThickness = new(1);
         sendPanel.BorderBrush = new SolidColorBrush(Color.FromArgb(110, 61, 139, 255)); sendPanel.Background = new SolidColorBrush(Color.FromArgb(40, 61, 139, 255));
         sendPanel.Child = new StackPanel { Children = {
-            Kit.Text("Send these findings to X20CTL", 16.5, "DS.Text", FontWeights.SemiBold),
+            Kit.Text(read is null ? "Send these findings online" : "Send the Write scan and the Read scan online", 16.5, "DS.Text", FontWeights.SemiBold),
             Wrap("What goes to X20CTLADMIN, the X20CTL team's private report site: the summary above, the findings, the timeline and every decoded message (these can include the controller's name and an id). Nothing else from the phone.", 14, "DS.TextSoft").Also(t => t.Margin = new(0, 6, 0, 0)),
             new StackPanel { Orientation = Orientation.Horizontal, Margin = new(0, 12, 0, 0), Children = { sendTrace, Kit.Text("Also send the Bluetooth data packets: the controller's connection only, around the test, without Bluetooth's own messages (where device names and addresses travel)", 13.5, "DS.Text").Also(t => t.Margin = new(12, 0, 0, 0)) } },
             new StackPanel { Orientation = Orientation.Horizontal, Margin = new(0, 10, 0, 0), Children = { agree, Kit.Text("I've read the summary above and I'm happy to send it", 13.5, "DS.Text").Also(t => t.Margin = new(12, 0, 0, 0)) } },
@@ -359,7 +363,9 @@ public sealed class WriteScanView : Grid
         sending = true; sendGo!.IsEnabled = false; sendStatus.Text = "Sending to X20CTLADMIN…";
         try
         {
-            var zip = report.ResearchZip(sendTrace.IsChecked == true, ScanFlow.AppVersion, secondText);
+            var attached = read?.Files(X20Ctl.Zone.Capture.WriteScanReport.MaxResearchFileBytes) ?? [];
+            var zip = report.ResearchZip(sendTrace.IsChecked == true, ScanFlow.AppVersion,
+                (secondText ?? "") + (attached.Count > 0 ? $"\nRead scan included: {read!.Describe()} ({attached.Count} files under input/read-scan/)\n" : ""), attached);
             receipt = await WriteScanUpload.Send(zip, report.Plan.Model);
             sendStatus.Text = $"Sent to X20CTLADMIN · receipt {receipt}. Keep the receipt if you want to ask about it.";
         }

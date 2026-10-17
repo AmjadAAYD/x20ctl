@@ -13,6 +13,14 @@ public sealed class StickStats
     int stepX = int.MaxValue, stepY = int.MaxValue;
     double restX, restY; int restSamples;
 
+    public bool HasSamples => any;
+    public short MinX { get; private set; } = short.MaxValue;
+    public short MaxX { get; private set; } = short.MinValue;
+    public short MinY { get; private set; } = short.MaxValue;
+    public short MaxY { get; private set; } = short.MinValue;
+    public double? SmallestXDelta => stepX==int.MaxValue ? null : stepX/32767d;
+    public double? SmallestYDelta => stepY==int.MaxValue ? null : stepY/32767d;
+    public double? MaximumRadialError => Covered < Sectors*.8 ? null : reach.Where(r=>r>=.5).Max(r=>Math.Abs(1-r))*100;
     public short X { get; private set; }
     public short Y { get; private set; }
     public IReadOnlyList<double> Reach => reach;
@@ -25,6 +33,7 @@ public sealed class StickStats
             if (dx > 0) stepX = Math.Min(stepX, dx);
             if (dy > 0) stepY = Math.Min(stepY, dy);
         }
+        MinX=Math.Min(MinX,x);MaxX=Math.Max(MaxX,x);MinY=Math.Min(MinY,y);MaxY=Math.Max(MaxY,y);
         lastX = x; lastY = y; any = true; X = x; Y = y;
         double nx = x / 32767.0, ny = y / 32767.0, m = Math.Sqrt(nx * nx + ny * ny);
         if (m > .05)
@@ -50,7 +59,7 @@ public sealed class StickStats
 
     public void Reset()
     {
-        Array.Clear(reach); any = false; stepX = stepY = int.MaxValue; restX = restY = 0; restSamples = 0;
+        Array.Clear(reach); any = false; X=Y=0;MinX=MinY=short.MaxValue;MaxX=MaxY=short.MinValue; stepX = stepY = int.MaxValue; restX = restY = 0; restSamples = 0;
     }
 }
 
@@ -68,17 +77,16 @@ public sealed class TriggerStats
     }
     public bool FullTravel => Max >= 250 && Min <= 5;
     public int? ResolutionBits => StickStats.Bits(step, 8);
-    public void Reset() { any = false; step = int.MaxValue; Min = 255; Max = 0; }
+    public void Reset() { Value=0;any = false; step = int.MaxValue; Min = 255; Max = 0; }
 }
 
 /// <summary>
-/// Each button's presses and how long they last. A press far shorter than a finger can make (under 15 ms) is usually
-/// a worn switch bouncing: the button "chatters", sending an extra press and release.
+/// Each button's presses and how long they last. Repeated transitions within a short window are flagged for review. They do not prove hardware damage.
 /// </summary>
 public sealed class ButtonStats
 {
     public const double BounceMs = 15;
-    public sealed class Button { public int Presses, Bounces; public double ShortestMs = double.MaxValue; internal double DownAt = -1; public bool Down => DownAt >= 0; }
+    public sealed class Button { public int Presses, Bounces; public double LastMs, LongestMs; internal Queue<double> Transitions=new(); public double ShortestMs = double.MaxValue; internal double DownAt = -1; public bool Down => DownAt >= 0; }
     readonly Dictionary<ushort, Button> buttons = new();
     ushort previous;
     public Button this[ushort mask] => buttons.TryGetValue(mask, out var b) ? b : buttons[mask] = new();
@@ -89,12 +97,16 @@ public sealed class ButtonStats
         {
             bool down = (state & mask) != 0, was = (previous & mask) != 0;
             var b = this[mask];
+            if(down!=was) {
+                b.Transitions.Enqueue(nowMs);while(b.Transitions.Count>0 && nowMs-b.Transitions.Peek()>BounceMs)b.Transitions.Dequeue();
+                if(b.Transitions.Count==3){b.Bounces++;b.Transitions.Clear();}
+            }
             if (down && !was) { b.Presses++; b.DownAt = nowMs; }
             else if (!down && was && b.DownAt >= 0)
             {
                 double held = nowMs - b.DownAt; b.DownAt = -1;
                 b.ShortestMs = Math.Min(b.ShortestMs, held);
-                if (held < BounceMs) b.Bounces++;
+                b.LastMs=held;b.LongestMs=Math.Max(b.LongestMs,held);
             }
         }
         previous = state;

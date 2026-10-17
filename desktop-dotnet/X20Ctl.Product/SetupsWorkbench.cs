@@ -99,7 +99,7 @@ public sealed class SetupsWorkbench
     private Button Action(string title,Action operation)=>ManagementVisuals.Action(resources,title,()=>Guard(operation),register);
     private void Guard(Action action){try{action();Changed?.Invoke();}catch(Exception e) when(e is IOException or JsonException or ArgumentException or InvalidOperationException or UnauthorizedAccessException){notice.Text=e.Message+" Original data preserved.";}}
     public void Create(bool current){if(!healthy || model!="x20")return;var snapshot=current?capture():SetupSnapshot.Capture("x20",new("x20"),new("x20"),new("x20"),new("x20"));var item=Store.Create(current?"Saved draft "+(Store.Items.Count+1):"New setup "+(Store.Items.Count+1),snapshot);SelectedId=item.Id;Refresh();}
-    public void Select(string id){Store.Find(id);SelectedId=id;renameEditor.Visibility=Visibility.Collapsed;RefreshDetails();UpdateCardStates();SnapSelected();AnimateDetails();}
+    public void Select(string id){if(Store.Find(id).ModelId!=model)throw new InvalidOperationException("This setup belongs to a different model.");SelectedId=id;renameEditor.Visibility=Visibility.Collapsed;RefreshDetails();UpdateCardStates();SnapSelected();AnimateDetails();}
     public void RefreshCurrent(){RefreshDetails();UpdateCardStates();}
     public void DuplicateSelected(){if(SelectedId==null)return;SelectedId=Store.Duplicate(SelectedId).Id;Refresh();}
     public void OpenSelected(){if(SelectedId==null)return;var item=Store.Find(SelectedId);if(item.ModelId!=model)throw new InvalidOperationException("This setup belongs to a different model.");load(Store.NativeSnapshot(SelectedId));ActiveId=SelectedId;RefreshCurrent();Changed?.Invoke();}
@@ -114,7 +114,15 @@ public sealed class SetupsWorkbench
         return false;
     }
     private void CopyKnownLegacy(){foreach(string source in LegacySources)Store.CopyLegacy(source);Refresh();notice.Text="Legacy copies saved with exact-byte backups. Originals are unchanged; editor conversion is pending.";}
-    public void ImportPath(string file){string text=File.ReadAllText(file);using var doc=JsonDocument.Parse(text);if(doc.RootElement.ValueKind==JsonValueKind.Object && doc.RootElement.TryGetProperty("format",out var format) && format.GetString()?.StartsWith("x20ctl-native")==true)SelectedId=Store.ImportNative(text).Id;else SelectedId=Store.CopyLegacy(file).FirstOrDefault()?.Id;Refresh();}
+    public void ImportPath(string file)
+    {
+        string text=File.ReadAllText(file);using var doc=JsonDocument.Parse(text);var root=doc.RootElement;
+        bool native=root.ValueKind==JsonValueKind.Object && root.TryGetProperty("format",out var format) && format.GetString()?.StartsWith("x20ctl-native")==true;
+        string ModelOf(JsonElement item)=>item.TryGetProperty("modelId",out var id)?id.GetString()??"":item.TryGetProperty("controllerId",out id)?id.GetString()??"":item.TryGetProperty("controller_id",out id)?id.GetString()??"":"x20";
+        var entries=native?new[]{root.GetProperty("setup")}:root.ValueKind==JsonValueKind.Array?root.EnumerateArray().ToArray():new[]{root};
+        if(entries.Any(entry=>entry.ValueKind!=JsonValueKind.Object || ModelOf(entry)!=model))throw new InvalidDataException("Import a setup for "+(catalog.Find(model)?.Name??model)+". Other controller models are kept separate.");
+        SelectedId=native?Store.ImportNative(text).Id:Store.CopyLegacy(file).FirstOrDefault()?.Id;Refresh();
+    }
     private void ImportDialog(){if(ReviewSandbox.Active)return;var dialog=new OpenFileDialog {Title="Import Setup",Filter="Setup files (*.json)|*.json",CheckFileExists=true};if(dialog.ShowDialog(Window.GetWindow(Body))==true)ImportPath(dialog.FileName);}
     private void ExportDialog(){if(SelectedId==null||ReviewSandbox.Active)return;var dialog=new SaveFileDialog {Title="Export Setup",Filter="Setup files (*.json)|*.json",FileName="x20ctl-setup.json",OverwritePrompt=true};if(dialog.ShowDialog(Window.GetWindow(Body))==true)ExportPath(dialog.FileName);}
     public void ExportPath(string target)
@@ -124,11 +132,13 @@ public sealed class SetupsWorkbench
     }
     internal void Refresh()
     {
-        cards.Children.Clear();setupCards.Clear();libraryState.Text=Store.Items.Count+" saved "+(Store.Items.Count==1?"setup":"setups")+" · Local library";
-        if(SelectedId==null || !Store.Items.Any(s=>s.Id==SelectedId))SelectedId=Store.Items.FirstOrDefault()?.Id;
-        if(Store.Items.Count==0){LibraryViewport.Content=empty;DetailWorkspace.Visibility=Visibility.Collapsed;}
+        var compatible=Store.Items.Where(s=>s.ModelId==model).ToArray();
+        cards.Children.Clear();setupCards.Clear();libraryState.Text=compatible.Length+" saved "+(compatible.Length==1?"setup":"setups")+" · "+(catalog.Find(model)?.Name??model);
+        if(ActiveId!=null && !compatible.Any(s=>s.Id==ActiveId))ActiveId=null;
+        if(SelectedId==null || !compatible.Any(s=>s.Id==SelectedId))SelectedId=compatible.FirstOrDefault()?.Id;
+        if(compatible.Length==0){LibraryViewport.Content=empty;DetailWorkspace.Visibility=Visibility.Collapsed;}
         else {LibraryViewport.Content=cards;DetailWorkspace.Visibility=Visibility.Visible;}
-        foreach(var item in Store.Items)
+        foreach(var item in compatible)
         {
             var content=new StackPanel {HorizontalAlignment=HorizontalAlignment.Left};var known=catalog.Find(item.ModelId);Viewbox? photo=null;
             if(known!=null){photo=ManagementVisuals.Artwork(known,resources);photo.Height=148;photo.HorizontalAlignment=HorizontalAlignment.Left;content.Children.Add(photo);}

@@ -42,28 +42,28 @@ public sealed class ModelSelectorView : Grid
         }
         DockPanel.SetDock(commands, Dock.Right); chrome.Children.Add(commands);
         var brand = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        brand.Children.Add(new Border { Width = 40, Height = 40, CornerRadius = new(10), Background = new SolidColorBrush(Color.FromRgb(12, 16, 28)), BorderBrush = new SolidColorBrush(Color.FromArgb(60, 255, 255, 255)), BorderThickness = new(1), Child = new Image { Source = new BitmapImage(new Uri("pack://application:,,,/Assets/brand.png")), Width = 24, Height = 24 } });
+        brand.Children.Add(new Border { Width = 40, Height = 40, CornerRadius = new(10), Background = new SolidColorBrush(Color.FromRgb(12, 16, 28)), BorderBrush = new SolidColorBrush(Color.FromArgb(60, 255, 255, 255)), BorderThickness = new(1), Child = new Image { Source = new BitmapImage(new Uri("pack://application:,,,/X20Ctl;component/Assets/brand.png")), Width = 24, Height = 24 } });
         brand.Children.Add(new TextBlock { Text = "X20CTL", FontFamily = DS.Display, FontSize = 22, FontWeight = FontWeights.Bold, Margin = new(18, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center, Foreground = DS.Brush("DS.Text") });
         brand.Children.Add(new TextBlock { Text = "Choose a controller", FontFamily = DS.Display, FontSize = 17, Foreground = DS.Brush("DS.TextSoft"), VerticalAlignment = VerticalAlignment.Center });
         chrome.Children.Add(brand); Children.Add(chrome);
-        Children.Add(new Border { Height = 1, VerticalAlignment = VerticalAlignment.Top, Margin = new(0, 64, 0, 0), Background = new SolidColorBrush(Color.FromArgb(28, 255, 255, 255)) });
+        Children.Add(new Border { Height = 0 });
 
         var body = new Grid { Margin = new(47, 94, 47, 0) };
         body.RowDefinitions.Add(new() { Height = GridLength.Auto }); body.RowDefinitions.Add(new()); body.RowDefinitions.Add(new() { Height = new(56) });
         Children.Add(body);
         var header = new DockPanel { Margin = new(9, 0, 9, 26) };
-        var back = new Button { Content = "Back", Style = (Style)FindResource("DS.Secondary"), MinHeight = 38, Height = 38, Padding = new(18, 0, 18, 0), FontSize = 14.5, VerticalAlignment = VerticalAlignment.Center };
+        var back = new Button { Content = "Back", Style = (Style)FindResource("ActionButton"), MinHeight = 38, Height = 38, Padding = new(18, 0, 18, 0), FontSize = 14.5, VerticalAlignment = VerticalAlignment.Center };
         back.Click += (_, _) => Cancelled?.Invoke(); DockPanel.SetDock(back, Dock.Right); header.Children.Add(back);
         var title = new StackPanel();
-        title.Children.Add(new Border { CornerRadius = new(11), Height = 22, Padding = new(10, 0, 10, 0), HorizontalAlignment = HorizontalAlignment.Left, Background = new SolidColorBrush(Color.FromArgb(28, 255, 255, 255)), BorderBrush = new SolidColorBrush(Color.FromArgb(38, 255, 255, 255)), BorderThickness = new(1), Child = new TextBlock { Text = $"PLAYER {player + 1}", FontFamily = DS.Display, FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(184, 198, 217)), VerticalAlignment = VerticalAlignment.Center } });
+        title.Children.Add(new Border { CornerRadius = new(11), Height = 30, Padding = new(10, 0, 10, 0), HorizontalAlignment = HorizontalAlignment.Left, Background = new SolidColorBrush(Color.FromArgb(28, 255, 255, 255)), BorderBrush = new SolidColorBrush(Color.FromArgb(38, 255, 255, 255)), BorderThickness = new(1), Child = new TextBlock { Text = $"PLAYER {player + 1}", FontFamily = DS.Display, FontSize = 17, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(184, 198, 217)), VerticalAlignment = VerticalAlignment.Center } });
         title.Children.Add(new TextBlock { Text = "Which controller is this?", Style = (Style)FindResource("DS.Display"), FontWeight = FontWeights.SemiBold, FontSize = 32, Margin = new(0, 10, 0, 4) });
-        title.Children.Add(new TextBlock { Text = "Pick the model in your hands. This sets its layout and tools; connecting the hardware is a separate step.", Style = (Style)FindResource("DS.Body"), Foreground = new SolidColorBrush(Color.FromRgb(140, 155, 178)) });
+        title.Children.Add(new TextBlock { Text = "Pick the model in your hands. This sets its layout and tools; connecting the hardware is a separate step.", Style = (Style)FindResource("DS.Body"), Foreground = DS.Brush("Zone.TextSecondary") });
         header.Children.Add(title); body.Children.Add(header);
 
         // four, then three centred
         var grid = new Grid(); Grid.SetRow(grid, 1); body.Children.Add(grid);
         grid.RowDefinitions.Add(new()); grid.RowDefinitions.Add(new());
-        var rows = new[] { new UniformGrid4(4), new UniformGrid4(3) };
+        var rows = new[] { new UniformGrid4(4), new UniformGrid4(4) };
         Grid.SetRow(rows[1], 1);
         foreach (var r in rows) grid.Children.Add(r);
         int n = 0;
@@ -80,6 +80,7 @@ public sealed class ModelSelectorView : Grid
         Loaded += (_, _) =>
         {
             if (cards.Count > 0) cards[0].Focus();
+            if(!DS.Motion)return;
             // the cards rise in one after another
             for (int i = 0; i < cards.Count; i++)
             {
@@ -96,37 +97,32 @@ public sealed class ModelSelectorView : Grid
     private Button Card(ControllerModel model, Facts? facts)
     {
         var lift = new ScaleTransform(1, 1);
-        var edge = new Border { CornerRadius = new(16), BorderThickness = new(1), BorderBrush = new SolidColorBrush(Color.FromArgb(128, 74, 98, 128)), Background = new LinearGradientBrush(Color.FromArgb(196, 30, 41, 58), Color.FromArgb(206, 17, 23, 34), 90), Padding = new(20, 18, 20, 18) };
+        var edge = new Border { CornerRadius = new(16), BorderThickness = new(1), BorderBrush = DS.Brush("Zone.BorderDefault"), Background = DS.Brush("Zone.ContentSurface"), Padding = new(20, 18, 20, 18) };
         var stack = new Grid();
         stack.RowDefinitions.Add(new() { Height = new(1, GridUnitType.Star) }); stack.RowDefinitions.Add(new() { Height = GridLength.Auto }); stack.RowDefinitions.Add(new() { Height = GridLength.Auto }); stack.RowDefinitions.Add(new() { Height = GridLength.Auto });
         var picture = new Image { Source = ControllerArt.Front(model.Id), Stretch = Stretch.Fill };
         RenderOptions.SetBitmapScalingMode(picture, BitmapScalingMode.HighQuality);
         var rim = new ControllerOutline(); rim.Show(model.Id, false); ControllerOutline.Trim(picture, model.Id, false);
-        var art = new Viewbox { Stretch = Stretch.Uniform, Margin = new(0, 0, 0, 12), Child = new Grid { Width = 1536, Height = 1024, Children = { picture, rim } } };
+        var art = new Viewbox { Stretch = Stretch.Uniform, Margin = new(0, 0, 0, 12), Child = new Grid { Width = 1536, Height = 1024, Children = { picture } } };
         stack.Children.Add(art);
         var name = new TextBlock { Text = model.Name, FontFamily = DS.Display, FontSize = 19, FontWeight = FontWeights.SemiBold, Foreground = DS.Brush("DS.Text"), TextTrimming = TextTrimming.CharacterEllipsis }; Grid.SetRow(name, 1); stack.Children.Add(name);
-        var about = new TextBlock { Text = facts?.Description ?? "", FontFamily = DS.Body, FontSize = 12.5, Foreground = new SolidColorBrush(Color.FromRgb(140, 155, 178)), TextWrapping = TextWrapping.Wrap, Margin = new(0, 5, 0, 10), MaxHeight = 36 }; Grid.SetRow(about, 2); stack.Children.Add(about);
+        var about = new TextBlock { Text = facts?.Description ?? "", FontFamily = DS.Body, FontSize = 12.5, Foreground = DS.Brush("Zone.TextSecondary"), TextWrapping = TextWrapping.Wrap, Margin = new(0, 5, 0, 10), MaxHeight = 36 }; Grid.SetRow(about, 2); stack.Children.Add(about);
         bool full = model.Support == "SUPPORTED";
         var line = new StackPanel { Orientation = Orientation.Horizontal };
         line.Children.Add(new System.Windows.Shapes.Ellipse { Width = 7, Height = 7, Margin = new(1, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center, Fill = new SolidColorBrush(full ? Accent : Color.FromRgb(98, 112, 134)) });
         line.Children.Add(new TextBlock { Text = facts?.SupportLine ?? model.Summary, FontFamily = DS.Display, FontSize = 12, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(full ? Color.FromRgb(150, 205, 255) : Color.FromRgb(150, 162, 182)), VerticalAlignment = VerticalAlignment.Center });
         Grid.SetRow(line, 3); stack.Children.Add(line);
-        // gloss: a sheen falling from the top and a lit top edge, as on the Zone's cards
-        var gloss = new Grid { Margin = new(-20, -18, -20, -18), IsHitTestVisible = false };
-        gloss.Children.Add(new Border { CornerRadius = new(15, 15, 0, 0), Height = 110, VerticalAlignment = VerticalAlignment.Top, Background = new LinearGradientBrush(new GradientStopCollection { new(Color.FromArgb(34, 255, 255, 255), 0), new(Color.FromArgb(6, 255, 255, 255), .5), new(Color.FromArgb(0, 255, 255, 255), 1) }, 90) });
-        gloss.Children.Add(new Border { CornerRadius = new(15), BorderThickness = new(0, 1, 0, 0), BorderBrush = new SolidColorBrush(Color.FromArgb(64, 255, 255, 255)) });
-        var layered = new Grid(); layered.Children.Add(gloss); layered.Children.Add(stack);
-        edge.Child = layered;
+        edge.Child = stack;
         var button = new Button { Content = edge, Margin = new(9, 0, 9, 18), Padding = new(0), Background = Brushes.Transparent, BorderThickness = new(0), FocusVisualStyle = null, Cursor = Cursors.Hand, RenderTransformOrigin = new(.5, .5), RenderTransform = new TransformGroup { Children = { lift } } };
         button.Template = new ControlTemplate(typeof(Button)) { VisualTree = new FrameworkElementFactory(typeof(ContentPresenter)) };
         System.Windows.Automation.AutomationProperties.SetName(button, $"Assign {model.Name} to Player {Player + 1}, {model.Support}");
         void Light()
         {
-            bool on = button.IsKeyboardFocused || button.IsMouseOver;
-            edge.BorderBrush = on ? Brushes.White : new SolidColorBrush(Color.FromArgb(128, 74, 98, 128)); edge.BorderThickness = new(on ? 2 : 1);
-            edge.Effect = on ? new System.Windows.Media.Effects.DropShadowEffect { Color = Accent, BlurRadius = 30, ShadowDepth = 0, Opacity = .45 } : null;
-            foreach (var axis in new[] { ScaleTransform.ScaleXProperty, ScaleTransform.ScaleYProperty })
-                lift.BeginAnimation(axis, new DoubleAnimation(on ? 1.03 : 1, TimeSpan.FromMilliseconds(160)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+            bool focused=button.IsKeyboardFocused,hover=button.IsMouseOver;
+            edge.BorderBrush=focused?Brushes.White:DS.Brush("Zone.BorderDefault");edge.BorderThickness=new(focused?2:1);
+            edge.Background=DS.Brush(hover?"Zone.ContentSurfaceHover":"Zone.ContentSurface");edge.Effect=null;
+            lift.BeginAnimation(ScaleTransform.ScaleXProperty,null);lift.BeginAnimation(ScaleTransform.ScaleYProperty,null);lift.ScaleX=lift.ScaleY=1;
+
         }
         button.GotKeyboardFocus += (_, _) => Light(); button.LostKeyboardFocus += (_, _) => Light(); button.MouseEnter += (_, _) => Light(); button.MouseLeave += (_, _) => Light();
         return button;
