@@ -61,7 +61,7 @@ internal sealed class PcEngine
         (PadButtons.Back, 0x13A), (PadButtons.Start, 0x13B), (PadButtons.Guide, 0x13C), (PadButtons.L3, 0x13D), (PadButtons.R3, 0x13E)
     ];
 
-    public Func<PcModeProfile> Profile { get; set; } = () => new();
+    public Func<int, PcModeProfile> ProfileFor { get; set; } = _ => new();
     public event Action? Changed;
     public bool Running => thread is { IsAlive: true };
     /// <summary>What it is doing right now, in words for the PC mode page.</summary>
@@ -122,50 +122,77 @@ internal sealed class PcEngine
 
     // ------------------------------------------------------------------------------------------------ the loop
 
+    sealed class Slot
+    {
+        public int Player; public EvDevice? Device; public RealPad? Real; public VirtualPad? Virtual; public PadProcessor? Processor; public PcModeProfile Profile = new(); public string Json = "";
+        public readonly HoldCombo Combo = new(PadButtons.Back | PadButtons.Start, 1000); public bool Paused; public long Clock; public bool Reported;
+    }
+
+    /// <summary>Each connected controller is a player (in the order the kernel lists them) with its own settings and its own virtual Xbox pad.</summary>
+    public IReadOnlyList<(int Player, string Name, bool Active)> Routes => routes;
+    volatile IReadOnlyList<(int, string, bool)> routes = [];
+
     void Loop()
     {
-        RealPad? real = null; VirtualPad? virtualPad = null; PadProcessor? processor = null; var combo = new HoldCombo(PadButtons.Back | PadButtons.Start, 1000);
-        bool paused = false; long clock = Environment.TickCount64; PcModeProfile profile = new();
+        var slots = Enumerable.Range(0, 4).Select(i => new Slot { Player = i }).ToArray(); long lastLook = -10000, lastScan = -10000;
         try
         {
             if (!CanCreateVirtualPad()) { Set("Needs attention", "PC mode can't create the virtual controller: /dev/uinput isn't writable for you. Allow it once, then try again.", false); return; }
+            IReadOnlyList<EvDevice> devices = [];
             while (!stop)
             {
-                if (reload)
+                long now = Environment.TickCount64;
+                if (Suspended) { foreach (var s in slots) Release(s); Set("Paused", "Paused while the controller is the mouse.", false); Thread.Sleep(150); continue; }
+                if (reload || now - lastLook > 750)
                 {
-                    reload = false;
-                    try { profile = Profile(); processor = null; }
-                    catch (Exception e) when (e is InvalidDataException or IOException) { Set("Needs attention", "Settings couldn't be used: " + e.Message, false); }
+                    reload = false; lastLook = now;
+                    foreach (var s in slots)
+                        try { var p = ProfileFor(s.Player); string j = System.Text.Json.JsonSerializer.Serialize(p); if (j != s.Json) { s.Json = j; s.Profile = p; s.Processor = null; } }
+                        catch (Exception e) when (e is InvalidDataException or IOException) { Set("Needs attention", "Settings couldn't be used: " + e.Message, false); }
                 }
-                if (Suspended) { real?.Dispose(); real = null; virtualPad?.Dispose(); virtualPad = null; Set("Paused", "Paused while the controller is the mouse.", false); Thread.Sleep(150); continue; }
-                if (profile.IsNeutral)
+                if (now - lastScan > 500) { lastScan = now; devices = Controllers(); }
+                bool any = false; var lines = new List<string>(); var report = new List<(int, string, bool)>();
+                for (int i = 0; i < slots.Length; i++)
                 {
-                    real?.Dispose(); real = null; virtualPad?.Dispose(); virtualPad = null;
-                    Set("Ready", "Nothing to apply yet. Set a remap, curve, turbo or macro and it starts by itself.", false); Thread.Sleep(250); continue;
+                    var s = slots[i]; var device = i < devices.Count ? devices[i] : null;
+                    if (s.Real != null && (device == null || device.Path != s.Device?.Path)) { s.Real.Dispose(); s.Real = null; s.Processor = null; }
+                    if (device == null || s.Profile.IsNeutral) { if (s.Profile.IsNeutral) Release(s); continue; }
+                    if (s.Real == null)
+                    {
+                        try { s.Real = new RealPad(device); s.Device = device; s.Virtual ??= new VirtualPad(); s.Processor = null; }
+                        catch (IOException e) { lines.Add($"Player {i + 1}: couldn't take {device.Name}: {e.Message}. Is another program holding it?"); continue; }
+                    }
+                    any = true; lines.Add($"Player {i + 1}: {device.Name} is hidden from games; they see one Xbox controller with your settings."); report.Add((i, device.Name, true));
                 }
-                if (real == null)
+                routes = report;
+                var open = slots.Where(s => s.Real != null).ToList();
+                if (open.Count == 0)
                 {
-                    var device = Controllers().FirstOrDefault();
-                    if (device == null) { Set("Ready", "No controller found. Plug one in and it starts by itself.", false); Thread.Sleep(500); continue; }
-                    try { real = new RealPad(device); }
-                    catch (IOException e) { Set("Needs attention", $"Couldn't take {device.Name}: {e.Message}. Is another program holding it?", false); Thread.Sleep(1000); continue; }
-                    virtualPad ??= new VirtualPad(); processor = null;
-                    Set("Active", $"{device.Name} is hidden from games; they see one Xbox controller with your settings.", true);
+                    string why = devices.Count == 0 ? "No controller found. Plug one in and it starts by itself." : "Nothing to apply yet. Set a remap, curve, turbo or macro and it starts by itself.";
+                    Set(lines.Count > 0 ? "Needs attention" : "Ready", lines.Count > 0 ? string.Join("\n", lines) : why, false); Thread.Sleep(devices.Count == 0 ? 250 : 120); continue;
                 }
-                if (processor == null) { processor = new PadProcessor(profile); clock = Environment.TickCount64; }
-                real.Wait(5);
-                if (!real.Read()) { real.Dispose(); real = null; Set("Ready", "The controller went away. Plug it back in and it starts again.", false); continue; }
-                long now = Environment.TickCount64 - clock; var state = real.State();
-                if (combo.Update(state.Buttons, now))
+                Wait(open, 4);
+                foreach (var s in open)
                 {
-                    paused = !paused;
-                    Set("Active", paused ? "Your settings are off for now: the controller works as it normally does. Hold View + Menu again to switch them on." : "Your settings are back on.", true);
+                    if (!s.Real!.Read()) { s.Real.Dispose(); s.Real = null; s.Processor = null; continue; }
+                    if (s.Processor == null) { s.Processor = new PadProcessor(s.Profile); s.Clock = Environment.TickCount64; }
+                    long t = Environment.TickCount64 - s.Clock; var state = s.Real.State();
+                    if (s.Combo.Update(state.Buttons, t)) { s.Paused = !s.Paused; lines.Add(s.Paused ? $"Player {s.Player + 1}: your settings are off for now. Hold View + Menu again to switch them on." : $"Player {s.Player + 1}: your settings are back on."); }
+                    s.Virtual!.Update(s.Paused ? state : s.Processor.Process(state, t));
                 }
-                virtualPad!.Update(paused ? state : processor.Process(state, now));
+                Set("Active", string.Join("\n", lines), any);
             }
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { Set("Needs attention", e.Message, false); }
-        finally { real?.Dispose(); virtualPad?.Dispose(); }
+        finally { foreach (var s in slots) { s.Real?.Dispose(); s.Virtual?.Dispose(); } routes = []; }
+    }
+
+    static void Release(Slot s) { s.Real?.Dispose(); s.Real = null; s.Virtual?.Dispose(); s.Virtual = null; s.Processor = null; }
+
+    static void Wait(List<Slot> open, int ms)
+    {
+        var fds = open.Select(s => new Native.PollFd { Fd = s.Real!.Fd, Events = Native.PollIn }).ToArray();
+        Native.Poll(ref System.Runtime.InteropServices.MemoryMarshal.GetArrayDataReference(fds), (nuint)fds.Length, ms);
     }
 
     sealed class HoldCombo(ushort mask, int holdMs)
@@ -184,7 +211,7 @@ internal sealed class PcEngine
 
     internal sealed unsafe class RealPad : IDisposable
     {
-        readonly int fd; readonly Dictionary<int, (int Lo, int Hi)> ranges = new(); readonly Dictionary<int, int> raw = new(); readonly HashSet<string> pressed = new(); readonly int[] hat = new int[2];
+        readonly int fd; public int Fd => fd; readonly Dictionary<int, (int Lo, int Hi)> ranges = new(); readonly Dictionary<int, int> raw = new(); readonly HashSet<string> pressed = new(); readonly int[] hat = new int[2];
         public RealPad(EvDevice device, bool grab = true)
         {
             fd = Native.Open(device.Path, Native.ReadOnly | Native.NonBlock);

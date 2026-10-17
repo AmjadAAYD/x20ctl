@@ -16,9 +16,11 @@ internal sealed class StudioState
     public CurveDraft Curves { get; }
     public MacroDraft Macros { get; }
     public int VibrationPreview { get; set; } = VibrationDraft.DefaultStrength;
-    public StudioState(ControllerModel model)
+    /// <summary>The player slot (0 to 3) this controller sits in: each has its own PC mode settings.</summary>
+    public int Slot { get; }
+    public StudioState(ControllerModel model, int slot = 0)
     {
-        Model = model;
+        Model = model; Slot = slot;
         Buttons = new(model.Id) { PcMode = true };
         Curves = new(model.Id) { PcMode = true };
         Macros = new(model.Id) { PcMode = true };
