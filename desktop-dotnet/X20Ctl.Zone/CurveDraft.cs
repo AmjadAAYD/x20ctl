@@ -10,9 +10,10 @@ public sealed record CurveSetting(string Preset, int Inner, int Outer, (int X,in
 public sealed class CurveDraft(string modelId)
 {
     private readonly Dictionary<CurveChannel,CurveSetting> channels = Enum.GetValues<CurveChannel>().ToDictionary(c=>c,_=>CurveSetting.Default);
-    // UI preset coordinates from the preserved Python reference; this is not codec parity.
+    // Points the curve runs through (PadProcessor.Through), 0-255; not codec parity. Reshaped 14 Oct 2026: the Python
+    // reference's points were Bezier handles, and drawn through they made "smooth" a plateau and "fine" a spike.
     public static readonly IReadOnlyDictionary<string,((int,int) First,(int,int) Second)> Presets =
-        new Dictionary<string,((int,int),(int,int))> { ["default"] = ((85,85),(170,170)), ["quick"] = ((35,35),(136,204)), ["slow"] = ((35,35),(219,145)), ["smooth"] = ((142,142),(220,157)), ["fine"] = ((67,67),(72,106)) };
+        new Dictionary<string,((int,int),(int,int))> { ["default"] = ((85,85),(170,170)), ["quick"] = ((64,102),(166,217)), ["slow"] = ((89,51),(191,140)), ["smooth"] = ((77,59),(178,196)), ["fine"] = ((77,89),(178,196)) };
     /// <summary>PC mode applies the draft on the PC, so any model can be edited while it's on.</summary>
     public bool PcMode { get; set; }
     public bool CanEdit => modelId == "x20" || PcMode;

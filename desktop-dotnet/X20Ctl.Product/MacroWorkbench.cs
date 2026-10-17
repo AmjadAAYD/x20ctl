@@ -84,15 +84,15 @@ public sealed class MacroWorkbench
         Body.RowDefinitions.Add(new());Body.RowDefinitions.Add(new(){Height=new GridLength(14)});Body.RowDefinitions.Add(new(){Height=new GridLength(262)});
         var top=new Grid();top.ColumnDefinitions.Add(new(){Width=new GridLength(380)});top.ColumnDefinitions.Add(new(){Width=new GridLength(16)});top.ColumnDefinitions.Add(new());Body.Children.Add(top);
 
-        // left: the four back paddles on the real (relit) rear controller, large enough to read
+        // left: this model's programmable buttons on the real (relit) rear controller, large enough to read
         var art=new Grid {Width=1536,Height=1024};art.Children.Add(new PhotoController(model,true));var map=new Canvas();art.Children.Add(map);
-        // only the back buttons the draft has a slot for: the X20 Pro also maps M5 and M6, and clicking them threw
-        foreach(var region in layout.Controls.Where(r=>r.Role=="macro" && MacroDraft.Slots.Contains(r.Key))) {var shape=new PhysicalHotspot(region,!reducedMotion,true){ToolTip=$"{region.Key} paddle"};Canvas.SetLeft(shape,region.Bounds.X*1536);Canvas.SetTop(shape,region.Bounds.Y*1024);shape.Click+=(_,_)=>SelectSlot(region.Key);map.Children.Add(shape);paddles.Add(region.Key,shape);}
+        // Every physical programmable button gets its own selectable sequence, including M5/M6.
+        foreach(var region in layout.Controls.Where(r=>r.Role=="macro" && Draft.SlotNames.Contains(r.Key))) {var shape=new PhysicalHotspot(region,!reducedMotion,true){ToolTip=$"{region.Key} paddle"};Canvas.SetLeft(shape,region.Bounds.X*1536);Canvas.SetTop(shape,region.Bounds.Y*1024);shape.Click+=(_,_)=>SelectSlot(region.Key);map.Children.Add(shape);paddles.Add(region.Key,shape);}
         var rear=new Viewbox {Child=art,Stretch=Stretch.Uniform,Margin=new(-18,-6,-18,0)};
         var rail=new UniformGrid {Rows=1,Margin=new(-4,10,-4,0)};
-        // each model shows its own back buttons (the draft holds M1 to M4)
-        var own=ModelProfiles.For(model).Paddles.Where(MacroDraft.Slots.Contains).ToArray();
-        foreach(string slot in own.Length>0?own:MacroDraft.Slots) rail.Children.Add(SlotCard(slot));
+        // No four-slot filter: the rail follows the draft for the selected model.
+        var own=Draft.PhysicalSlots.ToArray();
+        foreach(string slot in own.Length>0?own:Draft.SlotNames) rail.Children.Add(SlotCard(slot));
         var paddleBody=new DockPanel();
         if(Draft.PcMode)
         {   // PC mode never sees a paddle (EasySMX paddles send ordinary buttons), so a real button plays each slot
@@ -103,20 +103,20 @@ public sealed class MacroWorkbench
             DockPanel.SetDock(pick,System.Windows.Controls.Dock.Bottom);paddleBody.Children.Add(pick);
         }
         DockPanel.SetDock(rail,System.Windows.Controls.Dock.Bottom);paddleBody.Children.Add(rail);paddleBody.Children.Add(rear);
-        top.Children.Add(Kit.Panel("Back paddles",Draft.PcMode?"Pick a slot, then the button that plays it":"Pick the paddle that plays this sequence",null,paddleBody));
+        top.Children.Add(Kit.Panel(Draft.PhysicalSlots.Count==0?"PC macro slots":"Programmable buttons",Draft.PcMode?"Pick a slot, then the button that plays it":"Pick the paddle that plays this sequence",null,paddleBody));
 
         // right: heading and actions, event cards, lane timeline, footer
         var page=new Grid();page.RowDefinitions.Add(new(){Height=GridLength.Auto});page.RowDefinitions.Add(new(){Height=GridLength.Auto});page.RowDefinitions.Add(new());page.RowDefinitions.Add(new(){Height=GridLength.Auto});
         var header=new DockPanel();page.Children.Add(header);
-        add=Button("+ Add event",Add,"DS.ActionPrimary");preview=Button("Preview timeline",Preview,"DS.ActionSecondary");
+        add=Button("+ Add event",Add,"PrimaryButton");preview=Button("Preview timeline",Preview,"ActionButton");
         foreach(var b in new[]{add,preview}){b.Height=44;b.MinHeight=0;b.Padding=new(22,0,22,0);b.FontSize=15;b.Margin=new(0,0,10,0);}
         preview.ToolTip="Plays the timeline on screen only. Nothing is sent to the controller or to Windows.";
         var more=new Button{Content="",Style=DS.Style("DS.ActionRound"),Width=44,Height=44,MinHeight=0,ToolTip="More macro actions"};focusRegistration(more);var menu=new ContextMenu();
         var clearMenu=new MenuItem {Header="Clear this slot"};clearMenu.Click+=(_,_)=>Guard(Clear);menu.Items.Add(clearMenu);menu.Items.Add(new MenuItem {Header="Recording unavailable",IsEnabled=false});more.ContextMenu=menu;more.Click+=(_,_)=>{clearMenu.IsEnabled=Draft[Slot].Count>0;menu.PlacementTarget=more;menu.Placement=PlacementMode.Bottom;menu.IsOpen=true;};
-                Record=new Button{Style=DS.Style("DS.ActionSecondary"),Height=44,MinHeight=0,Padding=new(18,0,20,0),Margin=new(0,0,10,0),ToolTip="Play the sequence on your controller and it becomes this slot's events (read-only input; nothing is sent)",
+                Record=new Button{Style=DS.Style("ActionButton"),Height=44,MinHeight=0,Padding=new(18,0,20,0),Margin=new(0,0,10,0),ToolTip="Play the sequence on your controller and it becomes this slot's events (read-only input; nothing is sent)",
             Content=new StackPanel{Orientation=Orientation.Horizontal,Children={new Ellipse{Width=11,Height=11,Fill=new SolidColorBrush(Color.FromRgb(255,72,96)),Margin=new(0,0,10,0),VerticalAlignment=VerticalAlignment.Center,Effect=new DropShadowEffect{Color=Color.FromRgb(255,72,96),BlurRadius=10,ShadowDepth=0,Opacity=.9}},new TextBlock{Text="Record",FontFamily=DS.Display,FontSize=15,FontWeight=FontWeights.SemiBold,Foreground=DS.Brush("DS.Text"),VerticalAlignment=VerticalAlignment.Center}}}};
         Record.Click+=(_,_)=>ToggleRecording();focusRegistration(Record);Record.IsEnabled=Draft.CanEdit;
-        var read=new Button{Style=DS.Style("DS.ActionSecondary"),Height=44,MinHeight=0,Padding=new(18,0,20,0),Margin=new(0,0,10,0),ToolTip="Read the macro stored on the controller into this slot",
+        var read=new Button{Style=DS.Style("ActionButton"),Height=44,MinHeight=0,Padding=new(18,0,20,0),Margin=new(0,0,10,0),ToolTip="Read the macro stored on the controller into this slot",
             Content=new StackPanel{Orientation=Orientation.Horizontal,Children={Kit.Icon("\uE896",14,"DS.Text").Also(i=>i.Margin=new(0,0,10,0)),new TextBlock{Text="Read controller",FontFamily=DS.Display,FontSize=15,FontWeight=FontWeights.SemiBold,Foreground=DS.Brush("DS.Text"),VerticalAlignment=VerticalAlignment.Center}}}};
         read.Click+=(_,_)=>notice.Text="Reading the stored macro needs the controller's configuration link, which X20CTL can't open yet (it only reads ordinary input today). The X20's read-back command is known and will be used once that link exists. Use Record to capture a sequence now.";focusRegistration(read);
         var workspaceActions=new StackPanel {Orientation=Orientation.Horizontal,VerticalAlignment=VerticalAlignment.Center,Children={Record,read,add,preview,more}};DockPanel.SetDock(workspaceActions,System.Windows.Controls.Dock.Right);header.Children.Add(workspaceActions);
@@ -128,7 +128,7 @@ public sealed class MacroWorkbench
         // the lane names sit on their own rounded chips in a column that fades into the timeline behind it
         var laneColumn=new Border {Width=124,HorizontalAlignment=HorizontalAlignment.Left,IsHitTestVisible=false,CornerRadius=new(12,0,0,12),Child=laneLabels,
             Background=new LinearGradientBrush(new GradientStopCollection{new GradientStop(Color.FromArgb(250,11,19,42),0),new GradientStop(Color.FromArgb(250,11,19,42),.86),new GradientStop(Color.FromArgb(0,11,19,42),1)},new Point(0,0),new Point(1,0))};
-        var addFirst=Button("+ Add first event",Add,"DS.ActionPrimary");addFirst.Height=46;addFirst.MinHeight=0;addFirst.Padding=new(26,0,26,0);addFirst.FontSize=15;addFirst.HorizontalAlignment=HorizontalAlignment.Center;addFirst.IsEnabled=Draft.CanEdit;addFirst.Margin=new(0,16,0,0);
+        var addFirst=Button("+ Add first event",Add,"PrimaryButton");addFirst.Height=46;addFirst.MinHeight=0;addFirst.Padding=new(26,0,26,0);addFirst.FontSize=15;addFirst.HorizontalAlignment=HorizontalAlignment.Center;addFirst.IsEnabled=Draft.CanEdit;addFirst.Margin=new(0,16,0,0);
         var ring=new Grid {Width=58,Height=58,HorizontalAlignment=HorizontalAlignment.Center,Margin=new(0,0,0,12),Children={new Ellipse {Fill=new RadialGradientBrush(Color.FromArgb(70,61,139,255),Color.FromArgb(0,61,139,255)),Margin=new(-16)},new Ellipse {Stroke=new SolidColorBrush(Color.FromArgb(150,125,182,255)),StrokeThickness=1.5,Fill=new SolidColorBrush(Color.FromArgb(40,30,60,130))},Kit.Icon("",22,"DS.AccentHi").Also(i=>i.HorizontalAlignment=HorizontalAlignment.Center)}};
         empty.Children.Add(ring);empty.Children.Add(Kit.Text("No events in this sequence yet",20,"DS.Text",FontWeights.SemiBold).Also(t=>t.HorizontalAlignment=HorizontalAlignment.Center));
         empty.Children.Add(Kit.Text("An event is what the paddle presses, and for how long. Add one, then pick its buttons below.",14,"DS.TextSoft").Also(t=>{t.HorizontalAlignment=HorizontalAlignment.Center;t.Margin=new(0,4,0,0);}));empty.Children.Add(addFirst);
@@ -155,8 +155,8 @@ public sealed class MacroWorkbench
     private Button SlotCard(string slot)
     {
         var count=Kit.Text("Empty",12,"DS.TextSoft").Also(t=>t.HorizontalAlignment=HorizontalAlignment.Center);
-        var card=new Border {CornerRadius=new(12),BorderThickness=new(1),Height=58,Margin=new(4,0,4,0),Child=new StackPanel {VerticalAlignment=VerticalAlignment.Center,Children={Kit.Text(slot,19,"DS.Text",FontWeights.SemiBold).Also(t=>t.HorizontalAlignment=HorizontalAlignment.Center),count}}};
-        var button=new Button {Content=card,Template=Bare(),Tag=slot,Cursor=Cursors.Hand,FocusVisualStyle=null,ToolTip=$"Edit the {slot} paddle sequence"};
+        var card=new Border {CornerRadius=new(12),BorderThickness=new(1),Height=58,Margin=new(4,0,4,0),Child=new StackPanel {VerticalAlignment=VerticalAlignment.Center,Children={Kit.Text(Draft.PhysicalSlots.Count==0?slot.Replace("M","PC "):slot,19,"DS.Text",FontWeights.SemiBold).Also(t=>t.HorizontalAlignment=HorizontalAlignment.Center),count}}};
+        var button=new Button {Content=card,Template=Bare(),Tag=slot,Cursor=Cursors.Hand,FocusVisualStyle=null,ToolTip=Draft.PhysicalSlots.Count==0?$"Edit PC macro {slot[1..]}; this controller has no physical macro buttons":$"Edit the {slot} sequence"};
         button.Click+=(_,_)=>Guard(()=>SelectSlot(slot));button.GotKeyboardFocus+=(_,_)=>card.BorderBrush=Brushes.White;button.LostKeyboardFocus+=(_,_)=>PaintSlots();
         focusRegistration(button);slots.Add(button);slotCards[slot]=(card,count);return button;
     }
@@ -280,7 +280,7 @@ public sealed class MacroWorkbench
     private void UpdateEventSelection(){for(int i=0;i<steps.Count;i++){bool selected=i==SelectedIndex,active=IsPreviewing && i==PreviewIndex;steps[i].Background=active?new SolidColorBrush(Color.FromRgb(51,127,190)):Fill(selected);steps[i].BorderBrush=active?Brushes.White:selected?Brushes.LightSkyBlue:new SolidColorBrush(Color.FromArgb(30,255,255,255));steps[i].BorderThickness=new(selected||active?1.5:1);if(!steps[i].IsKeyboardFocused)steps[i].Effect=selected||active?new DropShadowEffect {Color=Color.FromRgb(46,119,217),BlurRadius=18,ShadowDepth=3,Opacity=.45}:null;}}
     private Button Button(string text,Action action,string style="ConsoleAction") {var button=new Button {Content=text,Style=(Style)resources.FindResource(style)};button.Click+=(_,_)=>Guard(action);focusRegistration(button);return button;}
     private void Guard(Action action) {try {action();}catch(Exception e) when(e is ArgumentException or InvalidOperationException){notice.Text=e.Message;}}
-    public void SelectSlot(string slot) {StopPreview();Slot=slot;SelectedIndex=Draft[slot].Count==0?-1:0;Refresh();Changed?.Invoke();}
+    public void SelectSlot(string slot) {if(!Draft.SlotNames.Contains(slot))throw new ArgumentException("This model has no such macro slot.",nameof(slot));StopPreview();Slot=slot;SelectedIndex=Draft[slot].Count==0?-1:0;Refresh();Changed?.Invoke();}
     public void Select(int index) {SelectedIndex=index>=0 && index<Draft[Slot].Count?index:-1;RefreshEditor();RenderTimeline();UpdateEventSelection();SnapTo(index);SnapTimeline(index);}
     public void Add() {if(!Draft.CanEdit){notice.Text=ReadOnly;return;}if(Draft.EntryCount(Slot)>=47){notice.Text="Maximum sequence capacity reached.";return;}StopPreview();Draft.Add(Slot,Draft.EntryCount(Slot)==46?0:20);SelectedIndex=Draft[Slot].Count-1;Refresh();Changed?.Invoke();}
     public void Remove() {if(SelectedIndex<0)return;StopPreview();Draft.Remove(Slot,SelectedIndex);SelectedIndex=Math.Min(SelectedIndex,Draft[Slot].Count-1);Refresh();Changed?.Invoke();}

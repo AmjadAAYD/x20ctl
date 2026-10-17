@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
@@ -82,7 +82,7 @@ public sealed class ProductSettings : Grid
         // hub: the Controller Check hero on the left, four tiles on the right
         hub.ColumnDefinitions.Add(new() { Width = new(1.05, GridUnitType.Star) }); hub.ColumnDefinitions.Add(new() { Width = new(24) }); hub.ColumnDefinitions.Add(new() { Width = new(1, GridUnitType.Star) });
         Grid.SetRow(hub, 1); page.Children.Add(hub);
-        Check = Card("", "Controller not working?", "Open the Read scan. See every button, stick and trigger live, run a guided test, and save a report you can share.", Kit.Blue, hero: true);
+        Check = Card("", "Controller not working?", "Read scan, then Write scan, then send both reports online together.", Kit.Blue, hero: true);
         Check.Click += (_, _) => check(); hub.Children.Add(Check);
         var tiles = new Grid(); tiles.RowDefinitions.Add(new()); tiles.RowDefinitions.Add(new() { Height = new(24) }); tiles.RowDefinitions.Add(new());
         tiles.RowDefinitions.Add(new() { Height = new(24) }); tiles.RowDefinitions.Add(new());
@@ -123,13 +123,14 @@ public sealed class ProductSettings : Grid
 
         // the opening intro (owner request 12 Oct 2026): play it at launch or not, with sound or without; the intro's own
         // Mute button sets the same switch
-        introLaunch.IsChecked = preferences?.IntroOnLaunch != false; introSound.IsChecked = preferences?.IntroSound != false;
-        introLaunch.IsEnabled = introSound.IsEnabled = preferences != null;
+        introLaunch.IsChecked = preferences?.IntroOnLaunch != false; introSound.IsChecked = IntroView.HasIntroScore && preferences?.IntroSound != false;
+        introLaunch.IsEnabled = preferences != null; introSound.IsEnabled=preferences!=null && IntroView.HasIntroScore;
         introLaunch.Checked += (_, _) => SetIntro(true, null); introLaunch.Unchecked += (_, _) => SetIntro(false, null);
         introSound.Checked += (_, _) => SetIntro(null, true); introSound.Unchecked += (_, _) => SetIntro(null, false);
         StackPanel Switch(CheckBox box, string label, double gap) => new() { Orientation = Orientation.Horizontal, Margin = new(gap, 0, 0, 0), Children = { box, Kit.Text(label, 15, "DS.Text").Also(t => t.Margin = new(10, 0, 0, 0)) } };
         // one row, as tall as the updates bar beside it: a taller bar squeezed the tiles above until their words were cut
-        var switches = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Children = { Switch(introLaunch, "At launch", 0), Switch(introSound, "Sound", 22) } };
+        var soundSwitch=Switch(introSound,"Sound",22);soundSwitch.Visibility=IntroView.HasIntroScore?Visibility.Visible:Visibility.Collapsed;
+        var switches = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Children = { Switch(introLaunch, "At launch", 0), soundSwitch } };
         DockPanel.SetDock(switches, Dock.Right);
         introBar.Child = new DockPanel { Children = { switches, new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new(0, 0, 16, 0), Children = {
             Kit.Text("Opening intro", 16, "DS.Text", FontWeights.SemiBold), introStatus } } } };
@@ -209,7 +210,7 @@ public sealed class ProductSettings : Grid
         catch (Exception error) when (error is System.IO.IOException or InvalidOperationException or UnauthorizedAccessException) { introStatus.Text = "Couldn't save this setting: " + error.Message; }
     }
     private void ShowIntroStatus() => introStatus.Text = introLaunch.IsChecked != true ? "Off. Replay Intro still plays it."
-        : introSound.IsChecked == true ? "Esc skips it, M mutes it." : "Plays without sound.";
+        : !IntroView.HasIntroScore ? "Esc skips it." : introSound.IsChecked == true ? "Esc skips it, M mutes it." : "Plays without sound.";
     private void ShowUpdateStatus()
     {
         updateGo.Visibility = Updater.Ready != null && Updater.Installed == null ? Visibility.Visible : Visibility.Collapsed;
@@ -247,6 +248,7 @@ public sealed class ProductSettings : Grid
             BorderBrush = new LinearGradientBrush(Color.FromArgb(110, 120, 170, 255), Color.FromArgb(30, 120, 170, 255), 90)
         };
         var stack = new StackPanel(); panel.Child = stack;
+        stack.Children.Add(Kit.Text("Credits · Desktop-control layout inspired by Gopher360 — Tylemagne, GPL-3.0. See the distributed open-source license notices.",13,"DS.TextMuted").Also(t=>{t.TextWrapping=TextWrapping.Wrap;t.Margin=new(0,12,0,16);}));
         var mark = new Image { Source = new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/Assets/brand.png")), Width = 72, Height = 72, Margin = new(0, 0, 24, 0) };
         RenderOptions.SetBitmapScalingMode(mark, BitmapScalingMode.HighQuality);
         stack.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = { mark, new StackPanel { VerticalAlignment = VerticalAlignment.Center, Children = {
@@ -278,7 +280,7 @@ public sealed class ProductSettings : Grid
 
     private static Button Pill(string icon, string text)
     {
-        var b = new Button { Style = DS.Style("DS.ActionSecondary"), Height = 46, MinHeight = 0, Padding = new(22, 0, 24, 0), FontSize = 15.5,
+        var b = new Button { Style = DS.Style("ActionButton"), Height = 46, MinHeight = 0, Padding = new(22, 0, 24, 0), FontSize = 15.5,
             Content = new StackPanel { Orientation = Orientation.Horizontal, Children = { Kit.Icon(icon, 15, "DS.Text").Also(i => i.Margin = new(0, 0, 10, 0)), Kit.Text(text, 15.5, "DS.Text", FontWeights.SemiBold) } } };
         return b;
     }
@@ -291,14 +293,9 @@ public sealed class ProductSettings : Grid
             Fill = new RadialGradientBrush(Color.FromArgb(hero ? (byte)70 : (byte)52, accent.R, accent.G, accent.B), Color.FromArgb(0, accent.R, accent.G, accent.B)) };
         art.Children.Add(glow);
         if (hero)
-        {   // the Controller Check card shows a controller being scanned: a line of light sweeping down over it
-            var pad = new Grid { Width = 1536, Height = 1024 }; pad.Children.Add(new PhotoController("x20"));
-            var sweep = new Rectangle { Height = 90, VerticalAlignment = VerticalAlignment.Top, IsHitTestVisible = false,
-                Fill = new LinearGradientBrush(new GradientStopCollection { new GradientStop(Color.FromArgb(0, 125, 182, 255), 0), new GradientStop(Color.FromArgb(150, 125, 182, 255), .5), new GradientStop(Color.FromArgb(0, 125, 182, 255), 1) }, 90) };
-            var move = new TranslateTransform(); sweep.RenderTransform = move; pad.Children.Add(sweep);
-            pad.OpacityMask = new VisualBrush(new PhotoController("x20")) { Stretch = Stretch.None };
-            if (DS.Motion) move.BeginAnimation(TranslateTransform.YProperty, Ambient.Rate(new DoubleAnimation(80, 900, TimeSpan.FromSeconds(2.6)) { RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }, AutoReverse = true }, 24)); // capped, like every endless animation
-            art.Children.Add(new Viewbox { Child = pad, Width = 520, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new(0, 40, -10, 0), IsHitTestVisible = false });
+        {   // the Controller Check card shows a computer running a scan (owner request 13 Oct 2026), not a controller
+            var computer = new Scanner.PcScanArt();
+            art.Children.Add(new Viewbox { Child = computer, Width = 520, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new(0, -4, 0, 0), IsHitTestVisible = false });
         }
         else art.Children.Add(new TextBlock { Text = icon, FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"), FontSize = 150, Foreground = new SolidColorBrush(Color.FromArgb(14, 255, 255, 255)), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new(0, 26, 10, 0), IsHitTestVisible = false });
         var disc = new Grid { Width = hero ? 92 : 56, Height = hero ? 92 : 56, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = hero ? VerticalAlignment.Top : VerticalAlignment.Center,
@@ -310,7 +307,7 @@ public sealed class ProductSettings : Grid
         var words = new StackPanel { VerticalAlignment = hero ? VerticalAlignment.Bottom : VerticalAlignment.Center, Margin = new(hero ? 0 : 74, 0, hero ? 70 : 54, 0) };
         words.Children.Add(Kit.Text(title, hero ? 38 : 21, "DS.Text", FontWeights.Bold).Also(t => { t.TextWrapping = TextWrapping.Wrap; t.TextTrimming = TextTrimming.None; }));
         var d = Kit.Text(detail, hero ? 17 : 14.5, "DS.TextSoft"); d.TextWrapping = TextWrapping.Wrap; d.TextTrimming = TextTrimming.None; d.Margin = new(0, 8, 0, 0); words.Children.Add(d);
-        if (hero) words.Children.Add(new WrapPanel { Margin = new(0, 20, 0, 0), Children = { Chip("Live input"), Chip("Guided test"), Chip("Device list"), Chip("Report") } });
+        if (hero) words.Children.Add(new WrapPanel { Margin = new(0, 20, 0, 0), Children = { Chip("1  Read scan"), Chip("2  Write scan"), Chip("3  Send online") } });
         art.Children.Add(words);
         var arrow = new Border { Width = 42, Height = 42, CornerRadius = new(21), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom, Background = new SolidColorBrush(Color.FromArgb(34, 255, 255, 255)), BorderBrush = new SolidColorBrush(Color.FromArgb(70, 255, 255, 255)), BorderThickness = new(1),
             Child = Kit.Icon("", 15, "DS.Text").Also(i => i.HorizontalAlignment = HorizontalAlignment.Center) };

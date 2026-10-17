@@ -1,4 +1,4 @@
-using System.Net.Http;
+﻿using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -79,7 +79,7 @@ public sealed class FeedbackPage : Border
         stack.Children.Add(Message);
         counter = Kit.Text("0 / 4000", 12.5, "DS.TextMuted"); counter.HorizontalAlignment = HorizontalAlignment.Right; counter.Margin = new(0, 6, 0, 0); stack.Children.Add(counter);
 
-        SendButton = new Button { Style = DS.Style("DS.ActionPrimary"), Height = 46, MinHeight = 0, Padding = new(24, 0, 26, 0), IsEnabled = false,
+        SendButton = new Button { Style = DS.Style("PrimaryButton"), Height = 46, MinHeight = 0, Padding = new(24, 0, 26, 0), IsEnabled = false,
             Content = new StackPanel { Orientation = Orientation.Horizontal, Children = { Kit.Icon("", 15, "DS.Text").Also(i => i.Margin = new(0, 0, 10, 0)), Kit.Text("Send to X20CTL", 15.5, "DS.Text", FontWeights.SemiBold) } } };
         SendButton.Click += async (_, _) => await Submit();
         Message.TextChanged += (_, _) => { counter.Text = $"{Message.Text.Length} / 4000"; SendButton.IsEnabled = !sending && Message.Text.Trim().Length >= 3; };

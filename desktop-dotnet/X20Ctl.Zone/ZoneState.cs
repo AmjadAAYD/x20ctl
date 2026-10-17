@@ -1,4 +1,4 @@
-﻿using X20Ctl.Simulation;
+using X20Ctl.Simulation;
 namespace X20Ctl.Zone;
 
 public record PlayerDock(int Number, string? Model, bool IsMockConnected, string? ModelId = null);
@@ -35,6 +35,13 @@ public sealed class ZoneState
         if (index is < 0 or > 3) throw new ArgumentOutOfRangeException(nameof(index));
         players[index] = new(index + 1, model.Name, false, model.Id);
         Activate(index);
+    }
+    public void Clear(int index)
+    {
+        if(index is <0 or >3)throw new ArgumentOutOfRangeException(nameof(index));
+        players[index]=new(index+1,null,false,null);
+        if(FocusedPlayer==index)Collapse();
+        Feedback=$"Player {index+1} controller removed.";
     }
     public void Restore(IReadOnlyList<string?> ids, ControllerCatalog catalog)
     {

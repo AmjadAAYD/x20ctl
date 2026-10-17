@@ -4,5 +4,6 @@
     <ResourceDictionary Source="Themes/Typography.xaml" />
     <ResourceDictionary Source="Themes/Controls.xaml" />
     <ResourceDictionary Source="Themes/Design.xaml" />
+    <ResourceDictionary Source="Themes/ZoneSurfaces.xaml" />
   </ResourceDictionary.MergedDictionaries></ResourceDictionary></Application.Resources>
 </Application>

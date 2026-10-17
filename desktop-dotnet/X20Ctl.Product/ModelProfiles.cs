@@ -43,7 +43,7 @@ public static class ModelProfiles
     /// <summary>The strip a page wears while PC mode is on: what it edits, and that nothing goes to the controller.</summary>
     public static Border PcBanner(string page) => Strip("\uE7F8", $"{page} · PC mode · ", page == "Macros"
         ? "Applies on this PC, to games, for any controller. PC mode can't see a back paddle, so pick the button that plays each slot."
-        : "Applies on this PC, to games, for any controller, as soon as you change it. Nothing is written to the controller.");
+        : "Saved on this PC for the selected player. Nothing is written to the controller.");
     static Border Strip(string icon, string title, string body)
     {
         var text = new TextBlock { TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center, FontSize = 13.5, Foreground = DS.Brush("DS.TextSoft") };
@@ -62,7 +62,7 @@ public static class ModelProfiles
         var p = For(id);
         var text = new TextBlock { TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center, FontSize = 13.5, Foreground = DS.Brush("DS.TextSoft") };
         text.Inlines.Add(new System.Windows.Documents.Run($"{page} preview · ") { Foreground = DS.Brush("DS.Text"), FontWeight = FontWeights.SemiBold });
-        text.Inlines.Add(new System.Windows.Documents.Run($"Read-only until this controller's settings are verified.   {p.Summary}"));
+        text.Inlines.Add(new System.Windows.Documents.Run($"Native configuration is unavailable for this model. Preview stays local."));
         return new Border
         {
             CornerRadius = new(12), Padding = new(14, 9, 14, 9), Margin = new(0, 0, 0, 10), BorderThickness = new(1),

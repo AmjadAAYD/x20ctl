@@ -24,6 +24,34 @@ public sealed class MouseModeService : IDisposable
     public event Action<string>? Notice;
     public PcModeService? PcMode { get; set; }
     public string Status { get; private set; } = "Off.";
+    public int OwnerPlayer { get; private set; } = -1;
+    public string OwnerModel { get; private set; } = "";
+    public bool Previewing { get; set; }
+    public bool Connected { get; private set; }
+    PadState latest;
+    public PadState Latest { get { lock(gate) return latest; } }
+    string ContextPath(int player,string model) => Path.Combine(Path.GetDirectoryName(path)!, $"mouse-player{player + 1}-{model}.json");
+    public MouseProfile ProfileFor(int player,string model) => MouseProfile.Load(ContextPath(player,model));
+    public void ObserveFor(int player,string model)
+    {
+        if(active || Previewing)return;
+        var next=ProfileFor(player,model);
+        if(next.SourceSlot<0)return;
+        lock(gate){OwnerPlayer=player;OwnerModel=model;profile=next;latest=default;}
+        reload=true;Connected=false;
+    }
+    public void SaveFor(int player,string model,MouseProfile next)
+    {
+        next.Save(ContextPath(player,model));
+        if(OwnerPlayer==player && OwnerModel==model) { lock(gate) profile=next.Clone(); reload=true; Changed?.Invoke(); }
+    }
+    public void TakeControl(int player,string model,bool preview=false)
+    {
+        var next=ProfileFor(player,model);
+        if(next.SourceSlot<0) throw new InvalidOperationException("Choose a physical XInput source first.");
+        Active=false; Previewing=preview; lock(gate) { OwnerPlayer=player;OwnerModel=model;profile=next;latest=default; }
+        reload=true; Connected=false; Active=true;
+    }
 
     public MouseModeService(string path, bool listen = true)
     {
@@ -36,7 +64,7 @@ public sealed class MouseModeService : IDisposable
     public bool Active
     {
         get => active;
-        set { if (active == value) return; active = value; if (PcMode != null) PcMode.Mute = value; Changed?.Invoke(); }
+        set { if(value && Profile.SourceSlot<0) return; if (active == value) return; active = value; if (PcMode != null) PcMode.Mute = value; Changed?.Invoke(); }
     }
 
     public MouseProfile Profile { get { lock (gate) return profile.Clone(); } }
@@ -55,7 +83,7 @@ public sealed class MouseModeService : IDisposable
         timeBeginPeriod(1);
         WindowsReader? reader = null; MouseMapper? mapper = null; MouseProfile p = Profile;
         var clock = Stopwatch.StartNew(); double last = 0; int slot = -1;
-        var combo = new HoldCombo(PadButtons.Back | PadButtons.Y, 1000);
+        var combo = new HoldCombo(p.ToggleMask, p.HoldMilliseconds);
         var repeat = new Dictionary<MouseAction, double>(); // held keys and when they next repeat
         void Release()
         {
@@ -67,25 +95,25 @@ public sealed class MouseModeService : IDisposable
             reader = new WindowsReader(WindowsReader.Libraries[0]);
             while (!stop)
             {
-                if (reload) { reload = false; p = Profile; Release(); }
+                if (reload) { reload = false; p = Profile; Release(); slot=-1; combo=new(p.ToggleMask,p.HoldMilliseconds); }
                 double now = clock.Elapsed.TotalMilliseconds, dt = (now - last) / 1000; last = now;
                 if (slot < 0 || PcModeService.IsVirtual(slot) || !reader.Read(slot, out var state))
                 {
                     slot = -1;
-                    for (int i = 0; i < 4 && slot < 0; i++) if (!PcModeService.IsVirtual(i) && reader.Read(i, out _)) slot = i;
-                    if (slot < 0) { Release(); SetStatus(active ? "On, but no controller is connected." : "Off."); Thread.Sleep(250); continue; }
+                    if(p.SourceSlot>=0 && !PcModeService.IsVirtual(p.SourceSlot) && reader.Read(p.SourceSlot,out _)) slot=p.SourceSlot;
+                    Connected=false; lock(gate) latest=default;
+                    if (slot < 0) { Release(); SetStatus(active ? $"Waiting for Player {OwnerPlayer+1}'s selected input source." : "Off."); Thread.Sleep(250); continue; }
                     continue;
                 }
                 var pad = new PadState(state.Pad.Buttons, state.Pad.LT, state.Pad.RT, state.Pad.LX, state.Pad.LY, state.Pad.RX, state.Pad.RY);
+                Connected=true; lock(gate) latest=pad;
                 if (p.Combo && combo.Update(pad.Buttons, (long)now))
                 {
                     Active = !active;
-                    Notice?.Invoke(active ? "Controller is the mouse. Hold View + Y again to give it back to games." : "Controller is a controller again.");
+                    Notice?.Invoke(active ? "Mouse Mode enabled. Hold the configured shortcut to turn it off." : "Controller is a controller again.");
                 }
-                if (!active) { Release(); SetStatus("Off."); Thread.Sleep(15); continue; }
+                if (!active || Previewing) { Release(); SetStatus(Previewing ? "Pointer preview · Windows output paused." : "Off."); Thread.Sleep(15); continue; }
                 SetStatus($"On. The {p.PointerStick.ToLowerInvariant()} stick moves the pointer.");
-                // while View is held, Y belongs to the switch-off hold, not to its own action
-                if ((pad.Buttons & PadButtons.Back) != 0) pad = pad with { Buttons = (ushort)(pad.Buttons & ~PadButtons.Y) };
                 mapper ??= new MouseMapper(p);
                 var frame = mapper.Step(pad, dt);
                 if (frame.Dx != 0 || frame.Dy != 0) MouseOutput.Move(frame.Dx, frame.Dy);

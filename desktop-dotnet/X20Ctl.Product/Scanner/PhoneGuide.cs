@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
@@ -43,10 +43,10 @@ public static class PhoneGuides
                  ("It turns itself off again", "Some phones switch it off after a restart. Turn it on again just before the test.")]),
             new("Restart Bluetooth", "Swipe down from the top of the screen twice to open the quick panel. Tap Bluetooth to turn it off, wait three seconds, and tap it again to turn it on. The log only starts recording after this.",
                 new(ScreenKind.QuickPanel, "Quick panel", ["Wi-Fi", "Bluetooth", "Sound", "Auto rotate", "Flashlight", "Airplane"], 1, "Off, then on"),
-                [("The controller disconnected", "That's expected. You'll connect it again in the official app during the test."),
+                [("The controller disconnected", "That's expected. You'll connect it again in KeyLinker during the test."),
                  ("I don't see a Bluetooth tile", "Swipe down once more, or swipe left on the tiles. You can also do it in Settings, Connections, Bluetooth.")]),
-            new("Close the official app", "Tap the Recent apps button (the three lines at the bottom left) and swipe the official app up and away. The test then catches it connecting from the start.",
-                new(ScreenKind.Recents, "Recent apps", ["Official app"], 0, "Swipe up"),
+            new("Close KeyLinker", "Tap the Recent apps button (the three lines at the bottom left) and swipe KeyLinker up and away. The test then catches it connecting from the start.",
+                new(ScreenKind.Recents, "Recent apps", ["KeyLinker"], 0, "Swipe up"),
                 [("I use gestures, there are no buttons", "Swipe up from the bottom edge and hold for a moment: the recent apps appear."),
                  ("The app isn't in the list", "Then it's already closed. Go on.")]),
         ],
@@ -61,9 +61,9 @@ public static class PhoneGuides
                  ("It only offers Filtered", "Pick Enabled or Full if they're there at all. A filtered log keeps only part of each message, and the scan can't read it.")]),
             new("Restart Bluetooth", "Swipe down from the top of the screen to open the quick settings. Turn Bluetooth off, wait three seconds, and turn it on again. The log only starts recording after this.",
                 new(ScreenKind.QuickPanel, "Quick settings", ["Wi-Fi", "Bluetooth", "Mobile data", "Flashlight", "Auto-rotate", "Do not disturb"], 1, "Off, then on"),
-                [("The controller disconnected", "That's expected. You'll connect it again in the official app during the test.")]),
-            new("Close the official app", "Open your recent apps (swipe up from the bottom and hold, or the square button) and swipe the official app away.",
-                new(ScreenKind.Recents, "Recent apps", ["Official app"], 0, "Swipe away"),
+                [("The controller disconnected", "That's expected. You'll connect it again in KeyLinker during the test.")]),
+            new("Close KeyLinker", "Open your recent apps (swipe up from the bottom and hold, or the square button) and swipe KeyLinker away.",
+                new(ScreenKind.Recents, "Recent apps", ["KeyLinker"], 0, "Swipe away"),
                 [("The app isn't in the list", "Then it's already closed. Go on.")]),
         ],
         _ =>
@@ -76,8 +76,8 @@ public static class PhoneGuides
             new("Follow Apple's instructions", "The profile page links Apple's own instructions for it. Do what they say before the test: if they say to restart the iPhone, restart it now.",
                 new(ScreenKind.List, "Bluetooth logging", ["Instructions (PDF)", "Profile", "Restart if asked"], 0, "Read"),
                 [("I can't open the instructions", "They need the same Apple Account sign-in. If you can't get them, restart the iPhone anyway: it does no harm.")]),
-            new("Close the official app", "Swipe up from the bottom and pause to see your apps, then swipe the official app up and away.",
-                new(ScreenKind.Recents, "App switcher", ["Official app"], 0, "Swipe up"),
+            new("Close KeyLinker", "Swipe up from the bottom and pause to see your apps, then swipe KeyLinker up and away.",
+                new(ScreenKind.Recents, "App switcher", ["KeyLinker"], 0, "Swipe up"),
                 [("The app isn't in the list", "Then it's already closed. Go on.")]),
         ],
     };
@@ -174,11 +174,11 @@ public sealed class PhoneGuide : Grid
         var s = steps[index];
         bool last = index == steps.Length - 1;
 
-        var next = Button(last ? "" : "", last ? finishLabel : "Done, next step", "DS.ActionPrimary");
+        var next = Button(last ? "" : "", last ? finishLabel : "Done, next step", "PrimaryButton");
         next.Click += (_, _) => { if (last) finished(); else Go(index + 1); };
-        var back = Button("", index == 0 ? backOutLabel : "Back", "DS.ActionSecondary"); back.IsEnabled = index > 0 || backOut != null;
+        var back = Button("", index == 0 ? backOutLabel : "Back", "ActionButton"); back.IsEnabled = index > 0 || backOut != null;
         back.Click += (_, _) => { if (index > 0) Go(index - 1); else backOut?.Invoke(); };
-        var help = Button("", stuck ? "Hide help" : "I'm stuck", "DS.ActionSecondary"); help.Click += (_, _) => Stuck(!stuck);
+        var help = Button("", stuck ? "Hide help" : "I'm stuck", "ActionButton"); help.Click += (_, _) => Stuck(!stuck);
 
         var body = new StackPanel();
         if (above != null) { Detach(above); body.Children.Add(above); }
@@ -230,7 +230,7 @@ public sealed class PhoneGuide : Grid
         var list = new StackPanel();
         foreach (var (problem, fix) in help)
             list.Children.Add(new StackPanel { Margin = new(0, 0, 0, 12), Children = { Kit.Text(problem, 15, "DS.Text", FontWeights.SemiBold), Wrap(fix, 14.5, "DS.TextSoft").Also(t => t.Margin = new(0, 3, 0, 0)) } });
-        var copy = Button("", "Copy @" + ScanFlow.Discord, "DS.ActionSecondary");
+        var copy = Button("", "Copy @" + ScanFlow.Discord, "ActionButton");
         copy.Click += (_, _) => { try { Clipboard.SetText(ScanFlow.Discord); SetLabel(copy, "Copied"); } catch (System.Runtime.InteropServices.ExternalException) { } };
         list.Children.Add(new DockPanel { Margin = new(0, 4, 0, 0), Children = {
             copy.Also(b => { DockPanel.SetDock(b, Dock.Right); b.Margin = new(12, 0, 0, 0); }),

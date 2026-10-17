@@ -5,15 +5,26 @@ public enum StickHeading { Neutral, Up, UpRight, Right, DownRight, Down, DownLef
 public sealed record MacroEvent(Guid Id,IReadOnlyList<string> Buttons,StickHeading Left,StickHeading Right,int HoldMs,int PauseMs);
 public sealed class MacroDraft(string modelId)
 {
+    // Legacy X20 setup format; UI and PC-mode code use the instance SlotNames.
     public static readonly string[] Slots=["M1","M2","M3","M4"];
+    public static string[] PhysicalSlotsFor(string modelId) => modelId switch
+    {
+        "x20_pro" => ["M1","M2","M3","M4","M5","M6"],
+        "x20" or "dune" => ["M1","M2","M3","M4"],
+        "x05_pro" or "x10" or "d10" or "x15" => ["M1","M2"],
+        _ => []
+    };
+    public IReadOnlyList<string> PhysicalSlots { get; } = Array.AsReadOnly(PhysicalSlotsFor(modelId));
+    // Pads without M buttons retain a software-only PC macro bank, never physical paddle hotspots.
+    public string[] SlotNames { get; } = PhysicalSlotsFor(modelId) is { Length: > 0 } own ? own : [..Slots];
     public static readonly string[] Inputs=["A","B","X","Y","LB","RB","LT","RT","L3","R3","DPAD_UP","DPAD_DOWN","DPAD_LEFT","DPAD_RIGHT","SELECT","START"];
-    private readonly Dictionary<string,List<MacroEvent>> sequences=Slots.ToDictionary(s=>s,_=>new List<MacroEvent>());
+    private readonly Dictionary<string,List<MacroEvent>> sequences=(PhysicalSlotsFor(modelId) is { Length: > 0 } own ? own : Slots).ToDictionary(s=>s,_=>new List<MacroEvent>());
     /// <summary>PC mode applies the draft on the PC, so any model can be edited while it's on.</summary>
     public bool PcMode {get;set;}
     public bool CanEdit=>modelId=="x20" || PcMode;
     /// <summary>PC mode can't see a back paddle (EasySMX paddles send ordinary buttons, never their own), so each slot
     /// is played by a real button picked here. Null: the slot isn't used by PC mode.</summary>
-    private readonly Dictionary<string,string?> triggers=Slots.ToDictionary(s=>s,_=>(string?)null);
+    private readonly Dictionary<string,string?> triggers=(PhysicalSlotsFor(modelId) is { Length: > 0 } own ? own : Slots).ToDictionary(s=>s,_=>(string?)null);
     public static readonly string[] TriggerInputs=[..Inputs,"HOME"];
     public string? Trigger(string slot)=>triggers[slot];
     /// <summary>One button plays one slot: giving a button to a slot takes it from any other.</summary>
@@ -22,7 +33,7 @@ public sealed class MacroDraft(string modelId)
         if(!CanEdit)throw new InvalidOperationException("Macro configuration is unverified for this model.");
         if(!triggers.ContainsKey(slot))throw new ArgumentException("Unknown macro slot.",nameof(slot));
         if(button!=null && !TriggerInputs.Contains(button))throw new ArgumentException("Unknown button.",nameof(button));
-        if(button!=null)foreach(var other in Slots)if(triggers[other]==button)triggers[other]=null;
+        if(button!=null)foreach(var other in SlotNames)if(triggers[other]==button)triggers[other]=null;
         triggers[slot]=button;
     }
     public bool CanApplyHardware=>false;

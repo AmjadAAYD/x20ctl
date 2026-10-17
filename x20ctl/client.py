@@ -17,9 +17,12 @@ Discovery, if the address isn't known:
 from __future__ import annotations
 
 import asyncio
+import shutil
+import sys
 from dataclasses import dataclass, field
 
 from bleak import BleakClient, BleakScanner
+from bleak.exc import BleakError
 
 from . import protocol as p
 from . import validation
@@ -37,6 +40,12 @@ ADVERTISED_NAME = "Xpert2"
 VENDOR_MAC_PREFIXES = ("98:B6:E9", "98:B6:EC", "98:B6:ED")
 
 DEFAULT_TIMEOUT = 4.0
+
+# The configuration peripheral advertises only now and then, so one short scan
+# or one connect attempt is not enough to say the pad is absent.
+SCAN_ROUND = 5.0
+CONNECT_ATTEMPTS = 3
+CONNECT_TIMEOUT = 12.0
 
 # The two records that hold response curves, each two channels of seven bytes.
 # Same shape, different opcodes and a different scale for the deadzones.
@@ -81,41 +90,96 @@ class Found:
         return self.name or "Controller"
 
 
-def is_controller(name: str, address: str) -> bool:
+def is_controller(name: str, address: str, service_uuids=()) -> bool:
     """Whether an advertisement belongs to a pad we can configure.
 
-    Matches on the advertised name or the vendor MAC range, never on USB
-    VID/PID, which the pad clones from Microsoft.
+    Matches on the advertised name, the vendor MAC range or the configuration
+    service it advertises, never on USB VID/PID, which the pad clones from
+    Microsoft.
     """
     return (ADVERTISED_NAME.lower() in (name or "").lower()
-            or (address or "").upper().startswith(VENDOR_MAC_PREFIXES))
+            or (address or "").upper().startswith(VENDOR_MAC_PREFIXES)
+            or CONFIG_SERVICE in {str(u).lower() for u in service_uuids or ()})
 
 
-async def find_controllers(timeout: float = 8.0) -> list[Found]:
+def parse_known_devices(listing: str) -> list[Found]:
+    """Controllers in `bluetoothctl devices` output (lines like `Device AA:BB:.. Name`)."""
+    found: list[Found] = []
+    for line in listing.splitlines():
+        parts = line.strip().split(None, 2)
+        if len(parts) >= 2 and parts[0] == "Device":
+            name = parts[2] if len(parts) > 2 else ""
+            if is_controller(name, parts[1]):
+                found.append(Found(address=parts[1].upper(), name=name))
+    return found
+
+
+async def known_controllers() -> list[Found]:
+    """Pads the system's Bluetooth stack already knows, found or not by a scan.
+
+    BlueZ keeps paired and recently seen devices, and a pad that is paired or
+    connected may not advertise at all, so a scan alone can miss it. Linux only;
+    returns nothing anywhere else or if bluetoothctl is unavailable.
+    """
+    if not sys.platform.startswith("linux") or not shutil.which("bluetoothctl"):
+        return []
+    try:
+        process = await asyncio.create_subprocess_exec(
+            "bluetoothctl", "devices", stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL)
+        out, _ = await asyncio.wait_for(process.communicate(), 5)
+    except (OSError, asyncio.TimeoutError):
+        return []
+    return parse_known_devices(out.decode("utf-8", "replace"))
+
+
+async def find_controllers(timeout: float = 8.0, *, first: bool = False,
+                           everything: list | None = None) -> list[Found]:
     """Every controller advertising right now, in the order first seen.
 
     Four pads can share a desk, so discovery returns all of them rather than
-    whichever answered first.
+    whichever answered first (`first=True` returns as soon as one is seen). The
+    scan runs in short rounds, restarting between them, because the pad
+    advertises only now and then. If nothing is heard, pads the system already
+    knows are returned instead. `everything`, when given, collects every
+    advertisement heard as (address, name, rssi) for diagnosis.
     """
     found: dict[str, str] = {}
+    heard = asyncio.Event()
 
     def seen(device, adv) -> None:
         name = adv.local_name or device.name or ""
-        if is_controller(name, device.address):
+        if everything is not None:
+            everything.append((device.address, name, getattr(adv, "rssi", None)))
+        if is_controller(name, device.address, getattr(adv, "service_uuids", ())):
             found.setdefault(device.address, name)
+            heard.set()
 
-    scanner = BleakScanner(detection_callback=seen)
-    await scanner.start()
-    try:
-        await asyncio.sleep(timeout)
-    finally:
-        await scanner.stop()
-    return [Found(address=address, name=name) for address, name in found.items()]
+    remaining = timeout
+    while remaining > 0 and not (first and found):
+        window = min(SCAN_ROUND, remaining)
+        scanner = BleakScanner(detection_callback=seen)
+        await scanner.start()
+        try:
+            if first:
+                try:
+                    await asyncio.wait_for(heard.wait(), window)
+                except asyncio.TimeoutError:
+                    pass
+            else:
+                await asyncio.sleep(window)
+        finally:
+            await scanner.stop()
+        remaining -= window
+    result = [Found(address=address, name=name) for address, name in found.items()]
+    if not result:
+        result = await known_controllers()
+    return result
 
 
 async def find_controller(timeout: float = 8.0) -> str | None:
     """The address of the first controller found, or None."""
-    controllers = await find_controllers(timeout)
+    controllers = await find_controllers(timeout, first=True)
     return controllers[0].address if controllers else None
 
 
@@ -187,8 +251,30 @@ class X20:
     async def connect(self) -> None:
         # whatever answers at this address is identified afresh
         self._info = self._assessment = self._caps = None
-        self._client = BleakClient(self.address)
-        await self._client.connect()
+        last: Exception | None = None
+        for attempt in range(CONNECT_ATTEMPTS):
+            target = self.address
+            if attempt:
+                # a retry looks the pad up again first, so BlueZ has fresh state
+                await asyncio.sleep(1.0)
+                try:
+                    target = await BleakScanner.find_device_by_address(
+                        self.address, timeout=6.0) or self.address
+                except (BleakError, OSError):
+                    pass
+            self._client = BleakClient(target, timeout=CONNECT_TIMEOUT)
+            try:
+                await self._client.connect()
+                break
+            except (BleakError, asyncio.TimeoutError, OSError) as error:
+                last = error
+                try:
+                    await self._client.disconnect()
+                except Exception:
+                    pass
+        else:
+            self._client = None
+            raise last
         services = {s.uuid.lower() for s in self._client.services}
         if CONFIG_SERVICE not in services:
             await self._client.disconnect()

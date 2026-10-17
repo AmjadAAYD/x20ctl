@@ -15,7 +15,7 @@ public sealed class SetupSnapshot
     {
         ModelId=model,Mappings=ButtonDraft.Sources.ToDictionary(k=>k,buttons.Target),
         Curves=Enum.GetValues<CurveChannel>().ToDictionary(c=>c.ToString(),c=>{var v=curves[c];return new SetupCurve(v.Preset,v.BasePreset,v.Inner,v.Outer,v.Point1.X,v.Point1.Y,v.Point2.X,v.Point2.Y);}),
-        Macros=MacroDraft.Slots.ToDictionary(s=>s,s=>macros[s].Select(v=>new SetupMacro(v.Id,v.Buttons.ToArray(),v.Left,v.Right,v.HoldMs,v.PauseMs)).ToArray()),Vibration=vibration.Strength
+        Macros=macros.SlotNames.ToDictionary(s=>s,s=>macros[s].Select(v=>new SetupMacro(v.Id,v.Buttons.ToArray(),v.Left,v.Right,v.HoldMs,v.PauseMs)).ToArray()),Vibration=vibration.Strength
     };
     public void Validate()
     {

@@ -1,50 +1,33 @@
-name: Windows verification
+name: Verification
 on:
   push:
-    branches: [main, 'codex/**']
+    branches: [main, 'codex/**', 'cleanup/**']
   pull_request:
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
-  test:
-    runs-on: windows-latest
+  python:
+    name: CLI and protocol (Python)
+    runs-on: windows-2025
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-          cache: pip
       - name: Check public research boundary
         run: python tools/check_research_boundary.py
-      - uses: actions/setup-node@v7
+      - name: Install
+        run: python -m pip install "bleak>=0.22" "pytest>=8" "packaging>=23"
+      - name: Test
+        run: python -m pytest -q -p no:cacheprovider
+  dotnet:
+    name: Domain tests (.NET)
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
         with:
-          node-version: '22'
-          cache: npm
-      - name: Install pinned build dependencies and legacy test dependency
-        run: |
-          python -m pip install -r requirements-build.txt
-          python -m pip install "PySide6>=6.6"
-          npm ci
-      - name: Verify Python behavior
-        # the real exit code and any native crash are printed, so a red step always says why (tests/conftest.py)
-        run: |
-          python -X faulthandler -m pytest -q -p no:cacheprovider
-          $code = $LASTEXITCODE; Write-Host "pytest exit code: $code"; exit $code
-      - name: Verify frontend
-        run: |
-          npm run lint
-          npm test
-          npm run build
-      - name: Build integrated Windows preview
-        run: |
-          python tools/licenses.py
-          python -m PyInstaller --noconfirm x20ctl.spec --distpath dist/4.1.0-preview.2
-          python tools/package_desktop_preview.py
-      - name: Upload Windows preview archive
-        uses: actions/upload-artifact@v7
-        with:
-          name: x20ctl-windows-preview
-          path: dist/x20ctl-*-win-x64.zip
-          retention-days: 7
-# Stable publication requires native-window acceptance. This job builds previews.
+          dotnet-version: '10.0.x'
+      - name: Test
+        run: dotnet test desktop-dotnet/X20Ctl.Zone.Tests
