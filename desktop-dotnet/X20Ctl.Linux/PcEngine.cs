@@ -69,6 +69,8 @@ internal sealed class PcEngine
     public string Headline { get; private set; } = "Off";
     public bool Active { get; private set; }
     volatile bool reload = true, stop;
+    /// <summary>Set while the controller is the mouse: only one thing can hold the pad.</summary>
+    public volatile bool Suspended;
     Thread? thread;
 
     public static bool Supported => OperatingSystem.IsLinux();
@@ -135,6 +137,7 @@ internal sealed class PcEngine
                     try { profile = Profile(); processor = null; }
                     catch (Exception e) when (e is InvalidDataException or IOException) { Set("Needs attention", "Settings couldn't be used: " + e.Message, false); }
                 }
+                if (Suspended) { real?.Dispose(); real = null; virtualPad?.Dispose(); virtualPad = null; Set("Paused", "Paused while the controller is the mouse.", false); Thread.Sleep(150); continue; }
                 if (profile.IsNeutral)
                 {
                     real?.Dispose(); real = null; virtualPad?.Dispose(); virtualPad = null;
@@ -179,10 +182,10 @@ internal sealed class PcEngine
 
     // ------------------------------------------------------------------------------------------------ the real pad
 
-    sealed unsafe class RealPad : IDisposable
+    internal sealed unsafe class RealPad : IDisposable
     {
         readonly int fd; readonly Dictionary<int, (int Lo, int Hi)> ranges = new(); readonly Dictionary<int, int> raw = new(); readonly HashSet<string> pressed = new(); readonly int[] hat = new int[2];
-        public RealPad(EvDevice device)
+        public RealPad(EvDevice device, bool grab = true)
         {
             fd = Native.Open(device.Path, Native.ReadOnly | Native.NonBlock);
             if (fd < 0) throw new IOException("open failed (" + Marshal.GetLastPInvokeError() + ")");
@@ -191,8 +194,11 @@ internal sealed class PcEngine
                 var buffer = new byte[24];
                 if (Native.IoctlBuf(fd, Native.Ioc(2, 'E', 0x40 + code, 24), buffer) == 0) ranges[code] = (BitConverter.ToInt32(buffer, 4), BitConverter.ToInt32(buffer, 8));
             }
-            if (Native.IoctlInt(fd, Native.Ioc(1, 'E', 0x90, 4), 1) < 0) { int e = Marshal.GetLastPInvokeError(); Native.Close(fd); throw new IOException("the kernel refused exclusive access (" + e + ")"); }
+            if (grab && !Grab(true)) { int e = Marshal.GetLastPInvokeError(); Native.Close(fd); throw new IOException("the kernel refused exclusive access (" + e + ")"); }
         }
+
+        /// <summary>Takes the pad exclusively (no other program gets its events) or gives it back.</summary>
+        public bool Grab(bool on) => Native.IoctlInt(fd, Native.Ioc(1, 'E', 0x90, 4), on ? 1 : 0) >= 0;
 
         public void Wait(int ms) { var p = new Native.PollFd { Fd = fd, Events = Native.PollIn }; Native.Poll(ref p, 1, ms); }
 
