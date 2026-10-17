@@ -13,10 +13,14 @@
     <PackageReference Include="Avalonia" Version="12.1.4" />
     <PackageReference Include="Avalonia.Desktop" Version="12.1.4" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.4" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.4" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../X20Ctl.Zone/X20Ctl.Zone.csproj" />
     <Content Include="../../x20ctl/controllers/catalog.json" Link="Data/catalog.json" CopyToOutputDirectory="PreserveNewest" />
-    <AvaloniaResource Include="../../src/assets/controllers/*/native/front-full.png" Link="Assets/%(RecursiveDir)%(Filename)%(Extension)" />
+    <AvaloniaResource Include="../../src/assets/controllers/*/native/front-full.png;../../src/assets/controllers/*/native/rear-full.png" Link="Assets/%(RecursiveDir)%(Filename)%(Extension)" />
+    <AvaloniaResource Include="../X20Ctl.Product/Brand/x20ctl-mark.png" Link="Assets/x20ctl-mark.png" />
+    <Content Include="../../src/assets/controllers/framing.json" Link="Data/framing.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../src/assets/controllers/vibration-outlines.json" Link="Data/vibration-outlines.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

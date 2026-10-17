@@ -5,105 +5,141 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
+using Avalonia.Threading;
 using X20Ctl.Zone;
 namespace X20Ctl.Linux;
 
-/// <summary>Controller Zone: four player cards, the selected one grown into the hero spot on the left.</summary>
+/// <summary>Four player slots and which controller each one holds. Everything else (Studio, chooser) hangs off this.</summary>
+internal sealed class Session
+{
+    public ControllerCatalog Catalog { get; }
+    public ControllerModel?[] Players { get; } = new ControllerModel?[4];
+    public int Selected { get; set; }
+    public StudioState?[] Studios { get; } = new StudioState?[4];
+    public Session()
+    {
+        Catalog = new ControllerCatalog(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Data", "catalog.json")));
+        Players[0] = Catalog.Find("x20_pro");
+    }
+    public StudioState? StudioFor(int slot) => Players[slot] is { } m ? Studios[slot] ??= new StudioState(m) : null;
+}
+
+/// <summary>The window: the stage behind, a header, the current screen, and the hint row. Screens swap in place.</summary>
 public sealed class MainWindow : Window
 {
-    static readonly IBrush Back = new SolidColorBrush(Color.Parse("#0E1420"));
-    static readonly IBrush Card = new SolidColorBrush(Color.Parse("#17202F"));
-    static readonly IBrush Line = new SolidColorBrush(Color.Parse("#26334A"));
-    static readonly IBrush Accent = new SolidColorBrush(Color.Parse("#3D8BFF"));
-    static readonly IBrush Quiet = new SolidColorBrush(Color.Parse("#8A97AD"));
-
-    readonly ControllerCatalog catalog;
-    readonly ControllerModel?[] players = new ControllerModel?[4];
-    readonly Grid zone = new();
-    readonly Border shell = new();
-    Control? zonePage;
-    int selected;
+    readonly Session session = new();
+    readonly Grid root = new() { RowDefinitions = new("Auto,*,Auto") };
+    readonly ContentControl body = new();
+    readonly ContentControl header = new(), footer = new();
+    readonly List<TextBlock> clocks = [];
+    TextBlock NewClock() { var c = T.Label(DateTime.Now.ToString("HH:mm"), 14, T.Soft); c.VerticalAlignment = VerticalAlignment.Center; clocks.Add(c); return c; }
+    readonly Bitmap? mark = LoadMark();
+    StudioView? studio;
+    string screen = "zone";
+    int choosing;
 
     public MainWindow()
     {
-        Title = "X20CTL"; Width = 1280; Height = 760; MinWidth = 960; MinHeight = 600; Background = Back;
-        catalog = new ControllerCatalog(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Data", "catalog.json")));
-        players[0] = catalog.Find("x20_pro");
-        var root = new DockPanel { Margin = new Thickness(28) };
-        Content = shell; shell.Child = root;
-        var header = new TextBlock { Text = "Controller Zone", FontSize = 26, FontWeight = FontWeight.SemiBold, Foreground = Brushes.White, Margin = new Thickness(0, 0, 0, 20) };
-        DockPanel.SetDock(header, Dock.Top); root.Children.Add(header); root.Children.Add(zone);
-        Rebuild();
-        KeyDown += (_, e) =>
+        Title = "X20CTL"; Width = 1500; Height = 900; MinWidth = 1100; MinHeight = 680; FontFamily = T.Font; Background = new SolidColorBrush(T.Void);
+        var stage = new Grid(); stage.Children.Add(new Backdrop()); stage.Children.Add(root); Content = stage;
+        root.Children.Add(header); Grid.SetRow(body, 1); root.Children.Add(body); Grid.SetRow(footer, 2); root.Children.Add(footer);
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) }; timer.Tick += (_, _) => { foreach (var c in clocks) c.Text = DateTime.Now.ToString("HH:mm"); }; timer.Start();
+        KeyDown += OnKey; ShowZone();
+    }
+
+    static Bitmap? LoadMark()
+    {
+        try { return new Bitmap(AssetLoader.Open(new Uri("avares://x20ctl-studio/Assets/x20ctl-mark.png"))); } catch (Exception) { return null; }
+    }
+
+    void OnKey(object? sender, KeyEventArgs e)
+    {
+        if (screen == "zone")
         {
-            if (shell.Child != zonePage && zonePage != null) return;
-            if (e.Key >= Key.D1 && e.Key <= Key.D4) { selected = e.Key - Key.D1; Rebuild(); }
-            else if (e.Key == Key.Enter) OpenStudio();
-        };
-        zonePage = root;
-    }
-
-    void Rebuild()
-    {
-        zone.Children.Clear(); zone.ColumnDefinitions.Clear(); zone.RowDefinitions.Clear();
-        zone.ColumnDefinitions.Add(new(2.2, GridUnitType.Star)); zone.ColumnDefinitions.Add(new(1, GridUnitType.Star));
-        for (int r = 0; r < 3; r++) zone.RowDefinitions.Add(new(1, GridUnitType.Star));
-        var others = Enumerable.Range(0, 4).Where(i => i != selected).ToArray();
-        Place(PlayerCard(selected, true), 0, 0, 3);
-        for (int k = 0; k < 3; k++) Place(PlayerCard(others[k], false), 1, k, 1);
-    }
-
-    void Place(Control card, int col, int row, int span)
-    {
-        card.Margin = new Thickness(col == 0 ? 0 : 14, row == 0 ? 0 : 14, 0, 0);
-        Grid.SetColumn(card, col); Grid.SetRow(card, row); Grid.SetRowSpan(card, span); zone.Children.Add(card);
-    }
-
-    Control PlayerCard(int index, bool hero)
-    {
-        var model = players[index];
-        var body = new Grid();
-        var tag = new TextBlock { Text = "PLAYER " + (index + 1), FontSize = 12, FontWeight = FontWeight.SemiBold, Foreground = Quiet, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top };
-        body.Children.Add(tag);
-        if (model != null)
-        {
-            var image = Art(model);
-            if (image != null) body.Children.Add(new Image { Source = image, Margin = new Thickness(0, 22, 0, 36), Stretch = Stretch.Uniform });
-            body.Children.Add(new TextBlock { Text = model.Name, FontSize = hero ? 20 : 15, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Bottom, HorizontalAlignment = HorizontalAlignment.Left });
+            if (e.Key >= Key.D1 && e.Key <= Key.D4) { session.Selected = e.Key - Key.D1; ShowZone(); }
+            else if (e.Key == Key.Enter) EnterStudio();
         }
-        else body.Children.Add(new TextBlock { Text = "+", FontSize = 44, Foreground = Quiet, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center });
-        var border = new Border { Background = Card, CornerRadius = new CornerRadius(14), Padding = new Thickness(18), BorderThickness = new Thickness(hero ? 2 : 1), BorderBrush = hero ? Accent : Line, Child = body, Cursor = new Cursor(StandardCursorType.Hand) };
-        border.PointerPressed += (_, e) => { if (hero && e.ClickCount > 1) OpenStudio(); else { selected = index; Rebuild(); } };
-        if (hero && model != null) { var open = Ui.Chip("Open Studio", true, OpenStudio); open.HorizontalAlignment = HorizontalAlignment.Right; open.VerticalAlignment = VerticalAlignment.Bottom; body.Children.Add(open); }
-        return border;
+        else if (screen == "choose" && e.Key == Key.Escape) ShowZone();
+        else if (screen == "studio") { if (e.Key == Key.Escape) ShowZone(); else studio?.HandleKey(e); }
     }
 
-    static Bitmap? Art(ControllerModel model) => Ui.Art(model.Id, "front-full");
+    // ---- chrome -------------------------------------------------------------------------------------------------
 
-    /// <summary>--shots DIRECTORY: renders the Zone and every Studio tab from the window's own visuals, then exits.</summary>
+    Control Logo(double size = 46) => new Border
+    {
+        Width = size, Height = size, CornerRadius = new CornerRadius(12), Background = T.B("#66101A33"), BorderBrush = T.Hairline, BorderThickness = new Thickness(1),
+        Child = mark == null ? null : new Image { Source = mark, Margin = new Thickness(size * .2) }
+    };
+
+    Control ZoneHeader(string section, Control? right)
+    {
+        var left = T.Line(14, Logo(), T.Label("X20CTL", 24, null, FontWeight.Bold));
+        left.Children.Add(new Border { Width = 1, Height = 22, Background = T.Hairline, VerticalAlignment = VerticalAlignment.Center });
+        var title = T.Label(section, 18, T.Soft); title.VerticalAlignment = VerticalAlignment.Center; left.Children.Add(title); left.VerticalAlignment = VerticalAlignment.Center;
+        var bar = new Grid { Margin = new Thickness(26, 16, 26, 0), Height = 56, ColumnDefinitions = new("*,Auto") };
+        bar.Children.Add(left);
+        var tail = T.Line(18, right ?? new Border(), NewClock()); tail.VerticalAlignment = VerticalAlignment.Center; Grid.SetColumn(tail, 1); bar.Children.Add(tail);
+        return bar;
+    }
+
+    Control FootBar(Control hints, string? headline = null)
+    {
+        var inner = new StackPanel { Spacing = 10 };
+        if (headline != null) inner.Children.Add(T.Label(headline, 18, null, FontWeight.Medium));
+        inner.Children.Add(hints);
+        return new Border { BorderBrush = T.Hairline, BorderThickness = new Thickness(0, 1, 0, 0), Padding = new Thickness(30, 14, 30, 16), Child = inner, Background = T.B("#33040814") };
+    }
+
+    // ---- screens ------------------------------------------------------------------------------------------------
+
+    void ShowZone()
+    {
+        screen = "zone"; studio = null;
+        var tools = new Pill("Tools", Pill.Kinds.Ghost); tools.Padding = new Thickness(20, 10);
+        header.Content = ZoneHeader("Controller Zone", tools);
+        body.Content = new ZonePage(session, Rebuild, EnterStudio, Choose, Remove);
+        footer.Content = FootBar(Hints.Row(("A", "Select player"), ("B", "Back"), ("≡", "Tools")));
+    }
+    void Rebuild() => ShowZone();
+
+    void Choose(int slot)
+    {
+        screen = "choose"; choosing = slot;
+        var back = new Pill("Back", Pill.Kinds.Ghost, ShowZone);
+        header.Content = ZoneHeader("Choose a controller", null);
+        body.Content = new ChooserPage(session, slot, back, model => { session.Players[slot] = model; session.Studios[slot] = null; session.Selected = slot; ShowZone(); });
+        footer.Content = FootBar(Hints.Row(("A", "Choose"), ("B", "Back"), ("✥", "Move")));
+    }
+
+    void Remove(int slot) { session.Players[slot] = null; session.Studios[slot] = null; ShowZone(); }
+
+    void EnterStudio()
+    {
+        if (session.StudioFor(session.Selected) is not { } state) return;
+        screen = "studio";
+        studio = new StudioView(state, session.Selected, ShowZone, NewClock(), mark);
+        header.Content = studio.Header; body.Content = studio; footer.Content = studio.Footer;
+    }
+
+    /// <summary>--shots DIRECTORY: renders the screens from the window's own visuals, then exits.</summary>
     public async Task Shots(string directory)
     {
         Directory.CreateDirectory(directory);
         async Task Shot(string name)
         {
-            await Task.Delay(500);
+            await Task.Delay(700);
             var size = new PixelSize((int)Bounds.Width, (int)Bounds.Height);
-            using var bmp = new Avalonia.Media.Imaging.RenderTargetBitmap(size);
+            using var bmp = new RenderTargetBitmap(size);
             bmp.Render(this); bmp.Save(Path.Combine(directory, name + ".png"));
         }
         await Shot("zone");
-        OpenStudio();
-        foreach (var tab in new[] { "Dashboard", "Buttons", "Curves", "Macros", "Vibration", "Device" })
+        Choose(1); await Shot("choose");
+        ShowZone(); EnterStudio();
+        foreach (string tab in StudioView.Tabs)
         {
-            if (shell.Child is DockPanel { Children: [StudioView view] }) view.ShowTab(tab);
-            await Shot(tab.ToLowerInvariant());
+            studio?.ShowTab(tab);
+            await Shot(tab.ToLowerInvariant().Replace(' ', '-'));
         }
         Close();
-    }
-
-    void OpenStudio()
-    {
-        if (players[selected] is not { } model) return;
-        shell.Child = new DockPanel { Margin = new Thickness(28), Children = { new StudioView(model, () => shell.Child = zonePage) } };
     }
 }

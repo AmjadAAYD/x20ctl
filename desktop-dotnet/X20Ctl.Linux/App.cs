@@ -15,7 +15,7 @@ public sealed class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop) {
             var window = new MainWindow(); desktop.MainWindow = window;
-            if (desktop.Args is { Length: 2 } a && a[0] == "--shots") window.Opened += async (_, _) => await window.Shots(a[1]);
+            if (desktop.Args is { Length: 2 } a && a[0] == "--shots") { ReviewMode.HideLibrary = true; window.Opened += async (_, _) => await window.Shots(a[1]); }
         }
         base.OnFrameworkInitializationCompleted();
     }
