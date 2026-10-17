@@ -8,7 +8,7 @@
 Remap buttons, shape sticks and triggers, build back-paddle macros, set vibration, and check that a controller really works.</p>
 
 <p align="center">
-  <a href="https://github.com/AmjadAAYD/x20ctl/releases/tag/v4.1.0-preview.3-exe"><b>Download 4.1.0 Preview 3</b></a> ·
+  <a href="https://github.com/AmjadAAYD/x20ctl/releases/tag/v4.1.0-preview.6"><b>Download 4.1.0 Preview 6</b></a> ·
   <a href="CHANGELOG.md">Changelog</a> ·
   <a href="IF-YOUR-CONTROLLER-ISNT-WORKING.md">Controller not working?</a> ·
   <a href="https://github.com/AmjadAAYD/x20ctl/issues">Report an issue</a>
@@ -24,11 +24,13 @@ Remap buttons, shape sticks and triggers, build back-paddle macros, set vibratio
 
 Agent XCTL is a small assistant drawn as a controller. Tell it in your own words how you play and it sets your PC mode for you: stick and trigger curves, dead zones, hair triggers, turbo, remaps, mouse mode, and measuring stick drift. It runs on your PC with nothing to install, and nothing you type leaves it. It checks every request against fixed rules before it changes anything, shows exactly what changed, and has an Undo. It also answers questions about the app from these docs. Don't worry about spelling or grammar: it works out what you meant and tells you how it read it.
 
-Open it from the round button and type **help** to see everything it can do. **RB** opens its settings and **LB** starts the conversation over.
+![Agent XCTL answering a question](docs/screenshots/agent.jpg)
+
+Open it from the **Agent XCTL** button in the Studio title bar and type **help** to see everything it can do. **RB** opens its settings and **LB** starts the conversation over.
 
 X20CTL is now a **native Windows app**, rebuilt from scratch in WPF on .NET 10. It no longer uses a web page inside a window, and it no longer needs WebView2. Up to four players each pick their own controller. Every model opens the same Studio, and every page can be driven with a gamepad, like a console's big-picture mode.
 
-**4.1.0 Preview 3 is a pre-release.** The EasySMX X20 is the only verified controller. The other seven models open as read-only previews. Their layouts, sticks and triggers are drawn and animated, but nothing is written to them. See [Supported controllers](#supported-controllers).
+**4.1.0 Preview 6 is a pre-release.** The EasySMX X20 is the only verified controller. The other seven models open as read-only previews. Their layouts, sticks and triggers are drawn and animated, but nothing is written to them. See [Supported controllers](#supported-controllers).
 
 ## Controller Zone
 
@@ -181,7 +183,7 @@ and bytes changed, not the messages that changed them.
 
 ## Supported controllers
 
-| Controller | Status in 4.1.0 Preview 3 |
+| Controller | Status in 4.1.0 Preview 6 |
 |---|---|
 | **EasySMX X20** | Verified. Full Studio: buttons, curves, macros (M1–M4), vibration, setups, tester |
 | EasySMX X20 Pro | Read-only preview: TMR sticks, six back buttons, four motors including the triggers |
@@ -192,19 +194,17 @@ and bytes changed, not the messages that changed them.
 | EasySMX X05 Pro | Read-only preview |
 | EasySMX D10 | Read-only preview |
 
-For a preview model, nothing is written to the controller and nothing is stored as if it had been. A model becomes verified only once its settings can be read back from real hardware. Controller Check reports from owners help get each model there.
+For a preview model, nothing is written to the controller and nothing is stored as if it had been. A model becomes verified only once its settings can be read back from real hardware. Controller Check reports from owners help get each model there. With [PC mode](#pc-mode) on, every model gets remaps, curves and macros on the PC, since nothing is written to the controller.
 
 ## Download
 
-**Windows:** download **[X20CTL-4.1.0-preview.3-windows-x64.exe](https://github.com/AmjadAAYD/x20ctl/releases/download/v4.1.0-preview.3-exe/X20CTL-4.1.0-preview.3-windows-x64.exe)** and run it. That's it: one file, nothing to extract or install. The first launch unpacks the engine and data into your temp folder, so it takes a moment longer than later launches.
-
-Would you rather have a folder? The [ZIP release](https://github.com/AmjadAAYD/x20ctl/releases/tag/v4.1.0-preview.3) has the same app unpacked: extract the whole `X20CTL` folder and run **X20Ctl.exe**.
+**Windows:** download **[X20CTL-4.1.0-preview.6-windows-x64.exe](https://github.com/AmjadAAYD/x20ctl/releases/download/v4.1.0-preview.6/X20CTL-4.1.0-preview.6-windows-x64.exe)** and run it. That's it: one file, nothing to extract or install. The first launch unpacks the engine and data into your temp folder, so it takes a moment longer than later launches.
 
 You need Windows 10 or 11 (x64). Everything is bundled: you don't need to install .NET, Python, a browser runtime or an account.
 
 **Code signing:** releases are built on GitHub Actions straight from this repository, and X20CTL has applied for free code signing for open-source projects from the [SignPath Foundation](https://signpath.org). Until that is approved, the exe is **unsigned**, so Windows SmartScreen may warn you. Check the download against the release's `SHA256SUMS.txt`. Never turn off your antivirus to run it.
 
-**Linux:** [X20CTL-4.1.0-preview.3-linux-check.zip](https://github.com/AmjadAAYD/x20ctl/releases/download/v4.1.0-preview.3-exe/X20CTL-4.1.0-preview.3-linux-check.zip). The Studio is Windows-only for now; this ZIP contains the Controller Check as a standalone script (`x20ctl-check.py`, Python 3). A native Linux build of the full Studio is planned.
+**Linux:** [X20CTL-4.1.0-preview.6-linux-check.zip](https://github.com/AmjadAAYD/x20ctl/releases/download/v4.1.0-preview.6/X20CTL-4.1.0-preview.6-linux-check.zip). The Studio is Windows-only for now; this ZIP contains the Controller Check (`x20ctl-check.py`) and PC mode (`x20ctl-pcmode.py`) as standalone Python 3 scripts. The `x20` command line (`uv run x20 scan`) runs from this repository. A native Linux build of the full Studio is planned.
 
 The last stable release is still [4.0.1](https://github.com/AmjadAAYD/x20ctl/releases/tag/v4.0.1).
 
