@@ -51,8 +51,10 @@ internal sealed class StudioView : UserControl
         return bar;
     }
 
-    public void HandleKey(KeyEventArgs e)
+    public void HandleKey(KeyEventArgs e, bool down = true)
     {
+        if (host.Content is IKeyPage page) { page.OnKey(e, down); if (e.Handled) return; }
+        if (!down) return;
         if (e.Key == Key.PageUp || e.Key == Key.OemOpenBrackets) Step(-1);
         else if (e.Key == Key.PageDown || e.Key == Key.OemCloseBrackets) Step(1);
     }

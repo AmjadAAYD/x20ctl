@@ -33,7 +33,4 @@ internal sealed class StubPage : UserControl
 }
 internal sealed class PcModePage : StubPageBase { public PcModePage(StudioState s) : base("PC mode", "Coming next.") { } }
 internal sealed class MousePage : StubPageBase { public MousePage(StudioState s) : base("Mouse", "Coming next.") { } }
-internal sealed class SetupsPage : StubPageBase { public SetupsPage(StudioState s) : base("Setups", "Coming next.") { } }
-internal sealed class TesterPage : StubPageBase { public TesterPage(StudioState s) : base("Tester", "Coming next.") { } }
-internal sealed class DiagnosticsPage : StubPageBase { public DiagnosticsPage(StudioState s) : base("Diagnostics", "Coming next.") { } }
 internal class StubPageBase : UserControl { public StubPageBase(string title, string text) { Content = new StubPage(title, text); } }
