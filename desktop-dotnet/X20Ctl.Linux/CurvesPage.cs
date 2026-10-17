@@ -10,11 +10,55 @@ using X20Ctl.Zone.PcMode;
 namespace X20Ctl.Linux;
 
 /// <summary>Response curves for both sticks and both triggers: presets, a draggable curve, and the dead zones.</summary>
-internal sealed class CurvesPage : UserControl
+internal sealed class CurvesPage : UserControl, IKeyPage
 {
     static readonly string[] Short = ["L Stick", "R Stick", "LT", "RT"], Long = ["Left stick", "Right stick", "Left trigger", "Right trigger"];
     readonly StudioState state; CurveChannel channel = CurveChannel.LeftStick;
-    public CurvesPage(StudioState state) { this.state = state; Build(); }
+    readonly GamepadReader reader = new(); readonly HashSet<Key> held = [];
+    readonly Avalonia.Threading.DispatcherTimer ramp = new() { Interval = TimeSpan.FromMilliseconds(16) };
+    CurveEditor? graph; TextBlock? hint; bool keyboard; PadFrame frame = PadFrame.Empty; double kx, ky, kl, kr;
+
+    public CurvesPage(StudioState state)
+    {
+        this.state = state; Build();
+        reader.Frame += f => { frame = f; Live(); }; reader.Start();
+        ramp.Tick += (_, _) => Ramp();
+        AttachedToVisualTree += (_, _) => ramp.Start();
+        DetachedFromVisualTree += (_, _) => { ramp.Stop(); reader.Dispose(); };
+    }
+
+    /// <summary>Keyboard stand-in for the sticks and triggers: a held key eases the value to full over a fifth of a second, like a thumb.</summary>
+    void Ramp()
+    {
+        if (!keyboard) return;
+        static double Toward(double v, double target) => v + Math.Clamp(target - v, -.08, .08);
+        double tx = (held.Contains(Key.D) ? 1 : 0) - (held.Contains(Key.A) ? 1 : 0), ty = (held.Contains(Key.W) ? 1 : 0) - (held.Contains(Key.S) ? 1 : 0);
+        double rx = (held.Contains(Key.Right) ? 1 : 0) - (held.Contains(Key.Left) ? 1 : 0), ry = (held.Contains(Key.Up) ? 1 : 0) - (held.Contains(Key.Down) ? 1 : 0);
+        bool right = channel == CurveChannel.RightStick; (double x, double y) = right ? (rx, ry) : (tx, ty);
+        kx = Toward(kx, x); ky = Toward(ky, y); kl = Toward(kl, held.Contains(Key.Q) ? 1 : 0); kr = Toward(kr, held.Contains(Key.E) ? 1 : 0);
+        Live();
+    }
+
+    void Live()
+    {
+        if (graph == null) return;
+        double? push = keyboard
+            ? channel switch { CurveChannel.LeftStick or CurveChannel.RightStick => Math.Min(1, Math.Sqrt(kx * kx + ky * ky)), CurveChannel.LeftTrigger => kl, _ => kr }
+            : reader.Connected ? channel switch
+            {
+                CurveChannel.LeftStick => Math.Min(1, Math.Sqrt(frame.LX * frame.LX + frame.LY * frame.LY)), CurveChannel.RightStick => Math.Min(1, Math.Sqrt(frame.RX * frame.RX + frame.RY * frame.RY)),
+                CurveChannel.LeftTrigger => frame.LT, _ => frame.RT
+            } : null;
+        graph.Show(push);
+        if (hint != null) hint.Text = keyboard ? "Keyboard test · WASD, arrows, Q and E" : reader.Connected ? "Live input from the controller" : "Connect a controller or use Keyboard test";
+    }
+
+    public void OnKey(KeyEventArgs e, bool down)
+    {
+        if (!keyboard) return;
+        if (e.Key is Key.W or Key.A or Key.S or Key.D or Key.Up or Key.Down or Key.Left or Key.Right or Key.Q or Key.E)
+        { if (down) held.Add(e.Key); else held.Remove(e.Key); e.Handled = true; }
+    }
 
     void Build()
     {
@@ -36,11 +80,11 @@ internal sealed class CurvesPage : UserControl
 
         var notice = Parts.Notice("Curves · PC mode", "Saved on this PC for the selected player. Nothing is written to the controller.");
         var tools = T.Line(10, new Pill("Reset curve", Pill.Kinds.Ghost, () => { state.Curves.Reset(channel); state.ResetTune(channel); Build(); }) { Enabled = !IsDefault(cur, tune), Padding = new Thickness(22, 11) }, new Pill("Advanced", Pill.Kinds.Ghost, () => Content = new StickToolsView(state, () => Build())) { Padding = new Thickness(22, 11) },
-            new Pill("Reset options ⌄", Pill.Kinds.Ghost, () => { state.Curves.ResetAll(); state.ResetTunes(); Build(); }) { Padding = new Thickness(22, 11) }, new Pill("Keyboard test", Pill.Kinds.Ghost) { Enabled = false, Padding = new Thickness(22, 11) });
+            new Pill("Reset options ⌄", Pill.Kinds.Ghost, () => { state.Curves.ResetAll(); state.ResetTunes(); Build(); }) { Padding = new Thickness(22, 11) }, new Pill(keyboard ? "Stop keyboard test" : "Keyboard test", keyboard ? Pill.Kinds.Light : Pill.Kinds.Ghost, () => { keyboard = !keyboard; held.Clear(); kx = ky = kl = kr = 0; Build(); }) { Padding = new Thickness(22, 11) });
         var channels = T.Line(10, Enum.GetValues<CurveChannel>().Select(c => (Control)new Pill(Short[(int)c], c == channel ? Pill.Kinds.Light : Pill.Kinds.Ghost, () => { channel = c; Build(); })).ToArray());
         var presets = T.Line(10, CurveDraft.Presets.Keys.Select(k => (Control)Preset(k, cur)).ToArray());
         string state2 = IsDefault(cur, tune) ? "Unmodified" : "Modified";
-        var graph = new CurveEditor(state, channel, () => Build()) { MinHeight = 250, HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Stretch };
+        graph = new CurveEditor(state, channel, () => Build()) { MinHeight = 250, HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Stretch };
         var rightBody = new Grid { RowDefinitions = new("Auto,Auto,Auto,Auto,Auto,*") };
         void Add(Control c, int row, double top = 0) { c.Margin = new Thickness(0, top, 0, 0); Grid.SetRow(c, row); rightBody.Children.Add(c); }
         Add(notice, 0); Add(tools, 1, 14);
@@ -53,10 +97,10 @@ internal sealed class CurvesPage : UserControl
         var a = T.Stack(10, Slide("Inner dead zone", tune.Inner, 0, 40, v => state.SetInner(channel, v), false), Slide("Anti-dead zone", tune.AntiDeadzone, 0, 40, v => { tune.AntiDeadzone = v; Build(); }, false));
         var b = T.Stack(10, Slide("Full output at", tune.Outer, 60, 100, v => state.SetOuter(channel, v), true), Slide("Max output", tune.MaxOutput, 60, 100, v => { tune.MaxOutput = v; Build(); }, true));
         b.Margin = new Thickness(26, 0, 0, 0); Grid.SetColumn(b, 1);
-        var msg = T.Label("Connect a controller or use Keyboard test", 14, T.Soft); msg.VerticalAlignment = VerticalAlignment.Center; msg.HorizontalAlignment = HorizontalAlignment.Center; Grid.SetColumn(msg, 2);
+        var msg = hint = T.Label("Connect a controller or use Keyboard test", 14, T.Soft); msg.VerticalAlignment = VerticalAlignment.Center; msg.HorizontalAlignment = HorizontalAlignment.Center; Grid.SetColumn(msg, 2);
         inner.Children.Add(a); inner.Children.Add(b); inner.Children.Add(msg);
         var sliders = T.Card(inner, 22); Grid.SetRow(sliders, 1); page.Children.Add(sliders);
-        Content = new ScrollViewer { Content = page };
+        Content = new ScrollViewer { Content = page }; Live();
     }
 
     static Control Place(Control c, int row) { Grid.SetRow(c, row); return c; }
@@ -99,7 +143,8 @@ internal sealed class CurvesPage : UserControl
 /// <summary>The graph a game's input runs through, with two handles to drag. Drawn from the same maths PC mode runs.</summary>
 internal sealed class CurveEditor : Control
 {
-    readonly StudioState state; readonly CurveChannel channel; readonly Action changed; int dragging = -1;
+    readonly StudioState state; readonly CurveChannel channel; readonly Action changed; int dragging = -1; double? live;
+    public void Show(double? push) { if (live == push) return; live = push; InvalidateVisual(); }
     const double Left = 56, Right = 40, Top = 24, Bottom = 44;
 
     public CurveEditor(StudioState state, CurveChannel channel, Action changed) { this.state = state; this.channel = channel; this.changed = changed; Cursor = new Cursor(StandardCursorType.Arrow); }
@@ -137,6 +182,12 @@ internal sealed class CurveEditor : Control
         // the dead-zone and full-output markers on the axes
         Marker(ctx, new Point(r.X + tune.Inner / 100 * r.Width - 4, r.Bottom), "#FF5C7A", true); Marker(ctx, new Point(r.X + tune.Outer / 100 * r.Width, r.Bottom), "#34D399", true);
         Marker(ctx, new Point(r.Right + 8, r.Bottom - tune.MaxOutput / 100 * r.Height), "#F5B45B", false); Marker(ctx, new Point(r.Right + 8, r.Bottom - tune.AntiDeadzone / 100 * r.Height), "#F5B45B", false);
+        if (live is double lv)
+        {
+            double ly = PadProcessor.Response(Curve, tune, lv); var at = new Point(r.X + lv * r.Width, r.Bottom - ly * r.Height);
+            ctx.DrawLine(new Pen(T.B("#80F5B45B"), 1.5, dashStyle: DashStyle.Dash), new Point(at.X, r.Bottom), at); ctx.DrawLine(new Pen(T.B("#80F5B45B"), 1.5, dashStyle: DashStyle.Dash), new Point(r.X, at.Y), at);
+            ctx.DrawEllipse(T.B("#F5B45B"), new Pen(T.B("#FFFFFF"), 2), at, 7, 7);
+        }
         for (int i = 0; i < 2; i++) { var h = Handle(i); ctx.DrawEllipse(T.B("#55000000"), null, new Point(h.X, h.Y + 2), 11, 11); ctx.DrawEllipse(T.B("#EAF2FF"), new Pen(T.B("#7DB6FF"), 2.5), h, 9, 9); }
     }
 
