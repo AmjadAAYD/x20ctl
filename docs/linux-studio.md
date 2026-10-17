@@ -12,8 +12,12 @@ The Windows app is WPF, which is Windows-only. The Linux Studio is a separate Av
 
 ## Status
 
-- `X20Ctl.Linux` (Avalonia 12.1.4) builds, starts on Windows, and publishes self-contained for `linux-x64`.
-- It shows the Controller Zone with the X20 Pro. Nothing has been run on Linux yet: there is no Linux machine on hand.
+Built and rendered on Windows only. Nothing has been run on Linux yet: there is no Linux machine on hand.
+
+- Done: Controller Zone, controller chooser, and the Studio tabs Dashboard, Buttons, Curves, Macros, Vibration, PC mode, Device, Mouse, Setups, Tester and Diagnostics, on the shared `X20Ctl.Zone` drafts.
+- The PC mode engine (evdev in, exclusive grab, uinput Xbox 360 out) and the controller-as-mouse engine are C# ports of the tested Python in `tools/linux_controller_check`. The ports themselves have not touched a real pad.
+- Packaging is in `tools/linux-studio`: a tarball with an installer, an AppImage, and an untested Flatpak manifest. `release.yml` builds and attaches the first two. The binary is built for glibc; a musl distribution (Alpine, Chimera) needs a `linux-musl-x64` build.
+- Not done: Tools/Settings, About, Feedback, Controller Check inside the app, the intro, game detection for per-game PC mode profiles, tray icon.
 
 ## Pieces that need a Linux equivalent
 
