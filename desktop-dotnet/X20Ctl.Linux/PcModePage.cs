@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
@@ -12,7 +13,9 @@ namespace X20Ctl.Linux;
 internal sealed class PcModePage : UserControl
 {
     readonly StudioState state; readonly Action<string> go; readonly PcModeHub hub = PcModeHub.Shared;
-    string message = ""; bool confirmReset, details;
+    string message = ""; bool confirmReset, details, picking, turbo; int Player => state.Slot;
+    static readonly int[] TurboRates = [0, 5, 8, 10, 15, 20, 30];
+    static readonly (string Id, string Label)[] TurboButtons = [("A", "A"), ("B", "B"), ("X", "X"), ("Y", "Y"), ("LB", "Left bumper"), ("RB", "Right bumper"), ("LT", "Left trigger"), ("RT", "Right trigger"), ("L3", "Left stick click"), ("R3", "Right stick click"), ("DPAD_UP", "D-pad up"), ("DPAD_DOWN", "D-pad down"), ("DPAD_LEFT", "D-pad left"), ("DPAD_RIGHT", "D-pad right"), ("SELECT", "View"), ("START", "Menu"), ("HOME", "Guide")];
 
     public PcModePage(StudioState state, Action<string> go)
     {
@@ -38,7 +41,7 @@ internal sealed class PcModePage : UserControl
         var detailText = T.Label(detail, 15, T.Soft); detailText.Margin = new Thickness(25, 0, 0, 0);
         stack.Children.Add(new Border { Background = T.B("#66060B18"), BorderBrush = T.Hairline, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(16), Padding = new Thickness(22, 18), Child = T.Stack(5, head, detailText) });
 
-        var route = T.Label("Physical pad (evdev) → PC profile → Virtual Xbox 360 (uinput) → Game\n" + (engine.Active ? "Controller held exclusively while active" : "No active route") + "\n" + (PcEngine.CanCreateVirtualPad() ? "Virtual controller allowed · Processing " + (engine.Active ? "running" : "inactive") : "Virtual controller not allowed yet · see below"), 14.5, T.Soft);
+        var route = T.Label($"Physical pad {Player + 1} (evdev) → PC profile → Virtual Xbox 360 (uinput) → Game\n" + (engine.Routes.Any(r => r.Player == Player) ? "Controller held exclusively while active" : "No active route for this player") + "\n" + (PcEngine.CanCreateVirtualPad() ? "Virtual controller allowed · Processing " + (engine.Active ? "running" : "inactive") : "Virtual controller not allowed yet · see below"), 14.5, T.Soft);
         route.Margin = new Thickness(0, 16, 0, 0); stack.Children.Add(route);
 
         var toggle = Switch(on, v => { if (!hub.SetEnabled(v)) { message = "Read the notice below first."; } Build(); });
@@ -56,7 +59,24 @@ internal sealed class PcModePage : UserControl
         if (!hub.NoticeSeen) stack.Children.Add(Notice());
         else if (PcEngine.Supported && !PcEngine.CanCreateVirtualPad()) stack.Children.Add(Permission());
 
-        stack.Children.Add(Section("Profile", "Every game shares this profile for now. Per-game profiles come with game detection."));
+        stack.Children.Add(Section("Settings for", $"Player {Player + 1} · " + (GameApps.CanSeeForeground ? "A game's own settings apply while it is in front." : "A game's own settings apply while it is running (the window in front can't be told on this desktop).")));
+        var items = new List<(string Key, string Label)> { (PcModeStore.DefaultKey, "Every game") }; items.AddRange(hub.Games(Player).Select(g => (g.Key, g.Name + "  ·  " + g.Exe)));
+        var pick = new ComboBox { ItemsSource = items.Select(i => i.Label).ToList(), SelectedIndex = Math.Max(0, items.FindIndex(i => i.Key == hub.ProfileKey(Player))), MinWidth = 340, FontSize = 15 };
+        pick.SelectionChanged += (_, _) => { string key = items[Math.Max(0, pick.SelectedIndex)].Key; if (key != hub.ProfileKey(Player)) { hub.Pick(Player, key); state.ResetAll(); hub.Prepare(state); message = key == PcModeStore.DefaultKey ? "Editing the settings every game gets." : "Editing this game's own settings, here and in the tabs."; } };
+        var games = T.Line(12, pick, new Pill("Give a game its own settings", Pill.Kinds.Ghost, () => { picking = !picking; Build(); }) { Padding = new Thickness(20, 11) });
+        if (hub.ProfileKey(Player) != PcModeStore.DefaultKey) games.Children.Add(new Pill("Remove this game", Pill.Kinds.Ghost, () => { message = hub.RemoveGame(Player); state.ResetAll(); hub.Prepare(state); Build(); }) { Padding = new Thickness(20, 11) });
+        games.Margin = new Thickness(0, 12, 0, 0); stack.Children.Add(games);
+        if (picking)
+        {
+            var running = GameApps.Running();
+            var apps = new ComboBox { ItemsSource = running.Select(a => a.Title + "  ·  " + a.Exe).ToList(), SelectedIndex = running.Count > 0 ? 0 : -1, MinWidth = 420, FontSize = 14.5 };
+            var add = new Pill("Add", Pill.Kinds.Primary, () => { if (apps.SelectedIndex < 0) return; var a = running[apps.SelectedIndex]; message = hub.AddGame(Player, a.Exe, a.Title); picking = false; state.ResetAll(); hub.Prepare(state); Build(); }) { Padding = new Thickness(22, 11) };
+            stack.Children.Add(new Border { Margin = new Thickness(0, 12, 0, 0), Background = T.B("#33FFFFFF"), CornerRadius = new CornerRadius(14), Padding = new Thickness(18, 14), Child = T.Stack(10,
+                T.Label(running.Count > 0 ? "Pick the game that is running." : "No game is running. Start it, come back to X20CTL, and press this again.", 14.5, T.Soft), T.Line(12, apps, add)) });
+        }
+
+        stack.Children.Add(Expander("Turbo bindings", turbo, v => { turbo = v; Build(); }, TurboGrid()));
+        stack.Children.Add(Section("Share", "Only the settings go in, never anything about you or your PC."));
         var share = T.Wrap(10, new Pill("Save to a file", Pill.Kinds.Ghost, ExportFile) { Padding = new Thickness(20, 11) }, new Pill("Open a file", Pill.Kinds.Ghost, ImportFile) { Padding = new Thickness(20, 11) },
             new Pill("Copy as a code", Pill.Kinds.Ghost, CopyCode) { Padding = new Thickness(20, 11) }, new Pill("Paste a code", Pill.Kinds.Ghost, PasteCode) { Padding = new Thickness(20, 11) });
         share.Margin = new Thickness(0, 12, 0, 0); stack.Children.Add(share);
@@ -122,9 +142,22 @@ internal sealed class PcModePage : UserControl
 
     // ---------------------------------------------------------------------------------------------- sharing
 
+    Control TurboGrid()
+    {
+        var p = hub.Store.Get(hub.StoreKey(Player)); var grid = new UniformGrid { Columns = 3 };
+        foreach (var (id, label) in TurboButtons)
+        {
+            var rate = new ComboBox { Width = 130, FontSize = 14.5, ItemsSource = TurboRates.Select(r => r == 0 ? "No turbo" : r + " / s").ToList(), SelectedIndex = Math.Max(0, Array.IndexOf(TurboRates, p.Turbo.GetValueOrDefault(id))) };
+            string button = id;
+            rate.SelectionChanged += (_, _) => { var next = hub.Build(state); int hz = TurboRates[Math.Max(0, rate.SelectedIndex)]; if (hz == 0) next.Turbo.Remove(button); else next.Turbo[button] = hz; if (next.Turbo.GetValueOrDefault(button) == hub.Store.Get(hub.StoreKey(Player)).Turbo.GetValueOrDefault(button)) return; message = hub.SaveTo(hub.StoreKey(Player), next); };
+            grid.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 18, 10), Spacing = 12, Children = { new TextBlock { Text = label, Width = 130, VerticalAlignment = VerticalAlignment.Center, Foreground = T.Text, FontSize = 15 }, rate } });
+        }
+        return grid;
+    }
+
     void Apply(PcModeProfile profile, string done)
     {
-        string line = hub.Store_Save(profile);
+        string line = hub.SaveTo(hub.StoreKey(Player), profile);
         if (line.StartsWith("Saved") || line.StartsWith("Nothing"))
         {
             state.ResetAll(); hub.Prepare(state); message = done;
