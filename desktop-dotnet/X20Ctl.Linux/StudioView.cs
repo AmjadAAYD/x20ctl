@@ -30,7 +30,7 @@ internal sealed class StudioView : UserControl
         var scroll = new ScrollViewer { Content = strip, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Hidden, VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled, Margin = new Thickness(18, 0), VerticalAlignment = VerticalAlignment.Center };
         Grid.SetColumn(scroll, 1); tabRow.Children.Add(scroll); Grid.SetColumn(rb, 2); tabRow.Children.Add(rb);
         var layout = new DockPanel(); DockPanel.SetDock(tabRow, Dock.Top); layout.Children.Add(tabRow); layout.Children.Add(host);
-        Content = layout; Show(current);
+        Content = layout; if (PcModeHub.Shared.AutoFor(state.Model.Id)) current = "PC mode"; Show(current);
     }
 
     static Control BuildHeader(StudioState state, Action back, TextBlock clock, Bitmap? mark)
