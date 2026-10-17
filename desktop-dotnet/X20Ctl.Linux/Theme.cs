@@ -103,6 +103,8 @@ internal sealed class FlatSlider : Control
     public double Minimum { get; init; } = 0;
     public double Maximum { get; init; } = 100;
     public bool Fill { get; init; } = true;
+    /// <summary>The smallest step the slider moves in (1 by default; 0.1 for the fine stick tools).</summary>
+    public double Step { get; init; } = 1;
     double value; bool dragging;
     public event Action<double>? ValueChanged;
     public FlatSlider() { Height = 26; Cursor = new Cursor(StandardCursorType.Hand); MinWidth = 80; }
@@ -119,7 +121,7 @@ internal sealed class FlatSlider : Control
     void Set(PointerEventArgs e)
     {
         double w = Math.Max(1, Bounds.Width - 22), f = Math.Clamp((e.GetPosition(this).X - 11) / w, 0, 1);
-        double next = Math.Round(Minimum + f * (Maximum - Minimum)); if (next != value) { value = next; InvalidateVisual(); ValueChanged?.Invoke(value); }
+        double next = Math.Round((Minimum + f * (Maximum - Minimum)) / Step) * Step; next = Math.Round(next, 4); if (next != value) { value = next; InvalidateVisual(); ValueChanged?.Invoke(value); }
     }
     protected override void OnPointerPressed(PointerPressedEventArgs e) { dragging = true; e.Pointer.Capture(this); Set(e); }
     protected override void OnPointerMoved(PointerEventArgs e) { if (dragging) Set(e); }

@@ -35,7 +35,7 @@ internal sealed class CurvesPage : UserControl
         upper.Children.Add(left);
 
         var notice = Parts.Notice("Curves · PC mode", "Saved on this PC for the selected player. Nothing is written to the controller.");
-        var tools = T.Line(10, new Pill("Reset curve", Pill.Kinds.Ghost, () => { state.Curves.Reset(channel); state.ResetTune(channel); Build(); }) { Enabled = !IsDefault(cur, tune), Padding = new Thickness(22, 11) }, new Pill("Advanced", Pill.Kinds.Ghost) { Enabled = false, Padding = new Thickness(22, 11) },
+        var tools = T.Line(10, new Pill("Reset curve", Pill.Kinds.Ghost, () => { state.Curves.Reset(channel); state.ResetTune(channel); Build(); }) { Enabled = !IsDefault(cur, tune), Padding = new Thickness(22, 11) }, new Pill("Advanced", Pill.Kinds.Ghost, () => Content = new StickToolsView(state, () => Build())) { Padding = new Thickness(22, 11) },
             new Pill("Reset options ⌄", Pill.Kinds.Ghost, () => { state.Curves.ResetAll(); state.ResetTunes(); Build(); }) { Padding = new Thickness(22, 11) }, new Pill("Keyboard test", Pill.Kinds.Ghost) { Enabled = false, Padding = new Thickness(22, 11) });
         var channels = T.Line(10, Enum.GetValues<CurveChannel>().Select(c => (Control)new Pill(Short[(int)c], c == channel ? Pill.Kinds.Light : Pill.Kinds.Ghost, () => { channel = c; Build(); })).ToArray());
         var presets = T.Line(10, CurveDraft.Presets.Keys.Select(k => (Control)Preset(k, cur)).ToArray());

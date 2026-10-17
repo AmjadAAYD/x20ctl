@@ -162,6 +162,7 @@ public sealed class MainWindow : Window
             studio?.ShowTab(tab);
             await Shot(tab.ToLowerInvariant().Replace(' ', '-'));
         }
+        body.Content = new StickToolsView(session.StudioFor(session.Selected)!, () => { }); await Shot("advanced");
         Close();
     }
 }
