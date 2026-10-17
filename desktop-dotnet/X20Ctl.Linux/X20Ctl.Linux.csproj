@@ -17,6 +17,6 @@
   <ItemGroup>
     <ProjectReference Include="../X20Ctl.Zone/X20Ctl.Zone.csproj" />
     <Content Include="../../x20ctl/controllers/catalog.json" Link="Data/catalog.json" CopyToOutputDirectory="PreserveNewest" />
-    <AvaloniaResource Include="../../src/assets/controllers/x20_pro/native/*.png" Link="Assets/x20_pro/%(Filename)%(Extension)" />
+    <AvaloniaResource Include="../../src/assets/controllers/*/native/front-full.png" Link="Assets/%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>
