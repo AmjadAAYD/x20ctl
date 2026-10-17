@@ -28,6 +28,13 @@ INSTALL
 chmod 755 "$tar_dir/install.sh" "$tar_dir/x20ctl-studio"
 tar -C "$work" -czf "$out/X20CTL-$version-linux-x64.tar.gz" "x20ctl-studio-$version"
 
+# --- the same for musl distros (Alpine, Chimera, Void-musl): a second self-contained build of the same tarball
+dotnet publish "$root/desktop-dotnet/X20Ctl.Linux/X20Ctl.Linux.csproj" -c Release -r linux-musl-x64 --self-contained true   -p:Version="$version" -p:DebugType=none -o "$work/publish-musl"
+musl_dir="$work/x20ctl-studio-$version-musl"; mkdir -p "$musl_dir"
+cp -r "$work/publish-musl/." "$musl_dir/"; cp "$tar_dir/install.sh" "$tar_dir/x20ctl.desktop" "$tar_dir/x20ctl.png" "$tar_dir/LICENSE" "$tar_dir/NOTICE" "$musl_dir/"
+chmod 755 "$musl_dir/install.sh" "$musl_dir/x20ctl-studio"
+tar -C "$work" -czf "$out/X20CTL-$version-linux-musl-x64.tar.gz" "x20ctl-studio-$version-musl"
+
 # --- AppImage, with appimagetool pinned by hash
 tool_url="https://github.com/AppImage/appimagetool/releases/download/1.9.0/appimagetool-x86_64.AppImage"
 tool_sha="46fdd785094c7f6e545b61afcfb0f3d98d8eab243f644b4b17698c01d06083d1"
