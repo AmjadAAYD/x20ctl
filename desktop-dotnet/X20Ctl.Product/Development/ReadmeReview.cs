@@ -85,6 +85,9 @@ internal static class ReadmeReview
             window.Host.Settings!.ShowPcMode(false);
             window.Host.CloseSettings(); await Task.Delay(400);
             window.Host.OpenCheck(); await Shot("15-controller-check", 1400);
+            // last: Agent XCTL answering a question (offline, nothing applied, no controller read); it leaves the stage unrenderable
+            window.Host.CloseCheck(); await Task.Delay(500); window.Host.EnterStudio(0); await Task.Delay(1400);
+            var a = window.Host.Studio!; a.OpenAgent(); await Task.Delay(800); if (a.AgentWindow is { } agent) await agent.Ask("what does the dead zone do"); await Shot("04b-agent", 2500);
         }
         finally { window.Close(); ReviewSandbox.HideLibrary = false; }
 
