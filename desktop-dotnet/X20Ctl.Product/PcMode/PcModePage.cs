@@ -37,6 +37,16 @@ public static class PcModeSetup
         return null;
     }
 
+    /// <summary>Installs the drivers by itself when PC mode is switched on (owner request, 17 Oct 2026), so there is no manual
+    /// step. Returns null when everything is in place afterwards, else why not, in a sentence. Windows asks for permission
+    /// once; a refusal or a failure is reported and never retried in a loop.</summary>
+    public static async Task<string?> Ensure()
+    {
+        if (Ready) return null;
+        try { string said = await Run(automatic: true); return Ready ? null : said; }
+        catch (Exception error) when (error is InvalidOperationException or System.ComponentModel.Win32Exception or IOException or UnauthorizedAccessException) { return "Couldn't set up PC mode: " + error.Message; }
+    }
+
     /// <summary>Runs whichever installers are missing and are bundled beside the app. Returns what happened, in a sentence.</summary>
     static readonly SemaphoreSlim installLock = new(1, 1);
     public static async Task<string> Run(bool automatic = false)
@@ -112,9 +122,9 @@ public sealed class PcModePage : Border
     static event Action? SwitchedElsewhere;
     /// <summary>Agent XCTL switched PC mode: the same as the switch here, without the notice (the owner asked for it in
     /// words). Returns why it couldn't, or null.</summary>
-    public static string? SwitchFromAgent(PcModeLink link, bool on)
+    public static async Task<string?> SwitchFromAgent(PcModeLink link, bool on)
     {
-        if (on && !PcModeSetup.Ready) return "PC mode needs its drivers first: Tools, PC mode, Set up.";
+        if (on && await PcModeSetup.Ensure() is { } why) return why;
         link.Service.Enabled = on;
         try { link.Preferences?.SetPcMode(on); } catch (Exception error) when (error is IOException or InvalidOperationException or UnauthorizedAccessException) { return "Switched, but couldn't remember it: " + error.Message; }
         SwitchedElsewhere?.Invoke();
@@ -261,7 +271,7 @@ public sealed class PcModePage : Border
     [
         "1. Your settings only work while X20CTL is open. Close it, or if it crashes, and your controller goes back to normal.",
         "2. Use turbo and macros with care in online games. Some games and anti-cheat systems treat them as cheating and may ban your account. You've been warned: you are responsible for the rules of the games you play, and X20CTL can't be held accountable for a ban.",
-        "3. It installs two small drivers, so Windows asks for permission once.",
+        "3. The first time you switch it on, it installs two small drivers by itself, so Windows asks for permission once.",
     ];
     sealed record Choice(string Id, string Label) { public override string ToString() => Label; }
     static string Ordinal(int player) => player switch { 0 => "first", 1 => "second", 2 => "third", _ => "fourth" };
@@ -269,9 +279,17 @@ public sealed class PcModePage : Border
     /// <summary>Whether edits may start PC mode yet: the notice has to be read first.</summary>
     public static bool MaySave(ProductPreferences? preferences) => preferences is not { PcModeNoticeSeen: false };
 
-    void SetEnabled(bool on)
+    async void SetEnabled(bool on)
     {
-        if(on && !PcModeSetup.Ready){setupNote.Text="Set up the required drivers before enabling routing.";Refresh();return;}
+        if (on && !PcModeSetup.Ready)
+        {
+            // the two drivers go in by themselves; Windows asks for permission once
+            setup.IsEnabled = false; setupNote.Text = "Setting up PC mode. Windows may ask for permission…";
+            string? why = await PcModeSetup.Ensure();
+            setup.IsEnabled = true;
+            if (why != null) { setupNote.Text = why; Refresh(); return; }
+            setupNote.Text = "";
+        }
         service.Enabled = on;
         try { preferences?.SetPcMode(on); } catch (Exception error) when (error is IOException or InvalidOperationException or UnauthorizedAccessException) { saved.Text = "Couldn't remember this switch: " + error.Message; }
         Refresh(); Switched?.Invoke(on);
@@ -351,7 +369,7 @@ public sealed class PcModePage : Border
         notice.Visibility = Visibility.Collapsed;
         if (pendingSave) { pendingSave = false; Save(Build()); }
         NoticeAccepted?.Invoke();
-        if (!PcModeSetup.Ready) setupNote.Text = "PC mode needs two small drivers. Press Set up PC mode to install them.";
+        if (!PcModeSetup.Ready) setupNote.Text = "PC mode installs two small drivers by itself when you switch it on.";
         else if (saved.Text.Length == 0) saved.Text = "Thanks. Changes in the controller tabs now apply on this PC.";
     }
 
