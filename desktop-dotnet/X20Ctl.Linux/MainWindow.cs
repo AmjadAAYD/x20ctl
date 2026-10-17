@@ -44,7 +44,7 @@ public sealed class MainWindow : Window
         var stage = new Grid(); stage.Children.Add(new Backdrop()); stage.Children.Add(root); Content = stage;
         root.Children.Add(header); Grid.SetRow(body, 1); root.Children.Add(body); Grid.SetRow(footer, 2); root.Children.Add(footer);
         var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) }; timer.Tick += (_, _) => { foreach (var c in clocks) c.Text = DateTime.Now.ToString("HH:mm"); }; timer.Start();
-        KeyDown += OnKey; ShowZone();
+        KeyDown += OnKey; KeyUp += (_, e) => { if (screen == "studio") studio?.HandleKey(e, false); }; ShowZone();
     }
 
     static Bitmap? LoadMark()
@@ -60,7 +60,7 @@ public sealed class MainWindow : Window
             else if (e.Key == Key.Enter) EnterStudio();
         }
         else if (screen == "choose" && e.Key == Key.Escape) ShowZone();
-        else if (screen == "studio") { if (e.Key == Key.Escape) ShowZone(); else studio?.HandleKey(e); }
+        else if (screen == "studio") { studio?.HandleKey(e); if (!e.Handled && e.Key == Key.Escape) ShowZone(); }
     }
 
     // ---- chrome -------------------------------------------------------------------------------------------------
