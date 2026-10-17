@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **PC mode installs its drivers by itself.** Switching PC mode on (in its tab, or by asking Agent XCTL) installs the virtual controller driver (ViGEmBus) and the controller hider (HidHide) from the copies carried inside the exe, checked against pinned hashes, with no Set up step first. Windows asks for permission once; a refusal or a failure is reported and never retried in a loop. Drivers already installed are left alone. *Set up PC mode* stays as the fallback if an install fails.
+
 ## [4.1.0-preview.6] - 2026-10-17
 
 A pre-release. Everything in [Preview 5](#410-preview5---2026-10-12) is included.
