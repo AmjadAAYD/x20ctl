@@ -31,6 +31,5 @@ internal sealed class StubPage : UserControl
         Content = new Grid { Margin = new Thickness(36, 8, 36, 18), Children = { T.Card(T.Stack(8, T.Label(title, 28, null, FontWeight.SemiBold), T.Label(text, 15, T.Soft)), 28) } };
     }
 }
-internal sealed class PcModePage : StubPageBase { public PcModePage(StudioState s) : base("PC mode", "Coming next.") { } }
 internal sealed class MousePage : StubPageBase { public MousePage(StudioState s) : base("Mouse", "Coming next.") { } }
 internal class StubPageBase : UserControl { public StubPageBase(string title, string text) { Content = new StubPage(title, text); } }
