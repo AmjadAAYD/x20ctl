@@ -22,6 +22,41 @@ internal sealed class MacrosPage : UserControl
 
     MacroDraft M => state.Macros;
 
+    MacroRecorder? recorder; Avalonia.Threading.DispatcherTimer? watch; string recordNote = "";
+
+    void ToggleRecord()
+    {
+        if (recorder != null) { FinishRecord(); return; }
+        var r = new MacroRecorder();
+        if (!r.Start()) { r.Dispose(); recordNote = "No controller found to record from."; Build(); return; }
+        recorder = r; recordNote = "Recording. Play the sequence on the controller.";
+        watch = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
+        watch.Tick += (_, _) => { if (recorder == null) return; if (recorder.ShouldStop) FinishRecord(); };
+        watch.Start(); Build();
+    }
+
+    void FinishRecord()
+    {
+        var r = recorder; if (r == null) return;
+        watch?.Stop(); watch = null; recorder = null; r.Stop();
+        var events = r.Events(); r.Dispose();
+        if (events.Count == 0) { recordNote = "Nothing was played."; Build(); return; }
+        int kept = 0;
+        try
+        {
+            M.Clear(slot);
+            foreach (var e in events)
+            {
+                try { M.Add(slot); M.Update(slot, kept, e with { Id = M[slot][kept].Id }); kept++; }
+                catch (InvalidOperationException) { if (M[slot].Count > kept) M.Remove(slot, M[slot].Count - 1); break; }
+            }
+        }
+        catch (Exception e) when (e is InvalidOperationException or ArgumentException) { }
+        index = kept > 0 ? 0 : -1;
+        recordNote = kept == events.Count ? $"Recorded {kept} events." : $"Recorded {kept} of {events.Count} events; the rest didn't fit.";
+        Build();
+    }
+
     void Build()
     {
         var page = new Grid { Margin = new Thickness(36, 4, 36, 14), RowDefinitions = new("Auto,Auto,Auto,Auto") };
@@ -74,13 +109,14 @@ internal sealed class MacrosPage : UserControl
         var events = M[slot];
         var head = new Grid { ColumnDefinitions = new("*,Auto") };
         head.Children.Add(T.Stack(1, T.Label(slot + " · Sequence", 28, null, FontWeight.SemiBold), T.Label($"Events {events.Count} · Capacity {M.EntryCount(slot)} / 47 · {M.Duration(slot)} ms", 13.5, T.Soft)));
-        var acts = T.Line(10, new Pill("●  Record", Pill.Kinds.Ghost) { Enabled = false, Padding = new Thickness(20, 11) }, new Pill("⭳  Read controller", Pill.Kinds.Ghost) { Enabled = false, Padding = new Thickness(20, 11) },
+        var acts = T.Line(10, new Pill(recorder == null ? "●  Record" : "■  Stop", Pill.Kinds.Ghost, ToggleRecord) { Enabled = M.CanEdit, Padding = new Thickness(20, 11) }, new Pill("⭳  Read controller", Pill.Kinds.Ghost) { Enabled = false, Padding = new Thickness(20, 11) },
             new Pill("+ Add event", Pill.Kinds.Primary, () => { try { M.Add(slot); index = M[slot].Count - 1; } catch (Exception e) when (e is InvalidOperationException or ArgumentException) { } Build(); }) { Padding = new Thickness(22, 11) },
             new Pill("Preview timeline", Pill.Kinds.Ghost) { Enabled = false, Padding = new Thickness(20, 11) },
             new Pill("···", Pill.Kinds.Ghost, () => { M.Clear(slot); index = -1; Build(); }) { Padding = new Thickness(16, 11) });
         acts.VerticalAlignment = VerticalAlignment.Top; Grid.SetColumn(acts, 1); head.Children.Add(acts);
 
         var chips = new WrapPanel { Margin = new Thickness(0, 12, 0, 0) };
+        if (recordNote.Length > 0) chips.Children.Add(new TextBlock { Text = recordNote, FontSize = 13.5, Foreground = T.Soft, Margin = new Thickness(0, 0, 14, 8), VerticalAlignment = VerticalAlignment.Center });
         for (int i = 0; i < events.Count; i++)
         {
             int at = i; var e = events[i]; bool on = at == index;
