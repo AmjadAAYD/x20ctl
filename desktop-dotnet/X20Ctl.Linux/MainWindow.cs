@@ -60,7 +60,8 @@ public sealed class MainWindow : Window
             if (e.Key >= Key.D1 && e.Key <= Key.D4) { session.Selected = e.Key - Key.D1; ShowZone(); }
             else if (e.Key == Key.Enter) EnterStudio();
         }
-        else if (screen == "choose" && e.Key == Key.Escape) ShowZone();
+        else if (screen is "choose" or "tools" && e.Key == Key.Escape) ShowZone();
+        else if (screen is "about" or "feedback" or "check" && e.Key == Key.Escape) ShowTools();
         else if (screen == "studio") { studio?.HandleKey(e); if (!e.Handled && e.Key == Key.Escape) ShowZone(); }
     }
 
@@ -96,12 +97,29 @@ public sealed class MainWindow : Window
     void ShowZone()
     {
         screen = "zone"; studio = null;
-        var tools = new Pill("Tools", Pill.Kinds.Ghost); tools.Padding = new Thickness(20, 10);
+        var tools = new Pill("Tools", Pill.Kinds.Ghost, ShowTools); tools.Padding = new Thickness(20, 10);
         header.Content = ZoneHeader("Controller Zone", tools);
         body.Content = new ZonePage(session, Rebuild, EnterStudio, Choose, Remove);
         footer.Content = FootBar(Hints.Row(("A", "Select player"), ("B", "Back"), ("≡", "Tools")));
     }
     void Rebuild() => ShowZone();
+
+    // ---- tools --------------------------------------------------------------------------------------------------
+
+    void Tools(string screenName, string section, Control page, string back = "Controller Zone")
+    {
+        screen = screenName; studio = null;
+        var pill = new Pill("←  " + back, Pill.Kinds.Ghost, back == "Controller Zone" ? ShowZone : ShowTools) { Padding = new Thickness(20, 10) };
+        header.Content = ZoneHeader(section, pill); body.Content = page;
+        footer.Content = FootBar(Hints.Row(("A", "Select"), ("B", "Back")));
+    }
+
+    void ShowTools() => Tools("tools", "Tools", new ToolsPage(new ToolsActions(ShowCheck, ShowWriteScan, () => { session.Selected = Math.Max(0, Array.FindIndex(session.Players, p => p != null)); EnterStudio("PC mode"); }, ShowIntro, ShowAbout, ShowFeedback)));
+    void ShowAbout() => Tools("about", "Tools", new AboutPage(ShowTools, mark));
+    void ShowFeedback() => Tools("feedback", "Tools", new FeedbackPage(ShowTools, session.Catalog.Models.Select(m => m.Name)));
+    void ShowCheck() => Tools("check", "Controller Check", new StubPage("Controller Check", "Coming next."), "Tools");
+    void ShowWriteScan() => Tools("check", "Write scan", new StubPage("Write scan", "Coming next."), "Tools");
+    void ShowIntro() => Tools("check", "Intro", new StubPage("Intro", "Coming next."), "Tools");
 
     void Choose(int slot)
     {
@@ -114,11 +132,13 @@ public sealed class MainWindow : Window
 
     void Remove(int slot) { session.Players[slot] = null; session.Studios[slot] = null; ShowZone(); }
 
-    void EnterStudio()
+    void EnterStudio() => EnterStudio(null);
+    void EnterStudio(string? tab)
     {
         if (session.StudioFor(session.Selected) is not { } state) return;
         screen = "studio";
         studio = new StudioView(state, session.Selected, ShowZone, NewClock(), mark);
+        if (tab != null) studio.ShowTab(tab);
         header.Content = studio.Header; body.Content = studio; footer.Content = studio.Footer;
     }
 
@@ -135,6 +155,7 @@ public sealed class MainWindow : Window
         }
         await Shot("zone");
         Choose(1); await Shot("choose");
+        ShowTools(); await Shot("tools"); ShowAbout(); await Shot("about"); ShowFeedback(); await Shot("feedback");
         ShowZone(); EnterStudio();
         foreach (string tab in StudioView.Tabs)
         {
