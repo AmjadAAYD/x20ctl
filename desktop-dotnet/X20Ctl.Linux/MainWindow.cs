@@ -117,7 +117,7 @@ public sealed class MainWindow : Window
     void ShowTools() => Tools("tools", "Tools", new ToolsPage(new ToolsActions(ShowCheck, ShowWriteScan, () => { session.Selected = Math.Max(0, Array.FindIndex(session.Players, p => p != null)); EnterStudio("PC mode"); }, ShowIntro, ShowAbout, ShowFeedback)));
     void ShowAbout() => Tools("about", "Tools", new AboutPage(ShowTools, mark));
     void ShowFeedback() => Tools("feedback", "Tools", new FeedbackPage(ShowTools, session.Catalog.Models.Select(m => m.Name)));
-    void ShowCheck() => Tools("check", "Controller Check", new StubPage("Controller Check", "Coming next."), "Tools");
+    void ShowCheck() => Tools("check", "Controller Check", new CheckPage(ShowTools, () => { session.Selected = Math.Max(0, Array.FindIndex(session.Players, p => p != null)); EnterStudio("Tester"); }), "Tools");
     void ShowWriteScan() => Tools("check", "Write scan", new StubPage("Write scan", "Coming next."), "Tools");
     void ShowIntro() => Tools("check", "Intro", new StubPage("Intro", "Coming next."), "Tools");
 
@@ -155,7 +155,7 @@ public sealed class MainWindow : Window
         }
         await Shot("zone");
         Choose(1); await Shot("choose");
-        ShowTools(); await Shot("tools"); ShowAbout(); await Shot("about"); ShowFeedback(); await Shot("feedback");
+        ShowTools(); await Shot("tools"); ShowAbout(); await Shot("about"); ShowFeedback(); await Shot("feedback"); ShowCheck(); await Shot("check");
         ShowZone(); EnterStudio();
         foreach (string tab in StudioView.Tabs)
         {
