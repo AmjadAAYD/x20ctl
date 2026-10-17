@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -21,6 +21,7 @@ public partial class ZoneScene : UserControl
     private Point pointer;
     public IReadOnlyList<DockView> Docks => docks;
     public event Action<int, bool>? ControllerActionRequested;
+    public event Action<int>? ControllerRemoved;
     public event Action? SupportRequested;
     public event Action? SettingsRequested;
     private void Support(object sender,RoutedEventArgs e)=>SupportRequested?.Invoke();
@@ -34,7 +35,7 @@ public partial class ZoneScene : UserControl
     public ZoneScene(bool reducedMotion)
     {
         ReducedMotion = reducedMotion || !SystemParameters.ClientAreaAnimation;
-        InitializeComponent(); Loaded += (_, _) => UpdateOverviewPill(); ZoneHints.Children.Add(GlyphHint.Footer(("A", "Select player"), ("B", "Back"), ("☰", "Tools")));
+        InitializeComponent(); EnvironmentBackdrop.ReducedMotion=ReducedMotion; Loaded += (_, _) => UpdateOverviewPill(); ZoneHints.Children.Add(GlyphHint.Footer(("A", "Select player"), ("B", "Back"), ("☰", "Tools")));
         // in a narrow window the developer notes in the footer give way to the controls
         Surface.SizeChanged += (_, _) => { var notes = Surface.ActualWidth < 1300 ? Visibility.Collapsed : Visibility.Visible; ScenarioHint.Visibility = MotionHint.Visibility = notes; };
         Surface.SizeChanged += (_, _) => Surface.Clip = new RectangleGeometry(new Rect(0, 0, Surface.ActualWidth, Surface.ActualHeight), OuterFrame.CornerRadius.TopLeft, OuterFrame.CornerRadius.TopLeft);
@@ -46,14 +47,16 @@ public partial class ZoneScene : UserControl
         transition?.Cancel(); scenario = value; State = new ZoneState(value); displayedHero = null;
         foreach (var dock in docks) DockStage.Children.Remove(dock);
         // Four persistent player views; focus changes move them, never replace their content.
-        docks = Enumerable.Range(0, 4).Select(i => new DockView(i, State.Players[i])).ToArray();
+        docks = Enumerable.Range(0, 4).Select(i => new DockView(i, State.Players[i], ReducedMotion)).ToArray();
         foreach (var dock in docks)
         {
+            dock.RemoveRequested += RemoveController;
             dock.Selected += async index => await FocusPlayerAsync(index);
             dock.ActionRequested += (index, change) => ControllerActionRequested?.Invoke(index, change);
             DockStage.Children.Add(dock);
         }
-        ScenarioHint.Text = value switch { ZoneScenario.OneController => "One mock assignment · F9 changes fixture", ZoneScenario.MultipleControllers => "Three mock assignments · F9 changes fixture", _ => "All empty · no hardware access" };
+        ProvenanceText.Text = value == ZoneScenario.Empty ? "LIVE INPUT" : "DEMO";
+        ScenarioHint.Text = value switch { ZoneScenario.OneController => "One mock assignment · F9 changes fixture", ZoneScenario.MultipleControllers => "Three mock assignments · F9 changes fixture", _ => "Waiting for controller input" };
         FeedbackText.Text = "Select any player. All four docks begin equal.";
         SnapLayout();
     }
@@ -62,7 +65,7 @@ public partial class ZoneScene : UserControl
         State.Restore(ids, catalog);
         for (int i = 0; i < 4; i++) docks[i].RefreshPlayer(State.Players[i]);
         SnapLayout();
-        ScenarioHint.Text = "Saved assignments · hardware disconnected";
+        ScenarioHint.Text = "Saved models · connection checked separately";
     }
     public void AssignController(int index, ControllerModel model)
     {
@@ -70,7 +73,13 @@ public partial class ZoneScene : UserControl
         docks[index].RefreshPlayer(State.Players[index]);
         SnapLayout();
         FeedbackText.Text = $"{model.Name} assigned to Player {index + 1}. Hardware connection is separate.";
-        ScenarioHint.Text = "Assigned models · hardware disconnected";
+        ScenarioHint.Text = "Assigned models · connection checked separately";
+    }
+    public void RemoveController(int index)
+    {
+        transition?.Cancel();State.Clear(index);docks[index].RefreshPlayer(State.Players[index]);SnapLayout();UpdateOverviewPill();
+        FeedbackText.Text=$"Player {index+1} controller removed. Saved setups retained.";
+        ControllerRemoved?.Invoke(index);
     }
     private void OnLoaded(object sender, RoutedEventArgs e)
     {

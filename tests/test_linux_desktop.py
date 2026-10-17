@@ -4,7 +4,6 @@ from types import SimpleNamespace
 import pytest
 
 from x20ctl import protocol as p
-from x20ctl.desktop.platform_support import bundled_navigation_allowed
 from x20ctl.linux_input import LinuxInputReader, scaled_axis
 
 
@@ -84,51 +83,8 @@ def test_input_permission_failure_does_not_request_elevation():
     assert reader.poll() is None
 
 
-def test_gtk_navigation_blocks_foreign_documents_and_ports():
-    expected = "http://127.0.0.1:8765/index.html"
-    for allowed in (expected, expected + "#macros", expected + "?view=back"):
-        assert bundled_navigation_allowed(expected, allowed)
-    for denied in ("https://example.com/", "http://127.0.0.1:8766/index.html",
-                   "http://127.0.0.1:8765/other.html", "file:///etc/passwd", "javascript:alert(1)"):
-        assert not bundled_navigation_allowed(expected, denied)
-
-
 def test_xinput_is_unavailable_on_linux(monkeypatch):
     from x20ctl import input
     monkeypatch.setattr(input.sys, "platform", "linux")
     assert not input.XInputReader().available
     assert input.XInputReader().poll() is None
-
-
-def test_windows_single_instance_and_webview2_path_are_retained(monkeypatch):
-    from x20ctl.desktop import platform_support, runtime
-    class Function:
-        def __init__(self, callback): self.callback = callback
-        def __call__(self, *args): return self.callback(*args)
-    closed = []
-    kernel = SimpleNamespace(CreateMutexW=Function(lambda _security, _owner, name: 42 if name == "Local\\x20ctl.Desktop" else 0),
-                             CloseHandle=Function(closed.append))
-    monkeypatch.setattr(platform_support.sys, "platform", "win32")
-    monkeypatch.setattr(platform_support.ctypes, "WinDLL", lambda *_args, **_kwargs: kernel, raising=False)
-    monkeypatch.setattr(platform_support.ctypes, "get_last_error", lambda: 183, raising=False)
-    lock = platform_support.InstanceLock()
-    assert not lock.acquire()
-    assert closed == [42]
-    monkeypatch.setattr(runtime, "system_runtime_installed", lambda: True)
-    assert runtime.configure(None) == "system"
-
-
-@pytest.mark.skipif(__import__("sys").platform != "linux", reason="Linux flock")
-def test_linux_lock_release_and_xdg_storage(tmp_path, monkeypatch):
-    from x20ctl.desktop.platform_support import InstanceLock, data_directory
-    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
-    assert data_directory() == tmp_path / "x20ctl"
-    first, second = InstanceLock(), InstanceLock()
-    try:
-        assert first.acquire()
-        assert not second.acquire()
-        first.close()
-        assert second.acquire()
-    finally:
-        first.close()
-        second.close()

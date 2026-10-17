@@ -28,8 +28,6 @@ Get-FileHash .\x20ctl.exe -Algorithm SHA256
 
 The executable is not Authenticode-signed by the project and no GitHub/SLSA attestation is claimed. A checksum verifies integrity against the published artifact, not safety. Treat antivirus findings seriously; do not disable protection based on a generic reassurance.
 
-The full EXE includes a Microsoft-signed fixed WebView2 runtime as an offline fallback. The normal system runtime is preferred for serviced security updates. Maintainers must refresh the bundled fallback in subsequent releases. Source and build instructions are in the README.
-
 ## Scope of support
 
 2.0 is the desktop recovery line. 1.2.0 remains available as a rollback. No promise of backported fixes, universal controller compatibility or zero bugs is made. Physical-device acceptance limitations are listed in [validation](docs/desktop-validation.md).

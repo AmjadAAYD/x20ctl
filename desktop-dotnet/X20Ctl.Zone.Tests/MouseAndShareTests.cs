@@ -93,6 +93,46 @@ public sealed class MouseAndShareTests
         Assert.False(c.Update(PadButtons.Back | PadButtons.Start, 3002));
     }
 
+    [Fact]
+    public void Reserved_shortcut_components_never_emit_normal_mapped_actions()
+    {
+        var p=new MouseProfile{ToggleButtons=["A","B"]};var m=new MouseMapper(p);
+        Assert.Empty(m.Step(Pad(PadButtons.A),.01).Edges);
+        Assert.Empty(m.Step(Pad(PadButtons.A|PadButtons.B),.01).Edges);
+        Assert.Empty(m.Step(Pad(),.01).Edges);
+        p.Combo=false;m=new(p);Assert.Contains((MouseAction.LeftClick,true),m.Step(Pad(PadButtons.A),.01).Edges);
+        Assert.Throws<InvalidDataException>(()=>new MouseProfile{ToggleButtons=["A","A"]}.Validate());
+        Assert.Throws<InvalidDataException>(()=>new MouseProfile{SourceSlot=4}.Validate());
+    }
+    [Fact]
+    public void Scroll_direction_and_horizontal_disable_are_independent()
+    {
+        var normal=new MouseMapper(new MouseProfile{Deadzone=0});
+        var flipped=new MouseMapper(new MouseProfile{Deadzone=0,InvertVerticalScroll=true,HorizontalScroll=false});
+        var a=normal.Step(Pad(rx:32767,ry:32767),.1);var b=flipped.Step(Pad(rx:32767,ry:32767),.1);
+        Assert.NotEqual(0,a.Wheel);Assert.Equal(-a.Wheel,b.Wheel);Assert.NotEqual(0,a.HWheel);Assert.Equal(0,b.HWheel);
+    }
+
+    [Fact]
+    public void Shared_mouse_actions_release_only_when_all_of_their_inputs_are_up()
+    {
+        var mapper=new MouseMapper(new MouseProfile());
+        Assert.Equal([(MouseAction.LeftClick,true)],mapper.Step(Pad(PadButtons.A,rt:255),.01).Edges);
+        Assert.Empty(mapper.Step(Pad(rt:255),.01).Edges);
+        Assert.Equal([(MouseAction.LeftClick,false)],mapper.Step(Pad(),.01).Edges);
+    }
+
+    [Fact]
+    public void Disabled_is_software_only_and_consumes_digital_and_analog_inputs()
+    {
+        var native=new X20Ctl.Zone.ButtonDraft("x20");Assert.Throws<ArgumentException>(()=>native.Set("A","NONE"));
+        var software=new X20Ctl.Zone.ButtonDraft("x20_pro"){PcMode=true};software.Set("A","NONE");Assert.Equal("NONE",software.Target("A"));
+        var profile=new PcModeProfile{Remap={ ["A"]="NONE",["LT"]="NONE"}};profile.Validate();var processor=new PadProcessor(profile);
+        var result=processor.Process(Pad(PadButtons.A|PadButtons.B,lt:255),0);Assert.Equal((ushort)PadButtons.B,result.Buttons);Assert.Equal(0,result.LeftTrigger);
+        var feather=new PadProcessor(profile).Process(Pad(lt:10),0);Assert.Equal(0,feather.LeftTrigger);
+        var observation=new X20Ctl.Zone.Diagnostics.DriftObservation();for(int i=0;i<100;i++)observation.Add(328,-328);Assert.True(observation.Stable);Assert.InRange(observation.Distance,1.4,1.5);Assert.True(observation.RecommendedInner>observation.Peak);
+    }
+
     static PcModeProfile Sample() => new()
     {
         Remap = { ["A"] = "B" }, Turbo = { ["X"] = 10 },

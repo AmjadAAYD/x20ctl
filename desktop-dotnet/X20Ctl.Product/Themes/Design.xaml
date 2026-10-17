@@ -70,7 +70,7 @@
   <CornerRadius x:Key="DS.R.Surface">22</CornerRadius>
   <CornerRadius x:Key="DS.R.Card">16</CornerRadius>
   <CornerRadius x:Key="DS.R.Control">12</CornerRadius>
-  <CornerRadius x:Key="DS.R.Pill">999</CornerRadius>
+  <CornerRadius x:Key="DS.R.Pill">10</CornerRadius>
   <local:HalfHeightRadius x:Key="DS.HalfHeight" />
   <Thickness x:Key="DS.Pad.Surface">28,24,28,24</Thickness>
   <Thickness x:Key="DS.Pad.Card">20,16,20,16</Thickness>
@@ -106,6 +106,34 @@
   <!-- ===== Focus: no dotted Windows rectangle; focus is drawn by the app's moving focus ring ===== -->
   <Style x:Key="DS.NoFocusVisual"><Setter Property="Control.Template"><Setter.Value><ControlTemplate><Rectangle /></ControlTemplate></Setter.Value></Setter></Style>
 
+
+  <!-- Navy and cobalt retain the reference capsule proportions, with depth and visible interaction states. -->
+  <LinearGradientBrush x:Key="Control.ButtonFill" StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#30384C" Offset="0"/><GradientStop Color="#272E40" Offset="1"/></LinearGradientBrush>
+  <LinearGradientBrush x:Key="Control.PrimaryFill" StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#4598F5" Offset="0"/><GradientStop Color="#287CE9" Offset="1"/></LinearGradientBrush>
+  <Style x:Key="ActionButton" TargetType="Button">
+    <Setter Property="FontFamily" Value="Segoe UI"/><Setter Property="FontSize" Value="14"/><Setter Property="FontWeight" Value="SemiBold"/><Setter Property="Foreground" Value="{StaticResource DS.Text}"/>
+    <Setter Property="Background" Value="{StaticResource Control.ButtonFill}"/><Setter Property="BorderBrush" Value="#434C63"/><Setter Property="BorderThickness" Value="1"/><Setter Property="Padding" Value="22,0"/><Setter Property="MinHeight" Value="42"/><Setter Property="Cursor" Value="Hand"/><Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+    <Setter Property="HorizontalContentAlignment" Value="Center"/>
+    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button"><Grid>
+      <Border x:Name="Face" CornerRadius="{Binding ActualHeight, RelativeSource={RelativeSource Self}, Converter={StaticResource DS.HalfHeight}}" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}">
+        <Grid>
+          <Border x:Name="Rim" CornerRadius="{Binding ActualHeight, RelativeSource={RelativeSource Self}, Converter={StaticResource DS.HalfHeight}}" BorderThickness=".7" IsHitTestVisible="False"><Border.BorderBrush><LinearGradientBrush StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#42D9EAFF" Offset="0"/><GradientStop Color="#06D9EAFF" Offset=".65"/><GradientStop Color="#19060C1B" Offset="1"/></LinearGradientBrush></Border.BorderBrush></Border>
+          <Border x:Name="Hover" CornerRadius="{Binding ActualHeight, RelativeSource={RelativeSource Self}, Converter={StaticResource DS.HalfHeight}}" Background="#81BDFF" Opacity="0" IsHitTestVisible="False"/>
+          <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center"><ContentPresenter.Resources><Style TargetType="TextBlock" BasedOn="{StaticResource DS.InheritText}"/></ContentPresenter.Resources></ContentPresenter>
+        </Grid>
+      </Border></Grid>
+      <ControlTemplate.Triggers>
+      <Trigger Property="IsMouseOver" Value="True"><Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimation Storyboard.TargetName="Hover" Storyboard.TargetProperty="Opacity" To=".18" Duration="0:0:0.12"/></Storyboard></BeginStoryboard></Trigger.EnterActions><Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimation Storyboard.TargetName="Hover" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.1"/></Storyboard></BeginStoryboard></Trigger.ExitActions></Trigger>
+      <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Face" Property="BorderBrush" Value="#B5DBFF"/></Trigger><Trigger Property="IsPressed" Value="True"><Setter TargetName="Hover" Property="Background" Value="#08152D"/><Setter TargetName="Face" Property="Opacity" Value=".9"/></Trigger><Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value=".42"/><Setter Property="Cursor" Value="Arrow"/></Trigger>
+    </ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource ActionButton}"><Setter Property="Background" Value="{StaticResource Control.PrimaryFill}"/><Setter Property="BorderBrush" Value="#78B7FF"/></Style>
+  <Style x:Key="IconButton" TargetType="Button" BasedOn="{StaticResource ActionButton}"><Setter Property="Width" Value="36"/><Setter Property="Padding" Value="0"/><Setter Property="Background" Value="Transparent"/><Setter Property="BorderBrush" Value="Transparent"/></Style>
+  <Style x:Key="GamepadKeycap" TargetType="Button" BasedOn="{StaticResource ActionButton}"><Setter Property="Background" Value="#111D31"/><Setter Property="BorderBrush" Value="#43516A"/><Setter Property="FontSize" Value="11"/><Setter Property="MinHeight" Value="26"/><Setter Property="Padding" Value="6,0"/></Style>
+  <Style x:Key="SegmentOption" TargetType="Button" BasedOn="{StaticResource ActionButton}"><Setter Property="BorderBrush" Value="Transparent"/><Setter Property="Background" Value="Transparent"/><Setter Property="MinHeight" Value="42"/><Setter Property="Padding" Value="12,0"/></Style>
+  <Style x:Key="StatusTag" TargetType="Border"><Setter Property="CornerRadius" Value="5"/><Setter Property="Background" Value="#19263E"/><Setter Property="Padding" Value="8,4"/></Style>
+  <Style x:Key="SegmentedControl" TargetType="Border"><Setter Property="CornerRadius" Value="9"/><Setter Property="Padding" Value="3"/><Setter Property="Background" Value="#101B30"/><Setter Property="BorderBrush" Value="#2B3D5A"/><Setter Property="BorderThickness" Value="1"/></Style>
+
   <!-- ===== Buttons ===== -->
   <Style x:Key="DS.ButtonBase" TargetType="Button">
     <Setter Property="FontFamily" Value="{StaticResource DS.FontDisplay}" /><Setter Property="FontSize" Value="17" /><Setter Property="FontWeight" Value="Bold" />
@@ -113,35 +141,8 @@
     <Setter Property="Cursor" Value="Hand" /><Setter Property="FocusVisualStyle" Value="{StaticResource DS.NoFocusVisual}" /><Setter Property="RenderTransformOrigin" Value=".5,.5" />
     <Setter Property="RenderTransform"><Setter.Value><ScaleTransform /></Setter.Value></Setter>
   </Style>
-  <Style x:Key="DS.Primary" TargetType="Button" BasedOn="{StaticResource DS.ButtonBase}">
-    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
-      <Grid>
-        <Border x:Name="Glow" CornerRadius="{Binding ActualHeight, RelativeSource={RelativeSource Self}, Converter={StaticResource DS.HalfHeight}}" Background="{StaticResource DS.AccentFill}" Opacity=".55" Effect="{StaticResource DS.Glow.Accent}" Margin="6,8" />
-        <Border x:Name="Body" CornerRadius="{Binding ActualHeight, RelativeSource={RelativeSource Self}, Converter={StaticResource DS.HalfHeight}}" Background="{StaticResource DS.AccentFill}" BorderBrush="#66CFE2FF" BorderThickness="1" Padding="{TemplateBinding Padding}">
-          <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"><ContentPresenter.Resources><Style TargetType="TextBlock" BasedOn="{StaticResource DS.InheritText}" /></ContentPresenter.Resources></ContentPresenter>
-        </Border>
-        <Border CornerRadius="{Binding ActualHeight, RelativeSource={RelativeSource Self}, Converter={StaticResource DS.HalfHeight}}" IsHitTestVisible="False" Margin="1"><Border.Background><LinearGradientBrush StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#38FFFFFF" Offset="0" /><GradientStop Color="#00FFFFFF" Offset=".55" /></LinearGradientBrush></Border.Background></Border>
-      </Grid>
-      <ControlTemplate.Triggers>
-        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Glow" Property="Opacity" Value=".95" /></Trigger>
-        <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Glow" Property="Opacity" Value="1" /><Setter TargetName="Body" Property="BorderBrush" Value="White" /></Trigger>
-        <Trigger Property="IsPressed" Value="True"><Setter TargetName="Body" Property="Opacity" Value=".85" /></Trigger>
-        <Trigger Property="IsEnabled" Value="False"><Setter TargetName="Glow" Property="Opacity" Value="0" /><Setter TargetName="Body" Property="Background" Value="#262F4A" /><Setter TargetName="Body" Property="BorderBrush" Value="#1AFFFFFF" /><Setter Property="Foreground" Value="{StaticResource DS.TextMuted}" /></Trigger>
-      </ControlTemplate.Triggers>
-    </ControlTemplate></Setter.Value></Setter>
-  </Style>
-  <Style x:Key="DS.Secondary" TargetType="Button" BasedOn="{StaticResource DS.ButtonBase}">
-    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
-      <Border x:Name="Body" CornerRadius="{Binding ActualHeight, RelativeSource={RelativeSource Self}, Converter={StaticResource DS.HalfHeight}}" Background="#1FFFFFFF" BorderBrush="#40FFFFFF" BorderThickness="1.5" Padding="{TemplateBinding Padding}">
-        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"><ContentPresenter.Resources><Style TargetType="TextBlock" BasedOn="{StaticResource DS.InheritText}" /></ContentPresenter.Resources></ContentPresenter>
-      </Border>
-      <ControlTemplate.Triggers>
-        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Body" Property="Background" Value="{StaticResource DS.GlassHover}" /></Trigger>
-        <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Body" Property="BorderBrush" Value="White" /><Setter TargetName="Body" Property="Background" Value="{StaticResource DS.GlassHover}" /></Trigger>
-        <Trigger Property="IsEnabled" Value="False"><Setter Property="Foreground" Value="{StaticResource DS.TextMuted}" /><Setter TargetName="Body" Property="Opacity" Value=".6" /></Trigger>
-      </ControlTemplate.Triggers>
-    </ControlTemplate></Setter.Value></Setter>
-  </Style>
+  <Style x:Key="DS.Primary" TargetType="Button" BasedOn="{StaticResource PrimaryButton}"/>
+  <Style x:Key="DS.Secondary" TargetType="Button" BasedOn="{StaticResource ActionButton}"/>
   <Style x:Key="DS.Icon" TargetType="Button" BasedOn="{StaticResource DS.Secondary}">
     <Setter Property="Width" Value="46" /><Setter Property="Height" Value="46" /><Setter Property="Padding" Value="0" /><Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets" /><Setter Property="FontSize" Value="16" />
   </Style>
@@ -166,6 +167,7 @@
       </ControlTemplate.Triggers>
     </ControlTemplate></Setter.Value></Setter>
   </Style>
+
 
   <!-- ===== Toggle switch (animated thumb) ===== -->
   <Style x:Key="DS.Toggle" TargetType="CheckBox">
@@ -228,7 +230,7 @@
     <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="RadioButton">
       <Grid Background="Transparent">
         <ContentPresenter Margin="0,10,0,14" HorizontalAlignment="Center"><ContentPresenter.Resources><Style TargetType="TextBlock" BasedOn="{StaticResource DS.InheritText}" /></ContentPresenter.Resources></ContentPresenter>
-        <Border x:Name="Underline" Height="3" Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Grid}}" CornerRadius="1.5" VerticalAlignment="Bottom" Background="{StaticResource DS.AccentHi}" Opacity="0" Effect="{StaticResource DS.Glow.Accent}" RenderTransformOrigin=".5,.5">
+        <Border x:Name="Underline" Height="3" Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Grid}}" CornerRadius="{Binding ActualHeight, RelativeSource={RelativeSource Self}, Converter={StaticResource DS.HalfHeight}}" VerticalAlignment="Bottom" Background="{StaticResource DS.AccentHi}" Opacity="0" Effect="{StaticResource DS.Glow.Accent}" RenderTransformOrigin=".5,.5">
           <Border.RenderTransform><ScaleTransform x:Name="UnderlineScale" ScaleX=".2" /></Border.RenderTransform>
         </Border>
       </Grid>
@@ -251,34 +253,8 @@
   </Style>
 
   <!-- ===== Mock-faithful action row: tall rounded primary, outlined secondary, round "…" ===== -->
-  <Style x:Key="DS.ActionPrimary" TargetType="Button" BasedOn="{StaticResource DS.ButtonBase}">
-    <Setter Property="Height" Value="48" /><Setter Property="FontSize" Value="16" /><Setter Property="FontWeight" Value="SemiBold" /><Setter Property="HorizontalContentAlignment" Value="Center" />
-    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
-      <Grid>
-        <Border x:Name="Glow" CornerRadius="24" Background="#2F7BFF" Opacity=".5" Effect="{StaticResource DS.Glow.Accent}" Margin="10,10" />
-        <Border x:Name="Body" CornerRadius="24" BorderBrush="#7FB4FF" BorderThickness="1" Padding="{TemplateBinding Padding}"><Border.Background><LinearGradientBrush StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#3C8DFF" Offset="0" /><GradientStop Color="#1F68F0" Offset="1" /></LinearGradientBrush></Border.Background>
-          <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"><ContentPresenter.Resources><Style TargetType="TextBlock" BasedOn="{StaticResource DS.InheritText}" /></ContentPresenter.Resources></ContentPresenter>
-        </Border>
-      </Grid>
-      <ControlTemplate.Triggers>
-        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Glow" Property="Opacity" Value=".9" /></Trigger>
-        <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Body" Property="BorderBrush" Value="White" /><Setter TargetName="Body" Property="BorderThickness" Value="2" /><Setter TargetName="Glow" Property="Opacity" Value="1" /></Trigger>
-        <Trigger Property="IsEnabled" Value="False"><Setter TargetName="Glow" Property="Opacity" Value="0" /><Setter TargetName="Body" Property="Background" Value="#202A44" /><Setter TargetName="Body" Property="BorderBrush" Value="#30FFFFFF" /><Setter Property="Foreground" Value="{StaticResource DS.TextMuted}" /></Trigger>
-      </ControlTemplate.Triggers>
-    </ControlTemplate></Setter.Value></Setter>
-  </Style>
-  <Style x:Key="DS.ActionSecondary" TargetType="Button" BasedOn="{StaticResource DS.ButtonBase}">
-    <Setter Property="Height" Value="48" /><Setter Property="FontSize" Value="16" /><Setter Property="FontWeight" Value="SemiBold" />
-    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
-      <Border x:Name="Body" CornerRadius="24" Background="#26101A36" BorderBrush="#5A7FA6E0" BorderThickness="1.5" Padding="{TemplateBinding Padding}">
-        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"><ContentPresenter.Resources><Style TargetType="TextBlock" BasedOn="{StaticResource DS.InheritText}" /></ContentPresenter.Resources></ContentPresenter>
-      </Border>
-      <ControlTemplate.Triggers>
-        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Body" Property="Background" Value="#3A1C2A50" /></Trigger>
-        <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Body" Property="BorderBrush" Value="White" /></Trigger>
-      </ControlTemplate.Triggers>
-    </ControlTemplate></Setter.Value></Setter>
-  </Style>
+  <Style x:Key="DS.ActionPrimary" TargetType="Button" BasedOn="{StaticResource PrimaryButton}"/>
+  <Style x:Key="DS.ActionSecondary" TargetType="Button" BasedOn="{StaticResource ActionButton}"/>
   <Style x:Key="DS.ActionRound" TargetType="Button" BasedOn="{StaticResource DS.ActionSecondary}">
     <Setter Property="Width" Value="48" /><Setter Property="Padding" Value="0" /><Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets" /><Setter Property="FontSize" Value="18" />
   </Style>
@@ -288,13 +264,13 @@
     <Setter Property="FontFamily" Value="{StaticResource DS.FontDisplay}" /><Setter Property="FontSize" Value="14.5" /><Setter Property="FontWeight" Value="SemiBold" /><Setter Property="Foreground" Value="#C3CDE2" />
     <Setter Property="Height" Value="36" /><Setter Property="Cursor" Value="Hand" /><Setter Property="FocusVisualStyle" Value="{StaticResource DS.NoFocusVisual}" />
     <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="RadioButton">
-      <Grid Background="Transparent">
-        <Border x:Name="Thumb" CornerRadius="9" Margin="3" Background="#F5F7FC" Opacity="0"><Border.Effect><DropShadowEffect BlurRadius="8" ShadowDepth="1.5" Opacity=".35" /></Border.Effect></Border>
+      <Grid><Border Background="{StaticResource Control.ButtonFill}" CornerRadius="18" Margin="2"/>
+        <Border x:Name="Thumb" CornerRadius="{Binding ActualHeight, RelativeSource={RelativeSource Self}, Converter={StaticResource DS.HalfHeight}}" Margin="3" Background="#F5F6FA" Opacity="0"></Border>
         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"><ContentPresenter.Resources><Style TargetType="TextBlock" BasedOn="{StaticResource DS.InheritText}" /></ContentPresenter.Resources></ContentPresenter>
       </Grid>
       <ControlTemplate.Triggers>
         <Trigger Property="IsMouseOver" Value="True"><Setter Property="Foreground" Value="White" /></Trigger>
-        <Trigger Property="IsChecked" Value="True"><Setter TargetName="Thumb" Property="Opacity" Value="1" /><Setter Property="Foreground" Value="#0A1226" /></Trigger>
+        <Trigger Property="IsChecked" Value="True"><Setter TargetName="Thumb" Property="Opacity" Value="1" /><Setter Property="Foreground" Value="#111827" /></Trigger>
         <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Thumb" Property="Opacity" Value=".22" /></Trigger>
         <MultiTrigger><MultiTrigger.Conditions><Condition Property="IsKeyboardFocused" Value="True" /><Condition Property="IsChecked" Value="True" /></MultiTrigger.Conditions><Setter TargetName="Thumb" Property="Opacity" Value="1" /></MultiTrigger>
       </ControlTemplate.Triggers>
@@ -302,20 +278,7 @@
   </Style>
 
   <!-- ===== Red Support pill (title bars) ===== -->
-  <Style x:Key="DS.SupportPill" TargetType="Button" BasedOn="{StaticResource DS.ButtonBase}">
-    <Setter Property="Height" Value="38" /><Setter Property="MinHeight" Value="38" /><Setter Property="FontSize" Value="14.5" /><Setter Property="FontWeight" Value="SemiBold" /><Setter Property="Padding" Value="18,0" />
-    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
-      <Border x:Name="Body" CornerRadius="19" BorderThickness="1" BorderBrush="#A0FF96AA" Padding="{TemplateBinding Padding}">
-        <Border.Background><LinearGradientBrush StartPoint="0,0" EndPoint="1,0"><GradientStop Color="#E83660" Offset="0" /><GradientStop Color="#C41E4E" Offset="1" /></LinearGradientBrush></Border.Background>
-        <Border.Effect><DropShadowEffect Color="#E83660" BlurRadius="18" ShadowDepth="0" Opacity=".5" /></Border.Effect>
-        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"><ContentPresenter.Resources><Style TargetType="TextBlock" BasedOn="{StaticResource DS.InheritText}" /></ContentPresenter.Resources></ContentPresenter>
-      </Border>
-      <ControlTemplate.Triggers>
-        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Body" Property="BorderBrush" Value="White" /></Trigger>
-        <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Body" Property="BorderBrush" Value="White" /><Setter TargetName="Body" Property="BorderThickness" Value="2" /></Trigger>
-      </ControlTemplate.Triggers>
-    </ControlTemplate></Setter.Value></Setter>
-  </Style>
+  <Style x:Key="DS.SupportPill" TargetType="Button" BasedOn="{StaticResource ActionButton}"/>
 
   <!-- ===== Settings row (icon · label/detail · trailing control) ===== -->
   <Style x:Key="DS.Row" TargetType="Border">
@@ -414,4 +377,25 @@
       </ControlTemplate.Triggers>
     </ControlTemplate></Setter.Value></Setter>
   </Style>
+  <Style x:Key="DS.TopTab" TargetType="RadioButton"><Setter Property="FontFamily" Value="Segoe UI"/><Setter Property="FontSize" Value="14"/><Setter Property="FontWeight" Value="Normal"/><Setter Property="Foreground" Value="#A6B3CB"/><Setter Property="VerticalAlignment" Value="Center"/><Setter Property="Cursor" Value="Hand"/><Setter Property="FocusVisualStyle" Value="{x:Null}"/><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="RadioButton"><Border Background="Transparent" Padding="14,8"><ContentPresenter VerticalAlignment="Center"><ContentPresenter.Resources><Style TargetType="TextBlock" BasedOn="{StaticResource DS.InheritText}"/></ContentPresenter.Resources></ContentPresenter></Border><ControlTemplate.Triggers><Trigger Property="IsChecked" Value="True"><Setter Property="Foreground" Value="White"/><Setter Property="FontWeight" Value="SemiBold"/></Trigger><Trigger Property="IsMouseOver" Value="True"><Setter Property="Foreground" Value="White"/></Trigger><Trigger Property="IsKeyboardFocused" Value="True"><Setter Property="Foreground" Value="White"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter></Style>
+<LinearGradientBrush x:Key="Bumper.NavyGloss" StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#263F60" Offset="0"/><GradientStop Color="#192F4D" Offset=".22"/><GradientStop Color="#10253F" Offset=".5"/><GradientStop Color="#09192D" Offset="1"/></LinearGradientBrush>
+<LinearGradientBrush x:Key="Bumper.NavyHover" StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#355777" Offset="0"/><GradientStop Color="#203C5A" Offset=".45"/><GradientStop Color="#122B43" Offset="1"/></LinearGradientBrush>
+<!-- LB / RB as shoulder buttons (owner request 17 Oct 2026: controller-ish, sleek and modern): a keycap that wraps round
+     the controller's corner on its outer end, lit from above, a fine highlight along the top, a chevron for direction,
+     and the accent edge and glow on hover -->
+<LinearGradientBrush x:Key="Bumper.Body" StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#2E4A6E" Offset="0"/><GradientStop Color="#1A2E4B" Offset=".45"/><GradientStop Color="#0D1A2D" Offset="1"/></LinearGradientBrush>
+<LinearGradientBrush x:Key="Bumper.BodyHover" StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#3A5D88" Offset="0"/><GradientStop Color="#213B5E" Offset=".45"/><GradientStop Color="#112239" Offset="1"/></LinearGradientBrush>
+<DropShadowEffect x:Key="Bumper.Glow" Color="#3D8BFF" BlurRadius="12" ShadowDepth="0" Opacity=".55"/>
+<DropShadowEffect x:Key="Bumper.GlowPressed" Color="#3D8BFF" BlurRadius="12" ShadowDepth="0" Opacity=".8"/>
+<TranslateTransform x:Key="Bumper.PressShift" Y="1.5"/>
+<Style x:Key="BumperLeft" TargetType="Button" BasedOn="{StaticResource GamepadKeycap}"><Setter Property="Width" Value="66"/><Setter Property="Height" Value="30"/><Setter Property="MinHeight" Value="0"/><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button"><Grid x:Name="Root" ToolTip="{TemplateBinding ToolTip}" Background="Transparent" RenderTransformOrigin=".5,.5">
+<Path x:Name="Bumper" Data="M 16,1.5 L 59,1.5 C 62.6,1.5 64.5,3.4 64.5,7 L 64.5,23 C 64.5,26.6 62.6,28.5 59,28.5 L 22,28.5 C 13,28.5 5.5,23.5 2.5,15.5 C 0.8,10.8 4.5,1.5 16,1.5 Z" Fill="{StaticResource Bumper.Body}" Stroke="#4C6A91" StrokeThickness=".9" StrokeLineJoin="Round" RenderTransformOrigin=".5,.5"><Path.RenderTransform><ScaleTransform ScaleX="1"/></Path.RenderTransform></Path>
+<Path Data="M 4.5,12 C 6.5,5.5 10.5,2.6 16,2.6 L 59,2.6 C 61.2,2.6 62.6,3.4 63.2,5.2" Stroke="#C9DBF2" StrokeThickness=".8" Opacity=".55" IsHitTestVisible="False" RenderTransformOrigin=".5,.5"><Path.RenderTransform><ScaleTransform ScaleX="1"/></Path.RenderTransform></Path>
+<StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="5,0,0,0" IsHitTestVisible="False"><TextBlock Text="&#xE76B;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="8.5" Foreground="#8FA9CB" VerticalAlignment="Center" Margin="0,1,5,0"/><ContentPresenter VerticalAlignment="Center"><ContentPresenter.Resources><Style TargetType="TextBlock" BasedOn="{StaticResource DS.InheritText}"><Setter Property="FontFamily" Value="Segoe UI"/><Setter Property="FontSize" Value="12"/><Setter Property="FontWeight" Value="SemiBold"/><Setter Property="Foreground" Value="#EAF0FA"/></Style></ContentPresenter.Resources></ContentPresenter></StackPanel>
+</Grid><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Bumper" Property="Fill" Value="{StaticResource Bumper.BodyHover}"/><Setter TargetName="Bumper" Property="Stroke" Value="#7DB6FF"/><Setter TargetName="Bumper" Property="Effect" Value="{StaticResource Bumper.Glow}"/></Trigger><Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Bumper" Property="Stroke" Value="White"/><Setter TargetName="Bumper" Property="StrokeThickness" Value="1.4"/></Trigger><Trigger Property="IsPressed" Value="True"><Setter TargetName="Bumper" Property="Fill" Value="#0E1D33"/><Setter TargetName="Root" Property="RenderTransform" Value="{StaticResource Bumper.PressShift}"/><Setter TargetName="Bumper" Property="Effect" Value="{StaticResource Bumper.GlowPressed}"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter></Style>
+<Style x:Key="BumperRight" TargetType="Button" BasedOn="{StaticResource GamepadKeycap}"><Setter Property="Width" Value="66"/><Setter Property="Height" Value="30"/><Setter Property="MinHeight" Value="0"/><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button"><Grid x:Name="Root" ToolTip="{TemplateBinding ToolTip}" Background="Transparent" RenderTransformOrigin=".5,.5">
+<Path x:Name="Bumper" Data="M 16,1.5 L 59,1.5 C 62.6,1.5 64.5,3.4 64.5,7 L 64.5,23 C 64.5,26.6 62.6,28.5 59,28.5 L 22,28.5 C 13,28.5 5.5,23.5 2.5,15.5 C 0.8,10.8 4.5,1.5 16,1.5 Z" Fill="{StaticResource Bumper.Body}" Stroke="#4C6A91" StrokeThickness=".9" StrokeLineJoin="Round" RenderTransformOrigin=".5,.5"><Path.RenderTransform><ScaleTransform ScaleX="-1"/></Path.RenderTransform></Path>
+<Path Data="M 4.5,12 C 6.5,5.5 10.5,2.6 16,2.6 L 59,2.6 C 61.2,2.6 62.6,3.4 63.2,5.2" Stroke="#C9DBF2" StrokeThickness=".8" Opacity=".55" IsHitTestVisible="False" RenderTransformOrigin=".5,.5"><Path.RenderTransform><ScaleTransform ScaleX="-1"/></Path.RenderTransform></Path>
+<StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,5,0" IsHitTestVisible="False"><ContentPresenter VerticalAlignment="Center"><ContentPresenter.Resources><Style TargetType="TextBlock" BasedOn="{StaticResource DS.InheritText}"><Setter Property="FontFamily" Value="Segoe UI"/><Setter Property="FontSize" Value="12"/><Setter Property="FontWeight" Value="SemiBold"/><Setter Property="Foreground" Value="#EAF0FA"/></Style></ContentPresenter.Resources></ContentPresenter><TextBlock Text="&#xE76C;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="8.5" Foreground="#8FA9CB" VerticalAlignment="Center" Margin="5,1,0,0"/></StackPanel>
+</Grid><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Bumper" Property="Fill" Value="{StaticResource Bumper.BodyHover}"/><Setter TargetName="Bumper" Property="Stroke" Value="#7DB6FF"/><Setter TargetName="Bumper" Property="Effect" Value="{StaticResource Bumper.Glow}"/></Trigger><Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Bumper" Property="Stroke" Value="White"/><Setter TargetName="Bumper" Property="StrokeThickness" Value="1.4"/></Trigger><Trigger Property="IsPressed" Value="True"><Setter TargetName="Bumper" Property="Fill" Value="#0E1D33"/><Setter TargetName="Root" Property="RenderTransform" Value="{StaticResource Bumper.PressShift}"/><Setter TargetName="Bumper" Property="Effect" Value="{StaticResource Bumper.GlowPressed}"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter></Style>
 </ResourceDictionary>

@@ -38,7 +38,16 @@ public static class PcModeSetup
     }
 
     /// <summary>Runs whichever installers are missing and are bundled beside the app. Returns what happened, in a sentence.</summary>
-    public static async Task<string> Run()
+    static readonly SemaphoreSlim installLock = new(1, 1);
+    public static async Task<string> Run(bool automatic = false)
+    {
+        if (ReviewSandbox.Active) return "Driver setup is disabled in fixtures.";
+        await installLock.WaitAsync();
+        try { return await Install(automatic); }
+        finally { installLock.Release(); }
+    }
+
+    static async Task<string> Install(bool automatic)
     {
         var missing = new List<(string Name, string? File, string Page)>();
         if (!BusInstalled) missing.Add(("virtual controller driver", Find("ViGEmBus"), BusPage));
@@ -47,12 +56,14 @@ public static class PcModeSetup
         var notBundled = missing.Where(m => m.File == null).ToList();
         if (notBundled.Count > 0)
         {
+            if (automatic) return $"The packaged {notBundled[0].Name} is missing or failed verification. Use Set up PC mode.";
             ExternalLinks.Open(notBundled[0].Page);
             return $"This copy of X20CTL doesn't carry the {notBundled[0].Name}. The official page opened: install it, then come back here.";
         }
         foreach (var (name, file, _) in missing)
         {
-            var process = Process.Start(new ProcessStartInfo(file!, "/passive /norestart") { UseShellExecute = true, Verb = "runas" });
+            // Quiet installer UI still requires Windows UAC consent.
+            using var process = Process.Start(new ProcessStartInfo(file!, "/quiet /norestart") { UseShellExecute = true, Verb = "runas" });
             if (process == null) return $"Couldn't start the {name} installer.";
             await process.WaitForExitAsync();
             if (process.ExitCode is not (0 or 3010)) return $"The {name} installer stopped with code {process.ExitCode}. Nothing was changed on your controller.";
@@ -92,10 +103,23 @@ public sealed class PcModePage : Border
     }
     /// <summary>The settings being edited were replaced (another game picked, an import, a reset): the controller tabs reload.</summary>
     public static event Action? ProfileChanged;
+    /// <summary>Something outside this page (the Talk agent) replaced the settings: the controller tabs reload.</summary>
+    public static void Replaced() => ProfileChanged?.Invoke();
     /// <summary>"I understand" was pressed: the controller tabs may now save what they hold.</summary>
     public static event Action? NoticeAccepted;
     /// <summary>The switch changed. The Studio reopens, so its tabs unlock (or lock) for this controller.</summary>
     public event Action<bool>? Switched;
+    static event Action? SwitchedElsewhere;
+    /// <summary>Agent XCTL switched PC mode: the same as the switch here, without the notice (the owner asked for it in
+    /// words). Returns why it couldn't, or null.</summary>
+    public static string? SwitchFromAgent(PcModeLink link, bool on)
+    {
+        if (on && !PcModeSetup.Ready) return "PC mode needs its drivers first: Tools, PC mode, Set up.";
+        link.Service.Enabled = on;
+        try { link.Preferences?.SetPcMode(on); } catch (Exception error) when (error is IOException or InvalidOperationException or UnauthorizedAccessException) { return "Switched, but couldn't remember it: " + error.Message; }
+        SwitchedElsewhere?.Invoke();
+        return null;
+    }
 
     readonly PcModeService service; readonly PcModeStore store; readonly ProductPreferences? preferences;
     readonly Dictionary<string, ComboBox> turbo = new();
@@ -106,10 +130,11 @@ public sealed class PcModePage : Border
     readonly ComboBox apps = new() { MinHeight = 40, Width = 420, FontSize = 14.5, DisplayMemberPath = "Label", SelectedValuePath = "Id" };
     readonly StackPanel picker; readonly Button removeGame;
     readonly TextBlock statusLabel, statusDetail, saved, setupNote;
+    readonly TextBlock pipeline=Wrap("",14,"DS.TextSoft",12);
     readonly Ellipse dot = new() { Width = 14, Height = 14, VerticalAlignment = VerticalAlignment.Center };
     readonly CheckBox enable = new() { Style = DS.Style("DS.Toggle"), VerticalAlignment = VerticalAlignment.Center };
     readonly Border notice; readonly Button setup;
-    bool loading, pendingSave;
+    bool loading, pendingSave, syncing;
 
     public Button Back { get; }
     public CheckBox Switch => enable;
@@ -119,19 +144,19 @@ public sealed class PcModePage : Border
     public PcModePage(PcModeService service, PcModeStore store, ProductPreferences? preferences, Button back, Action? editButtons = null)
     {
         this.service = service; this.store = store; this.preferences = preferences; Back = back;
-        CornerRadius = new(22); BorderThickness = new(1); Padding = new(48, 36, 48, 36); MaxWidth = 1100; HorizontalAlignment = HorizontalAlignment.Left; VerticalAlignment = VerticalAlignment.Top;
+        CornerRadius = new(22); BorderThickness = new(1); Padding = new(28, 22, 28, 22); HorizontalAlignment = HorizontalAlignment.Stretch; VerticalAlignment = VerticalAlignment.Top;
         Background = new LinearGradientBrush(Color.FromArgb(215, 14, 24, 52), Color.FromArgb(200, 8, 14, 34), 90);
         BorderBrush = new LinearGradientBrush(Color.FromArgb(110, 120, 170, 255), Color.FromArgb(30, 120, 170, 255), 90);
         var stack = new StackPanel(); Child = stack;
 
         stack.Children.Add(Kit.Text("PC mode", 36, "DS.Text", FontWeights.Bold));
-        stack.Children.Add(Wrap("Apply your settings on your computer, to any controller. Games see a normal Xbox controller. Nothing is written to your controller.", 16.5, "DS.TextSoft", 8));
+        stack.Children.Add(Wrap("Route gameplay input through your saved PC profile to a virtual Xbox controller. Nothing is written to hardware.", 16.5, "DS.TextSoft", 8));
 
         // status
         statusLabel = Kit.Text("", 20, "DS.Text", FontWeights.SemiBold); statusDetail = Wrap("", 15, "DS.TextSoft", 4);
         var statusCard = new Border { CornerRadius = new(16), Padding = new(22, 16, 22, 16), Margin = new(0, 24, 0, 0), BorderThickness = new(1), Background = new SolidColorBrush(Color.FromArgb(120, 4, 10, 26)), BorderBrush = new SolidColorBrush(Color.FromArgb(60, 120, 170, 255)),
             Child = new StackPanel { Children = { new StackPanel { Orientation = Orientation.Horizontal, Children = { dot, statusLabel.Also(l => l.Margin = new(12, 0, 0, 0)) } }, statusDetail } } };
-        stack.Children.Add(statusCard);
+        stack.Children.Add(statusCard);stack.Children.Add(pipeline);
 
         // switch and setup
         setup = Pill("Set up PC mode"); setup.Margin = new(16, 0, 0, 0);
@@ -140,8 +165,8 @@ public sealed class PcModePage : Border
         stack.Children.Add(enableRow);
         setupNote = Wrap("", 14, "DS.TextMuted", 8); stack.Children.Add(setupNote);
         // shows the saved choice; whether the service runs is the host's call (review and fixture windows never start it)
-        enable.IsChecked = preferences?.PcMode ?? true;
-        enable.Checked += (_, _) => SetEnabled(true); enable.Unchecked += (_, _) => SetEnabled(false);
+        enable.IsChecked = service.State==PcModeState.Active && !service.Suspended;
+        enable.Checked += (_, _) => { if (!syncing) SetEnabled(true); }; enable.Unchecked += (_, _) => { if (!syncing) SetEnabled(false); };
 
         // where the settings are edited
         var edit = new StackPanel { Margin = new(0, 22, 0, 0), Children = { Kit.Text("Where you change the settings", 17, "DS.Text", FontWeights.SemiBold),
@@ -151,10 +176,11 @@ public sealed class PcModePage : Border
         if (editButtons != null) { var open = Pill("Edit buttons"); open.Margin = new(0, 12, 0, 0); open.HorizontalAlignment = HorizontalAlignment.Left; open.Click += (_, _) => editButtons(); edit.Children.Add(open); }
         stack.Children.Add(edit);
 
-        stack.Children.Add(Block("What changes when it's on", "Your real controller is hidden from games, and games see a virtual Xbox controller in its place. Your settings are applied in between. Nothing is written to your controller: it stays exactly as it was."));
-        stack.Children.Add(Block("What you need to know", "It only works while X20CTL is open (it stays in the notification area when you close the window). Close it, or if it crashes, and your controller goes back to normal. The first time, Windows asks permission to install two small drivers. That's normal. It works with up to four controllers at once: each one gets its own virtual Xbox controller, in the same order."));
-        stack.Children.Add(Block("Back paddles", "PC mode can't see a back paddle: EasySMX paddles send an ordinary button (A, B, or whatever the controller was set to), never a button of their own. So in PC mode a macro is played by a button you pick in the Macros tab. Pick one you don't use in that game: it plays the macro instead of its usual job."));
-        stack.Children.Add(Block("Switch it off mid-game", "Hold View and Menu together for a second: your settings switch off and the controller works as it normally does. Hold them again to switch your settings back on. X20CTL shows a notification each time."));
+        var routingHelp=new StackPanel();
+        routingHelp.Children.Add(Block("Input routing", "Physical XInput source → Buttons / Curves / Macros → Virtual Xbox output → Game. Device hiding requires the driver setup and a successful capture; a saved preference alone does not prove a route is active."));
+        routingHelp.Children.Add(Block("Reported controls", "Only inputs exposed through XInput can be mapped here. Independent rear buttons and motion data are not available through this reader."));
+        routingHelp.Children.Add(Block("Bypass shortcut", "The current Xbox input route uses View + Menu held for one second to bypass processing. Labels describe the XInput interface; they may differ on your physical controller."));
+        stack.Children.Add(new Expander{Header="Routing details",Content=routingHelp,Margin=new(0,12,0,0)});
 
         // the one-time notice
         notice = new Border { CornerRadius = new(16), Padding = new(22, 18, 22, 18), Margin = new(0, 24, 0, 0), BorderThickness = new(1), Visibility = Visibility.Collapsed,
@@ -171,8 +197,8 @@ public sealed class PcModePage : Border
         // whose settings, then which: every game, or a game's own
         stack.Children.Add(Section("SETTINGS FOR"));
         stack.Children.Add(Wrap(editButtons != null
-            ? $"These are Player {Player + 1}'s own settings: PC mode gives them to the {Ordinal(Player)} controller Windows sees. Every game gets them, unless you give a game its own; while that game is in front, PC mode switches by itself. The tabs edit whichever is picked here."
-            : "Each controller has its own settings: PC mode gives Player 1's to the first controller Windows sees, Player 2's to the second, and so on. Every game gets them, unless you give a game its own; while that game is in front, PC mode switches by itself.", 14.5, "DS.TextMuted", 0));
+            ? $"Player {Player + 1} profile · Physical XInput index {Player + 1}. This is an input index, not verified device identity; it can change after reconnecting. Game-specific profiles activate when that game is in front."
+            : "Profiles are assigned by physical XInput index (1–4), not persistent hardware identity. Select a player to edit its default or game-specific profile.", 14.5, "DS.TextMuted", 0));
         if (editButtons == null)
         {
             owner.ItemsSource = Enumerable.Range(0, 4).Select(i => new Choice(i.ToString(), $"Player {i + 1}")).ToList(); owner.SelectedValue = Player.ToString();
@@ -191,8 +217,8 @@ public sealed class PcModePage : Border
         stack.Children.Add(picker);
 
         // turbo: the one setting no controller tab has
-        stack.Children.Add(Section("TURBO"));
-        stack.Children.Add(Wrap("Repeat a button while it's held. Leave a row on No turbo to keep it as it is.", 14.5, "DS.TextMuted", 0));
+
+
         var grid = new UniformGrid { Columns = 3, Margin = new(0, 12, 0, 0) };
         foreach (var (id, label) in Buttons)
         {
@@ -200,28 +226,33 @@ public sealed class PcModePage : Border
             rate.SelectionChanged += (_, _) => Persist(); turbo[id] = rate;
             grid.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Margin = new(0, 0, 20, 10), Children = { Kit.Text(label, 15, "DS.Text").Also(t => t.Width = 150), rate } });
         }
-        stack.Children.Add(grid);
+        stack.Children.Add(new Expander{Header="Turbo bindings",Content=grid,Margin=new(0,18,0,0)});
 
         // share
-        stack.Children.Add(Section("SHARE"));
-        stack.Children.Add(Wrap("Save these settings to a file, or copy them as a code to paste in a chat. Everything goes in: buttons, curves, stick tools, macros and turbo. Nothing about you or this PC.", 14.5, "DS.TextMuted", 0));
+
+
         var share = new WrapPanel { Margin = new(0, 12, 0, 0) };
         foreach (var (label, act) in new (string, Action)[] { ("Save to a file", ExportFile), ("Open a file", ImportFile), ("Copy as a code", CopyCode), ("Paste a code", PasteCode) })
         { var b = Pill(label); b.Margin = new(0, 0, 12, 8); b.Click += (_, _) => act(); share.Children.Add(b); }
-        stack.Children.Add(share);
+        stack.Children.Add(new Expander{Header="Import / export PC profile",Content=share,Margin=new(0,12,0,0)});
 
-        var reset = Pill("Reset everything"); reset.Margin = new(0, 24, 12, 0);
+        var reset = Pill($"Reset Player {Player+1} profile"); reset.Margin = new(0, 24, 12, 0);
         reset.ToolTip = "Clears every PC mode setting for what's picked under Settings for: buttons, curves, stick tools, macros and turbo";
-        reset.Click += (_, _) => { loading = true; Fill(new()); loading = false; clearAll = true; Persist(); clearAll = false; };
-        back.Margin = new(0, 24, 12, 0);
+        var confirm=new StackPanel{Visibility=Visibility.Collapsed,Margin=new(0,12,0,0)};
+        confirm.Children.Add(Wrap("Reset the selected player's current PC profile? This clears its buttons, curves, stick tools, macros and turbo. Other player profiles and controller hardware are unchanged.",14,"DS.TextSoft",0));
+        var yes=Pill("Reset selected profile");yes.Click+=(_,_)=>{loading=true;Fill(new());loading=false;clearAll=true;Persist();clearAll=false;confirm.Visibility=Visibility.Collapsed;};confirm.Children.Add(yes);
+        var no=Pill("Cancel");no.Click+=(_,_)=>confirm.Visibility=Visibility.Collapsed;confirm.Children.Add(no);stack.Children.Add(confirm);
+        reset.Click += (_, _) => confirm.Visibility=Visibility.Visible;
+        back.Margin = new(0, 24, 12, 0);if(editButtons!=null)back.Visibility=Visibility.Collapsed;
         stack.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = { back, reset } });
         saved = Wrap("", 14, "DS.TextMuted", 12); stack.Children.Add(saved);
 
         loading = true; ListProfiles(); Fill(store.Get(StoreKey)); loading = false;
         // the service outlives this page: listen only while shown
         Action changed = () => Dispatcher.BeginInvoke(Refresh);
-        Loaded += (_, _) => { service.Changed -= changed; service.Changed += changed; Refresh(); };
-        Unloaded += (_, _) => service.Changed -= changed;
+        Action elsewhere = () => { syncing = true; enable.IsChecked = service.State==PcModeState.Active && !service.Suspended; syncing = false; Refresh(); };
+        Loaded += (_, _) => { service.Changed -= changed; service.Changed += changed; SwitchedElsewhere -= elsewhere; SwitchedElsewhere += elsewhere; Refresh(); };
+        Unloaded += (_, _) => { service.Changed -= changed; SwitchedElsewhere -= elsewhere; };
         Refresh();
     }
 
@@ -240,6 +271,7 @@ public sealed class PcModePage : Border
 
     void SetEnabled(bool on)
     {
+        if(on && !PcModeSetup.Ready){setupNote.Text="Set up the required drivers before enabling routing.";Refresh();return;}
         service.Enabled = on;
         try { preferences?.SetPcMode(on); } catch (Exception error) when (error is IOException or InvalidOperationException or UnauthorizedAccessException) { saved.Text = "Couldn't remember this switch: " + error.Message; }
         Refresh(); Switched?.Invoke(on);
@@ -254,6 +286,10 @@ public sealed class PcModePage : Border
             PcModeState.NeedsAttention => ("Needs attention", Color.FromRgb(245, 200, 80)),
             _ => ("Off", Color.FromRgb(140, 150, 175)),
         };
+        if(!PcModeSetup.Ready && service.State!=PcModeState.Active)label="Not set up";
+        syncing=true;enable.IsChecked=service.State==PcModeState.Active && !service.Suspended;syncing=false;
+        var route=service.Routes.FirstOrDefault(r=>r.Player==Player);
+        pipeline.Text=$"Physical XInput {Player+1} → PC profile → Virtual Xbox → Game\n"+(route==null?"No active route for this player":$"Measured route: XInput {route.PhysicalSlot+1} → Xbox output {(route.VirtualSlot<0?"pending":(route.VirtualSlot+1).ToString())}")+$"\nDrivers {(PcModeSetup.Ready?"installed":"missing")} · Processing {(service.Suspended?"bypassed":service.State==PcModeState.Active?service.Mute?"paused for Mouse Mode":"active":"inactive")}";
         statusLabel.Text = label; dot.Fill = new SolidColorBrush(color); statusDetail.Text = service.Detail;
         setup.Visibility = PcModeSetup.Ready ? Visibility.Collapsed : Visibility.Visible;
         if (PcModeSetup.Ready) setupNote.Text = "";
@@ -303,7 +339,7 @@ public sealed class PcModePage : Border
         try
         {
             store.Save(StoreKey, profile); service.Reload(); incoming = null;
-            saved.Text = profile.IsNeutral ? "Nothing to apply: your controller goes straight to the game." : "Saved. It applies right away.";
+            saved.Text = profile.IsNeutral ? "Nothing to apply: your controller goes straight to the game." : service.State==PcModeState.Active?"Saved · Active PC route updated":"Saved on this PC · Routing is not active";
             if (replaced) ProfileChanged?.Invoke();
         }
         catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException) { saved.Text = "Couldn't save: " + error.Message; }
@@ -427,5 +463,5 @@ public sealed class PcModePage : Border
     static TextBlock Wrap(string text, double size, string brush, double top) => Kit.Text(text, size, brush).Also(t => { t.TextWrapping = TextWrapping.Wrap; t.TextTrimming = TextTrimming.None; t.Margin = new(0, top, 0, 0); });
     static TextBlock Section(string text) => Kit.Text(text, 12, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(2, 32, 0, 8));
     static StackPanel Block(string title, string text) => new() { Margin = new(0, 22, 0, 0), Children = { Kit.Text(title, 17, "DS.Text", FontWeights.SemiBold), Wrap(text, 15, "DS.TextSoft", 4) } };
-    static Button Pill(string text) => new() { Style = DS.Style("DS.ActionSecondary"), Height = 46, MinHeight = 0, Padding = new(22, 0, 24, 0), FontSize = 15.5, Content = Kit.Text(text, 15.5, "DS.Text", FontWeights.SemiBold) };
+    static Button Pill(string text) => new() { Style = DS.Style("ActionButton"), Height = 46, MinHeight = 0, Padding = new(22, 0, 24, 0), FontSize = 15.5, Content = Kit.Text(text, 15.5, "DS.Text", FontWeights.SemiBold) };
 }

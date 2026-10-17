@@ -1,4 +1,4 @@
-﻿using System.Runtime.InteropServices;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Shell;
@@ -12,8 +12,11 @@ public sealed class ProductWindow : Window
     public ProductHost Host { get; }
     public int DpiTransitionCount {get;private set;}
     public bool StartsMaximized {get;}
-    /// <summary>Big Picture style: maximized over the whole monitor (taskbar covered), not just the work area.</summary>
+    /// <summary>Big Picture style: while this is the window you are using it covers the whole monitor and the taskbar
+    /// steps back. The moment you use another window or screen it fits above the taskbar instead, so its bottom bar is
+    /// never left hidden underneath it.</summary>
     public bool Fullscreen {get;}
+    private bool CoversMonitor=>Fullscreen&&IsActive;
     private TrayIcon? tray;
     public DesignStage Stage { get; } = new();
     private readonly WindowChrome chrome = new(){CaptionHeight=58,ResizeBorderThickness=new(0),GlassFrameThickness=new(0),CornerRadius=new(16),UseAeroCaptionButtons=false};
@@ -39,13 +42,16 @@ public sealed class ProductWindow : Window
         };
         PreviewKeyDown+=(_,e)=>{if((e.Key==System.Windows.Input.Key.System?e.SystemKey:e.Key)==InputMap.Fullscreen){WindowState=WindowState==WindowState.Maximized?WindowState.Normal:WindowState.Maximized;e.Handled=true;}};PreviewKeyDown+=Host.OnKeyDown;
         Host.HomeRequested+=BringHome;PreviewKeyUp+=Host.OnKeyUp;Deactivated+=(_,_)=>Host.ResetTransientInput();
-        StateChanged+=(_,_)=>{Scene.OuterFrame.CornerRadius=new(WindowState==WindowState.Maximized?0:16);if(WindowState==WindowState.Maximized)Dispatcher.BeginInvoke(DispatcherPriority.Loaded,new Action(ApplyWorkArea));else if(WindowState==WindowState.Normal)Dispatcher.BeginInvoke(DispatcherPriority.Loaded,new Action(ApplyWindowedSize));};
+        StateChanged+=(_,_)=>{if(Fullscreen)MarkFullscreen(WindowState==WindowState.Maximized&&IsActive);Scene.OuterFrame.CornerRadius=new(WindowState==WindowState.Maximized?0:16);if(WindowState==WindowState.Maximized)Dispatcher.BeginInvoke(DispatcherPriority.Loaded,new Action(ApplyWorkArea));else if(WindowState==WindowState.Normal)Dispatcher.BeginInvoke(DispatcherPriority.Loaded,new Action(ApplyWindowedSize));};
         // it always opens fullscreen (F11 or the restore button still give a window for those who want one)
         Loaded+=(_,_)=>{if(StartsMaximized&&WindowState!=WindowState.Maximized)WindowState=WindowState.Maximized;if(WindowState==WindowState.Maximized)ApplyWorkArea();if(nativeEngine)_=Host.InitializeNativeEngineAsync();};
         // hidden in the tray or minimized, nothing is drawn: the stage leaves the render tree, so its endless background
         // motion stops costing CPU while PC mode runs for hours (its animations keep their place and resume on return)
         void Rest(){Stage.Visibility=IsVisible&&WindowState!=WindowState.Minimized?Visibility.Visible:Visibility.Hidden;}
         IsVisibleChanged+=(_,_)=>Rest();StateChanged+=(_,_)=>Rest();
+        // fullscreen follows the focus: covering the monitor (and telling the shell so, which is what makes it hide the
+        // taskbar for sure) only while this window is the active one; otherwise it sits above the taskbar
+        Activated+=(_,_)=>FitToFocus();Deactivated+=(_,_)=>FitToFocus();
         Closed+=async(_,_)=>{tray?.Dispose();batteryTimer?.Stop();Host.MouseMode?.Dispose();Host.PcMode?.Dispose();await Host.StopNativeEngineAsync();};
         if(trayIcon){tray=new TrayIcon(this);Closing+=(_,e)=>{if(tray.Quitting)return;e.Cancel=true;tray.HideToTray();};if(Host.PcMode is{} pc){pc.Changed+=()=>Dispatcher.BeginInvoke(()=>tray?.SetStatus(pc.State==PcModeState.Active?(pc.Suspended?"X20CTL · PC mode paused":"X20CTL · PC mode active"):"X20CTL · Controller Studio"));pc.Notice+=text=>Dispatcher.BeginInvoke(()=>tray?.Notify("PC mode",text));}
             if(Host.MouseMode is{} mouse){tray.AddToggle("Controller as mouse",()=>mouse.Active,on=>mouse.Active=on);mouse.Notice+=text=>Dispatcher.BeginInvoke(()=>tray?.Notify("Controller as mouse",text));}
@@ -60,7 +66,15 @@ public sealed class ProductWindow : Window
         if(ReviewSandbox.Active)return;
         async void Read()
         {
-            var (text,low)=await Task.Run<(string,bool)>(()=>{try{using var reader=new X20Ctl.Product.Scanner.WindowsReader("XInput1_4.dll");for(int slot=0;slot<4;slot++){if(PcModeService.IsVirtual(slot)||!reader.Read(slot,out _))continue;var (_,level,known)=reader.Battery(slot);return known?("Battery "+level,level is "low" or "empty"):("",false);}}catch(Exception error) when(error is System.IO.IOException or ArgumentException){}return ("",false);});
+            var levels=await Task.Run(()=>{
+                var result=new string?[4];
+                try{using var reader=new X20Ctl.Product.Scanner.WindowsReader("XInput1_4.dll");for(int slot=0;slot<4;slot++){
+                    if(PcModeService.IsVirtual(slot)||!reader.Read(slot,out _))continue;
+                    var(type,level,known)=reader.Battery(slot);result[slot]=type=="wired"?"wired":known?level:null;
+                }}catch(Exception error)when(error is System.IO.IOException or ArgumentException){}return result;
+            });
+            Host.UpdateBatteryLevels(levels);
+            string? first=levels.FirstOrDefault(level=>level!=null && level!="wired");string text=first==null?"":"Battery "+first;bool low=first is "low" or "empty";
             tray?.SetBattery(text);
             if(low&&!batteryWarned){batteryWarned=true;tray?.Notify("Controller battery low","Charge it soon. Windows reports the level as "+text[8..]+".");}else if(!low)batteryWarned=false;
         }
@@ -84,7 +98,7 @@ public sealed class ProductWindow : Window
         }
         if(message!=0x24)return IntPtr.Zero;
         var info=ReadMonitor(MonitorFromWindow(hwnd,2));if(info==null)return IntPtr.Zero;
-        var metrics=WindowPresentation.Maximize(Bounds(info.Value.Monitor),Bounds(Fullscreen?info.Value.Monitor:info.Value.Work),GetDpiForWindow(hwnd));
+        var metrics=WindowPresentation.Maximize(Bounds(info.Value.Monitor),Bounds(CoversMonitor?info.Value.Monitor:info.Value.Work),GetDpiForWindow(hwnd));
         var limits=Marshal.PtrToStructure<MinMaxInfo>(lParam);limits.MaxPosition=new(){X=metrics.X,Y=metrics.Y};limits.MaxSize=new(){X=metrics.Width,Y=metrics.Height};limits.MinTrackSize=new(){X=320,Y=180};Marshal.StructureToPtr(limits,lParam,false);handled=true;return IntPtr.Zero;
     }
     /// <summary>The windowed size (device pixels): exactly the 1600 x 900 design when it fits comfortably on the screen, so
@@ -101,10 +115,29 @@ public sealed class ProductWindow : Window
         if(WindowState!=WindowState.Normal)return;var hwnd=new WindowInteropHelper(this).Handle;var info=ReadMonitor(MonitorFromWindow(hwnd,2));if(info==null)return;
         var work=Bounds(info.Value.Work);var size=WindowedSize(work,GetDpiForWindow(hwnd));SetWindowPos(hwnd,IntPtr.Zero,work.Left+(work.Width-size.Width)/2,work.Top+(work.Height-size.Height)/2,size.Width,size.Height,0x14);
     }
+    private void FitToFocus()
+    {
+        if(!Fullscreen||WindowState!=WindowState.Maximized)return;
+        MarkFullscreen(CoversMonitor);Dispatcher.BeginInvoke(DispatcherPriority.Loaded,new Action(ApplyWorkArea));
+    }
+    /// <summary>Tells the shell this window is a fullscreen one (or not), so it hides the taskbar for it by name rather
+    /// than by guessing from the window's styles.</summary>
+    private void MarkFullscreen(bool on)
+    {
+        try{var hwnd=new WindowInteropHelper(this).Handle;if(hwnd==IntPtr.Zero)return;var list=(ITaskbarList2)new TaskbarListClass();list.HrInit();list.MarkFullscreenWindow(hwnd,on);}
+        catch(Exception error) when(error is COMException or InvalidCastException or InvalidOperationException){} // the window then just fits the work area
+    }
+    [ComImport,Guid("56FDF344-FD6D-11D0-958A-006097C9A090")]private class TaskbarListClass{}
+    [ComImport,Guid("602D4995-B13A-429B-A66E-1935E44F4317"),InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface ITaskbarList2
+    {
+        void HrInit();void AddTab(IntPtr hwnd);void DeleteTab(IntPtr hwnd);void ActivateTab(IntPtr hwnd);void SetActiveAlt(IntPtr hwnd);
+        void MarkFullscreenWindow(IntPtr hwnd,[MarshalAs(UnmanagedType.Bool)]bool fullscreen);
+    }
     private void ApplyWorkArea()
     {
         if(WindowState!=WindowState.Maximized)return;var hwnd=new WindowInteropHelper(this).Handle;var info=ReadMonitor(MonitorFromWindow(hwnd,2));if(info==null)return;
-        var work=Bounds(Fullscreen?info.Value.Monitor:info.Value.Work);GetWindowRect(hwnd,out var current);if(current.Left!=work.Left||current.Top!=work.Top||current.Right-current.Left!=work.Width||current.Bottom-current.Top!=work.Height)SetWindowPos(hwnd,IntPtr.Zero,work.Left,work.Top,work.Width,work.Height,0x34);
+        var work=Bounds(CoversMonitor?info.Value.Monitor:info.Value.Work);GetWindowRect(hwnd,out var current);if(current.Left!=work.Left||current.Top!=work.Top||current.Right-current.Left!=work.Width||current.Bottom-current.Top!=work.Height)SetWindowPos(hwnd,IntPtr.Zero,work.Left,work.Top,work.Width,work.Height,0x34);
     }
     public object NativeSnapshot()
     {

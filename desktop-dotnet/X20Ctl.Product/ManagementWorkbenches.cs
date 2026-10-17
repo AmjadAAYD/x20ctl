@@ -20,48 +20,34 @@ public sealed class DeviceWorkbench
 {
     public Grid Body {get;}=new();public Grid Shelf {get;}=new();public DeviceOverview State {get;}
     public Button OpenTester {get;}public Button OpenSetups {get;}
-    private readonly TextBlock engineStatus=ManagementVisuals.Copy("Native core not connected",14);
-    public void UpdateEngineStatus(string status)=>engineStatus.Text=status;
+    readonly TextBlock battery=ManagementVisuals.Copy("Not reported",24,true),connection=ManagementVisuals.Copy("Not detected",20,true);
+    public void SetBatteryLevel(string? level)=>battery.Text=level??"Not reported";
+    public void SetConnection(bool connected)=>connection.Text=connected?"Gameplay input detected":"Not detected";
+    public void UpdateEngineStatus(string status) { /* Process availability does not establish hardware configuration support. */ }
     public DeviceWorkbench(ControllerModel model,int player,FrameworkElement resources,Action<Button> register,Action tester,Action setups)
     {
-        State=new(model.Id,player);Body.ColumnDefinitions.Add(new(){Width=new GridLength(1.35,GridUnitType.Star)});Body.ColumnDefinitions.Add(new(){Width=new GridLength(1,GridUnitType.Star)});
-        var hardware=new Grid();hardware.RowDefinitions.Add(new(){Height=new GridLength(66)});hardware.RowDefinitions.Add(new());var modelTitle=new StackPanel();modelTitle.Children.Add(ManagementVisuals.Copy(model.Name,30,true));modelTitle.Children.Add(ManagementVisuals.Copy($"Player {player+1} · Assigned model",16));hardware.Children.Add(modelTitle);var art=ManagementVisuals.Artwork(model,resources);Grid.SetRow(art,1);hardware.Children.Add(art);Body.Children.Add(hardware);
-        // the right side keeps only what describes the pad itself (owner direction 10 Oct 2026): the battery, then
-        // firmware, hardware revision and transport on one line; the connections and support moved down to the shelf
-        var profile=ModelProfiles.For(model.Id);
-        var overview=new StackPanel {Margin=new(30,0,10,0),VerticalAlignment=VerticalAlignment.Center};Grid.SetColumn(overview,1);Body.Children.Add(overview);
-        overview.Children.Add(BatteryCard(profile));
-        var line=new WrapPanel {Margin=new(4,22,0,0)};overview.Children.Add(line);
-        foreach(var (icon,name) in new[]{("","Firmware"),("","Hardware revision"),("","Transport")})
-        {
-            if(line.Children.Count>0)line.Children.Add(new Border {Width=1,Height=34,Margin=new(18,0,18,0),Background=new SolidColorBrush(Color.FromArgb(50,160,190,235)),VerticalAlignment=VerticalAlignment.Center});
-            line.Children.Add(new StackPanel {Orientation=Orientation.Horizontal,VerticalAlignment=VerticalAlignment.Center,Children={new TextBlock {Text=icon,FontFamily=new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"),FontSize=18,Foreground=new SolidColorBrush(Color.FromRgb(125,182,255)),Margin=new(0,0,10,0),VerticalAlignment=VerticalAlignment.Center},
-                new StackPanel {Children={ManagementVisuals.Copy(name,13),ManagementVisuals.Copy("Unavailable",16,true)}}}});
-        }
-        Shelf.ColumnDefinitions.Add(new());Shelf.ColumnDefinitions.Add(new());Shelf.ColumnDefinitions.Add(new(){Width=new GridLength(1.5,GridUnitType.Star)});Shelf.ColumnDefinitions.Add(new(){Width=GridLength.Auto});
-        int column=0;
-        foreach(var (label,value,message) in new[]{("GAMEPLAY CONNECTION","Offline","No gameplay source connected"),("CONFIGURATION CONNECTION","Offline","No configuration connection available"),
-            ("SUPPORTED BY X20CTL",profile.Verified?"Buttons · Curves · Macros · Vibration":"Preview",profile.Verified?"X20 reference support · Hardware changes unavailable offline":$"Read-only placeholders until verified · {profile.Summary}")})
-        {
-            var group=new StackPanel {Margin=new(12,14,18,0)};group.Children.Add(ManagementVisuals.Copy(label,13));group.Children.Add(ManagementVisuals.Copy(value,22,true));group.Children.Add(ManagementVisuals.Copy(message,14));
-            Grid.SetColumn(group,column++);Shelf.Children.Add(group);
-        }
-        var controls=new StackPanel {Orientation=Orientation.Horizontal,VerticalAlignment=VerticalAlignment.Center,Margin=new(0,0,12,0)};Grid.SetColumn(controls,3);Shelf.Children.Add(controls);
-        OpenTester=ManagementVisuals.Action(resources,"Open Tester",tester,register);OpenSetups=ManagementVisuals.Action(resources,"My setups",setups,register);controls.Children.Add(OpenTester);controls.Children.Add(OpenSetups);
-    }
-    /// <summary>The battery leads the page. The X20 reports four levels, drawn as four cells; models whose steps are unknown get one bar.</summary>
-    private static Border BatteryCard(ModelProfile profile)
-    {
-        var cells=new System.Windows.Controls.Primitives.UniformGrid {Rows=1,Height=26,Margin=new(0,14,0,10)};
-        int count=profile.BatteryLevels>0?profile.BatteryLevels:1;
-        for(int i=0;i<count;i++)cells.Children.Add(new Border {CornerRadius=new(6),Margin=new(i==0?0:4,0,i==count-1?0:4,0),BorderThickness=new(1),BorderBrush=new SolidColorBrush(Color.FromArgb(70,140,180,255)),Background=new SolidColorBrush(Color.FromArgb(34,125,182,255))});
-        var head=new DockPanel();
-        head.Children.Add(new TextBlock {Text="",FontFamily=new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"),FontSize=24,Foreground=new SolidColorBrush(Color.FromRgb(125,182,255)),Margin=new(0,0,12,0),VerticalAlignment=VerticalAlignment.Center});
-        var state=ManagementVisuals.Copy("Unavailable",15);state.HorizontalAlignment=HorizontalAlignment.Right;state.VerticalAlignment=VerticalAlignment.Center;DockPanel.SetDock(state,Dock.Right);head.Children.Add(state);
-        head.Children.Add(new StackPanel {Children={ManagementVisuals.Copy("BATTERY",13),ManagementVisuals.Copy(profile.BatteryLevels>0?$"{profile.BatteryLevels}-level report":profile.Battery=="Unknown"?"Level steps unknown":profile.Battery,20,true)}});
-        return new Border {CornerRadius=new(16),Padding=new(20,16,20,14),BorderThickness=new(1),BorderBrush=new SolidColorBrush(Color.FromArgb(60,140,180,255)),
-            Background=new LinearGradientBrush(Color.FromArgb(160,22,36,72),Color.FromArgb(120,10,18,40),90),
-            Child=new StackPanel {Children={head,cells,ManagementVisuals.Copy("Charge shows once the controller is connected. Offline, nothing is guessed.",13.5)}}};
+        State=new(model.Id,player);
+        Body.ColumnDefinitions.Add(new(){Width=new(1,GridUnitType.Star)});Body.ColumnDefinitions.Add(new(){Width=new(1.25,GridUnitType.Star)});
+        var hardware=new Grid();hardware.RowDefinitions.Add(new(){Height=GridLength.Auto});hardware.RowDefinitions.Add(new());hardware.RowDefinitions.Add(new(){Height=GridLength.Auto});
+        var identity=new StackPanel{Children={ManagementVisuals.Copy($"PLAYER {player+1}",13),ManagementVisuals.Copy(model.Name,28,true),ManagementVisuals.Copy("Assigned controller",14)}};hardware.Children.Add(identity);
+        var art=new Viewbox{Child=new PhotoController(model.Id),Stretch=Stretch.Uniform,Margin=new(0,20,0,16)};Grid.SetRow(art,1);hardware.Children.Add(art);
+        var identityNote=ManagementVisuals.Copy("Model selected manually. Connect the controller to check its device details.",14);Grid.SetRow(identityNote,2);hardware.Children.Add(identityNote);
+        var hardwarePanel=Kit.Panel(null,null,null,hardware,new Thickness(24));hardwarePanel.Margin=new(0,0,16,0);Body.Children.Add(hardwarePanel);
+        var overview=new StackPanel();var scroll=new ScrollViewer{Content=overview,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,Padding=new(0,0,8,0)};Grid.SetColumn(scroll,1);Body.Children.Add(scroll);
+        var status=new StackPanel();status.Children.Add(connection);status.Children.Add(ManagementVisuals.Copy("Controller input and configuration connection are checked separately.",14).Also(t=>t.Margin=new(0,8,0,12)));
+        OpenTester=ManagementVisuals.Action(resources,"Open Diagnostics",tester,register);OpenTester.HorizontalAlignment=HorizontalAlignment.Left;status.Children.Add(OpenTester);
+        overview.Children.Add(Kit.Panel("Connection",null,null,status));
+        var values=new System.Windows.Controls.Primitives.UniformGrid{Columns=2,Margin=new(-5,12,-5,0)};
+        foreach(var (label,value) in new[]{("Battery",battery),("Firmware",ManagementVisuals.Copy("Not reported",20,true)),("Hardware revision",ManagementVisuals.Copy("Not reported",20,true)),("Transport",ManagementVisuals.Copy("Not reported",20,true))})
+        {var metric=new StackPanel{Children={ManagementVisuals.Copy(label,13),value}};value.Margin=new(0,8,0,0);var tile=Kit.Panel(null,null,null,metric,new Thickness(16));tile.Margin=new(5,0,5,10);values.Children.Add(tile);}
+        overview.Children.Add(values);
+        var profile=ModelProfiles.For(model.Id);var support=new StackPanel();
+        foreach(var (label,value) in new[]{("Sticks",profile.Sticks),("Triggers",profile.Triggers),("Rear controls",profile.Paddles.Length==0?"None listed":string.Join(" · ",profile.Paddles)),("Motors",profile.Motors),("Motion",profile.Motion)})
+        {var row=new Grid{Margin=new(0,0,0,10)};row.ColumnDefinitions.Add(new(){Width=new(110)});row.ColumnDefinitions.Add(new());row.Children.Add(ManagementVisuals.Copy(label,14));var detail=ManagementVisuals.Copy(value,14,true);Grid.SetColumn(detail,1);row.Children.Add(detail);support.Children.Add(row);}
+        overview.Children.Add(Kit.Panel("Model capabilities",null,null,support));
+        var compatibility=new StackPanel{Children={ManagementVisuals.Copy(profile.Verified?"Local drafts available. Applying to hardware requires a verified connection.":"Layout and artwork available. Native configuration is unavailable for this model.",14),ManagementVisuals.Copy("Gyro, rear controls and independent motors appear only when the connected interface supports them.",13).Also(t=>t.Margin=new(0,8,0,0))}};
+        var supportPanel=Kit.Panel("X20CTL support",null,null,compatibility);supportPanel.Margin=new(0,12,0,0);overview.Children.Add(supportPanel);
+        OpenSetups=ManagementVisuals.Action(resources,"My setups",setups,register);OpenSetups.Visibility=Visibility.Collapsed;
     }
 }
 public sealed class TesterWorkbench

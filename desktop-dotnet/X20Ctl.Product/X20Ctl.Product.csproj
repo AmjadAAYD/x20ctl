@@ -23,7 +23,7 @@
     <Using Remove="System.Drawing" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="../../artifacts/product-engine-phase/native-build/Release/x20ctl-engine.exe" Link="x20ctl-engine.exe" CopyToOutputDirectory="PreserveNewest" ExcludeFromSingleFile="$(EngineBesideExe)" Condition="Exists('../../artifacts/product-engine-phase/native-build/Release/x20ctl-engine.exe')" />
+    <Content Include="../../artifacts/product-engine-phase/native-build/Release/x20ctl-engine.exe" Link="x20ctl-engine.exe" CopyToOutputDirectory="PreserveNewest" ExcludeFromSingleFile="$(EngineBesideExe)" />
     <ProjectReference Include="../X20Ctl.Zone/X20Ctl.Zone.csproj" />
     <!-- the managed ViGEm client only: it talks to the ViGEmBus driver, which PC mode installs on first use -->
     <PackageReference Include="Nefarius.ViGEm.Client" Version="1.21.256" />
@@ -34,12 +34,19 @@
     <Content Include="../../src/assets/controllers/control-shapes.json" Link="Data/control-shapes.json" CopyToOutputDirectory="PreserveNewest" />
     <Resource Include="../../src/assets/controllers/**/native/*.png" Link="Assets/native/%(RecursiveDir)%(Filename)%(Extension)" />
     <Content Include="../../src/assets/controllers/native-layers.json" Link="Data/native-layers.json" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="Brand/intro.wav" CopyToOutputDirectory="PreserveNewest" />
+    <!-- the opening sound, made from sine waves by tools/build_intro_sound.py -->
+    <Content Include="Brand/intro.wav;Brand/intro-audio-provenance.md" CopyToOutputDirectory="PreserveNewest" />
+    <!-- the guides Agent XCTL answers app questions from (M5) -->
+    <Content Include="../../README.md;../../IF-YOUR-CONTROLLER-ISNT-WORKING.md;../../PRIVACY.md" Link="Help/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <!-- PC mode's two installers (ViGEmBus, HidHide; see vendor/drivers/README.md), carried inside the exe when present -->
     <Content Include="../../vendor/drivers/*.exe" Link="drivers/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" Condition="Exists('../../vendor/drivers')" />
     <Content Include="../../tools/linux_controller_check/x20ctl-check.py" Link="Tools/linux/x20ctl-check.py" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../src/assets/controllers/lighting.json" Link="Data/lighting.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../src/assets/controllers/vibration-outlines.json" Link="Data/vibration-outlines.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../src/assets/controllers/outlines.json" Link="Data/outlines.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../src/assets/controllers/**/haptics-geometry.json" Link="Data/haptics/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
+  <Target Name="RequireLiveInputEngine" BeforeTargets="PrepareForBuild">
+    <Error Condition="!Exists('../../artifacts/product-engine-phase/native-build/Release/x20ctl-engine.exe')" Text="Live input engine is missing. Build native-core with CMake into artifacts/product-engine-phase/native-build (Release, target x20ctl-engine) before building the app. A build without live input must not ship." />
+  </Target>
 </Project>

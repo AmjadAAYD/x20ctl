@@ -49,7 +49,7 @@ from . import __version__
 from . import protocol as p
 from . import transport
 from . import ui
-from .client import CURVE_KINDS, X20, ControllerError, NotSupported, find_controller
+from .client import CURVE_KINDS, X20, ControllerError, NotSupported, find_controller, find_controllers
 from .diagnose import diagnose
 from .config import load_address, save_address
 from .profiles import MacroSpec, Profile, ProfileStore, SLOTS
@@ -76,10 +76,20 @@ async def resolve(explicit: str | None) -> str:
 
 async def cmd_scan(args) -> None:
     print(ui.header("Scanning", "listening for the configuration peripheral"))
-    address = await find_controller()
+    heard: list | None = [] if getattr(args, "all", False) else None
+    pads = await find_controllers(everything=heard, first=heard is None)
+    if heard is not None:
+        seen: dict[str, tuple] = {}
+        for address, name, rssi in heard:
+            seen[address] = (name, rssi)
+        print(ui.label(f"  {len(seen)} Bluetooth devices heard"))
+        for address, (name, rssi) in sorted(seen.items(), key=lambda kv: kv[1][1] or -999, reverse=True):
+            print(ui.label(f"  {address}  {rssi if rssi is not None else '?':>4}  {name or '-'}"))
+    address = pads[0].address if pads else None
     if not address:
         print(ui.bad("  nothing found"))
         print(ui.label("  check the pad is on and Bluetooth is enabled"))
+        print(ui.label("  run `x20 scan --all` to list everything heard, and send that output with a bug report"))
         return
     save_address(address)
     print(ui.field("address", address))
@@ -643,7 +653,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--version", action="version", version=f"x20ctl {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    sub.add_parser("scan", help="find the controller").set_defaults(fn=cmd_scan)
+    scan = sub.add_parser("scan", help="find the controller")
+    scan.add_argument("--all", action="store_true", help="also list every Bluetooth device heard")
+    scan.set_defaults(fn=cmd_scan)
     sub.add_parser("status", help="show everything the pad reports").set_defaults(fn=cmd_status)
 
     vib = sub.add_parser("vibration", help="read or set motor strength")

@@ -218,23 +218,6 @@ class UnknownPad:
         raise AssertionError("an unknown controller is never asked for its battery")
 
 
-def test_an_unknown_controller_connects_reads_nothing_and_is_logged_once(tmp_path):
-    from x20ctl.desktop.service import DeviceService
-    service = DeviceService(client_factory=UnknownPad, directory=tmp_path)
-    service._found["pad"] = type("Found", (), {"name": "Xpert2"})()
-    for _ in range(2):
-        result = asyncio.run(service.dispatch("connect", {"address": "pad"}))
-    assert result["assessment"]["status"] == "unknown"
-    assert result["values"] == {} and result["editable"] == []
-    assert "nothing will be changed" in result["warnings"][0]
-    entries = json.loads((tmp_path / "unknown-controllers.json").read_text(encoding="utf-8"))
-    assert len(entries) == 1
-    assert entries[0]["identity"]["internalProductId"] == "3001"
-    assert entries[0]["descriptor"]["unexplainedBits"] == ["D6.bit0 (changekey)"]
-    assert entries[0]["lists"]["turboKeys"] == [1, 2, 3, 4, 5, 6, 7, 8, 13, 14, 15, 16]
-    assert "address" not in json.dumps(entries)
-
-
 def test_macro_limits_are_pairs_matched_to_slots_by_position():
     caps = p.parse_capabilities(p.unwrap(bytes.fromhex(X20_DESCRIPTOR)))
     # the recorded X20 reply: 42 for M1-M4, then zeros for the four slots it lacks

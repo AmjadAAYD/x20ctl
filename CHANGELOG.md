@@ -1,5 +1,42 @@
 # Changelog
 
+## [4.1.0-preview.6] - 2026-10-17
+
+A pre-release. Everything in [Preview 5](#410-preview5---2026-10-12) is included.
+
+### Added
+
+- **Agent XCTL**, a small assistant drawn as a controller, in the Studio title bar. Tell it in your own words how you play and it sets PC mode for you: stick and trigger curves (custom points, not just presets), dead zones, anti-dead zone, max output, hair triggers, turbo, remaps, mouse mode, and it measures stick drift before it picks a dead zone. Every request is checked against fixed rules first; each change is walked through on the page it lives on, with Undo. It answers questions about the app from these docs, and *Say HELP* lists what it can do. It runs on your PC with nothing to install and nothing you type leaves it. Spelling and grammar don't matter: it works out what you meant and shows *I read that as* when it rewrote your words.
+- **Opening a controller scans it first**: a radar popup and a verdict, and a pad that names another model is not opened as this one.
+- **Battery in the middle of the Studio title bar**: the level the controller reports (full, medium, low, empty or wired), a dash when it reports nothing. Click it for Device.
+- **B resets the Buttons card**: with a control picked, B (or Esc) clears it back to *Select a control*; a second B leaves.
+- **Every launch checks for a newer version**; a popup follows the intro only when there is one.
+- **Your games**: Riot and GOG games, folders and games you add, their real icons; Play zooms in and the card shows *In game* while it runs.
+- **Vibration preview** draws each controller's own grip edge, lit in its LED colours, with a moving light per motor.
+- **X20 Pro macros on M5 and M6**, with macro slots that follow each controller.
+- **Read scan, Write scan, send online, in one go.** When a Read scan finishes, *Continue to the Write scan* takes you straight on. The Write scan's warning says the Read scan comes along, and at the end *Send online* sends both together as one report. The Read scan's part is the same compact summary it already offered to send (controller names, IDs and results, no personal files). Starting the Write scan from Tools on its own works as before.
+- **The Controller not working? card shows a computer scanning**, with the three steps (Read scan, Write scan, Send online), instead of a controller.
+
+### Changed
+
+- **A new intro.** The controller is drawn in one smooth stroke, the two halves of the X glide in and lock with a flash, then the slogan and the flight to the logo. It has an original score: piano, plucked strings and a soft pad in D minor, with each pluck placed where the line is drawing. Mute and skip work as before.
+- **Buttons showcase** redrawn as the parts of a controller across the full width: a face-button diamond, a D-pad cross, triggers over bumpers, stick caps, View and Menu, Default and Disabled. The current output glows.
+- **LB and RB** are shoulder-button keycaps on the tab line.
+- **Controller Zone and Dashboard rebuilt**: matte navy surfaces, shared navigation, a header clock, a selected player shown large with the others beside it; Remove and Add controller stay inside their cards. Setups are kept per model.
+- **Curves** draws exactly what games get, with handles and sliders for dead zone, full at, anti-dead zone and max output, and a live dot that follows the real stick.
+- **Mouse, Diagnostics, Vibration and PC mode pages** refined; Diagnostics captures drift more reliably.
+- Maximised and fullscreen windows stay above the taskbar.
+- **New controller art for X20 Pro, X10, X15, D10 and Dune (D05)**, from the balanced product photographs. Each stick cap is its own layer with a dark socket left behind, so it really moves and tilts with the stick, and each trigger is lifted off the rear photo. Every button, D-pad arm, trigger and paddle outline was measured again on the new pictures. X20, X05 and X05 Pro keep their art.
+
+### Linux
+
+- **Scanning and connecting retry** instead of giving up after one pass, a paired pad is found through BlueZ when the scan can't see it, and `x20 scan --all` lists every Bluetooth device it hears. Not yet proven on a real pad: reports welcome.
+- The Linux Controller Check and PC mode scripts ship with this release as before (`X20CTL-4.1.0-preview.6-linux-check.zip`).
+
+### Removed
+
+- The legacy PySide and web interfaces, the pywebview bridge, the WebView2 packaging and the old standalone Python scanner. The command line and its core no longer depend on any of them.
+
 ## [4.1.0-preview.5] - 2026-10-12
 
 A pre-release. Everything in [Preview 4](#410-preview4---2026-10-10) is included.
@@ -30,7 +67,7 @@ A pre-release. Everything in [Preview 4](#410-preview4---2026-10-10) is included
 - **Controllers are only changed where that's been proven.** Every request is checked against a table of what has been measured on real hardware, per product, operating mode and firmware (`x20ctl/validation.py`), before it is sent. The X20 on firmware 1.23 keeps everything it had. An X20 on other firmware keeps the proven features, each still checked by reading it back. An X20 in an untested operating mode can be read but not changed. A controller that isn't in the table connects and is identified, nothing else is sent to it, and what it reports is saved to `unknown-controllers.json` so it can be validated. Lighting, turbo and mode switches are refused on every pad: none is proven.
 - **The capability descriptor is kept whole.** Scans, status and reports carry the raw bytes and name every set bit nobody has traced, and the remap select-list bit (D6 bit 1) is decoded. Captures also keep the turbo, macro and per-slot macro-limit lists.
 - **Macro slot limits are read and shown.** On a pad whose descriptor asks for it, each slot's limit comes from its own query (a list of 16-bit numbers, matched to slots by position). The X20 reports 42 for M1-M4. `status` prints it next to each slot and the desktop service returns it. It does not size writes: its relation to the 47-entry cap is unmeasured.
-- **Write scan** (Tools), the partner of the Controller Check, which is now called the Read scan. The Read scan watches what a controller reports; the Write scan learns what an official app writes to one. You change one setting in the official app on an Android phone while the phone's Bluetooth HCI snoop log records, then open the log or the bug report ZIP here. X20CTL never talks to the controller during it. It decodes KeyLinker frames when they're there and shows the controller's identity, what its capability descriptor offers (and any bits nobody has traced), how it compares with the recorded X20, and each byte the app changed, against the last value the controller reported. Recordings that aren't KeyLinker get their writes grouped by place and size, with the bytes that vary. A second recording can be compared message by message. A warning up front says it can take 20 to 40 minutes. The findings are saved to `Documents\X20CTLWriteScans` only when you press Save, and the raw log only if you tick the box.
+- **Write scan** (Tools), the partner of the Controller Check, which is now called the Read scan. The Read scan watches what a controller reports; the Write scan learns what KeyLinker writes to one. You change one setting in the official app on an Android phone while the phone's Bluetooth HCI snoop log records, then open the log or the bug report ZIP here. X20CTL never talks to the controller during it. It decodes KeyLinker frames when they're there and shows the controller's identity, what its capability descriptor offers (and any bits nobody has traced), how it compares with the recorded X20, and each byte the app changed, against the last value the controller reported. Recordings that aren't KeyLinker get their writes grouped by place and size, with the bytes that vary. A second recording can be compared message by message. A warning up front says it can take 20 to 40 minutes. The findings are saved to `Documents\X20CTLWriteScans` only when you press Save, and the raw log only if you tick the box.
 - **The Write scan works with an iPhone too.** Apple's Bluetooth logging profile plus a sysdiagnose records the same traffic; X20CTL takes the PacketLogger log (`.pklg`) out of the sysdiagnose (`.tar.gz`) without unpacking anything else, and reads either byte order. The phone page asks which phone you have and gives that phone's steps.
 - **Send to X20CTL** on the Write scan results: the summary, findings, timeline and decoded messages go to X20CTLADMIN as a research report (schema 2, with a manifest of every file and its SHA-256), only after you tick that you've read the summary. The Bluetooth packets go only if you tick that too, re-packed without the HCI events where device names and addresses travel. X20CTL asks the inbox first and sends nothing until it accepts Write scans.
 - **Fixed:** the Write scan's guided test, and a second visit to its recording or results page, failed after the first step because a reused label was still attached to the old page.
@@ -44,6 +81,7 @@ A pre-release. Everything in [Preview 4](#410-preview4---2026-10-10) is included
 
 ### Fixed
 
+- **Fullscreen no longer hides the bottom bar under the taskbar.** X20CTL covers the whole screen only while it is the window you are using, and tells Windows so, which makes the taskbar step back for certain. Click another window or screen and it fits above the taskbar instead, so the footer hints are never left underneath it.
 - **A softer intro sound.** The three bright "ting" pings as the LEDs blink are now soft, rounded notes (D, F#, A, in the key of the swell), about a third as bright and a little quieter. The noisy "fwoosh" while the outline draws is now a short, soft warm pad, and the noise riser while the line becomes the X is a low, warm chord that only grows in volume (no rising pitch). The heartbeat has a small "lub-dub" you can hear on laptop speakers (the old one sat at 45 Hz). The deep "vmmm" drone as the X lands is gone: the X now has a heartbeat of its own, a "dug dug" you hear as the mark swells twice on screen.
 - **Tools tiles cut off their words.** *Support X20CTL* and *Star our GitHub repo* wrapped their titles and lost the end of their description; the titles are a touch smaller and the star tile reads *Star on GitHub*.
 - **The Controller Zone swap stutters less.** The hero card's glow was redrawn on every frame of the move; it now waits until the card lands and fades in (slow frames during a swap down by about 40%). The photos also scale more cheaply while moving.

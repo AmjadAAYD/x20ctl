@@ -34,6 +34,13 @@ public sealed class MouseProfile
     public double PrecisionPercent { get; set; } = 30;
     /// <summary>Hold View + Y for a second to switch the mouse on and off from the controller.</summary>
     public bool Combo { get; set; } = true;
+    public string[] ToggleButtons { get; set; } = ["SELECT", "Y"];
+    public int HoldMilliseconds { get; set; } = 1000;
+    public int SourceSlot { get; set; } = -1;
+    public bool HorizontalScroll { get; set; } = true;
+    public bool InvertVerticalScroll { get; set; }
+    public bool InvertHorizontalScroll { get; set; }
+    [JsonIgnore] public ushort ToggleMask => (ushort)ToggleButtons.Aggregate(0, (mask, key) => mask | PadButtons.Mask.GetValueOrDefault(key));
     /// <summary>Button name (PadButtons names plus LT, RT) → action.</summary>
     public Dictionary<string, MouseAction> Buttons { get; set; } = Defaults();
 
@@ -48,6 +55,9 @@ public sealed class MouseProfile
 
     public void Validate()
     {
+        if (SourceSlot is < -1 or > 3 || HoldMilliseconds is < 500 or > 3000 || ToggleButtons == null || ToggleButtons.Length != 2
+            || ToggleButtons.Distinct().Count() != 2 || ToggleButtons.Any(k => !PadButtons.Mask.ContainsKey(k)))
+            throw new InvalidDataException("Choose two different reported buttons for the mouse shortcut.");
         if (PointerStick is not ("Left" or "Right") || Speed < MinSpeed || Speed > MaxSpeed || !double.IsFinite(Curve) || Curve < MinCurve || Curve > MaxCurve
             || Deadzone < 0 || Deadzone > MaxDeadzone || ScrollSpeed < MinScroll || ScrollSpeed > MaxScroll
             || !double.IsFinite(PrecisionPercent) || PrecisionPercent < MinPrecision || PrecisionPercent > MaxPrecision || Buttons == null)
@@ -110,18 +120,20 @@ public sealed class MouseMapper
 
     public MouseFrame Step(PadState s, double seconds)
     {
+        // Reserve both shortcut components before mapping. Even a partial chord cannot leak a click/key.
+        if (profile.Combo) s = s with { Buttons = (ushort)(s.Buttons & ~profile.ToggleMask) };
         seconds = Math.Clamp(seconds, 0, .1); // a stall never turns into one huge jump
         var edges = new List<(MouseAction, bool)>();
         var now = new HashSet<string>();
         foreach (var (name, mask) in PadButtons.Mask) if ((s.Buttons & mask) != 0) now.Add(name);
         if (s.LeftTrigger > PadButtons.TriggerThreshold) now.Add("LT");
         if (s.RightTrigger > PadButtons.TriggerThreshold) now.Add("RT");
-        foreach (var name in MouseProfile.Inputs)
+        foreach (var action in profile.Buttons.Values.Distinct().Where(a=>a is not (MouseAction.None or MouseAction.Precision)))
         {
-            bool down = now.Contains(name), was = held.Contains(name);
+            bool down = profile.Buttons.Any(b=>b.Value==action && now.Contains(b.Key));
+            bool was = profile.Buttons.Any(b=>b.Value==action && held.Contains(b.Key));
             if (down == was) continue;
-            var action = profile.Buttons.GetValueOrDefault(name);
-            if (action is not (MouseAction.None or MouseAction.Precision)) edges.Add((action, down));
+            edges.Add((action, down));
         }
         held.Clear(); held.UnionWith(now);
 
@@ -146,13 +158,14 @@ public sealed class MouseMapper
             if (Math.Abs(wy) < profile.Deadzone / 100.0) carryWheel = 0;
             if (Math.Abs(wx) < profile.Deadzone / 100.0 + .1) carryH = 0;
         }
-        return new(dx, dy, wheel, hwheel, edges);
+        return new(dx, dy, profile.InvertVerticalScroll ? -wheel : wheel,
+            !profile.HorizontalScroll ? 0 : profile.InvertHorizontalScroll ? -hwheel : hwheel, edges);
     }
 
     /// <summary>Lets go of everything still held (the mouse is being switched off), so no click or key stays stuck.</summary>
     public IReadOnlyList<(MouseAction, bool)> Release()
     {
-        var edges = held.Select(n => profile.Buttons.GetValueOrDefault(n)).Where(a => a is not (MouseAction.None or MouseAction.Precision)).Select(a => (a, false)).ToList();
+        var edges = held.Select(n => profile.Buttons.GetValueOrDefault(n)).Where(a => a is not (MouseAction.None or MouseAction.Precision)).Distinct().Select(a => (a, false)).ToList();
         held.Clear(); carryX = carryY = carryWheel = carryH = 0; return edges;
     }
 }

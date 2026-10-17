@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Text.Json;
 using X20Ctl.Zone;
 using X20Ctl.Zone.PcMode;
@@ -30,7 +30,7 @@ public sealed class PcModeSync(PcModeLink link, ButtonDraft buttons, CurveDraft 
     public static void Clear(ButtonDraft buttons, CurveDraft curves, MacroDraft macros)
     {
         buttons.ResetAll(); curves.ResetAll();
-        foreach (var slot in MacroDraft.Slots) { macros.Clear(slot); macros.SetTrigger(slot, null); }
+        foreach (var slot in macros.SlotNames) { macros.Clear(slot); macros.SetTrigger(slot, null); }
     }
 
     public void Reload()

@@ -20,6 +20,12 @@ Remap buttons, shape sticks and triggers, build back-paddle macros, set vibratio
 
 ## What's new
 
+### Agent XCTL
+
+Agent XCTL is a small assistant drawn as a controller. Tell it in your own words how you play and it sets your PC mode for you: stick and trigger curves, dead zones, hair triggers, turbo, remaps, mouse mode, and measuring stick drift. It runs on your PC with nothing to install, and nothing you type leaves it. It checks every request against fixed rules before it changes anything, shows exactly what changed, and has an Undo. It also answers questions about the app from these docs. Don't worry about spelling or grammar: it works out what you meant and tells you how it read it.
+
+Open it from the round button and type **help** to see everything it can do. **RB** opens its settings and **LB** starts the conversation over.
+
 X20CTL is now a **native Windows app**, rebuilt from scratch in WPF on .NET 10. It no longer uses a web page inside a window, and it no longer needs WebView2. Up to four players each pick their own controller. Every model opens the same Studio, and every page can be driven with a gamepad, like a console's big-picture mode.
 
 **4.1.0 Preview 3 is a pre-release.** The EasySMX X20 is the only verified controller. The other seven models open as read-only previews. Their layouts, sticks and triggers are drawn and animated, but nothing is written to them. See [Supported controllers](#supported-controllers).
@@ -162,7 +168,7 @@ It only reads. It never changes settings, lighting, vibration or firmware. Sendi
 
 ![Controller Check introduction](docs/screenshots/controller-check.jpg)
 
-The Controller Check is the **Read scan**. Its partner, the **Write scan** (Tools), learns what an official app writes to a controller. You change one setting in the app on an Android phone or an iPhone while the phone's Bluetooth log records, then open the log here, and you can send the findings to X20CTL. X20CTL shows who the controller says it is, what it offers, and the bytes the app changed. X20CTL sends nothing to the controller. It's slow: plan on 20 to 40 minutes the first time.
+The Controller Check is the **Read scan**. Its partner, the **Write scan** (Tools), learns what KeyLinker writes to a controller. You change one setting in KeyLinker on an Android phone or an iPhone while the phone's Bluetooth log records, then open the log here, and you can send the findings to X20CTL. X20CTL shows who the controller says it is, what it offers, and the bytes the app changed. X20CTL sends nothing to the controller. It's slow: plan on 20 to 40 minutes the first time.
 
 Without a phone log, the command line can compare the controller's own settings before and after a change:
 `x20 state save before.json --label before`, change one setting in the official app and close it,

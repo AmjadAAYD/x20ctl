@@ -114,7 +114,7 @@ public sealed class ButtonDraft
     public void Set(string source, string target)
     {
         if (!CanEdit(source)) throw new InvalidOperationException("This control has no verified remapping source.");
-        if (!Targets.Contains(target)) throw new ArgumentException("Unsupported target.", nameof(target));
+        if (!Targets.Contains(target) && !(PcMode && target=="NONE")) throw new ArgumentException("Unsupported target.", nameof(target));
         if (source == target) changes.Remove(source); else changes[source] = target;
     }
     public void Reset(string source) => changes.Remove(source);

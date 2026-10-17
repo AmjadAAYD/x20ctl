@@ -1,4 +1,4 @@
-using System.Net.Http;
+﻿using System.Net.Http;
 using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
@@ -41,6 +41,9 @@ public sealed class ControllerCheckView : Grid
     private readonly DispatcherTimer timer = new(DispatcherPriority.Input) { Interval = TimeSpan.FromMilliseconds(20) };
     private WindowsReader? reader; private Evidence evidence = new(); private string? active; private int index;
     private string? lastSaved; private bool dirty, closeArmed, autoPicked;
+    /// <summary>Set by the host: after a finished scan, "Continue to the Write scan" hands this report on.</summary>
+    public Action<ReadReport>? ContinueToWrite { get; set; }
+    private ReadReport? lastRead;
     private int slot; private string library = WindowsReader.Libraries[0];
     private Inventory inventory = new(); private bool inventoryRead;
     private readonly Dictionary<string, string> results = new();
@@ -82,7 +85,7 @@ public sealed class ControllerCheckView : Grid
 
         // title bar: this is its own app inside X20CTL
         var bar = new DockPanel { VerticalAlignment = VerticalAlignment.Center };
-        var back = Action("", "Back to Tools", "DS.ActionSecondary"); back.Click += (_, _) => close(); DockPanel.SetDock(back, Dock.Right); bar.Children.Add(back);
+        var back = Action("", "Back to Tools", "ActionButton"); back.Click += (_, _) => close(); DockPanel.SetDock(back, Dock.Right); bar.Children.Add(back);
         var safe = new Border { CornerRadius = new(16), Padding = new(14, 7, 16, 7), Margin = new(0, 0, 16, 0), VerticalAlignment = VerticalAlignment.Center, Background = new SolidColorBrush(Color.FromArgb(40, Green.R, Green.G, Green.B)), BorderBrush = new SolidColorBrush(Color.FromArgb(120, Green.R, Green.G, Green.B)), BorderThickness = new(1),
             Child = new StackPanel { Orientation = Orientation.Horizontal, Children = { Kit.Icon("", 14, "DS.Success").Also(i => i.Margin = new(0, 0, 9, 0)), Kit.Text("Read-only · nothing is changed or uploaded", 13.5, "DS.Text", FontWeights.SemiBold) } } };
         DockPanel.SetDock(safe, Dock.Right); bar.Children.Add(safe);
@@ -104,8 +107,8 @@ public sealed class ControllerCheckView : Grid
         {
             var r = new RadioButton { Content = label, Style = DS.Style("DS.Segment"), GroupName = group, IsChecked = lib == library, ToolTip = "Windows input reader: " + lib }; r.Checked += (_, _) => library = lib; readers.Add(r); readerRow.Children.Add(r);
         }
-        start = Action("", "Start check", "DS.ActionPrimary"); start.Click += (_, _) => StartMonitoring();
-        fresh = Action("", "New source", "DS.ActionSecondary"); fresh.Click += (_, _) => NewSource(); fresh.ToolTip = "Save what was recorded, then start again with another slot or reader";
+        start = Action("", "Start check", "PrimaryButton"); start.Click += (_, _) => StartMonitoring();
+        fresh = Action("", "New source", "ActionButton"); fresh.Click += (_, _) => NewSource(); fresh.ToolTip = "Save what was recorded, then start again with another slot or reader";
         var leftFoot = new StackPanel { Margin = new(0, 14, 0, 0), Children = {
             Kit.Text("WINDOWS READER", 12, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(2, 0, 0, 8)),
             new Border { CornerRadius = new(12), Background = new SolidColorBrush(Color.FromArgb(30, 255, 255, 255)), BorderBrush = new SolidColorBrush(Color.FromArgb(34, 255, 255, 255)), BorderThickness = new(1), Padding = new(1), Child = readerRow },
@@ -121,10 +124,10 @@ public sealed class ControllerCheckView : Grid
         Grid.SetColumn(centerPanel, 2); body.Children.Add(centerPanel);
 
         // right: guided check
-        verify = Action("", "Confirm it's your controller", "DS.ActionPrimary"); verify.Click += (_, _) => Begin("preflight");
+        verify = Action("", "Confirm it's your controller", "PrimaryButton"); verify.Click += (_, _) => Begin("preflight");
         verify.ToolTip = "Press and release A, then pull and release LT, then RT. That proves the check is reading the controller in your hands before it records anything.";
-        record = Action("", "Record next control", "DS.ActionPrimary"); record.Click += (_, _) => { if (evidence.Verified && index < Actions.Length) Begin(Actions[index]); };
-        skip = Action("", "Skip", "DS.ActionSecondary"); skip.Click += (_, _) => { if (active == null && index < Actions.Length) { evidence.Event("skipped", Actions[index]); results[Actions[index]] = "skipped"; index++; dirty = true; UpdateControls(); } };
+        record = Action("", "Record next control", "PrimaryButton"); record.Click += (_, _) => { if (evidence.Verified && index < Actions.Length) Begin(Actions[index]); };
+        skip = Action("", "Skip", "ActionButton"); skip.Click += (_, _) => { if (active == null && index < Actions.Length) { evidence.Event("skipped", Actions[index]); results[Actions[index]] = "skipped"; index++; dirty = true; UpdateControls(); } };
         skip.ToolTip = "Skip a control your controller does not have";
         foreach (var a in Actions) { var chip = Chip(Friendly(a)); chipFor[a] = chip; chips.Children.Add(chip); }
         var guide = new DockPanel();
@@ -136,11 +139,11 @@ public sealed class ControllerCheckView : Grid
         var right = Kit.Panel("Guided check", "Checks run on the slot you picked", null, guide); Grid.SetColumn(right, 4); body.Children.Add(right);
 
         // bottom: claims, Windows inventory, Raw Input, save
-        detect = Action("", "List Windows devices", "DS.ActionSecondary"); detect.Click += async (_, _) => await Detect();
-        details = Action("", "Details", "DS.ActionSecondary"); details.IsEnabled = false; details.Click += (_, _) => ShowDetails();
-        rawToggle = Action("", "Raw Input fallback", "DS.ActionSecondary"); rawToggle.Click += (_, _) => ToggleRaw(); rawToggle.ToolTip = "If no player slot responds: read the controller through Windows Raw Input instead";
-        save = Action("", "Save report", "DS.ActionPrimary"); save.Click += (_, _) => Save();
-        var open = Action("", "Open reports", "DS.ActionSecondary"); open.Click += (_, _) => OpenReports();
+        detect = Action("", "List Windows devices", "ActionButton"); detect.Click += async (_, _) => await Detect();
+        details = Action("", "Details", "ActionButton"); details.IsEnabled = false; details.Click += (_, _) => ShowDetails();
+        rawToggle = Action("", "Raw Input fallback", "ActionButton"); rawToggle.Click += (_, _) => ToggleRaw(); rawToggle.ToolTip = "If no player slot responds: read the controller through Windows Raw Input instead";
+        save = Action("", "Save report", "PrimaryButton"); save.Click += (_, _) => Save();
+        var open = Action("", "Open reports", "ActionButton"); open.Click += (_, _) => OpenReports();
         model.SelectionChanged += (_, _) => evidence.Model = (string)model.SelectedItem; transport.SelectionChanged += (_, _) => evidence.Transport = (string)transport.SelectedItem;
         var claims = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Children = {
             Labelled("PRINTED MODEL (YOUR CLAIM)", model), Labelled("CONNECTED BY", transport).Also(s => s.Margin = new(16, 0, 0, 0)) } };
@@ -382,10 +385,10 @@ public sealed class ControllerCheckView : Grid
             cards.Children.Add(new Border { CornerRadius = new(14), Margin = new(8), Padding = new(18, 14, 18, 14), BorderThickness = new(1), BorderBrush = new SolidColorBrush(Color.FromArgb(46, 140, 180, 255)),
                 Background = new LinearGradientBrush(Color.FromArgb(160, 20, 34, 70), Color.FromArgb(120, 10, 18, 40), 90),
                 Child = new StackPanel { Children = { Kit.Text(title, 16.5, "DS.Text", FontWeights.SemiBold), Wrap(text, 14, "DS.TextSoft").Also(t => t.Margin = new(0, 6, 0, 0)) } } });
-        var send = Action("", "Scan and send the report", "DS.ActionPrimary"); send.Click += (_, _) => StartScan(true);
-        var local = Action("", "Scan, keep it on this PC", "DS.ActionSecondary"); local.Click += (_, _) => StartScan(false);
-        var watch = Action("", "Just watch live input", "DS.ActionSecondary"); watch.Click += (_, _) => Fx.Leave(warning, () => warning.Visibility = Visibility.Collapsed, 1.02, 200);
-        var leave = Action("", "Back to Tools", "DS.ActionSecondary"); leave.Click += (_, _) => close();
+        var send = Action("", "Scan and send the report", "PrimaryButton"); send.Click += (_, _) => StartScan(true);
+        var local = Action("", "Scan, keep it on this PC", "ActionButton"); local.Click += (_, _) => StartScan(false);
+        var watch = Action("", "Just watch live input", "ActionButton"); watch.Click += (_, _) => Fx.Leave(warning, () => warning.Visibility = Visibility.Collapsed, 1.02, 200);
+        var leave = Action("", "Back to Tools", "ActionButton"); leave.Click += (_, _) => close();
         // which system is the controller on? This app scans on Windows; a Linux PC gets the Linux Controller Check
         var choices = new WrapPanel { Margin = new(0, 22, 0, 0), Children = { send, local.Also(b => b.Margin = new(12, 0, 0, 0)), watch.Also(b => b.Margin = new(12, 0, 0, 0)), leave.Also(b => b.Margin = new(12, 0, 0, 0)) } };
         var linux = BuildLinuxPanel(); linux.Visibility = Visibility.Collapsed;
@@ -414,9 +417,9 @@ public sealed class ControllerCheckView : Grid
     {
         string folder = System.IO.Path.Combine(AppContext.BaseDirectory, "Tools", "linux");
         const string command = "python3 x20ctl-check.py";
-        var open = Action("\uE838", "Open the Linux scanner", "DS.ActionPrimary"); open.Click += (_, _) => { if (ReviewSandbox.Active) return; try { Process.Start(new ProcessStartInfo("explorer.exe", "\"" + folder + "\"") { UseShellExecute = true }); } catch (System.ComponentModel.Win32Exception) { } };
-        var copy = Action("\uE8C8", "Copy the command", "DS.ActionSecondary"); copy.Click += (_, _) => { try { Clipboard.SetText(command); SetLabel(copy, "Copied"); } catch (System.Runtime.InteropServices.ExternalException) { } };
-        var back = Action("\uE72B", "Back to Tools", "DS.ActionSecondary"); back.Click += (_, _) => close();
+        var open = Action("\uE838", "Open the Linux scanner", "PrimaryButton"); open.Click += (_, _) => { if (ReviewSandbox.Active) return; try { Process.Start(new ProcessStartInfo("explorer.exe", "\"" + folder + "\"") { UseShellExecute = true }); } catch (System.ComponentModel.Win32Exception) { } };
+        var copy = Action("\uE8C8", "Copy the command", "ActionButton"); copy.Click += (_, _) => { try { Clipboard.SetText(command); SetLabel(copy, "Copied"); } catch (System.Runtime.InteropServices.ExternalException) { } };
+        var back = Action("\uE72B", "Back to Tools", "ActionButton"); back.Click += (_, _) => close();
         Border Step(string n, string title, string text) => new() { CornerRadius = new(14), Margin = new(0, 0, 0, 10), Padding = new(18, 12, 18, 12), BorderThickness = new(1), BorderBrush = new SolidColorBrush(Color.FromArgb(46, 140, 180, 255)), Background = new SolidColorBrush(Color.FromArgb(70, 16, 28, 58)),
             Child = new DockPanel { Children = { new Grid { Width = 30, Height = 30, Margin = new(0, 0, 14, 0), VerticalAlignment = VerticalAlignment.Top, Children = { new Ellipse { Fill = new SolidColorBrush(Kit.Blue) }, Kit.Text(n, 14, "DS.Text", FontWeights.Bold).Also(t => t.HorizontalAlignment = HorizontalAlignment.Center) } }.Also(g => DockPanel.SetDock(g, Dock.Left)),
                 new StackPanel { Children = { Kit.Text(title, 16.5, "DS.Text", FontWeights.SemiBold), Wrap(text, 14, "DS.TextSoft").Also(t => t.Margin = new(0, 4, 0, 0)) } } } } };
@@ -503,6 +506,9 @@ public sealed class ControllerCheckView : Grid
         evidence.Extra["scan-summary.json"] = JsonSerializer.Serialize(new { findings, battery = new { battery.Item1, battery.Item2 }, bluetoothBattery = bluetooth.Select(b => new { b.Name, b.Percent }), detectedName = detected?.Name, detectedModel = detected?.Model, appVersion = ScanFlow.AppVersion, reportRatesPerSecond = reportRates,
             excludedByDesign = new[] { "RGB lighting (firmware)", "gyro", "turbo (firmware script)" } }, new JsonSerializerOptions(Evidence.Json) { WriteIndented = true });
         bool saved = Save();
+        // the compact report, kept for the Write scan to carry along if the player goes on to it
+        try { lastRead = new ReadReport(ScanFlow.CompactReport(ScanModel, (string)transport.SelectedItem, evidence, inventory, findings), detected?.Name ?? ScanModel, (string)transport.SelectedItem, lastSaved, DateTime.UtcNow); }
+        catch (Exception error) when (error is IOException or InvalidDataException or InvalidOperationException) { lastRead = null; }
         string? receipt = null, failure = null;
         if (sendReport)
         {
@@ -522,14 +528,14 @@ public sealed class ControllerCheckView : Grid
                     new StackPanel { Children = { Kit.Text(f.Area, 13, "DS.TextSoft", FontWeights.SemiBold), Wrap(f.Value, 17, "DS.Text"), Wrap(f.Detail, 13, "DS.TextMuted").Also(t => t.Margin = new(0, 3, 0, 0)) } } } } });
         string status = !saved ? "The report couldn't be saved: " + outcome.Text : "Saved: " + lastSaved;
         string sent = receipt != null ? $"Sent to X20CTLADMIN · receipt {receipt}" : failure != null ? $"Not sent to X20CTLADMIN ({failure}). The ZIP is saved; you can share it by hand." : "Kept on this PC (not sent).";
-        var copy = Action("", "Copy @" + ScanFlow.Discord, "DS.ActionSecondary"); copy.Click += (_, _) => { try { Clipboard.SetText(ScanFlow.Discord); SetLabel(copy, "Copied"); } catch (System.Runtime.InteropServices.ExternalException) { } };
-        var open = Action("", "Open reports folder", "DS.ActionSecondary"); open.Click += (_, _) => OpenReports();
-        var done = Action("", "Done", "DS.ActionPrimary"); done.Click += (_, _) => Fx.Leave(resultsLayer, () => resultsLayer.Visibility = Visibility.Collapsed, 1.02, 200);
+        var copy = Action("", "Copy @" + ScanFlow.Discord, "ActionButton"); copy.Click += (_, _) => { try { Clipboard.SetText(ScanFlow.Discord); SetLabel(copy, "Copied"); } catch (System.Runtime.InteropServices.ExternalException) { } };
+        var open = Action("", "Open reports folder", "ActionButton"); open.Click += (_, _) => OpenReports();
+        var done = Action("", "Done", "PrimaryButton"); done.Click += (_, _) => Fx.Leave(resultsLayer, () => resultsLayer.Visibility = Visibility.Collapsed, 1.02, 200);
         var missed = AllActions.Where(a => results.GetValueOrDefault(a) == "inconclusive").ToArray();
         // every paddle step came back empty: the pad most likely has none, so asking again would only repeat it
         var paddleSteps = AllActions.Where(a => Analysis.IsPaddle(a) && results.ContainsKey(a)).ToArray();
         if (paddleSteps.Length > 0 && paddleSteps.All(a => results[a] == "inconclusive")) missed = missed.Where(a => !Analysis.IsPaddle(a)).ToArray();
-        var redo = Action("", $"Redo the {missed.Length} not seen", "DS.ActionPrimary"); redo.Click += (_, _) => RedoMissed(missed);
+        var redo = Action("", $"Redo the {missed.Length} not seen", "PrimaryButton"); redo.Click += (_, _) => RedoMissed(missed);
         redo.Visibility = missed.Length > 0 && reader != null ? Visibility.Visible : Visibility.Collapsed;
         var side = new StackPanel { Width = 420, Margin = new(28, 0, 0, 0), Children = {
             Kit.Text("YOUR REPORT", 12, "DS.TextMuted", FontWeights.SemiBold), Wrap(status, 14, "DS.TextSoft").Also(t => t.Margin = new(0, 6, 0, 0)), Wrap(sent, 15, receipt != null ? "DS.Success" : "DS.Text").Also(t => t.Margin = new(0, 12, 0, 0)),
@@ -537,6 +543,16 @@ public sealed class ControllerCheckView : Grid
                 Child = new StackPanel { Children = { Kit.Text("Send it on Discord", 18, "DS.Text", FontWeights.SemiBold), Wrap($"Send the report ZIP to @{ScanFlow.Discord} on Discord. It helps add full support for your controller.", 14.5, "DS.TextSoft").Also(t => t.Margin = new(0, 6, 0, 12)), copy } } },
             redo.Also(r => { r.Margin = new(0, 20, 0, 0); r.HorizontalAlignment = HorizontalAlignment.Left; }),
             new StackPanel { Orientation = Orientation.Horizontal, Margin = new(0, 20, 0, 0), Children = { open, done.Also(d => d.Margin = new(10, 0, 0, 0)) } } } };
+        if (ContinueToWrite != null && lastRead != null)
+        {
+            var report = lastRead;
+            var go = Action("", "Continue to the Write scan", "PrimaryButton"); go.HorizontalAlignment = HorizontalAlignment.Left; go.Margin = new(0, 14, 0, 0);
+            go.Click += (_, _) => ContinueToWrite(report);
+            side.Children.Insert(3, new Border { CornerRadius = new(14), Margin = new(0, 20, 0, 0), Padding = new(18, 16, 18, 16), BorderThickness = new(1),
+                Background = new SolidColorBrush(Color.FromArgb(46, 61, 139, 255)), BorderBrush = new SolidColorBrush(Color.FromArgb(150, 61, 139, 255)),
+                Child = new StackPanel { Children = { Kit.Text("Next: the Write scan", 18, "DS.Text", FontWeights.SemiBold),
+                    Wrap("Learn what KeyLinker writes to this controller. This Read scan report goes along automatically, and you send both online together at the end.", 14.5, "DS.TextSoft").Also(t => t.Margin = new(0, 6, 0, 0)), go } } });
+        }
         var body = new DockPanel { Margin = new(40, 32, 40, 30) };
         DockPanel.SetDock(side, Dock.Right); body.Children.Add(side);
         body.Children.Add(new DockPanel { Children = { new StackPanel { Margin = new(0, 0, 0, 16), Children = { Kit.Text("Scan complete", 40, "DS.Text", FontWeights.Bold), Wrap("Everything X20CTL could read from this controller, and how sure each reading is.", 16, "DS.TextSoft") } }.Also(s => DockPanel.SetDock(s, Dock.Top)),
@@ -576,7 +592,7 @@ public sealed class ControllerCheckView : Grid
     {
         string json = JsonSerializer.Serialize(inventory, new JsonSerializerOptions(Evidence.Json) { WriteIndented = true });
         var text = new TextBox { Text = json, IsReadOnly = true, FontFamily = new FontFamily("Consolas"), FontSize = 13, TextWrapping = TextWrapping.Wrap, VerticalContentAlignment = VerticalAlignment.Top, Padding = new(14) };
-        var shut = Action("", "Close", "DS.ActionSecondary"); shut.Click += (_, _) => overlay.Visibility = Visibility.Collapsed;
+        var shut = Action("", "Close", "ActionButton"); shut.Click += (_, _) => overlay.Visibility = Visibility.Collapsed;
         var dock = new DockPanel { Margin = new(120, 70, 120, 70) };
         var head = new DockPanel { Margin = new(0, 0, 0, 16) }; DockPanel.SetDock(shut, Dock.Right); head.Children.Add(shut);
         head.Children.Add(new StackPanel { Children = { Kit.Text("Private Windows evidence", 26, "DS.Text", FontWeights.Bold), Kit.Text("Interface paths can contain identifiers. Review before sharing. Grouped by Windows container, not by name or VID/PID.", 14, "DS.TextSoft") } });
@@ -594,9 +610,9 @@ public sealed class ControllerCheckView : Grid
     private void BuildRawPage()
     {
         rawPage.Background = new SolidColorBrush(Color.FromArgb(235, 8, 14, 32));
-        rawStart = Action("", "Start Raw Input check", "DS.ActionPrimary"); rawStart.HorizontalAlignment = HorizontalAlignment.Left;
+        rawStart = Action("", "Start Raw Input check", "PrimaryButton"); rawStart.HorizontalAlignment = HorizontalAlignment.Left;
         rawStart.Click += (_, _) => StartRaw();
-        var shut = Action("", "Back to live input", "DS.ActionSecondary"); shut.HorizontalAlignment = HorizontalAlignment.Left; shut.Click += (_, _) => ToggleRaw();
+        var shut = Action("", "Back to live input", "ActionButton"); shut.HorizontalAlignment = HorizontalAlignment.Left; shut.Click += (_, _) => ToggleRaw();
         rawPage.Children.Add(new StackPanel { Margin = new(30, 26, 30, 20), Children = {
             Kit.Text("Raw Input fallback", 26, "DS.Text", FontWeights.Bold),
             Wrap("A separate Windows input stream for when no player slot responds. Numbered HID buttons come from the controller's own descriptor; they are not guessed as A, B, X or Y, and they don't prove independent rear buttons.", 15, "DS.TextSoft").Also(t => t.Margin = new(0, 8, 0, 14)),
