@@ -4,6 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <AssemblyName>x20ctl-studio</AssemblyName>
     <RootNamespace>X20Ctl.Linux</RootNamespace>
     <Version>4.1.0-preview.6</Version>

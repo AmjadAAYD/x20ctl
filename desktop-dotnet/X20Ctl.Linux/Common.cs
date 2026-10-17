@@ -26,6 +26,7 @@ internal sealed class StudioState
     readonly Dictionary<CurveChannel, Zone.PcMode.StickTuning> tunes = Enum.GetValues<CurveChannel>().ToDictionary(c => c, _ => new Zone.PcMode.StickTuning());
     public Zone.PcMode.StickTuning Tune(CurveChannel c) => tunes[c];
     public void ResetTune(CurveChannel c) => tunes[c] = new();
+    public void SetTune(CurveChannel c, Zone.PcMode.StickTuning t) => tunes[c] = t;
     public void ResetTunes() { foreach (var c in tunes.Keys.ToList()) tunes[c] = new(); }
     public void SetInner(CurveChannel c, double v)
     {

@@ -21,7 +21,8 @@ internal sealed class Session
         Catalog = new ControllerCatalog(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Data", "catalog.json")));
         Players[0] = Catalog.Find("x20_pro");
     }
-    public StudioState? StudioFor(int slot) => Players[slot] is { } m ? Studios[slot] ??= new StudioState(m) : null;
+    public StudioState? StudioFor(int slot) => Players[slot] is { } m ? Studios[slot] ??= Made(m) : null;
+    static StudioState Made(ControllerModel m) { var s = new StudioState(m); PcModeHub.Shared.Prepare(s); return s; }
 }
 
 /// <summary>The window: the stage behind, a header, the current screen, and the hint row. Screens swap in place.</summary>

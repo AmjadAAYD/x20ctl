@@ -68,7 +68,7 @@ internal sealed class StudioView : UserControl
         "Macros" => new MacrosPage(state),
         "Vibration" => new VibrationPage(state),
         "Device" => new DevicePage(state),
-        "PC mode" => new PcModePage(state),
+        "PC mode" => new PcModePage(state, ShowTab),
         "Mouse" => new MousePage(state),
         "Setups" => new SetupsPage(state),
         "Tester" => new TesterPage(state),
@@ -94,21 +94,25 @@ internal sealed class StudioView : UserControl
         footerHost.Child = Footing(name);
     }
 
+    string PcHeadline() => PcModeHub.Shared.Status.Length > 0 ? "PC mode · " + PcModeHub.Shared.Status : PcModeHub.Shared.NoticeSeen ? "PC mode · Apply Changes saves these settings" : "PC mode · Open the PC mode tab and read the notice to start applying this";
+
     Control Footing(string name)
     {
         var (headline, hints) = name switch
         {
             "Dashboard" => (null, Hints.Row(("A", "Select"), ("B", "Controller Zone"), ("X", "Configure"), ("Y", "Rescan games"), ("LT/RT", "Scroll games"), ("LB/RB", "Tabs"))),
-            "Buttons" => ("PC mode · Open the PC mode tab and read the notice to start applying this", Hints.Row(("A", "Select"), ("B", "Back"), ("X", "Test mapping"), ("LB/RB", "Tabs"))),
-            "Curves" => ("PC mode · Open the PC mode tab and read the notice to start applying this", Hints.Row(("A", "Adjust"), ("B", "Back"), ("X", "Reset curve"), ("Y", "Next preset"), ("LT/RT", "Channel"), ("LB/RB", "Tabs"))),
-            "Macros" => ("PC mode · Open the PC mode tab and read the notice to start applying this", Hints.Row(("A", "Edit"), ("B", "Back"), ("X", "Add event"), ("Y", "Preview"), ("LT/RT", "Slot"), ("LB/RB", "Tabs"))),
+            "Buttons" => (PcHeadline(), Hints.Row(("A", "Select"), ("B", "Back"), ("X", "Test mapping"), ("LB/RB", "Tabs"))),
+            "Curves" => (PcHeadline(), Hints.Row(("A", "Adjust"), ("B", "Back"), ("X", "Reset curve"), ("Y", "Next preset"), ("LT/RT", "Channel"), ("LB/RB", "Tabs"))),
+            "Macros" => (PcHeadline(), Hints.Row(("A", "Edit"), ("B", "Back"), ("X", "Add event"), ("Y", "Preview"), ("LT/RT", "Slot"), ("LB/RB", "Tabs"))),
+            "PC mode" => (PcModeHub.Shared.Enabled ? "PC mode is on · Buttons, Curves and Macros apply on this PC" : "PC mode is off · Your controller goes straight to the game", Hints.Row(("A", "Select"), ("B", "Back"), ("LB/RB", "Tabs"))),
             "Vibration" => ("Vibration preview · No local changes", Hints.Row(("A", "Select"), ("B", "Back"), ("X", "Reset"), ("LT/RT", "Strength"), ("LB/RB", "Tabs"))),
             _ => (null, Hints.Row(("A", "Select"), ("B", "Back"), ("LB/RB", "Tabs")))
         };
         var inner = new StackPanel { Spacing = 10 };
         if (headline != null) inner.Children.Add(T.Label(headline, 18, null, FontWeight.Medium));
         inner.Children.Add(hints);
-        var apply = new Pill("Apply Changes", Pill.Kinds.Ghost) { Enabled = false, Padding = new Thickness(26, 12) };
+        var apply = new Pill("Apply Changes", Pill.Kinds.Primary) { Padding = new Thickness(26, 12) };
+        apply.Click += () => { PcModeHub.Shared.Save(state); Show(current); };
         var row = new Grid { ColumnDefinitions = new("*,Auto") }; row.Children.Add(inner);
         if (name is "Buttons" or "Curves" or "Macros") { apply.VerticalAlignment = VerticalAlignment.Center; Grid.SetColumn(apply, 1); row.Children.Add(apply); }
         return new Border { BorderBrush = T.Hairline, BorderThickness = new Thickness(0, 1, 0, 0), Padding = new Thickness(30, 12, 30, 14), Child = row, Background = T.B("#33040814") };
