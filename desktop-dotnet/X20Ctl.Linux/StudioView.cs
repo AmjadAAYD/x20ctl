@@ -73,7 +73,7 @@ internal sealed class StudioView : UserControl
         "Setups" => new SetupsPage(state),
         "Tester" => new TesterPage(state),
         "Diagnostics" => new DiagnosticsPage(state),
-        _ => new DashboardPage(state)
+        _ => new DashboardPage(state, ShowTab)
     };
 
     void Show(string name)
