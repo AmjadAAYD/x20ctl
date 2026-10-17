@@ -68,7 +68,7 @@ internal sealed class TriggerBar : Control
 internal sealed class TesterPage : UserControl, IKeyPage
 {
     readonly StudioState state; readonly GamepadReader reader = new(); readonly HashSet<string> keys = new();
-    readonly ContentControl padHost = new(); readonly StickView left = new(false, 130), right = new(false, 130); readonly TriggerBar lt = new(false, 290, 30), rt = new(false, 290, 30);
+    readonly ContentControl padHost = new(); readonly StickView left = new(false, 130), right = new(false, 130); readonly TriggerBar lt = new(false, 250, 30), rt = new(false, 250, 30);
     readonly TextBlock lx = T.Label("X —", 14), ly = T.Label("Y —", 14), rx = T.Label("X —", 14), ry = T.Label("Y —", 14), ltText = T.Label("Unavailable", 14, T.Soft), rtText = T.Label("Unavailable", 14, T.Soft);
     readonly TextBlock source = T.Label("Gameplay input unavailable", 25, null, FontWeight.SemiBold), sourceNote = T.Label("Tester owns gameplay input. UI navigation is paused.", 15, T.Soft);
     readonly TextBlock waiting = T.Label("Waiting for native gameplay input", 20, null, FontWeight.SemiBold);
