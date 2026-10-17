@@ -124,7 +124,7 @@ public sealed class MainWindow : Window
     void ShowAbout() => Tools("about", "Tools", new AboutPage(ShowTools, mark));
     void ShowFeedback() => Tools("feedback", "Tools", new FeedbackPage(ShowTools, session.Catalog.Models.Select(m => m.Name)));
     void ShowCheck() => Tools("check", "Controller Check", new CheckPage(ShowTools, () => { session.Selected = Math.Max(0, Array.FindIndex(session.Players, p => p != null)); EnterStudio("Tester"); }), "Tools");
-    void ShowWriteScan() => Tools("check", "Write scan", new StubPage("Write scan", "Coming next."), "Tools");
+    void ShowWriteScan() => Tools("check", "Write scan", new WriteScanPage(), "Tools");
     async Task OfferUpdate()
     {
         UpdateCheck.Release? r; try { r = await UpdateCheck.Latest(); } catch (Exception) { return; }
