@@ -18,12 +18,14 @@ internal sealed class PcModeHub
     public string Status { get; private set; } = "";
     public event Action? Changed;
 
-    sealed record Saved(bool Enabled, bool NoticeSeen);
+    sealed record Saved(bool Enabled, bool NoticeSeen, bool UserOff = false);
+    /// <summary>The user switched PC mode off themselves, so entering an X20 Studio must not switch it back on.</summary>
+    public bool UserOff { get; private set; }
 
     PcModeHub()
     {
         Store.Load();
-        try { if (File.Exists(statePath) && JsonSerializer.Deserialize<Saved>(File.ReadAllBytes(statePath)) is { } s) { Enabled = s.Enabled; NoticeSeen = s.NoticeSeen; } }
+        try { if (File.Exists(statePath) && JsonSerializer.Deserialize<Saved>(File.ReadAllBytes(statePath)) is { } s) { Enabled = s.Enabled; NoticeSeen = s.NoticeSeen; UserOff = s.UserOff; } }
         catch (Exception e) when (e is IOException or JsonException or UnauthorizedAccessException) { }
         Engine.Profile = () => Store.Get(Key);
         Engine.Changed += () => Changed?.Invoke();
@@ -32,16 +34,26 @@ internal sealed class PcModeHub
 
     void Remember()
     {
-        try { Directory.CreateDirectory(Path.GetDirectoryName(statePath)!); File.WriteAllBytes(statePath, JsonSerializer.SerializeToUtf8Bytes(new Saved(Enabled, NoticeSeen))); }
+        try { Directory.CreateDirectory(Path.GetDirectoryName(statePath)!); File.WriteAllBytes(statePath, JsonSerializer.SerializeToUtf8Bytes(new Saved(Enabled, NoticeSeen, UserOff))); }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { Status = "Couldn't remember this: " + e.Message; }
     }
 
     public void MarkNoticeSeen() { NoticeSeen = true; Remember(); Changed?.Invoke(); }
 
     /// <summary>Switches PC mode. Turning it on needs the notice read first; returns false when it was held back.</summary>
-    public bool SetEnabled(bool on)
+    public bool SetEnabled(bool on) { if (on && !NoticeSeen) return false; UserOff = !on; return Turn(on); }
+
+    /// <summary>An X20 gets PC mode switched on by itself as soon as its Studio opens, once the notice has been read and unless the user turned it off.
+    /// Returns true when the Studio should open on the PC mode tab so the notice can be read first.</summary>
+    public bool AutoFor(string modelId)
     {
-        if (on && !NoticeSeen) return false;
+        if (modelId != "x20" || !PcEngine.Supported || Enabled || UserOff) return false;
+        if (!NoticeSeen) return true;
+        Turn(true); return false;
+    }
+
+    bool Turn(bool on)
+    {
         Enabled = on; Remember();
         if (on) Engine.Start(); else Engine.Stop();
         Changed?.Invoke(); return true;

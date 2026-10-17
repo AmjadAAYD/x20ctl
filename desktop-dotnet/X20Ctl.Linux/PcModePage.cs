@@ -99,7 +99,7 @@ internal sealed class PcModePage : UserControl
 
     Control Notice()
     {
-        var ok = new Pill("I understand", Pill.Kinds.Ghost, () => { hub.MarkNoticeSeen(); message = "Thanks. You can switch PC mode on now."; }) { Padding = new Thickness(26, 12), HorizontalAlignment = HorizontalAlignment.Left };
+        var ok = new Pill("I understand", Pill.Kinds.Ghost, () => { hub.MarkNoticeSeen(); hub.AutoFor(state.Model.Id); message = hub.Enabled ? "Thanks. PC mode is on for your X20." : "Thanks. You can switch PC mode on now."; }) { Padding = new Thickness(26, 12), HorizontalAlignment = HorizontalAlignment.Left };
         return new Border
         {
             Margin = new Thickness(0, 28, 0, 0), Background = T.B("#1FF5B45B"), BorderBrush = T.B("#55B8863A"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(18), Padding = new Thickness(26, 22),
