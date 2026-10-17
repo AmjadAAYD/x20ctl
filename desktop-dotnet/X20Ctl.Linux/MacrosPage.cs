@@ -22,6 +22,26 @@ internal sealed class MacrosPage : UserControl
 
     MacroDraft M => state.Macros;
 
+    CancellationTokenSource? preview;
+
+    /// <summary>Walks the sequence at its own timing, lighting each event in turn. Nothing is sent anywhere.</summary>
+    async void TogglePreview()
+    {
+        if (preview != null) { preview.Cancel(); return; }
+        var events = M[slot]; if (events.Count == 0) return;
+        var cts = preview = new CancellationTokenSource(); Build();
+        try
+        {
+            for (int i = 0; i < events.Count && !cts.IsCancellationRequested; i++)
+            {
+                index = i; Build();
+                await Task.Delay(Math.Max(40, events[i].HoldMs + events[i].PauseMs), cts.Token);
+            }
+        }
+        catch (TaskCanceledException) { }
+        finally { preview = null; Build(); }
+    }
+
     MacroRecorder? recorder; Avalonia.Threading.DispatcherTimer? watch; string recordNote = "";
 
     void ToggleRecord()
@@ -111,7 +131,7 @@ internal sealed class MacrosPage : UserControl
         head.Children.Add(T.Stack(1, T.Label(slot + " · Sequence", 28, null, FontWeight.SemiBold), T.Label($"Events {events.Count} · Capacity {M.EntryCount(slot)} / 47 · {M.Duration(slot)} ms", 13.5, T.Soft)));
         var acts = T.Line(10, new Pill(recorder == null ? "●  Record" : "■  Stop", Pill.Kinds.Ghost, ToggleRecord) { Enabled = M.CanEdit, Padding = new Thickness(20, 11) }, new Pill("⭳  Read controller", Pill.Kinds.Ghost) { Enabled = false, Padding = new Thickness(20, 11) },
             new Pill("+ Add event", Pill.Kinds.Primary, () => { try { M.Add(slot); index = M[slot].Count - 1; } catch (Exception e) when (e is InvalidOperationException or ArgumentException) { } Build(); }) { Padding = new Thickness(22, 11) },
-            new Pill("Preview timeline", Pill.Kinds.Ghost) { Enabled = false, Padding = new Thickness(20, 11) },
+            new Pill(preview == null ? "Preview timeline" : "■  Stop preview", Pill.Kinds.Ghost, TogglePreview) { Enabled = events.Count > 0, Padding = new Thickness(20, 11) },
             new Pill("···", Pill.Kinds.Ghost, () => { M.Clear(slot); index = -1; Build(); }) { Padding = new Thickness(16, 11) });
         acts.VerticalAlignment = VerticalAlignment.Top; Grid.SetColumn(acts, 1); head.Children.Add(acts);
 

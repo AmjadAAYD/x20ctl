@@ -17,7 +17,29 @@ internal sealed class ButtonsPage : UserControl
     };
 
     readonly StudioState state; string? selected; bool rear, listing; string group = "All";
-    public ButtonsPage(StudioState state) { this.state = state; Build(); }
+    GamepadReader? tester; readonly TextBlock testLine = T.Label("", 14, T.AccentHi);
+    public ButtonsPage(StudioState state)
+    {
+        this.state = state; Build();
+        DetachedFromVisualTree += (_, _) => StopTest();
+    }
+
+    void StopTest() { tester?.Dispose(); tester = null; }
+
+    /// <summary>Press anything on the controller and see what the game would get, through the mapping as it stands now.</summary>
+    void ToggleTest()
+    {
+        if (tester != null) { StopTest(); testLine.Text = ""; Build(); return; }
+        var r = new GamepadReader(); r.Start();
+        if (!r.Connected) { r.Dispose(); testLine.Text = "No controller to test with."; Build(); return; }
+        tester = r; testLine.Text = "Press a button on the controller.";
+        r.Frame += f =>
+        {
+            var lines = f.Down.Select(b => state.Buttons.Target(b) is var t && t != b ? Names.Of(b) + " → " + Names.Long(t) : Names.Of(b)).ToList();
+            testLine.Text = lines.Count == 0 ? "Press a button on the controller." : string.Join("   ", lines);
+        };
+        Build();
+    }
 
     void Build()
     {
@@ -96,10 +118,11 @@ internal sealed class ButtonsPage : UserControl
             col.Children.Add(wrap);
         }
         var actions = new Grid { ColumnDefinitions = new("*,*,Auto"), Margin = new Thickness(0, 6, 0, 0) };
-        var test = new Pill("▷  Test mapping", Pill.Kinds.Ghost) { Enabled = false, Padding = new Thickness(0, 12), Margin = new Thickness(0, 0, 10, 0) };
+        var test = new Pill(tester == null ? "▷  Test mapping" : "■  Stop test", tester == null ? Pill.Kinds.Ghost : Pill.Kinds.Light, ToggleTest) { Padding = new Thickness(0, 12), Margin = new Thickness(0, 0, 10, 0) };
         var all = new Pill("▦  All assignments", Pill.Kinds.Ghost, () => { listing = true; Build(); }) { Padding = new Thickness(0, 12), Margin = new Thickness(0, 0, 10, 0) }; Grid.SetColumn(all, 1);
         var more = new Pill("···", Pill.Kinds.Ghost, () => { state.Buttons.ResetAll(); selected = null; Build(); }) { Padding = new Thickness(18, 12) }; Grid.SetColumn(more, 2);
         actions.Children.Add(test); actions.Children.Add(all); actions.Children.Add(more);
+        if (testLine.Text.Length > 0) { (testLine.Parent as Panel)?.Children.Remove(testLine); col.Children.Add(testLine); }
         col.Children.Add(actions);
         return T.Card(new ScrollViewer { Content = col, VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto }, 22);
     }
