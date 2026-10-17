@@ -5,48 +5,35 @@ using Avalonia.Media;
 using X20Ctl.Zone;
 namespace X20Ctl.Linux;
 
-/// <summary>The controller, its draft and what is waiting to be applied.</summary>
-internal sealed class DashboardPage : UserControl
-{
-    public DashboardPage(StudioState s)
-    {
-        var art = new Image { Source = Ui.Art(s.Model.Id, "front-full"), Stretch = Stretch.Uniform, MaxHeight = 420 };
-        var facts = Ui.Column(
-            Ui.Label(s.Model.Name, 22, null, FontWeight.SemiBold),
-            Ui.Label(s.Model.Support, 12, Ui.Accent, FontWeight.SemiBold),
-            Ui.Label(s.Model.Summary, 13, Ui.Quiet),
-            Ui.Label("Draft", 12, Ui.Quiet),
-            Ui.Label(s.Buttons.UnsentChanges + " button changes · " + s.Curves.ModifiedChannels + " curves · " + s.Macros.ModifiedSlots + " macros", 14));
-        var grid = new Grid { ColumnDefinitions = new("*,Auto") };
-        grid.Children.Add(Ui.Panel(art, 10));
-        var side = Ui.Panel(facts); side.Margin = new Thickness(14, 0, 0, 0); side.Width = 340; Grid.SetColumn(side, 1); grid.Children.Add(side);
-        Content = grid;
-    }
-}
-
-/// <summary>Motor strength, as a preview: nothing is written to the controller.</summary>
-internal sealed class VibrationPage : UserControl
-{
-    public VibrationPage(StudioState s)
-    {
-        var value = Ui.Label(s.VibrationPreview + "%", 40, null, FontWeight.SemiBold);
-        var slider = new Slider { Minimum = 0, Maximum = 100, Value = s.VibrationPreview, Width = 420, HorizontalAlignment = HorizontalAlignment.Left };
-        slider.PropertyChanged += (_, e) => { if (e.Property == Avalonia.Controls.Primitives.RangeBase.ValueProperty) { s.VibrationPreview = (int)Math.Round(slider.Value); value.Text = s.VibrationPreview + "%"; } };
-        var note = s.Model.Id is "x20_pro" or "dune" ? "This pad has trigger motors as well as two grip motors." : "This pad has two grip motors.";
-        Content = Ui.Panel(Ui.Column(Ui.Label("Vibration", 18, null, FontWeight.SemiBold), value, slider, Ui.Label(note, 13, Ui.Quiet), Ui.Label("A preview of your setting, not a reading from the motors.", 12, Ui.Quiet)));
-    }
-}
-
-/// <summary>What the app knows about the connected controller. Nothing connects on Linux yet, so this says so.</summary>
+/// <summary>What the app knows about the connected controller, and what it supports on this model.</summary>
 internal sealed class DevicePage : UserControl
 {
     public DevicePage(StudioState s)
     {
         var o = new DeviceOverview(s.Model.Id, 1);
-        Control Line(string k, string v) { var g = new Grid { ColumnDefinitions = new("200,*") }; g.Children.Add(Ui.Label(k, 13, Ui.Quiet)); var t = Ui.Label(v, 14); Grid.SetColumn(t, 1); g.Children.Add(t); return g; }
-        Content = Ui.Panel(Ui.Column(Ui.Label("Device", 18, null, FontWeight.SemiBold),
-            Line("Gameplay", o.GameplayStatus), Line("Configuration", o.ConfigurationStatus),
-            Line("Battery", o.BatteryPercent is int pct ? pct + "%" : "Not reported"),
-            Line("Firmware", o.Firmware ?? "Not reported"), Line("Transport", o.Transport ?? "Not reported")));
+        var tiles = new Grid { ColumnDefinitions = new("*,*,*"), RowDefinitions = new("Auto,Auto") };
+        void Tile(string l, string v, int r, int c) { var t = Parts.Tile(l, v); t.Margin = new Thickness(c == 0 ? 0 : 6, r == 0 ? 0 : 10, c == 2 ? 0 : 6, 0); Grid.SetRow(t, r); Grid.SetColumn(t, c); tiles.Children.Add(t); }
+        Tile("Battery", o.BatteryPercent is int p ? p + "%" : "Not reported", 0, 0); Tile("Firmware", o.Firmware ?? "Not reported", 0, 1); Tile("Hardware revision", o.HardwareRevision ?? "Not reported", 0, 2);
+        Tile("Transport", o.Transport ?? "Not reported", 1, 0); Tile("Gameplay connection", o.GameplayStatus, 1, 1); Tile("Configuration connection", o.ConfigurationStatus, 1, 2);
+        var support = T.Stack(6, T.Label("Support on this model", 18, null, FontWeight.SemiBold), T.Label(s.Model.Support + " · " + s.Model.Summary, 14, T.Soft));
+        var art = new ControllerArt(s.Model.Id) { Height = 260 };
+        var grid = new Grid { ColumnDefinitions = new("1*,1.4*"), Margin = new Thickness(36, 8, 36, 18) };
+        grid.Children.Add(T.Card(art, 16));
+        var right = T.Card(T.Stack(20, T.Stack(4, T.Label("Device", 28, null, FontWeight.SemiBold), T.Label(s.Model.Name + " · Offline", 14.5, T.Soft)), tiles, support), 26); right.Margin = new Thickness(18, 0, 0, 0); Grid.SetColumn(right, 1); grid.Children.Add(right);
+        Content = new ScrollViewer { Content = grid };
     }
 }
+
+internal sealed class StubPage : UserControl
+{
+    public StubPage(string title, string text)
+    {
+        Content = new Grid { Margin = new Thickness(36, 8, 36, 18), Children = { T.Card(T.Stack(8, T.Label(title, 28, null, FontWeight.SemiBold), T.Label(text, 15, T.Soft)), 28) } };
+    }
+}
+internal sealed class PcModePage : StubPageBase { public PcModePage(StudioState s) : base("PC mode", "Coming next.") { } }
+internal sealed class MousePage : StubPageBase { public MousePage(StudioState s) : base("Mouse", "Coming next.") { } }
+internal sealed class SetupsPage : StubPageBase { public SetupsPage(StudioState s) : base("Setups", "Coming next.") { } }
+internal sealed class TesterPage : StubPageBase { public TesterPage(StudioState s) : base("Tester", "Coming next.") { } }
+internal sealed class DiagnosticsPage : StubPageBase { public DiagnosticsPage(StudioState s) : base("Diagnostics", "Coming next.") { } }
+internal class StubPageBase : UserControl { public StubPageBase(string title, string text) { Content = new StubPage(title, text); } }
