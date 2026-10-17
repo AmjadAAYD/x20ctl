@@ -1,13 +1,17 @@
+﻿using System.Windows.Media.Animation;
 ﻿using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Text.Json;
 using X20Ctl.Zone;
 namespace X20Ctl.Product;
 
 public sealed class ProductHost : Grid
 {
+    private string?[] batteryLevels=new string?[4];
+    public void UpdateBatteryLevels(string?[] levels){batteryLevels=(string?[])levels.Clone();if(Studio is {} studio)studio.SetBatteryLevel(batteryLevels[studio.Player]);}
     public ZoneScene Zone { get; }
     public ControllerCatalog Catalog { get; }
     public StudioScene? Studio { get; private set; }
@@ -22,7 +26,7 @@ public sealed class ProductHost : Grid
     private readonly SemaphoreSlim nativeContextLock=new(1,1);
     private readonly object nativeEventLock=new();private JsonElement? latestNativeEvent;private int nativeEventScheduled;
     private HashSet<string> lastNativeButtons=new();private bool nativeArmed;private long lastNativeSequence=-1,lastNavigationUs;
-    private string ExpectedNativeContext=>Studio?.InputContext==InputOwner.TesterCapture?"TESTER_CAPTURE":"UI_NAVIGATION";
+    private string ExpectedNativeContext=>Studio?.InputContext is InputOwner.TesterCapture or InputOwner.RemapCapture?"TESTER_CAPTURE":"UI_NAVIGATION";
     public bool IntroWasPlayed {get;private set;}
     private readonly ProductPreferences preferences;
     private readonly bool preferencesHealthy;
@@ -47,8 +51,9 @@ public sealed class ProductHost : Grid
         support=openSupport??ProductLinks.OpenSupport;
         preferences=new(assignmentPath==null?Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),"x20ctl","native","preferences.v1.json"):Path.Combine(Path.GetDirectoryName(Path.GetFullPath(assignmentPath))!,"preferences-fixture.json"));
         try{preferences.Load();preferencesHealthy=true;}catch(Exception error) when(error is IOException or System.Text.Json.JsonException or InvalidOperationException){Zone.FeedbackText.Text="Startup preferences unavailable; original file preserved. "+error.Message;}
-        // Tools → "Keep X20CTL up to date": only when turned on, never for review fixtures
-        if(preferencesHealthy&&preferences.AutoUpdate&&assignmentPath==null)_=CheckUpdatesAtLaunch();
+        // every launch asks GitHub for a newer version (owner request, 13 Oct 2026); a popup follows the intro only when there is one.
+        // Tools → "Keep X20CTL up to date" decides whether it also installs itself. Never for review fixtures.
+        if(assignmentPath==null)_=CheckUpdatesAtLaunch(preferencesHealthy&&preferences.AutoUpdate);
         // a review or fixture window gets a store beside its own files and a service that never starts
         pcModeStore=new(assignmentPath==null?X20Ctl.Zone.PcMode.PcModeStore.DefaultPath:Path.Combine(Path.GetDirectoryName(Path.GetFullPath(assignmentPath))!,"pc-mode-fixture.json"));pcModeStore.Load();
         PcMode=new(pcModeStore){Enabled=assignmentPath==null&&(!preferencesHealthy||preferences.PcMode)};
@@ -63,7 +68,8 @@ public sealed class ProductHost : Grid
         try { var ids = store.Load(); if (assignmentPath != null && ids.Any(id => id != null)) Zone.RestoreAssignments(ids, Catalog); }
         catch (Exception error) when (error is IOException or System.Text.Json.JsonException or UnauthorizedAccessException)
         { Zone.FeedbackText.Text = "Saved assignments could not be read. Original file preserved; new choices will be session-only."; }
-        Zone.ControllerActionRequested += (index, change) => { if (change || Zone.State.Players[index].Model == null) OpenSelector(index); else EnterStudio(index); };
+        Zone.ControllerRemoved += index => {try{store.Save(Zone.State.Players.Select(p=>p.ModelId).ToArray());}catch(Exception error)when(error is IOException or UnauthorizedAccessException or InvalidOperationException){Zone.FeedbackText.Text="Removed for this session; saved assignments could not be updated.";}};
+        Zone.ControllerActionRequested += (index, change) => { if (change || Zone.State.Players[index].Model == null) OpenSelector(index); else VerifyThenEnter(index); };
     }
     public void OpenSelector(int player)
     {
@@ -86,6 +92,35 @@ public sealed class ProductHost : Grid
         if (Selector != null) { var leaving = Selector; Selector = null; Fx.Leave(leaving, () => Children.Remove(leaving), .97, 200); }
         Zone.IsEnabled = true; if (Studio != null) Studio.IsEnabled = true;
     }
+    // owner, 14 Oct 2026: opening a controller scans first. A pad that names itself as another model is never opened as this
+    // one; a pad that can't be told apart, or none at all, is shown as such and the player decides.
+    private Grid? verifyLayer; private int verifyToken;
+    private async void VerifyThenEnter(int player)
+    {
+        var assigned = Zone.State.Players[player];
+        var model = assigned.ModelId != null ? Catalog.Find(assigned.ModelId) : Catalog.Models.FirstOrDefault(m => m.Name == assigned.Model);
+        if (model == null || ReviewSandbox.Active || verifyLayer != null) { EnterStudio(player); return; }
+        int token = ++verifyToken;
+        var view = new ControllerVerifyView(model.Id, model.Name, Zone.ReducedMotion == false);
+        var layer = new Grid { Children = { view } }; verifyLayer = layer;
+        void Close() { if (verifyLayer != layer) return; verifyLayer = null; verifyToken++; Zone.IsEnabled = Selector == null && Settings == null && Intro == null; Fx.Leave(layer, () => Children.Remove(layer), 1.03, 180); }
+        view.Cancelled += Close;
+        Zone.IsEnabled = false; Panel.SetZIndex(layer, 36); Children.Add(layer); Fx.Appear(layer, .96, 220);
+        async Task Scan()
+        {
+            view.BeginScan();
+            var started = DateTime.UtcNow;
+            var result = await ControllerVerify.Run(model.Id);
+            var wait = TimeSpan.FromMilliseconds(1900) - (DateTime.UtcNow - started); if (wait > TimeSpan.Zero) await Task.Delay(wait); // long enough to read what it is doing
+            if (token != verifyToken || verifyLayer != layer) return;
+            void Enter() { Close(); Children.Remove(layer); Zone.UpdateLayout(); EnterStudio(player); }
+            view.ShowResult(result, model.Name, result.DetectedName, Enter,
+                id => { var other = Catalog.Find(id); Close(); if (other != null) { AssignSelection(other); EnterStudio(player); } },
+                () => _ = Scan());
+            if (result.Outcome == VerifyOutcome.Match) { await Task.Delay(1000); if (token == verifyToken && verifyLayer == layer) Enter(); }
+        }
+        await Scan();
+    }
     public void EnterStudio(int player)
     {
         var assigned = Zone.State.Players[player];
@@ -104,15 +139,22 @@ public sealed class ProductHost : Grid
         if(pcModeStore!=null)PcModePage.UsePlayer(player,pcModeStore); // each controller has its own PC mode settings
         if(pc)PcModeSync.Prepare(pcModeStore!,draft,curveDraft,macroDraft);
         Studio = new(player, model, draft, Zone.ReducedMotion, curveDraft,macroDraft,vibrationDraft,setupStore,legacySources,activeSetup); if(PcMode!=null&&pcModeStore!=null)Studio.PcMode=new(pcModeStore,PcMode,preferencesHealthy?preferences:null);Studio.MouseService=MouseMode;Studio.PcModeSwitched+=()=>Dispatcher.BeginInvoke(()=>{EnterStudio(player);Studio?.ShowManagement("PcMode");});Studio.BackRequested += ReturnToZone;Studio.SupportRequested+=OpenSupport;Studio.ActiveSetupChanged+=id=>activeSetups[key]=id;
+        Studio.SetBatteryLevel(batteryLevels[player]);
         Studio.NativeEngineStatus=NativeEngineStatus;
         Studio.InputContextChanged+=()=>_=UpdateNativeContext();
         if(Engine!=null)_=RefreshNativeCapabilities(model.Id);
-        // fwoosh into the Studio: it zooms in over the Zone, which sinks back, and only then is the Zone put away
-        Children.Add(Studio); var entering = Studio;
-        Fx.Appear(Studio, 1.07, 380, () => { if (Studio == entering) Zone.Visibility = Visibility.Collapsed; });
-        if (SystemParameters.ClientAreaAnimation) Fx.Leave(Zone, () => { Zone.BeginAnimation(OpacityProperty, null); Zone.Opacity = 1; Zone.IsHitTestVisible = true; if (Studio != null) Zone.Visibility = Visibility.Collapsed; Zone.RenderTransform = null; }, .94, 380);
-        else Zone.Visibility = Visibility.Collapsed;
+        // Carry the selected controller into its Dashboard rather than replacing one screen with a zoom.
+        Rect source=Rect.Empty;
+        if (Zone.Visibility==Visibility.Visible && player<Zone.Docks.Count)
+        {
+            var art=Zone.Docks[player].ControllerArtwork;
+            if(art.ActualWidth>0 && art.ActualHeight>0) source=art.TransformToAncestor(this).TransformBounds(new Rect(art.RenderSize));
+        }
+        Children.Add(Studio);
+        Studio.Opacity=1;Studio.IsHitTestVisible=true;Zone.Visibility=Visibility.Collapsed;
+        Studio.Dashboard?.CompleteEntryTransition();
     }
+
     public void ReturnToZone()
     {
         bool back = Studio != null;
@@ -128,8 +170,8 @@ public sealed class ProductHost : Grid
     public async Task InitializeNativeEngineAsync()
     {
         if(Engine!=null)return;
-        try{Engine=new();Engine.EventReceived+=QueueNativeEvent;Engine.Disconnected+=reason=>Dispatcher.BeginInvoke(new Action(()=>{nativeSubscription=null;nativeArmed=false;NativeEngineStatus="Native core disconnected · Configuration unavailable";if(Studio!=null){Studio.NativeEngineStatus=NativeEngineStatus;Studio.Device?.UpdateEngineStatus(NativeEngineStatus);Studio.Tester?.ExitCapture();}}));var hello=await Engine.Request("handshake",new{});if(!hello.TryGetProperty("engineEpoch",out var epoch))throw new InvalidDataException("Native handshake omitted epoch.");nativeEpoch=epoch.GetString();NativeEngineStatus="Native C++ core running · Configuration locked";Zone.ProvenanceText.Text="LOCAL ASSIGNMENTS";await RefreshNativeCapabilities(Studio?.Model.Id??"x20");await UpdateNativeContext();}
-        catch(Exception error){NativeEngineStatus="Native core unavailable · "+error.Message;if(Studio!=null){Studio.NativeEngineStatus=NativeEngineStatus;Studio.Device?.UpdateEngineStatus(NativeEngineStatus);}Zone.FeedbackText.Text="Native connection unavailable; local previews remain available.";}
+        try{Engine=new();Engine.EventReceived+=QueueNativeEvent;Engine.Disconnected+=reason=>Dispatcher.BeginInvoke(new Action(()=>{nativeSubscription=null;nativeArmed=false;NativeEngineStatus="Native core disconnected · Configuration unavailable";if(Studio!=null){Studio.NativeEngineStatus=NativeEngineStatus;Studio.Device?.UpdateEngineStatus(NativeEngineStatus);Studio.Tester?.ExitCapture();}}));var hello=await Engine.Request("handshake",new{});if(!hello.TryGetProperty("engineEpoch",out var epoch))throw new InvalidDataException("Native handshake omitted epoch.");nativeEpoch=epoch.GetString();NativeEngineStatus="Native C++ core running · Configuration locked";Zone.ProvenanceText.Text="LIVE INPUT";await RefreshNativeCapabilities(Studio?.Model.Id??"x20");await UpdateNativeContext();}
+        catch(Exception error){Zone.ProvenanceText.Text="INPUT UNAVAILABLE";NativeEngineStatus="Native core unavailable · "+error.Message;if(Studio!=null){Studio.NativeEngineStatus=NativeEngineStatus;Studio.Device?.UpdateEngineStatus(NativeEngineStatus);}Zone.FeedbackText.Text="Native connection unavailable; local previews remain available.";}
     }
     private async Task RefreshNativeCapabilities(string model)
     {
@@ -140,7 +182,12 @@ public sealed class ProductHost : Grid
     private async Task UpdateNativeContext()
     {
         if(Engine==null||nativeEpoch==null)return;await nativeContextLock.WaitAsync();
-        try{if(Engine==null)return;nativeSubscription=null;nativeArmed=false;lastNativeButtons.Clear();lastNativeSequence=-1;string context=ExpectedNativeContext;var response=await Engine.Request("subscribe",new{stream="input",slot=0,context});if(context==ExpectedNativeContext)nativeSubscription=response.GetProperty("subscriptionId").GetString();}
+        try{if(Engine==null)return;nativeSubscription=null;nativeArmed=false;lastNativeButtons.Clear();lastNativeSequence=-1;string context=ExpectedNativeContext;
+            var sources=await Engine.Request("listGameplaySources",new{});
+            var slots=sources.GetProperty("sources").EnumerateArray().Select(s=>s.GetProperty("slot").GetInt32()).Where(s=>!PcModeService.IsVirtual(s)).ToArray();
+            int preferred=Studio?.Player??Zone.State.FocusedPlayer??0;
+            int slot=slots.Contains(preferred)?preferred:slots.FirstOrDefault(0);
+            var response=await Engine.Request("subscribe",new{stream="input",slot,context});if(context==ExpectedNativeContext)nativeSubscription=response.GetProperty("subscriptionId").GetString();}
         catch(Exception error){NativeEngineStatus="Native input unavailable · "+error.Message;}finally{nativeContextLock.Release();}
     }
     private void QueueNativeEvent(JsonElement message)
@@ -154,7 +201,8 @@ public sealed class ProductHost : Grid
         try{
             if(value.GetProperty("engineEpoch").GetString()!=nativeEpoch||value.GetProperty("subscriptionId").GetString()!=nativeSubscription||value.GetProperty("inputContext").GetString()!=ExpectedNativeContext)return;
             long sequence=value.GetProperty("sequence").GetInt64();if(sequence<=lastNativeSequence)return;lastNativeSequence=sequence;
-            var payload=value.GetProperty("payload");bool connected=payload.GetProperty("connected").GetBoolean();Zone.ScenarioHint.Text=connected?"XInput navigation · Model identity unverified · Configuration locked":"No gameplay source connected · Configuration locked";
+            var payload=value.GetProperty("payload");bool connected=payload.GetProperty("connected").GetBoolean();Zone.ProvenanceText.Text=connected?"LIVE INPUT":"NO CONTROLLER";Zone.ScenarioHint.Text=connected?"XInput navigation · Model identity unverified · Configuration locked":"No gameplay source connected · Configuration locked";
+            Studio?.SetGameplayConnected(connected);
             if(connected)Studio?.ObserveLiveInput(payload.GetProperty("leftX").GetDouble(),payload.GetProperty("leftY").GetDouble(),payload.GetProperty("rightX").GetDouble(),payload.GetProperty("rightY").GetDouble(),payload.GetProperty("lt").GetDouble(),payload.GetProperty("rt").GetDouble());
             // virtual buttons: triggers and left stick become digital presses with a threshold
             var now=payload.GetProperty("buttons").EnumerateArray().Select(v=>v.GetString()!).ToHashSet();
@@ -162,14 +210,15 @@ public sealed class ProductHost : Grid
                 double lx=payload.GetProperty("leftX").GetDouble(),ly=payload.GetProperty("leftY").GetDouble();if(Math.Abs(lx)>.6&&Math.Abs(lx)>=Math.Abs(ly))now.Add(lx>0?"LS_RIGHT":"LS_LEFT");else if(Math.Abs(ly)>.6)now.Add(ly>0?"LS_UP":"LS_DOWN");}
             var pressed=now.Except(lastNativeButtons).ToArray();lastNativeButtons=now;
             long time=value.GetProperty("timestampUs").GetInt64();
+            if(Studio?.CapturingButtonEditor==true){if(connected){foreach(var button in pressed.Where(b=>!b.StartsWith("LS_")))Studio.SelectPhysicalButton(button);}nativeArmed=false;return;}
             // Home / Guide: bring X20CTL forward from anywhere (tray, behind a game); in front it goes home
-            if(connected&&pressed.Contains("HOME")&&Studio?.ManagementPage!="Diagnostics"){HomeRequested?.Invoke();return;}
+            if(connected&&pressed.Contains("HOME")&&Studio?.ManagementPage is not ("Diagnostics" or "Mouse")){HomeRequested?.Invoke();return;}
             // the controller is the mouse: its buttons click and type, so they must not also move around X20CTL (Home still comes home)
             if(MouseMode?.Active==true){nativeArmed=false;return;}
-            if(Studio?.ManagementPage is "Tester" or "Diagnostics")
+            if(Studio?.ManagementPage is "Tester" or "Diagnostics" or "Mouse")
             {
                 // the Tester owns every input; only a deliberate one-second hold of B leaves it
-                if(now.Contains("B")){if(bHeldSinceUs==0)bHeldSinceUs=time;else if(time-bHeldSinceUs>=1_000_000){bHeldSinceUs=0;Studio.ShowManagement("Device");nativeArmed=false;return;}}else bHeldSinceUs=0;
+                if(Studio.ManagementPage=="Tester" && now.Contains("B")){if(bHeldSinceUs==0)bHeldSinceUs=time;else if(time-bHeldSinceUs>=1_000_000){bHeldSinceUs=0;Studio.ShowManagement("Device");nativeArmed=false;return;}}else bHeldSinceUs=0;
                 if(Studio.ManagementPage=="Tester")Studio.Tester?.ReceiveNative(value);nativeArmed=false;return;
             }
             if(!connected||Window.GetWindow(this)?.IsActive!=true){nativeArmed=false;return;}if(!nativeArmed){if(now.Count==0)nativeArmed=true;return;}
@@ -193,7 +242,7 @@ public sealed class ProductHost : Grid
     }
     private void CompleteIntro()
     {
-        if(Intro!=null){Children.Remove(Intro);Intro=null;}Zone.Opacity=1;Zone.IsEnabled=true;
+        if(Intro!=null){Children.Remove(Intro);Intro=null;}Zone.Opacity=1;Zone.IsEnabled=true;if(updateText!=null)ShowUpdateNotice();
         if(preferencesHealthy)try{preferences.MarkIntroSeen();}catch(Exception error) when(error is IOException or InvalidOperationException){Zone.FeedbackText.Text="Startup preference could not be saved; original file preserved. "+error.Message;}
     }
     private void OpenSupport(){try{support(ProductLinks.Support);}catch(Exception error){Zone.FeedbackText.Text="Could not open your browser. Support X20CTL: "+ProductLinks.Support+" · "+error.Message;}}
@@ -201,15 +250,43 @@ public sealed class ProductHost : Grid
     /// <summary>"Controller not working?": the Controller Check (Scanner 2.0.0 engine) as its own full-window app over Tools.</summary>
     public Scanner.ControllerCheckView? Check {get;private set;}
     public void OpenCheck(){if(Check!=null)return;if(Studio?.ManagementPage=="Diagnostics")Studio.ShowManagement("Device"); // both use Raw Input, one registration per process
-        if(PcMode!=null)PcMode.Paused=true;Check=new(CloseCheck);Children.Add(Check);Panel.SetZIndex(Check,40);Fx.Appear(Check,1.06,360);}
+        if(PcMode!=null)PcMode.Paused=true;Check=new(CloseCheck){ContinueToWrite=read=>{CloseCheck();if(Check==null)OpenWriteScan(read);}};Children.Add(Check);Panel.SetZIndex(Check,40);Fx.Appear(Check,1.06,360);}
     /// <summary>A scan screen that lost its place (closed, but still drawn) is removed outright, so Back can never be dead.</summary>
     private bool RemoveOrphans(){var stale=Children.OfType<FrameworkElement>().Where(c=>c is Scanner.ControllerCheckView v&&v!=Check||c is Scanner.WriteScanView w&&w!=WriteScan).ToList();foreach(var c in stale)Children.Remove(c);return stale.Count>0;}
     public void CloseCheck(){if(Check==null){RemoveOrphans();return;}if(!Check.TryClose())return;var closing=Check;Check=null;closing.Shutdown();if(PcMode!=null)PcMode.Paused=false;Fx.Leave(closing,()=>Children.Remove(closing),1.05,240);Settings?.Check.Focus();}
     /// <summary>The Write scan: reads a phone's Bluetooth log of the official app changing one setting. It never talks to the controller.</summary>
     public Scanner.WriteScanView? WriteScan {get;private set;}
-    public void OpenWriteScan(){if(WriteScan!=null)return;WriteScan=new(CloseWriteScan);Children.Add(WriteScan);Panel.SetZIndex(WriteScan,40);Fx.Appear(WriteScan,1.06,360);}
+    public void OpenWriteScan()=>OpenWriteScan(null);
+    public void OpenWriteScan(Scanner.ReadReport? read){if(WriteScan!=null)return;WriteScan=new(CloseWriteScan,read);Children.Add(WriteScan);Panel.SetZIndex(WriteScan,40);Fx.Appear(WriteScan,1.06,360);}
     public void CloseWriteScan(){if(WriteScan==null){RemoveOrphans();return;}if(!WriteScan.TryClose())return;var closing=WriteScan;WriteScan=null;closing.Shutdown();Fx.Leave(closing,()=>Children.Remove(closing),1.05,240);Settings?.WriteScan.Focus();}
-    private async Task CheckUpdatesAtLaunch(){await Task.Delay(4000);if(await Updater.AutoRun() is { } message)Zone.FeedbackText.Text=message;}
+    private string? updateText;private bool updateShown;
+    private async Task CheckUpdatesAtLaunch(bool install)
+    {
+        await Task.Delay(4000);
+        try{if(install)await Updater.AutoRun();else Updater.Ready=await Updater.Latest();}catch(Exception){return;}
+        if(Updater.Ready is not {} release)return;
+        updateText=Updater.Installed is {} installed?$"Version {installed} is installed. It starts the next time you open X20CTL.":$"{release.Title} is out. You have {Updater.Current}.";
+        if(Intro==null)ShowUpdateNotice();
+    }
+    /// <summary>Non-modal header notice, after the intro and only for a newer release.</summary>
+    private void ShowUpdateNotice()
+    {
+        if(updateShown||updateText==null||Updater.Ready is not {} release)return;updateShown=true;
+        var label=Kit.Text(Updater.Installed!=null ? "Update installed · restart to finish" : "Update available · "+release.Title,14,"DS.Text",FontWeights.SemiBold);
+        label.TextTrimming=TextTrimming.CharacterEllipsis;
+        label.Foreground=DS.Brush("Zone.TextSecondary");
+        var go=new Button { Style=DS.Style("Zone.Utility"),MinHeight=38,Padding=new(18,0,18,0),Content=label,ToolTip=updateText,MaxWidth=460 };
+        Zone.UpdateNotice.Content=go;
+        go.Click+=async(_,_)=>
+        {
+            if(Updater.Installed!=null)return;
+            if(!Updater.CanInstall) { if(!ReviewSandbox.Active)System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Updater.ReleasesPage){UseShellExecute=true});return; }
+            go.IsEnabled=false;label.Text="Downloading update…";
+            try { var(_,text)=await Updater.Install(release); label.Text=text; }
+            catch(Exception error) when(error is System.Net.Http.HttpRequestException or TaskCanceledException or IOException or UnauthorizedAccessException) { label.Text="Update failed · click to retry";go.ToolTip=error.Message; }
+            finally { go.IsEnabled=true; }
+        };
+    }
     public void CloseSettings(){if(Settings!=null){var leaving=Settings;Settings=null;Fx.Leave(leaving,()=>Children.Remove(leaving),1.03,220);}Zone.IsEnabled=true;}
     public void ResetTransientInput(){nativeArmed=false;Zone.SuspendNavigation();Studio?.Tester?.ClearKeyboardKeys();Studio?.ReleaseTransientInput();}
     public event Action? HomeRequested;
@@ -217,6 +294,8 @@ public sealed class ProductHost : Grid
     public void OnKeyDown(object sender, KeyEventArgs e)
     {
         var key=e.Key==Key.System?e.SystemKey:e.Key;
+        // the identity scan popup: Esc / B backs out, A / Enter presses the focused button, nothing behind it moves
+        if(verifyLayer!=null){if(e.Key is Key.Escape or Key.B){verifyLayer.Children.OfType<ControllerVerifyView>().FirstOrDefault()?.RaiseCancel();}else if(e.Key is Key.A or Key.Enter&&Keyboard.FocusedElement is Button pressed&&!e.IsRepeat)pressed.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));e.Handled=true;return;}
         // the Controller Check is testing the controller: its presses are never navigation; the keyboard's Esc leaves
         if(Check!=null){if(sender is ProductHost){e.Handled=true;return;}if(e.Key==Key.Escape){CloseCheck();e.Handled=true;}return;}
         // the Write scan is typed into and clicked; the keyboard's Esc leaves, nothing else navigates behind it

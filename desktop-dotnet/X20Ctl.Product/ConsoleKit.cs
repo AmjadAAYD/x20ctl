@@ -40,9 +40,15 @@ internal static class Kit
         return new Border
         {
             CornerRadius = new(16), BorderThickness = new(1), Padding = pad ?? new(20, 16, 20, 16), Child = dock,
-            Background = new LinearGradientBrush(Color.FromArgb(205, 12, 22, 50), Color.FromArgb(190, 7, 13, 32), 90),
-            BorderBrush = new LinearGradientBrush(Color.FromArgb(105, 120, 170, 255), Color.FromArgb(30, 120, 170, 255), 90)
+            Background = new SolidColorBrush(Color.FromRgb(12,22,43)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(42,61,89))
         };
+    }
+
+    public static Border Segments(Panel choices)
+    {
+        foreach(var option in choices.Children.OfType<Button>()){option.Style=DS.Style("SegmentOption");option.Margin=new(3,0,3,0);}
+        return new Border{Background=Brushes.Transparent,Child=choices,HorizontalAlignment=HorizontalAlignment.Left};
     }
 
     public static Grid TitleBar(string subtitle, StatusChip status)
@@ -251,8 +257,8 @@ internal static class Kit
     public static Grid Actions(string primaryIcon, string primary, string secondaryIcon, string secondary, bool primaryEnabled = true)
     {
         var g = new Grid { Margin = new(0, 14, 0, 0) }; g.ColumnDefinitions.Add(new()); g.ColumnDefinitions.Add(new() { Width = new(12) }); g.ColumnDefinitions.Add(new()); g.ColumnDefinitions.Add(new() { Width = new(12) }); g.ColumnDefinitions.Add(new() { Width = GridLength.Auto });
-        var p = new Button { Content = IconLabel(primaryIcon, primary), Style = DS.Style("DS.ActionPrimary"), IsEnabled = primaryEnabled };
-        var s = new Button { Content = IconLabel(secondaryIcon, secondary), Style = DS.Style("DS.ActionSecondary") }; Grid.SetColumn(s, 2);
+        var p = new Button { Content = IconLabel(primaryIcon, primary), Style = DS.Style("PrimaryButton"), IsEnabled = primaryEnabled };
+        var s = new Button { Content = IconLabel(secondaryIcon, secondary), Style = DS.Style("ActionButton") }; Grid.SetColumn(s, 2);
         var more = new Button { Content = "", Style = DS.Style("DS.ActionRound") }; Grid.SetColumn(more, 4);
         g.Children.Add(p); g.Children.Add(s); g.Children.Add(more); return g;
     }

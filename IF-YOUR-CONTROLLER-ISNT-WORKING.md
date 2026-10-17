@@ -31,7 +31,7 @@ Window close hides it to the system tray. Choose **Open x20ctl** to return or **
 
 ## Startup or saved-profile error
 
-Use the full `x20ctl.exe` release download. Give the self-contained executable time to unpack. Source and smaller development builds require WebView2 to be installed separately. Diagnostic logs are in `%LOCALAPPDATA%\x20ctl\desktop.log`.
+Use the full `x20ctl.exe` release download. Give the self-contained executable time to unpack. Diagnostic logs are in `%LOCALAPPDATA%\x20ctl\desktop.log`.
 
 Profiles are in `%APPDATA%\x20ctl\desktop\profiles.json`. If this file is malformed, the app preserves it and blocks overwriting it. Back it up before repairing it. Older profiles are still in `%APPDATA%\x20ctl\profiles` and can be imported.
 
@@ -40,3 +40,13 @@ Profiles are in `%APPDATA%\x20ctl\desktop\profiles.json`. If this file is malfor
 Factory reset is destructive to the controller's settings and requires confirmation. Saved local setups remain. If hardware controls are unusable, consult the manufacturer's instructions for your exact model rather than assuming a universal reset combination.
 
 For a [bug report](https://github.com/AmjadAAYD/x20ctl/issues), include app version, Windows version, exact controller model, firmware if readable, steps to reproduce and the error shown. Remove addresses, serials and personal paths from logs. State separately whether gameplay input and BLE configuration work.
+
+## The command-line tool cannot find the pad (Linux)
+
+The pad advertises its settings link only now and then, so `x20 scan` listens in several short rounds, and every command retries its connection. If it still finds nothing, run:
+
+```
+x20 scan --all
+```
+
+It lists every Bluetooth device heard, with signal strength. Send that output with a bug report, and say whether the pad was paired or connected to the computer at the time.

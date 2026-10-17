@@ -6,8 +6,8 @@ public class CurveDraftTests
     [Fact] public void ChannelsKeepSeparateLocalDrafts()
     {
         var draft = new CurveDraft("x20"); draft.SetPreset(CurveChannel.LeftStick, "quick");
-        Assert.Equal((35,35), draft[CurveChannel.LeftStick].Point1);
-        Assert.Equal((136,204), draft[CurveChannel.LeftStick].Point2);
+        Assert.Equal((64,102), draft[CurveChannel.LeftStick].Point1);
+        Assert.Equal((166,217), draft[CurveChannel.LeftStick].Point2);
         Assert.Equal("default", draft[CurveChannel.RightStick].Preset);
         Assert.Equal(1,draft.ModifiedChannels); Assert.False(draft.CanApplyHardware);
         draft.Reset(CurveChannel.LeftStick); Assert.Equal(0,draft.ModifiedChannels);

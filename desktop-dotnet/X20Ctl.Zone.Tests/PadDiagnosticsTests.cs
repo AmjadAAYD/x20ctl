@@ -67,12 +67,23 @@ public sealed class PadDiagnosticsTests
     }
 
     [Fact]
-    public void A_press_too_short_for_a_finger_counts_as_a_bounce()
+    public void A_short_press_alone_is_not_diagnosed_as_chatter()
     {
         var b = new ButtonStats(); ushort lb = 0x0100; var masks = new[] { lb };
         b.Add(lb, 0, masks); b.Add(0, 120, masks);    // a real press
         b.Add(lb, 300, masks); b.Add(0, 305, masks);  // a 5 ms chatter
-        Assert.Equal(2, b[lb].Presses); Assert.Equal(1, b[lb].Bounces); Assert.Equal(5, b[lb].ShortestMs);
+        Assert.Equal(2, b[lb].Presses); Assert.Equal(0, b[lb].Bounces); Assert.Equal(5, b[lb].ShortestMs);
+    }
+
+    [Fact]
+    public void Three_rapid_edges_are_flagged_and_clear_removes_measurements()
+    {
+        var b=new ButtonStats();ushort a=0x1000;var masks=new[]{a};
+        b.Add(a,0,masks);b.Add(0,5,masks);b.Add(a,10,masks);
+        Assert.Equal(1,b[a].Bounces);b.Reset();Assert.Equal(0,b[a].Bounces);
+        var stick=new StickStats();stick.Add(100,200);stick.Add(150,230);
+        Assert.Equal(50/32767d,stick.SmallestXDelta);Assert.Equal((short)100,stick.MinX);
+        stick.Reset();Assert.False(stick.HasSamples);Assert.Equal((short)0,stick.X);Assert.Null(stick.SmallestXDelta);
     }
 
     [Fact]

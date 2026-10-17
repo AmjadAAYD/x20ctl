@@ -40,7 +40,6 @@ node_modules/
 .ruff_cache/
 *.log
 artifacts/
-dist-ui/
 
 # Separate private X20ADMIN receiver; never include it in this repository.
 receiver/

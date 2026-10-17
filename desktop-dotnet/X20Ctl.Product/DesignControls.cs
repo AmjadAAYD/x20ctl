@@ -107,35 +107,12 @@ public class GalaxyBackdrop : Grid
     }
 }
 
-/// <summary>The Controller Zone's backdrop: the navy galaxy with large faceted panels over it - angled planes catching a
-/// little light along thin edges, drifting very slowly - after the owner's mock (10 Oct 2026), kept navy.</summary>
+/// <summary>Restrained console-style surfaces shared with the opening.</summary>
 public sealed class FacetBackdrop : Grid
 {
     public FacetBackdrop()
     {
-        IsHitTestVisible = false; ClipToBounds = true;
-        Children.Add(new NavyGalaxyBackdrop { Opacity = .85 });
-        var facets = new Canvas { Width = 1600, Height = 900 };
-        void Panel(string data, byte top, byte bottom, double angle)
-        {
-            facets.Children.Add(new Path { Data = Geometry.Parse(data), Fill = new LinearGradientBrush(Color.FromArgb(top, 120, 160, 220), Color.FromArgb(bottom, 120, 160, 220), angle), Stroke = new SolidColorBrush(Color.FromArgb(30, 190, 210, 240)), StrokeThickness = 1 });
-        }
-        Panel("M860,0 L1600,0 L1600,360 L1270,500 L1120,215 Z", 26, 4, 90);
-        Panel("M1120,215 L1270,500 L1600,360 L1600,520 L1330,640 Z", 16, 2, 60);
-        Panel("M0,540 L360,470 L600,900 L0,900 Z", 18, 3, 120);
-        Panel("M1020,900 L1320,650 L1600,700 L1600,900 Z", 14, 2, 70);
-        Panel("M560,0 L860,0 L760,120 L520,90 Z", 10, 1, 90);
-        // a few long thin edges, like light caught on glass seams
-        foreach (var edge in new[] { "M600,140 L980,128 L1120,215", "M0,420 L320,360 L520,470", "M1260,780 L1600,640" })
-            facets.Children.Add(new Path { Data = Geometry.Parse(edge), Stroke = new LinearGradientBrush(Color.FromArgb(0, 190, 210, 240), Color.FromArgb(60, 190, 210, 240), 0), StrokeThickness = 1.2 });
-        var host = new Viewbox { Child = facets, Stretch = Stretch.UniformToFill, CacheMode = new BitmapCache(1) };
-        var drift = new TranslateTransform(); host.RenderTransform = drift;
-        if (DS.Motion)
-        {
-            drift.BeginAnimation(TranslateTransform.XProperty, Ambient.Rate(new DoubleAnimation(-14, 14, TimeSpan.FromSeconds(34)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase() }, 24));
-            drift.BeginAnimation(TranslateTransform.YProperty, Ambient.Rate(new DoubleAnimation(8, -8, TimeSpan.FromSeconds(27)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase() }, 24));
-        }
-        host.Margin = new(-30); Children.Add(host);
+        IsHitTestVisible=false;ClipToBounds=true;Children.Add(new ZoneBackdrop(!DS.Motion));
     }
 }
 
@@ -153,7 +130,7 @@ public sealed class StatusChip : Border
     private readonly Ellipse dot = new() { Width = 7, Height = 7, Margin = new(0, 0, 9, 0), VerticalAlignment = VerticalAlignment.Center };
     public StatusChip(string text, ChipKind kind = ChipKind.Info)
     {
-        CornerRadius = new(16); Height = 32; Padding = new(15, 0, 16, 0); BorderThickness = new(1.2); HorizontalAlignment = HorizontalAlignment.Left;
+        CornerRadius = new(9); Height = 34; Padding = new(12, 0, 13, 0); BorderThickness = new(1); HorizontalAlignment = HorizontalAlignment.Left;
         label.FontFamily = DS.Display;
         Child = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Children = { dot, label } };
         Set(text, kind);
@@ -183,7 +160,7 @@ public sealed class GlyphHint : StackPanel
         var face = glyph switch { "A" => Color.FromRgb(70, 220, 150), "B" => Color.FromRgb(255, 100, 125), "X" => Color.FromRgb(70, 170, 255), "Y" => Color.FromRgb(245, 205, 80), _ => Color.FromRgb(214, 222, 234) };
         Children.Add(new Border
         {
-            MinWidth = round ? 28 : 40, Height = 28, CornerRadius = new(14), Padding = new(round ? 0 : 8, 0, round ? 0 : 8, 0),
+            MinWidth = round ? 28 : 40, Height = 28, CornerRadius = new(round ? 14 : 5), Padding = new(round ? 0 : 8, 0, round ? 0 : 8, 0),
             Background = new SolidColorBrush(Color.FromArgb(40, face.R, face.G, face.B)), BorderBrush = new SolidColorBrush(Color.FromArgb(150, face.R, face.G, face.B)), BorderThickness = new(1.5),
             Child = new TextBlock { Text = glyph, FontFamily = DS.Display, FontSize = 13, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(face), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center }
         });
@@ -334,5 +311,43 @@ public static class Ambient
     {
         System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(timeline, framesPerSecond);
         return timeline;
+    }
+}
+
+/// <summary>The battery in the middle of the Studio title bar (owner request 17 Oct 2026): a battery drawn with four cells
+/// and its tip, and the level beside it. The pads report only full, medium, low, empty or wired, so it shows exactly
+/// that, and a dash when nothing is reported; it never guesses a percentage.</summary>
+public sealed class HeaderBattery : Button
+{
+    private readonly Border[] cells = new Border[4];
+    private readonly TextBlock level = new() { FontFamily = DS.Display, FontSize = 14, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock plug = new() { Text = "\uE945", FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"), FontSize = 10, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Visibility = Visibility.Collapsed };
+    private readonly Border pill;
+    public HeaderBattery()
+    {
+        Cursor = System.Windows.Input.Cursors.Hand; FocusVisualStyle = null; HorizontalAlignment = HorizontalAlignment.Center; VerticalAlignment = VerticalAlignment.Center;
+        Template = new ControlTemplate(typeof(Button)) { VisualTree = new FrameworkElementFactory(typeof(ContentPresenter)) };
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new(2, 0, 0, 0) };
+        for (int i = 0; i < 4; i++) { cells[i] = new Border { Width = 5, Height = 9, CornerRadius = new(1.2), Margin = new(i == 0 ? 0 : 1.6, 0, 0, 0) }; row.Children.Add(cells[i]); }
+        var body = new Border { Width = 32, Height = 15, CornerRadius = new(4), BorderThickness = new(1.4), BorderBrush = new SolidColorBrush(Color.FromArgb(210, 214, 226, 244)), Padding = new(1.6, 1.4, 1.6, 1.4), Child = new Grid { Children = { row, plug } } };
+        var tip = new Border { Width = 2.6, Height = 6, CornerRadius = new(0, 1.5, 1.5, 0), Background = new SolidColorBrush(Color.FromArgb(210, 214, 226, 244)), VerticalAlignment = VerticalAlignment.Center, Margin = new(1, 0, 0, 0) };
+        pill = new Border { CornerRadius = new(18), Height = 34, Padding = new(14, 0, 16, 0), BorderThickness = new(1), BorderBrush = new SolidColorBrush(Color.FromArgb(70, 125, 182, 255)), Background = new SolidColorBrush(Color.FromArgb(46, 30, 60, 130)),
+            Child = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Children = { body, tip, new TextBlock { Text = "Battery", FontFamily = DS.Display, FontSize = 14, Foreground = DS.Brush("DS.TextSoft"), VerticalAlignment = VerticalAlignment.Center, Margin = new(12, 0, 8, 0) }, level } } };
+        Content = pill; ToolTip = "Battery, as the controller reports it · opens Device";
+        MouseEnter += (_, _) => pill.BorderBrush = new SolidColorBrush(Color.FromArgb(170, 125, 182, 255)); MouseLeave += (_, _) => pill.BorderBrush = new SolidColorBrush(Color.FromArgb(70, 125, 182, 255));
+        Show(null);
+    }
+    /// <summary>full, medium, low, empty or wired; anything else is "not reported".</summary>
+    public void Show(string? reported)
+    {
+        int lit = reported switch { "full" => 4, "medium" => 2, "low" => 1, _ => 0 };
+        bool warn = reported is "low" or "empty", wired = reported == "wired";
+        var on = new SolidColorBrush(warn ? Color.FromRgb(240, 178, 92) : Color.FromRgb(232, 240, 252));
+        var off = new SolidColorBrush(Color.FromArgb(34, 214, 226, 244));
+        for (int i = 0; i < 4; i++) { cells[i].Background = i < lit ? on : off; cells[i].Visibility = wired ? Visibility.Hidden : Visibility.Visible; }
+        plug.Visibility = wired ? Visibility.Visible : Visibility.Collapsed;
+        level.Text = reported switch { "full" => "Full", "medium" => "Medium", "low" => "Low", "empty" => "Empty", "wired" => "Wired", _ => "—" };
+        level.Foreground = warn ? on : DS.Brush(reported is "full" or "medium" or "wired" ? "DS.Text" : "DS.TextSoft");
+        System.Windows.Automation.AutomationProperties.SetName(this, "Battery " + (level.Text == "—" ? "not reported" : level.Text));
     }
 }

@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
@@ -16,23 +16,15 @@ public static class ProductLinks
 // ProductSettings (the Tools hub) lives in ToolsHub.cs.
 
 /// <summary>
-/// The launch cutscene, every launch, in the spirit of Steam Big Picture's opening, told X20CTL's way in blue and
-/// white (owner direction 10 Oct 2026: white instead of red, the dots and glow a grey modern white). Total darkness;
-/// the X20 Pro's three status LEDs blink on white one after another like eyes opening; the dark lifts and the
-/// controller draws itself out from them, top centre down both sides - a blue head like a pencil, a soft orange trail
-/// behind it like a marker - leaving a white line with a soft glow, its body and floor shadow surfacing; a blue-and-
-/// orange glow beats around it twice like a heart; the lights go out and the line itself re-routes itself - not zooms - onto the outline of the
-/// X20CTL mark, the left half of the controller gliding onto its left piece and the right half onto its right at the
-/// same thickness throughout; white light fills the closed outline and
-/// the edge melts away. The mark glows white on black at half the screen's height; its aura comes up - a faint
-/// grey-white heart, soft corner light, fine orange dots on both sides - a light runs through it, it slowly darkens, black,
-/// and the Controller Zone comes up. Timed fades are one Storyboard; only the morph is per frame. Skippable with
-/// B / Esc / click; reduced motion shows the mark briefly.
+/// Original X20CTL controller and X geometry, with travelling contour strokes, a short anticipation,
+/// then the two blades slide in and lock into the X (IntroBladeFormation), a quiet logo hold and the Zone handoff.
+/// A soft synthesised sound follows the beats: the eyes, the outline, the lock and its "dug dug", the slogan, the landing.
+/// Skip, mute and reduced motion are retained.
 /// </summary>
 public sealed class IntroView:Grid
 {
-    private const double Total=6.05, SloganAt=4.0, FlyAt=4.95, FlyFor=.9, BeatAt=1.9, XBeatAt=3.55, ReducedFor=.4, Line=9, MorphAt=2.55, MorphFor=1.0, Samples=160;
-    private static readonly double[] LedAt={.3,.52,.74};
+    private const double Total=7.1, SloganAt=5.1, FlyAt=6.0, FlyFor=.85, ReducedFor=.4, Line=9, MorphAt=2.95, MorphFor=1.15, Samples=160, XBeatAt=4.23;
+    private static readonly double[] LedAt={.18,.36,.54};
     public IntroView Visual=>this;
     public Button Skip {get;} public Button Mute {get;}
     /// <summary>The player muted the intro (from its button, M or Y). The host remembers it.</summary>
@@ -42,6 +34,8 @@ public sealed class IntroView:Grid
     private readonly System.Windows.Shapes.Rectangle fade=new(){Fill=Brushes.Black,Opacity=0,IsHitTestVisible=false}, dark=new(){Fill=Brushes.Black,IsHitTestVisible=false};
     private TimeSpan? seekAt; private double? pendingSeek;
     // the aura around the finished mark: a faint grey-white heart, then soft corner light and grey dots on both sides
+    private readonly IntroMarkAura markAura = new();
+    private readonly IntroStabilizationBackground stabilizationBackground = new();
     private readonly Grid aura=new(){IsHitTestVisible=false,Opacity=Warm}, dotsLeft=new(){IsHitTestVisible=false,Opacity=Warm,HorizontalAlignment=HorizontalAlignment.Left,CacheMode=new BitmapCache(1)}, dotsRight=new(){IsHitTestVisible=false,Opacity=Warm,HorizontalAlignment=HorizontalAlignment.Right,CacheMode=new BitmapCache(1)};
     private readonly System.Windows.Shapes.Rectangle heart=new(){IsHitTestVisible=false,Opacity=Warm,Width=980,Height=560}, shine=new(){IsHitTestVisible=false,Opacity=0};
     private readonly System.Windows.Shapes.Path body=new(){Opacity=0,IsHitTestVisible=false}, floor=new(){Opacity=0,IsHitTestVisible=false};
@@ -50,8 +44,11 @@ public sealed class IntroView:Grid
     private readonly Dictionary<System.Windows.Shapes.Path,double> dash=new();
     private readonly List<(System.Windows.Shapes.Path core,System.Windows.Shapes.Path bloom)> leds=new();
     private Grid stage=null!;
+    private readonly Grid controllerGroup=new(){IsHitTestVisible=false};
+    private readonly IntroBladeFormation formation=new(){IsHitTestVisible=false};
+    private readonly IntroContourFlow contours=new(){IsHitTestVisible=false};
+    private readonly System.Windows.Shapes.Path morphGhost=new(){Stroke=new SolidColorBrush(Color.FromArgb(70,200,215,245)),StrokeThickness=8,StrokeLineJoin=PenLineJoin.Round,Opacity=0,IsHitTestVisible=false};
     private readonly Point[][] from=new Point[2][], to=new Point[2][];
-    private double lastMorph=-1;
     // Owner direction 10 Oct 2026 (latest): the outline is blue and orange - a blue pencil with an orange trail and a
     // blue-and-orange heartbeat - the side dots are orange, and the X with its glow and aura is white, a touch brighter
     private static readonly Color Glow=Color.FromRgb(214,222,236), GlowHi=Color.FromRgb(236,241,250), Orange=Color.FromRgb(255,140,38), Blue=Color.FromRgb(60,132,255), BlueHi=Color.FromRgb(160,200,255);
@@ -103,6 +100,8 @@ public sealed class IntroView:Grid
         SizeChanged+=(_,_)=>{dotsLeft.Width=dotsRight.Width=ActualWidth/2;};
         backLayer.Children.Add(dark); // the opening darkness; it lifts as the body appears
         backLayer.Children.Add(haze);backLayer.Children.Add(dust); // above the darkness: seen from the first moment
+        stabilizationBackground.Visibility=reduced?Visibility.Collapsed:Visibility.Visible;
+        backLayer.Children.Add(stabilizationBackground);
 
         // the controller and the X share one stage, both centred on it, so the line reshapes in place
         double s=PadWidth/(2*(PadMidX-PadLeft)), stageW=StageW, stageH=StageH; var mid=new Point(stageW/2,stageH/2);
@@ -120,6 +119,9 @@ public sealed class IntroView:Grid
             to[i]=AlignOpen(from[i],Orient(Resample(markPx.Figures[i],LinePoints)));
         }
 
+
+        contours.SetPoints(from[0].Concat(from[1].Reverse()).ToArray(),to);
+        formation.Configure(from,to,markPx);
 
         // both halves are figures of one geometry: the dash runs down each from the top centre at once, and where they
         // meet (top and bottom centre) the caps and glow are painted once, so there is no seam or bright spot
@@ -185,12 +187,15 @@ public sealed class IntroView:Grid
         stage=new Grid{Width=stageW,Height=stageH,HorizontalAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Center,RenderTransformOrigin=new(.5,.5),RenderTransform=new ScaleTransform(1,1)};
         // the stage is designed for a 1200-pixel-tall screen and scales with the window, so the mark stays about half its height
         SizeChanged+=(_,_)=>{double z=Math.Clamp(ActualHeight/1200,.55,1.8);((ScaleTransform)stage.RenderTransform).ScaleX=((ScaleTransform)stage.RenderTransform).ScaleY=z;};
-        foreach(var e in new UIElement[]{floor,body,beat,glow,trail,line,tracer})stage.Children.Add(e);
-        foreach(var (core,bloom) in leds){stage.Children.Add(bloom);stage.Children.Add(core);}
+        stage.Children.Add(contours);stage.Children.Add(formation);
+        controllerGroup.RenderTransform=new ScaleTransform(1,1,stageW/2,stageH/2);
+        foreach(var e in new UIElement[]{floor,body,beat,glow,trail,line,tracer})controllerGroup.Children.Add(e);
+        foreach(var (core,bloom) in leds){controllerGroup.Children.Add(bloom);controllerGroup.Children.Add(core);}
+        stage.Children.Add(controllerGroup);
         // the X's heartbeat (owner 12 Oct 2026): the mark swells about its own centre, so every piece of it shares one scale
         var xBounds=Rect.Union(forward.Bounds,back.Bounds);var xBeat=new ScaleTransform(1,1,xBounds.X+xBounds.Width/2,xBounds.Y+xBounds.Height/2);
-        foreach(var e in new UIElement[]{morph,filled,filledBack})e.RenderTransform=xBeat;
-        foreach(var e in new UIElement[]{morph,filled,filledBack,shine})xGroup.Children.Add(e);stage.Children.Add(xGroup);this.xBounds=xBounds;
+        foreach(var e in new UIElement[]{morphGhost,morph,filled,filledBack,formation})e.RenderTransform=xBeat;
+        foreach(var e in new UIElement[]{morphGhost,morph,filled,filledBack,shine})xGroup.Children.Add(e);xGroup.Children.Insert(0,markAura); markAura.SetGeometry(markPx); aura.Visibility=Visibility.Collapsed; dotsLeft.Visibility=dotsRight.Visibility=Visibility.Collapsed; stage.Children.Add(xGroup);this.xBounds=xBounds;
         Children.Add(stage);sloganBox.Children.Add(slogan);Children.Add(sloganBox);Children.Add(fade);
         // WPF has no letter-spacing: hair spaces between the letters track it out, a wider gap between words
         slogan.Text=string.Join("\u200A",SloganText.Select(c=>c==' '?"\u2009\u2009":c.ToString()));
@@ -199,14 +204,14 @@ public sealed class IntroView:Grid
         SizeChanged+=(_,_)=>{double z=Math.Clamp(ActualHeight/1200,.55,1.8);slogan.FontSize=28*z;sloganBox.Margin=new(0,2*(289+62)*z,0,0);sloganBox.RenderTransformOrigin=new(.5,.5);};
         Skip=new Button{Content="Skip · Esc / B",HorizontalAlignment=HorizontalAlignment.Right,VerticalAlignment=VerticalAlignment.Bottom,Margin=new(0,0,36,36),Style=DS.Style("DS.Secondary"),Opacity=.8};Skip.Click+=(_,_)=>Finish();
         // mute (owner request 12 Oct 2026): beside Skip, remembered for the next launch; reduced motion has no sound to mute
-        Mute=new Button{HorizontalAlignment=HorizontalAlignment.Right,VerticalAlignment=VerticalAlignment.Bottom,Margin=new(0,0,36,36),Style=DS.Style("DS.Secondary"),Opacity=.8,Visibility=reduced?Visibility.Collapsed:Visibility.Visible};
+        Mute=new Button{HorizontalAlignment=HorizontalAlignment.Right,VerticalAlignment=VerticalAlignment.Bottom,Margin=new(0,0,36,36),Style=DS.Style("DS.Secondary"),Opacity=.8,Visibility=reduced||!HasIntroScore?Visibility.Collapsed:Visibility.Visible};
         Mute.Click+=(_,_)=>ToggleMute();ShowMute();
         Children.Add(new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,VerticalAlignment=VerticalAlignment.Bottom,Children={Mute,Skip}});
         Mute.Margin=new(0,0,12,36);
         // a click anywhere else skips; the buttons' own clicks must not
         PreviewMouseDown+=(_,e)=>{if(e.ChangedButton==MouseButton.Left&&!Skip.IsMouseOver&&!Mute.IsMouseOver)Finish();};
         Loaded+=(_,_)=>{Build();if(startRequested)Begin();if(pendingSeek is double p)Seek(p);};
-        Unloaded+=(_,_)=>CompositionTarget.Rendering-=Tick;
+        Unloaded+=(_,_)=>{CompositionTarget.Rendering-=Tick;if(!finished){soundWanted=false;StopSound();}};
     }
 
     /// <summary>The X20CTL mark (owner's chosen X, 10 Oct 2026), built exactly in screen pixels so its edges stay crisp:
@@ -241,60 +246,52 @@ public sealed class IntroView:Grid
         void TraceOn(System.Windows.Shapes.Path p,double at,double dur,IEasingFunction e){double u=dash[p];A(p,"StrokeDashOffset",u*.08,u*.08-u,at,dur,e);A(p,"Opacity",0,1,at+.02,.1);A(p,"Opacity",1,0,at+dur-.15,.12);}
         if(Reduced)
         {
-            foreach(var p in new[]{line,glow,tracer,trail,beat,morph})p.Visibility=Visibility.Collapsed;
+            foreach(var p in new[]{line,glow,tracer,trail,beat,morph,morphGhost})p.Visibility=Visibility.Collapsed;
             foreach(var (core,bloom) in leds){core.Visibility=bloom.Visibility=Visibility.Collapsed;}
             // reduced motion: the X, held for a moment, while the zone comes up underneath it
             A(dark,"Opacity",1,0,0,.1);A(haze,"Opacity",0,1,0,.1);A(filled,"Opacity",0,1,0,.1);A(filledBack,"Opacity",0,1,0,.1);foreach(var p in new UIElement[]{heart,aura,dotsLeft,dotsRight})A(p,"Opacity",0,1,0,.1);story.Duration=TimeSpan.FromSeconds(ReducedFor);
         }
         else
         {
-            // 1. darkness, then the three LEDs blink on one after another - eyes opening
-            var pop=new BackEase{EasingMode=EasingMode.EaseOut,Amplitude=.6};
-            for(int i=0;i<leds.Count;i++)
+            foreach(var old in new[]{line,glow,tracer,trail})old.Visibility=Visibility.Collapsed;
+            // One continuous sequence: tracing, recognition, anticipation, transformation, settlement.
+            A(haze,"Opacity",0,.65,0,.75,outE);
+            A(dark,"Opacity",1,.25,.12,.9,outE);
+            foreach(var (index,at) in LedAt.Select((at,index)=>(index,at)))
             {
-                var (core,bloom)=leds[i];double t=LedAt[i];
-                A(core,"Opacity",0,1,t,.06);
-                A(bloom,"Opacity",0,1,t,.08);A(bloom,"Opacity",1,.5,t+.12,.4,outE);
-                A(bloom,"(UIElement.RenderTransform).(ScaleTransform.ScaleX)",.3,1,t,.35,pop);A(bloom,"(UIElement.RenderTransform).(ScaleTransform.ScaleY)",.3,1,t,.35,pop);
+                var (core,bloom)=leds[index];A(core,"Opacity",0,.85,at,.18,outE);
+                A(bloom,"Opacity",0,.24,at,.25,outE);
+                A(core,"Opacity",.85,0,MorphAt-.3,.25,inE);A(bloom,"Opacity",.24,0,MorphAt-.3,.25,inE);
             }
-            // 0. the dark wakes: the faint middle light and the dust come up before anything else
-            A(haze,"Opacity",0,1,.05,1.2,outE);A(dust,"Opacity",0,1,.05,.9,outE);
-            // 2. the dark lifts and the body draws itself out from the eyes, top centre down both sides (0.95-1.7)
-            A(dark,"Opacity",1,0,.95,.8,ease);A(body,"Opacity",0,1,1.15,.6,outE);A(floor,"Opacity",0,1,1.25,.6,outE);
-            DrawOn(line,.95,.75,ease);TraceOn(tracer,.95,.75,ease);
-            // the orange marker runs just behind the blue pencil, then lifts off at the bottom; the soft white glow settles after it
-            A(trail,"StrokeDashOffset",tu0*.3+tu0*.06,tu0*.3-tu0,1.0,.78,ease);A(trail,"Opacity",0,1,1.0,.12);A(trail,"Opacity",1,0,1.62,.35,outE);
-            DrawOn(glow,1.2,.75,ease);
-            // 3. the controller is whole
-            // the heartbeat, lub-dub: a sudden blue-and-orange glow around the whole controller, swelling a touch with each beat
-            const string bx="(UIElement.RenderTransform).(ScaleTransform.ScaleX)",by="(UIElement.RenderTransform).(ScaleTransform.ScaleY)";
-            foreach(var (at,peak,swell,rest) in new[]{(BeatAt,1.0,1.035,.14),(BeatAt+.2,.8,1.025,.5)})
-            {
-                A(beat,"Opacity",at==BeatAt?0:.18,peak,at,.06);A(beat,"Opacity",peak,at==BeatAt?.18:0,at+.06,rest,outE);
-                foreach(var axis in new[]{bx,by}){A(beat,axis,1,swell,at,.06);A(beat,axis,swell,1,at+.06,rest,outE);}
-            }
-            // 4. the eyes go out, then the line itself reshapes into the X (per frame from MorphAt); the drawn strokes hand over
-            
-            foreach(var (core,bloom) in leds){A(core,"Opacity",1,0,MorphAt-.2,.3,inE);A(bloom,"Opacity",.5,0,MorphAt-.2,.3,inE);}
-            A(glow,"Opacity",1,0,MorphAt-.1,.3,inE);
-            A(line,"Opacity",1,0,MorphAt,.02);
-            A(body,"Opacity",1,0,MorphAt-.05,.35,inE);A(floor,"Opacity",1,0,MorphAt,.4,inE);
-            A(morph,"Opacity",0,1,MorphAt-.02,.02);
-            // 5. the finished X glows
-            A(filled,"Opacity",0,1,MorphAt+MorphFor-.05,.4,outE);A(filledBack,"Opacity",0,1,MorphAt+MorphFor-.05,.4,outE);A(morph,"Opacity",1,0,MorphAt+MorphFor+.2,.4,ease);
-            // 6. the aura comes up: the faint grey-white heart first, then the corner light, then the dots
+            TraceOn(tracer,.35,1.5,ease);
+            A(trail,"StrokeDashOffset",tu0*.3+tu0*.06,tu0*.3-tu0,.45,1.55,ease);
+            A(trail,"Opacity",0,.42,.45,.18);A(trail,"Opacity",.42,0,1.75,.3,outE);
+            DrawOn(line,.75,1.2,ease);DrawOn(glow,.95,1.15,ease);
+            A(glow,"Opacity",1,.3,2.1,.3,outE);
+            // Keep the owner's controller geometry, with restrained volume rather than a filled plastic body.
+            A(body,"Opacity",0,.18,1.2,.55,outE);A(floor,"Opacity",0,.25,1.3,.55,outE);
+            foreach(var axis in new[]{"(UIElement.RenderTransform).(ScaleTransform.ScaleX)","(UIElement.RenderTransform).(ScaleTransform.ScaleY)"})
+                A(controllerGroup,axis,1,1.10,2.45,.5,inE);
+            A(line,"Opacity",1,0,MorphAt,.025);A(glow,"Opacity",.3,0,MorphAt,.08);
+            A(body,"Opacity",.18,0,MorphAt-.05,.15);A(floor,"Opacity",.25,0,MorphAt-.05,.15);
+            A(morph,"Opacity",0,1,MorphAt-.025,.025);
+            A(morphGhost,"Opacity",0,1,MorphAt+.08,.12);A(morphGhost,"Opacity",1,0,MorphAt+MorphFor-.12,.2);
             double lit=MorphAt+MorphFor-.05;
-            A(heart,"Opacity",0,1,lit,.6,outE);A(aura,"Opacity",0,1,lit+.2,.9,outE);A(dotsLeft,"Opacity",0,1,lit+.35,1.0,outE);A(dotsRight,"Opacity",0,1,lit+.35,1.0,outE);
-            A(shine,"Opacity",0,1,lit+.2,.05);A(shine,"(Shape.Fill).(Brush.RelativeTransform).(TranslateTransform.X)",-.7,.7,lit+.25,.6,ease);A(shine,"Opacity",1,0,lit+.85,.1);
-            // the X lands with a heartbeat, dug-dug, timed with the intro sound's two thumps
-            foreach(var (at,swell,rest) in new[]{(XBeatAt,1.06,.14),(XBeatAt+.2,1.035,.45)})
-                foreach(var axis in new[]{"(UIElement.RenderTransform).(ScaleTransform.ScaleX)","(UIElement.RenderTransform).(ScaleTransform.ScaleY)"})
-                {A(filled,axis,1,swell,at,.06);A(filled,axis,swell,1,at+.06,rest,outE);} // the pieces share one transform
-            // 7. the slogan comes into focus under the X; it dissolves as the X leaves for the header (the flight is in Frame)
-            A(slogan,"Opacity",0,1,SloganAt,.45,outE);A(slogan,"(UIElement.RenderTransform).(TranslateTransform.Y)",8,0,SloganAt,.5,outE);
-            A(slogan,"(UIElement.Effect).(DropShadowEffect.Opacity)",0,.75,SloganAt+.1,.5,outE);
-            A(slogan,"(TextBlock.Foreground).(Brush.RelativeTransform).(TranslateTransform.X)",-.8,.8,SloganAt+.35,.6,ease);
-            A(slogan,"Opacity",1,0,FlyAt,.3,inE);
+            A(filled,"Opacity",0,1,lit,.32,outE);A(filledBack,"Opacity",0,1,lit+.09,.32,outE);
+            A(morph,"Opacity",1,0,lit+.26,.22,outE);
+            // the second "dug" of the heartbeat: the locked X swells once about its own centre
+            foreach(var axis in new[]{"(UIElement.RenderTransform).(ScaleTransform.ScaleX)","(UIElement.RenderTransform).(ScaleTransform.ScaleY)"})
+            {A(filled,axis,1,1.035,XBeatAt,.07,outE);A(filled,axis,1.035,1,XBeatAt+.07,.3,ease);}
+            A(heart,"Opacity",0,.85,MorphAt+.05,.3,outE);A(heart,"Opacity",.85,.45,lit+.15,1.1,outE);
+            A(aura,"Opacity",0,.85,lit,.45,outE);A(aura,"Opacity",.85,.55,5.0,.8,outE);
+            A(dotsLeft,"Opacity",0,.18,lit,.3,outE);A(dotsRight,"Opacity",0,.18,lit,.3,outE);
+            A(dotsLeft,"Opacity",.18,0,4.8,.8,outE);A(dotsRight,"Opacity",.18,0,4.8,.8,outE);
+            A(shine,"Opacity",0,.65,lit+.25,.1);
+            A(shine,"(Shape.Fill).(Brush.RelativeTransform).(TranslateTransform.X)",-.8,.8,lit+.3,.85,ease);
+            A(shine,"Opacity",.65,0,lit+1.05,.2,outE);
+            A(slogan,"Opacity",0,1,SloganAt,.4,outE);A(slogan,"(UIElement.RenderTransform).(TranslateTransform.Y)",5,0,SloganAt,.4,outE);
+            A(slogan,"(TextBlock.Foreground).(Brush.RelativeTransform).(TranslateTransform.X)",-.8,.8,SloganAt+.1,.7,ease);
+            A(slogan,"Opacity",1,0,FlyAt,.25,inE);
             story.Duration=TimeSpan.FromSeconds(Total);
         }
         story.Completed+=(_,_)=>Finish();
@@ -353,20 +350,7 @@ public sealed class IntroView:Grid
     }
     private void Morph(double t)
     {
-        if(Reduced)return;double key=Math.Round(t,3);if(key==lastMorph)return;lastMorph=key;
-        // the two halves of the line are open strokes that close as they land on the outline
-        StreamGeometry Shape(params int[] figures)
-        {
-            var g=new StreamGeometry{FillRule=FillRule.Nonzero};
-            using(var c=g.Open())foreach(int f in figures)
-            {
-                double u=Math.Clamp((t-MorphAt)/(MorphFor-.1),0,1);u=u<.5?4*u*u*u:1-Math.Pow(-2*u+2,3)/2;
-                var a=from[f];var b=to[f];c.BeginFigure(a[0]+(b[0]-a[0])*u,false,u>=.999);
-                var r=new Point[a.Length-1];for(int i=1;i<a.Length;i++)r[i-1]=a[i]+(b[i]-a[i])*u;c.PolyLineTo(r,true,true);
-            }
-            g.Freeze();return g;
-        }
-        morph.Data=Shape(0,1);
+        morph.Visibility=morphGhost.Visibility=Visibility.Collapsed;
     }
     private static double Length(PathFigure f)
     {
@@ -377,18 +361,20 @@ public sealed class IntroView:Grid
     private double Elapsed=>seekAt?.TotalSeconds??(DateTime.UtcNow-beganAt).TotalSeconds;
     private DateTime beganAt=DateTime.UtcNow;
     public void Start(){startRequested=true;PrepareSound();if(IsLoaded)Begin();}
-    /// <summary>The intro's own sound (tools/build_intro_sound.py: LED pings, the "fwaaah" swell, the heartbeat, a riser,
-    /// then "ba-pa!" as the X lands). Off for reduced motion, for development reviews and when the player muted it.</summary>
+    /// <summary>The opening sound, made from sine waves by tools/build_intro_sound.py (no samples). Off for reduced
+    /// motion, development fixtures and mute.</summary>
+    public static bool HasIntroScore => System.IO.File.Exists(ScorePath);
+    private static string ScorePath => System.IO.Path.Combine(AppContext.BaseDirectory,"Brand","intro.wav");
     public static bool SoundEnabled {get;set;}=true;
     private System.Windows.Media.MediaPlayer? sound;
     private bool soundReady,soundWanted;
     /// <summary>Opens the sound before the intro starts (opening it on demand made the LED pings lag their lights).</summary>
     private void PrepareSound()
     {
-        if(sound!=null||!SoundEnabled||Muted||Reduced||ReviewSandbox.Active)return;
-        string path=System.IO.Path.Combine(AppContext.BaseDirectory,"Brand","intro.wav");if(!System.IO.File.Exists(path))return;
+        if(!HasIntroScore||sound!=null||!SoundEnabled||Muted||Reduced||ReviewSandbox.Active)return;
+        string path=ScorePath;if(!System.IO.File.Exists(path))return;
         // a player muted before it opened must not mark its replacement ready
-        try{var player=new System.Windows.Media.MediaPlayer{Volume=.85};soundReady=false;sound=player;player.MediaOpened+=(_,_)=>{if(player!=sound)return;soundReady=true;if(soundWanted)PlayInSync();};player.Open(new Uri(path));}
+        try{var player=new System.Windows.Media.MediaPlayer{Volume=.65};soundReady=false;sound=player;player.MediaOpened+=(_,_)=>{if(player!=sound)return;soundReady=true;if(soundWanted)PlayInSync();};player.Open(new Uri(path));}
         catch(Exception error) when(error is InvalidOperationException or System.IO.IOException or UriFormatException){sound=null;}
     }
     private void PlaySound(){PrepareSound();soundWanted=true;if(soundReady)PlayInSync();}
@@ -408,20 +394,24 @@ public sealed class IntroView:Grid
     /// <summary>Mute fades the sound out at once; unmuting picks it up again at the picture's moment.</summary>
     public void ToggleMute()
     {
-        if(Reduced||finished)return;Muted=!Muted;ShowMute();
+        if(!HasIntroScore||Reduced||finished)return;Muted=!Muted;ShowMute();
         if(Muted){soundWanted=false;soundReady=false;StopSound();}else if(begun)PlaySound();else PrepareSound();
         MutedChanged?.Invoke(Muted);
     }
     private void ShowMute()=>Mute.Content=Muted?"Unmute · M / Y":"Mute · M / Y";
     private bool begun;
     private void Begin(){if(finished)return;Build();beganAt=DateTime.UtcNow;begun=true;story.Begin(this,true);PlaySound();CompositionTarget.Rendering-=Tick;CompositionTarget.Rendering+=Tick;}
-    public void Finish(){if(finished)return;finished=true;CompositionTarget.Rendering-=Tick;story.Stop(this);if((DateTime.UtcNow-beganAt).TotalSeconds<Total-.3)StopSound();else sound=null;ZoneReveal?.Invoke(1);handoff?.HandoffEnd();Completed?.Invoke();}
+    public void Finish(){if(finished)return;finished=true;CompositionTarget.Rendering-=Tick;story.Stop(this);StopSound();ZoneReveal?.Invoke(1);handoff?.HandoffEnd();Completed?.Invoke();}
     /// <summary>Review hook: freeze the cutscene at time t (seconds).</summary>
     public void Seek(double t){if(!IsLoaded){pendingSeek=t;return;}Build();CompositionTarget.Rendering-=Tick;seekAt=TimeSpan.FromSeconds(t);story.Begin(this,true);story.Seek(this,TimeSpan.FromSeconds(t),TimeSeekOrigin.BeginTime);story.Pause(this);Frame(t);}
     private void Tick(object? s,EventArgs e)=>Frame(Elapsed);
     private void Frame(double t)
     {
+        if(!Reduced)stabilizationBackground.SetTime(t-(MorphAt+MorphFor));
         Morph(t);
+        markAura.SetTime(Reduced ? -1 : t-4.0);
+        formation.SetTime(Reduced ? -1 : t-MorphAt);
+        contours.SetTime(Reduced ? -1 : t);
         if(Reduced)
         {
             double start=Duration-.5,amount=Math.Clamp((t-start)/.5,0,1);amount=1-Math.Pow(1-amount,3);
@@ -491,5 +481,92 @@ public sealed class IntroView:Grid
         for(int i=0;i<8;i++){double cx=Bz(u,x1,x2)-x,d=3*(1-u)*(1-u)*x1+6*(1-u)*u*(x2-x1)+3*u*u*(1-x2);if(Math.Abs(d)<1e-6)break;u=Math.Clamp(u-cx/d,0,1);}
         return Bz(u,y1,y2);
         static double Bz(double t,double a,double b)=>3*(1-t)*(1-t)*t*a+3*(1-t)*t*t*b+t*t*t;
+    }
+}
+
+
+/// <summary>A single deterministic particle release, drawn in one visual with no per-particle controls or timers.</summary>
+/// <summary>Travelling tapered fragments and delayed white recognition on the original controller contour.</summary>
+internal sealed class IntroContourFlow:FrameworkElement
+{
+    private Point[] controller=[];private Point[][] mark=[];private double time=-1;
+    public void SetPoints(Point[] source,Point[][] destination){controller=source;mark=destination;}
+    public void SetTime(double value){if(value==time)return;time=value;InvalidateVisual();}
+    private static double Smooth(double t){t=Math.Clamp(t,0,1);return t*t*(3-2*t);}
+    protected override void OnRender(DrawingContext dc)
+    {
+        if(time<.12 || controller.Length==0)return;
+        if(time<2.95)
+        {
+            double anticipate=1+.10*Smooth((time-2.45)/.5);
+            dc.PushTransform(new ScaleTransform(anticipate,anticipate,390,320));
+            double colour=1-Smooth((time-1.65)/.65);
+            double position=(time-.12)*.61;
+            Segment(dc,controller,position,.24,9,colour,true);
+            Segment(dc,controller,position+.48,.20,6,colour*.34,false);
+            // one smooth stroke; the sound's plucks follow it (IntroBeats)
+            double white=IntroBeats.Drawn(time);
+            if(white>0)Segment(dc,controller,0,white,8.5,1,false,white>.999);
+            dc.Pop();
+        }
+        else if(time>4.35 && time<5.95)
+        {
+            double a=Smooth((time-4.35)/.15)*(1-Smooth((time-5.5)/.45));
+            foreach(var piece in mark)Segment(dc,piece,(time-4.35)*.72,.24,4.5,a,true);
+        }
+    }
+    private void Segment(DrawingContext dc,Point[] points,double start,double span,double width,double alpha,bool coloured,bool full=false)
+    {
+        if(alpha<=0 || span<=0)return;
+        int count=Math.Max(2,(int)(span*points.Length));
+        Point At(double v){v-=Math.Floor(v);double index=v*(points.Length-1);int i=(int)index;return points[i]+(points[Math.Min(i+1,points.Length-1)]-points[i])*(index-i);}
+        for(int j=0;j<count;j++)
+        {
+            double u=j/(double)count;
+            double tip=full?1:Math.Pow(Math.Sin(Math.PI*Math.Clamp(u,0,1)),.45);
+            double phase=Math.Clamp((time-.3)/2,0,1);
+            var c=coloured?Color.FromRgb((byte)(45+95*phase), (byte)(145-65*phase),255):Color.FromRgb(238,242,250);
+            var ink=new SolidColorBrush(Color.FromArgb((byte)(255*alpha*tip),c.R,c.G,c.B));ink.Freeze();
+            var pen=new Pen(ink,width*(.25+.75*tip)){StartLineCap=PenLineCap.Round,EndLineCap=PenLineCap.Round};pen.Freeze();
+            dc.DrawLine(pen,At(start+u*span),At(start+(j+1)/(double)count*span));
+        }
+    }
+}
+
+/// <summary>Light follows the original X geometry; no replacement logo or external artwork.</summary>
+internal sealed class IntroMarkAura : FrameworkElement
+{
+    private Geometry mark=Geometry.Empty;
+    private double time=-1;
+    public void SetGeometry(Geometry geometry)=>mark=geometry;
+    public void SetTime(double value){time=value;InvalidateVisual();}
+    protected override void OnRender(DrawingContext dc)
+    {
+        if(time<0||time>2.0||mark.IsEmpty())return;
+        double enter=Math.Clamp(time/.16,0,1),release=1-Math.Clamp((time-.55)/1.45,0,1);
+        double power=enter*release;
+        for(int side=0;side<2;side++)
+        {
+            var colour=side==0?Color.FromRgb(65,177,255):Color.FromRgb(255,154,70);
+            double sign=side==0?-1:1;
+            for(int layer=7;layer>=1;layer--)
+            {
+                double separation=layer*3*(1-Math.Clamp(time/1.25,0,1));
+                dc.PushTransform(new TranslateTransform(sign*separation,-sign*separation));
+                dc.PushOpacity(power*(.035+.065*(1-layer/8d)));
+                dc.DrawGeometry(null,new Pen(new SolidColorBrush(colour),layer*2.8+1){LineJoin=PenLineJoin.Miter},mark);
+                dc.Pop();dc.Pop();
+            }
+        }
+        dc.PushClip(mark);
+        for(int side=0;side<2;side++)
+        {
+            double p=Math.Clamp((time-side*.16)/.9,0,1),x=side==0?-120+p*1000:900-p*1000;
+            var colour=side==0?Color.FromArgb(210,110,210,255):Color.FromArgb(180,255,185,105);
+            var light=new LinearGradientBrush(new GradientStopCollection{new(Colors.Transparent,0),new(colour,.32),new(Colors.White,.5),new(colour,.68),new(Colors.Transparent,1)},0);
+            dc.PushOpacity(power);dc.PushTransform(new RotateTransform(-43,390,320));
+            dc.DrawRectangle(light,null,new Rect(x,0,80,700));dc.Pop();dc.Pop();
+        }
+        dc.Pop();
     }
 }

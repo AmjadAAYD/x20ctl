@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
@@ -8,6 +8,7 @@ using System.Windows.Shapes;
 using System.Windows.Threading;
 using X20Ctl.Product.Scanner;
 using X20Ctl.Zone.Diagnostics;
+using X20Ctl.Zone;
 using X20Ctl.Zone.PcMode;
 namespace X20Ctl.Product.Diagnostics;
 
@@ -19,12 +20,18 @@ namespace X20Ctl.Product.Diagnostics;
 /// </summary>
 public sealed class DiagnosticsWorkbench
 {
-    static readonly (string Name, ushort Mask)[] Buttons =
+    static readonly (string Name, ushort Mask)[] ReportedButtons =
     [
         ("A", 0x1000), ("B", 0x2000), ("X", 0x4000), ("Y", 0x8000), ("LB", 0x0100), ("RB", 0x0200), ("View", 0x0020), ("Menu", 0x0010),
         ("L3", 0x0040), ("R3", 0x0080), ("Up", 0x0001), ("Down", 0x0002), ("Left", 0x0004), ("Right", 0x0008), ("Home", 0x0400),
     ];
-    static readonly ushort[] Masks = Buttons.Select(b => b.Mask).ToArray();
+    readonly (string Name,ushort Mask)[] Buttons;
+    readonly ushort[] Masks;
+    readonly TextBlock numericValues=Wrap("No input data",13,"DS.TextSoft",10);
+    bool rawValues;readonly string assignedModel;
+    readonly TextBlock driftDetails=Wrap("",13,"DS.TextSoft",8);
+    CancellationTokenSource? driftCancel;
+    (X20Ctl.Zone.Diagnostics.DriftObservation Left,X20Ctl.Zone.Diagnostics.DriftObservation Right)? driftResult;
     const double Plot = 196, Unit = 84; // canvas size, and the pixels for full travel (so 115% still fits)
 
     [DllImport("winmm.dll")] static extern uint timeBeginPeriod(uint period);
@@ -32,6 +39,9 @@ public sealed class DiagnosticsWorkbench
 
     public Grid Body { get; } = new();
     readonly int preferredSlot;
+    double[]? keyboardPreview;
+    public void PreviewKeyboard(double lx, double ly, double rx, double ry, double leftTrigger, double rightTrigger)
+        => keyboardPreview = [lx, ly, rx, ry, leftTrigger, rightTrigger];
     readonly object gate = new();
     readonly StickStats left = new(), right = new();
     readonly TriggerStats lt = new(), rt = new();
@@ -53,38 +63,45 @@ public sealed class DiagnosticsWorkbench
     readonly Dictionary<StickStats, (string Key, Button Use, TextBlock Said)> apply = new();
     readonly Dictionary<StickStats, double> suggested = new();
 
-    public DiagnosticsWorkbench(int player, Action<Button> register, PcModeLink? link = null)
+    public DiagnosticsWorkbench(int player, Action<Button> register, PcModeLink? link = null, bool compact = false,ControllerModel? model=null)
     {
-        preferredSlot = player; this.link = link;
+        preferredSlot = player; this.link = link;assignedModel=model?.Name??"Unspecified";
+        static string Key(string name)=>name switch{"View"=>"SELECT","Menu"=>"START","Home"=>"HOME","Up"=>"DPAD_UP","Down"=>"DPAD_DOWN","Left"=>"DPAD_LEFT","Right"=>"DPAD_RIGHT",_=>name};
+        Buttons=ReportedButtons.Where(b=>model==null||model.FrontButtons.ContainsKey(Key(b.Name))).ToArray();Masks=Buttons.Select(b=>b.Mask).ToArray();
         var scroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
         var page = new StackPanel { Margin = new(30, 6, 30, 24) }; scroll.Content = page; Body.Children.Add(scroll);
 
         var head = new DockPanel();
         var actions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Top }; DockPanel.SetDock(actions, Dock.Right); head.Children.Add(actions);
-        foreach (var (label, value) in new[] { ("Find it", -1), ("Slot 1", 0), ("Slot 2", 1), ("Slot 3", 2), ("Slot 4", 3) })
+        foreach (var (label, value) in new[] { ("Retry player input", -1), ("XInput 1", 0), ("XInput 2", 1), ("XInput 3", 2), ("XInput 4", 3) })
         {
             var b = Pill(label); b.Margin = new(8, 0, 0, 0); b.Click += (_, _) => Choose(value); register(b); slotButtons.Add(b); actions.Children.Add(b);
         }
-        Reset = Pill("Reset"); Reset.Margin = new(16, 0, 0, 0); Reset.Click += (_, _) => Clear(); register(Reset); actions.Children.Add(Reset);
+        Reset = Pill("Clear measurements"); Reset.Margin = new(16, 0, 0, 0); Reset.Click += (_, _) => Clear(); register(Reset); actions.Children.Add(Reset);
         var copy = Pill("Copy report"); copy.Margin = new(8, 0, 0, 0); copy.ToolTip = "Copies these readings as text, to paste into a bug report or a chat";
         copy.Click += (_, _) => { try { Clipboard.SetText(Report()); source!.Text = "Copied. Paste it wherever you need it."; } catch (System.Runtime.InteropServices.ExternalException) { source!.Text = "The clipboard is busy. Try again."; } };
         register(copy); actions.Children.Add(copy);
         head.Children.Add(new StackPanel { Children = {
             Kit.Text("Diagnostics", 30, "DS.Text", FontWeights.Bold),
-            Wrap("Roll each stick slowly around its edge a few times, squeeze both triggers all the way and press every button. X20CTL only listens; nothing is sent to the controller. Hold B for a second to leave.", 15, "DS.TextSoft", 6) } });
+            Wrap("Roll each stick slowly around its edge a few times, squeeze both triggers all the way and press every button. X20CTL only listens; nothing is sent to the controller. All controller buttons are captured for testing. Use Esc or the mouse to leave.", 15, "DS.TextSoft", 6) } });
         page.Children.Add(head);
         source = Wrap("", 14, "DS.TextMuted", 8); page.Children.Add(source);
+        page.Children.Add(Wrap($"Player {player+1} · {assignedModel} (assigned model) · Gameplay API: XInput · Transport and hardware identity unverified",13,"DS.TextSoft",6));
+        var valuesToggle=Pill("Show integer XInput values");valuesToggle.Margin=new(0,8,0,0);valuesToggle.HorizontalAlignment=HorizontalAlignment.Left;valuesToggle.Click+=(_,_)=>{rawValues=!rawValues;valuesToggle.Content=rawValues?"Show normalized values":"Show integer XInput values";Refresh();};register(valuesToggle);page.Children.Add(valuesToggle);page.Children.Add(numericValues);
+        var measureCentre=Pill("Measure centre deviation");measureCentre.HorizontalAlignment=HorizontalAlignment.Left;measureCentre.Margin=new(0,8,0,0);register(measureCentre);
+        measureCentre.Click+=async(_,_)=>{measureCentre.IsEnabled=false;driftCancel?.Cancel();driftCancel=new();try{driftResult=await DriftCapture.Measure(chosen>=0?chosen:preferredSlot,new Progress<double>(v=>driftDetails.Text=$"Release both sticks · Sampling {v*5:0.0} / 5 seconds"),driftCancel.Token);driftDetails.Text=driftResult is {} d?$"Measured centre X/Y · Left {d.Left.X:0.00}% / {d.Left.Y:0.00}% · Right {d.Right.X:0.00}% / {d.Right.Y:0.00}% · Peak deviation {d.Left.Peak:0.00}% / {d.Right.Peak:0.00}%" : "Selected input unavailable · No centre samples";}catch(OperationCanceledException){}catch(Exception error)when(error is IOException or ArgumentException){driftDetails.Text=error.Message;}finally{measureCentre.IsEnabled=true;}};
+        page.Children.Add(measureCentre);page.Children.Add(driftDetails);
 
         var top = new Grid { Margin = new(0, 18, 0, 0) };
-        for (int i = 0; i < 4; i++) top.ColumnDefinitions.Add(new() { Width = new GridLength(i < 2 ? 1.15 : 1, GridUnitType.Star) });
+        for (int i = 0; i < (compact ? 3 : 4); i++) top.ColumnDefinitions.Add(new() { Width = new GridLength(i < 2 ? 1.15 : 1, GridUnitType.Star) });
         leftView = StickCard(top, 0, "Left stick", left, "LeftStick", register); rightView = StickCard(top, 1, "Right stick", right, "RightStick", register);
         var triggers = new Grid(); triggers.ColumnDefinitions.Add(new()); triggers.ColumnDefinitions.Add(new());
         ltView = TriggerColumn(triggers, 0, "LT"); rtView = TriggerColumn(triggers, 1, "RT");
         Card(top, 2, "Triggers", triggers);
         rateText = Kit.Text("", 15, "DS.Text").Also(t => { t.TextWrapping = TextWrapping.Wrap; t.TextTrimming = TextTrimming.None; });
         rawText = Wrap("", 13.5, "DS.TextSoft", 12);
-        Card(top, 3, "Report rate", new StackPanel { Children = { rateText, rawText,
-            Wrap("Many controllers only send when something changes, so keep a stick moving while you read this. Changes are capped by how often X20CTL looks (about 1000 a second); the reports line is the controller's real rate.", 12.5, "DS.TextMuted", 12) } });
+        Card(top, 3, "Observed input updates", new StackPanel { Children = { rateText, rawText,
+            Wrap("XInput state changes are not hardware polling rate. Raw Input report counts below are separate, unassociated devices; they are not verified as this selected controller.", 12.5, "DS.TextMuted", 12) } });
         page.Children.Add(top);
 
         var grid = new WrapPanel();
@@ -96,11 +113,17 @@ public sealed class DiagnosticsWorkbench
                 Child = new StackPanel { Children = { Kit.Text(name, 16, "DS.Text", FontWeights.SemiBold), count } } };
             cells[mask] = (cell, count); grid.Children.Add(cell);
         }
-        var buttonsCard = Kit.Panel("Buttons", "A press shorter than " + ButtonStats.BounceMs + " ms is too quick for a finger: it's usually a worn switch chattering.", null, grid);
+        var buttonsCard = Kit.Panel("Buttons", "Reported XInput buttons only. Three rapid transitions within 15 ms are flagged for review, not diagnosed as a worn switch.", null, grid);
         buttonsCard.Margin = new(0, 16, 0, 0); page.Children.Add(buttonsCard);
 
         timer = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(33) };
         timer.Tick += (_, _) => Refresh();
+        if (compact)
+        {
+            head.Visibility = Visibility.Collapsed;
+            buttonsCard.Visibility = Visibility.Collapsed;
+            foreach (FrameworkElement card in top.Children) if (Grid.GetColumn(card) == 3) card.Visibility = Visibility.Collapsed;
+        }
         Refresh();
     }
 
@@ -119,7 +142,7 @@ public sealed class DiagnosticsWorkbench
     /// <summary>Stops listening (the tab is left, or Controller Check needs Raw Input).</summary>
     public void Stop()
     {
-        timer.Stop();
+        timer.Stop();driftCancel?.Cancel();
         if (running) { running = false; worker?.Join(500); }
         worker = null; raw?.Dispose(); raw = null; reader?.Dispose(); reader = null;
     }
@@ -128,8 +151,8 @@ public sealed class DiagnosticsWorkbench
 
     void Clear()
     {
-        lock (gate) { left.Reset(); right.Reset(); lt.Reset(); rt.Reset(); presses.Reset(); changes.Reset(); seen = false; }
-        raw?.Reset();
+        lock (gate) { left.Reset(); right.Reset(); lt.Reset(); rt.Reset(); presses.Reset(); changes.Reset(); reads.Reset(); seen = false; }
+        raw?.Reset();driftResult=null;driftDetails.Text="";
     }
 
     void Loop()
@@ -145,12 +168,12 @@ public sealed class DiagnosticsWorkbench
                 {
                     lock (gate)
                     {
-                        reads.Add(now);
+                        reads.Add(now);left.Add(state.Pad.LX,state.Pad.LY);right.Add(state.Pad.RX,state.Pad.RY);lt.Add(state.Pad.LT);rt.Add(state.Pad.RT);
                         if (!seen || state.Packet != lastPacket)
                         {
                             if (seen) changes.Add(now);
                             seen = true; lastPacket = state.Packet; var p = state.Pad;
-                            left.Add(p.LX, p.LY); right.Add(p.RX, p.RY); lt.Add(p.LT); rt.Add(p.RT); presses.Add(p.Buttons, now, Masks);
+                            presses.Add(p.Buttons, now, Masks);
                         }
                     }
                 }
@@ -168,7 +191,7 @@ public sealed class DiagnosticsWorkbench
     {
         if (chosen >= 0) return chosen;
         if (preferredSlot is >= 0 and < 4 && !PcModeService.IsVirtual(preferredSlot) && reader!.Read(preferredSlot, out _)) return preferredSlot;
-        for (int i = 0; i < 4; i++) if (!PcModeService.IsVirtual(i) && reader!.Read(i, out _)) return i;
+        // Do not silently replace this player with another player's controller.
         return -1;
     }
 
@@ -179,41 +202,55 @@ public sealed class DiagnosticsWorkbench
         for (int i = 0; i < slotButtons.Count; i++) slotButtons[i].Opacity = i - 1 == c ? 1 : .62;
         lock (gate)
         {
-            source.Text = !running ? "Not listening." : s < 0 ? (c < 0 ? "Looking for a controller… connect it, or press a button on it." : $"Nothing on slot {c + 1}.")
+            source.Text = !running ? "Not listening." : s < 0 ? (c < 0 ? "Waiting for the selected player input. Connect it or choose an XInput index." : $"Nothing on slot {c + 1}.")
                 : !seen ? $"Slot {s + 1}: waiting for the controller."
                 : $"Reading XInput slot {s + 1}{(PcModeService.IsVirtual(s) ? " (PC mode's virtual pad: this shows PC mode's output, not the controller)" : "")} · {reads.Current(now)} reads a second";
+            numericValues.Text=!seen?"No input data · Raw HID report bytes unavailable":rawValues?$"XInput integers · LX {left.X}  LY {left.Y}  RX {right.X}  RY {right.Y}  LT {lt.Value}  RT {rt.Value} · Raw HID bytes unavailable":$"Normalized · L ({left.X/32767d:0.000}, {left.Y/32767d:0.000})  R ({right.X/32767d:0.000}, {right.Y/32767d:0.000})  LT {lt.Value/255d:0.000}  RT {rt.Value/255d:0.000}";
             DrawStick(leftView, left); DrawStick(rightView, right);
             DrawTrigger(ltView, lt); DrawTrigger(rtView, rt);
+            foreach(var view in new[]{leftView,rightView}) {view.Dot.Visibility=seen?Visibility.Visible:Visibility.Collapsed;view.Reach.Visibility=seen?Visibility.Visible:Visibility.Collapsed;if(!seen){view.Resting.Visibility=Visibility.Collapsed;view.Stats.Text="No input source · Connect or select a controller";}}
+            if(!seen){ltView.Bar.Height=rtView.Bar.Height=0;ltView.Range.Visibility=rtView.Range.Visibility=Visibility.Collapsed;ltView.Stats.Text=rtView.Stats.Text="No data";}
+            if (s < 0 && keyboardPreview is { } keys)
+            {
+                source.Text = "Keyboard preview · WASD / arrows · Q / E triggers. Connect a controller for measured circularity error.";
+                Canvas.SetLeft(leftView.Dot, Plot / 2 + keys[0] * Unit - 6); Canvas.SetTop(leftView.Dot, Plot / 2 - keys[1] * Unit - 6);
+                Canvas.SetLeft(rightView.Dot, Plot / 2 + keys[2] * Unit - 6); Canvas.SetTop(rightView.Dot, Plot / 2 - keys[3] * Unit - 6);
+                leftView.Stats.Text = rightView.Stats.Text = "Keyboard preview · hardware error not measured";
+                ltView.Bar.Height = keys[4] * 150; rtView.Bar.Height = keys[5] * 150;
+                ltView.Stats.Text = $"{keys[4] * 100:0}% preview"; rtView.Stats.Text = $"{keys[5] * 100:0}% preview";
+            }
             foreach (var (_, mask) in Buttons)
             {
-                var b = presses[mask]; var (cell, count) = cells[mask];
-                count.Text = b.Presses == 0 ? "not pressed" : b.Bounces > 0 ? $"{b.Presses} · {b.Bounces} chatter{(b.Bounces == 1 ? "" : "s")}" : $"{b.Presses} press{(b.Presses == 1 ? "" : "es")}";
+                var b = presses[mask]; var (cell, count) = cells[mask];cell.ToolTip=b.Presses==0?"Not tested":$"Presses {b.Presses} · Last {b.LastMs:0} ms · Shortest {b.ShortestMs:0} ms · Longest {b.LongestMs:0} ms";
+                count.Text = !seen ? "No data" : b.Presses == 0 ? "Not tested" : b.Bounces > 0 ? $"{b.Presses} · {b.Bounces} rapid sequence{(b.Bounces == 1 ? "" : "s")}" : $"{b.Presses} press{(b.Presses == 1 ? "" : "es")}";
                 count.Foreground = DS.Brush(b.Bounces > 0 ? "DS.Warn" : b.Presses > 0 ? "DS.TextSoft" : "DS.TextMuted");
                 cell.Background = b.Down ? Blue(150) : Dark;
                 cell.BorderBrush = b.Bounces > 0 ? DS.Brush("DS.Warn") : b.Presses > 0 ? Edge(120) : Edge(50);
             }
-            rateText.Text = $"State changes: {changes.Current(now)} a second · peak {changes.Peak}";
+            rateText.Text = seen ? $"Observed changes {changes.Current(now)} /s · peak {changes.Peak} /s\nControls tested {Buttons.Count(x=>presses[x.Mask].Presses>0)} / {Buttons.Length}" : "No input data · Rate unavailable";
         }
         var rawDevices = raw?.Devices();
-        rawText.Text = raw == null ? "Real reports: unavailable on this PC."
-            : raw.Error != null ? "Real reports: " + raw.Error
-            : rawDevices is not { Count: > 0 } ? "Real reports: none yet. Move a stick. If this stays empty, Windows isn't passing this controller's reports to apps; the changes line above still works."
+        rawText.Text = raw == null ? "Raw Input reports (all devices): unavailable on this PC."
+            : raw.Error != null ? "Raw Input reports (all devices): " + raw.Error
+            : rawDevices is not { Count: > 0 } ? "Raw Input reports (all devices): none yet. Move a stick. If this stays empty, Windows isn't passing this controller's reports to apps; selected-source XInput updates remain separate."
             : string.Join(Environment.NewLine, rawDevices.Take(4).Select(d => $"{d.Name}: {d.Current} reports a second · peak {d.Peak}"));
     }
 
     /// <summary>The readings as plain text: what a tester pastes into a report. Only measurements, nothing identifying.</summary>
     string Report()
     {
-        double now = clock.Elapsed.TotalMilliseconds; var lines = new List<string> { "X20CTL diagnostics", $"XInput slot {(slot < 0 ? "none" : (slot + 1).ToString())}" };
+        double now = clock.Elapsed.TotalMilliseconds; var lines = new List<string> { "X20CTL diagnostics", $"Version {typeof(DiagnosticsWorkbench).Assembly.GetName().Version}", $"Timestamp {DateTimeOffset.Now:O}", $"Player {preferredSlot+1} · Assigned model {assignedModel} · Hardware identity unverified", "Input API: XInput · Transport, VID/PID, firmware: unknown", "Values: measured through Windows; not raw HID values or hardware resolution", $"XInput slot {(slot < 0 ? "none" : (slot + 1).ToString())}" };
         lock (gate)
         {
             foreach (var (name, s) in new[] { ("Left stick", left), ("Right stick", right) })
-                lines.Add($"{name}: roundness {(s.CircularityError is { } e ? e.ToString("0.0") + "% off" : "not measured")}, rest {(s.Rest is { } r ? $"{r.X:0.0}%, {r.Y:0.0}%" : "not measured")}, step {(s.ResolutionBits is { } b ? b + "-bit" : "not measured")}");
+                lines.Add($"{name}: circularity {(s.CircularityError is { } e ? e.ToString("0.0") + "% off" : "not measured")}, rest {(s.Rest is { } r ? $"{r.X:0.0}%, {r.Y:0.0}%" : "not measured")}, step {(s.ResolutionBits is { } b ? b + " effective bits observed" : "not measured")}");
+            foreach(var (name,s) in new[]{("Left stick",left),("Right stick",right)})lines.Add(s.HasSamples?$"{name} range X {s.MinX/32767d:0.00000} to {s.MaxX/32767d:0.00000}; Y {s.MinY/32767d:0.00000} to {s.MaxY/32767d:0.00000}; smallest X delta {s.SmallestXDelta?.ToString("0.00000")??"unknown"}; Y {s.SmallestYDelta?.ToString("0.00000")??"unknown"}; max radial error {s.MaximumRadialError?.ToString("0.00")??"unmeasured"}":$"{name}: no samples");
             foreach (var (name, s) in new[] { ("LT", lt), ("RT", rt) })
-                lines.Add(s.Max < s.Min ? $"{name}: not pressed" : $"{name}: {s.Min * 100 / 255}-{s.Max * 100 / 255}%, {(s.FullTravel ? "full travel" : "partial travel")}{(s.ResolutionBits is { } b ? ", " + b + "-bit" : "")}");
-            lines.Add("Buttons: " + string.Join(", ", Buttons.Select(x => (x.Name, b: presses[x.Mask])).Where(x => x.b.Presses > 0).Select(x => $"{x.Name} {x.b.Presses}{(x.b.Bounces > 0 ? $" ({x.b.Bounces} chatter, shortest {x.b.ShortestMs:0} ms)" : "")}").DefaultIfEmpty("none pressed")));
+                lines.Add(s.Max < s.Min ? $"{name}: not pressed" : $"{name}: {s.Min * 100 / 255}-{s.Max * 100 / 255}%, {(s.FullTravel ? "full travel" : "partial travel")}{(s.ResolutionBits is { } b ? ", " + b + " effective bits observed" : "")}");
+            lines.Add("Buttons: " + string.Join(", ", Buttons.Select(x => (x.Name, b: presses[x.Mask])).Where(x => x.b.Presses > 0).Select(x => $"{x.Name} {x.b.Presses}{(x.b.Bounces > 0 ? $" ({x.b.Bounces} rapid sequences, shortest {x.b.ShortestMs:0} ms)" : "")}").DefaultIfEmpty("none pressed")));
             lines.Add($"State changes: {changes.Current(now)}/s, peak {changes.Peak}/s");
         }
+        if(driftResult is {} drift)lines.Add($"Five-second centre sample: left offset {drift.Left.X:0.000}%/{drift.Left.Y:0.000}%, peak {drift.Left.Peak:0.000}%; right offset {drift.Right.X:0.000}%/{drift.Right.Y:0.000}%, peak {drift.Right.Peak:0.000}%");
         foreach (var d in raw?.Devices() ?? []) lines.Add($"Reports, {d.Name}: {d.Current}/s, peak {d.Peak}/s");
         return string.Join(Environment.NewLine, lines);
     }
@@ -237,17 +274,18 @@ public sealed class DiagnosticsWorkbench
         if (rest is { } at) { Canvas.SetLeft(view.Resting, Plot / 2 + at.X / 100 * Unit - 4); Canvas.SetTop(view.Resting, Plot / 2 - at.Y / 100 * Unit - 4); }
         var lines = new List<string>();
         double? round = stats.CircularityError;
-        lines.Add(round is { } e ? $"Roundness: {e:0.0}% off a circle{(e > 8 ? " (uneven edge)" : "")}" : $"Roundness: roll it around the edge ({stats.Covered * 100 / StickStats.Sectors}% done)");
+        lines.Add(round is { } e ? $"Circularity error: {e:0.0}% off a circle{(e > 8 ? " radial deviation" : "")}" : $"Circularity coverage {stats.Covered * 100 / StickStats.Sectors}% · Rotate around the edge");
         if (rest is { } d)
         {
             double drift = Math.Sqrt(d.X * d.X + d.Y * d.Y);
-            lines.Add($"At rest: {d.X:+0.0;-0.0;0.0}%, {d.Y:+0.0;-0.0;0.0}% (drift {drift:0.0}%)");
+            lines.Add($"Near-center average: {d.X:+0.0;-0.0;0.0}%, {d.Y:+0.0;-0.0;0.0}% (deviation {drift:0.0}%)");
             double zone = Math.Min(StickTuning.MaxInner, Math.Ceiling((drift + .5) * 10) / 10); suggested[stats] = zone;
             if (drift >= 3) lines.Add($"That drift may show in games. An inner dead zone of {zone:0.0}% hides it.");
             if (apply.TryGetValue(stats, out var a)) a.Use.Visibility = Visibility.Visible;
         }
-        else { lines.Add("At rest: let go of the stick for a moment"); if (apply.TryGetValue(stats, out var a)) a.Use.Visibility = Visibility.Collapsed; }
-        lines.Add(stats.ResolutionBits is { } bits ? $"Smallest step: about {bits}-bit{(bits <= 8 ? " (coarse)" : "")}" : "Smallest step: move it slowly to measure");
+        else { lines.Add("Near-center average: release the stick to collect samples"); if (apply.TryGetValue(stats, out var a)) a.Use.Visibility = Visibility.Collapsed; }
+        lines.Add(stats.ResolutionBits is { } bits ? $"Observed step estimate: {bits} effective bits" : "Smallest step: move it slowly to measure");
+        if(stats.HasSamples){lines.Add($"Range X {stats.MinX/32767d:0.000} → {stats.MaxX/32767d:0.000} · Y {stats.MinY/32767d:0.000} → {stats.MaxY/32767d:0.000}");lines.Add($"Smallest delta X {stats.SmallestXDelta?.ToString("0.00000")??"—"} · Y {stats.SmallestYDelta?.ToString("0.00000")??"—"}");}
         view.Stats.Text = string.Join(Environment.NewLine, lines);
     }
 
@@ -258,8 +296,8 @@ public sealed class DiagnosticsWorkbench
         bool any = stats.Max >= stats.Min;
         view.Range.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
         if (any) { view.Range.Height = Math.Max(2, (stats.Max - stats.Min) / 255.0 * height); view.Range.Margin = new(0, 0, 0, stats.Min / 255.0 * height); }
-        view.Stats.Text = !any ? "not pressed" : $"{stats.Min * 100 / 255}–{stats.Max * 100 / 255}%" + Environment.NewLine
-            + (stats.FullTravel ? "full travel" : stats.Max < 250 ? "squeeze fully" : "let it go") + (stats.ResolutionBits is { } bits ? Environment.NewLine + bits + "-bit" : "");
+        view.Stats.Text = !any ? "No data" : $"Current {stats.Value/255d:0.00}\nMin {stats.Min/255d:0.00} · Max {stats.Max/255d:0.00}" + Environment.NewLine
+            + (stats.FullTravel ? "full travel" : stats.Max < 250 ? "squeeze fully" : "let it go") + (stats.ResolutionBits is { } bits ? Environment.NewLine + bits + " effective bits observed" : "");
     }
 
     /// <summary>Puts the measured drift into PC mode as this stick's inner dead zone (the profile being edited),
@@ -329,5 +367,5 @@ public sealed class DiagnosticsWorkbench
     }
 
     static TextBlock Wrap(string text, double size, string brush, double top) => Kit.Text(text, size, brush).Also(t => { t.TextWrapping = TextWrapping.Wrap; t.TextTrimming = TextTrimming.None; t.Margin = new(0, top, 0, 0); });
-    static Button Pill(string text) => new() { Style = DS.Style("DS.ActionSecondary"), Height = 40, MinHeight = 0, Padding = new(16, 0, 18, 0), Content = Kit.Text(text, 14, "DS.Text", FontWeights.SemiBold) };
+    static Button Pill(string text) => new() { Style = DS.Style("ActionButton"), Height = 40, MinHeight = 0, Padding = new(16, 0, 18, 0), Content = Kit.Text(text, 14, "DS.Text", FontWeights.SemiBold) };
 }

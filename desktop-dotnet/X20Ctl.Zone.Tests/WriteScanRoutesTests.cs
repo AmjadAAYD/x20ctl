@@ -140,6 +140,29 @@ public sealed class WriteScanRoutesTests
     }
 
     [Fact]
+    public void A_read_scan_travels_inside_the_write_report_as_plain_files_the_receiver_allows()
+    {
+        // the Read scan's compact report, unpacked under input/read-scan/ and listed in the same manifest
+        var read = new List<(string Path, byte[] Data)>
+        {
+            ("input/read-scan/device.json", System.Text.Encoding.UTF8.GetBytes("{\"controllerName\":\"EasySMX X20\"}")),
+            ("input/read-scan/input-mapping.json", System.Text.Encoding.UTF8.GetBytes("[]")),
+            ("input/read-scan/scanner-version.txt", System.Text.Encoding.UTF8.GetBytes("Controller Scanner")),
+        };
+        var zip = Report().ResearchZip(false, "test", "Read scan included", read);
+        using var archive = new ZipArchive(new MemoryStream(zip));
+        var manifest = JsonDocument.Parse(archive.GetEntry("manifest.json")!.Open()).RootElement;
+        Assert.True(manifest.GetProperty("withReadScan").GetBoolean());
+        var paths = manifest.GetProperty("files").EnumerateArray().Select(f => f.GetProperty("path").GetString()!).ToList();
+        foreach (var (path, _) in read) Assert.Contains(path, paths);
+        Assert.Equal(archive.Entries.Count - 1, paths.Count);
+        // the receiver's schema-2 name rule: input/... with json or txt
+        Assert.All(read, f => Assert.Matches(@"^input/.+\.(json|txt)$", f.Path));
+        using var summary = new StreamReader(archive.GetEntry("SUMMARY.txt")!.Open());
+        Assert.Contains("Read scan included", summary.ReadToEnd());
+    }
+
+    [Fact]
     public void A_raw_copy_keeps_its_own_kind()
     {
         var root = Path.Combine(Path.GetTempPath(), "x20ctl-writescan-" + Guid.NewGuid().ToString("N"));
