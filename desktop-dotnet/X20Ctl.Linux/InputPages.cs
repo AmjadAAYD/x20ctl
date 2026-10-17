@@ -1,3 +1,5 @@
+using X20Ctl.Zone.Diagnostics;
+using X20Ctl.Zone.PcMode;
 using System.Diagnostics;
 using System.Text;
 using Avalonia;
@@ -177,13 +179,31 @@ internal sealed class DiagnosticsPage : UserControl
 
         var cards = new Grid { ColumnDefinitions = new("*,*,0.8*,1.1*"), Margin = new Thickness(0, 22, 0, 0), Height = 340 }; Grid.SetRow(cards, 1);
         Control Card(string title, Control body, int col) { var c = T.Card(T.Stack(10, T.Label(title, 20, null, FontWeight.SemiBold), body), 20); c.Margin = new Thickness(col == 0 ? 0 : 14, 0, 0, 0); Grid.SetColumn(c, col); return c; }
-        cards.Children.Add(Card("Left stick", T.Stack(10, Parts.Center(left), leftNote), 0)); cards.Children.Add(Card("Right stick", T.Stack(10, Parts.Center(right), rightNote), 1));
+        cards.Children.Add(Card("Left stick", T.Stack(10, Parts.Center(left), leftNote, UseButton(CurveChannel.LeftStick, leftRest)), 0)); cards.Children.Add(Card("Right stick", T.Stack(10, Parts.Center(right), rightNote, UseButton(CurveChannel.RightStick, rightRest)), 1));
         cards.Children.Add(Card("Triggers", T.Line(22, T.Stack(6, T.Label("LT", 14), lt, ltText), T.Stack(6, T.Label("RT", 14), rt, rtText)), 2));
         cards.Children.Add(Card("Observed input updates", T.Stack(8, rate, rateNote, T.Label("Updates are what the system reports to apps, not the controller's hardware polling rate.", 12.5, T.Muted)), 3));
         page.Children.Add(cards);
 
         var bcard = T.Card(T.Stack(10, T.Label("Buttons", 20, null, FontWeight.SemiBold), T.Label("Three rapid transitions within 15 ms are flagged for review, not diagnosed as a worn switch.", 14, T.Soft), buttons), 20); bcard.Margin = new Thickness(0, 14, 0, 0); Grid.SetRow(bcard, 2); page.Children.Add(bcard);
         Content = new ScrollViewer { Content = page };
+    }
+
+    /// <summary>Sets the stick's inner dead zone in PC mode just past where it rests, so the drift never reaches games.</summary>
+    Control UseButton(CurveChannel channel, List<(double X, double Y)> rest)
+    {
+        var said = T.Label("", 12.5, T.Muted); said.TextWrapping = TextWrapping.Wrap;
+        var pill = new Pill("Use as dead zone", Pill.Kinds.Ghost, () => said.Text = UseAsDeadZone(channel, rest)) { Padding = new Thickness(18, 8), HorizontalAlignment = HorizontalAlignment.Left };
+        return T.Stack(6, pill, said);
+    }
+
+    string UseAsDeadZone(CurveChannel channel, List<(double X, double Y)> rest)
+    {
+        var drift = new DriftObservation();
+        foreach (var (x, y) in rest) drift.Add((short)Math.Clamp(x * 32767, -32768, 32767), (short)Math.Clamp(y * 32767, -32768, 32767));
+        if (!drift.Stable) return "Let go of the stick and wait a moment, then try again.";
+        var tune = state.Tune(channel); tune.Inner = Math.Round(Math.Clamp(drift.RecommendedInner, 0, StickTuning.MaxInner), 1); tune.Raw = false;
+        if (tune.Outer <= tune.Inner) tune.Outer = 100;
+        return $"Inner dead zone {tune.Inner:0.0}%. " + PcModeHub.Shared.Save(state);
     }
 
     void Observe(PadFrame f)
