@@ -197,7 +197,7 @@ The last stable release is still [4.0.1](https://github.com/AmjadAAYD/x20ctl/rel
 
 ## Local first
 
-- No account. No telemetry. Update checks happen only if you turn on **Keep X20CTL up to date** in Tools. PC mode installs its two drivers only when you press **Set up PC mode**. Your setups, drafts and assignments stay in your user folder.
+- No account. No telemetry. Update checks happen only if you turn on **Keep X20CTL up to date** in Tools. PC mode installs its two drivers by itself, once, the first time you switch it on (Windows asks for permission); nothing is installed before that. Your setups, drafts and assignments stay in your user folder.
 - Every change is a **local draft** until it can be sent to a connected, verified controller. X20CTL never writes to a controller it cannot read back.
 - The game shelf reads only the Steam and Epic launchers' own local files.
 - The only uploads are a Controller Check report when you choose **Scan and send**, and feedback when you press **Send to X20CTL**. The [privacy policy](PRIVACY.md) lists exactly what each one contains. External links, such as Support and GitHub, open in your browser and only when you click them.
