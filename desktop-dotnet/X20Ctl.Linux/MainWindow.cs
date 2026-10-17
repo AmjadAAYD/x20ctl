@@ -46,7 +46,12 @@ public sealed class MainWindow : Window
         root.Children.Add(header); Grid.SetRow(body, 1); root.Children.Add(body); Grid.SetRow(footer, 2); root.Children.Add(footer);
         var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) }; timer.Tick += (_, _) => { foreach (var c in clocks) c.Text = DateTime.Now.ToString("HH:mm"); }; timer.Start();
         KeyDown += OnKey; KeyUp += (_, e) => { if (screen == "studio") studio?.HandleKey(e, false); }; ShowZone();
-        if (AppSettings.Shared.IntroOnLaunch && Environment.GetCommandLineArgs().All(a => a != "--shots")) Opened += (_, _) => ShowIntro();
+        bool live = Environment.GetCommandLineArgs().All(a => a != "--shots");
+        if (live) Opened += async (_, _) =>
+        {
+            if (AppSettings.Shared.IntroOnLaunch) { ShowIntro(); while (intro != null) await Task.Delay(100); }
+            if (AppSettings.Shared.AutoUpdate) await OfferUpdate();
+        };
     }
 
     static Bitmap? LoadMark()
@@ -120,6 +125,18 @@ public sealed class MainWindow : Window
     void ShowFeedback() => Tools("feedback", "Tools", new FeedbackPage(ShowTools, session.Catalog.Models.Select(m => m.Name)));
     void ShowCheck() => Tools("check", "Controller Check", new CheckPage(ShowTools, () => { session.Selected = Math.Max(0, Array.FindIndex(session.Players, p => p != null)); EnterStudio("Tester"); }), "Tools");
     void ShowWriteScan() => Tools("check", "Write scan", new StubPage("Write scan", "Coming next."), "Tools");
+    async Task OfferUpdate()
+    {
+        UpdateCheck.Release? r; try { r = await UpdateCheck.Latest(); } catch (Exception) { return; }
+        if (r == null || Content is not Grid stage) return;
+        Border? card = null;
+        void Close() { if (card != null) stage.Children.Remove(card); }
+        var text = new StackPanel { Spacing = 12, Children = { T.Label("A newer version is out", 18, null, FontWeight.Medium), T.Label($"{r.Title}  ·  you have {AppInfo.Version}", 14, T.Soft),
+            T.Line(10, new Pill("View release", Pill.Kinds.Primary, () => { ExternalLinks.Open(r.Page); Close(); }), new Pill("Later", Pill.Kinds.Ghost, Close)) } };
+        card = new Border { Background = T.B("#F0101A33"), BorderBrush = T.Hairline, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(14), Padding = new Thickness(24), Child = text,
+            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+        stage.Children.Add(card);
+    }
     IntroView? intro;
     void ShowIntro()
     {
