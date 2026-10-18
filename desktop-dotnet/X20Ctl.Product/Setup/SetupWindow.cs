@@ -155,7 +155,7 @@ internal sealed class SetupWindow : Window
             case 0:
             {
                 var points = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Width = 360 };
-                foreach (var (head, text) in new[] { ("Your controller, your way", "Remap buttons, shape sticks and triggers, record macros."), ("PC mode", "Games see a virtual Xbox controller that follows your settings."), ("Yours to keep", "Free and open source. No account, no analytics.") })
+                foreach (var (head, text) in new[] { ("Your controller, your way", "Remap buttons, shape sticks and triggers, record macros."), ("PC mode", "Games see a virtual Xbox controller that follows your settings. It uses two drivers, ViGEmBus and HidHide, and asks before installing them."), ("Yours to keep", "Free and open source. No account, no analytics.") })
                 {
                     var row = new StackPanel { Margin = new Thickness(0, 0, 0, 20) }; row.Children.Add(Kit.Text(head, 17, "DS.Text", FontWeights.SemiBold));
                     var t = Kit.Text(text, 15, "DS.TextSoft"); t.TextWrapping = TextWrapping.Wrap; t.Margin = new Thickness(0, 3, 0, 0); row.Children.Add(t); points.Children.Add(row);
@@ -194,7 +194,7 @@ internal sealed class SetupWindow : Window
                 list.Children.Add(Option("Add X20CTL to the Start menu", "Find it by typing X20CTL.", options.StartMenu, on => options = options with { StartMenu = on }));
                 list.Children.Add(Option("Add a desktop shortcut", "A shortcut next to your other apps.", options.Desktop, on => options = options with { Desktop = on }));
                 list.Children.Add(Option("Keep X20CTL up to date", "Checks GitHub at launch and installs new versions by itself. Change it any time in Tools.", options.KeepUpToDate, on => options = options with { KeepUpToDate = on }));
-                var where = Kit.Text("Installs for your account only, in " + Installer.InstallDir + ". PC mode asks Windows for permission the first time it needs its drivers.", 13.5, "DS.TextMuted");
+                var where = Kit.Text("Installs for your account only, in " + Installer.InstallDir + ". PC mode asks before it installs its two drivers, ViGEmBus and HidHide.", 13.5, "DS.TextMuted");
                 where.TextWrapping = TextWrapping.Wrap; where.Margin = new Thickness(2, 6, 0, 0); list.Children.Add(where);
                 return new("STEP 3 OF 5", "Options", "Choose how X20CTL fits in.", list, [Btn("Back", false, () => Go(1))], [Btn(update ? "Update" : "Install", true, RunInstall)]);
             }

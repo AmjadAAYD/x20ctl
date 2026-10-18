@@ -15,7 +15,7 @@ public static class PcModeSetup
 {
     public const string BusPage = "https://github.com/nefarius/ViGEmBus/releases";
     public const string HiderPage = "https://github.com/nefarius/HidHide/releases";
-    public static bool BusInstalled { get { using var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\ViGEmBus"); return key != null; } }
+    public static bool BusInstalled { get { using var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\ViGEmBus"); return key != null && key.GetValue("DeleteFlag") == null; } }
     public static bool Ready => BusInstalled && HidHide.Installed;
     static string Drivers => System.IO.Path.Combine(AppContext.BaseDirectory, "drivers");
 
@@ -57,6 +57,19 @@ public static class PcModeSetup
         finally { installLock.Release(); }
     }
 
+    /// <summary>Says what is about to be installed and why, and waits for a yes. The installers run quietly, so without this
+    /// the only sign would be Windows' permission box and a window that flashes by.</summary>
+    static bool Consent(List<string> names)
+    {
+        string list = string.Join("\n", names.Select(n => n == "virtual controller driver"
+            ? "•  ViGEmBus: the virtual Xbox controller that games see"
+            : "•  HidHide: hides the physical pad so games don't see it twice"));
+        string text = "PC mode needs " + (names.Count == 1 ? "a small driver" : "two small drivers") + ":\n\n" + list
+            + "\n\nThey are the signed installers from Nefarius Software Solutions, packaged with X20CTL. Windows will ask for permission and a setup window may flash by. You can remove them any time in Windows Apps.\n\nInstall now?";
+        bool Ask() => MessageBox.Show(Application.Current.MainWindow, text, "X20CTL · PC mode drivers", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) == MessageBoxResult.Yes;
+        return Application.Current.Dispatcher.CheckAccess() ? Ask() : Application.Current.Dispatcher.Invoke(Ask);
+    }
+
     static async Task<string> Install(bool automatic)
     {
         var missing = new List<(string Name, string? File, string Page)>();
@@ -70,6 +83,7 @@ public static class PcModeSetup
             ExternalLinks.Open(notBundled[0].Page);
             return $"This copy of X20CTL doesn't carry the {notBundled[0].Name}. The official page opened: install it, then come back here.";
         }
+        if (!Consent(missing.Select(m => m.Name).ToList())) return "PC mode drivers were not installed. PC mode stays off until you allow them.";
         foreach (var (name, file, _) in missing)
         {
             // Quiet installer UI still requires Windows UAC consent.
