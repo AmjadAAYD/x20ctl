@@ -7,7 +7,7 @@ namespace X20Ctl.Product.Setup;
 
 internal enum SetupMode { None, Install, Uninstall, UninstallRun }
 
-internal sealed record SetupOptions(bool StartMenu = true, bool Desktop = false, bool KeepUpToDate = true, bool Launch = true);
+internal sealed record SetupOptions(bool StartMenu = true, bool Desktop = false, bool KeepUpToDate = true, bool Launch = true, bool Drivers = false);
 
 /// <summary>
 /// The setup and the uninstaller are this same exe. A copy named *-setup.exe (or started with --setup) installs itself for the
@@ -54,7 +54,8 @@ internal static class Installer
 
     public static string NoPayloadMessage => "This copy of X20CTL is a development build, not the one-file release, so it can't install itself. Download the setup from the releases page.";
 
-    public static void Install(SetupOptions options, IProgress<(double Fraction, string Step)> progress)
+    /// <summary>Installs X20CTL. Returns a sentence when the PC mode drivers were asked for and did not all go in (the install itself still stands), else null.</summary>
+    public static string? Install(SetupOptions options, IProgress<(double Fraction, string Step)> progress)
     {
         string source = Payload() ?? throw new InvalidOperationException(NoPayloadMessage);
         progress.Report((.04, "Making room"));
@@ -78,9 +79,17 @@ internal static class Installer
         if (options.Desktop) Shortcut(DesktopLink); else TryDelete(DesktopLink);
         progress.Report((.92, "Registering with Windows"));
         Register();
-        progress.Report((.96, "Saving your choices"));
+        string? driverNote = null;
+        if (options.Drivers && !InSandbox && !PcModeSetup.Ready)
+        {   // the person ticked this in setup, so the drivers' own question is already answered
+            progress.Report((.94, "Installing PC mode drivers"));
+            try { string said = PcModeSetup.Run(consented: true).GetAwaiter().GetResult(); if (!PcModeSetup.Ready) driverNote = said; }
+            catch (Exception e) when (e is System.ComponentModel.Win32Exception or IOException or UnauthorizedAccessException or InvalidOperationException) { driverNote = "Couldn't set up the PC mode drivers: " + e.Message; }
+        }
+        progress.Report((.97, "Saving your choices"));
         if (!options.KeepUpToDate) SaveAutoUpdate(false);
         progress.Report((1, "Done"));
+        return driverNote;
     }
 
     static void SaveAutoUpdate(bool on)
