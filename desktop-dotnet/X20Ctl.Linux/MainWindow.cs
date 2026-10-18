@@ -141,7 +141,7 @@ public sealed class MainWindow : Window
     void ShowIntro()
     {
         if (intro != null || Content is not Grid stage) return;
-        intro = new IntroView(mark, () => { stage.Children.Remove(intro!); intro = null; body.Focus(); });
+        intro = new IntroView(mark, session.Players.FirstOrDefault(pl => pl != null)?.Id ?? "x20_pro", () => { stage.Children.Remove(intro!); intro = null; body.Focus(); });
         stage.Children.Add(intro);
     }
 
@@ -187,6 +187,12 @@ public sealed class MainWindow : Window
             await Shot(tab.ToLowerInvariant().Replace(' ', '-'));
         }
         body.Content = new StickToolsView(session.StudioFor(session.Selected)!, () => { }); await Shot("advanced");
+        ShowZone();
+        foreach (double at in new[] { .5, 2.0, 3.6, 4.4, 5.4, 6.4 })
+        {
+            var frame = new IntroView(mark, "x20_pro", () => { }, silent: true) { Frozen = at }; ((Grid)Content!).Children.Add(frame);
+            await Shot("intro-" + at.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)); ((Grid)Content!).Children.Remove(frame);
+        }
         Close();
     }
 }
