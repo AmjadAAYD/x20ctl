@@ -32,8 +32,16 @@ internal static class SetupReview
             window.Close();
         }
         await Shots(SetupMode.Install, "setup-",
-            ("1-welcome", w => w.Preview(0)), ("2-license", w => w.Preview(1)), ("2-license-accepted", w => w.Preview(1, accept: true)), ("2-notice", w => w.Preview(1, accept: true, tab: "Notice")),
+            ("1-welcome", w => w.Preview(0)), ("1-welcome-x20", w => w.Preview(0, art: 1)), ("1-welcome-x05", w => w.Preview(0, art: 5)), ("2-license", w => w.Preview(1)), ("2-license-accepted", w => w.Preview(1, accept: true)), ("2-notice", w => w.Preview(1, accept: true, tab: "Notice")),
             ("3-options", w => w.Preview(2)), ("4-installing", w => w.Preview(3, .62)), ("5-finish", w => w.Preview(4)), ("5-failed", w => w.Preview(4, fail: "Access to the path is denied.")));
+        // the welcome page slides on by itself: wait past one turn and see that it moved on from the X20 Pro to the X20
+        {
+            var window = new SetupWindow(SetupMode.Install); window.Show(); await Task.Delay(4600); window.UpdateLayout();
+            var bmp = new RenderTargetBitmap((int)window.ActualWidth, (int)window.ActualHeight, 96, 96, PixelFormats.Pbgra32); bmp.Render((Visual)window.Content);
+            var enc = new PngBitmapEncoder(); enc.Frames.Add(BitmapFrame.Create(bmp)); using (var s = File.Create(Path.Combine(directory, "setup-1-welcome-after-4s.png"))) enc.Save(s);
+            log.Add("INFO welcome carousel capture taken after 4.6 s");
+            window.Close();
+        }
         await Shots(SetupMode.UninstallRun, "remove-", ("1-confirm", w => w.Preview(0)), ("2-removing", w => w.Preview(1, .55)), ("3-done", w => w.Preview(1, 1)));
 
         // ---- the mode switch
