@@ -92,18 +92,18 @@ public sealed class ProductSettings : Grid
         Replay = Card("", "Replay Intro", "Watch the X20CTL opening again.", Kit.Blue);
         About = Card("", "About", "What X20CTL is, who made it, and credits.", Color.FromRgb(150, 175, 215));
         Support = Card("", "Support X20CTL", "Help keep it going on Ko-fi.", Color.FromRgb(255, 92, 122));
-        Star = Card("", "Star on GitHub", "AmjadAAYD/x20ctl", Kit.Blue); // short enough that the tile never cuts it
+        Star = Card("", "Star on GitHub", "AmjadAAYD/x20ctl", Color.FromRgb(245, 200, 80)); // short enough that the tile never cuts it
         Replay.Click += (_, _) => replay(); Support.Click += (_, _) => support(); Star.Click += (_, _) => Try(() => ExternalLinks.Open(ExternalLinks.Repository));
         About.Click += (_, _) => ShowAbout(true);
         PcMode = Card("", "PC mode", "Remaps, turbo and macros for any pad.", Color.FromRgb(52, 211, 153));
         PcMode.Click += (_, _) => ShowPcMode(true);
         Place(tiles, PcMode, 0, 0);
         // the Read scan's partner: learns what an official app writes, from a phone's Bluetooth log
-        WriteScan = Card("", "Write scan", "What an app writes. 20 to 40 min.", Kit.Blue);
+        WriteScan = Card("", "Write scan", "What an app writes. 20 to 40 min.", Color.FromRgb(110, 160, 235));
         WriteScan.Click += (_, _) => writeScan?.Invoke();
         Place(tiles, WriteScan, 0, 2);
         Place(tiles, Replay, 2, 0); Place(tiles, About, 2, 2); Place(tiles, Support, 4, 0); Place(tiles, Star, 4, 2);
-        Feedback = Card("", "Send feedback", "Report a bug, ask for a feature or tell us about your controller.", Kit.Blue);
+        Feedback = Card("", "Send feedback", "Report a bug, ask for a feature or tell us about your controller.", Color.FromRgb(110, 160, 235));
         Feedback.Click += (_, _) => ShowFeedback(true);
         Place(tiles, Feedback, 6, 0); Grid.SetColumnSpan(Feedback, 3);
         if (pcModeService == null || pcModeStore == null) { PcMode.Visibility = Visibility.Collapsed; Grid.SetColumn(WriteScan, 0); Grid.SetColumnSpan(WriteScan, 3); }
@@ -300,8 +300,8 @@ public sealed class ProductSettings : Grid
         }
         double chipSize = hero ? 60 : 48;
         var chip = new Border { Width = chipSize, Height = chipSize, CornerRadius = new(hero ? 18 : 14), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = hero ? VerticalAlignment.Top : VerticalAlignment.Center,
-            Background = new SolidColorBrush(Color.FromArgb(40, accent.R, accent.G, accent.B)), BorderBrush = new SolidColorBrush(Color.FromArgb(95, accent.R, accent.G, accent.B)), BorderThickness = new(1),
-            Child = new TextBlock { Text = icon, FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"), FontSize = hero ? 28 : 22, Foreground = new SolidColorBrush(Color.FromRgb(232, 240, 255)), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center } };
+            Background = new LinearGradientBrush(Color.FromArgb(175, accent.R, accent.G, accent.B), Color.FromArgb(70, accent.R, accent.G, accent.B), 90), BorderBrush = new SolidColorBrush(Color.FromArgb(200, accent.R, accent.G, accent.B)), BorderThickness = new(1),
+            Child = new TextBlock { Text = icon, FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"), FontSize = hero ? 28 : 22, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center } };
         art.Children.Add(chip);
         var words = new StackPanel { VerticalAlignment = hero ? VerticalAlignment.Bottom : VerticalAlignment.Center, Margin = new(hero ? 0 : 66, 0, hero ? 0 : 34, 0) };
         words.Children.Add(Kit.Text(title, hero ? 34 : 19, "DS.Text", FontWeights.SemiBold).Also(t => { t.TextWrapping = TextWrapping.Wrap; t.TextTrimming = TextTrimming.None; }));
