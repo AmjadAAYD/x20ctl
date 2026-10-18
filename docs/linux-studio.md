@@ -2,6 +2,8 @@
 
 The Windows app is WPF, which is Windows-only. The Linux Studio is a separate Avalonia front end that reuses the shared, UI-free libraries.
 
+For installing and using it, see [linux-user-guide.md](linux-user-guide.md).
+
 ## Sizes (measured)
 
 | Project | Lines | Notes |
