@@ -92,18 +92,18 @@ public sealed class ProductSettings : Grid
         Replay = Card("", "Replay Intro", "Watch the X20CTL opening again.", Kit.Blue);
         About = Card("", "About", "What X20CTL is, who made it, and credits.", Color.FromRgb(150, 175, 215));
         Support = Card("", "Support X20CTL", "Help keep it going on Ko-fi.", Color.FromRgb(255, 92, 122));
-        Star = Card("", "Star on GitHub", "AmjadAAYD/x20ctl", Color.FromRgb(245, 200, 80)); // short enough that the tile never cuts it
+        Star = Card("", "Star on GitHub", "AmjadAAYD/x20ctl", Kit.Blue); // short enough that the tile never cuts it
         Replay.Click += (_, _) => replay(); Support.Click += (_, _) => support(); Star.Click += (_, _) => Try(() => ExternalLinks.Open(ExternalLinks.Repository));
         About.Click += (_, _) => ShowAbout(true);
         PcMode = Card("", "PC mode", "Remaps, turbo and macros for any pad.", Color.FromRgb(52, 211, 153));
         PcMode.Click += (_, _) => ShowPcMode(true);
         Place(tiles, PcMode, 0, 0);
         // the Read scan's partner: learns what an official app writes, from a phone's Bluetooth log
-        WriteScan = Card("", "Write scan", "What an app writes. 20 to 40 min.", Color.FromRgb(110, 160, 235));
+        WriteScan = Card("", "Write scan", "What an app writes. 20 to 40 min.", Kit.Blue);
         WriteScan.Click += (_, _) => writeScan?.Invoke();
         Place(tiles, WriteScan, 0, 2);
         Place(tiles, Replay, 2, 0); Place(tiles, About, 2, 2); Place(tiles, Support, 4, 0); Place(tiles, Star, 4, 2);
-        Feedback = Card("", "Send feedback", "Report a bug, ask for a feature or tell us about your controller.", Color.FromRgb(110, 160, 235));
+        Feedback = Card("", "Send feedback", "Report a bug, ask for a feature or tell us about your controller.", Kit.Blue);
         Feedback.Click += (_, _) => ShowFeedback(true);
         Place(tiles, Feedback, 6, 0); Grid.SetColumnSpan(Feedback, 3);
         if (pcModeService == null || pcModeStore == null) { PcMode.Visibility = Visibility.Collapsed; Grid.SetColumn(WriteScan, 0); Grid.SetColumnSpan(WriteScan, 3); }
@@ -139,7 +139,7 @@ public sealed class ProductSettings : Grid
         foreach (var bar in new[] { updates, introBar })
         {
             bar.CornerRadius = new(16); bar.Padding = new(22, 14, 18, 14); bar.BorderThickness = new(1);
-            bar.Background = new SolidColorBrush(Color.FromArgb(150, 14, 24, 52)); bar.BorderBrush = new SolidColorBrush(Color.FromArgb(60, 120, 170, 255));
+            bar.Background = new SolidColorBrush(Color.FromArgb(200, 14, 23, 48)); bar.BorderBrush = new SolidColorBrush(Color.FromArgb(58, 120, 160, 230));
         }
         footer.ColumnDefinitions.Add(new() { Width = new(1.3, GridUnitType.Star) }); footer.ColumnDefinitions.Add(new() { Width = new(24) }); footer.ColumnDefinitions.Add(new() { Width = new(1, GridUnitType.Star) });
         footer.Children.Add(updates); Grid.SetColumn(introBar, 2); footer.Children.Add(introBar);
@@ -287,51 +287,45 @@ public sealed class ProductSettings : Grid
         return b;
     }
 
-    /// <summary>A glossy tile: glowing icon disc, title, one line of description, an arrow badge; lifts and lights on focus.</summary>
+    /// <summary>A flat tile in the Studio's own style: a quiet navy panel with a hairline border, an icon chip, a title and one
+    /// line of description. Hover brightens the border and nudges the chevron; no glow, no per-tile colour.</summary>
     private static Button Card(string icon, string title, string detail, Color accent, bool hero = false)
     {
+        var line = Color.FromArgb(58, 120, 160, 230); var lineOn = Color.FromArgb(210, 90, 160, 255);
         var art = new Grid();
-        var glow = new Ellipse { Width = hero ? 420 : 220, Height = hero ? 420 : 220, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new(0, hero ? -120 : -80, hero ? -120 : -70, 0), IsHitTestVisible = false,
-            Fill = new RadialGradientBrush(Color.FromArgb(hero ? (byte)70 : (byte)52, accent.R, accent.G, accent.B), Color.FromArgb(0, accent.R, accent.G, accent.B)) };
-        art.Children.Add(glow);
         if (hero)
         {   // the Controller Check card shows a computer running a scan (owner request 13 Oct 2026), not a controller
             var computer = new Scanner.PcScanArt();
-            art.Children.Add(new Viewbox { Child = computer, Width = 520, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new(0, -4, 0, 0), IsHitTestVisible = false });
+            art.Children.Add(new Viewbox { Child = computer, Width = 470, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new(0, 6, 0, 0), IsHitTestVisible = false, Opacity = .95 });
         }
-        else art.Children.Add(new TextBlock { Text = icon, FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"), FontSize = 150, Foreground = new SolidColorBrush(Color.FromArgb(14, 255, 255, 255)), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new(0, 26, 10, 0), IsHitTestVisible = false });
-        var disc = new Grid { Width = hero ? 92 : 56, Height = hero ? 92 : 56, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = hero ? VerticalAlignment.Top : VerticalAlignment.Center,
-            Children = { new Ellipse { Fill = new LinearGradientBrush(Color.FromArgb(150, accent.R, accent.G, accent.B), Color.FromArgb(60, accent.R, accent.G, accent.B), 90), Stroke = new SolidColorBrush(Color.FromArgb(200, accent.R, accent.G, accent.B)), StrokeThickness = 1.5,
-                Effect = new DropShadowEffect { Color = accent, BlurRadius = 26, ShadowDepth = 0, Opacity = .6 } },
-                new TextBlock { Text = icon, FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"), FontSize = hero ? 38 : 26, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center } } };
-        art.Children.Add(disc);
-        // small tiles put the icon beside the words, so four rows of them never collide
-        var words = new StackPanel { VerticalAlignment = hero ? VerticalAlignment.Bottom : VerticalAlignment.Center, Margin = new(hero ? 0 : 74, 0, hero ? 70 : 54, 0) };
-        words.Children.Add(Kit.Text(title, hero ? 38 : 21, "DS.Text", FontWeights.Bold).Also(t => { t.TextWrapping = TextWrapping.Wrap; t.TextTrimming = TextTrimming.None; }));
-        var d = Kit.Text(detail, hero ? 17 : 14.5, "DS.TextSoft"); d.TextWrapping = TextWrapping.Wrap; d.TextTrimming = TextTrimming.None; d.Margin = new(0, 8, 0, 0); words.Children.Add(d);
+        double chipSize = hero ? 60 : 48;
+        var chip = new Border { Width = chipSize, Height = chipSize, CornerRadius = new(hero ? 18 : 14), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = hero ? VerticalAlignment.Top : VerticalAlignment.Center,
+            Background = new SolidColorBrush(Color.FromArgb(40, accent.R, accent.G, accent.B)), BorderBrush = new SolidColorBrush(Color.FromArgb(95, accent.R, accent.G, accent.B)), BorderThickness = new(1),
+            Child = new TextBlock { Text = icon, FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"), FontSize = hero ? 28 : 22, Foreground = new SolidColorBrush(Color.FromRgb(232, 240, 255)), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center } };
+        art.Children.Add(chip);
+        var words = new StackPanel { VerticalAlignment = hero ? VerticalAlignment.Bottom : VerticalAlignment.Center, Margin = new(hero ? 0 : 66, 0, hero ? 0 : 34, 0) };
+        words.Children.Add(Kit.Text(title, hero ? 34 : 19, "DS.Text", FontWeights.SemiBold).Also(t => { t.TextWrapping = TextWrapping.Wrap; t.TextTrimming = TextTrimming.None; }));
+        var d = Kit.Text(detail, hero ? 16 : 14, "DS.TextSoft"); d.TextWrapping = TextWrapping.Wrap; d.TextTrimming = TextTrimming.None; d.Margin = new(0, hero ? 8 : 4, 0, 0); words.Children.Add(d);
         if (hero) words.Children.Add(new WrapPanel { Margin = new(0, 20, 0, 0), Children = { Chip("1  Read scan"), Chip("2  Write scan"), Chip("3  Send online") } });
         art.Children.Add(words);
-        var arrow = new Border { Width = 42, Height = 42, CornerRadius = new(21), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom, Background = new SolidColorBrush(Color.FromArgb(34, 255, 255, 255)), BorderBrush = new SolidColorBrush(Color.FromArgb(70, 255, 255, 255)), BorderThickness = new(1),
-            Child = Kit.Icon("", 15, "DS.Text").Also(i => i.HorizontalAlignment = HorizontalAlignment.Center) };
+        var arrowMove = new TranslateTransform();
+        var arrow = new TextBlock { Text = "", FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"), FontSize = 15, Foreground = DS.Brush("DS.TextMuted"), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = hero ? VerticalAlignment.Bottom : VerticalAlignment.Center, RenderTransform = arrowMove };
         art.Children.Add(arrow);
-        art.Children.Add(new TextBlock { Text = "///", FontFamily = DS.Display, FontSize = 16, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush(Color.FromArgb(70, 255, 255, 255)), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top });
         var face = new Border
         {
-            CornerRadius = new(hero ? 24 : 20), BorderThickness = new(1.2), Padding = hero ? new(40, 38, 32, 32) : new(28, 24, 22, 22), ClipToBounds = true, Child = art,
-            Background = new LinearGradientBrush(Color.FromArgb(225, 22, 36, 72), Color.FromArgb(215, 9, 16, 38), 90),
-            BorderBrush = new LinearGradientBrush(Color.FromArgb(120, 150, 190, 255), Color.FromArgb(28, 150, 190, 255), 90)
+            CornerRadius = new(hero ? 22 : 18), BorderThickness = new(1), Padding = hero ? new(34, 32, 30, 30) : new(22, 18, 20, 18), ClipToBounds = true, Child = art,
+            Background = new LinearGradientBrush(Color.FromArgb(230, 17, 28, 58), Color.FromArgb(225, 11, 19, 42), 90), BorderBrush = new SolidColorBrush(line)
         };
-        var shine = new Border { CornerRadius = face.CornerRadius, IsHitTestVisible = false, Background = new LinearGradientBrush(Color.FromArgb(26, 255, 255, 255), Color.FromArgb(0, 255, 255, 255), new Point(0, 0), new Point(.6, .6)) };
-        var scale = new ScaleTransform(1, 1);
-        var button = new Button { Content = new Grid { Children = { face, shine } }, Cursor = Cursors.Hand, FocusVisualStyle = null, RenderTransformOrigin = new(.5, .5), RenderTransform = scale, ToolTip = detail,
-            Template = BareTemplate() };
+        var lift = new TranslateTransform();
+        var button = new Button { Content = face, Cursor = Cursors.Hand, FocusVisualStyle = null, RenderTransform = lift, ToolTip = detail, Template = BareTemplate() };
         System.Windows.Automation.AutomationProperties.SetName(button, title);
         void Light(bool on)
         {
-            face.BorderBrush = on ? Brushes.White : new LinearGradientBrush(Color.FromArgb(120, 150, 190, 255), Color.FromArgb(28, 150, 190, 255), 90);
-            face.Effect = on ? new DropShadowEffect { Color = accent, BlurRadius = 34, ShadowDepth = 0, Opacity = .6 } : null;
-            double to = on ? 1.025 : 1;
-            if (DS.Motion) { scale.BeginAnimation(ScaleTransform.ScaleXProperty, DS.To(to, 170)); scale.BeginAnimation(ScaleTransform.ScaleYProperty, DS.To(to, 170)); } else scale.ScaleX = scale.ScaleY = to;
+            face.BorderBrush = new SolidColorBrush(on ? lineOn : line);
+            face.Background = new LinearGradientBrush(on ? Color.FromArgb(240, 22, 36, 74) : Color.FromArgb(230, 17, 28, 58), on ? Color.FromArgb(235, 14, 24, 52) : Color.FromArgb(225, 11, 19, 42), 90);
+            arrow.Foreground = DS.Brush(on ? "DS.Text" : "DS.TextMuted");
+            if (DS.Motion) { lift.BeginAnimation(TranslateTransform.YProperty, DS.To(on ? -2 : 0, 150)); arrowMove.BeginAnimation(TranslateTransform.XProperty, DS.To(on ? 4 : 0, 150)); }
+            else { lift.Y = on ? -2 : 0; arrowMove.X = on ? 4 : 0; }
         }
         button.MouseEnter += (_, _) => Light(true); button.MouseLeave += (_, _) => Light(button.IsKeyboardFocused);
         button.GotKeyboardFocus += (_, _) => Light(true); button.LostKeyboardFocus += (_, _) => Light(button.IsMouseOver);
