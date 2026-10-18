@@ -40,7 +40,7 @@
     <!-- the opening sound, made from sine waves by tools/build_intro_sound.py -->
     <Content Include="Brand/intro.wav;Brand/intro-audio-provenance.md" CopyToOutputDirectory="PreserveNewest" />
     <!-- the guides Agent XCTL answers app questions from (M5) -->
-    <Content Include="../../README.md;../../IF-YOUR-CONTROLLER-ISNT-WORKING.md;../../PRIVACY.md" Link="Help/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../README.md;../../README.plain.md;../../IF-YOUR-CONTROLLER-ISNT-WORKING.md;../../PRIVACY.md" Link="Help/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <!-- PC mode's two installers (ViGEmBus, HidHide; see vendor/drivers/README.md), carried inside the exe when present -->
     <Content Include="../../vendor/drivers/*.exe" Link="drivers/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" Condition="Exists('../../vendor/drivers')" />
     <Content Include="../../tools/linux_controller_check/x20ctl-check.py" Link="Tools/linux/x20ctl-check.py" CopyToOutputDirectory="PreserveNewest" />
