@@ -1,3 +1,6 @@
+using System.Net.Http;
+using System.Text.Json;
+using System.Text.RegularExpressions;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
@@ -13,7 +16,10 @@ public sealed class WriteScanPage : UserControl
     readonly TextBox model = Field("X20"), app = Field("KeyLinker"), setting = Field(""), original = Field(""), test = Field("");
     readonly TextBlock status = T.Label("", 14, T.Soft);
     readonly TextBox result = new() { IsReadOnly = true, AcceptsReturn = true, FontFamily = new FontFamily("monospace"), FontSize = 12.5, MinHeight = 260, MaxHeight = 420, TextWrapping = TextWrapping.NoWrap, IsVisible = false };
-    readonly Pill save;
+    readonly Pill save, send;
+    readonly CheckBox agree = new() { Content = "I looked at what is sent and I agree to send it" }, withTrace = new() { Content = "Include the controller's part of the Bluetooth log" };
+    readonly TextBlock sendStatus = T.Label("", 14, T.Soft); readonly Border sendBox = new() { IsVisible = false };
+    string? receipt;
     WriteScanReport? report; byte[]? raw; string extension = "btsnoop";
 
     static TextBox Field(string text) => new() { Text = text, MinWidth = 220, FontSize = 14 };
@@ -21,6 +27,11 @@ public sealed class WriteScanPage : UserControl
     public WriteScanPage()
     {
         save = new Pill("Save results", Pill.Kinds.Ghost, Save) { IsVisible = false };
+        send = new Pill("Send to X20CTLADMIN", Pill.Kinds.Primary, Send) { Enabled = false };
+        agree.IsCheckedChanged += (_, _) => send.Enabled = agree.IsChecked == true && receipt == null;
+        sendBox.Child = T.Card(T.Stack(10, T.Label("Send this scan", 18, null, FontWeight.SemiBold),
+            T.Label("This sends the summary, the findings and the decoded messages as a research report. Nothing goes until you press the button. The Bluetooth log part is off unless you tick it.", 13.5, T.Soft),
+            withTrace, agree, T.Line(12, send), sendStatus));
         var steps = T.Stack(8,
             T.Label("1  On the phone, turn on Developer options, then \"Enable Bluetooth HCI snoop log\", and switch Bluetooth off and on.", 14, T.Soft),
             T.Label("2  Open KeyLinker, connect to the pad, and change one setting from its original value to the test value, once.", 14, T.Soft),
@@ -37,7 +48,7 @@ public sealed class WriteScanPage : UserControl
                     {
                         T.Label("Write scan", 34, null, FontWeight.Bold),
                         T.Label("Learn what KeyLinker writes to a controller. This reads the phone's own Bluetooth log and sends nothing to the pad.", 15, T.Soft),
-                        T.Card(steps), T.Card(plan), T.Line(12, open, save), status, result
+                        T.Card(steps), T.Card(plan), T.Line(12, open, save), status, result, sendBox
                     }
                 }
             }
@@ -63,11 +74,26 @@ public sealed class WriteScanPage : UserControl
                 report = built; raw = log; extension = ext;
             }
             finally { try { File.Delete(temp); } catch (IOException) { } }
-            result.Text = report.Summary(); result.IsVisible = true; save.IsVisible = true;
+            result.Text = report.Summary(); result.IsVisible = true; save.IsVisible = true; sendBox.IsVisible = true; receipt = null; agree.IsChecked = false; sendStatus.Text = "";
             status.Text = report.IsKeyLinker ? "KeyLinker traffic found." : "No KeyLinker traffic in that recording.";
         }
         catch (Exception e) when (e is IOException or InvalidDataException or UnauthorizedAccessException or FormatException)
         { status.Text = "Couldn't read that file: " + e.Message; }
+    }
+
+    async void Send()
+    {
+        if (report == null || agree.IsChecked != true || receipt != null) return;
+        send.Enabled = false; sendStatus.Text = "Sending to X20CTLADMIN…";
+        try
+        {
+            var zip = report.ResearchZip(withTrace.IsChecked == true, AppInfo.Version);
+            receipt = await WriteScanUpload.Send(zip, report.Plan.Model);
+            sendStatus.Text = $"Sent · receipt {receipt}. Keep the receipt if you want to ask about it.";
+        }
+        catch (WriteScanUpload.NotReady e) { sendStatus.Text = e.Message; }
+        catch (Exception e) when (e is HttpRequestException or TaskCanceledException or InvalidDataException or IOException or JsonException) { sendStatus.Text = "Not sent: " + e.Message; }
+        finally { send.Enabled = receipt == null && agree.IsChecked == true; }
     }
 
     void Save()
@@ -75,5 +101,50 @@ public sealed class WriteScanPage : UserControl
         if (report == null) return;
         try { status.Text = "Saved to " + report.Save(Folder, raw, null, extension); }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { status.Text = "Couldn't save: " + e.Message; }
+    }
+}
+
+/// <summary>Sends a Write scan to X20CTLADMIN as a research report (schema 2, the Read scan's /api/controller-report route). It asks the receiver first whether it takes schema 2 and sends nothing if not.
+/// Only ever called from the Send button, after the owner ticked that they looked at it.</summary>
+internal static class WriteScanUpload
+{
+    const string Route = "https://x20-admin.vercel.app/api/controller-report";
+    public sealed class NotReady(string message) : Exception(message);
+
+    public static async Task<string> Send(byte[] zip, string controllerName)
+    {
+        if (zip.Length > WriteScanReport.MaxResearchZipBytes) throw new InvalidDataException("The report is over the receiver's 8 MB limit.");
+        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+        using (var probe = await http.GetAsync(Route))
+        {
+            bool ready = false;
+            if (probe.IsSuccessStatusCode)
+                try
+                {
+                    using var doc = JsonDocument.Parse(await probe.Content.ReadAsStringAsync());
+                    ready = doc.RootElement.TryGetProperty("reportSchemaVersions", out var v) && v.ValueKind == JsonValueKind.Array && v.EnumerateArray().Any(x => x.ValueKind == JsonValueKind.Number && x.GetInt32() == 2);
+                }
+                catch (JsonException) { }
+            if (!ready) throw new NotReady("X20CTLADMIN can't take Write scans yet. Nothing was sent; save the results instead.");
+        }
+        string name = string.IsNullOrWhiteSpace(controllerName) ? "Unknown controller" : controllerName.Trim()[..Math.Min(120, controllerName.Trim().Length)];
+        var metadata = JsonSerializer.Serialize(new { controllerName = name, appVersion = AppInfo.Version, scannerVersion = "write-scan-1", clientTimestamp = DateTime.UtcNow.ToString("o"), connectionType = "Bluetooth (phone)", reportSchemaVersion = 2 });
+        using var form = new MultipartFormDataContent("x20ctl-" + Guid.NewGuid().ToString("N"))
+        {
+            { new StringContent(Guid.NewGuid().ToString()), "clientSubmissionId" }, { new StringContent(metadata), "metadata" },
+        };
+        var file = new ByteArrayContent(zip); file.Headers.ContentType = new("application/zip"); form.Add(file, "report", "write-scan.zip");
+        using var response = await http.PostAsync(Route, form);
+        string text = await response.Content.ReadAsStringAsync();
+        if ((int)response.StatusCode is not (200 or 201))
+        {
+            string reason = $"HTTP {(int)response.StatusCode}";
+            try { using var d = JsonDocument.Parse(text); if (d.RootElement.TryGetProperty("error", out var e) && e.TryGetProperty("message", out var m)) reason = m.GetString() ?? reason; } catch (JsonException) { }
+            throw new HttpRequestException("X20CTLADMIN refused it: " + reason);
+        }
+        using var doc2 = JsonDocument.Parse(text);
+        string id = doc2.RootElement.TryGetProperty("submissionId", out var sid) ? sid.GetString() ?? "" : "";
+        if (!Regex.IsMatch(id, "^CR-[0-9A-F]{24}$")) throw new InvalidDataException("X20CTLADMIN returned no valid receipt.");
+        return id;
     }
 }
