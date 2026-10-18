@@ -8,7 +8,7 @@
 Remap buttons, shape sticks and triggers, build back-paddle macros, preview vibration, and check that a controller really works.</p>
 
 <p align="center">
-  <a href="https://github.com/AmjadAAYD/x20ctl/releases/tag/v4.1.0-preview.6"><b>Download 4.1.0 Preview 6</b></a> ·
+  <a href="https://github.com/AmjadAAYD/x20ctl/releases/tag/v4.1.0-preview.6"><b>Download V0.015</b></a> ·
   <a href="CHANGELOG.md">Changelog</a> ·
   <a href="IF-YOUR-CONTROLLER-ISNT-WORKING.md">Controller not working?</a> ·
   <a href="https://github.com/AmjadAAYD/x20ctl/issues">Report an issue</a>
@@ -193,11 +193,11 @@ You need Windows 10 or 11 (x64). Everything is bundled: you don't need to instal
 
 **Linux:** [X20CTL-4.1.0-preview.6-linux-check.zip](https://github.com/AmjadAAYD/x20ctl/releases/download/v4.1.0-preview.6/X20CTL-4.1.0-preview.6-linux-check.zip). The Studio is Windows-only for now; this ZIP contains the Controller Check (`x20ctl-check.py`) and PC mode (`x20ctl-pcmode.py`) as standalone Python 3 scripts. The `x20` command line (`uv run x20 scan`) runs from this repository. A native Linux build of the full Studio is planned.
 
-The last stable release is still [4.0.1](https://github.com/AmjadAAYD/x20ctl/releases/tag/v4.0.1).
+Every earlier release is on the [releases page](https://github.com/AmjadAAYD/x20ctl/releases). How the version names work: [docs/versions.md](docs/versions.md).
 
 ## Local first
 
-- No account. No telemetry. Update checks happen only if you turn on **Keep X20CTL up to date** in Tools. PC mode installs its two drivers only when you press **Set up PC mode**. Your setups, drafts and assignments stay in your user folder.
+- No account. No telemetry. The update check is on by default and you can turn it off with **Keep X20CTL up to date** in Tools. PC mode installs its two drivers only when you press **Set up PC mode**. Your setups, drafts and assignments stay in your user folder.
 - Every change is a **local draft** until it can be sent to a connected, verified controller. X20CTL never writes to a controller it cannot read back.
 - The game shelf reads only the Steam and Epic launchers' own local files.
 - The only uploads are a Controller Check report when you choose **Scan and send**, and feedback when you press **Send to X20CTL**. The [privacy policy](PRIVACY.md) lists exactly what each one contains. External links, such as Support and GitHub, open in your browser and only when you click them.
@@ -225,6 +225,6 @@ If X20CTL helps you, you can [support it on Ko-fi](https://ko-fi.com/x20ctl), or
 
 ## License
 
-From 4.1.0 Preview 3, X20CTL is free software under the **[GNU General Public License v3.0 or later](LICENSE)**. You may use, study, share and change it. If you distribute a modified version, it must stay open under the same licence.
+From V0.012 (4.1.0 Preview 3), X20CTL is free software under the **[GNU General Public License v3.0 or later](LICENSE)**. You may use, study, share and change it. If you distribute a modified version, it must stay open under the same licence.
 
-Releases up to and including 4.1.0 Preview 2 were published under MIT, and code contributed under MIT keeps its notice ([licenses/](licenses/)). See [NOTICE](NOTICE) for details and the full non-affiliation statement.
+Releases up to and including V0.011 (4.1.0 Preview 2) were published under MIT, and code contributed under MIT keeps its notice ([licenses/](licenses/)). See [NOTICE](NOTICE) for details and the full non-affiliation statement.

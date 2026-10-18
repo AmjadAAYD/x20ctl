@@ -1,8 +1,26 @@
 # Changelog
 
-## [4.1.0-preview.6] - 2026-10-17
+## [Unreleased]
 
-A pre-release. Everything in [Preview 5](#410-preview5---2026-10-12) is included.
+### Added
+
+- **A setup wizard for Windows.** Each release carries `X20CTL-<version>-windows-x64-setup.exe` next to the plain exe. It is the same file: a copy with that name opens a wizard in the app's own look (welcome, license, options, install, finish) instead of the app. It installs for your account only, in `%LOCALAPPDATA%\Programs\X20CTL`, with a Start menu entry, an optional desktop shortcut and an entry in Windows Apps. The plain exe still runs from anywhere, with no install.
+- **An uninstaller.** The entry in Windows Apps (or `X20Ctl.exe --uninstall`) removes the app, its shortcuts and its entry, and keeps your settings unless you tick *Also delete my settings*. The PC mode drivers stay installed. `--silent` skips the wizard for both setup and removal.
+
+### Changed
+
+- **New version names.** Releases are now numbered V0.016, V0.017 and so on, with fixes as V0.016.1. The first number turns to 1 at the first release that supports every controller. Earlier releases are renamed in the same way (4.1.0-preview.6 is V0.015) and keep their tags and downloads. There are no more previews. See [docs/versions.md](docs/versions.md).
+- **Keep X20CTL up to date is on by default.** Anyone who switched it off keeps it off. The setup asks about it, and Tools still turns it off.
+
+### Fixed
+
+- **The in-app updater never installed anything in a release build.** The one-file exe was mistaken for a folder build, so it announced updates but sent you to GitHub. It now recognises itself and swaps in the new, checksum-verified exe.
+
+## [V0.015] - 2026-10-17
+
+Tagged `v4.1.0-preview.6`.
+
+A pre-release. Everything in [V0.014](#v0014---2026-10-12) is included.
 
 ### Added
 
@@ -37,9 +55,11 @@ A pre-release. Everything in [Preview 5](#410-preview5---2026-10-12) is included
 
 - The legacy PySide and web interfaces, the pywebview bridge, the WebView2 packaging and the old standalone Python scanner. The command line and its core no longer depend on any of them.
 
-## [4.1.0-preview.5] - 2026-10-12
+## [V0.014] - 2026-10-12
 
-A pre-release. Everything in [Preview 4](#410-preview4---2026-10-10) is included.
+Tagged `v4.1.0-preview.5`.
+
+A pre-release. Everything in [V0.013](#v0013---2026-10-10) is included.
 
 ### Added
 
@@ -122,9 +142,11 @@ A pre-release. Everything in [Preview 4](#410-preview4---2026-10-10) is included
 - Diagnostics and Measure drift on a real controller: the report-rate counter and the bounce flags have only run without a pad.
 - The controller as a mouse, two or more controllers in PC mode, per-game switching and the View + Menu switch: all built and unit-tested, none run with a real controller yet. The Linux `mouse` command and View + Menu in `run` have not run on a real distro.
 
-## [4.1.0-preview.4] - 2026-10-10
+## [V0.013] - 2026-10-10
 
-A pre-release test build, made for the first owner scans of the EasySMX Dune 8K. Everything in [Preview 3](#410-preview3---2026-10-10) is included; the changes below are all in the Controller Check (now scanner 2.1).
+Tagged `v4.1.0-preview.4`.
+
+A pre-release test build, made for the first owner scans of the EasySMX Dune 8K. Everything in [V0.012](#v0012---2026-10-10) is included; the changes below are all in the Controller Check (now scanner 2.1).
 
 ### Added
 
@@ -145,7 +167,9 @@ A pre-release test build, made for the first owner scans of the EasySMX Dune 8K.
 
 - The countdown screens with a controller pressing through them, and the Bluetooth battery read on a real controller. This build is how they get tested.
 - Listening to the vendor channels for battery data is not built yet, and the Linux scanner (`x20ctl-check.py`) doesn't have these changes.
-## [4.1.0-preview.3] - 2026-10-10
+## [V0.012] - 2026-10-10
+
+Tagged `v4.1.0-preview.3`.
 
 A pre-release. X20CTL is now a native Windows app, and everything below is new since Preview 2. The EasySMX X20 is the only verified controller; every other model is a read-only preview.
 
@@ -180,21 +204,27 @@ A pre-release. X20CTL is now a native Windows app, and everything below is new s
 - RGB lighting, gyro, turbo and firmware updates. These stay untouched by design.
 - A native Linux build of the full Studio. Only the Controller Check runs on Linux for now.
 - Code signing: the app is unsigned, so check the ZIP against `SHA256SUMS.txt`.
-## [4.1.0-preview.2] - 2026-10-08
+## [V0.011] - 2026-10-08
+
+Tagged `v4.1.0-preview.2`.
 
 - Experimental selected-source input for D10, X15, X05 and X10, with guarded configuration and Known/Missing status.
 - Extended guided evidence collection, model-specific BLE discovery hints and HCI trace/context import.
 - Reject explicitly named non-X20 peripherals before the X20 settings writer.
 - Direct EXE preview distribution; persistent remapping remains disabled for these four models.
 
-## [4.1.0-preview.1] - 2026-10-07
+## [V0.010] - 2026-10-07
+
+Tagged `v4.1.0-preview.1`.
 
 - Seven-model, four-player desktop workspace and shared Studio sections.
 - Experimental X15 read-only input and integrated guided scanner.
 - Controller/control artwork, vibration contours, compact macro editing and launch sizing updates.
 - Preview hardware remains evidence-gated; native acceptance and receiver deployment remain pending.
 
-## 4.0.1 - 2026-09-28
+## [V0.009.1] - 2026-09-28
+
+Tagged `v4.0.1`.
 
 ### Fixed
 
@@ -205,7 +235,9 @@ A pre-release. X20CTL is now a native Windows app, and everything below is new s
 
 The paired scanner integrity check, report consent flow, and existing X20 functionality remain unchanged.
 
-## 4.0.0 - 2026-09-28
+## [V0.009] - 2026-09-28
+
+Tagged `v4.0.0`.
 
 ### What's added
 
@@ -227,7 +259,9 @@ The paired scanner integrity check, report consent flow, and existing X20 functi
 - The 4.0.0 packaged desktop passed 28 automated smoke checks. Windows file and displayed version metadata both report 4.0.0.
 - The scanner currently reads selected-device Bluetooth LE information only. USB/HID descriptors, input captures, new controller compatibility, and a live desktop-to-X20ADMIN report upload have not been verified for this release.
 
-## 3.1.0 - 2026-09-25
+## [V0.008] - 2026-09-25
+
+Tagged `v3.1.0`.
 
 ### Added
 
@@ -257,7 +291,9 @@ The paired scanner integrity check, report consent flow, and existing X20 functi
 
 - Pro configuration writes, macro uploads, lighting/display controls or GIF transfer. These require the physical X20 Pro, repeatable reads, backups and write/read-back verification before a later release.
 
-## 3.0.0 - 2026-09-19
+## [V0.007] - 2026-09-19
+
+Tagged `v3.0.0`.
 
 ### Added
 
@@ -304,7 +340,9 @@ The paired scanner integrity check, report consent flow, and existing X20 functi
 - Four unused synthetic JPG interface mockups left under `src/assets/images`.
   Product screenshots now come only from the running desktop application.
 
-## 2.0.1 - 2026-09-18
+## [V0.006.1] - 2026-09-18
+
+Tagged `v2.0.1`.
 
 ### Fixed
 
@@ -322,7 +360,9 @@ The paired scanner integrity check, report consent flow, and existing X20 functi
 - Detected live XInput button and left-stick changes. Saved the real setup in
   the connected desktop UI after the fix. Macro playback was not tested.
 
-## 2.0.0 - 2026-09-18
+## [V0.006] - 2026-09-18
+
+Tagged `v2.0.0`.
 
 The first native desktop release of the new controller-studio interface.
 Compared with 1.2.0, the primary UI changes while the proven Python protocol
@@ -388,7 +428,9 @@ interpolation remain uncertain. X05 remains unsupported. The executable is
 unsigned. Release hashes are generated from the actual final artifact, never
 prewritten into documentation.
 
-## 1.2.0 - 2026-08-22
+## [V0.005] - 2026-08-22
+
+Tagged `v1.2.0`.
 
 Adds a quiet update check at launch, and rules out the EasySMX X05 as a
 KeyLinker device.
@@ -418,7 +460,9 @@ Download **x20ctl.exe** and run it. No install, no Python needed.
   eight-second timeout on the UI thread, which would have frozen the window at
   launch on a slow network.
 
-## 1.1.2 - 2026-08-16
+## [V0.004.2] - 2026-08-16
+
+Tagged `v1.1.2`.
 
 A read-everything bug hunt over the whole codebase.
 
@@ -448,7 +492,9 @@ Download **x20ctl.exe** and run it. No install, no Python needed.
 - `transport.py` already documented the 2.4 GHz receiver as transparent, which
   independently confirms this release's dongle correction.
 
-## 1.1.1 - 2026-08-16
+## [V0.004.1] - 2026-08-16
+
+Tagged `v1.1.1`.
 
 Download **x20ctl.exe** and run it. No install, no Python needed.
 
@@ -459,7 +505,9 @@ Download **x20ctl.exe** and run it. No install, no Python needed.
   Quit is on its right-click menu.
 - The first time the window hides, the tray says where it went.
 
-## 1.1.0 - 2026-08-16
+## [V0.004] - 2026-08-16
+
+Tagged `v1.1.0`.
 
 Acts on the first round of user feedback against 1.0.1.
 
@@ -507,7 +555,9 @@ Download **x20ctl.exe** and run it. No install, no Python needed.
   replays them as existing buttons.
 - The 2.4 GHz receiver carries no configuration channel.
 
-## 1.0.1 - 2026-08-16
+## [V0.003] - 2026-08-16
+
+Tagged `v1.0.1`.
 
 First stable release. Verified on two EasySMX X20 controllers.
 
@@ -578,6 +628,8 @@ Decoded and verified on hardware:
 - Trigger settings are chosen by name, not drawn
 - The executable is unsigned, so Windows warns that the publisher is unknown
 
-## 0.2.1
+## [V0.002.1]
+
+Tagged `v0.2.1`.
 
 Command line tool and single-controller GUI. Development releases.
