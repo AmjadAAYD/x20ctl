@@ -1,4 +1,4 @@
-# Builds and publishes a release from a tag (v4.1.0-preview.5 and so on): the single Windows exe, signed through the
+# Builds and publishes a release from a tag (v0.017, v0.017.1, v1.000, see docs/versions.md; v4.1.0-preview.7 is the bridge, V0.016):the single Windows exe and its setup (the same exe, named *-setup.exe), signed through the
 # SignPath Foundation once it is set up, and the Linux Controller Check, always together, then SHA256SUMS.txt. The
 # release is filled as a draft and published last, because releases are immutable once published.
 #
@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing tag to release, e.g. v4.1.0-preview.5
+        description: Existing tag to release, e.g. v0.017
         required: true
 
 permissions:
@@ -41,9 +41,16 @@ jobs:
       - name: Version from the tag
         shell: pwsh
         run: |
+          # NAME is what people see (V0.017) and names the files; the app carries the tag's version (0.017), .NET gets the numeric form (0.17.0)
+          $name = python tools/version_name.py "$env:TAG"; if ($LASTEXITCODE -ne 0) { throw "Tag $env:TAG is not a version" }
           $version = "$env:TAG".TrimStart('v')
-          if ($version -notmatch '^\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$') { throw "Tag $env:TAG is not a version" }
-          "VERSION=$version" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+          python tools/version_name.py --is-new "$env:TAG"
+          if ($LASTEXITCODE -eq 0) { $props = "-p:Version=$(python tools/version_name.py --numeric "$env:TAG") -p:InformationalVersion=$version" }
+          elseif ($version -match '^\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$') { $props = "-p:Version=$version" }
+          else { throw "Tag $env:TAG is not a version" }
+          $global:LASTEXITCODE = 0
+          "NAME=$name" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+          "VERSION_PROPS=$props" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
       - name: Build the native engine
         run: |
           cmake -S native-core -B artifacts/product-engine-phase/native-build -A x64
@@ -68,11 +75,14 @@ jobs:
         shell: pwsh
         run: |
           dotnet publish desktop-dotnet/X20Ctl.Product/X20Ctl.Product.csproj -c Release -r win-x64 --self-contained true `
-            -p:Version=$env:VERSION -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:PublishReadyToRun=true `
+            $env:VERSION_PROPS.Split(' ') -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:PublishReadyToRun=true `
             -p:IncludeNativeLibrariesForSelfExtract=true -p:IncludeAllContentForSelfExtract=true `
             -p:EngineBesideExe=false -p:ElevateAtLaunch=true -p:DebugType=none -o publish
           New-Item -ItemType Directory -Force out | Out-Null
-          Copy-Item publish/X20Ctl.exe "out/X20CTL-$env:VERSION-windows-x64.exe"
+          Copy-Item publish/X20Ctl.exe "out/X20CTL-$env:NAME-windows-x64.exe"
+          # the setup is the same exe: a copy named *-setup.exe opens the install wizard instead of the app (see Setup/Installer.cs).
+          # Both go through signing together, and neither name collides with the in-app updater, which looks for *-windows-x64.exe.
+          Copy-Item publish/X20Ctl.exe "out/X20CTL-$env:NAME-windows-x64-setup.exe"
       - name: Upload the unsigned exe
         id: unsigned
         uses: actions/upload-artifact@v4
@@ -118,12 +128,12 @@ jobs:
           persist-credentials: false
       - name: Package it
         run: |
-          version="${TAG#v}"
+          name="$(python3 tools/version_name.py "$TAG")"
           python3 -m py_compile tools/linux_controller_check/x20ctl-check.py tools/linux_controller_check/x20ctl-pcmode.py
           mkdir -p pkg out
           cp tools/linux_controller_check/x20ctl-check.py tools/linux_controller_check/x20ctl-pcmode.py tools/linux_controller_check/README.txt LICENSE NOTICE pkg/
           chmod 755 pkg/x20ctl-check.py
-          (cd pkg && zip -X "../out/X20CTL-${version}-linux-check.zip" README.txt x20ctl-check.py x20ctl-pcmode.py LICENSE NOTICE)
+          (cd pkg && zip -X "../out/X20CTL-${name}-linux-check.zip" README.txt x20ctl-check.py x20ctl-pcmode.py LICENSE NOTICE)
       - uses: actions/upload-artifact@v4
         with:
           name: linux
@@ -154,9 +164,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          version="${TAG#v}"
-          title="X20CTL $(echo "$version" | sed -E 's/-preview\.([0-9]+)$/ Preview \1/')"
-          prerelease=""; case "$version" in *-*) prerelease="--prerelease";; esac
-          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft $prerelease --verify-tag --title "$title" --notes-file notes.md
+          # no more pre-releases (owner decision, 18 Oct 2026): every release is a full one and is marked Latest, which GitHub can't work
+          # out by itself across the old numbering (4.1.0-preview.7) and the new (0.017)
+          title="X20CTL $(python3 tools/version_name.py "$TAG")"
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft --latest --verify-tag --title "$title" --notes-file notes.md
           gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" assets/*.exe assets/*.zip assets/SHA256SUMS.txt
           gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false
