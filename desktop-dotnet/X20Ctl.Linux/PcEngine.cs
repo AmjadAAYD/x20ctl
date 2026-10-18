@@ -15,7 +15,7 @@ internal static partial class Native
     [LibraryImport("libc", EntryPoint = "poll", SetLastError = true)] public static partial int Poll(ref PollFd fds, nuint count, int timeoutMs);
 
     [StructLayout(LayoutKind.Sequential)] public struct PollFd { public int Fd; public short Events; public short Revents; }
-    public const int ReadOnly = 0, WriteOnly = 1, NonBlock = 0x800, PollIn = 1;
+    public const int ReadOnly = 0, WriteOnly = 1, ReadWrite = 2, NonBlock = 0x800, PollIn = 1;
     public const int EAGAIN = 11;
 
     // Linux ioctl numbers: direction, size, type, number
@@ -47,7 +47,7 @@ internal sealed class PcEngine
 {
     public const string VirtualName = "X20CTL virtual pad (Xbox 360)";
     public const string UdevRule = "KERNEL==\"uinput\", SUBSYSTEM==\"misc\", TAG+=\"uaccess\", OPTIONS+=\"static_node=uinput\"";
-    const ushort EvSyn = 0, EvKey = 1, EvAbs = 3;
+    const ushort EvSyn = 0, EvKey = 1, EvAbs = 3, EvFf = 0x15, EvUinput = 0x101, FfRumble = 0x50, FfGain = 0x60;
     const int AbsX = 0, AbsY = 1, AbsZ = 2, AbsRx = 3, AbsRy = 4, AbsRz = 5, AbsHat0X = 0x10, AbsHat0Y = 0x11;
     static readonly (ushort Mask, int Code)[] OutKeys =
     [
@@ -183,6 +183,7 @@ internal sealed class PcEngine
                     long t = Environment.TickCount64 - s.Clock; var state = s.Real.State();
                     if (s.Combo.Update(state.Buttons, t)) { s.Paused = !s.Paused; lines.Add(s.Paused ? $"Player {s.Player + 1}: your settings are off for now. Hold View + Menu again to switch them on." : $"Player {s.Player + 1}: your settings are back on."); }
                     s.Virtual!.Update(s.Paused ? state : s.Processor.Process(state, t));
+                    if (s.Virtual.Feedback() is { } motors) s.Real.Rumble(motors.Strong, motors.Weak);
                 }
                 Set("Active", string.Join("\n", lines), any);
             }
@@ -219,7 +220,7 @@ internal sealed class PcEngine
         readonly Dictionary<int, (int Lo, int Hi)> ranges = new(); readonly Dictionary<int, int> raw = new(); readonly HashSet<string> pressed = new();
         public RealPad(EvDevice device, bool grab = true)
         {
-            layout = PadLayoutStore.Shared.Resolve(device).Layout;
+            path = device.Path; layout = PadLayoutStore.Shared.Resolve(device).Layout;
             fd = Native.Open(device.Path, Native.ReadOnly | Native.NonBlock);
             if (fd < 0) throw new IOException("open failed (" + Marshal.GetLastPInvokeError() + ")");
             foreach (int code in layout.AxisCodes)
@@ -287,7 +288,35 @@ internal sealed class PcEngine
             return new PadState(buttons, Trigger(layout.LT, "LT"), Trigger(layout.RT, "RT"), Stick(layout.LX), Stick(layout.LY), Stick(layout.RX), Stick(layout.RY));
         }
 
-        public void Dispose() { Native.IoctlInt(fd, Native.Ioc(1, 'E', 0x90, 4), 0); Native.Close(fd); }
+        // force feedback goes through its own descriptor, opened for writing only when a game first asks for rumble
+        string path = ""; int rumbleFd = -1, rumbleId = -1; bool rumbleGone;
+        static int EffectSize => 16 + (IntPtr.Size == 8 ? 32 : 28);
+
+        /// <summary>Makes the real pad rumble at the strengths a game asked of the virtual one (0-65535 each; zero for both stops it). Does nothing if the pad has no rumble.</summary>
+        public void Rumble(ushort strong, ushort weak)
+        {
+            if (rumbleGone) return;
+            if (rumbleFd < 0)
+            {
+                if (strong == 0 && weak == 0) return;
+                rumbleFd = Native.Open(path, Native.ReadWrite | Native.NonBlock);
+                if (rumbleFd < 0) { rumbleGone = true; return; }
+            }
+            if (strong == 0 && weak == 0) { if (rumbleId >= 0) Native.WriteEvents(rumbleFd, [(EvFf, (ushort)rumbleId, 0)]); return; }
+            var effect = new byte[EffectSize];
+            BitConverter.TryWriteBytes(effect.AsSpan(0, 2), (ushort)FfRumble); BitConverter.TryWriteBytes(effect.AsSpan(2, 2), (short)rumbleId);
+            BitConverter.TryWriteBytes(effect.AsSpan(10, 2), (ushort)0xFFFF); // plays until stopped (or about a minute, whichever the pad's driver honours)
+            BitConverter.TryWriteBytes(effect.AsSpan(16, 2), strong); BitConverter.TryWriteBytes(effect.AsSpan(18, 2), weak);
+            if (Native.IoctlBuf(rumbleFd, Native.Ioc(1, 'E', 0x80, EffectSize), effect) < 0) { rumbleGone = true; return; }
+            rumbleId = BitConverter.ToInt16(effect, 2);
+            Native.WriteEvents(rumbleFd, [(EvFf, (ushort)rumbleId, 1)]);
+        }
+
+        public void Dispose()
+        {
+            if (rumbleFd >= 0) { if (rumbleId >= 0) Native.WriteEvents(rumbleFd, [(EvFf, (ushort)rumbleId, 0)]); Native.Close(rumbleFd); rumbleFd = -1; }
+            Native.IoctlInt(fd, Native.Ioc(1, 'E', 0x90, 4), 0); Native.Close(fd);
+        }
     }
 
     // ------------------------------------------------------------------------------------------------ the virtual pad
@@ -297,14 +326,15 @@ internal sealed class PcEngine
         readonly int fd; PadState? last;
         public unsafe VirtualPad()
         {
-            fd = Native.Open("/dev/uinput", Native.WriteOnly | Native.NonBlock);
+            fd = Native.Open("/dev/uinput", Native.ReadWrite | Native.NonBlock);
             if (fd < 0) throw new IOException("/dev/uinput couldn't be opened");
             nuint setEv = Native.Ioc(1, 'U', 100, 4), setKey = Native.Ioc(1, 'U', 101, 4), setAbs = Native.Ioc(1, 'U', 103, 4);
-            Native.IoctlInt(fd, setEv, EvKey); Native.IoctlInt(fd, setEv, EvAbs);
+            Native.IoctlInt(fd, setEv, EvKey); Native.IoctlInt(fd, setEv, EvAbs); Native.IoctlInt(fd, setEv, EvFf);
+            nuint setFf = Native.Ioc(1, 'U', 107, 4); Native.IoctlInt(fd, setFf, FfRumble); Native.IoctlInt(fd, setFf, FfGain);
             foreach (var (_, code) in OutKeys) Native.IoctlInt(fd, setKey, code);
             foreach (int a in new[] { AbsX, AbsY, AbsZ, AbsRx, AbsRy, AbsRz, AbsHat0X, AbsHat0Y }) Native.IoctlInt(fd, setAbs, a);
             // the legacy uinput record (works on every kernel): an Xbox 360 pad's identity and axis ranges, so Steam, SDL and Proton treat it as a normal Xbox controller
-            var dev = new byte[80 + 8 + 4 + 64 * 4 * 4];
+            var dev = new byte[80 + 8 + 4 + 64 * 4 * 4]; BitConverter.TryWriteBytes(dev.AsSpan(88, 4), 16); // ff_effects_max: how many rumble effects a game may keep loaded
             Encoding.UTF8.GetBytes(VirtualName).CopyTo(dev, 0);
             BitConverter.TryWriteBytes(dev.AsSpan(80, 2), (ushort)0x03); BitConverter.TryWriteBytes(dev.AsSpan(82, 2), (ushort)0x045E); BitConverter.TryWriteBytes(dev.AsSpan(84, 2), (ushort)0x028E); BitConverter.TryWriteBytes(dev.AsSpan(86, 2), (ushort)0x0110);
             int max = 92, min = max + 256, fuzz = min + 256, flat = fuzz + 256;
@@ -326,6 +356,50 @@ internal sealed class PcEngine
             events.Add((EvAbs, AbsX, s.LeftX)); events.Add((EvAbs, AbsY, s.LeftY != 0 ? -s.LeftY - 1 : 0)); events.Add((EvAbs, AbsRx, s.RightX)); events.Add((EvAbs, AbsRy, s.RightY != 0 ? -s.RightY - 1 : 0));
             events.Add((EvAbs, AbsZ, s.LeftTrigger)); events.Add((EvAbs, AbsRz, s.RightTrigger)); events.Add((EvAbs, AbsHat0X, hx)); events.Add((EvAbs, AbsHat0Y, hy)); events.Add((EvSyn, 0, 0));
             Native.WriteEvents(fd, events.Select(e => (e.Item1, e.Item2, e.Item3))); last = s;
+        }
+
+        // rumble: the game writes force-feedback effects to the virtual pad; this reads them and reports the strengths to apply to the real one
+        readonly Dictionary<int, (ushort Strong, ushort Weak)> effects = []; readonly HashSet<int> playing = []; (ushort, ushort) sent;
+        static int UploadSize => 8 + 2 * (16 + (IntPtr.Size == 8 ? 32 : 28));
+
+        /// <summary>Handles whatever the game asked of the virtual pad since the last call. Returns the new (strong, weak) motor strengths when they changed, otherwise null.</summary>
+        public unsafe (ushort Strong, ushort Weak)? Feedback()
+        {
+            int size = Native.EventSize, time = IntPtr.Size * 2; var buffer = new byte[size * 16];
+            while (true)
+            {
+                nint n; fixed (byte* p = buffer) n = Native.Read(fd, p, (nuint)buffer.Length);
+                if (n <= 0) break;
+                for (int o = 0; o + size <= n; o += size)
+                {
+                    ushort type = BitConverter.ToUInt16(buffer, o + time), code = BitConverter.ToUInt16(buffer, o + time + 2); int value = BitConverter.ToInt32(buffer, o + time + 4);
+                    if (type == EvUinput && code == 1) Upload(value);
+                    else if (type == EvUinput && code == 2) Erase(value);
+                    else if (type == EvFf && code < FfGain) { if (value > 0) playing.Add(code); else playing.Remove(code); }
+                }
+            }
+            ushort strong = 0, weak = 0;
+            foreach (int id in playing) if (effects.TryGetValue(id, out var m)) { strong = Math.Max(strong, m.Strong); weak = Math.Max(weak, m.Weak); }
+            if ((strong, weak) == sent) return null;
+            sent = (strong, weak); return sent;
+        }
+
+        void Upload(int request)
+        {
+            var up = new byte[UploadSize]; BitConverter.TryWriteBytes(up.AsSpan(0, 4), request);
+            if (Native.IoctlBuf(fd, Native.Ioc(3, 'U', 200, UploadSize), up) < 0) return;
+            if (BitConverter.ToUInt16(up, 8) == FfRumble) effects[BitConverter.ToInt16(up, 10)] = (BitConverter.ToUInt16(up, 24), BitConverter.ToUInt16(up, 26));
+            BitConverter.TryWriteBytes(up.AsSpan(4, 4), 0);
+            Native.IoctlBuf(fd, Native.Ioc(1, 'U', 201, UploadSize), up);
+        }
+
+        void Erase(int request)
+        {
+            var er = new byte[12]; BitConverter.TryWriteBytes(er.AsSpan(0, 4), request);
+            if (Native.IoctlBuf(fd, Native.Ioc(3, 'U', 202, 12), er) < 0) return;
+            int id = BitConverter.ToInt32(er, 8); effects.Remove(id); playing.Remove(id);
+            BitConverter.TryWriteBytes(er.AsSpan(4, 4), 0);
+            Native.IoctlBuf(fd, Native.Ioc(1, 'U', 203, 12), er);
         }
 
         public void Dispose() { Native.IoctlInt(fd, Native.Ioc(0, 'U', 2, 0), 0); Native.Close(fd); }

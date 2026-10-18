@@ -15,6 +15,7 @@ The Windows app is WPF, which is Windows-only. The Linux Studio is a separate Av
 Built and rendered on Windows only. Nothing has been run on Linux yet: there is no Linux machine on hand.
 
 - Done: Controller Zone, controller chooser, and the Studio tabs Dashboard, Buttons, Curves, Macros, Vibration, PC mode, Device, Mouse, Setups, Tester and Diagnostics, on the shared `X20Ctl.Zone` drafts.
+- Written, not yet run on a real pad: rumble pass-through in PC mode. A game's rumble on the virtual Xbox pad (uinput force feedback) is forwarded to the real pad's own motors, if it has any. Needs the event device to be writable; a pad without rumble is simply left alone.
 - The PC mode engine (evdev in, exclusive grab, uinput Xbox 360 out) and the controller-as-mouse engine are C# ports of the tested Python in `tools/linux_controller_check`. The ports themselves have not touched a real pad.
 - Packaging is in `tools/linux-studio`: a tarball with an installer, an AppImage, and an untested Flatpak manifest. `release.yml` builds and attaches the first two. The binary is built for glibc; a musl distribution (Alpine, Chimera) needs a `linux-musl-x64` build.
 - Also done: Tools, About, Feedback, Controller Check, Write scan, the intro (silent, simplified), the update popup at launch, tray icon, four-player PC mode with per-game profiles, macro recording and timeline preview, Test mapping, live curve input with a keyboard test, "Use as dead zone" from Diagnostics, and a game shelf (Steam, Heroic, Lutris, games added by hand).
