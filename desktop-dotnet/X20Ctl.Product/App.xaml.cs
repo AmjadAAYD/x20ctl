@@ -77,8 +77,18 @@ public partial class App : Application
                 else await Development.ZoneReview.Run(e.Args[1]);
                 Shutdown(0); return;
             }
+            if (e.Args.Length == 2 && e.Args[0] == "--review-setup")
+            {
+                ShutdownMode = ShutdownMode.OnExplicitShutdown;
+                await Development.SetupReview.Run(e.Args[1]); Shutdown(0); return;
+            }
+            if (Setup.Installer.Detect(e.Args, Environment.ProcessPath) is var setup && setup != Setup.SetupMode.None)
+            {   // the setup, the uninstaller and their silent forms are this same exe
+                Setup.SetupApp.Run(this, setup, e.Args); return;
+            }
+            Setup.Installer.RefreshIfInstalled();
             if (e.Args.Length > 0 && !e.Args.SequenceEqual(new[] { "--reduced-motion" }))
-                throw new ArgumentException("Use --reduced-motion, --review-zone DIRECTORY, or --review-studio DIRECTORY.");
+                throw new ArgumentException("Use --reduced-motion, --setup, --uninstall, --review-zone DIRECTORY, or --review-studio DIRECTORY.");
             // a slip in the UI is logged and survived, never a closed app: the log names what happened for the next fix
             DispatcherUnhandledException += (_, failure) =>
             {

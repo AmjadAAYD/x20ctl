@@ -1,4 +1,4 @@
-# Builds and publishes a release from a tag (v4.1.0-preview.5 and so on): the single Windows exe, signed through the
+# Builds and publishes a release from a tag (v4.1.0-preview.5 and so on): the single Windows exe and its setup (the same exe, named *-setup.exe), signed through the
 # SignPath Foundation once it is set up, and the Linux Controller Check, always together, then SHA256SUMS.txt. The
 # release is filled as a draft and published last, because releases are immutable once published.
 #
@@ -73,6 +73,9 @@ jobs:
             -p:EngineBesideExe=false -p:ElevateAtLaunch=true -p:DebugType=none -o publish
           New-Item -ItemType Directory -Force out | Out-Null
           Copy-Item publish/X20Ctl.exe "out/X20CTL-$env:VERSION-windows-x64.exe"
+          # the setup is the same exe: a copy named *-setup.exe opens the install wizard instead of the app (see Setup/Installer.cs).
+          # Both go through signing together, and neither name collides with the in-app updater, which looks for *-windows-x64.exe.
+          Copy-Item publish/X20Ctl.exe "out/X20CTL-$env:VERSION-windows-x64-setup.exe"
       - name: Upload the unsigned exe
         id: unsigned
         uses: actions/upload-artifact@v4
