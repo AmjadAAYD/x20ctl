@@ -651,7 +651,7 @@ public sealed class AgentPanel
             mood = AgentCharacter.Mood(turn);
             transcript.Children.Remove(thinking);
             // PC mode on or off, when asked: the switch itself, not a setting
-            string? switched = turn.Outcome.PcMode is { } on ? (link == null ? "PC mode isn't reachable from this window." : PcModePage.SwitchFromAgent(link, on) ?? "") : null;
+            string? switched = turn.Outcome.PcMode is { } on ? (link == null ? "PC mode isn't reachable from this window." : await PcModePage.SwitchFromAgent(link, on) ?? "") : null;
             string? mouse = turn.Outcome.Mouse is { } mouseOn ? (MouseSwitch == null ? "Mouse mode isn't reachable from this window." : MouseSwitch(mouseOn) ?? "") : null;
             if (turn.Outcome.Next is { } next && turn.Outcome.Changes.Count > 0)
             {
