@@ -18,7 +18,7 @@ Built and rendered on Windows only. Nothing has been run on Linux yet: there is 
 - The PC mode engine (evdev in, exclusive grab, uinput Xbox 360 out) and the controller-as-mouse engine are C# ports of the tested Python in `tools/linux_controller_check`. The ports themselves have not touched a real pad.
 - Packaging is in `tools/linux-studio`: a tarball with an installer, an AppImage, and an untested Flatpak manifest. `release.yml` builds and attaches the first two. The binary is built for glibc; a musl distribution (Alpine, Chimera) needs a `linux-musl-x64` build.
 - Also done: Tools, About, Feedback, Controller Check, Write scan, the intro (silent, simplified), the update popup at launch, tray icon, four-player PC mode with per-game profiles, macro recording and timeline preview, Test mapping, live curve input with a keyboard test, "Use as dead zone" from Diagnostics, and a game shelf (Steam, Heroic, Lutris, games added by hand).
-- Not done: reading a controller over Bluetooth (Read controller, native X20 configuration), intro sound and outline, sending a Write scan to X20CTLADMIN. A musl tarball is built next to the glibc one.
+- Not done: native Bluetooth (the Studio reads the pad by running the Python `x20` client, read-only; a C# BlueZ client is not written). Configuration writes over Bluetooth are not offered.
 
 ## Pieces that need a Linux equivalent
 
