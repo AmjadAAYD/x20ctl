@@ -9,4 +9,4 @@ Owner explicitly requests a global responsive polish pass, not redesigns. Device
 - Record 0/25/50/75/100/63%, focused-unselected, reduced motion, maximized/restored/minimum and a timed 0→100→0 visual sequence.
 - Review all five pages maximized on the actual available monitor. Add representative 100/125/150% WPF root-DPI/resolution renders and pure monitor/work-area tests. Clearly distinguish render simulation from observed physical monitor transitions; report host limitations.
 
-Preservation checkpoint: C:/Users/amjad/.codex/checkpoints/x20ctl-native-rebuild/20261009-before-responsive-visuals.
+Preservation checkpoint: <home>/.codex/checkpoints/x20ctl-native-rebuild/20261009-before-responsive-visuals.

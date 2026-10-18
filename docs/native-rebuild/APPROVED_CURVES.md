@@ -10,4 +10,4 @@ The preserved protocol reference names inner and outer deadzone fields for stick
 
 Final Curves evidence: artifacts/curves-polish/frozen-review — 51 WPF checks, 43 states, 65 Buttons frames and 42 Curves frames. Domain suite before Macros: 46 passed, including two added trigger-geometry tests. Build passed without warnings/errors. Captures are app-owned shown-window client renders; no OS input injection or hardware access.
 
-Checkpoint: C:/Users/amjad/.codex/checkpoints/x20ctl-native-rebuild/20261009-approved-curves, saved before Macros UI integration. Existing motion and geometry are preserved. Live input and actual controller response remain deferred to the C++20 engine.
+Checkpoint: <home>/.codex/checkpoints/x20ctl-native-rebuild/20261009-approved-curves, saved before Macros UI integration. Existing motion and geometry are preserved. Live input and actual controller response remain deferred to the C++20 engine.

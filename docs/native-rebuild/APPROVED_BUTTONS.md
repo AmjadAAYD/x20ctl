@@ -4,7 +4,7 @@ Owner approved the visual architecture and then the final direction, explicitly 
 
 Preserve: hardware-first composition, spatial output shelf, all physical inventory roles, exact rear geometry, grouped mappings, contextual inspector, large controller, detached focus and shared blue/amber atmosphere. No additional horizontal groups or smaller targets. Curves inherits this system; it does not replace it.
 
-Checkpoint: C:/Users/amjad/.codex/checkpoints/x20ctl-native-rebuild/20261009-approved-buttons. Five presentation/review files with source-hashes.json saved before Curves integration. Branch codex/native-2.0-recovery, HEAD f2c67d68d48158607bf3ec353d5acbceb8f9515f. No commit, push or release.
+Checkpoint: <home>/.codex/checkpoints/x20ctl-native-rebuild/20261009-approved-buttons. Five presentation/review files with source-hashes.json saved before Curves integration. Branch codex/native-2.0-recovery, HEAD f2c67d68d48158607bf3ec353d5acbceb8f9515f. No commit, push or release.
 
 Buttons-only evidence: artifacts/buttons-refinement/approved-review — 29 runtime review checks, 27 client renders, 65 timed animation frames in console-selection-sequence.gif (60 ms per frame). Includes all special controls, all M contours, minimum/maximized, assignments and reduced motion. The later Curves review refreshes the small wording changes and validates returning to Buttons.
 

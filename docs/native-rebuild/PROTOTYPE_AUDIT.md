@@ -4,7 +4,7 @@ Date: 8 October 2026. Completed BEFORE new shell implementation. Scope: all 42 a
 
 Existing prototype is a preserved migration artifact. No old screen/theme is authoritative. DISCARD AFTER REPLACEMENT is a future disposition, not a deletion performed now. No prototype file is changed by this milestone. REUSE denotes development-only engineering reuse, not hardware verification.
 
-Checkpoint: C:/Users/amjad/.codex/checkpoints/x20ctl-native-rebuild/20261008T205718Z-controller-zone/source.zip. 570 source files; exact member size/SHA-256 verification passed at creation. Archive SHA-256: 5869544715A2F83D628E22EBE8E814A0DB3C95F50F437067FC022D1CF0624687. Original Git index, status and binary tracked diff also preserved. Ignored private research/vendor/captures untouched; this is not an exhaustive backup of ignored material.
+Checkpoint: <home>/.codex/checkpoints/x20ctl-native-rebuild/20261008T205718Z-controller-zone/source.zip. 570 source files; exact member size/SHA-256 verification passed at creation. Archive SHA-256: 5869544715A2F83D628E22EBE8E814A0DB3C95F50F437067FC022D1CF0624687. Original Git index, status and binary tracked diff also preserved. Ignored private research/vendor/captures untouched; this is not an exhaustive backup of ignored material.
 
 Baseline: dotnet test X20Ctl.Desktop.Tests -c Release --no-restore: 24 passed, 0 failed, no hardware. Input endpoints/holds/source/reconnect/foreground/mouse/navigation examined. Native GUI/hardware acceptance is not established by those tests.
 
