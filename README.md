@@ -8,7 +8,7 @@
 Remap buttons, shape sticks and triggers, build back-paddle macros, preview vibration, and check that a controller really works.</p>
 
 <p align="center">
-  <a href="https://github.com/AmjadAAYD/x20ctl/releases/tag/v4.1.0-preview.6"><b>Download V0.015</b></a> ·
+  <a href="https://github.com/AmjadAAYD/x20ctl/releases/tag/v4.1.0-preview.7"><b>Download V0.016</b></a> ·
   <a href="CHANGELOG.md">Changelog</a> ·
   <a href="IF-YOUR-CONTROLLER-ISNT-WORKING.md">Controller not working?</a> ·
   <a href="https://github.com/AmjadAAYD/x20ctl/issues">Report an issue</a>
@@ -185,13 +185,13 @@ For a preview model, nothing is written to the controller and nothing is stored 
 
 ## Download
 
-**Windows:** download **[X20CTL-4.1.0-preview.6-windows-x64.exe](https://github.com/AmjadAAYD/x20ctl/releases/download/v4.1.0-preview.6/X20CTL-4.1.0-preview.6-windows-x64.exe)** and run it. That's it: one file, nothing to extract or install. The first launch unpacks the engine and data into your temp folder, so it takes a moment longer than later launches.
+**Windows:** download **[X20CTL-V0.016-windows-x64-setup.exe](https://github.com/AmjadAAYD/x20ctl/releases/download/v4.1.0-preview.7/X20CTL-V0.016-windows-x64-setup.exe)** and run it. It installs X20CTL with a Start menu entry and an uninstaller in Windows Apps. To skip installing, take **[X20CTL-V0.016-windows-x64.exe](https://github.com/AmjadAAYD/x20ctl/releases/download/v4.1.0-preview.7/X20CTL-V0.016-windows-x64.exe)** instead and run it from anywhere. The first launch unpacks the engine and data into your temp folder, so it takes a moment longer than later launches.
 
 You need Windows 10 or 11 (x64). Everything is bundled: you don't need to install .NET, Python, a browser runtime or an account.
 
 **Code signing:** releases are built on GitHub Actions straight from this repository, and X20CTL has applied for free code signing for open-source projects from the [SignPath Foundation](https://signpath.org). Until that is approved, the exe is **unsigned**, so Windows SmartScreen may warn you. Check the download against the release's `SHA256SUMS.txt`. Never turn off your antivirus to run it.
 
-**Linux:** [X20CTL-4.1.0-preview.6-linux-check.zip](https://github.com/AmjadAAYD/x20ctl/releases/download/v4.1.0-preview.6/X20CTL-4.1.0-preview.6-linux-check.zip). The Studio is Windows-only for now; this ZIP contains the Controller Check (`x20ctl-check.py`) and PC mode (`x20ctl-pcmode.py`) as standalone Python 3 scripts. The `x20` command line (`uv run x20 scan`) runs from this repository. A native Linux build of the full Studio is planned.
+**Linux:** [X20CTL-V0.016-linux-check.zip](https://github.com/AmjadAAYD/x20ctl/releases/download/v4.1.0-preview.7/X20CTL-V0.016-linux-check.zip). The Studio is Windows-only for now; this ZIP contains the Controller Check (`x20ctl-check.py`) and PC mode (`x20ctl-pcmode.py`) as standalone Python 3 scripts. The `x20` command line (`uv run x20 scan`) runs from this repository. A native Linux build of the full Studio is planned.
 
 Every earlier release is on the [releases page](https://github.com/AmjadAAYD/x20ctl/releases). How the version names work: [docs/versions.md](docs/versions.md).
 

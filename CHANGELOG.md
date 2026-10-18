@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+## [V0.016] - 2026-10-18
+
+Tagged `v4.1.0-preview.7`, so copies up to V0.015 find it. Everything in [V0.015](https://github.com/AmjadAAYD/x20ctl/blob/main/CHANGELOG.md#v0015---2026-10-17) is included.
+
 ### Added
 
 - **A setup wizard for Windows.** Each release carries `X20CTL-<version>-windows-x64-setup.exe` next to the plain exe. It is the same file: a copy with that name opens a wizard in the app's own look (welcome, license, options, install, finish) instead of the app. It installs for your account only, in `%LOCALAPPDATA%\Programs\X20CTL`, with a Start menu entry, an optional desktop shortcut and an entry in Windows Apps. The plain exe still runs from anywhere, with no install.
