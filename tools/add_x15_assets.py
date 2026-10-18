@@ -5,7 +5,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 ASSETS = ROOT / "src/assets/controllers"
-GENERATED = Path(r"C:\Users\amjad\.codex\generated_images\01a0f523-969d-71f1-a640-4b821af7520d")
+GENERATED = Path(r"<home>\.codex\generated_images\01a0f523-969d-71f1-a640-4b821af7520d")
 
 
 def write(path, value):

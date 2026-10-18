@@ -4,7 +4,7 @@ You are continuing an existing project. Treat the CURRENT WORKING TREE as the so
 
 ## Workspace and publication state
 
-- Windows/PowerShell workspace: `C:\Users\amjad\Desktop\Study\Projects\Personal\x20ctl`.
+- Windows/PowerShell workspace: `<home>\Desktop\Study\Projects\Personal\x20ctl`.
 - Branch: `codex/native-2.0-recovery`, tracking origin with the same name.
 - HEAD: `f2c67d68d48158607bf3ec353d5acbceb8f9515f` — Release 4.1.0 Preview 2 with partial input support and guided research.
 - Origin: `https://github.com/AmjadAAYD/x20ctl.git`; fork: `https://github.com/chriss80/x20ctl.git`.
@@ -128,13 +128,13 @@ Tests/evidence:
 - `docs/prompts/remapping-deep-research.txt`
 
 Most-recent supplied texts:
-- Execution instructions, read FIRST: `C:\Users\amjad\.codex\attachments\e69fd6a4-a49c-47d7-82b0-f7f94fe0ab32\Pasted text.txt`
-- Research dossier, read SECOND: `C:\Users\amjad\.codex\attachments\125b474e-40ff-4869-a669-b8bc45d01eba\Pasted text.txt`
-- Earlier research file: `C:\Users\amjad\Downloads\X20CTL_EasySMX_Controller_Research_and_Codex_Prompt.txt`
+- Execution instructions, read FIRST: `<home>\.codex\attachments\e69fd6a4-a49c-47d7-82b0-f7f94fe0ab32\Pasted text.txt`
+- Research dossier, read SECOND: `<home>\.codex\attachments\125b474e-40ff-4869-a669-b8bc45d01eba\Pasted text.txt`
+- Earlier research file: `<home>\Downloads\X20CTL_EasySMX_Controller_Research_and_Codex_Prompt.txt`
 
 ## Submission website and data boundaries
 
-Companion repo: `C:\Users\amjad\Desktop\Study\Projects\Personal\X20ADMIN`.
+Companion repo: `<home>\Desktop\Study\Projects\Personal\X20ADMIN`.
 Schema-2 receiver changes were prepared locally and passed 29 tests/build earlier, but were not deployed in these app releases. Automatic submission requires that receiver update. The previous live capability check returned 405; do not present that as refreshed current state. The app retains local ZIP/manual fallback.
 
 Contacts: Discord `mistermajid`, email `aaydamjad@gmail.com`. Opening a composer/contact does not send a message. Do not send messages without authorization.

@@ -82,8 +82,13 @@ public static class AgentDocs
         return Regex.Replace(text, @"\s+", " ").Trim();
     }
 
-    public static List<DocChunk> Load(string folder) =>
-        Files.Where(f => File.Exists(Path.Combine(folder, f))).SelectMany(f => Chunk(f, File.ReadAllText(Path.Combine(folder, f)))).ToList();
+    /// <summary>A guide's text is read from its plain-text twin (README.plain.md) when there is one: the README itself is a page of pictures
+    /// with nothing to search. Sources are still cited under the guide's own name.</summary>
+    public static List<DocChunk> Load(string folder)
+    {
+        string Source(string f) { string plain = Path.Combine(folder, Path.GetFileNameWithoutExtension(f) + ".plain.md"); return File.Exists(plain) ? plain : Path.Combine(folder, f); }
+        return Files.Where(f => File.Exists(Source(f))).SelectMany(f => Chunk(f, File.ReadAllText(Source(f)))).ToList();
+    }
 
     /// <summary>The passages, numbered, as the model is given them.</summary>
     public static string Prompt(IReadOnlyList<DocHit> hits) =>

@@ -69,8 +69,8 @@ internal sealed class ToolsPage : UserControl
     }
 
     static string UpdateLine(bool on) => on
-        ? (AppImageUpdater.CanInstall ? "On. Checks GitHub each launch and installs a newer version by itself. You have " : "On. Checks GitHub for a newer version each launch. You have ") + AppInfo.Version + "."
-        : "Off. Turn it on to check GitHub for a newer version each launch. You have " + AppInfo.Version + ".";
+        ? (AppImageUpdater.CanInstall ? "On. Checks GitHub each launch and installs a newer version by itself. You have " : "On. Checks GitHub for a newer version each launch. You have ") + AppInfo.Shown + "."
+        : "Off. Turn it on to check GitHub for a newer version each launch. You have " + AppInfo.Shown + ".";
 
     async void CheckNow()
     {
@@ -78,7 +78,7 @@ internal sealed class ToolsPage : UserControl
         try
         {
             var r = await UpdateCheck.Latest();
-            updateLine = r == null ? "You're up to date (" + AppInfo.Version + ")." : $"{r.Version} is out. Open the releases page to download it.";
+            updateLine = r == null ? "You're up to date (" + AppInfo.Shown + ")." : $"{X20Ctl.Zone.ReleaseVersions.Display(r.Version)} is out. Open the releases page to download it.";
             if (r != null && AppImageUpdater.CanInstall) { updateLine = "Updating…"; Build(); updateLine = (await AppImageUpdater.Install(r)).Message; }
             else if (r != null) ExternalLinks.Open(r.Page);
         }
@@ -144,7 +144,7 @@ internal sealed class AboutPage : UserControl
     public AboutPage(Action back, Bitmap? mark)
     {
         var logo = new Border { Width = 76, Height = 76, Child = mark == null ? null : new Avalonia.Controls.Image { Source = mark } };
-        var head = T.Line(22, logo, T.Stack(2, T.Label("X20CTL", 40, null, FontWeight.Bold), T.Label("Controller Studio for Linux · version " + AppInfo.Version, 15.5, T.Soft)));
+        var head = T.Line(22, logo, T.Stack(2, T.Label("X20CTL", 40, null, FontWeight.Bold), T.Label("Controller Studio for Linux · " + AppInfo.Shown, 15.5, T.Soft)));
         var about = T.Label("X20CTL is an independent, open-source controller studio for EasySMX pads. Remap buttons, shape stick and trigger response, build back-paddle macros, set vibration, and check that a controller works, all on your own PC. There is no account, and nothing leaves your PC unless you choose to send a report or feedback.", 17, T.Text);
         var local = T.Label("Every change stays a local draft until it can be sent to a connected, verified controller. X20CTL never writes to a controller it cannot read back.", 15, T.Soft);
         var rule = new Border { Height = 1, Background = T.Hairline, Margin = new Thickness(0, 10) };

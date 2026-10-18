@@ -46,6 +46,8 @@ internal static class ExternalLinks
 internal static class AppInfo
 {
     public static string Version { get; } = (typeof(AppInfo).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "0").Split('+')[0];
+    /// <summary>The version as people see it: V0.016, V0.017.1 (see docs/versions.md). <see cref="Version"/> stays the raw string for headers and reports.</summary>
+    public static string Shown => X20Ctl.Zone.ReleaseVersions.Display(Version);
     public static string Os => System.Runtime.InteropServices.RuntimeInformation.OSDescription;
 }
 
@@ -78,16 +80,8 @@ internal static class UpdateCheck
         return best;
     }
 
-    /// <summary>Semantic-ish compare: numbers first, then a release beats its pre-release, then preview numbers.</summary>
-    public static int Compare(string a, string b)
-    {
-        static (int[] Nums, string Pre) Split(string v) { var parts = v.Split('-', 2); return (parts[0].Split('.').Select(p => int.TryParse(p, out int n) ? n : 0).ToArray(), parts.Length > 1 ? parts[1] : ""); }
-        var (an, ap) = Split(a); var (bn, bp) = Split(b);
-        for (int i = 0; i < Math.Max(an.Length, bn.Length); i++) { int c = (i < an.Length ? an[i] : 0).CompareTo(i < bn.Length ? bn[i] : 0); if (c != 0) return c; }
-        if (ap == bp) return 0; if (ap == "") return 1; if (bp == "") return -1;
-        int Last(string s) { var m = Regex.Match(s, @"(\d+)$"); return m.Success ? int.Parse(m.Value) : 0; }
-        return Last(ap).CompareTo(Last(bp));
-    }
+    /// <summary>Orders versions, the old numbering (4.1.0-preview.7) below the new (0.017): see ReleaseVersions in the shared library.</summary>
+    public static int Compare(string a, string b) => X20Ctl.Zone.ReleaseVersions.Compare(a, b);
 }
 
 /// <summary>Sends one piece of feedback to the X20CTLADMIN inbox (POST /api/feedback, JSON), the same site the Windows app uses. Only what the person typed plus the

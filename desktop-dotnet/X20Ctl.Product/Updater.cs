@@ -19,8 +19,10 @@ public static class Updater
     public sealed record Release(string Tag, string Version, string Title, string Page, string ExeName, string ExeUrl, string SumsUrl, bool Prerelease);
 
     public static string Current => Scanner.ScanFlow.AppVersion;
+    /// <summary>This copy's version as people see it: V0.016.</summary>
+    public static string Shown => X20Ctl.Zone.ReleaseVersions.Display(Current);
     /// <summary>The one-file exe can replace itself; a folder build (the dev builds, the ZIP release) can't.</summary>
-    public static bool CanInstall => string.IsNullOrEmpty(typeof(Updater).Assembly.Location) && Environment.ProcessPath is { Length: > 0 };
+    public static bool CanInstall => Setup.Installer.IsOneFileExe;
     public static Release? Ready { get; internal set; }
     public static string? Installed { get; private set; }
 
@@ -114,25 +116,6 @@ public static class Updater
         try { string old = Environment.ProcessPath! + ".old"; if (File.Exists(old)) File.Delete(old); } catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
     }
 
-    /// <summary>Compares 4.1.0-preview.5 style versions: the numbers first, then a release beats its pre-releases,
-    /// then pre-release parts number by number.</summary>
-    public static int Compare(string a, string b)
-    {
-        static (int[] Core, string[] Pre) Split(string v)
-        {
-            v = v.Split('+')[0]; int dash = v.IndexOf('-');
-            string core = dash < 0 ? v : v[..dash]; string[] pre = dash < 0 ? [] : v[(dash + 1)..].Split('.');
-            return (core.Split('.').Select(p => int.TryParse(p, out int n) ? n : 0).Concat([0, 0, 0]).Take(3).ToArray(), pre);
-        }
-        var (ca, pa) = Split(a); var (cb, pb) = Split(b);
-        for (int i = 0; i < 3; i++) if (ca[i] != cb[i]) return ca[i].CompareTo(cb[i]);
-        if (pa.Length == 0 || pb.Length == 0) return pb.Length.CompareTo(pa.Length);
-        for (int i = 0; i < Math.Min(pa.Length, pb.Length); i++)
-        {
-            bool na = int.TryParse(pa[i], out int x), nb = int.TryParse(pb[i], out int y);
-            int c = na && nb ? x.CompareTo(y) : na ? -1 : nb ? 1 : string.CompareOrdinal(pa[i], pb[i]);
-            if (c != 0) return c;
-        }
-        return pa.Length.CompareTo(pb.Length);
-    }
+    /// <summary>Orders versions, the old numbering (4.1.0-preview.6) below the new (0.017): see <see cref="X20Ctl.Zone.ReleaseVersions"/>.</summary>
+    public static int Compare(string a, string b) => X20Ctl.Zone.ReleaseVersions.Compare(a, b);
 }
