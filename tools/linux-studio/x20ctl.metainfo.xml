@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.AmjadAAYD.x20ctl</id>
+  <name>X20CTL</name>
+  <summary>Remap, tune and test your EasySMX controller</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-only</project_license>
+  <description>
+    <p>X20CTL is a controller studio: button remaps, stick and trigger curves, macros, a controller tester and a PC mode that reshapes your controller's input for any game.</p>
+  </description>
+  <launchable type="desktop-id">io.github.AmjadAAYD.x20ctl.desktop</launchable>
+  <url type="homepage">https://github.com/AmjadAAYD/x20ctl</url>
+  <content_rating type="oars-1.1"/>
+</component>
