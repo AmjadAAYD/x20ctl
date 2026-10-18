@@ -83,8 +83,8 @@ artwork for cards, the picker, the header and inactive previews.
 
 Interactive canvases use the following edited background plates:
 
-- `C:/Users/amjad/Desktop/Study/Projects/Personal/x20ctl/src/assets/controllers/x20/controller-base.png`
-- `C:/Users/amjad/Desktop/Study/Projects/Personal/x20ctl/src/assets/controllers/x20_pro/controller-base.png`
+- `<home>/Desktop/Study/Projects/Personal/x20ctl/src/assets/controllers/x20/controller-base.png`
+- `<home>/Desktop/Study/Projects/Personal/x20ctl/src/assets/controllers/x20_pro/controller-base.png`
 
 Both plates retain the 1536×1024 framing. Both stationary rubber caps were removed
 using the built-in imagegen tool. Each moving cap samples the original photo;

@@ -1,6 +1,6 @@
 # Buttons console benchmark specification
 
-Status: benchmark implementation plan approved, and resulting Buttons visual architecture approved by owner on 2026-10-09. See APPROVED_BUTTONS.md for the frozen baseline and final punch list. Controller Zone remains approved/frozen. Reference snapshot is outside the MIT project at C:/Users/amjad/.codex/references/ApexSenseBridge-stable, stable commit fe7fa3a5432f3fd31ea5dc2b3cc97a88b30d061a.
+Status: benchmark implementation plan approved, and resulting Buttons visual architecture approved by owner on 2026-10-09. See APPROVED_BUTTONS.md for the frozen baseline and final punch list. Controller Zone remains approved/frozen. Reference snapshot is outside the MIT project at <home>/.codex/references/ApexSenseBridge-stable, stable commit fe7fa3a5432f3fd31ea5dc2b3cc97a88b30d061a.
 
 ## Inspected reference and scope
 

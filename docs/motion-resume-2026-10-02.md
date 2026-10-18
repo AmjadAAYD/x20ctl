@@ -9,14 +9,14 @@ The final acceptance gate is therefore still open.
 
 - Revalidated all **248 files** in the original Point 1 archive against its
   SHA-256 manifest. It remains at
-  `C:\Users\amjad\.codex\automations\continue-x20ctl-prompt-2-motion-design-visual-polish-you-are-continuing-fro\point-1\snapshot.zip`.
+  `<home>\.codex\automations\continue-x20ctl-prompt-2-motion-design-visual-polish-you-are-continuing-fro\point-1\snapshot.zip`.
 - The original `restore-prompt-2.py` supports dry run and `--restore`, but its
   recorded experiment hashes predate later intentional edits. Its refusal to
   overwrite those edits is required. Reconcile the allowlist against subsequent
   work before using it; do not reset or extract the entire ZIP over this checkout.
 - Archived and independently hash-verified **341 current source/build files**
   before acceptance work in
-  `C:\Users\amjad\.codex\automations\continue-x20ctl-prompt-2-motion-design-visual-polish-you-are-continuing-fro\resume-20261002T103537Z`.
+  `<home>\.codex\automations\continue-x20ctl-prompt-2-motion-design-visual-polish-you-are-continuing-fro\resume-20261002T103537Z`.
   The snapshot includes HEAD, index, status, staged/working binary diffs and
   a file manifest. It is a separate resume checkpoint, not a replacement for
   Point 1.

@@ -2,7 +2,7 @@
 
 ## Baseline and preservation
 - Current branch: `codex/native-2.0-recovery`, HEAD `f2c67d6`.
-- Preserve existing scanner, capability-discovery and documentation work. External checkpoint: `C:/Users/amjad/.codex/checkpoints/x20ctl-product-design-20261008/snapshot.zip`.
+- Preserve existing scanner, capability-discovery and documentation work. External checkpoint: `<home>/.codex/checkpoints/x20ctl-product-design-20261008/snapshot.zip`.
 - Current catalog is authoritative: X20 configuration; X20 Pro preview; D10, X15, X05 and X10 experimental input; X05 Pro unavailable. No model or backend changes.
 - Native request boundary and platform window/tray handling stay unchanged.
 

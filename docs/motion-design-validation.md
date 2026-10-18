@@ -14,12 +14,12 @@ files were verified against a SHA-256 manifest. The checkpoint also records HEAD
 the original index, dirty status, tracked binary diff and staged binary diff.
 
 Checkpoint directory:
-`C:\Users\amjad\.codex\automations\continue-x20ctl-prompt-2-motion-design-visual-polish-you-are-continuing-fro\point-1`.
+`<home>\.codex\automations\continue-x20ctl-prompt-2-motion-design-visual-polish-you-are-continuing-fro\point-1`.
 
 Stop x20ctl, then restore only the Prompt 2 allowlist with:
 
 ```powershell
-python 'C:\Users\amjad\.codex\automations\continue-x20ctl-prompt-2-motion-design-visual-polish-you-are-continuing-fro\point-1\restore-prompt-2.py' --restore
+python '<home>\.codex\automations\continue-x20ctl-prompt-2-motion-design-visual-polish-you-are-continuing-fro\point-1\restore-prompt-2.py' --restore
 ```
 
 Omit `--restore` for a verified dry run. The script refuses newer edits, changed
