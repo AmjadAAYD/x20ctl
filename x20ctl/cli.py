@@ -49,7 +49,8 @@ from . import __version__
 from . import protocol as p
 from . import transport
 from . import ui
-from .client import CURVE_KINDS, X20, ControllerError, NotSupported, find_controller, find_controllers
+from . import client as _client
+from .client import CURVE_KINDS, X20, ControllerError, NotSupported, find_controller, find_controllers, signal_note
 from .diagnose import diagnose
 from .config import load_address, save_address
 from .profiles import MacroSpec, Profile, ProfileStore, SLOTS
@@ -77,7 +78,7 @@ async def resolve(explicit: str | None) -> str:
 async def cmd_scan(args) -> None:
     print(ui.header("Scanning", "listening for the configuration peripheral"))
     heard: list | None = [] if getattr(args, "all", False) else None
-    pads = await find_controllers(everything=heard, first=heard is None)
+    pads = await find_controllers(min(max(getattr(args, "seconds", 8.0), 1.0), 120.0), everything=heard, first=heard is None)
     if heard is not None:
         seen: dict[str, tuple] = {}
         for address, name, rssi in heard:
@@ -88,7 +89,12 @@ async def cmd_scan(args) -> None:
     address = pads[0].address if pads else None
     if not address:
         print(ui.bad("  nothing found"))
+        if heard is not None and not heard:
+            print(ui.label("  no Bluetooth device of any kind was heard: Bluetooth may be off, or the pad is off or asleep"))
+            print(ui.label("  press a button on the pad, try `bluetoothctl power on`, then run this again"))
         print(ui.label("  check the pad is on and Bluetooth is enabled"))
+        print(ui.label("  the pad may be on but not advertising its settings link: tell us which mode it is in"))
+        print(ui.label("  (Bluetooth, 2.4G or USB), whether your phone's KeyLinker finds it, and try `x20 scan --all --seconds 60`"))
         print(ui.label("  run `x20 scan --all` to list everything heard, and send that output with a bug report"))
         return
     save_address(address)
@@ -655,6 +661,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     scan = sub.add_parser("scan", help="find the controller")
     scan.add_argument("--all", action="store_true", help="also list every Bluetooth device heard")
+    scan.add_argument("--seconds", type=float, default=8.0, metavar="N",
+                      help="listen for N seconds (default 8, at most 120); the pad advertises only now and then")
     scan.set_defaults(fn=cmd_scan)
     sub.add_parser("status", help="show everything the pad reports").set_defaults(fn=cmd_status)
 
@@ -766,6 +774,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    # a connection can take most of a minute at a weak signal, so say what it is doing
+    _client.progress = lambda message: print(ui.label("  " + message), flush=True)
     try:
         asyncio.run(args.fn(args))
     except KeyboardInterrupt:
@@ -780,7 +790,7 @@ def main(argv: list[str] | None = None) -> int:
     except (ControllerError, ValueError) as exc:
         print(ui.bad(f"\n  {exc}\n"))
         return 1
-    except BleakError as exc:
+    except (BleakError, TimeoutError, OSError) as exc:
         # A pad that is off or out of range is the commonest way to end up here,
         # and a bleak traceback says nothing about what to do about it.
         finding = diagnose(exc)

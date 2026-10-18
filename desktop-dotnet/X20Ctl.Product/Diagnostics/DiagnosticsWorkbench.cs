@@ -239,7 +239,7 @@ public sealed class DiagnosticsWorkbench
     /// <summary>The readings as plain text: what a tester pastes into a report. Only measurements, nothing identifying.</summary>
     string Report()
     {
-        double now = clock.Elapsed.TotalMilliseconds; var lines = new List<string> { "X20CTL diagnostics", $"Version {typeof(DiagnosticsWorkbench).Assembly.GetName().Version}", $"Timestamp {DateTimeOffset.Now:O}", $"Player {preferredSlot+1} · Assigned model {assignedModel} · Hardware identity unverified", "Input API: XInput · Transport, VID/PID, firmware: unknown", "Values: measured through Windows; not raw HID values or hardware resolution", $"XInput slot {(slot < 0 ? "none" : (slot + 1).ToString())}" };
+        double now = clock.Elapsed.TotalMilliseconds; var lines = new List<string> { "X20CTL diagnostics", $"Version {X20Ctl.Zone.ReleaseVersions.Display(Scanner.ScanFlow.AppVersion)} ({Scanner.ScanFlow.AppVersion})", $"Timestamp {DateTimeOffset.Now:O}", $"Player {preferredSlot+1} · Assigned model {assignedModel} · Hardware identity unverified", "Input API: XInput · Transport, VID/PID, firmware: unknown", "Values: measured through Windows; not raw HID values or hardware resolution", $"XInput slot {(slot < 0 ? "none" : (slot + 1).ToString())}" };
         lock (gate)
         {
             foreach (var (name, s) in new[] { ("Left stick", left), ("Right stick", right) })

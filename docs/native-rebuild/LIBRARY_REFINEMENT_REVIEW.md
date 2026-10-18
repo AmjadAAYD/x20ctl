@@ -32,31 +32,31 @@ Primary evidence: `artifacts/library-refinement/review-ready/review.json`. Tests
 
 Device:
 
-![Device](C:/Users/amjad/Desktop/Study/Projects/Personal/x20ctl/artifacts/library-refinement/review-ready/device-maximized.png)
+![Device](<home>/Desktop/Study/Projects/Personal/x20ctl/artifacts/library-refinement/review-ready/device-maximized.png)
 
 Tester — explicitly simulated input:
 
-![Tester simulation](C:/Users/amjad/Desktop/Study/Projects/Personal/x20ctl/artifacts/library-refinement/review-ready/tester-fixture-front.png)
+![Tester simulation](<home>/Desktop/Study/Projects/Personal/x20ctl/artifacts/library-refinement/review-ready/tester-fixture-front.png)
 
 Setups with two profiles:
 
-![Two profiles](C:/Users/amjad/Desktop/Study/Projects/Personal/x20ctl/artifacts/library-refinement/review-ready/setups-library-maximized.png)
+![Two profiles](<home>/Desktop/Study/Projects/Personal/x20ctl/artifacts/library-refinement/review-ready/setups-library-maximized.png)
 
 Setups with 14 profiles:
 
-![Many profiles](C:/Users/amjad/Desktop/Study/Projects/Personal/x20ctl/artifacts/library-refinement/review-ready/setups-many-maximized.png)
+![Many profiles](<home>/Desktop/Study/Projects/Personal/x20ctl/artifacts/library-refinement/review-ready/setups-many-maximized.png)
 
 Selected/current setup detail:
 
-![Selected detail](C:/Users/amjad/Desktop/Study/Projects/Personal/x20ctl/artifacts/library-refinement/review-ready/setups-selected-detail.png)
+![Selected detail](<home>/Desktop/Study/Projects/Personal/x20ctl/artifacts/library-refinement/review-ready/setups-selected-detail.png)
 
 Empty library:
 
-![Empty library](C:/Users/amjad/Desktop/Study/Projects/Personal/x20ctl/artifacts/library-refinement/review-ready/setups-empty-maximized.png)
+![Empty library](<home>/Desktop/Study/Projects/Personal/x20ctl/artifacts/library-refinement/review-ready/setups-empty-maximized.png)
 
 Delete confirmation:
 
-![Delete confirmation](C:/Users/amjad/Desktop/Study/Projects/Personal/x20ctl/artifacts/library-refinement/review-ready/setups-delete-confirmation.png)
+![Delete confirmation](<home>/Desktop/Study/Projects/Personal/x20ctl/artifacts/library-refinement/review-ready/setups-delete-confirmation.png)
 
 Additional evidence includes `setups-card-focus.png`, `setups-one-maximized.png`, `setups-incompatible-maximized.png`, `setups-many-last-selected.png`, `setups-many-minimum-detail.png`, the root-DPI matrix and `management-transitions-simulation.gif`.
 

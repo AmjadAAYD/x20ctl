@@ -1,0 +1,36 @@
+# Flatpak manifest for the Linux Studio. Untested: it has not been built or run yet.
+# Build with:  flatpak-builder --user --install --force-clean build-dir tools/linux-studio/io.github.AmjadAAYD.x20ctl.yml
+# The app needs the controller (evdev) and /dev/uinput for PC mode, so it asks for device access.
+app-id: io.github.AmjadAAYD.x20ctl
+runtime: org.freedesktop.Platform
+runtime-version: '24.08'
+sdk: org.freedesktop.Sdk
+command: x20ctl-studio
+finish-args:
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=all
+  - --filesystem=xdg-config/x20ctl:create
+  - --talk-name=org.freedesktop.portal.Desktop
+modules:
+  - name: x20ctl
+    buildsystem: simple
+    build-commands:
+      - mkdir -p /app/bin /app/share/applications /app/share/icons/hicolor/512x512/apps /app/share/metainfo
+      - cp -r publish/. /app/bin/
+      - chmod 755 /app/bin/x20ctl-studio
+      - install -Dm644 x20ctl.desktop /app/share/applications/io.github.AmjadAAYD.x20ctl.desktop
+      - install -Dm644 x20ctl.png /app/share/icons/hicolor/512x512/apps/io.github.AmjadAAYD.x20ctl.png
+      - install -Dm644 x20ctl.metainfo.xml /app/share/metainfo/io.github.AmjadAAYD.x20ctl.metainfo.xml
+    sources:
+      # `dotnet publish -r linux-x64 --self-contained -o tools/linux-studio/publish` first
+      - type: dir
+        path: publish
+        dest: publish
+      - type: file
+        path: x20ctl.desktop
+      - type: file
+        path: x20ctl.png
+      - type: file
+        path: x20ctl.metainfo.xml

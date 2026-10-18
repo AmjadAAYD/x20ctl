@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AssemblyName>x20ctl-studio</AssemblyName>
+    <RootNamespace>X20Ctl.Linux</RootNamespace>
+    <Version>4.1.0-preview.7</Version>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="12.1.4" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.1.4" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.4" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.4" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../X20Ctl.Zone/X20Ctl.Zone.csproj" />
+    <Content Include="../../x20ctl/controllers/catalog.json" Link="Data/catalog.json" CopyToOutputDirectory="PreserveNewest" />
+    <AvaloniaResource Include="../../src/assets/controllers/*/native/front-full.png;../../src/assets/controllers/*/native/rear-full.png" Link="Assets/%(RecursiveDir)%(Filename)%(Extension)" />
+    <AvaloniaResource Include="../X20Ctl.Product/Brand/x20ctl-mark.png" Link="Assets/x20ctl-mark.png" />
+    <Content Include="../X20Ctl.Product/Brand/intro.wav" Link="Brand/intro.wav" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../src/assets/controllers/framing.json" Link="Data/framing.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../src/assets/controllers/vibration-outlines.json" Link="Data/vibration-outlines.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>
