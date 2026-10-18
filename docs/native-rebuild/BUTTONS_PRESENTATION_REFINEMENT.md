@@ -9,4 +9,4 @@ Implements the owner's refinement of the approved benchmark. Controller Zone rem
 - Lift console focus with scale, shadow and a detached ring. Synchronize physical illumination, inspector translation and glyph entrance; reduced motion uses immediate states.
 - Run the existing review matrix and timed animation capture, plus minimum/maximized and reduced-motion checks. Compare with the pinned external ApexSenseBridge declarative render. Captures prove WPF presentation only, not hardware or actual gamepad behavior.
 
-Pre-edit presentation files copied to C:/Users/amjad/.codex/checkpoints/x20ctl-native-rebuild/20261009-buttons-presentation. Existing source, artwork, domain state and assignment safeguards are retained.
+Pre-edit presentation files copied to <home>/.codex/checkpoints/x20ctl-native-rebuild/20261009-buttons-presentation. Existing source, artwork, domain state and assignment safeguards are retained.
