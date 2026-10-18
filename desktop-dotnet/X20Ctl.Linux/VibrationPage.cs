@@ -33,7 +33,7 @@ internal sealed class VibrationPage : UserControl
         slider.ValueChanged += v => Set((int)v, false);
         var presets = T.Line(8, new[] { 0, 25, 50, 75, 100 }.Select(p => (Control)new Pill(p == 0 ? "Off" : p + "%", Pill.Kinds.Ghost, () => { slider.Value = p; Set(p, false); }) { Padding = new Thickness(15, 8) }).ToArray());
         bool triggers = state.Model.Id is "x20_pro" or "dune";
-        var segs = Segmented.Make(triggers ? [.. Regions, "Triggers · Visual only"] : Regions, region, v => { region = v; layer.Region = v; Build(); }, 13.5);
+        var segs = Segmented.Make(triggers ? [.. Regions, "Triggers"] : Regions, region, v => { region = v; layer.Region = v; Build(); }, 13.5);
         var right = T.Stack(12,
             T.Label("VIBRATION PREVIEW", 14, T.Soft), value, T.Label("Visual preview only · Native settings unavailable", 16, T.Soft), new Border { Height = 4 }, slider, presets,
             T.Label("Preview region", 15, T.Soft), segs,
