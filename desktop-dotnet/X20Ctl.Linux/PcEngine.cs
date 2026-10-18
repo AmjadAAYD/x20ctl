@@ -290,7 +290,7 @@ internal sealed class PcEngine
 
         // force feedback goes through its own descriptor, opened for writing only when a game first asks for rumble
         string path = ""; int rumbleFd = -1, rumbleId = -1; bool rumbleGone;
-        static int EffectSize => 16 + (IntPtr.Size == 8 ? 32 : 28);
+        static int EffectSize => FfWire.EffectSize(IntPtr.Size);
 
         /// <summary>Makes the real pad rumble at the strengths a game asked of the virtual one (0-65535 each; zero for both stops it). Does nothing if the pad has no rumble.</summary>
         public void Rumble(ushort strong, ushort weak)
@@ -303,10 +303,7 @@ internal sealed class PcEngine
                 if (rumbleFd < 0) { rumbleGone = true; return; }
             }
             if (strong == 0 && weak == 0) { if (rumbleId >= 0) Native.WriteEvents(rumbleFd, [(EvFf, (ushort)rumbleId, 0)]); return; }
-            var effect = new byte[EffectSize];
-            BitConverter.TryWriteBytes(effect.AsSpan(0, 2), (ushort)FfRumble); BitConverter.TryWriteBytes(effect.AsSpan(2, 2), (short)rumbleId);
-            BitConverter.TryWriteBytes(effect.AsSpan(10, 2), (ushort)0xFFFF); // plays until stopped (or about a minute, whichever the pad's driver honours)
-            BitConverter.TryWriteBytes(effect.AsSpan(16, 2), strong); BitConverter.TryWriteBytes(effect.AsSpan(18, 2), weak);
+            var effect = FfWire.RumbleEffect(IntPtr.Size, (short)rumbleId, strong, weak, 0xFFFF); // plays until stopped (or about a minute, whichever the pad's driver honours)
             if (Native.IoctlBuf(rumbleFd, Native.Ioc(1, 'E', 0x80, EffectSize), effect) < 0) { rumbleGone = true; return; }
             rumbleId = BitConverter.ToInt16(effect, 2);
             Native.WriteEvents(rumbleFd, [(EvFf, (ushort)rumbleId, 1)]);
@@ -360,26 +357,24 @@ internal sealed class PcEngine
 
         // rumble: the game writes force-feedback effects to the virtual pad; this reads them and reports the strengths to apply to the real one
         readonly Dictionary<int, (ushort Strong, ushort Weak)> effects = []; readonly HashSet<int> playing = []; (ushort, ushort) sent;
-        static int UploadSize => 8 + 2 * (16 + (IntPtr.Size == 8 ? 32 : 28));
+        static int UploadSize => FfWire.UploadSize(IntPtr.Size);
 
         /// <summary>Handles whatever the game asked of the virtual pad since the last call. Returns the new (strong, weak) motor strengths when they changed, otherwise null.</summary>
         public unsafe (ushort Strong, ushort Weak)? Feedback()
         {
-            int size = Native.EventSize, time = IntPtr.Size * 2; var buffer = new byte[size * 16];
+            var buffer = new byte[Native.EventSize * 16];
             while (true)
             {
                 nint n; fixed (byte* p = buffer) n = Native.Read(fd, p, (nuint)buffer.Length);
                 if (n <= 0) break;
-                for (int o = 0; o + size <= n; o += size)
+                foreach (var (type, code, value) in FfWire.Events(buffer, (int)n, IntPtr.Size))
                 {
-                    ushort type = BitConverter.ToUInt16(buffer, o + time), code = BitConverter.ToUInt16(buffer, o + time + 2); int value = BitConverter.ToInt32(buffer, o + time + 4);
                     if (type == EvUinput && code == 1) Upload(value);
                     else if (type == EvUinput && code == 2) Erase(value);
                     else if (type == EvFf && code < FfGain) { if (value > 0) playing.Add(code); else playing.Remove(code); }
                 }
             }
-            ushort strong = 0, weak = 0;
-            foreach (int id in playing) if (effects.TryGetValue(id, out var m)) { strong = Math.Max(strong, m.Strong); weak = Math.Max(weak, m.Weak); }
+            var (strong, weak) = FfWire.Mix(effects, playing);
             if ((strong, weak) == sent) return null;
             sent = (strong, weak); return sent;
         }
@@ -388,7 +383,7 @@ internal sealed class PcEngine
         {
             var up = new byte[UploadSize]; BitConverter.TryWriteBytes(up.AsSpan(0, 4), request);
             if (Native.IoctlBuf(fd, Native.Ioc(3, 'U', 200, UploadSize), up) < 0) return;
-            if (BitConverter.ToUInt16(up, 8) == FfRumble) effects[BitConverter.ToInt16(up, 10)] = (BitConverter.ToUInt16(up, 24), BitConverter.ToUInt16(up, 26));
+            var fx = FfWire.NewEffect(up); if (fx.Type == FfRumble) effects[fx.Id] = (fx.Strong, fx.Weak);
             BitConverter.TryWriteBytes(up.AsSpan(4, 4), 0);
             Native.IoctlBuf(fd, Native.Ioc(1, 'U', 201, UploadSize), up);
         }
