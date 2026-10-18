@@ -259,6 +259,8 @@ public sealed class ProductSettings : Grid
         stack.Children.Add(new Border { Height = 1, Background = new SolidColorBrush(Color.FromArgb(40, 255, 255, 255)), Margin = new(0, 30, 0, 24) });
         stack.Children.Add(Kit.Text("MADE BY", 13, "DS.TextMuted", FontWeights.SemiBold));
         stack.Children.Add(Para("Amjad AAYD, who designs and builds X20CTL.", 6, "DS.Text", 18));
+        stack.Children.Add(Kit.Text("THANKS", 13, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(0, 24, 0, 0)));
+        stack.Children.Add(Para("Special thanks to Kiin from Team EasySMX for sending me a free X20 Pro controller.", 6, "DS.Text", 18));
         stack.Children.Add(Kit.Text("INSPIRATION", 13, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(0, 24, 0, 0)));
         stack.Children.Add(Para("The console-style look of X20CTL was inspired by ApexSenseBridge by ReynArts. Thank you for showing how good a controller app can feel.", 6, "DS.Text", 18));
         var links = new StackPanel { Orientation = Orientation.Horizontal, Margin = new(0, 32, 0, 0) };

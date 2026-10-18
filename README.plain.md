@@ -225,7 +225,7 @@ The controller art is generated from the source pictures by `tools/build_native_
 
 **Made by Amjad AAYD.**
 
-**Special thanks to EasySMX** for sending me an EasySMX X20 Pro to develop and test X20CTL on. Real hardware is what turns a protocol guess into a verified setting.
+**Special thanks to Kiin from Team EasySMX** for sending me a free X20 Pro controller. Real hardware is what turns a protocol guess into a verified setting.
 
 The console-style look was inspired by [ApexSenseBridge by Kayn arts (ReynArts)](https://github.com/ReynArts/ApexSenseBridge). The credit is for design inspiration only; no code was taken from it. X20CTL has its own branding, artwork and implementation.
 
