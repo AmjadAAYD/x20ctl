@@ -1,5 +1,5 @@
 # Builds and publishes a release from a tag (v0.017, v0.017.1, v1.000, see docs/versions.md; v4.1.0-preview.7 is the bridge, V0.016):the single Windows exe and its setup (the same exe, named *-setup.exe), signed through the
-# SignPath Foundation once it is set up, and the Linux Controller Check, always together, then SHA256SUMS.txt. The
+# SignPath Foundation once it is set up, and the Linux Controller Check and the Linux Studio (tarball and AppImage), always together, then SHA256SUMS.txt. The
 # release is filled as a draft and published last, because releases are immutable once published.
 #
 # Signing turns on by itself when the repository has the variable SIGNPATH_ORGANIZATION_ID and the secret
@@ -140,9 +140,34 @@ jobs:
           path: out/*.zip
           if-no-files-found: error
 
+  linux-studio:
+    name: Linux Studio
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Package it (tarball and AppImage)
+        run: |
+          # NAME titles the files (V0.017); .NET gets 0.17.0 and the app reports 0.017. Old-style tags (the V0.016 bridge) keep their own number.
+          name="$(python3 tools/version_name.py "$TAG")"
+          if python3 tools/version_name.py --is-new "$TAG"; then version="$(python3 tools/version_name.py --numeric "$TAG")"; info="${TAG#v}"; else version="${TAG#v}"; info="$version"; fi
+          tools/linux-studio/build.sh "$version" out "$info" "$name"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-studio
+          path: |
+            out/*.tar.gz
+            out/*.AppImage
+          if-no-files-found: error
+
   release:
     name: Publish the release
-    needs: [windows, linux]
+    needs: [windows, linux, linux-studio]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -154,11 +179,11 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: assets
-          pattern: '{windows,linux}'
+          pattern: '{windows,linux,linux-studio}'
           merge-multiple: true
       - name: Checksums and notes
         run: |
-          cd assets && sha256sum *.exe *.zip > SHA256SUMS.txt && cat SHA256SUMS.txt && cd ..
+          cd assets && sha256sum *.exe *.zip *.tar.gz *.AppImage > SHA256SUMS.txt && cat SHA256SUMS.txt && cd ..
           python3 tools/release_notes.py "$TAG" > notes.md
       - name: Create, fill, then publish
         env:
@@ -168,5 +193,5 @@ jobs:
           # out by itself across the old numbering (4.1.0-preview.7) and the new (0.017)
           title="X20CTL $(python3 tools/version_name.py "$TAG")"
           gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft --latest --verify-tag --title "$title" --notes-file notes.md
-          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" assets/*.exe assets/*.zip assets/SHA256SUMS.txt
+          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" assets/*.exe assets/*.zip assets/*.tar.gz assets/*.AppImage assets/SHA256SUMS.txt
           gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false
