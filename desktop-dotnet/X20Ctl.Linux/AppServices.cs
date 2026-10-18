@@ -10,7 +10,7 @@ internal sealed class AppSettings
 {
     public static AppSettings Shared { get; } = Load();
     static string PathOf => Path.Combine(Path.GetDirectoryName(X20Ctl.Zone.PcMode.PcModeStore.DefaultPath)!, "app-settings.json");
-    public bool AutoUpdate { get; set; }
+    public bool AutoUpdate { get; set; } = true;
     public bool IntroOnLaunch { get; set; } = true;
     public bool IntroSound { get; set; } = true;
 
@@ -49,11 +49,11 @@ internal static class AppInfo
     public static string Os => System.Runtime.InteropServices.RuntimeInformation.OSDescription;
 }
 
-/// <summary>Asks GitHub's public releases API whether a newer X20CTL exists. Only says so: the AppImage and the tarball are replaced by downloading the new one.</summary>
+/// <summary>Asks GitHub's public releases API whether a newer X20CTL exists. The AppImage can then replace itself (AppImageUpdater); the tarball is replaced by downloading the new one.</summary>
 internal static class UpdateCheck
 {
     public const string Api = "https://api.github.com/repos/AmjadAAYD/x20ctl/releases?per_page=30";
-    public sealed record Release(string Version, string Title, string Page);
+    public sealed record Release(string Version, string Title, string Page, string? AppImageName = null, string? AppImageUrl = null, string? SumsUrl = null);
 
     public static async Task<Release?> Latest()
     {
@@ -70,7 +70,10 @@ internal static class UpdateCheck
             // only releases that carry a Linux package count
             bool linux = r.GetProperty("assets").EnumerateArray().Any(a => (a.GetProperty("name").GetString() ?? "").Contains("linux-x"));
             if (!linux || Compare(version, AppInfo.Version) <= 0 || best != null && Compare(version, best.Version) <= 0) continue;
-            best = new(version, r.GetProperty("name").GetString() ?? tag, r.GetProperty("html_url").GetString() ?? ExternalLinks.Releases);
+            var assets = r.GetProperty("assets").EnumerateArray().Select(a => (Name: a.GetProperty("name").GetString() ?? "", Url: a.GetProperty("browser_download_url").GetString() ?? "")).ToList();
+            string? image = UpdateWire.AppImageName(assets.Select(a => a.Name));
+            best = new(version, r.GetProperty("name").GetString() ?? tag, r.GetProperty("html_url").GetString() ?? ExternalLinks.Releases,
+                image, image == null ? null : assets.First(a => a.Name == image).Url, assets.FirstOrDefault(a => a.Name == "SHA256SUMS.txt").Url);
         }
         return best;
     }

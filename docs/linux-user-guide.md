@@ -20,7 +20,17 @@ To remove a tarball install:
 rm -r ~/.local/opt/x20ctl ~/.local/bin/x20ctl-studio ~/.local/share/applications/x20ctl.desktop
 ```
 
-A Flatpak manifest exists in the repository, but it is untested and not part of releases.
+A Flatpak manifest exists in the repository, but it is untested and not part of releases. The AppImage keeps itself up to date (see Updates).
+
+## Updates
+
+Tools has a **Keep X20CTL up to date** switch, on by default. Each launch asks GitHub's public releases API whether a newer version exists.
+
+- **AppImage:** the app downloads the new AppImage from the project's GitHub release, checks it against that release's `SHA256SUMS.txt`, and replaces itself. The new version starts the next time you open it. Nothing is uninstalled.
+- **Tarball (glibc or musl):** the app tells you a newer version is out and opens the release page. Unpack the new tarball over the old one, or run its `install.sh` again.
+- **Flatpak:** would update through Flatpak itself.
+
+Turn the switch off to stop the check. This is new and has not run on a Linux machine yet.
 
 ## Your controller
 
