@@ -51,7 +51,7 @@ internal sealed class SetupWindow : Window
         brand.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = {
             new Image { Source = new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/Assets/brand.png")), Width = 34, Height = 34, Margin = new Thickness(0, 0, 12, 0) },
             Kit.Text("X20CTL", 27, "DS.Text", FontWeights.Bold) } });
-        brand.Children.Add(Kit.Text("Keep it 20", 15, "DS.TextSoft")); ((TextBlock)brand.Children[1]).Margin = new Thickness(0, 6, 0, 0);
+        brand.Children.Add(Kit.Text("Keep it Easy, Keep it 20", 15, "DS.TextSoft")); ((TextBlock)brand.Children[1]).Margin = new Thickness(0, 6, 0, 0);
         stepList.Margin = new Thickness(0, 46, 0, 0); brand.Children.Add(stepList);
         leftGrid.Children.Add(brand);
         var version = Kit.Text("Version " + Installer.Version, 13, "DS.TextMuted"); version.VerticalAlignment = VerticalAlignment.Bottom; version.Margin = new Thickness(36, 0, 0, 26); leftGrid.Children.Add(version);
@@ -74,8 +74,9 @@ internal sealed class SetupWindow : Window
     }
 
     /// <summary>For the review harness: show a step in a given state without doing any work.</summary>
-    internal void Preview(int index, double progress = 0, bool accept = false, string? fail = null, string tab = "License", bool desktop = false)
+    internal void Preview(int index, double progress = 0, bool accept = false, string? fail = null, string tab = "License", bool desktop = false, int art = 0)
     {
+        artIndex = art;
         accepted = accept; failure = fail; licenseTab = tab; options = options with { Desktop = desktop }; fraction = progress;
         busy = mode == SetupMode.UninstallRun && index == 1 && fail == null && progress < 1;
         Go(index); UpdateLayout();
@@ -89,7 +90,7 @@ internal sealed class SetupWindow : Window
     /// <summary>Shows a step. Used by the wizard itself and by the review harness.</summary>
     internal void Go(int index)
     {
-        step = index; Steps(); actionRow.Children.Clear(); percent = null; stepText = null; fill = null; track = null;
+        rotate?.Stop(); rotate = null; step = index; Steps(); actionRow.Children.Clear(); percent = null; stepText = null; fill = null; track = null;
         Page page = mode == SetupMode.Install ? InstallPage(index) : RemovePage(index);
         eyebrow.Text = page.Eyebrow; title.Text = page.Title; subtitle.Text = page.Sub; body.Content = page.Body;
         var leftButtons = new StackPanel { Orientation = Orientation.Horizontal, Children = { } }; foreach (var b in page.Left) leftButtons.Children.Add(b);
@@ -101,6 +102,41 @@ internal sealed class SetupWindow : Window
             body.BeginAnimation(OpacityProperty, DS.To(1, 320)); slide.BeginAnimation(TranslateTransform.YProperty, DS.To(0, 380));
         }
         else body.Opacity = 1;
+    }
+
+    // the welcome page's controllers: the X20 Pro, then the X20, then the rest, sliding on by themselves
+    static readonly (string Id, string Name)[] Lineup = [("x20_pro", "X20 Pro"), ("x20", "X20"), ("x15", "X15"), ("x10", "X10"), ("x05_pro", "X05 Pro"), ("x05", "X05"), ("d10", "D10"), ("dune", "Dune")];
+    int artIndex; System.Windows.Threading.DispatcherTimer? rotate;
+
+    FrameworkElement Carousel()
+    {
+        Image Slide(int i) => new() { Source = ControllerArt.Front(Lineup[i].Id), Height = 270, Stretch = Stretch.Uniform, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, RenderTransform = new TranslateTransform(),
+            Effect = new DropShadowEffect { Color = Color.FromRgb(52, 126, 241), BlurRadius = 60, ShadowDepth = 0, Opacity = .45 } };
+        Image shown = Slide(artIndex), next = Slide((artIndex + 1) % Lineup.Length); next.Opacity = 0;
+        var stage = new Grid { Height = 280, ClipToBounds = false }; stage.Children.Add(shown); stage.Children.Add(next);
+        var caption = Kit.Text(Lineup[artIndex].Name, 17, "DS.Text", FontWeights.SemiBold); caption.HorizontalAlignment = HorizontalAlignment.Center; caption.Margin = new Thickness(0, 6, 0, 0);
+        var dots = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 12, 0, 0) };
+        void Dots() { dots.Children.Clear(); for (int i = 0; i < Lineup.Length; i++) dots.Children.Add(new Border { Width = i == artIndex ? 22 : 7, Height = 7, CornerRadius = new CornerRadius(3.5), Margin = new Thickness(3, 0, 3, 0), Background = i == artIndex ? DS.Brush("DS.Accent") : Brush("#40FFFFFF") }); }
+        Dots();
+        void Advance()
+        {
+            int to = (artIndex + 1) % Lineup.Length; var leaving = shown; var arriving = next;
+            arriving.Source = ControllerArt.Front(Lineup[to].Id); artIndex = to; Dots();
+            if (DS.Motion)
+            {
+                ((TranslateTransform)arriving.RenderTransform).X = 110; arriving.Opacity = 0;
+                ((TranslateTransform)arriving.RenderTransform).BeginAnimation(TranslateTransform.XProperty, DS.To(0, 800)); arriving.BeginAnimation(OpacityProperty, DS.To(1, 700));
+                ((TranslateTransform)leaving.RenderTransform).BeginAnimation(TranslateTransform.XProperty, DS.To(-110, 800)); leaving.BeginAnimation(OpacityProperty, DS.To(0, 600));
+                var fade = DS.To(0, 220); fade.Completed += (_, _) => { caption.Text = Lineup[to].Name; caption.BeginAnimation(OpacityProperty, DS.To(1, 380)); };
+                caption.BeginAnimation(OpacityProperty, fade);
+            }
+            else { leaving.Opacity = 0; arriving.Opacity = 1; ((TranslateTransform)arriving.RenderTransform).X = 0; caption.Text = Lineup[to].Name; }
+            shown = arriving; next = leaving;
+        }
+        rotate = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(3.4) }; rotate.Tick += (_, _) => Advance(); rotate.Start();
+        stage.Unloaded += (_, _) => rotate?.Stop();
+        var column = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Children = { stage, caption, dots } };
+        return column;
     }
 
     sealed record Page(string Eyebrow, string Title, string Sub, UIElement Body, Button[] Left, Button[] Right);
@@ -124,10 +160,12 @@ internal sealed class SetupWindow : Window
                     var row = new StackPanel { Margin = new Thickness(0, 0, 0, 20) }; row.Children.Add(Kit.Text(head, 17, "DS.Text", FontWeights.SemiBold));
                     var t = Kit.Text(text, 15, "DS.TextSoft"); t.TextWrapping = TextWrapping.Wrap; t.Margin = new Thickness(0, 3, 0, 0); row.Children.Add(t); points.Children.Add(row);
                 }
-                var art = new Image { Source = ControllerArt.Front("x20_pro"), Height = 270, Stretch = Stretch.Uniform, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Effect = new DropShadowEffect { Color = Color.FromRgb(52, 126, 241), BlurRadius = 60, ShadowDepth = 0, Opacity = .45 } };
                 var grid = new Grid(); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); grid.ColumnDefinitions.Add(new ColumnDefinition());
-                grid.Children.Add(points); Grid.SetColumn(art, 1); grid.Children.Add(art);
-                return new(update ? "UPDATE" : "WELCOME", update ? "Update X20CTL" : "Install X20CTL", "Set your controller up the way you play.", grid, [Btn("Cancel", false, Close)], [Btn("Next", true, () => Go(1))]);
+                var art = Carousel(); grid.Children.Add(points); Grid.SetColumn(art, 1); grid.Children.Add(art);
+                var notice = Kit.Text("X20CTL is an independent project. It is not affiliated with, endorsed by or sponsored by EasySMX. EasySMX and its product names belong to their owners.", 12.5, "DS.TextMuted");
+                notice.TextWrapping = TextWrapping.Wrap; notice.Margin = new Thickness(0, 14, 0, 0);
+                var welcome = new DockPanel(); DockPanel.SetDock(notice, Dock.Bottom); welcome.Children.Add(notice); welcome.Children.Add(grid);
+                return new(update ? "UPDATE" : "WELCOME", update ? "Update X20CTL" : "Install X20CTL", "Set your controller up the way you play.", welcome, [Btn("Cancel", false, Close)], [Btn("Next", true, () => Go(1))]);
             }
             case 1:
             {
