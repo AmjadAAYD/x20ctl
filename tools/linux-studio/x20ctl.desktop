@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=X20CTL
+GenericName=Controller studio
+Comment=Remap, tune and test your EasySMX controller
+Exec=x20ctl-studio
+Icon=x20ctl
+Categories=Utility;Game;
+Keywords=controller;gamepad;remap;easysmx;
+Terminal=false

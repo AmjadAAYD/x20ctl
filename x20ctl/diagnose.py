@@ -9,6 +9,7 @@ Each entry pairs a short statement of what happened with a concrete next step.
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 
 
@@ -29,6 +30,7 @@ NO_CONTROLLER = Diagnosis(
     "Controller not found over Bluetooth",
     "Settings are configured over a separate Bluetooth link, whichever way you "
     "play. Turn the pad on and pair it if you want to change settings. "
+    "If `x20 scan` showed a weak signal, bring the pad closer. "
     "The input tester works without it.",
     expected=True)
 
@@ -42,7 +44,8 @@ BLUETOOTH_OFF = Diagnosis(
 
 OUT_OF_RANGE = Diagnosis(
     "Controller is not responding",
-    "It may be asleep or out of range. Press a button on it, then reconnect.")
+    "It may be asleep or out of range. Press a button on it, then reconnect. "
+    "If `x20 scan` showed a weak signal (below -85 dBm), bring the pad within a metre or two of the PC.")
 
 WRONG_DEVICE = Diagnosis(
     "That device is not a configurable controller",
@@ -79,6 +82,9 @@ _PATTERNS = (
 
 def diagnose(error) -> Diagnosis:
     """Classify a failure into something worth showing a user."""
+    # a connection that never completes raises TimeoutError with no text at all
+    if isinstance(error, (TimeoutError, asyncio.TimeoutError)):
+        return OUT_OF_RANGE
     text = str(error).lower()
     for phrase, diagnosis in _PATTERNS:
         if phrase in text:
