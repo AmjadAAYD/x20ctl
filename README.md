@@ -23,7 +23,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/readme/demo.webp" alt="A tour of X20CTL: Controller Zone, buttons, curves, macros, vibration, PC mode, diagnostics, tester" width="880">
+  <img src="assets/readme/demo.svg?v=2" alt="A tour of X20CTL: Controller Zone, buttons, curves, macros, vibration, PC mode, diagnostics, tester" width="880">
 </p>
 
 > **Independent project.** X20CTL is open-source software written by one person. EasySMX supplied an X20 Pro to help develop it, and I'm grateful, but the app is not made, endorsed, sponsored or supported by EasySMX. Product names belong to their owners and are used only to say which controllers X20CTL works with.
