@@ -186,6 +186,9 @@ public sealed class MainWindow : Window
             studio?.ShowTab(tab);
             await Shot(tab.ToLowerInvariant().Replace(' ', '-'));
         }
+        ReviewMode.Pads = [new("/dev/input/event1", "Xbox Wireless Controller", 0x045E, 0x0B13, new PadCaps(new HashSet<int> { 0x130, 0x131, 0x133, 0x134, 0x136, 0x137, 0x138, 0x139, 0x13A, 0x13B, 0x13C, 0x13D, 0x13E }, new Dictionary<int, AbsInfo> { [0] = new(-32768, 32767, 0), [1] = new(-32768, 32767, 0), [3] = new(-32768, 32767, 0), [4] = new(-32768, 32767, 0), [2] = new(0, 255, 0), [5] = new(0, 255, 0), [0x10] = new(-1, 1, 0), [0x11] = new(-1, 1, 0) })),
+            new("/dev/input/event2", "Generic USB Joystick", 0x1234, 0x5678, new PadCaps(Enumerable.Range(0x120, 12).ToHashSet(), new Dictionary<int, AbsInfo> { [0] = new(0, 255, 128), [1] = new(0, 255, 128), [2] = new(0, 255, 128), [5] = new(0, 255, 128), [0x10] = new(-1, 1, 0), [0x11] = new(-1, 1, 0) }))];
+        studio?.ShowTab("PC mode"); await Shot("pc-mode-check"); ReviewMode.Pads = null;
         body.Content = new StickToolsView(session.StudioFor(session.Selected)!, () => { }); await Shot("advanced");
         ShowZone();
         foreach (double at in new[] { .5, 2.0, 3.6, 4.4, 5.4, 6.4 })

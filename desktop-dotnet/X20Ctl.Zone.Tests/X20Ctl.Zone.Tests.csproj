@@ -13,5 +13,6 @@
     <ProjectReference Include="../X20Ctl.Zone/X20Ctl.Zone.csproj" />
   </ItemGroup>
   <ItemGroup><None Include="../../x20ctl/controllers/catalog.json" Link="Data/catalog.json" CopyToOutputDirectory="PreserveNewest" /><None Include="../../src/assets/controllers/x20/rear-geometry.json" Link="Data/x20-rear.json" CopyToOutputDirectory="PreserveNewest" /></ItemGroup>
+  <ItemGroup><Compile Include="../X20Ctl.Linux/PadLayout.cs" Link="Linux/PadLayout.cs" /></ItemGroup>
   <ItemGroup><None Include="../../src/assets/controllers/control-shapes.json" Link="Data/control-shapes.json" CopyToOutputDirectory="PreserveNewest" /></ItemGroup>
 </Project>

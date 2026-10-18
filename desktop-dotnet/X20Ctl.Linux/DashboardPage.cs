@@ -182,4 +182,4 @@ internal sealed class DashboardPage : UserControl
 }
 
 /// <summary>Set by the screenshot run so no one's library appears in images.</summary>
-internal static class ReviewMode { public static bool HideLibrary; }
+internal static class ReviewMode { public static bool HideLibrary; public static IReadOnlyList<EvDevice>? Pads; }
