@@ -3,7 +3,7 @@ using System.Windows;
 namespace X20Ctl.Product.Setup;
 
 /// <summary>Starts the setup, the uninstaller, or their silent forms:
-///   X20CTL-…-setup.exe [--silent] [--desktop] [--no-updates] [--no-start-menu]     install (silent exits 0, or 1 on failure)
+///   X20CTL-…-setup.exe [--silent] [--desktop] [--no-updates] [--no-start-menu] [--drivers]     install (silent exits 0, or 1 on failure)
 ///   X20Ctl.exe --uninstall [--silent] [--purge]                                     remove, keeping the player's settings unless --purge</summary>
 internal static class SetupApp
 {
@@ -16,7 +16,7 @@ internal static class SetupApp
             {
                 case SetupMode.Install when silent:
                 {
-                    var options = new SetupOptions(!args.Contains("--no-start-menu"), args.Contains("--desktop"), !args.Contains("--no-updates"), false);
+                    var options = new SetupOptions(!args.Contains("--no-start-menu"), args.Contains("--desktop"), !args.Contains("--no-updates"), false, args.Contains("--drivers"));
                     Installer.Install(options, new Progress<(double, string)>(_ => { })); app.Shutdown(0); return;
                 }
                 case SetupMode.Install: Show(app, new SetupWindow(mode)); return;

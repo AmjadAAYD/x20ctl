@@ -49,11 +49,11 @@ public static class PcModeSetup
 
     /// <summary>Runs whichever installers are missing and are bundled beside the app. Returns what happened, in a sentence.</summary>
     static readonly SemaphoreSlim installLock = new(1, 1);
-    public static async Task<string> Run(bool automatic = false)
+    public static async Task<string> Run(bool automatic = false, bool consented = false)
     {
         if (ReviewSandbox.Active) return "Driver setup is disabled in fixtures.";
         await installLock.WaitAsync();
-        try { return await Install(automatic); }
+        try { return await Install(automatic, consented); }
         finally { installLock.Release(); }
     }
 
@@ -70,7 +70,7 @@ public static class PcModeSetup
         return Application.Current.Dispatcher.CheckAccess() ? Ask() : Application.Current.Dispatcher.Invoke(Ask);
     }
 
-    static async Task<string> Install(bool automatic)
+    static async Task<string> Install(bool automatic, bool consented)
     {
         var missing = new List<(string Name, string? File, string Page)>();
         if (!BusInstalled) missing.Add(("virtual controller driver", Find("ViGEmBus"), BusPage));
@@ -83,7 +83,7 @@ public static class PcModeSetup
             ExternalLinks.Open(notBundled[0].Page);
             return $"This copy of X20CTL doesn't carry the {notBundled[0].Name}. The official page opened: install it, then come back here.";
         }
-        if (!Consent(missing.Select(m => m.Name).ToList())) return "PC mode drivers were not installed. PC mode stays off until you allow them.";
+        if (!consented && !Consent(missing.Select(m => m.Name).ToList())) return "PC mode drivers were not installed. PC mode stays off until you allow them.";
         foreach (var (name, file, _) in missing)
         {
             // Quiet installer UI still requires Windows UAC consent.
