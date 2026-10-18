@@ -147,7 +147,7 @@ From `CodeHelper` constants. Names are the app's own.
 |---|---|---|---|
 | 144 | `0x90` | `CODE_READ_NAME` | device name |
 | 145 | `0x91` | `CODE_READ_VID_PID_VERSION` | VID, PID, firmware version |
-| 147 | `0x93` | `CODE_HOST_GUID` | unclear, possibly gyro |
+| 147 | `0x93` | `CODE_HOST_GUID` | updater hardware id (16 bytes) + firmware version (LE16), 18 in all |
 | 151 | `0x97` | `CODE_READ_BUTTON_MODE` | button mode |
 | 152 | `0x98` | `CODE_LOAD_BUTTON` | load button config |
 | 154 | `0x9A` | `CODE_READ_3D` | 3D / motion data |
@@ -356,7 +356,7 @@ record is 25 bytes and a single BLE packet carries at most 20.
 | `HOST_MOTOR` | `08` + `4c 4c 00 00 c0 d4 01 00` | `4c 4c` = two motor strengths (76) |
 | `HOST_TURBO` | `0d` + `08 00 …  58 02 58 02` | `0x0258` = 600, twice; interval in ms |
 | `HOST_CHANGEKEY` | `00` | length 0, no remaps configured |
-| `HOST_GUID` | `12` + 14 bytes | declares 18, chunked; a device GUID, **not gyro** |
+| `HOST_GUID` | `12` + 14 bytes | declares 18, chunked: the fixed id prefix `a1ca51da724cb6103658c05d7d4e`; the model code and firmware version are the 4 continuation bytes (see 4j) |
 | `READ_BUTTON_MODE` | `03 01 00 00` | |
 | `TWO_IN_ONE_STATE` | `02 df aa` | |
 | `HOST_MENU`, `HOST_MACRO`, `READ_TURBO` | no reply | not supported on this model, or need a handshake |
@@ -1083,6 +1083,21 @@ two zero pad bytes, verified on one unit across both transports. That makes it a
 cross-transport identity oracle — useful for proving which physical pad a
 bootloader volume belongs to.
 
+**What those 18 bytes are (static analysis of the vendor updaters, 17 Oct 2026).**
+The updater compares 16 bytes returned by `0xF1` against a compiled hardware id,
+then a little-endian 16-bit version against its own, and stops with "up to date"
+on equality. The id the X20 updater compiles in is
+`a1ca51da724cb6103658c05d7d4e2091`, and the 14 bytes recorded from `HOST_GUID`
+are exactly its first 14. So the record is the hardware id (16) and the firmware
+version (2), and `x20ctl.protocol.parse_host_guid` decodes it. The prefix is the
+same for every EasySMX controller updater; the model sits in the last two bytes:
+`2091` X20, `2177` X15, `2267` D05, `2350` S10, `2371` S10 Lite, `2093` S15. The version is
+written as hundreds, so `7b 00` is 1.23, which agrees with the app-correct
+reading of `0x91` (1013 / 2009 / 1.23) and not with "9.01". Unmeasured: the four
+continuation bytes themselves, and whether the pad answers the chunk-1 query for
+this record. The receivers use a different id family (`...2075` for the X20 and
+D05 receivers) and are not controllers.
+
 **Trap when disassembling the updater:** the `GetProcAddress` block at
 `0x004021fa` stores each result one call late, so the naive mapping is off by
 one. The real pointers are `0x5f9870` OpenByDrv, `0x5f986c` Close, `0x5f9868`
@@ -1237,7 +1252,7 @@ what only roughly.
   scale. Nothing observed so far says whether the response between them is a
   bezier, a spline, or piecewise linear. Anything drawing that curve is guessing
   at the shape between two known values.
-- Whether `CODE_HOST_GUID` (147) is gyro or a device identifier.
+- ~~Whether `CODE_HOST_GUID` (147) is gyro or a device identifier.~~ Answered by static analysis, not yet by a pad: the updater's hardware id plus the firmware version (4j). Unmeasured: the 4 continuation bytes on a live pad.
 - Whether the pad requires a `CODE_HOST_MENU` capability handshake before it will
   accept writes.
 - Whether settings are committed to flash immediately or need an explicit save.
