@@ -215,15 +215,15 @@ public sealed class ProductSettings : Grid
     {
         updateGo.Visibility = Updater.Ready != null && Updater.Installed == null ? Visibility.Visible : Visibility.Collapsed;
         if (Updater.Ready is { } r) SetPill(updateGo, Updater.CanInstall ? "Update now" : "Get it on GitHub");
-        updateStatus.Text = Updater.Installed is { } v ? $"Version {v} is installed. It starts the next time you open X20CTL."
-            : Updater.Ready is { } ready ? $"{ready.Title} is out. You have {Updater.Current}."
-            : autoUpdate.IsChecked == true ? $"On: each launch checks GitHub for a newer version and installs it. You have {Updater.Current}."
-            : $"Off. Turn it on to check GitHub for a newer version each launch. You have {Updater.Current}.";
+        updateStatus.Text = Updater.Installed is { } v ? $"{X20Ctl.Zone.ReleaseVersions.Display(v)} is installed. It starts the next time you open X20CTL."
+            : Updater.Ready is { } ready ? $"{ready.Title} is out. You have {Updater.Shown}."
+            : autoUpdate.IsChecked == true ? $"On: each launch checks GitHub for a newer version and installs it. You have {Updater.Shown}."
+            : $"Off. Turn it on to check GitHub for a newer version each launch. You have {Updater.Shown}.";
     }
     private async Task CheckForUpdate()
     {
         updateCheck.IsEnabled = false; updateStatus.Text = "Checking GitHub…";
-        try { var r = await Updater.Latest(); Updater.Ready = r; ShowUpdateStatus(); if (r == null) updateStatus.Text = $"You have the newest version ({Updater.Current})."; }
+        try { var r = await Updater.Latest(); Updater.Ready = r; ShowUpdateStatus(); if (r == null) updateStatus.Text = $"You have the newest version ({Updater.Shown})."; }
         catch (Exception error) when (error is System.Net.Http.HttpRequestException or TaskCanceledException or System.Text.Json.JsonException or InvalidOperationException or KeyNotFoundException) { updateStatus.Text = "Couldn't reach GitHub: " + error.Message; }
         finally { updateCheck.IsEnabled = true; }
     }
@@ -252,7 +252,7 @@ public sealed class ProductSettings : Grid
         var mark = new Image { Source = new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/Assets/brand.png")), Width = 72, Height = 72, Margin = new(0, 0, 24, 0) };
         RenderOptions.SetBitmapScalingMode(mark, BitmapScalingMode.HighQuality);
         stack.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = { mark, new StackPanel { VerticalAlignment = VerticalAlignment.Center, Children = {
-            Kit.Text("X20CTL", 38, "DS.Text", FontWeights.Bold), Kit.Text($"Native Controller Studio · version {version}", 16, "DS.TextSoft") } } } });
+            Kit.Text("X20CTL", 38, "DS.Text", FontWeights.Bold), Kit.Text($"Native Controller Studio · {X20Ctl.Zone.ReleaseVersions.Display(version)}", 16, "DS.TextSoft") } } } });
         TextBlock Para(string text, double top = 18, string brush = "DS.TextSoft", double size = 16.5) => new() { Text = text, FontFamily = DS.Body, FontSize = size, Foreground = DS.Brush(brush), TextWrapping = TextWrapping.Wrap, LineHeight = 26, Margin = new(0, top, 0, 0) };
         stack.Children.Add(Para("X20CTL is an independent, open-source controller studio for EasySMX pads. Remap buttons, shape stick and trigger response, build back-paddle macros, set vibration, and check that a controller works, all on your own PC. There is no account, and nothing leaves your PC unless you choose to send a report or feedback.", 28, "DS.Text", 18));
         stack.Children.Add(Para("Every change stays a local draft until it can be sent to a connected, verified controller. X20CTL never writes to a controller it cannot read back."));

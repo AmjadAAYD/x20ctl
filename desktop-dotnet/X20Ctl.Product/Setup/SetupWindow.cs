@@ -54,7 +54,7 @@ internal sealed class SetupWindow : Window
         brand.Children.Add(Kit.Text("Keep it Easy, Keep it 20", 15, "DS.TextSoft")); ((TextBlock)brand.Children[1]).Margin = new Thickness(0, 6, 0, 0);
         stepList.Margin = new Thickness(0, 46, 0, 0); brand.Children.Add(stepList);
         leftGrid.Children.Add(brand);
-        var version = Kit.Text("Version " + Installer.Version, 13, "DS.TextMuted"); version.VerticalAlignment = VerticalAlignment.Bottom; version.Margin = new Thickness(36, 0, 0, 26); leftGrid.Children.Add(version);
+        var version = Kit.Text(Installer.Version, 13, "DS.TextMuted"); version.VerticalAlignment = VerticalAlignment.Bottom; version.Margin = new Thickness(36, 0, 0, 26); leftGrid.Children.Add(version);
         left.Child = leftGrid; shell.Children.Add(left);
 
         var right = new Grid { Margin = new Thickness(54, 44, 54, 34) };

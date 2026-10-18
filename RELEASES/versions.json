@@ -1,0 +1,29 @@
+{
+  "about": "Old tags and their names in the V<super>.<release>[.<fix>] numbering (owner decision, 18 Oct 2026). Tags stay as they are on GitHub; titles carry the new names. desktop-dotnet/X20Ctl.Zone/ReleaseVersions.cs holds the same list and a test keeps the two equal.",
+  "legacy": [
+    {"tag": "v0.1.0", "name": "V0.001"},
+    {"tag": "v0.2.0", "name": "V0.002"},
+    {"tag": "v0.2.1", "name": "V0.002.1"},
+    {"tag": "v1.0.0", "name": "V0.003"},
+    {"tag": "v1.0.1", "name": "V0.003"},
+    {"tag": "v1.1.0", "name": "V0.004"},
+    {"tag": "v1.1.1", "name": "V0.004.1"},
+    {"tag": "v1.1.2", "name": "V0.004.2"},
+    {"tag": "v1.2.0", "name": "V0.005"},
+    {"tag": "v2.0.0", "name": "V0.006"},
+    {"tag": "v2.0.1", "name": "V0.006.1"},
+    {"tag": "v3.0.0", "name": "V0.007"},
+    {"tag": "v3.1.0", "name": "V0.008"},
+    {"tag": "v4.0.0", "name": "V0.009"},
+    {"tag": "v4.0.1", "name": "V0.009.1"},
+    {"tag": "v4.1.0-preview.1", "name": "V0.010"},
+    {"tag": "v4.1.0-preview.1-exe", "name": "V0.010"},
+    {"tag": "v4.1.0-preview.2", "name": "V0.011"},
+    {"tag": "v4.1.0-preview.3", "name": "V0.012"},
+    {"tag": "v4.1.0-preview.3-exe", "name": "V0.012"},
+    {"tag": "v4.1.0-preview.4", "name": "V0.013"},
+    {"tag": "v4.1.0-preview.5", "name": "V0.014"},
+    {"tag": "v4.1.0-preview.6", "name": "V0.015"},
+    {"tag": "v4.1.0-preview.7", "name": "V0.016"}
+  ]
+}

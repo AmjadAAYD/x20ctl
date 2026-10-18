@@ -17,7 +17,7 @@ public partial class App : Application
             {
                 ShutdownMode = ShutdownMode.OnExplicitShutdown;
                 var lines = new List<string> { "current " + Updater.Current + " canInstall " + Updater.CanInstall };
-                foreach (var (a, b) in new[] { ("4.1.0-preview.5", "4.1.0-preview.4"), ("4.1.0", "4.1.0-preview.9"), ("4.1.0-preview.10", "4.1.0-preview.9"), ("4.0.1", "4.1.0-preview.1"), ("4.1.0-preview.3", "4.1.0-preview.3") })
+                foreach (var (a, b) in new[] { ("4.1.0-preview.5", "4.1.0-preview.4"), ("4.1.0", "4.1.0-preview.9"), ("4.1.0-preview.10", "4.1.0-preview.9"), ("4.0.1", "4.1.0-preview.1"), ("4.1.0-preview.3", "4.1.0-preview.3"), ("4.1.0-preview.7", "4.1.0-preview.6"), ("0.017", "4.1.0-preview.7"), ("0.017.1", "0.017"), ("1.000", "0.999") })
                     lines.Add($"{a} vs {b}: {Updater.Compare(a, b)}");
                 try { var r = await Updater.Latest(); lines.Add("latest newer: " + (r?.ToString() ?? "none")); } catch (Exception failure) { lines.Add("latest failed: " + failure.Message); }
                 File.WriteAllLines(e.Args[1], lines); Shutdown(0); return;

@@ -29,7 +29,7 @@ internal static class Installer
     static string RegistryKey => Sandbox != null ? @"Software\X20CTL-SetupTest" : @"Software\Microsoft\Windows\CurrentVersion\Uninstall\" + Name;
     static string DataRoot => Sandbox is { } s ? Path.Combine(s, "appdata") : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "x20ctl");
     static string LocalDataRoot => Sandbox is { } s ? Path.Combine(s, "localdata") : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "x20ctl");
-    public static string Version => Scanner.ScanFlow.AppVersion;
+    public static string Version => X20Ctl.Zone.ReleaseVersions.Display(Scanner.ScanFlow.AppVersion);
     public static bool Installed => File.Exists(ExePath);
 
     public static SetupMode Detect(string[] args, string? processPath)
