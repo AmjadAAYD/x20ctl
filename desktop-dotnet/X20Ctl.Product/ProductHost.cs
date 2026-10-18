@@ -265,7 +265,7 @@ public sealed class ProductHost : Grid
         await Task.Delay(4000);
         try{if(install)await Updater.AutoRun();else Updater.Ready=await Updater.Latest();}catch(Exception){return;}
         if(Updater.Ready is not {} release)return;
-        updateText=Updater.Installed is {} installed?$"Version {installed} is installed. It starts the next time you open X20CTL.":$"{release.Title} is out. You have {Updater.Current}.";
+        updateText=Updater.Installed is {} installed?$"{X20Ctl.Zone.ReleaseVersions.Display(installed)} is installed. It starts the next time you open X20CTL.":$"{release.Title} is out. You have {Updater.Shown}.";
         if(Intro==null)ShowUpdateNotice();
     }
     /// <summary>Non-modal header notice, after the intro and only for a newer release.</summary>

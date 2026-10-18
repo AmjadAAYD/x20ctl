@@ -17,7 +17,7 @@ Synthetic native Windows input bytes decoded correctly in both reader implementa
 
 Offline replay of the supplied receiver capture now labels the requested control tests as unrelated changes rather than confirming button/trigger activity. Existing evidence files were read only.
 
-Pre-existing modified files were backed up under C:/Users/amjad/AppData/Local/Temp/x20ctl-scanner-audit-ewgnat_3. Untargeted backed-up files remained byte-identical. Intentional UI/capability-discovery work was preserved.
+Pre-existing modified files were backed up under <home>/AppData/Local/Temp/x20ctl-scanner-audit-ewgnat_3. Untargeted backed-up files remained byte-identical. Intentional UI/capability-discovery work was preserved.
 
 ## Remaining uncertainty
 

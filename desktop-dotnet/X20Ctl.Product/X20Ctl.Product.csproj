@@ -11,7 +11,7 @@
     <AssemblyName>X20Ctl</AssemblyName>
     <ApplicationIcon>Brand/x20ctl.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>4.1.0-preview.6</Version>
+    <Version>4.1.0-preview.7</Version>
     <!-- the engine sits beside X20Ctl.exe; a one-exe build (-p:EngineBesideExe=false -p:IncludeAllContentForSelfExtract=true) packs it in -->
     <EngineBesideExe Condition="'$(EngineBesideExe)' == ''">true</EngineBesideExe>
     <!-- release builds (-p:ElevateAtLaunch=true) ask for administrator permission when opened, so PC mode can install its drivers; dev builds don't -->
@@ -27,6 +27,9 @@
     <ProjectReference Include="../X20Ctl.Zone/X20Ctl.Zone.csproj" />
     <!-- the managed ViGEm client only: it talks to the ViGEmBus driver, which PC mode installs on first use -->
     <PackageReference Include="Nefarius.ViGEm.Client" Version="1.21.256" />
+    <!-- the licence and notice the setup shows on its License page, carried in the exe -->
+    <EmbeddedResource Include="../../LICENSE" LogicalName="LICENSE.txt" />
+    <EmbeddedResource Include="../../NOTICE" LogicalName="NOTICE.txt" />
     <!-- the X20CTL mark in white (tools/build_brand_mark.py); the intro draws the same mark in red -->
     <Resource Include="Brand/x20ctl-mark.png" Link="Assets/brand.png" />
     <Content Include="../../x20ctl/controllers/catalog.json" Link="Data/catalog.json" CopyToOutputDirectory="PreserveNewest" />
@@ -37,7 +40,7 @@
     <!-- the opening sound, made from sine waves by tools/build_intro_sound.py -->
     <Content Include="Brand/intro.wav;Brand/intro-audio-provenance.md" CopyToOutputDirectory="PreserveNewest" />
     <!-- the guides Agent XCTL answers app questions from (M5) -->
-    <Content Include="../../README.md;../../IF-YOUR-CONTROLLER-ISNT-WORKING.md;../../PRIVACY.md" Link="Help/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../README.md;../../README.plain.md;../../IF-YOUR-CONTROLLER-ISNT-WORKING.md;../../PRIVACY.md" Link="Help/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <!-- PC mode's two installers (ViGEmBus, HidHide; see vendor/drivers/README.md), carried inside the exe when present -->
     <Content Include="../../vendor/drivers/*.exe" Link="drivers/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" Condition="Exists('../../vendor/drivers')" />
     <Content Include="../../tools/linux_controller_check/x20ctl-check.py" Link="Tools/linux/x20ctl-check.py" CopyToOutputDirectory="PreserveNewest" />

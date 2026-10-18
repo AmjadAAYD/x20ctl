@@ -84,10 +84,32 @@ class Found:
 
     address: str
     name: str = ""
+    rssi: int | None = None
 
     @property
     def label(self) -> str:
         return self.name or "Controller"
+
+
+# Below this a pad is heard only now and then and a connection often fails.
+WEAK_SIGNAL = -85
+
+
+def signal_note(rssi: int | None) -> str | None:
+    """What to do about a weak signal, or None when the signal is fine or unknown."""
+    if rssi is None or rssi > WEAK_SIGNAL:
+        return None
+    return (f"Signal is very weak ({rssi} dBm). Bring the pad within a metre or two of the PC "
+            "and away from USB 3 ports and metal; settings commands often fail to connect at this range.")
+
+
+# Set by the command line to show progress while a slow step runs; None stays silent.
+progress = None
+
+
+def _say(message: str) -> None:
+    if progress is not None:
+        progress(message)
 
 
 def is_controller(name: str, address: str, service_uuids=()) -> bool:
@@ -133,6 +155,26 @@ async def known_controllers() -> list[Found]:
     return parse_known_devices(out.decode("utf-8", "replace"))
 
 
+def parse_connected(info: str) -> bool:
+    """Whether `bluetoothctl info ADDRESS` output says BlueZ holds a connection to the device."""
+    return any(line.strip().lower() == "connected: yes" for line in info.splitlines())
+
+
+async def bluez_connected(address: str) -> bool:
+    """Whether BlueZ (Blueman, bluetoothctl, the desktop applet) already holds a connection to
+    this address. The pad takes one connection at a time, so settings cannot connect while it does.
+    Linux only; False anywhere else or if bluetoothctl is unavailable."""
+    if not sys.platform.startswith("linux") or not shutil.which("bluetoothctl"):
+        return False
+    try:
+        process = await asyncio.create_subprocess_exec(
+            "bluetoothctl", "info", address, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+        out, _ = await asyncio.wait_for(process.communicate(), 5)
+    except (OSError, asyncio.TimeoutError):
+        return False
+    return parse_connected(out.decode("utf-8", "replace"))
+
+
 async def find_controllers(timeout: float = 8.0, *, first: bool = False,
                            everything: list | None = None) -> list[Found]:
     """Every controller advertising right now, in the order first seen.
@@ -145,17 +187,25 @@ async def find_controllers(timeout: float = 8.0, *, first: bool = False,
     advertisement heard as (address, name, rssi) for diagnosis.
     """
     found: dict[str, str] = {}
+    strongest: dict[str, int] = {}
+    anything = 0
     heard = asyncio.Event()
 
     def seen(device, adv) -> None:
+        nonlocal anything
+        anything += 1
         name = adv.local_name or device.name or ""
+        rssi = getattr(adv, "rssi", None)
         if everything is not None:
-            everything.append((device.address, name, getattr(adv, "rssi", None)))
+            everything.append((device.address, name, rssi))
         if is_controller(name, device.address, getattr(adv, "service_uuids", ())):
             found.setdefault(device.address, name)
+            if rssi is not None and rssi > strongest.get(device.address, -999):
+                strongest[device.address] = rssi
             heard.set()
 
     remaining = timeout
+    warmed = False
     while remaining > 0 and not (first and found):
         window = min(SCAN_ROUND, remaining)
         scanner = BleakScanner(detection_callback=seen)
@@ -171,7 +221,12 @@ async def find_controllers(timeout: float = 8.0, *, first: bool = False,
         finally:
             await scanner.stop()
         remaining -= window
-    result = [Found(address=address, name=name) for address, name in found.items()]
+        # hearing no device of any kind for a whole scan is unusual, so give it one more window
+        # before giving up (cheap, and unconfirmed as a cure: a pad that is off or asleep does not
+        # advertise, and a pad another program holds connected is not heard advertising either)
+        if remaining <= 0 and not anything and not warmed:
+            warmed = True; remaining = SCAN_ROUND
+    result = [Found(address=address, name=name, rssi=strongest.get(address)) for address, name in found.items()]
     if not result:
         result = await known_controllers()
     return result
@@ -254,6 +309,7 @@ class X20:
         last: Exception | None = None
         for attempt in range(CONNECT_ATTEMPTS):
             target = self.address
+            _say(f"connecting, attempt {attempt + 1} of {CONNECT_ATTEMPTS}")
             if attempt:
                 # a retry looks the pad up again first, so BlueZ has fresh state
                 await asyncio.sleep(1.0)
@@ -274,6 +330,11 @@ class X20:
                     pass
         else:
             self._client = None
+            if await bluez_connected(self.address):
+                raise ControllerError(
+                    f"Bluetooth already holds a connection to {self.address} (from Blueman, bluetoothctl "
+                    f"or the desktop's Bluetooth settings), and the pad takes one at a time. Disconnect it "
+                    f"there, or run `bluetoothctl disconnect {self.address}`, then try again.") from last
             raise last
         services = {s.uuid.lower() for s in self._client.services}
         if CONFIG_SERVICE not in services:
@@ -398,6 +459,18 @@ class X20:
                 raise ControllerError("no reply to device info")
             self._info = p.parse_identity_reply(pkt.payload)
         return self._info
+
+    async def host_guid(self) -> p.HostGuid | None:
+        """The updater hardware id and firmware version, or None if the pad is silent.
+
+        A read, like every query here. The record is 18 bytes and only 14 fit
+        in the first packet, so this relies on read_body's continuation; that
+        continuation has not been observed to work for this record on a pad.
+        """
+        body = await self.read_body(p.Op.HOST_GUID)
+        if body is None or not body.complete:
+            return None
+        return p.parse_host_guid(body)
 
     async def capabilities(self, *, refresh: bool = False) -> p.Capabilities:
         if self._caps is None or refresh:
