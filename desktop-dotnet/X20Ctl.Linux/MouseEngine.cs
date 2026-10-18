@@ -39,47 +39,74 @@ internal sealed class MouseEngine
     }
     public void Stop() { stop = true; thread?.Join(1500); thread = null; Set("Off", "Off", false); }
 
+    /// <summary>One controller driving the pointer: its own mapper and shortcut, so every connected pad can move the pointer and any pad's shortcut switches only that pad.</summary>
+    sealed class Pad(EvDevice device, PcEngine.RealPad real)
+    {
+        public EvDevice Device = device; public PcEngine.RealPad Real = real; public MouseMapper? Mapper; public HoldCombo? Combo; public bool Active = true; public long Last;
+    }
+
     void Loop()
     {
-        PcEngine.RealPad? real = null; Mouse? mouse = null; MouseMapper? mapper = null; HoldCombo? combo = null; MouseProfile profile = new();
-        bool active = true; var clock = Stopwatch.StartNew(); long last = 0; var held = new Dictionary<MouseAction, long>();
+        var pads = new Dictionary<string, Pad>(); Mouse? mouse = null; MouseProfile profile = new();
+        var clock = Stopwatch.StartNew(); long scanned = -1000; var held = new Dictionary<MouseAction, long>();
         try
         {
             if (!PcEngine.CanCreateVirtualPad()) { Set("Needs attention", "Can't create the virtual mouse: /dev/uinput isn't writable for you. The PC mode tab shows how to allow it.", false); return; }
-            mouse = new Mouse();
+            mouse = new Mouse(); string problem = "";
             while (!stop)
             {
-                if (reload) { reload = false; try { profile = Profile(); mapper = new MouseMapper(profile); combo = profile.Combo ? new HoldCombo(profile.ToggleMask, profile.HoldMilliseconds) : null; } catch (InvalidDataException e) { Set("Needs attention", "Settings couldn't be used: " + e.Message, false); } }
-                if (real == null)
+                if (reload)
                 {
-                    var device = PcEngine.Controllers().FirstOrDefault();
-                    if (device == null) { Set("Waiting", "No controller found. Plug one in and it starts by itself.", false); Thread.Sleep(500); continue; }
-                    try { real = new PcEngine.RealPad(device, grab: active); }
-                    catch (IOException e) { Set("Needs attention", $"Couldn't take {device.Name}: {e.Message}.", false); Thread.Sleep(1000); continue; }
-                    Set("Active", $"{device.Name} moves the pointer. Hold the shortcut to switch it off.", active); last = clock.ElapsedMilliseconds;
+                    reload = false;
+                    try { profile = Profile(); } catch (InvalidDataException) { profile = new(); }
+                    foreach (var pad in pads.Values) { pad.Mapper = new MouseMapper(profile); pad.Combo = profile.Combo ? new HoldCombo(profile.ToggleMask, profile.HoldMilliseconds) : null; }
+                    scanned = -1000;
                 }
-                real.Wait(8);
-                if (!real.Read()) { real.Dispose(); real = null; mapper?.Release(); Set("Waiting", "The controller went away. Plug it back in and it starts again.", false); continue; }
-                long now = clock.ElapsedMilliseconds; double seconds = (now - last) / 1000.0; last = now; var state = real.State();
-                if (combo != null && combo.Update(state.Buttons, now))
+                long now = clock.ElapsedMilliseconds;
+                if (now - scanned >= 500)
                 {
-                    active = !active; real.Grab(active);
-                    if (!active) foreach (var (a, d) in mapper!.Release()) mouse.Act(a, 0);
-                    Set("Active", active ? "The mouse is on." : "The mouse is off for now: the controller works as it normally does. Hold the shortcut again to switch it on.", active);
+                    scanned = now; var present = PcEngine.Controllers().ToList(); problem = "";
+                    foreach (var gone in pads.Keys.Where(k => present.All(d => d.Path != k)).ToList()) { pads[gone].Real.Dispose(); pads.Remove(gone); }
+                    foreach (var device in present.Where(d => !pads.ContainsKey(d.Path)))
+                    {
+                        try
+                        {
+                            var pad = new Pad(device, new PcEngine.RealPad(device, grab: true)) { Last = now, Mapper = new MouseMapper(profile), Combo = profile.Combo ? new HoldCombo(profile.ToggleMask, profile.HoldMilliseconds) : null };
+                            pads[device.Path] = pad;
+                        }
+                        catch (IOException e) { problem = $"Couldn't take {device.Name}: {e.Message}."; }
+                    }
+                    if (pads.Count == 0) Set(problem.Length > 0 ? "Needs attention" : "Waiting", problem.Length > 0 ? problem : "No controller found. Plug one in and it starts by itself.", false);
+                    else Set("Active", (pads.Count == 1 ? pads.Values.First().Device.Name + " moves" : pads.Count + " controllers move") + " the pointer. Hold the shortcut to switch one off.", pads.Values.Any(p => p.Active));
                 }
-                if (!active || mapper == null) continue;
-                var frame = mapper.Step(state, seconds);
-                mouse.Move(frame.Dx, frame.Dy, frame.Wheel, frame.HWheel);
-                foreach (var (action, down) in frame.Edges)
+                if (pads.Count == 0) { Thread.Sleep(100); continue; }
+                var fds = pads.Values.Select(p => new Native.PollFd { Fd = p.Real.Fd, Events = Native.PollIn }).ToArray();
+                Native.Poll(ref System.Runtime.InteropServices.MemoryMarshal.GetArrayDataReference(fds), (nuint)fds.Length, 8);
+                now = clock.ElapsedMilliseconds;
+                foreach (var (path, pad) in pads.ToList())
                 {
-                    if (action == MouseAction.OnScreenKeyboard) { if (down) Keyboard(); continue; }
-                    mouse.Act(action, down ? 1 : 0); if (down && Repeats.Contains(action)) held[action] = now + 400; else held.Remove(action);
+                    if (!pad.Real.Read()) { pad.Real.Dispose(); pads.Remove(path); pad.Mapper?.Release(); scanned = -1000; continue; }
+                    double seconds = (now - pad.Last) / 1000.0; pad.Last = now; var state = pad.Real.State();
+                    if (pad.Combo != null && pad.Combo.Update(state.Buttons, now))
+                    {
+                        pad.Active = !pad.Active; pad.Real.Grab(pad.Active);
+                        if (!pad.Active) foreach (var (act, _) in pad.Mapper!.Release()) mouse.Act(act, 0);
+                        Set("Active", pad.Active ? "The mouse is on." : "A controller's mouse is off for now: it works as it normally does. Hold the shortcut again to switch it on.", pads.Values.Any(p => p.Active));
+                    }
+                    if (!pad.Active || pad.Mapper == null) continue;
+                    var frame = pad.Mapper.Step(state, seconds);
+                    mouse.Move(frame.Dx, frame.Dy, frame.Wheel, frame.HWheel);
+                    foreach (var (action, down) in frame.Edges)
+                    {
+                        if (action == MouseAction.OnScreenKeyboard) { if (down) Keyboard(); continue; }
+                        mouse.Act(action, down ? 1 : 0); if (down && Repeats.Contains(action)) held[action] = now + 400; else held.Remove(action);
+                    }
                 }
                 foreach (var action in held.Keys.ToList()) if (now >= held[action]) { mouse.Act(action, 2); held[action] = now + 40; }
             }
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { Set("Needs attention", e.Message, false); }
-        finally { real?.Dispose(); mouse?.Dispose(); }
+        finally { foreach (var pad in pads.Values) pad.Real.Dispose(); mouse?.Dispose(); }
     }
 
     static void Keyboard()
