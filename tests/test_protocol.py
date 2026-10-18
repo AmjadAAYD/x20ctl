@@ -238,6 +238,31 @@ def test_chunked_response_is_reported_as_partial():
     assert body.missing == 4
 
 
+def test_host_guid_is_updater_hardware_id_plus_version():
+    """The recorded 14-byte chunk is the fixed prefix of the X20 updater's
+    hardware id; the model code and version arrive in the continuation."""
+    first = p.unwrap(bytes.fromhex("12a1ca51da724cb6103658c05d7d4e"))
+    full = p.Body(declared=18, data=first.data + bytes.fromhex("2091" "7b00"))
+    guid = p.parse_host_guid(full)
+    assert guid.hardware_id.hex() == "a1ca51da724cb6103658c05d7d4e2091"
+    assert guid.model_code == "2091"
+    assert guid.model == "EasySMX X20"
+    assert (guid.version_raw, guid.version) == (123, "1.23")
+
+
+def test_host_guid_unknown_model_and_partial_body():
+    unknown = p.Body(declared=18, data=p.HARDWARE_ID_PREFIX + bytes.fromhex("9999" "0a00"))
+    guid = p.parse_host_guid(unknown)
+    assert guid.model is None and guid.version == "0.10"
+    foreign = p.Body(declared=18, data=bytes(14) + bytes.fromhex("2091" "7b00"))
+    assert p.parse_host_guid(foreign).model is None
+    try:
+        p.parse_host_guid(p.unwrap(bytes.fromhex("12a1ca51da724cb6103658c05d7d4e")))
+    except ValueError:
+        return
+    raise AssertionError("a partial HOST_GUID must be refused")
+
+
 def test_unwrap_rejects_empty_payload():
     try:
         p.unwrap(b"")
