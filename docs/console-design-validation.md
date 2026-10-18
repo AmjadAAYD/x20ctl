@@ -34,4 +34,4 @@ Rendered normal/compact views were reviewed for spacing, clipping, focus, panel 
 
 Evidence: `artifacts/console-design/report.json`, PNGs, `motion-tab-0.png` through `motion-tab-3.png`, and `scanner-regression/report.json`. These use the production bundle and isolated fixture bridge. Physical hardware, native-window motion and packaged EXE behavior remain unverified; no executable was rebuilt or released. The full Python suite was not rerun for this frontend-only revision; the scoped 266-test result is the current backend regression evidence.
 
-Pre-revision snapshot: `C:/Users/amjad/.codex/checkpoints/x20ctl-console-revision-20261008/snapshot.zip`, SHA-256 `6F4651BA405294AD0C4DFBB9398FE21593D31647D1EFD5ED0700872ED479F87F`. Concurrent scanner work was left intact. No version, tag, publication or push.
+Pre-revision snapshot: `<home>/.codex/checkpoints/x20ctl-console-revision-20261008/snapshot.zip`, SHA-256 `6F4651BA405294AD0C4DFBB9398FE21593D31647D1EFD5ED0700872ED479F87F`. Concurrent scanner work was left intact. No version, tag, publication or push.

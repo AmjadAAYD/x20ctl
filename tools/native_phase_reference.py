@@ -9,7 +9,7 @@ from x20ctl import protocol as p
 def digest(data):return hashlib.sha256(data).hexdigest()
 def main():
     out=ROOT/'artifacts/product-engine-phase';out.mkdir(parents=True,exist_ok=True)
-    source=Path(r'C:\Users\amjad\Desktop\input-20261008-161452-2dd4446a.zip')
+    source=Path(r'<home>\Desktop\input-20261008-161452-2dd4446a.zip')
     vectors=[];counts={}
     def emit(kind,*fields):vectors.append('\t'.join(map(str,(kind,*fields))));counts[kind]=counts.get(kind,0)+1
     def hx(value):return value.hex() or '-'
