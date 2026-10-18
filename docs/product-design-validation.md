@@ -45,7 +45,7 @@ Vertical scrolling remains intentional on detailed editor, expanded readings and
 
 ## Preservation evidence
 
-External pre-edit ZIP: `C:/Users/amjad/.codex/checkpoints/x20ctl-product-design-20261008/snapshot.zip`.
+External pre-edit ZIP: `<home>/.codex/checkpoints/x20ctl-product-design-20261008/snapshot.zip`.
 
 SHA-256: `258A9402E094FCE7D05BD774A3C6BC13BC4D940E96FC1782CC25BB09F4D6A622`. All 669 archive entries passed CRC inspection. Backend scanner, capability discovery, its test, existing scanner CSS, package/version configuration and changelog were byte-identical to the checkpoint. The existing dirty scanner review tool received only a one-line selector update from Known/Missing to Technical details; all its prior changes were retained. The dirty scanner TSX received only the stage guide and introductory presentation block on top of its existing work.
 

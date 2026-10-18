@@ -25,7 +25,7 @@ gathering particles and no decorative JavaScript frame loop. Background UI is
 inert only during the intro; cleanup restores keyboard/pointer access.
 
 Before-intro source snapshot:
-C:/Users/amjad/.codex/automations/continue-x20ctl-prompt-2-motion-design-visual-polish-you-are-continuing-fro/startup-intro-checkpoint/before-intro.zip.
+<home>/.codex/automations/continue-x20ctl-prompt-2-motion-design-visual-polish-you-are-continuing-fro/startup-intro-checkpoint/before-intro.zip.
 Restore only the recorded intro paths from this checkpoint after verifying
 their after-edit hashes, leaving the earlier Point 1 and later controller work
 alone; regenerate dist-ui with the production build. Validation and final design

@@ -8,7 +8,7 @@ EasySMX.
 
 X20CTL works on your own PC. It has no account, no analytics and no advertising. Something leaves your PC only when
 you press a button that says it will send, and only to the X20CTL inbox described below. The one exception is an
-update check you can turn on yourself (see "Updates"); it is off unless you turn it on.
+update check, which is on by default and you can turn off (see "Updates").
 
 ## What stays on your PC
 
@@ -83,7 +83,7 @@ say anything else about yourself.
 
 ## Updates
 
-Tools has a "Keep X20CTL up to date" switch, off by default. When it is on, each launch asks GitHub's public releases
+Tools has a "Keep X20CTL up to date" switch, on by default (the setup asks about it too). While it is on, each launch asks GitHub's public releases
 API (`api.github.com`) whether a newer X20CTL exists, and the one-file exe downloads it from the project's GitHub
 releases, checks it against that release's `SHA256SUMS.txt`, and replaces itself for the next launch. "Check now" does
 the same check once. These requests carry nothing about you or your controllers; GitHub sees them like any download,

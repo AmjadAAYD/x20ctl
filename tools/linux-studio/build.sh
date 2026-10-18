@@ -1,17 +1,18 @@
 #!/usr/bin/env bash
 # Builds the Linux Studio packages from a checkout: a tarball and an AppImage.
-#   tools/linux-studio/build.sh VERSION OUTDIR
+#   tools/linux-studio/build.sh VERSION OUTDIR [INFO [NAME]]
+# VERSION is the numeric form .NET needs (0.17.0), INFO the version the app reports (0.017), NAME what the files are called (V0.017); both default to VERSION.
 # Needs the .NET 10 SDK. The AppImage step also needs curl and a FUSE-less run (appimagetool is extracted, not mounted).
 set -euo pipefail
-version="${1:?usage: build.sh VERSION OUTDIR}"; out="$(mkdir -p "${2:?usage: build.sh VERSION OUTDIR}" && cd "$2" && pwd)"
+version="${1:?usage: build.sh VERSION OUTDIR [INFO [NAME]]}"; info="${3:-$version}"; name="${4:-$version}"; out="$(mkdir -p "${2:?usage: build.sh VERSION OUTDIR}" && cd "$2" && pwd)"
 here="$(cd "$(dirname "$0")" && pwd)"; root="$(cd "$here/../.." && pwd)"
 work="$(mktemp -d)"; trap 'rm -rf "$work"' EXIT
 
 dotnet publish "$root/desktop-dotnet/X20Ctl.Linux/X20Ctl.Linux.csproj" -c Release -r linux-x64 --self-contained true \
-  -p:Version="$version" -p:DebugType=none -o "$work/publish"
+  -p:Version="$version" -p:InformationalVersion="$info" -p:DebugType=none -o "$work/publish"
 
 # --- tarball: run in place, or install with ./install.sh
-tar_dir="$work/x20ctl-studio-$version"; mkdir -p "$tar_dir"
+tar_dir="$work/x20ctl-studio-$name"; mkdir -p "$tar_dir"
 cp -r "$work/publish/." "$tar_dir/"; cp "$here/x20ctl.desktop" "$here/x20ctl.png" "$root/LICENSE" "$root/NOTICE" "$tar_dir/"
 cat > "$tar_dir/install.sh" <<'INSTALL'
 #!/usr/bin/env sh
@@ -26,14 +27,14 @@ sed "s|^Exec=.*|Exec=$dest/x20ctl-studio|" "$here/x20ctl.desktop" > "$HOME/.loca
 echo "Installed. Start X20CTL from your menu, or run x20ctl-studio."
 INSTALL
 chmod 755 "$tar_dir/install.sh" "$tar_dir/x20ctl-studio"
-tar -C "$work" -czf "$out/X20CTL-$version-linux-x64.tar.gz" "x20ctl-studio-$version"
+tar -C "$work" -czf "$out/X20CTL-$name-linux-x64.tar.gz" "x20ctl-studio-$name"
 
 # --- the same for musl distros (Alpine, Chimera, Void-musl): a second self-contained build of the same tarball
-dotnet publish "$root/desktop-dotnet/X20Ctl.Linux/X20Ctl.Linux.csproj" -c Release -r linux-musl-x64 --self-contained true   -p:Version="$version" -p:DebugType=none -o "$work/publish-musl"
-musl_dir="$work/x20ctl-studio-$version-musl"; mkdir -p "$musl_dir"
+dotnet publish "$root/desktop-dotnet/X20Ctl.Linux/X20Ctl.Linux.csproj" -c Release -r linux-musl-x64 --self-contained true   -p:Version="$version" -p:InformationalVersion="$info" -p:DebugType=none -o "$work/publish-musl"
+musl_dir="$work/x20ctl-studio-$name-musl"; mkdir -p "$musl_dir"
 cp -r "$work/publish-musl/." "$musl_dir/"; cp "$tar_dir/install.sh" "$tar_dir/x20ctl.desktop" "$tar_dir/x20ctl.png" "$tar_dir/LICENSE" "$tar_dir/NOTICE" "$musl_dir/"
 chmod 755 "$musl_dir/install.sh" "$musl_dir/x20ctl-studio"
-tar -C "$work" -czf "$out/X20CTL-$version-linux-musl-x64.tar.gz" "x20ctl-studio-$version-musl"
+tar -C "$work" -czf "$out/X20CTL-$name-linux-musl-x64.tar.gz" "x20ctl-studio-$name-musl"
 
 # --- AppImage, with appimagetool pinned by hash
 tool_url="https://github.com/AppImage/appimagetool/releases/download/1.9.0/appimagetool-x86_64.AppImage"
@@ -50,5 +51,5 @@ here="$(dirname "$(readlink -f "$0")")"
 exec "$here/usr/bin/x20ctl-studio" "$@"
 APPRUN
 chmod 755 "$appdir/AppRun"
-ARCH=x86_64 "$work/squashfs-root/AppRun" "$appdir" "$out/X20CTL-$version-linux-x86_64.AppImage"
+ARCH=x86_64 "$work/squashfs-root/AppRun" "$appdir" "$out/X20CTL-$name-linux-x86_64.AppImage"
 ls -la "$out"

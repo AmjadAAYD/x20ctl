@@ -26,8 +26,8 @@ public static class ScanFlow
         (0x045E, 0x02E0, "Xbox Wireless (Bluetooth) identity, shared by many pads. The EasySMX X05 uses it on Bluetooth (an owner's scan, 10 Oct 2026: \"Xbox Bluetooth Gamepad\", no vendor channels, about 158 reports/s), while the Dune 8K uses 02FD."),
         (0x045E, 0x02FD, "Xbox Wireless Controller over Bluetooth. A genuine Microsoft controller uses it, and so does the EasySMX Dune 8K on Bluetooth (an owner's scan, 10 Oct 2026: \"Xbox Bluetooth Gamepad\" by Microsoft Corporation, no vendor channels). Pick the model you hold."),
         (0x0079, 0x181C, "Seen with the EasySMX X20 in DInput mode."),
-        (0x1D57, 0xFA60, "Seen with the EasySMX X20's 2.4 GHz receiver (Xenta chip)."),
-        (0x1A34, 0xF517, "Reported for the EasySMX X15's 2.4 GHz receiver (research notes, not yet seen here)."),
+        (0x1D57, 0xFA60, "A Xenta wireless keyboard and mouse receiver. It is not an EasySMX receiver; the X20's own dongle shows the pad's identity instead."),
+        (0x1A34, 0xF517, "Reported for the EasySMX X15's 2.4 GHz receiver. The vendor's X20 receiver tool also opens this id (found in its code, not yet seen here)."),
         (0x2345, 0xE062, "Reported for the EasySMX D10's receiver, a vendor-defined HID device (research notes, not yet seen here)."),
         (0x413D, 0x2131, "Seen with the EasySMX Dune 8K (D15) in XInput mode: two Controller Check scans by an owner, 10 Oct 2026. It also shows two vendor channels, 0xFF70 and 0xFF10."),
     ];

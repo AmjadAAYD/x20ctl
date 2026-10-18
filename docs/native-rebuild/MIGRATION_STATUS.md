@@ -44,6 +44,6 @@ Maximized, restored, minimum, reduced-motion and focus states were reviewed. The
 
 ## Historical checkpoints
 
-Initial source checkpoint: C:/Users/amjad/.codex/checkpoints/x20ctl-native-rebuild/20261008T205718Z-controller-zone/source.zip. Its 570 members were verified at creation; SHA-256 5869544715A2F83D628E22EBE8E814A0DB3C95F50F437067FC022D1CF0624687. Ignored research/vendor/captures are not covered by an exhaustive backup claim.
+Initial source checkpoint: <home>/.codex/checkpoints/x20ctl-native-rebuild/20261008T205718Z-controller-zone/source.zip. Its 570 members were verified at creation; SHA-256 5869544715A2F83D628E22EBE8E814A0DB3C95F50F437067FC022D1CF0624687. Ignored research/vendor/captures are not covered by an exhaustive backup claim.
 
 Earlier evidence remains in DYNAMIC_ZONE_STATUS.md, APPROVED_BUTTONS.md, CURVES_REVIEW.md, MACROS_REVIEW.md and CONSOLE_RESPONSIVE_REVIEW.md. Earlier approval gates/counts are historical; current scope and approval are stated above.

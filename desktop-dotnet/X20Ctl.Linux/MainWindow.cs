@@ -134,7 +134,7 @@ public sealed class MainWindow : Window
         if (AppImageUpdater.CanInstall) { var (done, message) = await AppImageUpdater.Install(r); if (done) installed = message; }
         Border? card = null;
         void Close() { if (card != null) stage.Children.Remove(card); }
-        var text = new StackPanel { Spacing = 12, Children = { T.Label(installed != null ? "Update installed" : "A newer version is out", 18, null, FontWeight.Medium), T.Label(installed ?? $"{r.Title}  ·  you have {AppInfo.Version}", 14, T.Soft),
+        var text = new StackPanel { Spacing = 12, Children = { T.Label(installed != null ? "Update installed" : "A newer version is out", 18, null, FontWeight.Medium), T.Label(installed ?? $"{r.Title}  ·  you have {AppInfo.Shown}", 14, T.Soft),
             T.Line(10, new Pill(installed != null ? "Release notes" : "View release", Pill.Kinds.Primary, () => { ExternalLinks.Open(r.Page); Close(); }), new Pill(installed != null ? "OK" : "Later", Pill.Kinds.Ghost, Close)) } };
         card = new Border { Background = T.B("#F0101A33"), BorderBrush = T.Hairline, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(14), Padding = new Thickness(24), Child = text,
             HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
