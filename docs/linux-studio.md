@@ -44,7 +44,7 @@ Not covered: a pad Linux doesn't expose through evdev at all (no driver), and a 
 | HidHide | exclusive grab of the real device (`EVIOCGRAB`) |
 | Tray icon | StatusNotifierItem via Avalonia `TrayIcon` |
 | Game library (Steam, Epic, GOG, Riot) | Steam and Heroic/Lutris library files |
-| Updater | none: the package manager or AppImageUpdate does it |
+| Updater | the AppImage replaces itself from the GitHub release (checked against `SHA256SUMS.txt`); other packages are pointed to the release page |
 | Intro video | Avalonia has no built-in video; use LibVLCSharp or a frame sequence |
 
 ## Order of work

@@ -31,7 +31,7 @@ internal sealed class ToolsPage : UserControl
 
     public ToolsPage(ToolsActions go)
     {
-        this.go = go; updateLine = settings.AutoUpdate ? "On. Checks GitHub for a newer version each launch. You have " + AppInfo.Version + "." : "Off. Turn it on to check GitHub for a newer version each launch. You have " + AppInfo.Version + ".";
+        this.go = go; updateLine = UpdateLine(settings.AutoUpdate);
         Build();
     }
 
@@ -53,7 +53,7 @@ internal sealed class ToolsPage : UserControl
         var bars = new Grid { ColumnDefinitions = new("1.35*,16,1*"), Margin = new Thickness(0, 18, 0, 0) }; Grid.SetRow(bars, 1);
         var update = T.Stack(2, T.Label("Keep X20CTL up to date", 16, null, FontWeight.SemiBold), T.Label(updateLine, 13, T.Soft)); ((TextBlock)update.Children[1]).TextWrapping = TextWrapping.Wrap;
         var left = new Grid { ColumnDefinitions = new("Auto,16,*,Auto") };
-        left.Children.Add(Switches.Make(settings.AutoUpdate, v => { settings.AutoUpdate = v; settings.Save(); updateLine = v ? "On. Checks GitHub for a newer version each launch. You have " + AppInfo.Version + "." : "Off. Turn it on to check GitHub for a newer version each launch. You have " + AppInfo.Version + "."; Build(); }));
+        left.Children.Add(Switches.Make(settings.AutoUpdate, v => { settings.AutoUpdate = v; settings.Save(); updateLine = UpdateLine(v); Build(); }));
         Grid.SetColumn(update, 2); update.VerticalAlignment = VerticalAlignment.Center; left.Children.Add(update);
         var check = new Pill(checking ? "Checking…" : "Check now", Pill.Kinds.Ghost, CheckNow) { Padding = new Thickness(22, 11), Enabled = !checking, VerticalAlignment = VerticalAlignment.Center }; Grid.SetColumn(check, 3); left.Children.Add(check);
         bars.Children.Add(T.Card(left, 18, 16));
@@ -68,6 +68,10 @@ internal sealed class ToolsPage : UserControl
         Content = page;
     }
 
+    static string UpdateLine(bool on) => on
+        ? (AppImageUpdater.CanInstall ? "On. Checks GitHub each launch and installs a newer version by itself. You have " : "On. Checks GitHub for a newer version each launch. You have ") + AppInfo.Version + "."
+        : "Off. Turn it on to check GitHub for a newer version each launch. You have " + AppInfo.Version + ".";
+
     async void CheckNow()
     {
         checking = true; updateLine = "Checking GitHub…"; Build();
@@ -75,7 +79,8 @@ internal sealed class ToolsPage : UserControl
         {
             var r = await UpdateCheck.Latest();
             updateLine = r == null ? "You're up to date (" + AppInfo.Version + ")." : $"{r.Version} is out. Open the releases page to download it.";
-            if (r != null) ExternalLinks.Open(r.Page);
+            if (r != null && AppImageUpdater.CanInstall) { updateLine = "Updating…"; Build(); updateLine = (await AppImageUpdater.Install(r)).Message; }
+            else if (r != null) ExternalLinks.Open(r.Page);
         }
         catch (Exception e) when (e is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException) { updateLine = "Couldn't check: " + e.Message; }
         checking = false; Build();
