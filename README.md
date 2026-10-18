@@ -19,7 +19,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/readme/thanks.svg" alt="Thank you EasySMX for sending me an EasySMX X20 Pro for my software!" width="100%">
+  <img src="assets/readme/thanks.svg?v=2" alt="Thank you EasySMX for sending me an EasySMX X20 Pro for my software!" width="100%">
 </p>
 
 <p align="center">
