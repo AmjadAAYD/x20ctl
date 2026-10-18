@@ -40,6 +40,6 @@ SHA-256: `9ed19e20985441569b0e73e07067c9179d74ff26be6767495782fec71f275918`.
 
 Evidence directory: `artifacts/x15-scanner-review`; final packaging record: `final-build.json`; GUI report: `report.json`. Earlier builds remain available.
 
-App checkpoint: `C:/Users/amjad/.codex/automations/context-recovery-previous-x20ctl-session-called-build-easysmx-controller-p/checkpoints/x15-scanner-20261007T113524Z` (476 source/built-frontend files, hashes, Git diffs/index). Companion receiver checkpoint: `.../checkpoints/receiver-20261007T130932Z`.
+App checkpoint: `<home>/.codex/automations/context-recovery-previous-x20ctl-session-called-build-easysmx-controller-p/checkpoints/x15-scanner-20261007T113524Z` (476 source/built-frontend files, hashes, Git diffs/index). Companion receiver checkpoint: `.../checkpoints/receiver-20261007T130932Z`.
 
 Before labelling X15 hardware support verified, obtain a physical reconnect/button/stick-direction/trigger run in the intended mode. Configuration, firmware macro/curve writes, RGB and vibration-strength programming remain unsupported for X15.

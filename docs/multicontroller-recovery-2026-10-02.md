@@ -100,7 +100,7 @@ npm test
 .venv/Scripts/python.exe -m pytest tests/test_controller_registry.py tests/test_desktop.py tests/test_profiles.py tests/test_reports.py -q
 .venv/Scripts/python.exe tools/multicontroller_review.py --output artifacts/multicontroller-hidden-2026-10-02-verified
 node artifacts/multicontroller-visual-2026-10-02/review.cjs
-node tools/preview_models_review.cjs --playwright C:/Users/amjad/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright --browser "C:/Program Files/Google/Chrome/Application/chrome.exe" --output artifacts/preview-models-2026-10-02
+node tools/preview_models_review.cjs --playwright <home>/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright --browser "C:/Program Files/Google/Chrome/Application/chrome.exe" --output artifacts/preview-models-2026-10-02
 ```
 
 Reports:

@@ -81,7 +81,7 @@ Reproduce the offscreen review with a locally installed Playwright package and
 browser, for example:
 
 ```powershell
-node tools/rear_views_review.cjs --playwright C:/Users/amjad/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright --browser 'C:/Program Files/Google/Chrome/Application/chrome.exe'
+node tools/rear_views_review.cjs --playwright <home>/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright --browser 'C:/Program Files/Google/Chrome/Application/chrome.exe'
 ```
 
 ## Artwork and references
