@@ -1,5 +1,20 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **A setup wizard for Windows.** Each release carries `X20CTL-<version>-windows-x64-setup.exe` next to the plain exe. It is the same file: a copy with that name opens a wizard in the app's own look (welcome, license, options, install, finish) instead of the app. It installs for your account only, in `%LOCALAPPDATA%\Programs\X20CTL`, with a Start menu entry, an optional desktop shortcut and an entry in Windows Apps. The plain exe still runs from anywhere, with no install.
+- **An uninstaller.** The entry in Windows Apps (or `X20Ctl.exe --uninstall`) removes the app, its shortcuts and its entry, and keeps your settings unless you tick *Also delete my settings*. The PC mode drivers stay installed. `--silent` skips the wizard for both setup and removal.
+
+### Changed
+
+- **Keep X20CTL up to date is on by default.** Anyone who switched it off keeps it off. The setup asks about it, and Tools still turns it off.
+
+### Fixed
+
+- **The in-app updater never installed anything in a release build.** The one-file exe was mistaken for a folder build, so it announced updates but sent you to GitHub. It now recognises itself and swaps in the new, checksum-verified exe.
+
 ## [4.1.0-preview.6] - 2026-10-17
 
 A pre-release. Everything in [Preview 5](#410-preview5---2026-10-12) is included.

@@ -20,7 +20,7 @@ public static class Updater
 
     public static string Current => Scanner.ScanFlow.AppVersion;
     /// <summary>The one-file exe can replace itself; a folder build (the dev builds, the ZIP release) can't.</summary>
-    public static bool CanInstall => string.IsNullOrEmpty(typeof(Updater).Assembly.Location) && Environment.ProcessPath is { Length: > 0 };
+    public static bool CanInstall => Setup.Installer.IsOneFileExe;
     public static Release? Ready { get; internal set; }
     public static string? Installed { get; private set; }
 
