@@ -55,7 +55,7 @@ There was no physical controller or user's screen access.
 
 ```powershell
 node --test tests/controller-haptics.test.mjs
-node tools/vibration_review.cjs --playwright C:/Users/amjad/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright --browser 'C:/Program Files/Google/Chrome/Application/chrome.exe'
+node tools/vibration_review.cjs --playwright <home>/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright --browser 'C:/Program Files/Google/Chrome/Application/chrome.exe'
 ```
 
 No release, publication, push or commit was performed. Actual Windows UI playback
