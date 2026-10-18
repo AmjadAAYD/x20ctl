@@ -20,6 +20,18 @@ Built and rendered on Windows only. Nothing has been run on Linux yet: there is 
 - Also done: Tools, About, Feedback, Controller Check, Write scan, the intro (silent, simplified), the update popup at launch, tray icon, four-player PC mode with per-game profiles, macro recording and timeline preview, Test mapping, live curve input with a keyboard test, "Use as dead zone" from Diagnostics, and a game shelf (Steam, Heroic, Lutris, games added by hand).
 - Not done: native Bluetooth (the Studio reads the pad by running the Python `x20` client, read-only; a C# BlueZ client is not written). Configuration writes over Bluetooth are not offered.
 
+## Which controllers PC mode takes
+
+Any controller the kernel exposes as a gamepad, whatever its make: judged by what it reports (axes plus gamepad or joystick buttons), not by name. Each pad is read through a layout (`PadLayout.cs`):
+
+- **standard**: the kernel's gamepad layout (Xbox, PlayStation, Switch and most others). Used straight away.
+- **guessed**: worked out from what the pad reports (generic DirectInput pads, odd stick axes, triggers that rest high). PC mode will not take such a pad until its owner runs the button check once, so nothing is mapped to the wrong button.
+- **learned**: taught by the check (PC mode tab, Check your controller). Saved per vendor and product in `pad-layouts.json`.
+
+The check asks for each input in turn, listens only, and saves what it learned. When a pad isn't standard it also writes `~/X20CTLInputReports/layout-<vendor>-<product>.json` (what the pad reports and what it sent), which can be sent to add the model for everyone.
+
+Not covered: a pad Linux doesn't expose through evdev at all (no driver), and a user without write access to `/dev/uinput`.
+
 ## Pieces that need a Linux equivalent
 
 | Windows | Linux |

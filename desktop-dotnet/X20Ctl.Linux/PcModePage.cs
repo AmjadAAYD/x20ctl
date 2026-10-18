@@ -20,10 +20,89 @@ internal sealed class PcModePage : UserControl
     public PcModePage(StudioState state, Action<string> go)
     {
         this.state = state; this.go = go;
-        hub.Changed += OnHub; DetachedFromVisualTree += (_, _) => hub.Changed -= OnHub;
+        hub.Changed += OnHub; DetachedFromVisualTree += (_, _) => { hub.Changed -= OnHub; EndCheck(); };
         Build();
     }
     void OnHub() => Avalonia.Threading.Dispatcher.UIThread.Post(Build);
+
+    // ---------------------------------------------------------------------------------------------- the button check
+
+    LayoutCheck? check; Avalonia.Threading.DispatcherTimer? checkTimer; string checkNote = ""; int shownStep = -1; TextBlock? waiting;
+
+    static string Standing(string state) => state switch
+    {
+        "standard" => "Reads like an Xbox controller", "learned" => "Taught: reads the way you showed it", "checked" => "Checked", _ => "Needs a check before PC mode uses it"
+    };
+
+    Control LayoutSection()
+    {
+        var s = T.Stack(8, T.Label("Check your controller", 18, null, FontWeight.SemiBold),
+            T.Label("Shows PC mode how this pad sends each button, so nothing lands on the wrong one. It takes about a minute and only listens. Pads that don't report as a standard Xbox layout need it once before PC mode will use them.", 15, T.Soft));
+        s.Margin = new Thickness(0, 28, 0, 0);
+        if (check != null) { s.Children.Add(Wizard()); return s; }
+        var pads = ReviewMode.Pads ?? (PcEngine.Supported ? PcEngine.Controllers() : []);
+        if (pads.Count == 0) s.Children.Add(T.Label(PcEngine.Supported ? "No controller found. Plug one in." : "PC mode needs Linux.", 14.5, T.Muted));
+        foreach (var d in pads)
+        {
+            var (_, state) = PadLayoutStore.Shared.Resolve(d); var dev = d;
+            var row = new Grid { ColumnDefinitions = new("*,Auto") };
+            var text = T.Stack(1, T.Label(d.Name, 15.5, null, FontWeight.Medium), T.Label(Standing(state), 13.5, state == "needs-check" ? T.Warn : T.Soft));
+            var acts = T.Line(8, new Pill(state == "needs-check" ? "Check controller" : "Check again", state == "needs-check" ? Pill.Kinds.Primary : Pill.Kinds.Ghost, () => StartCheck(dev)) { Padding = new Thickness(18, 9) });
+            if (state == "learned") acts.Children.Add(new Pill("Forget", Pill.Kinds.Ghost, () => { PadLayoutStore.Shared.Forget(dev); hub.Engine.Reload(); checkNote = "Forgot what was taught for " + dev.Name + "."; Build(); }) { Padding = new Thickness(16, 9) });
+            Grid.SetColumn(acts, 1); row.Children.Add(text); row.Children.Add(acts); row.Margin = new Thickness(0, 6, 0, 0); s.Children.Add(row);
+        }
+        if (checkNote.Length > 0) { var n = T.Label(checkNote, 14, T.Soft); n.TextWrapping = TextWrapping.Wrap; n.Margin = new Thickness(0, 8, 0, 0); s.Children.Add(n); }
+        return s;
+    }
+
+    Control Wizard()
+    {
+        var c = check!; shownStep = c.Index;
+        var prompt = T.Label(c.Prompt, 30, null, FontWeight.SemiBold);
+        waiting = T.Label(c.Waiting, 14, T.Warn);
+        var bar = new Border { Height = 6, CornerRadius = new CornerRadius(3), Background = T.Track, Child = new Border { Width = 0, Background = T.Accent, CornerRadius = new CornerRadius(3), HorizontalAlignment = HorizontalAlignment.Left } };
+        bar.SizeChanged += (_, e) => { if (bar.Child is Border fill) fill.Width = e.NewSize.Width * c.Index / Math.Max(1, c.Total); };
+        var skip = new Pill("Skip this one", Pill.Kinds.Ghost, () => { c.Skip(); Build(); }) { Padding = new Thickness(18, 9) };
+        var stop = new Pill("Stop", Pill.Kinds.Ghost, () => FinishCheck(false)) { Padding = new Thickness(18, 9) };
+        return new Border
+        {
+            Margin = new Thickness(0, 10, 0, 0), Background = T.B("#33FFFFFF"), CornerRadius = new CornerRadius(14), Padding = new Thickness(24, 20),
+            Child = T.Stack(12, T.Label($"{c.Device.Name} · step {Math.Min(c.Index + 1, c.Total)} of {c.Total}", 13.5, T.Soft), prompt, waiting, bar, T.Line(10, skip, stop))
+        };
+    }
+
+    async void StartCheck(EvDevice device)
+    {
+        if (MouseHub.Shared.Enabled) { checkNote = "Switch the controller mouse off first (Mouse tab); it holds the pad."; Build(); return; }
+        hub.Engine.Suspended = true; checkNote = "Getting ready…"; Build();
+        await Task.Delay(600); // PC mode lets go of the pad
+        try { check = new LayoutCheck(device); }
+        catch (Exception e) when (e is UnauthorizedAccessException or InvalidOperationException or IOException) { hub.Engine.Suspended = false; checkNote = "Couldn't listen to the pad: " + e.Message; Build(); return; }
+        checkNote = ""; checkTimer = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(30) };
+        checkTimer.Tick += (_, _) =>
+        {
+            if (check == null) return; check.Tick();
+            if (check.Finished) { FinishCheck(true); return; }
+            if (check.Index != shownStep) { Build(); return; }
+            if (waiting != null) waiting.Text = check.Waiting;
+        };
+        checkTimer.Start(); Build();
+    }
+
+    void FinishCheck(bool complete)
+    {
+        var c = check; if (c == null) return;
+        var outcome = c.Finish(); EndCheck(); hub.Engine.Reload();
+        var more = outcome.Differences.Count > 0 ? "\n" + string.Join("\n", outcome.Differences.Take(8).Select(d => "  · " + d)) : "";
+        checkNote = (complete ? "" : "Stopped early. ") + outcome.Summary + more + (outcome.ReportPath != null ? "\nWhat the pad sent is saved in " + outcome.ReportPath + ". Send that file to the X20CTL team to get your pad added." : "");
+        Build();
+    }
+
+    void EndCheck()
+    {
+        checkTimer?.Stop(); checkTimer = null;
+        if (check != null) { check.Dispose(); check = null; hub.Engine.Suspended = false; }
+    }
 
     void Build()
     {
@@ -47,6 +126,7 @@ internal sealed class PcModePage : UserControl
         var toggle = Switch(on, v => { if (!hub.SetEnabled(v)) { message = "Read the notice below first."; } Build(); });
         var row = T.Line(18, toggle, T.Label("PC mode", 19, null, FontWeight.Medium)); row.Margin = new Thickness(0, 16, 0, 0); stack.Children.Add(row);
         if (message.Length > 0) { var m = T.Label(message, 14, T.Soft); m.Margin = new Thickness(0, 10, 0, 0); stack.Children.Add(m); }
+        stack.Children.Add(LayoutSection());
 
         stack.Children.Add(Section("Where you change the settings", "Right here, in this controller's tabs. While PC mode is on, Buttons, Curves (with Advanced) and Macros apply on this PC, for any controller. Apply Changes saves them."));
         var edit = new Pill("Edit buttons", Pill.Kinds.Ghost, () => go("Buttons")) { Padding = new Thickness(22, 12), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 12, 0, 0) }; stack.Children.Add(edit);

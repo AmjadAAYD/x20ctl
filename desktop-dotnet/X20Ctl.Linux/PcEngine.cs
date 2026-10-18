@@ -38,7 +38,7 @@ internal static partial class Native
 }
 
 /// <summary>One game controller the kernel exposes through evdev.</summary>
-internal sealed record EvDevice(string Path, string Name, ushort Vendor, ushort Product);
+internal sealed record EvDevice(string Path, string Name, ushort Vendor, ushort Product, PadCaps? Caps = null);
 
 /// <summary>PC mode on Linux. Reads the real pad through evdev and takes it exclusively (EVIOCGRAB), runs its state through the same
 /// <see cref="PadProcessor"/> as Windows, and feeds the result to a virtual Xbox 360 pad made with uinput. A port of the tested Python engine in
@@ -49,12 +49,6 @@ internal sealed class PcEngine
     public const string UdevRule = "KERNEL==\"uinput\", SUBSYSTEM==\"misc\", TAG+=\"uaccess\", OPTIONS+=\"static_node=uinput\"";
     const ushort EvSyn = 0, EvKey = 1, EvAbs = 3;
     const int AbsX = 0, AbsY = 1, AbsZ = 2, AbsRx = 3, AbsRy = 4, AbsRz = 5, AbsHat0X = 0x10, AbsHat0Y = 0x11;
-    // the xpad driver's layout, which most pads in XInput mode (EasySMX included) arrive in
-    static readonly Dictionary<int, string> Keys = new()
-    {
-        [0x130] = "A", [0x131] = "B", [0x133] = "X", [0x134] = "Y", [0x136] = "LB", [0x137] = "RB", [0x13A] = "SELECT", [0x13B] = "START", [0x13C] = "HOME",
-        [0x13D] = "L3", [0x13E] = "R3", [0x138] = "LT", [0x139] = "RT", [0x220] = "DPAD_UP", [0x221] = "DPAD_DOWN", [0x222] = "DPAD_LEFT", [0x223] = "DPAD_RIGHT"
-    };
     static readonly (ushort Mask, int Code)[] OutKeys =
     [
         (PadButtons.A, 0x130), (PadButtons.B, 0x131), (PadButtons.X, 0x133), (PadButtons.Y, 0x134), (PadButtons.LB, 0x136), (PadButtons.RB, 0x137),
@@ -92,6 +86,7 @@ internal sealed class PcEngine
     public void Reload() => reload = true;
     void Set(string headline, string detail, bool active) { if (headline == Headline && detail == Detail && active == Active) return; Headline = headline; Detail = detail; Active = active; Changed?.Invoke(); }
 
+    /// <summary>Every game controller the kernel exposes: judged by what it reports (axes and gamepad or joystick buttons), not by its make, so pads in any mode are found.</summary>
     public static IReadOnlyList<EvDevice> Controllers()
     {
         var found = new List<EvDevice>();
@@ -104,8 +99,15 @@ internal sealed class PcEngine
                 var name = new byte[256]; Native.IoctlBuf(fd, Native.Ioc(2, 'E', 0x06, 256), name);
                 var id = new byte[8]; Native.IoctlBuf(fd, Native.Ioc(2, 'E', 0x02, 8), id);
                 string n = Encoding.UTF8.GetString(name).Split('\0')[0];
-                var keys = Bits(fd, EvKey, 0x300); var axes = Bits(fd, EvAbs, 0x40);
-                if (n != VirtualName && axes.Count > 0 && keys.Any(k => k is >= 0x130 and <= 0x13E)) found.Add(new(path, n, BitConverter.ToUInt16(id, 2), BitConverter.ToUInt16(id, 4)));
+                if (n == VirtualName) continue;
+                var keys = Bits(fd, EvKey, 0x300); var axes = new Dictionary<int, AbsInfo>();
+                foreach (int code in Bits(fd, EvAbs, 0x40))
+                {
+                    var info = new byte[24];
+                    if (Native.IoctlBuf(fd, Native.Ioc(2, 'E', 0x40 + code, 24), info) == 0) axes[code] = new(BitConverter.ToInt32(info, 4), BitConverter.ToInt32(info, 8), BitConverter.ToInt32(info, 0));
+                }
+                var caps = new PadCaps(keys, axes);
+                if (PadLayouts.LooksLikeGamepad(caps)) found.Add(new(path, n, BitConverter.ToUInt16(id, 2), BitConverter.ToUInt16(id, 4), caps));
             }
             finally { Native.Close(fd); }
         }
@@ -159,6 +161,8 @@ internal sealed class PcEngine
                     if (device == null || s.Profile.IsNeutral) { if (s.Profile.IsNeutral) Release(s); continue; }
                     if (s.Real == null)
                     {
+                        if (PadLayoutStore.Shared.Resolve(device).State == "needs-check")
+                        { lines.Add($"Player {i + 1}: {device.Name} needs a quick button check first, so nothing gets mapped to the wrong button. Open the PC mode tab and press Check controller. Until then it goes straight to the game."); continue; }
                         try { s.Real = new RealPad(device); s.Device = device; s.Virtual ??= new VirtualPad(); s.Processor = null; }
                         catch (IOException e) { lines.Add($"Player {i + 1}: couldn't take {device.Name}: {e.Message}. Is another program holding it?"); continue; }
                     }
@@ -211,15 +215,17 @@ internal sealed class PcEngine
 
     internal sealed unsafe class RealPad : IDisposable
     {
-        readonly int fd; public int Fd => fd; readonly Dictionary<int, (int Lo, int Hi)> ranges = new(); readonly Dictionary<int, int> raw = new(); readonly HashSet<string> pressed = new(); readonly int[] hat = new int[2];
+        readonly int fd; public int Fd => fd; readonly PadLayout layout; public PadLayout Layout => layout;
+        readonly Dictionary<int, (int Lo, int Hi)> ranges = new(); readonly Dictionary<int, int> raw = new(); readonly HashSet<string> pressed = new();
         public RealPad(EvDevice device, bool grab = true)
         {
+            layout = PadLayoutStore.Shared.Resolve(device).Layout;
             fd = Native.Open(device.Path, Native.ReadOnly | Native.NonBlock);
             if (fd < 0) throw new IOException("open failed (" + Marshal.GetLastPInvokeError() + ")");
-            foreach (int code in new[] { AbsX, AbsY, AbsZ, AbsRx, AbsRy, AbsRz, AbsHat0X, AbsHat0Y })
+            foreach (int code in layout.AxisCodes)
             {
                 var buffer = new byte[24];
-                if (Native.IoctlBuf(fd, Native.Ioc(2, 'E', 0x40 + code, 24), buffer) == 0) ranges[code] = (BitConverter.ToInt32(buffer, 4), BitConverter.ToInt32(buffer, 8));
+                if (Native.IoctlBuf(fd, Native.Ioc(2, 'E', 0x40 + code, 24), buffer) == 0) { ranges[code] = (BitConverter.ToInt32(buffer, 4), BitConverter.ToInt32(buffer, 8)); raw[code] = BitConverter.ToInt32(buffer, 0); }
             }
             if (grab && !Grab(true)) { int e = Marshal.GetLastPInvokeError(); Native.Close(fd); throw new IOException("the kernel refused exclusive access (" + e + ")"); }
         }
@@ -241,35 +247,44 @@ internal sealed class PcEngine
                 for (int o = 0; o + size <= n; o += size)
                 {
                     ushort type = BitConverter.ToUInt16(buffer, o + time), code = BitConverter.ToUInt16(buffer, o + time + 2); int value = BitConverter.ToInt32(buffer, o + time + 4);
-                    if (type == EvKey && Keys.TryGetValue(code, out var name)) { if (value != 0) pressed.Add(name); else pressed.Remove(name); }
-                    else if (type == EvAbs)
-                    {
-                        if (code == AbsHat0X) hat[0] = Math.Sign(value); else if (code == AbsHat0Y) hat[1] = Math.Sign(value); else raw[code] = value;
-                    }
+                    if (type == EvKey && layout.Buttons.TryGetValue(code, out var name)) { if (value != 0) pressed.Add(name); else pressed.Remove(name); }
+                    else if (type == EvAbs) raw[code] = value;
                 }
                 if (n < buffer.Length) return true;
             }
         }
 
-        static short Stick(int v, (int Lo, int Hi) r, bool invert)
+        short Stick(AxisUse? use)
         {
-            if (r.Hi <= r.Lo) return 0;
+            if (use == null || !ranges.TryGetValue(use.Code, out var r) || r.Hi <= r.Lo) return 0;
+            int v = raw.TryGetValue(use.Code, out int cur) ? cur : (r.Lo + r.Hi) / 2;
             double s = (double)(v - r.Lo) / (r.Hi - r.Lo) * 65535 - 32768;
-            return (short)Math.Clamp((int)Math.Round(invert ? -s - 1 : s), -32768, 32767);
+            return (short)Math.Clamp((int)Math.Round(use.Invert ? -s - 1 : s), -32768, 32767);
         }
-        static byte Trigger(int v, (int Lo, int Hi) r) => r.Hi <= r.Lo ? (byte)0 : (byte)Math.Clamp((int)Math.Round((double)(v - r.Lo) / (r.Hi - r.Lo) * 255), 0, 255);
+
+        byte Trigger(AxisUse? use, string digital)
+        {
+            if (pressed.Contains(digital)) return 255;
+            if (use == null || !ranges.TryGetValue(use.Code, out var r) || r.Hi <= r.Lo) return 0;
+            double n = (double)((raw.TryGetValue(use.Code, out int v) ? v : use.Invert ? r.Hi : r.Lo) - r.Lo) / (r.Hi - r.Lo);
+            return (byte)Math.Clamp((int)Math.Round((use.Invert ? 1 - n : n) * 255), 0, 255);
+        }
+
+        /// <summary>-1, 0 or 1 for a d-pad axis, read as left or up when negative.</summary>
+        int Hat(AxisUse? use)
+        {
+            if (use == null || !ranges.TryGetValue(use.Code, out var r) || r.Hi <= r.Lo || !raw.TryGetValue(use.Code, out int v)) return 0;
+            double d = (v - (r.Lo + r.Hi) / 2.0) / ((r.Hi - r.Lo) / 2.0); int sign = d < -.5 ? -1 : d > .5 ? 1 : 0;
+            return use.Invert ? -sign : sign;
+        }
 
         public PadState State()
         {
             ushort buttons = 0;
             foreach (string n in pressed) if (PadButtons.Mask.TryGetValue(n, out ushort m)) buttons |= m;
-            if (hat[0] < 0) buttons |= PadButtons.Left; if (hat[0] > 0) buttons |= PadButtons.Right; if (hat[1] < 0) buttons |= PadButtons.Up; if (hat[1] > 0) buttons |= PadButtons.Down;
-            (int, int) Range(int c) => ranges.GetValueOrDefault(c);
-            int Centre(int c) { var (lo, hi) = Range(c); return raw.TryGetValue(c, out int v) ? v : (lo + hi) / 2; }
-            int Low(int c) => raw.TryGetValue(c, out int v) ? v : Range(c).Item1;
-            byte lt = pressed.Contains("LT") ? (byte)255 : Trigger(Low(AbsZ), ranges.GetValueOrDefault(AbsZ));
-            byte rt = pressed.Contains("RT") ? (byte)255 : Trigger(Low(AbsRz), ranges.GetValueOrDefault(AbsRz));
-            return new PadState(buttons, lt, rt, Stick(Centre(AbsX), Range(AbsX), false), Stick(Centre(AbsY), Range(AbsY), true), Stick(Centre(AbsRx), Range(AbsRx), false), Stick(Centre(AbsRy), Range(AbsRy), true));
+            int hx = Hat(layout.HatX), hy = Hat(layout.HatY);
+            if (hx < 0) buttons |= PadButtons.Left; if (hx > 0) buttons |= PadButtons.Right; if (hy < 0) buttons |= PadButtons.Up; if (hy > 0) buttons |= PadButtons.Down;
+            return new PadState(buttons, Trigger(layout.LT, "LT"), Trigger(layout.RT, "RT"), Stick(layout.LX), Stick(layout.LY), Stick(layout.RX), Stick(layout.RY));
         }
 
         public void Dispose() { Native.IoctlInt(fd, Native.Ioc(1, 'E', 0x90, 4), 0); Native.Close(fd); }

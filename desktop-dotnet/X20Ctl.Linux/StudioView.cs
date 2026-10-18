@@ -80,7 +80,7 @@ internal sealed class StudioView : UserControl
     {
         current = name;
         // pages that summarise or follow the drafts are rebuilt each time they open
-        if (!pages.TryGetValue(name, out var page) || name is "Dashboard" or "Setups" or "Device") pages[name] = page = Page(name);
+        if (!pages.TryGetValue(name, out var page) || name is "Dashboard" or "Setups" or "Device" or "PC mode") pages[name] = page = Page(name);
         host.Content = page;
         strip.Children.Clear();
         foreach (string t in Tabs)
