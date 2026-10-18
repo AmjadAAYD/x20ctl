@@ -152,6 +152,7 @@ internal sealed class AboutPage : UserControl
             T.Label("Credits · Desktop-control layout inspired by Gopher360 — Tylemagne, GPL-3.0. See the distributed open-source license notices.", 12.5, T.Muted),
             head, about, local, rule,
             Parts.Caps("MADE BY"), T.Label("Amjad AAYD, who designs and builds X20CTL.", 17),
+            Parts.Caps("THANKS"), T.Label("Special thanks to Kiin from Team EasySMX for sending me a free X20 Pro controller.", 17),
             Parts.Caps("INSPIRATION"), T.Label("The console-style look of X20CTL was inspired by ApexSenseBridge by ReynArts. Thank you for showing how good a controller app can feel.", 17),
             T.Wrap(12, new Pill("←  Back to Tools", Pill.Kinds.Ghost, back) { Padding = new Thickness(24, 12) }, new Pill("☆  X20CTL on GitHub", Pill.Kinds.Ghost, () => ExternalLinks.Open(ExternalLinks.Repository)) { Padding = new Thickness(24, 12) },
                 new Pill("ApexSenseBridge by ReynArts", Pill.Kinds.Ghost, () => ExternalLinks.Open(ExternalLinks.ApexSenseBridge)) { Padding = new Thickness(24, 12) }),
