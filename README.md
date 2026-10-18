@@ -1,30 +1,4 @@
-<p align="center">
-  <img src="assets/readme/hero.svg" alt="X20CTL: the controller studio for EasySMX pads" width="100%">
-</p>
-
-<p align="center">
-  <a href="https://github.com/AmjadAAYD/x20ctl/releases/tag/v4.1.0-preview.7"><img src="https://img.shields.io/badge/DOWNLOAD-V0.016-4da3ff?style=for-the-badge&labelColor=050a18" alt="Download V0.016"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/LICENSE-GPL--3.0--or--later-22d3ee?style=for-the-badge&labelColor=050a18" alt="GPL-3.0-or-later"></a>
-  <img src="https://img.shields.io/badge/PLATFORM-WINDOWS%2010%20%2F%2011-a78bfa?style=for-the-badge&labelColor=050a18" alt="Windows 10 / 11">
-  <a href="https://github.com/AmjadAAYD/x20ctl/stargazers"><img src="https://img.shields.io/github/stars/AmjadAAYD/x20ctl?style=for-the-badge&labelColor=050a18&color=f2c94c" alt="Stars"></a>
-</p>
-
-<p align="center">
-  <a href="#reverse-engineering"><b>Reverse engineering</b></a> &nbsp;·&nbsp;
-  <a href="#studio-tour"><b>Studio tour</b></a> &nbsp;·&nbsp;
-  <a href="#supported-controllers"><b>Controllers</b></a> &nbsp;·&nbsp;
-  <a href="CHANGELOG.md"><b>Changelog</b></a> &nbsp;·&nbsp;
-  <a href="IF-YOUR-CONTROLLER-ISNT-WORKING.md"><b>Not working?</b></a> &nbsp;·&nbsp;
-  <a href="https://github.com/AmjadAAYD/x20ctl/issues"><b>Issues</b></a>
-</p>
-
-<p align="center">
-  <img src="assets/readme/thanks.svg?v=3" alt="Thank you EasySMX for sending me an EasySMX X20 Pro for my software!" width="100%">
-</p>
-
-<p align="center">
-  <img src="assets/readme/demo.svg?v=2" alt="A tour of X20CTL: Controller Zone, buttons, curves, macros, vibration, PC mode, diagnostics, tester" width="880">
-</p>
+<p align="center"><img src="assets/readme/bg/hero.svg?v=2" alt="X20CTL: a controller studio for EasySMX pads" width="100%" align="top"><a href="https://github.com/AmjadAAYD/x20ctl/releases/tag/v4.1.0-preview.7"><img src="assets/readme/bg/nav1.svg?v=2" alt="Download V0.016" width="25%" align="top"></a><a href="#reverse-engineering"><img src="assets/readme/bg/nav2.svg?v=2" alt="Reverse engineering" width="25%" align="top"></a><a href="CHANGELOG.md"><img src="assets/readme/bg/nav3.svg?v=2" alt="Changelog" width="25%" align="top"></a><a href="IF-YOUR-CONTROLLER-ISNT-WORKING.md"><img src="assets/readme/bg/nav4.svg?v=2" alt="Controller not working?" width="25%" align="top"></a><img src="assets/readme/bg/thanks.svg?v=2" alt="Thank you EasySMX for sending me an EasySMX X20 Pro for my software!" width="100%" align="top"><img src="assets/readme/bg/demo.svg?v=2" alt="A tour of X20CTL: Controller Zone, buttons, curves, macros, vibration, PC mode, diagnostics, tester" width="100%" align="top"></p>
 
 > **Independent project.** X20CTL is open-source software written by one person. EasySMX supplied an X20 Pro to help develop it, and I'm grateful, but the app is not made, endorsed, sponsored or supported by EasySMX. Product names belong to their owners and are used only to say which controllers X20CTL works with.
 
@@ -40,9 +14,7 @@ Everything below is shown on the EasySMX X20 Pro.
 
 EasySMX configures its pads from a phone app (KeyLinker), and the protocol it speaks was never documented. X20CTL exists because that protocol had to be recovered, checked against real hardware, and rebuilt as a desktop app that runs on your own PC.
 
-<p align="center"><img src="assets/readme/protocol.svg" alt="KeyLinker packet layout and the scramble applied on the wire" width="100%"></p>
-
-<p align="center"><img src="assets/readme/pipeline.svg" alt="Research pipeline: decompile, capture, diff, verify, ship" width="100%"></p>
+<p align="center"><img src="assets/readme/bg/protocol.svg?v=2" alt="KeyLinker packet layout and the scramble applied on the wire" width="100%" align="top"><img src="assets/readme/bg/pipeline.svg?v=2" alt="Research pipeline: decompile, capture, diff, verify, ship" width="100%" align="top"></p>
 
 - **Transport:** Bluetooth LE GATT. A configuration service with one write and one notify characteristic. The OTA firmware service is documented so it can be left alone: X20CTL does not flash firmware.
 - **Fingerprinting:** the controllers' Bluetooth address prefixes tell models apart far better than the cloned `045E:028E` USB ID.
