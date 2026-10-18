@@ -768,6 +768,56 @@ def unwrap(payload: bytes) -> Body:
     return Body(declared=payload[0], data=payload[1:])
 
 
+# The first fourteen bytes of every updater hardware id are the same; the last
+# two carry the model. Read from the vendor updaters' compiled transfer headers
+# (static analysis, 17 Oct 2026), not from a pad, so a model not listed here is
+# simply unknown rather than wrong.
+HARDWARE_ID_PREFIX = bytes.fromhex("a1ca51da724cb6103658c05d7d4e")
+UPDATER_MODELS = {
+    "2091": "EasySMX X20",
+    "2177": "EasySMX X15",
+    "2267": "EasySMX D05",
+    "2093": "EasySMX S15",
+    "2350": "EasySMX S10",
+    "2371": "EasySMX S10 Lite",
+}
+
+
+@dataclass(frozen=True)
+class HostGuid:
+    """Decoded HOST_GUID: the updater's hardware id followed by the firmware version.
+
+    The record is 18 bytes: a 16-byte hardware id (the fixed prefix, then two
+    bytes whose hex digits are the model code) and the firmware version as a
+    little-endian 16-bit number written as hundreds, so 123 is 1.23. The vendor
+    updater compares exactly these fields before it flashes, and the F1 query on
+    the update-mode volume returns the same bytes. `model` is None when the code
+    is not in UPDATER_MODELS.
+    """
+
+    hardware_id: bytes
+    model_code: str
+    model: str | None
+    version_raw: int
+    version: str
+
+
+def parse_host_guid(body: Body) -> HostGuid:
+    """Decode a complete HOST_GUID body into its hardware id and version."""
+    if not body.complete or len(body.data) != 18:
+        raise ValueError(f"HOST_GUID needs all 18 bytes, got {len(body.data)} of {body.declared}")
+    hardware_id = body.data[:16]
+    code = hardware_id[14:].hex()
+    raw = int.from_bytes(body.data[16:18], "little")
+    return HostGuid(
+        hardware_id=hardware_id,
+        model_code=code,
+        model=UPDATER_MODELS.get(code) if hardware_id[:14] == HARDWARE_ID_PREFIX else None,
+        version_raw=raw,
+        version=f"{raw // 100}.{raw % 100:02d}",
+    )
+
+
 def decode_key_list(data: bytes) -> list[int]:
     """Decode a support list: one count byte, then run-length encoded key codes.
 

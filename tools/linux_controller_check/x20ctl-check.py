@@ -41,8 +41,8 @@ KEY_NAMES = {0x130: "BTN_SOUTH", 0x131: "BTN_EAST", 0x132: "BTN_C", 0x133: "BTN_
 KNOWN = {(0x045E, 0x028E): "Xbox 360-compatible identity. Most pads in XInput mode, EasySMX included, use it; it proves nothing about the model.",
          (0x045E, 0x02E0): "Xbox Wireless (Bluetooth) identity, shared by many pads.",
          (0x0079, 0x181C): "Seen with the EasySMX X20 in DInput mode.",
-         (0x1D57, 0xFA60): "Seen with the EasySMX X20's 2.4 GHz receiver (Xenta chip).",
-         (0x1A34, 0xF517): "Reported for the EasySMX X15's 2.4 GHz receiver (research notes, not yet seen here).",
+         (0x1D57, 0xFA60): "A Xenta wireless keyboard and mouse receiver. It is not an EasySMX receiver; the X20's own dongle shows the pad's identity instead.",
+         (0x1A34, 0xF517): "Reported for the EasySMX X15's 2.4 GHz receiver. The vendor's X20 receiver tool also opens this id (found in its code, not yet seen here).",
          (0x2345, 0xE062): "Reported for the EasySMX D10's receiver, a vendor-defined HID device (research notes, not yet seen here)."}
 # guided steps: (id, what to do, kind)
 STEPS = [("neutral", "Put the controller down and don't touch it. This measures stick drift at rest.", "rest")] + \

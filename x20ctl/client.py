@@ -399,6 +399,18 @@ class X20:
             self._info = p.parse_identity_reply(pkt.payload)
         return self._info
 
+    async def host_guid(self) -> p.HostGuid | None:
+        """The updater hardware id and firmware version, or None if the pad is silent.
+
+        A read, like every query here. The record is 18 bytes and only 14 fit
+        in the first packet, so this relies on read_body's continuation; that
+        continuation has not been observed to work for this record on a pad.
+        """
+        body = await self.read_body(p.Op.HOST_GUID)
+        if body is None or not body.complete:
+            return None
+        return p.parse_host_guid(body)
+
     async def capabilities(self, *, refresh: bool = False) -> p.Capabilities:
         if self._caps is None or refresh:
             body = await self.read_body(p.Op.HOST_MENU, bytes([0, p.MenuKind.MENU]))
