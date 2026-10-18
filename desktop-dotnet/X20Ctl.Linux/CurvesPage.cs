@@ -73,7 +73,7 @@ internal sealed class CurvesPage : UserControl, IKeyPage
             var glow = new Border { Width = 70, Height = 70, CornerRadius = new CornerRadius(35), Background = T.B("#992A62C8"), BorderBrush = T.B("#9CCBFF"), BorderThickness = new Thickness(3), IsHitTestVisible = false, BoxShadow = new BoxShadows(new BoxShadow { Blur = 26, Color = Color.Parse("#AA3D8BFF") }) };
             ControllerArt.SetAnchor(glow, new Point(p.X, p.Y)); art.Children.Add(glow);
         }
-        var title = channel is CurveChannel.LeftStick or CurveChannel.RightStick ? "STICK RESPONSE" : "TRIGGER RESPONSE";
+        var title = channel is CurveChannel.LeftStick or CurveChannel.RightStick ? "STICK RESPONSE" : "TRIGGER TRAVEL";
         var leftBody = new Grid { RowDefinitions = new("Auto,*") }; leftBody.Children.Add(T.Label(title, 14.5, T.Text, FontWeight.Medium)); leftBody.Children.Add(Place(art, 1));
         var left = T.Card(leftBody, 18);
         upper.Children.Add(left);
