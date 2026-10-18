@@ -20,7 +20,7 @@ internal sealed class SetupWindow : Window
 {
     static readonly string[] InstallSteps = ["Welcome", "License", "Options", "Install", "Finish"], RemoveSteps = ["Remove", "Finish"];
     readonly SetupMode mode; readonly string[] steps;
-    SetupOptions options = new(); bool accepted, purge, busy; int step; string licenseTab = "License"; string? failure;
+    SetupOptions options = new(Drivers: !PcModeSetup.Ready); string? driverNote; bool accepted, purge, busy; int step; string licenseTab = "License"; string? failure;
     readonly StackPanel stepList = new(); readonly TextBlock eyebrow, title, subtitle; readonly ContentPresenter body = new(); readonly DockPanel actionRow = new();
     readonly Image faint; Border? fill, track; TextBlock? percent, stepText; double fraction;
     public int ParentPid { get; init; }
@@ -194,8 +194,9 @@ internal sealed class SetupWindow : Window
                 list.Children.Add(Option("Add X20CTL to the Start menu", "Find it by typing X20CTL.", options.StartMenu, on => options = options with { StartMenu = on }));
                 list.Children.Add(Option("Add a desktop shortcut", "A shortcut next to your other apps.", options.Desktop, on => options = options with { Desktop = on }));
                 list.Children.Add(Option("Keep X20CTL up to date", "Checks GitHub at launch and installs new versions by itself. Change it any time in Tools.", options.KeepUpToDate, on => options = options with { KeepUpToDate = on }));
-                var where = Kit.Text("Installs for your account only, in " + Installer.InstallDir + ". PC mode asks before it installs its two drivers, ViGEmBus and HidHide.", 13.5, "DS.TextMuted");
-                where.TextWrapping = TextWrapping.Wrap; where.Margin = new Thickness(2, 6, 0, 0); list.Children.Add(where);
+                if (!PcModeSetup.Ready) list.Children.Add(Option("Set up PC mode drivers now", "Installs ViGEmBus and HidHide so PC mode works right away. Windows asks for permission.", options.Drivers, on => options = options with { Drivers = on }));
+                var where = Kit.Text("Installs for your account only, in " + Installer.InstallDir + ". Without the drivers, PC mode asks before it installs them.", 13.5, "DS.TextMuted");
+                where.TextWrapping = TextWrapping.Wrap; where.Margin = new Thickness(2, 2, 0, 0); list.Children.Add(where);
                 return new("STEP 3 OF 5", "Options", "Choose how X20CTL fits in.", list, [Btn("Back", false, () => Go(1))], [Btn(update ? "Update" : "Install", true, RunInstall)]);
             }
             case 3: return new("STEP 4 OF 5", update ? "Updating" : "Installing", "This takes a moment.", Progress(), [], []);
@@ -213,6 +214,7 @@ internal sealed class SetupWindow : Window
                 launch.Checked += (_, _) => options = options with { Launch = true }; launch.Unchecked += (_, _) => options = options with { Launch = false };
                 var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 28, 0, 0), Children = { launch, Kit.Text("Open X20CTL now", 16, "DS.Text") } };
                 ((TextBlock)row.Children[1]).Margin = new Thickness(14, 0, 0, 0); stack.Children.Add(row);
+                if (driverNote != null) { var note = Kit.Text(driverNote + " PC mode will ask again when you switch it on.", 14, "DS.TextSoft"); note.TextWrapping = TextWrapping.Wrap; note.Margin = new Thickness(0, 22, 0, 0); stack.Children.Add(note); }
                 return new("ALL DONE", "You're set", "Plug in your controller and open X20CTL.", stack, [], [Btn("Finish", true, FinishInstall)]);
             }
         }
@@ -239,7 +241,7 @@ internal sealed class SetupWindow : Window
         toggle.Checked += (_, _) => set(true); toggle.Unchecked += (_, _) => set(false); DockPanel.SetDock(toggle, Dock.Right);
         var text = new StackPanel { Children = { Kit.Text(head, 16.5, "DS.Text", FontWeights.SemiBold) } }; var d = Kit.Text(detail, 14, "DS.TextSoft"); d.TextWrapping = TextWrapping.Wrap; d.Margin = new Thickness(0, 2, 0, 0); text.Children.Add(d);
         var row = new DockPanel { Margin = new Thickness(0) }; row.Children.Add(toggle); row.Children.Add(text);
-        return new Border { Background = DS.Brush("DS.Glass"), BorderBrush = DS.Brush("DS.GlassBorder"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(14), Padding = new Thickness(20, 16, 20, 16), Margin = new Thickness(0, 0, 0, 12), Child = row };
+        return new Border { Background = DS.Brush("DS.Glass"), BorderBrush = DS.Brush("DS.GlassBorder"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(14), Padding = new Thickness(20, 11, 20, 11), Margin = new Thickness(0, 0, 0, 8), Child = row };
     }
 
     UIElement Done(string text)
@@ -289,7 +291,7 @@ internal sealed class SetupWindow : Window
     {
         busy = true; failure = null; Go(3); var started = Stopwatch.StartNew();
         var progress = new Progress<(double, string)>(Report); string? error = null;
-        try { await Task.Run(() => Installer.Install(options, progress)); }
+        try { driverNote = await Task.Run(() => Installer.Install(options, progress)); }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidOperationException or System.Security.SecurityException) { error = e.Message; }
         if (started.ElapsedMilliseconds < 1700) await Task.Delay(1700 - (int)started.ElapsedMilliseconds);
         busy = false; failure = error; Go(4);
