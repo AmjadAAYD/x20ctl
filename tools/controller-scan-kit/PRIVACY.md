@@ -17,7 +17,7 @@ manifest and review summary identify this exception. See [the complete table](DA
 After collection, the volunteer reviews `BEFORE_YOU_SEND.txt` and the actual files. A ZIP
 is created only after an affirmative review/package prompt. Cancellation leaves the local
 folder; no unreviewed ZIP is automatically created. Nothing is sent automatically. The
-volunteer manually chooses whether to share it privately with Amjad.
+volunteer manually chooses whether to share it privately with the X20CTL maintainer.
 
 The kit has no remote retention system or accounts. Local files remain until the owner
 deletes them. Sending a ZIP elsewhere creates a copy held by its recipient; this tool

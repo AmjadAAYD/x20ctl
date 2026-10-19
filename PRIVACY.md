@@ -1,7 +1,7 @@
 # X20CTL privacy policy
 
 Effective 10 October 2026. This policy covers the X20CTL desktop app for Windows and the Linux Controller Check
-(`x20ctl-check.py`). X20CTL is an independent open-source project maintained by Amjad AAYD; it is not affiliated with
+(`x20ctl-check.py`). X20CTL is an independent open-source project; it is not affiliated with
 EasySMX.
 
 ## The short version

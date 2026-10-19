@@ -18,7 +18,7 @@ update checks and consent-based uploads are not features of this standalone kit.
 3. [Verify its checksums and build provenance](VERIFY_RELEASE.md).
 4. Run `START_HERE.bat`, choose the ordinary controller scan, and follow the prompts.
 5. Read `BEFORE_YOU_SEND.txt` and inspect your local results before creating/sharing the ZIP.
-   Send it privately in your existing conversation with Amjad if you choose.
+   Send it privately in your existing conversation with the X20CTL maintainer if you choose.
 
 No Python installation is needed for the portable executable. The EXE is unsigned;
 build provenance is separate from Windows code signing. Do not disable antivirus or bypass
