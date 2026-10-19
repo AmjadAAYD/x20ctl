@@ -6,6 +6,8 @@
 
 Its sound is synthesised in the same way as the score below, by a later revision of `tools/build_intro_sound.py` (18 October). That revision uses frosted-glass tones, resonant air tuned to a chord, a warm pad on open fifths in D, and a stereo room. Like the earlier score, it uses no samples, recordings or kits. That revision has not yet been committed to this repository, so running the script here rebuilds the 17 October score, not the film's sound.
 
+Camera: after 19 October the camera zooms out gradually while the outline is drawn (1.2 to 2.28 s), so it no longer swings down and back up at about 2 s. The sound track and everything from the strike on are unchanged.
+
 The sound is off with reduced motion (no film plays), in development fixtures, and when the player mutes it. Tools → Opening intro → Sound turns it off for every launch.
 
 ## The Linux score - 17 October 2026

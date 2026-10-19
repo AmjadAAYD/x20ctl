@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **The opening no longer lurches.** About two seconds in, while the outline was being drawn, the camera swung down and back up in a fraction of a second. It now zooms out gradually while the bird draws, so the whole route stays in view. The sound and everything from the strike on are unchanged.
+
 ## [V0.017.1] - 2026-10-19
 
 Tagged `v0.017.1`. Everything in V0.017 is included.
