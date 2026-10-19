@@ -156,7 +156,8 @@ jobs:
           # NAME titles the files (V0.017); .NET gets 0.17.0 and the app reports 0.017. Old-style tags (the V0.016 bridge) keep their own number.
           name="$(python3 tools/version_name.py "$TAG")"
           if python3 tools/version_name.py --is-new "$TAG"; then version="$(python3 tools/version_name.py --numeric "$TAG")"; info="${TAG#v}"; else version="${TAG#v}"; info="$version"; fi
-          tools/linux-studio/build.sh "$version" out "$info" "$name"
+          # run through bash so a checkout that lost the executable bit still builds
+          bash tools/linux-studio/build.sh "$version" out "$info" "$name"
       - uses: actions/upload-artifact@v4
         with:
           name: linux-studio

@@ -1,0 +1,30 @@
+# TEMPORARY: runs the release's Linux Studio packaging on this branch, publishes nothing. Deleted before the merge.
+name: Linux Studio dry run
+on:
+  push:
+    branches: ['fix/linux-build-mode']
+permissions:
+  contents: read
+jobs:
+  linux-studio:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Package it (tarball and AppImage)
+        run: |
+          TAG=v0.017
+          name="$(python3 tools/version_name.py "$TAG")"
+          version="$(python3 tools/version_name.py --numeric "$TAG")"; info="${TAG#v}"
+          tools/linux-studio/build.sh "$version" out "$info" "$name"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-studio-dryrun
+          path: |
+            out/*.tar.gz
+            out/*.AppImage
+          if-no-files-found: error
