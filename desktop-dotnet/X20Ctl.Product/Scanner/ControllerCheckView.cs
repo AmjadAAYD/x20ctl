@@ -89,7 +89,7 @@ public sealed class ControllerCheckView : Grid
         var safe = new Border { CornerRadius = new(16), Padding = new(14, 7, 16, 7), Margin = new(0, 0, 16, 0), VerticalAlignment = VerticalAlignment.Center, Background = new SolidColorBrush(Color.FromArgb(40, Green.R, Green.G, Green.B)), BorderBrush = new SolidColorBrush(Color.FromArgb(120, Green.R, Green.G, Green.B)), BorderThickness = new(1),
             Child = new StackPanel { Orientation = Orientation.Horizontal, Children = { Kit.Icon("", 14, "DS.Success").Also(i => i.Margin = new(0, 0, 9, 0)), Kit.Text("Read-only · nothing is changed or uploaded", 13.5, "DS.Text", FontWeights.SemiBold) } } };
         DockPanel.SetDock(safe, Dock.Right); bar.Children.Add(safe);
-        var mark = new Image { Source = LiveController.Bitmap("Assets/brand.png"), Width = 34, Height = 34, Margin = new(0, 0, 14, 0) }; RenderOptions.SetBitmapScalingMode(mark, BitmapScalingMode.HighQuality);
+        var mark = new Image { Source = LiveController.Bitmap("Assets/icon.png"), Width = 34, Height = 34, Margin = new(0, 0, 14, 0) }; RenderOptions.SetBitmapScalingMode(mark, BitmapScalingMode.HighQuality);
         bar.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = { mark, Kit.Text("X20CTL", 22, "DS.Text", FontWeights.Bold), new Border { Width = 1, Height = 22, Background = new SolidColorBrush(Color.FromArgb(60, 255, 255, 255)), Margin = new(18, 0, 18, 0) },
             Kit.Text("Controller Check", 22, "DS.Text", FontWeights.SemiBold), Kit.Text("   Read scan · Scanner 2.2 engine", 14, "DS.TextMuted") } });
         page.Children.Add(bar);

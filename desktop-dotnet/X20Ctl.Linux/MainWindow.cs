@@ -34,7 +34,8 @@ public sealed class MainWindow : Window
     readonly ContentControl header = new(), footer = new();
     readonly List<TextBlock> clocks = [];
     TextBlock NewClock() { var c = T.Label(DateTime.Now.ToString("HH:mm"), 14, T.Soft); c.VerticalAlignment = VerticalAlignment.Center; clocks.Add(c); return c; }
-    readonly Bitmap? mark = LoadMark();
+    // the logo alone for the intro; the app icon (the logo on its white tile) everywhere else
+    readonly Bitmap? mark = Load("x20ctl-mark.png"), icon = Load("x20ctl-icon.png");
     StudioView? studio;
     string screen = "zone";
     int choosing;
@@ -54,9 +55,9 @@ public sealed class MainWindow : Window
         };
     }
 
-    static Bitmap? LoadMark()
+    static Bitmap? Load(string file)
     {
-        try { return new Bitmap(AssetLoader.Open(new Uri("avares://x20ctl-studio/Assets/x20ctl-mark.png"))); } catch (Exception) { return null; }
+        try { return new Bitmap(AssetLoader.Open(new Uri("avares://x20ctl-studio/Assets/" + file))); } catch (Exception) { return null; }
     }
 
     void OnKey(object? sender, KeyEventArgs e)
@@ -73,11 +74,7 @@ public sealed class MainWindow : Window
 
     // ---- chrome -------------------------------------------------------------------------------------------------
 
-    Control Logo(double size = 46) => new Border
-    {
-        Width = size, Height = size, CornerRadius = new CornerRadius(12), Background = T.B("#66101A33"), BorderBrush = T.Hairline, BorderThickness = new Thickness(1),
-        Child = mark == null ? null : new Image { Source = mark, Margin = new Thickness(size * .2) }
-    };
+    Control Logo(double size = 46) => new Border { Width = size, Height = size, Child = icon == null ? null : new Image { Source = icon } };
 
     Control ZoneHeader(string section, Control? right)
     {
@@ -121,7 +118,7 @@ public sealed class MainWindow : Window
     }
 
     void ShowTools() => Tools("tools", "Tools", new ToolsPage(new ToolsActions(ShowCheck, ShowWriteScan, () => { session.Selected = Math.Max(0, Array.FindIndex(session.Players, p => p != null)); EnterStudio("PC mode"); }, ShowIntro, ShowAbout, ShowFeedback)));
-    void ShowAbout() => Tools("about", "Tools", new AboutPage(ShowTools, mark));
+    void ShowAbout() => Tools("about", "Tools", new AboutPage(ShowTools, icon));
     void ShowFeedback() => Tools("feedback", "Tools", new FeedbackPage(ShowTools, session.Catalog.Models.Select(m => m.Name)));
     void ShowCheck() => Tools("check", "Controller Check", new CheckPage(ShowTools, () => { session.Selected = Math.Max(0, Array.FindIndex(session.Players, p => p != null)); EnterStudio("Tester"); }), "Tools");
     void ShowWriteScan() => Tools("check", "Write scan", new WriteScanPage(), "Tools");
@@ -164,7 +161,7 @@ public sealed class MainWindow : Window
     {
         if (session.StudioFor(session.Selected) is not { } state) return;
         screen = "studio";
-        studio = new StudioView(state, session.Selected, ShowZone, NewClock(), mark);
+        studio = new StudioView(state, session.Selected, ShowZone, NewClock(), icon);
         if (tab != null) studio.ShowTab(tab);
         header.Content = studio.Header; body.Content = studio; footer.Content = studio.Footer;
     }

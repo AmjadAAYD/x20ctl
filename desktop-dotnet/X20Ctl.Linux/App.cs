@@ -34,7 +34,7 @@ public sealed class App : Application
             MouseHub.Shared.Changed += () => Avalonia.Threading.Dispatcher.UIThread.Post(() => mouse.IsChecked = MouseHub.Shared.Enabled);
             var quit = new NativeMenuItem("Quit"); quit.Click += (_, _) => desktop.Shutdown();
             var menu = new NativeMenu { open, mouse, new NativeMenuItemSeparator(), quit };
-            var icon = new TrayIcon { ToolTipText = "X20CTL", Menu = menu, Icon = new WindowIcon(AssetLoader.Open(new Uri("avares://x20ctl-studio/Assets/x20ctl-mark.png"))) };
+            var icon = new TrayIcon { ToolTipText = "X20CTL", Menu = menu, Icon = new WindowIcon(AssetLoader.Open(new Uri("avares://x20ctl-studio/Assets/x20ctl-icon.png"))) };
             icon.Clicked += (_, _) => { window.Show(); window.Activate(); };
             TrayIcon.SetIcons(this, [icon]);
         }

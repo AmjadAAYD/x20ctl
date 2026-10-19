@@ -21,6 +21,7 @@
     <Content Include="../../x20ctl/controllers/catalog.json" Link="Data/catalog.json" CopyToOutputDirectory="PreserveNewest" />
     <AvaloniaResource Include="../../src/assets/controllers/*/native/front-full.png;../../src/assets/controllers/*/native/rear-full.png" Link="Assets/%(RecursiveDir)%(Filename)%(Extension)" />
     <AvaloniaResource Include="../X20Ctl.Product/Brand/x20ctl-mark.png" Link="Assets/x20ctl-mark.png" />
+    <AvaloniaResource Include="../X20Ctl.Product/Brand/x20ctl-icon.png" Link="Assets/x20ctl-icon.png" />
     <Content Include="../X20Ctl.Product/Brand/intro.wav" Link="Brand/intro.wav" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../src/assets/controllers/framing.json" Link="Data/framing.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../src/assets/controllers/vibration-outlines.json" Link="Data/vibration-outlines.json" CopyToOutputDirectory="PreserveNewest" />

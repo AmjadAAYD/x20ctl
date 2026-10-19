@@ -35,7 +35,7 @@ internal sealed class StudioView : UserControl
 
     static Control BuildHeader(StudioState state, Action back, TextBlock clock, Bitmap? mark)
     {
-        Control logo = mark == null ? new Border() : new Image { Source = mark, Width = 22, Height = 22 };
+        Control logo = mark == null ? new Border() : new Image { Source = mark, Width = 26, Height = 26 };
         var left = T.Line(12, logo, T.Label("X20CTL", 22, null, FontWeight.Bold)); left.VerticalAlignment = VerticalAlignment.Center;
         var pillCells = Enumerable.Range(0, 4).Select(_ => (Control)new Border { Width = 5, Height = 12, Background = T.B("#4A5A7C"), CornerRadius = new CornerRadius(1.5), Margin = new Thickness(1, 0) }).ToArray();
         var batt = new Border
