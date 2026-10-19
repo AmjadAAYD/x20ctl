@@ -48,6 +48,17 @@ public static class AgentResponsePreview
         return points;
     }
 
+    /// <summary>Where a real stick sits on the curves above: its push (how far from the centre, in any direction, as a
+    /// percent) and what the game gets for that push before and after, by the same path as <see cref="Curve"/>.</summary>
+    public static (double Input, double Before, double After) Live(PcModeProfile before, PcModeProfile after, string target, short x, short y)
+    {
+        double push = Math.Min(32767, Math.Sqrt((double)x * x + (double)y * y));
+        var (bc, bt) = Settings(before, target);
+        var (ac, at) = Settings(after, target);
+        short along = (short)Math.Round(push);
+        return (push * 100 / 32768, Percent(along, bc, bt), Percent(along, ac, at));
+    }
+
     /// <summary>The sticks whose response differs between the two profiles.</summary>
     public static IReadOnlyList<string> ChangedSticks(PcModeProfile before, PcModeProfile after)
         => new[] { "LeftStick", "RightStick" }.Where(target =>
