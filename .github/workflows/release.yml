@@ -151,6 +151,8 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
+      - name: Install the desktop-file validator appimagetool needs
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq desktop-file-utils
       - name: Package it (tarball and AppImage)
         run: |
           # NAME titles the files (V0.017); .NET gets 0.17.0 and the app reports 0.017. Old-style tags (the V0.016 bridge) keep their own number.
