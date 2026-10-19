@@ -3,9 +3,9 @@ using System.IO.Compression;
 namespace X20Ctl.Zone.Capture;
 
 /// <summary>One ACL data packet of a Bluetooth recording: when it happened (seconds from the first packet), which way it
-/// went, and its bytes. <c>Unix</c> is the phone's own clock in Unix seconds when the format says it plainly (iPhone
-/// logs), otherwise NaN.</summary>
-public sealed record HciRecord(double Seconds, bool FromHost, byte[] Data, double Unix = double.NaN)
+/// went, and its bytes. <c>Unix</c> is the phone's own clock in Unix seconds when the log carries a readable one,
+/// otherwise NaN. <c>Cut</c> is set when the log kept only the start of the packet, as Android's "Filtered" log does.</summary>
+public sealed record HciRecord(double Seconds, bool FromHost, byte[] Data, double Unix = double.NaN, bool Cut = false)
 {
     /// <summary>The HCI connection handle this packet belongs to.</summary>
     public int Connection => Data.Length >= 2 ? (Data[0] | Data[1] << 8) & 0x0FFF : -1;
@@ -29,6 +29,15 @@ public static class BtSnoop
     public const long MaxCandidateBytes = 256L * 1024 * 1024;
     static readonly byte[] Magic = [(byte)'b', (byte)'t', (byte)'s', (byte)'n', (byte)'o', (byte)'o', (byte)'p', 0];
     static readonly string[] LogNames = ["btsnoop_hci.log", "btsnoop_hci.cfa", "btsnoop.log"];
+    /// <summary>A btsnoop time is microseconds since the year 0; this is 1 Jan 1970 on that scale (the BTSnoop format,
+    /// as Android writes it and Wireshark reads it).</summary>
+    const long UnixEpoch = 0x00dcddb30f2f8000;
+    /// <summary>Times outside these years are not a phone's clock (a hand-made or relative log), so they are not used.</summary>
+    static readonly long ClockFrom = new DateTimeOffset(2015, 1, 1, 0, 0, 0, TimeSpan.Zero).ToUnixTimeSeconds(), ClockTo = new DateTimeOffset(2045, 1, 1, 0, 0, 0, TimeSpan.Zero).ToUnixTimeSeconds();
+
+    /// <summary>Whether a file in a bug report is one of the phone's Bluetooth logs: the current one, and the earlier or
+    /// cut-down ones Android keeps beside it ("btsnoop_hci.log.last", "btsnoop_hci.log.filtered").</summary>
+    public static bool IsLogName(string name) => LogNames.Contains(name, StringComparer.OrdinalIgnoreCase) || name.StartsWith("btsnoop_hci", StringComparison.OrdinalIgnoreCase);
 
     public static bool LooksLikeLog(ReadOnlySpan<byte> data) => data.Length >= 16 && data[..8].SequenceEqual(Magic);
 
@@ -55,7 +64,8 @@ public static class BtSnoop
             byte[] body;
             if (link == 1002) { if (packet[0] != 2) continue; body = packet[1..].ToArray(); }
             else { if ((flags & 2) != 0) continue; body = packet.ToArray(); }
-            records.Add(new HciRecord((stamp - first.Value) / 1e6, fromHost, body));
+            double unix = (stamp - UnixEpoch) / 1e6;
+            records.Add(new HciRecord((stamp - first.Value) / 1e6, fromHost, body, unix >= ClockFrom && unix < ClockTo ? unix : double.NaN, included < original));
         }
         if (records.Count == 0) throw new InvalidDataException("The log holds no data packets. Was Bluetooth switched off and on after turning the snoop log on?");
         return records;
@@ -69,7 +79,7 @@ public static class BtSnoop
         if (info.Length > MaxBugReportBytes) throw new InvalidDataException("This bug report is over 512 MB. Ask for help extracting the Bluetooth log.");
         using var archive = ZipFile.OpenRead(zipPath);
         if (archive.Entries.Count > 100_000) throw new InvalidDataException("This bug report holds too many files.");
-        var entries = archive.Entries.Where(e => e.Length > 0 && LogNames.Contains(e.Name, StringComparer.OrdinalIgnoreCase)).ToList();
+        var entries = archive.Entries.Where(e => e.Length > 0 && IsLogName(e.Name)).ToList();
         if (entries.Count == 0) throw new InvalidDataException("No Bluetooth log is in this bug report. Turn the snoop log on, switch Bluetooth off and on, repeat the test, then take a new bug report.");
         var candidates = new List<LogCandidate>(); long total = 0;
         foreach (var entry in entries)
