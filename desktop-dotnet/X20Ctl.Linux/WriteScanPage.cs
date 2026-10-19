@@ -113,7 +113,7 @@ internal static class WriteScanUpload
 
     public static async Task<string> Send(byte[] zip, string controllerName)
     {
-        if (zip.Length > WriteScanReport.MaxResearchZipBytes) throw new InvalidDataException("The report is over the receiver's 8 MB limit.");
+        if (zip.Length > WriteScanReport.MaxResearchZipBytes) throw new InvalidDataException("The report is over the receiver's 4 MB limit.");
         using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
         using (var probe = await http.GetAsync(Route))
         {
