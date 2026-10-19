@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Save your settings as a setup.**
+  - Say "save this as Rocket League" to keep the current settings under that name.
+  - "load Rocket League" brings them back, and it can be undone like any other change.
+  - "my setups" lists them; "delete the Rocket League setup" removes one.
+  - The agent settings page has a Load button for each setup.
+  - Setups are saved in `agent-setups.json`, next to the PC mode settings.
+- **Undo goes further back than the last change.**
+  - "undo" takes back the last change.
+  - "undo everything" goes back to before the first change.
+  - The agent settings page lists every change made since X20CTL opened, newest first. Each one can be taken back to how things were before it.
+  - An answer whose change was undone says "Undone".
+- **Try a new curve with your real stick.** When an answer changes a stick curve, a dot on the Current and Proposed cards follows your stick. It shows what the game gets before and after the change.
+
 ### Changed
 
 - **Agent XCTL has a new look.** The agent is now a large handheld-style controller, with its screen filling the middle. The drawn controls work:
