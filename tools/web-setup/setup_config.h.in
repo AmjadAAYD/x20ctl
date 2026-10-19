@@ -1,0 +1,7 @@
+// Written by CMake from setup_config.h.in; do not edit.
+#pragma once
+#define X20_NAME L"@X20_NAME@"
+#define X20_TAG L"@X20_TAG@"
+#define X20_REPO L"@X20_REPO@"
+#cmakedefine X20_BASE_URL L"@X20_BASE_URL@"
+#cmakedefine X20_TEST_NO_LAUNCH

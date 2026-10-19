@@ -1,4 +1,4 @@
-# Builds and publishes a release from a tag (v0.017, v0.017.1, v1.000, see docs/versions.md; v4.1.0-preview.7 is the bridge, V0.016):the single Windows exe and its setup (the same exe, named *-setup.exe), signed through the
+# Builds and publishes a release from a tag (v0.017, v0.017.1, v1.000, see docs/versions.md; v4.1.0-preview.7 is the bridge, V0.016):the single Windows exe and its small web setup, signed through the
 # SignPath Foundation once it is set up, and the Linux Controller Check and the Linux Studio (tarball and AppImage), always together, then SHA256SUMS.txt. The
 # release is filled as a draft and published last, because releases are immutable once published.
 #
@@ -80,9 +80,16 @@ jobs:
             -p:EngineBesideExe=false -p:ElevateAtLaunch=true -p:DebugType=none -o publish
           New-Item -ItemType Directory -Force out | Out-Null
           Copy-Item publish/X20Ctl.exe "out/X20CTL-$env:NAME-windows-x64.exe"
-          # the setup is the same exe: a copy named *-setup.exe opens the install wizard instead of the app (see Setup/Installer.cs).
+          # the setup is a small downloader (tools/web-setup): it fetches the exe above, checks it against SHA256SUMS.txt and starts its install wizard.
           # Both go through signing together, and neither name collides with the in-app updater, which looks for *-windows-x64.exe.
-          Copy-Item publish/X20Ctl.exe "out/X20CTL-$env:NAME-windows-x64-setup.exe"
+          $numeric = python tools/version_name.py --numeric "$env:TAG"
+          if ($LASTEXITCODE -ne 0) { $numeric = "0.0.0" }
+          $global:LASTEXITCODE = 0
+          cmake -S tools/web-setup -B artifacts/web-setup -A x64 "-DX20_NAME=$env:NAME" "-DX20_TAG=$env:TAG" "-DX20_VERSION=$numeric"
+          if ($LASTEXITCODE -ne 0) { throw "web setup configure failed" }
+          cmake --build artifacts/web-setup --config Release
+          if ($LASTEXITCODE -ne 0) { throw "web setup build failed" }
+          Copy-Item artifacts/web-setup/Release/x20ctl-web-setup.exe "out/X20CTL-$env:NAME-windows-x64-setup.exe"
       - name: Upload the unsigned exe
         id: unsigned
         uses: actions/upload-artifact@v4
