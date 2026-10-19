@@ -61,7 +61,25 @@ public sealed class AgentPanel
     // the screen's colours: charcoal, a hairline, and one amber accent for what the agent proposes
     static readonly Color Amber = Color.FromRgb(245, 184, 61), Card = Color.FromRgb(21, 25, 31), Line = Color.FromRgb(42, 47, 55),
         ScreenTop = Color.FromRgb(16, 19, 24), ScreenBottom = Color.FromRgb(10, 12, 16);
-    Button? undoLatest;
+    // every change made here, to go back through (owner's idea, 19 Oct 2026), and each answer's own Undo
+    readonly AgentHistory history = new();
+    readonly Dictionary<int, (Button Undo, TextBlock Verdict)> undoButtons = [];
+    // saved setups: beside the PC mode file the window uses, one store per file for every agent window; a preview, or a
+    // review run, keeps its own in a temp folder, so neither ever reaches the owner's own
+    static readonly Dictionary<string, AgentSetupStore> setupStores = new(StringComparer.OrdinalIgnoreCase);
+    readonly AgentSetupStore setups;
+    static AgentSetupStore OpenSetups(string path)
+    {
+        path = Path.GetFullPath(path);
+        if (!setupStores.TryGetValue(path, out var s)) { s = new AgentSetupStore(path); s.Load(); setupStores[path] = s; }
+        return s;
+    }
+    // the real stick, live on the latest answer's curve cards (owner's idea, 19 Oct 2026: "try it on the screen")
+    readonly List<(string Stick, PcModeProfile Before, PcModeProfile After, FrameworkElement Was, FrameworkElement Now)> live = [];
+    readonly System.Windows.Threading.DispatcherTimer liveTimer = new() { Interval = TimeSpan.FromMilliseconds(40) };
+    X20Ctl.Product.Scanner.WindowsReader? liveReader; int liveSlot = -1; (short, short, short, short) liveLast;
+    /// <summary>A review run hands in its own sticks (raw left x, y, right x, y) instead of the real controller's.</summary>
+    internal Func<(short LX, short LY, short RX, short RY)?>? LiveStick { get; set; }
     // the agent speaks up once the owner stops typing a search (owner request, 13 Oct 2026)
     readonly System.Windows.Threading.DispatcherTimer settle = new() { Interval = TimeSpan.FromSeconds(1.2) };
     string announced = "";
@@ -99,6 +117,9 @@ public sealed class AgentPanel
         // drift is read from the real controller; a review harness can hand in its own reading instead
         session = new AgentSession(offlineAgent, modelId, name) { Docs = keywords.Value, Meter = (meter ?? (progress => new XInputDriftMeter(player, progress)))(Measuring), ControllerFacts = Facts(modelId) };
         greeting = AgentCharacter.Greeting(name);
+        setups = OpenSetups(link == null || ReviewSandbox.Active ? Path.Combine(Path.GetTempPath(), "x20ctl-review-" + Environment.ProcessId, "agent-setups.json")
+            : Path.Combine(Path.GetDirectoryName(link.Store.FilePath)!, Path.GetFileName(AgentSetupStore.DefaultPath)));
+        liveTimer.Tick += (_, _) => LiveTick();
 
         // ---- the screen (owner's design, 19 Oct 2026): a rail of views on the left; a header with the controller and the
         // agent's state; topic pills; the conversation or the ideas; and the chat bar along the bottom ----
@@ -611,6 +632,7 @@ public sealed class AgentPanel
     public void Show()
     {
         Body.Visibility = Visibility.Visible; Body.IsHitTestVisible = true; if(Motion) blink.Start();
+        if (live.Count > 0) StartLive();
         if (!Motion) { Body.Opacity = 1; pop.ScaleX = pop.ScaleY = 1; return; }
         Body.BeginAnimation(UIElement.OpacityProperty, DS.To(1, 180));
         pop.BeginAnimation(ScaleTransform.ScaleXProperty, new System.Windows.Media.Animation.DoubleAnimation(.6, 1, TimeSpan.FromMilliseconds(260)) { EasingFunction = DS.Spring });
@@ -627,14 +649,15 @@ public sealed class AgentPanel
     public bool IsShown => Body.Visibility == Visibility.Visible && Body.IsHitTestVisible;
     void StopCharacterMotion()
     {
-        blink.Stop(); lightShow++; Circling(false); Steady();
+        blink.Stop(); lightShow++; Circling(false); Steady(); StopLive();
         foreach(var (look,_,_) in eyes) { look.BeginAnimation(TranslateTransform.XProperty,null); look.BeginAnimation(TranslateTransform.YProperty,null); }
     }
 
     void Restart()
     {
         if (busy) return;
-        session.Forget(); transcript.Children.Clear(); Input.Text = ""; announced = ""; Search.Text = ""; settle.Stop(); Say(greeting, null); Input.Focus();
+        // the changes stay in the list on the settings page: a new conversation doesn't take away the way back
+        session.Forget(); transcript.Children.Clear(); undoButtons.Clear(); live.Clear(); StopLive(); Input.Text = ""; announced = ""; Search.Text = ""; settle.Stop(); Say(greeting, null); Input.Focus();
     }
 
     PcModeProfile Current => link == null ? preview : link.Store.Get(PcModePage.StoreKey);
@@ -668,6 +691,9 @@ public sealed class AgentPanel
         // a topic alone is a search: the ideas narrow to it, and the app answers itself
         // the app's own commands: the controller's name, the battery, another controller, a star, a donation
         if (AgentCommands.Parse(sentence) is var command and not AgentCommand.None && (!session.HasPendingClarification || command != AgentCommand.AboutController)) { Mine(said, reading); session.CancelClarification(); await Do(command); return null; }
+        // undo, and the saved setups: the app's own, from its own records, never the model's
+        if (AgentHistory.Parse(sentence) is var undo and not UndoAsk.None) { Mine(said, reading); session.CancelClarification(); UndoFromChat(undo); return null; }
+        if (AgentSetupWords.Parse(sentence, setups.Names) is { Ask: not SetupAsk.None } setupAsk) { Mine(said, reading); session.CancelClarification(); SetupFromChat(setupAsk.Ask, setupAsk.Name, said); return null; }
         if (!session.HasPendingClarification && AgentIdeas.Topic(sentence) is { } topic)
         {
             Mine(said, reading); announced = topic; Search.Text = topic; settle.Stop(); ShowView(View.Ideas);
@@ -696,13 +722,14 @@ public sealed class AgentPanel
             {
                 try { Store(next); Applied(); }
                 catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException) { Say(turn, null, "Couldn't save: " + error.Message); mood = AgentMood.Failed; return turn; }
+                var step = history.Add(said, turn.Outcome.Changes, before, next);
                 // the walk-through first, so the answer and its recap are waiting when the window comes back
                 if (Walkthrough != null)
                 {
                     waitTimer.Stop(); Circling(false); Searching(false);
                     await Walkthrough(before, next, turn.Measured);
                 }
-                Say(turn, before, switched: switched, mouse: mouse); ShowSettings(turn.Outcome.Changes.Select(c => c.What).ToHashSet());
+                Say(turn, before, switched: switched, mouse: mouse, step: step); ShowSettings(turn.Outcome.Changes.Select(c => c.What).ToHashSet());
             }
             else { Say(turn, null, switched: switched, mouse: mouse); if (switched != null) ShowSettings(new HashSet<string>()); }
             Circling(false);
@@ -775,7 +802,7 @@ public sealed class AgentPanel
     }
 
     /// <summary>One answer: the model's words, then what the app did, then the details on request.</summary>
-    void Say(AgentTurn turn, PcModeProfile? undo, string? failure = null, string? switched = null, string? mouse = null)
+    void Say(AgentTurn turn, PcModeProfile? undo, string? failure = null, string? switched = null, string? mouse = null, AgentStep? step = null)
     {
         var stack = new StackPanel();
         var v = turn.Verdict;
@@ -803,17 +830,23 @@ public sealed class AgentPanel
         }
         foreach (var c in turn.Outcome.Changes)
             stack.Children.Add(Wrap($"{c.What}   {c.Before} → {c.After}", hero ? 12.5 : 14, hero ? "DS.TextMuted" : "DS.AccentHi", 6).Also(t => { if (hero) t.HorizontalAlignment = HorizontalAlignment.Center; }));
-        // a stick that changed: its curve now and the one proposed, side by side
+        // a stick that changed: its curve now and the one proposed, side by side, with the real stick live on both
         if (hero && undo != null && turn.Outcome.Next is { } saved)
+        {
+            live.Clear();   // only the latest answer's cards follow the stick
             foreach (var stick in sticks)
             {
                 var points = AgentResponsePreview.Curve(undo, saved, stick);
                 var pair = new System.Windows.Controls.Primitives.UniformGrid { Columns = 2, Margin = new(0, 10, 0, 0) };
-                pair.Children.Add(CurveCard("Current", AgentApplier.Name(stick), points.Select(p => (p.Input, p.Before)).ToList(), proposed: false));
-                pair.Children.Add(CurveCard("Proposed", AgentApplier.Name(stick), points.Select(p => (p.Input, p.After)).ToList(), proposed: true));
+                pair.Children.Add(CurveCard("Current", AgentApplier.Name(stick), points.Select(p => (p.Input, p.Before)).ToList(), proposed: false, out var was));
+                pair.Children.Add(CurveCard("Proposed", AgentApplier.Name(stick), points.Select(p => (p.Input, p.After)).ToList(), proposed: true, out var now));
                 stack.Children.Add(pair);
+                live.Add((stick, undo, saved, was, now));
                 if (AgentResponsePreview.Samples(undo, saved).FirstOrDefault(s => s.Target == stick)?.ContextualNote is { } note) stack.Children.Add(Wrap(note, 12, "DS.TextMuted", 6));
             }
+            if (StartLive()) stack.Children.Add(Wrap($"Move the {string.Join(" or the ", sticks.Select(s => AgentApplier.Name(s).ToLowerInvariant()))}: the dots show what the game gets, before and after.", 12.5, "DS.TextMuted", 8)
+                .Also(t => { t.TextAlignment = TextAlignment.Center; t.HorizontalAlignment = HorizontalAlignment.Center; }));
+        }
         // why it fits, or the answer to a question: the model's words, from the settings' meanings
         if (v.Valid && v.Proposal?.Recap is { Length: > 0 } recap && hero)
             stack.Children.Add(Wrap(recap, 14.5, "DS.Text", 12).Also(t => { t.TextAlignment = TextAlignment.Center; t.HorizontalAlignment = HorizontalAlignment.Center; t.MaxWidth = 680; }));
@@ -838,40 +871,201 @@ public sealed class AgentPanel
             : !v.Valid ? "Rejected · nothing changed · " + AgentSession.Problems(v)
             : turn.Outcome.Error != null ? "Rejected · " + turn.Outcome.Error : "No changes");
         var verdictText = Wrap(verdict, 14, failure != null || !v.Valid || turn.Outcome.Error != null ? "DS.Danger" : turn.Outcome.Changes.Count > 0 ? "DS.Success" : "DS.TextMuted").Also(t => { t.FontWeight = FontWeights.SemiBold; t.VerticalAlignment = VerticalAlignment.Center; });
-        var footer = new DockPanel { Margin = new(0, 12, 0, 0), LastChildFill = true };
-        // applied straight away, so the way back sits beside it: only the latest change can be undone
-        if (failure == null && undo != null && turn.Outcome.Next != null && turn.Outcome.Changes.Count > 0)
-        {
-            var back = undo;
-            var undoButton = PadKey(new Border { CornerRadius = new(15), Height = 30, Padding = new(14, 0, 14, 0), BorderThickness = new(1.5), BorderBrush = new SolidColorBrush(Amber), Background = Brushes.Transparent,
-                Child = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Children = { Kit.Icon("", 12, "DS.Text").Also(i => { i.Foreground = new SolidColorBrush(Amber); i.Margin = new(0, 0, 7, 0); }), Kit.Text("Undo", 13, "DS.Text", FontWeights.SemiBold).Also(t => t.Foreground = new SolidColorBrush(Amber)) } } }, "Undo this change", null);
-            undoButton.Click += (_, _) => Undo(undoButton, back);
-            if (undoLatest != null) { undoLatest.IsEnabled = false; undoLatest.Opacity = .35; }
-            undoLatest = undoButton; register(undoButton);
-            DockPanel.SetDock(undoButton, Dock.Right); footer.Children.Add(undoButton);
-        }
-        footer.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = { Kit.Icon("", 13, "DS.TextMuted").Also(i => i.Margin = new(0, 0, 8, 0)), verdictText } });
-        stack.Children.Add(footer);
+        stack.Children.Add(Footer(verdictText, failure == null && turn.Outcome.Next != null && turn.Outcome.Changes.Count > 0 ? step : null));
 
         var bubble = Bubble("", false); bubble.Child = stack; bubble.HorizontalAlignment = HorizontalAlignment.Stretch;
         if (hero) { bubble.Background = Brushes.Transparent; bubble.BorderBrush = Brushes.Transparent; bubble.Margin = new(0, 10, 12, 6); }
         scroller.ScrollToEnd();
     }
 
-    void Undo(Button button, PcModeProfile back)
+    /// <summary>The app's line under an answer, with the answer's Undo beside it when it changed something.</summary>
+    DockPanel Footer(TextBlock verdictText, AgentStep? step)
     {
-        if (busy || button != undoLatest) return;
-        try { Store(back); }
-        catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException) { Say("Couldn't undo: " + error.Message, null); _ = Lights(AgentMood.Failed); return; }
-        button.IsEnabled = false; button.Opacity = .35; undoLatest = null;
-        ShowSettings(new HashSet<string>());
-        Say("Undone. Back to how it was.", null); _ = Lights(AgentMood.Good);
+        var footer = new DockPanel { Margin = new(0, 12, 0, 0), LastChildFill = true };
+        // applied straight away, so the way back sits beside it: the latest change's Undo works; going further back is
+        // the list on the settings page
+        if (step != null)
+        {
+            var undoButton = PadKey(new Border { CornerRadius = new(15), Height = 30, Padding = new(14, 0, 14, 0), BorderThickness = new(1.5), BorderBrush = new SolidColorBrush(Amber), Background = Brushes.Transparent,
+                Child = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Children = { Kit.Icon("", 12, "DS.Text").Also(i => { i.Foreground = new SolidColorBrush(Amber); i.Margin = new(0, 0, 7, 0); }), Kit.Text("Undo", 13, "DS.Text", FontWeights.SemiBold).Also(t => t.Foreground = new SolidColorBrush(Amber)) } } }, "Undo this change", null);
+            int id = step.Id;
+            undoButton.Click += (_, _) => { if (history.Latest?.Id == id) GoBack(id); };
+            undoButtons[id] = (undoButton, verdictText); register(undoButton);
+            DockPanel.SetDock(undoButton, Dock.Right); footer.Children.Add(undoButton);
+            RefreshUndo();
+        }
+        footer.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = { Kit.Icon("", 13, "DS.TextMuted").Also(i => i.Margin = new(0, 0, 8, 0)), verdictText } });
+        return footer;
+    }
+
+    /// <summary>Only the latest change still in place keeps its Undo lit; the ones further back are dimmed, and the ones
+    /// undone lose their Undo and say so.</summary>
+    void RefreshUndo()
+    {
+        int? latest = history.Latest?.Id;
+        var kept = history.Steps.Select(s => s.Id).ToHashSet();
+        foreach (var (id, (button, verdict)) in undoButtons)
+        {
+            bool on = id == latest; button.IsEnabled = on; button.Opacity = on ? 1 : .35;
+            if (kept.Contains(id) || button.Visibility == Visibility.Collapsed) continue;
+            button.Visibility = Visibility.Collapsed; verdict.Text = "Undone · back to how it was"; verdict.Foreground = DS.Brush("DS.TextMuted");
+        }
+    }
+
+    /// <summary>Back to before a change: that change and every later one are undone, from the history, never guessed.</summary>
+    bool GoBack(int id)
+    {
+        if (busy) return false;
+        var rewind = history.Plan(id, Current);
+        if (rewind == null) return false;
+        try { Store(rewind.Profile); }
+        catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException) { Say("Couldn't undo: " + error.Message, null); _ = Lights(AgentMood.Failed); return false; }
+        history.Forget(id);
+        RefreshUndo(); ShowSettings(new HashSet<string>());
+        var undone = rewind.Undone;
+        string text = undone.Count == 1 ? $"Undone: {undone[0].Summary}. Back to how it was."
+            : $"Undone {undone.Count} changes, back to before “{Short(undone[^1].Asked)}”.";
+        if (rewind.ChangedElsewhere) text += " Settings changed on other pages since then are back as they were too.";
+        Say(text, null); _ = Lights(AgentMood.Good);
+        return true;
+    }
+
+    static string Short(string text) => text.Length > 48 ? text[..48].TrimEnd() + "…" : text;
+
+    void UndoFromChat(UndoAsk ask)
+    {
+        if (ask == UndoAsk.Show)
+        {
+            Say(history.Steps.Count == 0 ? "I haven't changed anything since X20CTL opened." : $"Here's what I changed, newest first: {history.Steps.Count} change{(history.Steps.Count == 1 ? "" : "s")}. Pick one to go back to before it.", null);
+            if (history.Steps.Count > 0) ShowSettingsPage(true);
+            _ = Lights(AgentMood.Good); return;
+        }
+        if (history.Steps.Count == 0)
+        {
+            Say("Nothing to undo: I haven't changed anything since X20CTL opened. To put everything back to its default, say “reset everything”.", null);
+            _ = Lights(AgentMood.Unsure); return;
+        }
+        GoBack(ask == UndoAsk.All ? history.Steps[0].Id : history.Latest!.Id);
+    }
+
+    // ---- saved setups ----
+    static string ModelName(string id) => string.Join(" ", id.Split('_', ' ').Where(w => w.Length > 0).Select(w => w.ToLowerInvariant() == "pro" ? "Pro" : w.ToUpperInvariant() is var u && u.Length <= 3 ? u : char.ToUpperInvariant(w[0]) + w[1..]));
+    string Listed() => string.Join(", ", setups.Items.Select(s => $"“{s.Name}”"));
+
+    void SetupFromChat(SetupAsk ask, string name, string said)
+    {
+        switch (ask)
+        {
+            case SetupAsk.Save:
+                try
+                {
+                    var current = Current;
+                    var (setup, replaced) = setups.Save(name, modelId, current);
+                    int count = AgentApplier.Diff(new PcModeProfile(), current).Count;
+                    Say($"{(replaced ? "Updated" : "Saved as")} “{setup.Name}”: " + (count == 0 ? "everything at its default." : $"{count} setting{(count == 1 ? "" : "s")} away from default.") + $" Say “load {setup.Name}” to bring it back.", null);
+                    ShowSettings(new HashSet<string>()); _ = Lights(AgentMood.Good);
+                }
+                catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException) { Say("Couldn't save the setup: " + error.Message, null); _ = Lights(AgentMood.Failed); }
+                return;
+            case SetupAsk.List:
+                Say(setups.Items.Count == 0 ? "No setups saved yet. Say “save this as” and a name, for example “save this as Rocket League”."
+                    : "Your setups: " + string.Join(", ", setups.Items.Select(s => $"“{s.Name}” ({ModelName(s.Model)}, {s.Saved.ToLocalTime():d MMM})")) + ". Say “load” and a name to use one.", null);
+                _ = Lights(AgentMood.Good); return;
+            case SetupAsk.Delete:
+                bool gone = name.Length > 0 && setups.Find(name) is { } doomed && Try(() => setups.Delete(doomed.Name));
+                Say(gone ? $"Deleted “{AgentSetupStore.Clean(name)}”." : $"There's no setup called “{AgentSetupStore.Clean(name)}”." + (setups.Items.Count > 0 ? " Saved: " + Listed() + "." : ""), null);
+                if (gone) ShowSettings(new HashSet<string>());
+                _ = Lights(gone ? AgentMood.Good : AgentMood.Unsure); return;
+            case SetupAsk.Load:
+                if (setups.Find(name) is not { } found)
+                {
+                    Say(setups.Items.Count == 0 ? "You haven't saved a setup yet. Say “save this as” and a name."
+                        : (name.Length == 0 ? "Which setup? " : $"There's no setup called “{AgentSetupStore.Clean(name)}”. ") + "Saved: " + Listed() + ".", null);
+                    _ = Lights(AgentMood.Unsure); return;
+                }
+                Load(found, said); return;
+        }
+    }
+
+    bool Try(Func<bool> act)
+    {
+        try { return act(); }
+        catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException) { Say("Couldn't change the setups: " + error.Message, null); return false; }
+    }
+
+    /// <summary>A saved setup put in place, as one change: listed, undoable and in the history like any other.</summary>
+    public void Load(AgentSetup setup, string asked)
+    {
+        if (busy) return;
+        var before = Current;
+        var next = System.Text.Json.JsonSerializer.Deserialize<PcModeProfile>(System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(setup.Profile))!;
+        var changes = AgentApplier.Diff(before, next);
+        if (changes.Count == 0) { Say($"“{setup.Name}” is what you have already.", null); _ = Lights(AgentMood.Good); return; }
+        try { Store(next); Applied(); }
+        catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException) { Say("Couldn't load it: " + error.Message, null); _ = Lights(AgentMood.Failed); return; }
+        var step = history.Add(asked, changes, before, next);
+        var stack = new StackPanel { Children = { Wrap($"Loaded “{setup.Name}”" + (setup.Model != modelId ? $", saved on the {ModelName(setup.Model)}." : "."), 17, "DS.Text").Also(t => t.FontWeight = FontWeights.SemiBold) } };
+        foreach (var c in changes) stack.Children.Add(Wrap($"{c.What}   {c.Before} → {c.After}", 14, "DS.AccentHi", 6));
+        var verdictText = Wrap($"Applied · {changes.Count} change{(changes.Count == 1 ? "" : "s")}{(link == null ? " · preview only" : "")}", 14, "DS.Success").Also(t => { t.FontWeight = FontWeights.SemiBold; t.VerticalAlignment = VerticalAlignment.Center; });
+        stack.Children.Add(Footer(verdictText, step));
+        var bubble = Bubble("", false); bubble.Child = stack; bubble.HorizontalAlignment = HorizontalAlignment.Stretch;
+        ShowSettings(changes.Select(c => c.What).ToHashSet()); scroller.ScrollToEnd(); _ = Lights(AgentMood.Good);
+    }
+
+    // ---- the live stick ----
+    /// <summary>Starts following the stick when there is one to follow; false when no controller can be read.</summary>
+    bool StartLive()
+    {
+        if (live.Count == 0) return false;
+        if (LiveStick == null)
+        {
+            liveReader ??= OpenReader();
+            liveSlot = liveReader == null ? -1 : XInputDriftMeter.Slot(player);
+            if (liveSlot < 0) { foreach (var l in live) { l.Was.Visibility = l.Now.Visibility = Visibility.Collapsed; } return false; }
+        }
+        liveLast = (short.MinValue, 0, 0, 0); LiveTick();
+        if (IsShown) liveTimer.Start();
+        return true;
+    }
+
+    void StopLive() { liveTimer.Stop(); liveReader?.Dispose(); liveReader = null; }
+
+    static X20Ctl.Product.Scanner.WindowsReader? OpenReader()
+    {
+        foreach (var library in X20Ctl.Product.Scanner.WindowsReader.Libraries)
+            try { return new X20Ctl.Product.Scanner.WindowsReader(library); }
+            catch (Exception error) when (error is IOException or ArgumentException) { }
+        return null;
+    }
+
+    /// <summary>Reads the stick and moves the dots; nothing is redrawn while the stick stays where it was.</summary>
+    void LiveTick()
+    {
+        (short, short, short, short)? read = LiveStick != null ? LiveStick()
+            : liveReader is { } r && liveSlot >= 0 && r.Read(liveSlot, out var state) ? (state.Pad.LX, state.Pad.LY, state.Pad.RX, state.Pad.RY) : null;
+        if (read is not { } now || now == liveLast) return;
+        liveLast = now;
+        foreach (var (stick, before, after, was, nowDot) in live)
+        {
+            var (x, y) = stick == "LeftStick" ? (now.Item1, now.Item2) : (now.Item3, now.Item4);
+            var at = AgentResponsePreview.Live(before, after, stick, x, y);
+            Place(was, at.Input, at.Before); Place(nowDot, at.Input, at.After);
+        }
+    }
+
+    static void Place(FrameworkElement dot, double input, double output)
+    {
+        dot.Visibility = Visibility.Visible;
+        Canvas.SetLeft(dot, Math.Clamp(CurveW * input / 100, 0, CurveW) - dot.Width / 2);
+        Canvas.SetTop(dot, Math.Clamp(CurveH - CurveH * output / 100, 0, CurveH) - dot.Height / 2);
     }
 
     /// <summary>A stick's curve as a small card: push across, output up; the proposed one in amber with its area filled.</summary>
-    static Border CurveCard(string title, string stick, IReadOnlyList<(double Input, double Output)> points, bool proposed)
+    const double CurveW = 300, CurveH = 92;
+    /// <summary>A stick's curve as a small card; <paramref name="live"/> is the dot that follows the real stick along it.</summary>
+    static Border CurveCard(string title, string stick, IReadOnlyList<(double Input, double Output)> points, bool proposed, out FrameworkElement live)
     {
-        const double W = 300, H = 92;
+        const double W = CurveW, H = CurveH;
         var accent = proposed ? Amber : Color.FromRgb(150, 158, 170);
         var plot = new Canvas { Width = W, Height = H, ClipToBounds = true, Margin = new(0, 8, 0, 0) };
         for (int i = 1; i < 4; i++)
@@ -893,6 +1087,10 @@ public sealed class AgentPanel
             var dot = new System.Windows.Shapes.Ellipse { Width = 2 * r, Height = 2 * r, Fill = new SolidColorBrush(accent) };
             Canvas.SetLeft(dot, Math.Clamp(line[i].X, r, W - r) - r); Canvas.SetTop(dot, Math.Clamp(line[i].Y, r, H - r) - r); plot.Children.Add(dot);
         }
+        // the real stick: a bright dot on the line, hidden until the stick is read
+        live = new System.Windows.Shapes.Ellipse { Width = 14, Height = 14, Fill = Brushes.White, Stroke = new SolidColorBrush(accent), StrokeThickness = 3, Visibility = Visibility.Collapsed,
+            Effect = new DropShadowEffect { Color = proposed ? Amber : Colors.White, BlurRadius = 12, ShadowDepth = 0, Opacity = .9 } };
+        plot.Children.Add(live);
         var head = new DockPanel();
         var name = Kit.Text(stick, 12, "DS.TextMuted"); DockPanel.SetDock(name, Dock.Right); head.Children.Add(name);
         head.Children.Add(Kit.Text(title, 13.5, "DS.Text", FontWeights.SemiBold).Also(t => { if (proposed) t.Foreground = new SolidColorBrush(Amber); }));
@@ -943,6 +1141,36 @@ public sealed class AgentPanel
         }
         var paddles = AgentVocabulary.Paddles(modelId);
         if (paddles.Length > 0) settings.Children.Add(Wrap($"Paddles {paddles[0]}–{paddles[^1]} are programmed on the controller, which isn't supported yet.", 12.5, "DS.TextMuted", 8));
+
+        // every change made here, newest first, each with the way back to before it
+        Section("CHANGES MADE HERE");
+        if (history.Steps.Count == 0) settings.Children.Add(Wrap("None yet. Each change I make is listed here, and you can go back to before any of them.", 13, "DS.TextMuted"));
+        foreach (var step in history.Steps.Reverse())
+        {
+            int id = step.Id;
+            var back = Small(step == history.Latest ? "Undo" : "Back to before this"); back.Click += (_, _) => GoBack(id); register(back);
+            settings.Children.Add(Row(back, "“" + Short(step.Asked) + "”", step.Summary));
+        }
+
+        // the saved setups, each ready to load
+        Section("SAVED SETUPS");
+        if (setups.Items.Count == 0) settings.Children.Add(Wrap("None yet. Say “save this as” and a name, for example “save this as Rocket League”.", 13, "DS.TextMuted"));
+        foreach (var setup in setups.Items)
+        {
+            var load = Small("Load"); load.Click += (_, _) => Load(setup, "load " + setup.Name); register(load);
+            settings.Children.Add(Row(load, setup.Name, $"{ModelName(setup.Model)} · saved {setup.Saved.ToLocalTime():d MMM, HH:mm}"));
+        }
+        if (!setups.Healthy) settings.Children.Add(Wrap("The setups file couldn't be read, so nothing is saved over it.", 12.5, "DS.Warn", 6));
+
+        void Section(string title) => settings.Children.Add(Kit.Text(title, 12, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(0, 18, 0, 8)));
+        static DockPanel Row(Button action, string title, string detail)
+        {
+            var row = new DockPanel { Margin = new(0, 0, 0, 8) };
+            action.VerticalAlignment = VerticalAlignment.Center; action.Margin = new(12, 0, 0, 0);
+            DockPanel.SetDock(action, Dock.Right); row.Children.Add(action);
+            row.Children.Add(new StackPanel { Children = { Wrap(title, 14, "DS.Text").Also(t => t.FontWeight = FontWeights.SemiBold), Wrap(detail, 12.5, "DS.TextMuted", 2) } });
+            return row;
+        }
     }
 
     UIElement Source(DocHit hit)
