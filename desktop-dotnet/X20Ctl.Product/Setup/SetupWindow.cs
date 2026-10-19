@@ -49,7 +49,7 @@ internal sealed class SetupWindow : Window
         var leftGrid = new Grid(); leftGrid.Children.Add(faint);
         var brand = new StackPanel { Margin = new Thickness(36, 34, 24, 0) };
         brand.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = {
-            new Image { Source = new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/Assets/brand.png")), Width = 34, Height = 34, Margin = new Thickness(0, 0, 12, 0) },
+            new Image { Source = new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/Assets/icon.png")), Width = 34, Height = 34, Margin = new Thickness(0, 0, 12, 0) },
             Kit.Text("X20CTL", 27, "DS.Text", FontWeights.Bold) } });
         brand.Children.Add(Kit.Text("Keep it Easy, Keep it 20", 15, "DS.TextSoft")); ((TextBlock)brand.Children[1]).Margin = new Thickness(0, 6, 0, 0);
         stepList.Margin = new Thickness(0, 46, 0, 0); brand.Children.Add(stepList);

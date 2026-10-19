@@ -73,7 +73,7 @@ public sealed class ProductSettings : Grid
         var header = new DockPanel { Margin = new(0, 0, 0, 30) };
         Back = Pill("", "Controller Zone"); Back.Click += (_, _) => close();
         DockPanel.SetDock(Back, Dock.Right); header.Children.Add(Back);
-        var mark = new Image { Source = new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/Assets/brand.png")), Width = 44, Height = 44, Margin = new(0, 0, 18, 0) };
+        var mark = new Image { Source = new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/Assets/icon.png")), Width = 44, Height = 44, Margin = new(0, 0, 18, 0) };
         RenderOptions.SetBitmapScalingMode(mark, BitmapScalingMode.HighQuality);
         header.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = { mark, new StackPanel { VerticalAlignment = VerticalAlignment.Center, Children = {
             Kit.Text("Tools", 44, "DS.Text", FontWeights.Bold), Kit.Text("Help, extras and everything about X20CTL", 17, "DS.TextSoft") } } } });
@@ -249,7 +249,7 @@ public sealed class ProductSettings : Grid
         };
         var stack = new StackPanel(); panel.Child = stack;
         stack.Children.Add(Kit.Text("Credits · Desktop-control layout inspired by Gopher360 — Tylemagne, GPL-3.0. See the distributed open-source license notices.",13,"DS.TextMuted").Also(t=>{t.TextWrapping=TextWrapping.Wrap;t.Margin=new(0,12,0,16);}));
-        var mark = new Image { Source = new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/Assets/brand.png")), Width = 72, Height = 72, Margin = new(0, 0, 24, 0) };
+        var mark = new Image { Source = new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/Assets/icon.png")), Width = 72, Height = 72, Margin = new(0, 0, 24, 0) };
         RenderOptions.SetBitmapScalingMode(mark, BitmapScalingMode.HighQuality);
         stack.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = { mark, new StackPanel { VerticalAlignment = VerticalAlignment.Center, Children = {
             Kit.Text("X20CTL", 38, "DS.Text", FontWeights.Bold), Kit.Text($"Native Controller Studio · {X20Ctl.Zone.ReleaseVersions.Display(version)}", 16, "DS.TextSoft") } } } });

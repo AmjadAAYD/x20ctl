@@ -1,4 +1,15 @@
-# Intro audio - 17 October 2026
+# Intro audio
+
+## The opening film - 19 October 2026
+
+`intro.mp4` is the Windows app's opening: 1920x1080, 60 fps, 7.1 s, with AAC stereo sound at 48 kHz. Its picture is rendered from code in the intro project (`logo-preview/intro-remotion`, not part of this repository). The logo it ends on is the same art as `x20ctl-logo.png`.
+
+Its sound is synthesised in the same way as the score below, by a later revision of `tools/build_intro_sound.py` (18 October). That revision uses frosted-glass tones, resonant air tuned to a chord, a warm pad on open fifths in D, and a stereo room. Like the earlier score, it uses no samples, recordings or kits. That revision has not yet been committed to this repository, so running the script here rebuilds the 17 October score, not the film's sound.
+
+The sound is off with reduced motion (no film plays), in development fixtures, and when the player mutes it. Tools → Opening intro → Sound turns it off for every launch.
+
+## The Linux score - 17 October 2026
+
 
 `intro.wav` (stereo, 48 kHz, 16-bit, 7.1 s) is made entirely by `tools/build_intro_sound.py`, and running the script again rebuilds the file. It contains no samples, recordings or sound kits, and nothing taken from another product.
 

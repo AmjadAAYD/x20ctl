@@ -72,7 +72,7 @@ public sealed class WriteScanView : Grid
         var badge = new Border { CornerRadius = new(16), Padding = new(14, 7, 16, 7), Margin = new(0, 0, 16, 0), VerticalAlignment = VerticalAlignment.Center, Background = new SolidColorBrush(Color.FromArgb(40, blue.R, blue.G, blue.B)), BorderBrush = new SolidColorBrush(Color.FromArgb(120, blue.R, blue.G, blue.B)), BorderThickness = new(1),
             Child = new StackPanel { Orientation = Orientation.Horizontal, Children = { Kit.Icon("", 14, "DS.AccentHi").Also(i => i.Margin = new(0, 0, 9, 0)), Kit.Text("X20CTL never writes · you change one setting in KeyLinker", 13.5, "DS.Text", FontWeights.SemiBold) } } };
         DockPanel.SetDock(badge, Dock.Right); bar.Children.Add(badge);
-        var mark = new Image { Source = LiveController.Bitmap("Assets/brand.png"), Width = 34, Height = 34, Margin = new(0, 0, 14, 0) }; RenderOptions.SetBitmapScalingMode(mark, BitmapScalingMode.HighQuality);
+        var mark = new Image { Source = LiveController.Bitmap("Assets/icon.png"), Width = 34, Height = 34, Margin = new(0, 0, 14, 0) }; RenderOptions.SetBitmapScalingMode(mark, BitmapScalingMode.HighQuality);
         bar.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = { mark, Kit.Text("X20CTL", 22, "DS.Text", FontWeights.Bold), new Border { Width = 1, Height = 22, Background = new SolidColorBrush(Color.FromArgb(60, 255, 255, 255)), Margin = new(18, 0, 18, 0) },
             Kit.Text(WriteScanReport.Name, 22, "DS.Text", FontWeights.SemiBold), Kit.Text("   learns what KeyLinker writes", 14, "DS.TextMuted") } });
         page.Children.Add(bar);

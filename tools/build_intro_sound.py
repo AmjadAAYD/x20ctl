@@ -137,7 +137,7 @@ for at, note, pan in ((.18, "D4", -.35), (.36, "F4", 0), (.54, "A4", .35)):
 
 # 2. the outline (owner 17 Oct: a line drawn on a beat felt forced, so the music follows the drawing instead): the white
 #    line is one smooth stroke, 1.45 s to 2.45 s, slow to start, quick through the middle, easing as it closes
-#    (IntroBeats.cs, keep in step). A pluck sounds as the line passes each eighth of the controller, heard
+#    (the Linux app's IntroView.cs, keep in step). A pluck sounds as the line passes each eighth of the controller, heard
 #    from where it is, climbing as it goes, so the notes gather where the line is quick and part where it slows, like a
 #    hand drawn across a koto. The last rings out as the line closes.
 OUTLINE_FROM, OUTLINE_FOR = 1.45, 1.0

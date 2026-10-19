@@ -30,15 +30,17 @@
     <!-- the licence and notice the setup shows on its License page, carried in the exe -->
     <EmbeddedResource Include="../../LICENSE" LogicalName="LICENSE.txt" />
     <EmbeddedResource Include="../../NOTICE" LogicalName="NOTICE.txt" />
-    <!-- the X20CTL mark in white (tools/build_brand_mark.py); the intro draws the same mark in red -->
+    <!-- the X20CTL logo (tools/build_brand_mark.py, from Brand/x20ctl-logo.png); the intro film ends on the same art -->
     <Resource Include="Brand/x20ctl-mark.png" Link="Assets/brand.png" />
+    <!-- the app icon (the logo on its white tile) as an image, for the setup -->
+    <Resource Include="Brand/x20ctl-icon.png" Link="Assets/icon.png" />
     <Content Include="../../x20ctl/controllers/catalog.json" Link="Data/catalog.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../src/assets/controllers/x20/rear-geometry.json" Link="Data/x20-rear.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../src/assets/controllers/control-shapes.json" Link="Data/control-shapes.json" CopyToOutputDirectory="PreserveNewest" />
     <Resource Include="../../src/assets/controllers/**/native/*.png" Link="Assets/native/%(RecursiveDir)%(Filename)%(Extension)" />
     <Content Include="../../src/assets/controllers/native-layers.json" Link="Data/native-layers.json" CopyToOutputDirectory="PreserveNewest" />
-    <!-- the opening sound, made from sine waves by tools/build_intro_sound.py -->
-    <Content Include="Brand/intro.wav;Brand/intro-audio-provenance.md" CopyToOutputDirectory="PreserveNewest" />
+    <!-- the opening film with its sound (logo-preview/intro-remotion); see Brand/intro-audio-provenance.md -->
+    <Content Include="Brand/intro.mp4;Brand/intro-audio-provenance.md" CopyToOutputDirectory="PreserveNewest" />
     <!-- the guides Agent XCTL answers app questions from (M5) -->
     <Content Include="../../README.md;../../README.plain.md;../../IF-YOUR-CONTROLLER-ISNT-WORKING.md;../../PRIVACY.md" Link="Help/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <!-- PC mode's two installers (ViGEmBus, HidHide; see vendor/drivers/README.md), carried inside the exe when present -->

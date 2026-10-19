@@ -42,7 +42,7 @@ public sealed class ModelSelectorView : Grid
         }
         DockPanel.SetDock(commands, Dock.Right); chrome.Children.Add(commands);
         var brand = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        brand.Children.Add(new Border { Width = 40, Height = 40, CornerRadius = new(10), Background = new SolidColorBrush(Color.FromRgb(12, 16, 28)), BorderBrush = new SolidColorBrush(Color.FromArgb(60, 255, 255, 255)), BorderThickness = new(1), Child = new Image { Source = new BitmapImage(new Uri("pack://application:,,,/X20Ctl;component/Assets/brand.png")), Width = 24, Height = 24 } });
+        brand.Children.Add(new Image { Source = new BitmapImage(new Uri("pack://application:,,,/X20Ctl;component/Assets/icon.png")), Width = 40, Height = 40 });
         brand.Children.Add(new TextBlock { Text = "X20CTL", FontFamily = DS.Display, FontSize = 22, FontWeight = FontWeights.Bold, Margin = new(18, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center, Foreground = DS.Brush("DS.Text") });
         brand.Children.Add(new TextBlock { Text = "Choose a controller", FontFamily = DS.Display, FontSize = 17, Foreground = DS.Brush("DS.TextSoft"), VerticalAlignment = VerticalAlignment.Center });
         chrome.Children.Add(brand); Children.Add(chrome);

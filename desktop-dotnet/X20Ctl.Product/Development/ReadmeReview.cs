@@ -28,7 +28,7 @@ internal static class ReadmeReview
             window.Show(); window.WindowState = WindowState.Maximized; await Task.Delay(500);
             window.Host.StartIntro(); await Task.Delay(150);
             // the logo alone, without the Skip and Mute buttons
-            if (window.Host.Intro is { } intro) { intro.Seek(4.7); intro.Skip.Visibility = intro.Mute.Visibility = Visibility.Hidden; await Shot("01-intro", 120); intro.Finish(); }
+            if (window.Host.Intro is { } intro) { intro.Seek(6.6); intro.Skip.Visibility = intro.Mute.Visibility = Visibility.Hidden; await Shot("01-intro", 120); intro.Finish(); }
             await Task.Delay(600);
             // everything pictured is the X20 Pro, the model the app is shown on; PC mode is on (the sandbox never starts its service)
             // so the Pro's own Buttons, Curves and Macros tabs are live editors

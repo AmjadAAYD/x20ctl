@@ -23,8 +23,8 @@ public interface IIntroHandoff
 /// footer last.</summary>
 public partial class ZoneScene : IIntroHandoff
 {
-    // the header mark's ink inside its 26 px image (x20ctl-mark.png's alpha box, 8,52 - 504,460 of 512)
-    private static readonly Rect MarkInk = new(8 / 512d * 26, 52 / 512d * 26, 496 / 512d * 26, 408 / 512d * 26);
+    // the logo inside the header's 46 px app icon (tools/build_brand_mark.py tile(): 86% wide, centred, its middle at 47%)
+    private static readonly Rect MarkInk = new(.07 * 46, (.47 - .43 * 662 / 951) * 46, .86 * 46, .86 * 662 / 951 * 46);
     private readonly ScaleTransform brandPulse = new(1, 1);
 
     public Rect? MarkTarget(Visual to) => Within(BrandMark, MarkInk, to);
