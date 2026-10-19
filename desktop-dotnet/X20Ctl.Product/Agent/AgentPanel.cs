@@ -90,7 +90,7 @@ public sealed class AgentPanel
     /// (owner's sketch, 13 Oct); its screen follows the owner's design of 19 Oct: a rail, a header, topic pills and the chat.</summary>
     public const double DesignWidth = 1740, DesignHeight = 800;
     // the art's own places: the display, the stick caps, the D-pad's centre
-    const double ScreenZoom = 1.2, ScreenX = 382, ScreenY = 71, LeftX = 247, RightX = 1499, EyeY = 214, PadX = 270, PadY = 446;
+    const double ScreenZoom = 1.2, ScreenX = 382, ScreenY = 71, LeftX = 238, RightX = 1510, EyeY = 196, PadX = 270, PadY = 446;
 
     public AgentPanel(string modelId, string controllerName, PcModeLink? link, Action<Button> register, int player = 0, Func<Action<string, int>, IDriftMeter>? meter = null, bool reducedMotion = false)
     {
@@ -234,7 +234,8 @@ public sealed class AgentPanel
         pad.Children.Add(ideasBumper); pad.Children.Add(settingsButton);
 
         // the sticks are its eyes
-        Eye(pad, LeftX, EyeY); Eye(pad, RightX, EyeY + 2);
+        // each eye at the centre of its stick's dish, measured on the art
+        Eye(pad, LeftX, EyeY); Eye(pad, RightX, EyeY - 2);
 
         // left: the D-pad scrolls the conversation, and steps through the ideas
         foreach (var (x, y, tip, act) in new (double, double, string, Action)[]
@@ -246,13 +247,14 @@ public sealed class AgentPanel
         })
             pad.Children.Add(Hit(PadX - 24 + x * 52, PadY - 24 + y * 52, 48, 48, 8, tip, act));
 
-        // right: the face buttons. A sends, B puts it away, X starts over, Y searches the ideas
+        // right: the face buttons, drawn pulled in so B clears the grip (owner, 19 Oct 2026). A sends, B puts it away, X starts
+        // over, Y searches the ideas
         foreach (var (letter, x, y, tip, act) in new (string, double, double, string, Action)[]
         {
-            ("Y", 1505, 359, "Search the ideas", () => { ShowView(View.Ideas); Search.Focus(); Search.SelectAll(); Look(Gaze.Ideas); }),
+            ("Y", 1490, 359, "Search the ideas", () => { ShowView(View.Ideas); Search.Focus(); Search.SelectAll(); Look(Gaze.Ideas); }),
             ("X", 1438, 417, "New conversation", Restart),
-            ("B", 1570, 426, "Put away", () => { if (SettingsOpen) ShowSettingsPage(false); else CloseRequested?.Invoke(); }),
-            ("A", 1506, 480, "Send", Send),
+            ("B", 1540, 424, "Put away", () => { if (SettingsOpen) ShowSettingsPage(false); else CloseRequested?.Invoke(); }),
+            ("A", 1490, 481, "Send", Send),
         })
         {
             var cap = Hit(x - 35, y - 35, 70, 70, 35, tip, act);
