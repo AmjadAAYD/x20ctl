@@ -19,12 +19,12 @@ internal static class IntroReview
         try
         {
             window.Show(); window.WindowState = WindowState.Maximized; await Task.Delay(400);
-            window.Host.StartIntro(); var fps = await ShowcaseReviewProbe.Run(6300); await Task.Delay(1500);
+            window.Host.StartIntro(); var fps = await ShowcaseReviewProbe.Run(7500); await Task.Delay(1500);
             File.WriteAllText(Path.Combine(directory, "fps.json"), System.Text.Json.JsonSerializer.Serialize(fps, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
             window.Host.StartIntro(); await Task.Delay(150); if (window.Host.Intro == null) throw new InvalidOperationException("Intro did not start: " + window.Scene.FeedbackText.Text);
-            foreach (double t in new[] { .2, .6, 1.3, 1.97, 2.6, 3.3, 3.61, 4.0, 4.25, 4.7, 5.05, 5.3, 5.55, 5.8, 6.0 })
+            foreach (double t in new[] { .5, 2.0, 3.2, 4.03, 5.0, 6.3, 6.44, 6.5, 6.6, 6.8, 7.0, 7.2, 7.4 })
             {
-                window.Host.Intro!.Seek(t); await Task.Delay(90); window.UpdateLayout();
+                window.Host.Intro!.Seek(t); await Task.Delay(300); window.UpdateLayout();
                 var bmp = new RenderTargetBitmap((int)window.Stage.ActualWidth, (int)window.Stage.ActualHeight, 96, 96, PixelFormats.Pbgra32); bmp.Render(window.Stage);
                 var enc = new PngBitmapEncoder(); enc.Frames.Add(BitmapFrame.Create(bmp)); using var s = File.Create(Path.Combine(directory, $"intro-{t:0.00}s.png")); enc.Save(s);
             }

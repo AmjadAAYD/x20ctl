@@ -17,57 +17,24 @@ if(args.Contains("--followup")){FollowupChecks.Run();app.Shutdown();return;}
 if(args.Contains("--mouse-refinement")){MouseRefinementChecks.Run();app.Shutdown();return;}
 if(args.Contains("--setup-isolation")){SetupIsolationChecks.Run();app.Shutdown();return;}
 if(args.Contains("--zone-surfaces")){ZoneSurfaceChecks.Run();app.Shutdown();return;}
-if(typeof(IntroView).GetField("formation",BindingFlags.Instance|BindingFlags.NonPublic)==null)throw new Exception("Intro does not use the blue/orange preview formation");
-if(typeof(IntroView).GetField("stabilizationBackground",BindingFlags.Instance|BindingFlags.NonPublic)==null)throw new Exception("X stabilization has no background impact");
-var impactField=typeof(IntroView).GetField("stabilizationBackground",BindingFlags.Instance|BindingFlags.NonPublic)!;
-var isolatedImpact=(FrameworkElement)Activator.CreateInstance(impactField.FieldType,true)!;isolatedImpact.Measure(new Size(640,400));isolatedImpact.Arrange(new Rect(0,0,640,400));
-double ImpactEnergy(double t){impactField.FieldType.GetMethod("SetTime")!.Invoke(isolatedImpact,[t]);isolatedImpact.UpdateLayout();var b=new RenderTargetBitmap(640,400,96,96,PixelFormats.Pbgra32);b.Render(isolatedImpact);var p=new byte[640*400*4];b.CopyPixels(p,640*4,0);return Enumerable.Range(0,640*400).Average(i=>(p[i*4]+p[i*4+1]+p[i*4+2])/3d);}
-double beforeImpact=ImpactEnergy(-1),peakImpact=ImpactEnergy(.10),afterImpact=ImpactEnergy(1.5);
-if(peakImpact<beforeImpact*2||afterImpact>peakImpact*.5)throw new Exception($"Background impact does not rise and release: {beforeImpact}/{peakImpact}/{afterImpact}");
-Console.WriteLine($"PASS: background impact rendered energy {beforeImpact:0.00} → {peakImpact:0.00} → {afterImpact:0.00}; one landing pulse and release.");
- if(typeof(IntroView).GetField("material",BindingFlags.Instance|BindingFlags.NonPublic)!=null)throw new Exception("Rejected controller PNG still in intro");
-// the synthesised score ships beside the app; the checks never play it
-var score=System.IO.Path.Combine(AppContext.BaseDirectory,"Brand","intro.wav");
-if(!IntroView.HasIntroScore||!System.IO.File.Exists(score))throw new Exception("Intro score not packaged");
-using(var reader=new System.IO.BinaryReader(System.IO.File.OpenRead(score))){reader.BaseStream.Seek(22,System.IO.SeekOrigin.Begin);int channels=reader.ReadInt16(),rate=reader.ReadInt32();double seconds=(new System.IO.FileInfo(score).Length-44)/(rate*channels*2.0);
-if(channels!=2||rate!=48000||Math.Abs(seconds-7.1)>.01)throw new Exception($"Intro score is {channels} ch {rate} Hz {seconds:0.00} s");}
+// the opening film ships beside the app; the checks never play its sound
+var film=System.IO.Path.Combine(AppContext.BaseDirectory,"Brand","intro.mp4");
+if(!IntroView.HasIntroScore||!System.IO.File.Exists(film)||new System.IO.FileInfo(film).Length<100_000)throw new Exception("Intro film not packaged");
 IntroView.SoundEnabled=false;var audioIntro=new IntroView(false,false);
 if(audioIntro.Mute.Visibility!=Visibility.Visible)throw new Exception("Mute hidden while the intro has sound");
-audioIntro.ToggleMute();audioIntro.ToggleMute();
-if(typeof(IntroView).GetField("sound",BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(audioIntro)!=null)throw new Exception("Intro opened a player with sound disabled");audioIntro.Finish();
-var quietIntro=new IntroView(true,false);if(quietIntro.Mute.Visibility!=Visibility.Collapsed)throw new Exception("Reduced motion offers sound");quietIntro.Finish();
-Console.WriteLine($"PASS: no controller photo; intro score packaged (stereo 48 kHz, 7.1 s), mute shown, no player opened with sound disabled or reduced motion.");
- IntroView.SoundEnabled=false;var intro=new IntroView(false,false);intro.Measure(new Size(1280,800));intro.Arrange(new Rect(0,0,1280,800));intro.UpdateLayout();
- typeof(IntroView).GetMethod("Build",BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(intro,null);
- var story=(Storyboard)typeof(IntroView).GetField("story",BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(intro)!;
- story.Begin(intro,true);
+audioIntro.ToggleMute();if(!audioIntro.Muted)throw new Exception("Mute did not take");audioIntro.ToggleMute();
+var filmElement=(System.Windows.Controls.MediaElement?)typeof(IntroView).GetField("film",BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(audioIntro);
+if(filmElement==null||!filmElement.IsMuted)throw new Exception("Intro film plays sound with sound disabled");audioIntro.Finish();
+var quietIntro=new IntroView(true,false);if(quietIntro.Mute.Visibility!=Visibility.Collapsed)throw new Exception("Reduced motion offers sound");
+if(typeof(IntroView).GetField("film",BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(quietIntro)!=null)throw new Exception("Reduced motion opened the film");quietIntro.Finish();
+Console.WriteLine("PASS: intro film packaged, mute shown and muting, no sound with sound disabled, no film with reduced motion.");
  var dir=System.IO.Path.Combine(Environment.CurrentDirectory,"artifacts","intro-stabilization-impact");System.IO.Directory.CreateDirectory(dir);
- foreach(var t in new[]{0d,.5,1.25,1.5,1.58,1.7,1.9,2.2,2.4,2.9,3.1,3.3,3.5,3.6,3.75,3.9,3.97,4.03,4.05,4.10,4.18,4.35,4.5,4.70,5.10,4.8,5.4,6.3,6.85}){
- story.SeekAlignedToLastTick(intro,TimeSpan.FromSeconds(t),TimeSeekOrigin.BeginTime);story.Pause(intro);typeof(IntroView).GetMethod("Frame",BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(intro,[t]);intro.UpdateLayout();
- var backgroundImpact=(FrameworkElement)typeof(IntroView).GetField("stabilizationBackground",BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(intro)!;
- var bitmap=new RenderTargetBitmap(1280,800,96,96,PixelFormats.Pbgra32);bitmap.Render(intro);var png=new PngBitmapEncoder();png.Frames.Add(BitmapFrame.Create(bitmap));using var file=System.IO.File.Create(System.IO.Path.Combine(dir,$"intro-{t:0.00}.png"));png.Save(file);
- // the controller (1.90) and the settled mark (5.40) stay the owner's reference; the X in motion was redrawn 17 Oct
- if(new[]{1.9,5.4}.Contains(t)){
- var reference=System.IO.Path.Combine(Environment.CurrentDirectory,"artifacts","intro-shared-video-reference",$"intro-{t:0.00}.png");
- var expected=new BitmapImage();expected.BeginInit();expected.UriSource=new Uri(reference);expected.CacheOption=BitmapCacheOption.OnLoad;expected.EndInit();
- backgroundImpact.Visibility=Visibility.Collapsed;var baseline=new RenderTargetBitmap(1280,800,96,96,PixelFormats.Pbgra32);baseline.Render(intro);backgroundImpact.Visibility=Visibility.Visible;
- var expectedPixels=new byte[1280*800*4];var actualPixels=new byte[1280*800*4];
- new FormatConvertedBitmap(expected,PixelFormats.Pbgra32,null,0).CopyPixels(expectedPixels,1280*4,0);baseline.CopyPixels(actualPixels,1280*4,0);
- double error=Enumerable.Range(0,1280*680*4).Average(i=>Math.Abs(actualPixels[i]-expectedPixels[i]));
- Console.WriteLine($"REFERENCE at {t:0.00}s: mean absolute pixel difference {error:0.000000} /255 (bottom sound controls excluded).");
- if(error>1.0)throw new Exception("Intro diverges from shared blue/orange preview at "+t);
- }
- }
- if(args.Contains("--preview"))for(int frame=0;frame<213;frame++){
- double t=frame/30d;story.SeekAlignedToLastTick(intro,TimeSpan.FromSeconds(t),TimeSeekOrigin.BeginTime);story.Pause(intro);typeof(IntroView).GetMethod("Frame",BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(intro,[t]);intro.UpdateLayout();
- var backgroundImpact=(FrameworkElement)typeof(IntroView).GetField("stabilizationBackground",BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(intro)!;
- var bitmap=new RenderTargetBitmap(1280,800,96,96,PixelFormats.Pbgra32);bitmap.Render(intro);var png=new PngBitmapEncoder();png.Frames.Add(BitmapFrame.Create(bitmap));using var file=System.IO.File.Create(System.IO.Path.Combine(dir,$"preview-{frame:0000}.png"));png.Save(file);
- }
- story.Stop(intro);int completed=0;intro.Completed+=()=>completed++;intro.Finish();intro.Finish();if(completed!=1)throw new Exception("Skip completion failed");
+ var intro=new IntroView(false,true);int completed=0;intro.Completed+=()=>completed++;intro.Finish();intro.Finish();if(completed!=1)throw new Exception("Skip completion failed");
  var handoff=new FakeLanding();var handed=new IntroView(false,true,handoff);handed.Measure(new Size(1280,800));handed.Arrange(new Rect(0,0,1280,800));handed.UpdateLayout();
- foreach(var at in new[]{6.0,6.4,6.85})typeof(IntroView).GetMethod("Frame",BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(handed,[at]);
+ foreach(var at in new[]{6.3,6.6,7.0,7.4})handed.Seek(at);
  handed.Finish();if(handoff.BeginCount!=1 || handoff.EndCount!=1 || handoff.Brand<.99)throw new Exception("Header handoff did not complete");
- var reduced=new IntroView(true,true);reduced.Measure(new Size(1280,800));reduced.Arrange(new Rect(0,0,1280,800));typeof(IntroView).GetMethod("Build",BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(reduced,null);if(((FrameworkElement)impactField.GetValue(reduced)!).Visibility!=Visibility.Collapsed)throw new Exception("Reduced motion still shows impact");reduced.Finish();
+ var reduced=new IntroView(true,true);reduced.Measure(new Size(1280,800));reduced.Arrange(new Rect(0,0,1280,800));reduced.Seek(.2);reduced.Finish();
+Console.WriteLine("PASS: skip completes once; the logo hands over to the header once and lands; reduced motion fades.");
  var model=new X20Ctl.Zone.ControllerModel("x20_pro","EasySMX X20 Pro","","","",new Dictionary<string,X20Ctl.Zone.ControlPoint>());
  var game=new GameEntry("fixture","Fixture game","Test",null,null,null,null,"fixture://never-launch");
  var page=new DashboardConsolePage(model,0,4,2,true);
@@ -84,7 +51,7 @@ Console.WriteLine($"PASS: no controller photo; intro score packaged (stereo 48 k
  var artType=typeof(DashboardConsolePage).Assembly.GetType("X20Ctl.Product.GameArtwork")!;
  var save=artType.GetMethod("Save")!;var pathFor=artType.GetMethod("PathFor")!;
  var isolated=game with {Id="artwork-fixture-"+Guid.NewGuid().ToString("N")};
- var source=System.IO.Path.Combine(dir,"intro-4.80.png");string? stored=null;
+ var source=System.IO.Path.Combine(dir,"art-fixture.png");{var art=new RenderTargetBitmap(320,180,96,96,PixelFormats.Pbgra32);var ink=new DrawingVisual();using(var dc=ink.RenderOpen())dc.DrawRectangle(new LinearGradientBrush(Colors.SteelBlue,Colors.DarkOrange,0),null,new Rect(0,0,320,180));art.Render(ink);var png=new PngBitmapEncoder();png.Frames.Add(BitmapFrame.Create(art));using var file=System.IO.File.Create(source);png.Save(file);}string? stored=null;
  try {
  save.Invoke(null,[isolated,source]);stored=(string)pathFor.Invoke(null,[isolated])!;
  if(!System.IO.File.Exists(stored)||stored==source)throw new Exception("Override not copied");
