@@ -10,7 +10,8 @@ internal enum SetupMode { None, Install, Uninstall, UninstallRun }
 internal sealed record SetupOptions(bool StartMenu = true, bool Desktop = false, bool KeepUpToDate = true, bool Launch = true, bool Drivers = false);
 
 /// <summary>
-/// The setup and the uninstaller are this same exe. A copy named *-setup.exe (or started with --setup) installs itself for the
+/// The wizard and the uninstaller are this same exe. Started with --setup (which the small web setup in tools/web-setup does after
+/// downloading and verifying it), or when named *-setup.exe, it installs itself for the
 /// current user: X20Ctl.exe in %LOCALAPPDATA%\Programs\X20CTL, a Start menu entry, an optional desktop shortcut and an entry in
 /// Windows Apps that runs "X20Ctl.exe --uninstall". Nothing outside the player's own account is touched, so the in-app updater
 /// (which swaps the exe beside itself) keeps working without another permission prompt.

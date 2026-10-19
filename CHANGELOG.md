@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [V0.017.1] - 2026-10-19
+
+Tagged `v0.017.1`. Everything in V0.017 is included.
+
+### Changed
+
+- **The setup is a small download.** `X20CTL-<version>-windows-x64-setup.exe` is now a small downloader (about 0.3 MB) instead of a copy of the whole app. The controller artwork inside the exe is recompressed without any change to the pictures, which takes about 13 MB off the download. It fetches the release exe, checks it against the release's `SHA256SUMS.txt`, runs the install wizard from it and removes the download afterwards. If the checksum is missing or wrong, nothing is run. The plain exe is still the no-install download.
+
 ## [V0.017] - 2026-10-19
 
 Tagged `v0.017`. Everything in [V0.016](https://github.com/AmjadAAYD/x20ctl/blob/main/CHANGELOG.md#v0016---2026-10-18) is included.
