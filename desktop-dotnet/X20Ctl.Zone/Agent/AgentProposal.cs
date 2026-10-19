@@ -189,9 +189,9 @@ public static class ProposalValidator
 
     static (CheckState, string) Number(AgentAction a, double low, double high, bool decimals)
     {
-        if (a.Value.ValueKind != JsonValueKind.Number || !a.Value.TryGetDouble(out double v)) return (CheckState.Rejected, $"{a.Action} needs a number, not \"{a.ValueText}\".");
-        if (!decimals && v != Math.Floor(v)) return (CheckState.Rejected, $"{a.Action} needs a whole number.");
-        return v >= low && v <= high ? (CheckState.Ok, "In range.") : (CheckState.Rejected, $"{a.Action} is {low:0.#} to {high:0.#}; {v:0.#} is outside.");
+        if (a.Value.ValueKind != JsonValueKind.Number || !a.Value.TryGetDouble(out double v)) return (CheckState.Rejected, $"Needs a number, not \"{a.ValueText}\".");
+        if (!decimals && v != Math.Floor(v)) return (CheckState.Rejected, "Needs a whole number.");
+        return v >= low && v <= high ? (CheckState.Ok, "In range.") : (CheckState.Rejected, $"{low:0.#} to {high:0.#} only; {v:0.#} is outside.");
     }
     static (CheckState, string) Word(AgentAction a, IReadOnlyCollection<string> allowed) =>
         a.Value.ValueKind == JsonValueKind.String && allowed.Contains(a.Value.GetString()) ? (CheckState.Ok, "Known value.") : (CheckState.Rejected, $"\"{a.ValueText}\" isn't one of: {string.Join(", ", allowed)}.");
