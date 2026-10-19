@@ -19,7 +19,7 @@ public static class WriteScanUpload
     public static async Task<string> Send(byte[] zip, string controllerName)
     {
         if (ReviewSandbox.Active) return "CR-SANDBOX";
-        if (zip.Length > X20Ctl.Zone.Capture.WriteScanReport.MaxResearchZipBytes) throw new InvalidDataException("The report is over the receiver's 8 MB limit.");
+        if (zip.Length > X20Ctl.Zone.Capture.WriteScanReport.MaxResearchZipBytes) throw new InvalidDataException("The report is over the receiver's 4 MB limit.");
         using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
         // does the receiver take research reports yet? An older one answers 405 to GET
         using (var probe = await http.GetAsync(Route))
