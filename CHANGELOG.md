@@ -17,8 +17,20 @@
   - Topic pills sit across the top: Aim & sticks, Triggers, Buttons and PC mode.
   - The chat bar along the bottom has a round send button.
 - **Answers that change a stick show it.** The answer has a headline with your words under it. Current and Proposed curve cards come next, then one line on why, then Undo.
+- **The Write scan gives a verdict.** Results now open with what was learned and how sure the scan is: High, Medium or Low confidence, or Nothing learned. Each point the verdict rests on is listed, along with what to do differently. For example:
+  - The app changed the setting and changed it back.
+  - The byte holds the values you typed.
+  - The writes came on the steps where you made the change.
+
+  A button goes straight back to the step that fixes it.
+- **The Write scan checks the recording itself.**
+  - A Filtered Android log is named as such, with the exact setting to change. Before, it only said "no KeyLinker frames".
+  - Android logs now carry the phone's clock, so a log from another time is caught on Android too, as it already was on iPhone. Each change is labelled with the step you were on, even when the phone logs local time.
+  - A bug report's earlier and filtered logs are read too.
 
 ### Fixed
+
+- **A Write scan report is never bigger than X20CTLADMIN can take.** The report site refuses anything over 4.5 MB, so the limit is now 4 MB, down from 8.
 
 - **Sending from the ideas returns to the conversation**, so you see the answer.
 - **When the agent can't do something, it says why in plain words.** For example: "Left stick dead zone: 0 to 40 only; 260 is outside." Before, it showed internal names.
