@@ -12,6 +12,8 @@ public sealed class PcModeStore
     readonly object gate = new();
     Data data = new();
     public PcModeStore(string path) { this.path = Path.GetFullPath(path); }
+    /// <summary>The file the profiles live in; files that belong with them (the agent's saved setups) go beside it.</summary>
+    public string FilePath => path;
     /// <summary>False when the file existed but couldn't be read, in which case nothing is overwritten.</summary>
     public bool Healthy { get; private set; } = true;
 
