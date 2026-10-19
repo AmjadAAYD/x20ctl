@@ -79,7 +79,7 @@ public static class AgentIdeas
         return AgentVariety.Pick("topic", [
             $"I've seen you search about “{topic}”. Is there any help you need?",
             $"Ooh, “{topic}”! *perks up* Need a hand with that?",
-            $"“{topic}”, huh? Pick an idea on the left, or tell me what feels off.",
+            $"“{topic}”, huh? Pick an idea, or tell me what feels off.",
             $"Looking into “{topic}”? I know a thing or two. What's bugging you?",
             $"Searching “{topic}”… I've got ideas. Want me to fix something?",
             $"Aha, “{topic}”. My favourite subject today. What should I change?",

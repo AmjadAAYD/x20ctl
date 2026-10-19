@@ -28,7 +28,7 @@ public sealed class AgentPanel
 
     public Border Body { get; }
     public TextBox Input { get; }
-    /// <summary>The ideas' own search box (the left half of the screen).</summary>
+    /// <summary>The ideas' own search box (the Ideas view of the screen).</summary>
     public TextBox Search { get; }
     /// <summary>Minimise or close was chosen: the host puts the window away (the conversation stays).</summary>
     public event Action? CloseRequested;
@@ -51,6 +51,17 @@ public sealed class AgentPanel
     readonly Button send = null!;
     readonly Action<Button> register;
     readonly StackPanel ideasList = new();
+    // the screen's own pieces (owner's design, 19 Oct 2026): the chat or the ideas, picked from the rail or a topic pill
+    enum View { Chat, Ideas }
+    readonly DockPanel ideasView;
+    readonly Button sendRound;
+    readonly TextBlock padChip = Kit.Text("", 13, "DS.TextSoft", FontWeights.SemiBold);
+    readonly List<(string Query, Border Look, TextBlock Text, TextBlock Icon)> topics = [];
+    readonly Dictionary<View, Border> rail = [];
+    // the screen's colours: charcoal, a hairline, and one amber accent for what the agent proposes
+    static readonly Color Amber = Color.FromRgb(245, 184, 61), Card = Color.FromRgb(21, 25, 31), Line = Color.FromRgb(42, 47, 55),
+        ScreenTop = Color.FromRgb(16, 19, 24), ScreenBottom = Color.FromRgb(10, 12, 16);
+    Button? undoLatest;
     // the agent speaks up once the owner stops typing a search (owner request, 13 Oct 2026)
     readonly System.Windows.Threading.DispatcherTimer settle = new() { Interval = TimeSpan.FromSeconds(1.2) };
     string announced = "";
@@ -76,29 +87,21 @@ public sealed class AgentPanel
     readonly System.Windows.Threading.DispatcherTimer blink = new() { Interval = TimeSpan.FromSeconds(4) };
 
     /// <summary>The controller is drawn at this size and scaled as a whole to the room it's given: wide, across the Studio
-    /// (owner's sketch, 13 Oct), with ideas on the left of its screen and the conversation on the right.</summary>
-    public const double DesignWidth = 1400, DesignHeight = 580;
-    static readonly Geometry ShellShape = Geometry.Parse("M 140,46 H 1260 C 1350,46 1400,100 1400,180 L 1400,470 C 1400,550 1345,580 1290,580 C 1240,580 1212,552 1196,522 Q 1180,500 1140,500 H 260 Q 220,500 204,522 C 188,552 160,580 110,580 C 55,580 0,550 0,470 L 0,180 C 0,100 50,46 140,46 Z");
-    // the controller's own colours (AgentSkin): its caps, edges and the ink printed on its shell
-    readonly AgentSkin skin;
-    Color CapLight => skin.CapLight;
-    Color CapDark => skin.CapDark;
-    Color Edge => skin.Edge;
-    const double LeftX = 100, RightX = 1300, EyeY = 165, PadY = 318;
+    /// (owner's sketch, 13 Oct); its screen follows the owner's design of 19 Oct: a rail, a header, topic pills and the chat.</summary>
+    public const double DesignWidth = 1740, DesignHeight = 800;
+    // the art's own places: the display, the stick caps, the D-pad's centre
+    const double ScreenZoom = 1.2, ScreenX = 382, ScreenY = 71, LeftX = 238, RightX = 1510, EyeY = 196, PadX = 270, PadY = 446;
 
     public AgentPanel(string modelId, string controllerName, PcModeLink? link, Action<Button> register, int player = 0, Func<Action<string, int>, IDriftMeter>? meter = null, bool reducedMotion = false)
     {
-        this.reducedMotion = reducedMotion; this.modelId = modelId; this.link = link; this.player = player; this.register = register; skin = AgentSkin.For(modelId);
+        this.reducedMotion = reducedMotion; this.modelId = modelId; this.link = link; this.player = player; this.register = register;
         string name = controllerName.Replace("EasySMX ", ""); padName = name;
         // drift is read from the real controller; a review harness can hand in its own reading instead
         session = new AgentSession(offlineAgent, modelId, name) { Docs = keywords.Value, Meter = (meter ?? (progress => new XInputDriftMeter(player, progress)))(Measuring), ControllerFacts = Facts(modelId) };
         greeting = AgentCharacter.Greeting(name);
 
-        // ---- the screen, right: the conversation ----
-        var heading = new DockPanel { Margin = new(0, 0, 0, 8) };
-        DockPanel.SetDock(settingsToggle, Dock.Right); heading.Children.Add(settingsToggle);
-        statusDot.Margin = new(12, 0, 6, 0);
-        heading.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = { Kit.Text("Agent XCTL", 15, "DS.Text", FontWeights.SemiBold), statusDot, status } });
+        // ---- the screen (owner's design, 19 Oct 2026): a rail of views on the left; a header with the controller and the
+        // agent's state; topic pills; the conversation or the ideas; and the chat bar along the bottom ----
         var privacy = Wrap("What you type and what I answer stay on this PC.", 12.5, "DS.TextMuted", 16);
         var backToChat = Small("← Back to chat");
         backToChat.Click += (_, _) => ShowSettingsPage(false); register(backToChat);
@@ -107,145 +110,159 @@ public sealed class AgentPanel
         settingsHead.Children.Add(Kit.Text("Agent settings", 22, "DS.Text", FontWeights.SemiBold));
         var settingsPage = new DockPanel(); DockPanel.SetDock(settingsHead, Dock.Top); settingsPage.Children.Add(settingsHead);
         settingsPage.Children.Add(new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Content = new StackPanel { Children = { target.Also(t => t.Margin = new(0, 0, 0, 12)), settings, privacy } } });
-        settingsBox = new Border { Visibility = Visibility.Collapsed, Padding = new(16), CornerRadius = new(12), Background = new SolidColorBrush(Color.FromRgb(8, 15, 32)), Child = settingsPage };
+        settingsBox = new Border { Visibility = Visibility.Collapsed, Padding = new(16), CornerRadius = new(12), Background = new SolidColorBrush(ScreenTop), Child = settingsPage };
         settingsToggle.Cursor = Cursors.Hand; settingsToggle.ToolTip = "Open agent settings";
         settingsToggle.MouseLeftButtonUp += (_, _) => ShowSettingsPage(true);
-        var top = new StackPanel { Children = { heading } };
-        // zoomed out (owner, 14 Oct 2026: "so tight, I can't see the message"): more of the conversation fits
-        scroller = new ScrollViewer { Content = transcript, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
-        transcript.LayoutTransform = new ScaleTransform(.8, .8);
-        var chat = new DockPanel(); DockPanel.SetDock(top, Dock.Top); chat.Children.Add(top); chat.Children.Add(scroller);
 
-        // ---- the screen, left: ideas, narrowed by what's typed ----
+        // header: the mark and the name, then the controller and the agent's own state as two chips
+        var mark = new System.Windows.Controls.Image { Width = 30, Height = 30, Margin = new(0, 0, 10, 0), Source = new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/X20Ctl;component/Assets/brand.png")) };
+        padChip.Text = name + " · Player " + (Math.Clamp(player, 0, 3) + 1);
+        var heading = new DockPanel { Margin = new(0, 0, 0, 10) };
+        DockPanel.SetDock(settingsToggle, Dock.Right); settingsToggle.VerticalAlignment = VerticalAlignment.Center; heading.Children.Add(settingsToggle);
+        statusDot.Margin = new(0, 0, 8, 0);
+        heading.Children.Add(new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Children =
+            {
+                mark, Kit.Text("Agent XCTL", 24, "DS.Text", FontWeights.Bold).Also(t => t.VerticalAlignment = VerticalAlignment.Center),
+                Rule(), Chip(new Border { Width = 9, Height = 9, CornerRadius = new(4.5), BorderThickness = new(2), BorderBrush = new SolidColorBrush(Amber), Margin = new(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center }, padChip),
+                Rule(), Chip(statusDot, status),
+            },
+        });
+
+        // the conversation
+        scroller = new ScrollViewer { Content = transcript, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+        transcript.LayoutTransform = new ScaleTransform(.95, .95);
+
+        // the ideas: a search, a line saying what's listed, and the list
         Search = new TextBox { FontSize = 14, MinHeight = 38, Padding = new(24, 8, 10, 7), VerticalContentAlignment = VerticalAlignment.Center, ToolTip = "Search the ideas: sticks, triggers, turbo…" };
         Search.TextChanged += (_, _) =>
         {
-            ShowIdeas(Search.Text); settle.Stop();
+            ShowIdeas(Search.Text); settle.Stop(); Pills();
             bool typing = Search.Text.Trim().Length > 0;
             if (!busy) { Look(typing ? Gaze.Ideas : Gaze.Idle); Searching(typing); }
-            if (typing) settle.Start();
+            if (typing) { if (ideasView is { Visibility: not Visibility.Visible }) ShowView(View.Ideas); settle.Start(); }
         };
         Search.KeyDown += (_, e) => { if (e.Key == Key.Enter) { e.Handled = true; settle.Stop(); Announce(); } };
         settle.Tick += (_, _) => { settle.Stop(); Announce(); };
-        var searchBar = new Grid { Margin = new(0, 8, 0, 0), Children = { Search, Kit.Icon("\uE721", 13, "DS.TextMuted").Also(i => { i.Margin = new(10, 0, 0, 0); i.HorizontalAlignment = HorizontalAlignment.Left; i.IsHitTestVisible = false; }) } };
-        var ideasHead = new StackPanel { Margin = new(0, 0, 0, 10), Children = { Kit.Text("Ideas", 15, "DS.Text", FontWeights.SemiBold), searchBar, ideasFor.Also(t => t.Margin = new(0, 6, 0, 0)) } };
-        var ideas = new DockPanel(); DockPanel.SetDock(ideasHead, Dock.Top); ideas.Children.Add(ideasHead);
-        ideas.Children.Add(new ScrollViewer { Content = ideasList, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Padding = new(0, 0, 8, 0) });
+        var searchBar = new Grid { Children = { Search, Kit.Icon("\uE721", 13, "DS.TextMuted").Also(i => { i.Margin = new(10, 0, 0, 0); i.HorizontalAlignment = HorizontalAlignment.Left; i.IsHitTestVisible = false; }) } };
+        var ideasHead = new StackPanel { Margin = new(0, 0, 0, 10), Children = { searchBar, ideasFor.Also(t => t.Margin = new(2, 6, 0, 0)) } };
+        ideasView = new DockPanel { Visibility = Visibility.Collapsed }; DockPanel.SetDock(ideasHead, Dock.Top); ideasView.Children.Add(ideasHead);
+        ideasView.Children.Add(new ScrollViewer { Content = ideasList, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Padding = new(0, 0, 8, 0) });
 
-        // ---- the chat bar, under the conversation ----
-        Input = new TextBox { AcceptsReturn = false, TextWrapping = TextWrapping.Wrap, MinHeight = 42, MaxHeight = 84, MaxLength = 600, FontSize = 14, Padding = new(24, 9, 12, 8), VerticalContentAlignment = VerticalAlignment.Center, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, ToolTip = "Talk to the agent: Enter or A to send" };
+        // topic pills: each narrows the ideas to it
+        var pills = new StackPanel { Orientation = Orientation.Horizontal, Margin = new(0, 0, 0, 10) };
+        foreach (var (label, glyph, query) in new[] { ("Aim & sticks", "\uE7FC", "sticks"), ("Triggers", "\uE9E9", "triggers"), ("Buttons", "\uE765", "buttons"), ("PC mode", "\uE7F4", "PC mode") })
+        {
+            var text = Kit.Text(label, 13.5, "DS.TextSoft", FontWeights.SemiBold); var icon = Kit.Icon(glyph, 14, "DS.TextSoft").Also(i => i.Margin = new(0, 0, 8, 0));
+            var look = new Border { CornerRadius = new(17), Height = 34, Padding = new(14, 0, 16, 0), Margin = new(0, 0, 8, 0), BorderThickness = new(1), Child = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Children = { icon, text } } };
+            var pill = PadKey(look, "Ideas for " + label.ToLowerInvariant(), () => { Search.Text = query; ShowView(View.Ideas); settle.Stop(); Announce(); });
+            topics.Add((query, look, text, icon)); register(pill); pills.Children.Add(pill);
+        }
+
+        // the chat bar: a field with a hint, and a round send button
+        Input = new TextBox { AcceptsReturn = false, TextWrapping = TextWrapping.Wrap, MinHeight = 42, MaxHeight = 84, MaxLength = 600, FontSize = 14.5, Padding = new(4, 9, 12, 8), VerticalContentAlignment = VerticalAlignment.Center, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, ToolTip = "Talk to the agent: Enter or A to send", Background = Brushes.Transparent, BorderThickness = new(0), FocusVisualStyle = null,
+            Foreground = DS.Brush("DS.Text"), CaretBrush = DS.Brush("DS.Text"), Template = Bare() };
         Input.KeyDown += (_, e) => { if (e.Key == Key.Enter && Keyboard.Modifiers == ModifierKeys.None) { e.Handled = true; Send(); } };
-        Input.TextChanged += (_, _) => { if (!busy) { Look(Input.Text.Length > 0 ? Gaze.Typing : Gaze.Idle); Typing(Input.Text.Length > 0); } };
-        var bar = new Grid { Margin = new(0, 12, 0, 0), Children = { Input, Kit.Icon("\uE8BD", 14, "DS.TextMuted").Also(i => { i.Margin = new(14, 0, 0, 0); i.HorizontalAlignment = HorizontalAlignment.Left; i.IsHitTestVisible = false; }) } };
+        var hint = Kit.Text("Tell me what feels off…", 14.5, "DS.TextMuted").Also(h => { h.IsHitTestVisible = false; h.Margin = new(6, 0, 0, 0); h.VerticalAlignment = VerticalAlignment.Center; });
+        Input.TextChanged += (_, _) => { hint.Visibility = Input.Text.Length > 0 ? Visibility.Collapsed : Visibility.Visible; if (!busy) { Look(Input.Text.Length > 0 ? Gaze.Typing : Gaze.Idle); Typing(Input.Text.Length > 0); } };
+        var sendGlyph = Kit.Icon("\uE724", 16, "DS.Text").Also(i => { i.Foreground = new SolidColorBrush(Color.FromRgb(24, 20, 8)); i.HorizontalAlignment = HorizontalAlignment.Center; });
+        sendRound = PadKey(new Border { Width = 40, Height = 40, CornerRadius = new(20), Background = new SolidColorBrush(Amber), BorderThickness = new(1), BorderBrush = new SolidColorBrush(Amber), Child = sendGlyph }, "Send", Send);
+        register(sendRound);
+        var field = new Grid { ColumnDefinitions = { new() { Width = GridLength.Auto }, new() { Width = GridLength.Auto }, new(), new() { Width = GridLength.Auto } } };
+        field.Children.Add(Kit.Icon("\uE8BD", 16, "DS.TextMuted").Also(i => i.Margin = new(4, 0, 12, 0)));
+        var sep = new Border { Width = 1, Height = 22, Margin = new(0, 0, 12, 0), Background = new SolidColorBrush(Line) }; Grid.SetColumn(sep, 1); field.Children.Add(sep);
+        var typed = new Grid { Children = { hint, Input } }; Grid.SetColumn(typed, 2); field.Children.Add(typed);
+        Grid.SetColumn(sendRound, 3); field.Children.Add(sendRound);
+        var bar = new Border { Margin = new(0, 10, 0, 0), CornerRadius = new(26), Padding = new(12, 4, 6, 4), BorderThickness = new(1), BorderBrush = new SolidColorBrush(Line), Background = new SolidColorBrush(Card), Child = field };
 
-        var split = new Grid { ColumnDefinitions = { new() { Width = new GridLength(400) }, new() { Width = new GridLength(25) }, new() }, RowDefinitions = { new(), new() { Height = GridLength.Auto } } };
-        split.Children.Add(ideas);
-        var divider = new Border { Width = 1, Background = new SolidColorBrush(Color.FromArgb(36, 255, 255, 255)) }; Grid.SetColumn(divider, 1); split.Children.Add(divider);
-        Grid.SetColumn(chat, 2); split.Children.Add(chat);
-        Grid.SetRow(bar, 1); Grid.SetColumn(bar, 2); split.Children.Add(bar);
+        // the rail: the conversation, the ideas, another controller, the settings now, PC mode; the agent's settings last
+        var railItems = new StackPanel();
+        Border RailItem(string glyph, string tip, Action act, Panel into)
+        {
+            var stripe = new Border { Width = 3, Height = 22, CornerRadius = new(1.5), HorizontalAlignment = HorizontalAlignment.Left, Background = Brushes.Transparent };
+            var look = new Border { Width = 46, Height = 46, CornerRadius = new(12), Margin = new(0, 2, 0, 2), BorderThickness = new(1), BorderBrush = Brushes.Transparent, Background = Brushes.Transparent,
+                Child = new Grid { Children = { stripe, Kit.Icon(glyph, 18, "DS.TextSoft").Also(i => i.HorizontalAlignment = HorizontalAlignment.Center) } } };
+            var item = PadKey(look, tip, act); register(item); into.Children.Add(item);
+            return look;
+        }
+        rail[View.Chat] = RailItem("\uE8BD", "Conversation", () => ShowView(View.Chat), railItems);
+        rail[View.Ideas] = RailItem("\uE82F", "Ideas", () => { ShowView(View.Ideas); Search.Focus(); }, railItems);
+        RailItem("\uE7FC", "Another controller", () => ChangeControllerRequested?.Invoke(), railItems);
+        RailItem("\uE9E9", "Settings now", () => ShowSettingsPage(!SettingsOpen), railItems);
+        RailItem("\uE7F4", "PC mode", () => PageRequested?.Invoke("PcMode"), railItems);
+        var railFoot = new StackPanel();
+        railFoot.Children.Add(new Border { Height = 1, Margin = new(8, 6, 8, 8), Background = new SolidColorBrush(Line) });
+        RailItem("\uE713", "Agent settings", () => ShowSettingsPage(!SettingsOpen), railFoot);
+        var railDock = new DockPanel(); DockPanel.SetDock(railFoot, Dock.Bottom); railDock.Children.Add(railFoot); railDock.Children.Add(railItems);
+        var railBox = new Border { Width = 58, Padding = new(5, 8, 5, 6), Margin = new(0, 0, 14, 0), CornerRadius = new(16), BorderThickness = new(1), BorderBrush = new SolidColorBrush(Line), Background = new SolidColorBrush(Card), Child = railDock };
+
+        var views = new Grid { Children = { scroller, ideasView } };
+        var content = new DockPanel();
+        DockPanel.SetDock(heading, Dock.Top); content.Children.Add(heading);
+        DockPanel.SetDock(pills, Dock.Top); content.Children.Add(pills);
+        DockPanel.SetDock(bar, Dock.Bottom); content.Children.Add(bar);
+        content.Children.Add(views);
+        var layout = new DockPanel(); DockPanel.SetDock(railBox, Dock.Left); layout.Children.Add(railBox); layout.Children.Add(new Grid { Children = { content, settingsBox } });
         var screen = new Border
         {
-            Width = 990, Height = 418, CornerRadius = new(18), Padding = new(18, 14, 16, 14), BorderThickness = new(1.5), Child = new Grid { Children = { split, settingsBox } },
-            Background = new LinearGradientBrush(Color.FromRgb(8, 13, 28), Color.FromRgb(4, 7, 16), 90),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(200, 4, 6, 12)),
+            Width = 984, Height = 631,
+            Child = new Viewbox { Stretch = Stretch.Fill, Child = new Border { Width = 984 / ScreenZoom, Height = 631 / ScreenZoom, Padding = new(18, 15, 20, 13), Child = layout } },
+            Background = new LinearGradientBrush(ScreenTop, ScreenBottom, 90),
         };
 
-        // ---- the controller around it ----
+        // ---- the controller around it: the owner's concept art (19 Oct 2026, "literally, same design"), cut from its
+        // backdrop with the screen emptied; the live screen sits in its display, and each drawn control is a real button ----
         var pad = new Canvas { Width = DesignWidth, Height = DesignHeight, RenderTransform = shake };
-        // the bumpers, behind the shell's top edge: LB starts over, RB opens the settings
-        var (startOver, _, _) = Bumper("LB", "Start over", 70, new CornerRadius(26, 18, 6, 6));
-        startOver.Click += (_, _) => Restart();
-        var (settingsButton, _, _) = Bumper("RB", "Settings", DesignWidth - 70 - 220, new CornerRadius(18, 26, 6, 6));
-        settingsButton.Click += (_, _) => { ShowSettingsPage(!SettingsOpen); };
-        register(startOver); register(settingsButton);
-        pad.Children.Add(startOver); pad.Children.Add(settingsButton);
-        var shell = new System.Windows.Shapes.Path
-        {
-            Data = ShellShape, StrokeThickness = 1.5, Stroke = new LinearGradientBrush(skin.Stroke, Color.FromArgb(40, skin.Stroke.R, skin.Stroke.G, skin.Stroke.B), 90),
-            Fill = skin.Shell,
-            Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 44, ShadowDepth = 12, Opacity = .6 },
-        };
-        pad.Children.Add(shell); Drag(shell);
-        // the grips in their own colour, and the light strips the real pad has
-        pad.Children.Add(new System.Windows.Shapes.Path
-        {
-            // the shell where the grips are, as one shape (a clip here stopped the whole page drawing)
-            Data = new CombinedGeometry(GeometryCombineMode.Intersect, ShellShape, new GeometryGroup { Children = { new RectangleGeometry(new Rect(0, 430, 214, 160), 60, 60), new RectangleGeometry(new Rect(DesignWidth - 214, 430, 214, 160), 60, 60) } }),
-            Fill = skin.Grip, IsHitTestVisible = false,
-        });
-        if (skin.Strips is { Length: 2 } strips)
-            // they hug the screen (owner, 13 Oct): down each side, round the bottom corner, and along the bottom
-            foreach (var (data, from, to) in new[] { ("M 199,175 L 199,470 Q 199,496 225,496 L 470,496", strips[0], strips[1]), ($"M {DesignWidth - 199},175 L {DesignWidth - 199},470 Q {DesignWidth - 199},496 {DesignWidth - 225},496 L {DesignWidth - 470},496", strips[1], strips[0]) })
-                pad.Children.Add(new System.Windows.Shapes.Path
-                {
-                    Data = Geometry.Parse(data), StrokeThickness = 4, StrokeLineJoin = PenLineJoin.Round, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, IsHitTestVisible = false,
-                    Stroke = new LinearGradientBrush(from, to, 45), Effect = new DropShadowEffect { Color = from, BlurRadius = 22, ShadowDepth = 0, Opacity = .9 },
-                });
-        // grip texture, so the lower corners read as handles
-        foreach (var (x, dir) in new[] { (75.0, 1), (DesignWidth - 75, -1) })
-            for (int i = 0; i < 4; i++)
-                pad.Children.Add(new System.Windows.Shapes.Line { X1 = x - 22 * dir + i * 12 * dir, Y1 = 498 + i * 8, X2 = x - 8 * dir + i * 12 * dir, Y2 = 534 + i * 8, Stroke = new SolidColorBrush(skin.GripTop.R + skin.GripTop.G + skin.GripTop.B > 450 ? Color.FromArgb(40, 0, 0, 0) : Color.FromArgb(28, 255, 255, 255)), StrokeThickness = 2, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, IsHitTestVisible = false });
-        // the player lights: this player's is lit in the model's state; they chase while it thinks
+        var art = new System.Windows.Controls.Image { Width = DesignWidth, Height = DesignHeight, Stretch = Stretch.Fill, Source = new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/X20Ctl;component/Agent/agent-shell.png")),
+            Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 44, ShadowDepth = 12, Opacity = .6 } };
+        pad.Children.Add(art); Drag(art);
+        // the player lights, over the drawn ones: this player's lit in the agent's state; they chase while it thinks
         for (int i = 0; i < 4; i++)
         {
-            leds[i] = new Border { Width = 22, Height = 7, CornerRadius = new(3.5), IsHitTestVisible = false };
-            Canvas.SetLeft(leds[i], DesignWidth / 2 - 56 + i * 28); Canvas.SetTop(leds[i], 56); pad.Children.Add(leds[i]);
+            leds[i] = new Border { Width = 28, Height = 10, CornerRadius = new(5), IsHitTestVisible = false };
+            Canvas.SetLeft(leds[i], 795 + i * 43); Canvas.SetTop(leds[i], 48); pad.Children.Add(leds[i]);
         }
-        Canvas.SetLeft(screen, (DesignWidth - 990) / 2); Canvas.SetTop(screen, 72); pad.Children.Add(screen);
+        // the display is an octagon: the screen is cut to it
+        screen.Clip = Geometry.Parse("M 37,2 L 938,2 L 984,49 L 984,558 L 915,631 L 66,631 L 0,563 L 0,54 Z");
+        Canvas.SetLeft(screen, ScreenX); Canvas.SetTop(screen, ScreenY); pad.Children.Add(screen);
+
+        // the bumpers, as drawn: LB the ideas, RB the settings
+        var ideasBumper = Hit(280, 10, 200, 50, 18, "LB · Ideas", () => { ShowView(View.Ideas); Search.Focus(); Look(Gaze.Ideas); });
+        var settingsButton = Hit(1265, 10, 205, 50, 18, "RB · Settings", () => ShowSettingsPage(!SettingsOpen));
+        pad.Children.Add(ideasBumper); pad.Children.Add(settingsButton);
 
         // the sticks are its eyes
-        Eye(pad, LeftX, EyeY); Eye(pad, RightX, EyeY);
+        // each eye at the centre of its stick's dish, measured on the art
+        Eye(pad, LeftX, EyeY); Eye(pad, RightX, EyeY - 2);
 
         // left: the D-pad scrolls the conversation, and steps through the ideas
-        var dpad = new (string Glyph, double X, double Y, string Tip, Action Act)[]
+        foreach (var (x, y, tip, act) in new (double, double, string, Action)[]
         {
-            ("▲", 0, -1, "Scroll up", () => scroller.ScrollToVerticalOffset(scroller.VerticalOffset - 140)),
-            ("▼", 0, 1, "Scroll down", () => scroller.ScrollToVerticalOffset(scroller.VerticalOffset + 140)),
-            ("◀", -1, 0, "Previous idea", () => Idea(-1)),
-            ("▶", 1, 0, "Next idea", () => Idea(1)),
-        };
-        var hub = new Border { Width = 34, Height = 34, Background = new LinearGradientBrush(CapLight, CapDark, 90), IsHitTestVisible = false };
-        Canvas.SetLeft(hub, LeftX - 17); Canvas.SetTop(hub, PadY - 17); pad.Children.Add(hub);
-        foreach (var d in dpad)
-        {
-            var arm = PadKey(new Border
-            {
-                Width = 34, Height = 36, BorderThickness = new(1), BorderBrush = new SolidColorBrush(Edge), Background = new LinearGradientBrush(CapLight, CapDark, 90),
-                CornerRadius = d.Y < 0 ? new(8, 8, 0, 0) : d.Y > 0 ? new(0, 0, 8, 8) : d.X < 0 ? new(8, 0, 0, 8) : new(0, 8, 8, 0),
-                Child = Kit.Text(d.Glyph, 11, "DS.TextMuted").Also(t => t.HorizontalAlignment = HorizontalAlignment.Center),
-            }, d.Tip, d.Act);
-            if (d.X != 0) { ((Border)arm.Content).Width = 36; ((Border)arm.Content).Height = 34; }
-            Canvas.SetLeft(arm, LeftX - 17 + d.X * 35 - (d.X < 0 ? 2 : 0)); Canvas.SetTop(arm, PadY - 17 + d.Y * 35 - (d.Y < 0 ? 2 : 0));
-            register(arm); pad.Children.Add(arm);
-        }
-        Legend(pad, LeftX, PadY + 74, "▲▼ scroll\n◀▶ ideas");
+            (0, -1, "Scroll up", () => scroller.ScrollToVerticalOffset(scroller.VerticalOffset - 140)),
+            (0, 1, "Scroll down", () => scroller.ScrollToVerticalOffset(scroller.VerticalOffset + 140)),
+            (-1, 0, "Previous idea", () => Idea(-1)),
+            (1, 0, "Next idea", () => Idea(1)),
+        })
+            pad.Children.Add(Hit(PadX - 24 + x * 52, PadY - 24 + y * 52, 48, 48, 8, tip, act));
 
-        // right: the face buttons. A sends, B puts it away, X starts over, Y shows every idea
-        var face = new (string Letter, double X, double Y, string Tip, Action Act)[]
+        // right: the face buttons, drawn pulled in so B clears the grip (owner, 19 Oct 2026). A sends, B puts it away, X starts
+        // over, Y searches the ideas
+        foreach (var (letter, x, y, tip, act) in new (string, double, double, string, Action)[]
         {
-            ("Y", 0, -1, "Search the ideas", () => { Search.Focus(); Search.SelectAll(); Look(Gaze.Ideas); }),
-            ("X", -1, 0, "New conversation", Restart),
-            ("B", 1, 0, "Put away", () => { if (SettingsOpen) ShowSettingsPage(false); else CloseRequested?.Invoke(); }),
-            ("A", 0, 1, "Send", Send),
-        };
-        foreach (var f in face)
+            ("Y", 1490, 359, "Search the ideas", () => { ShowView(View.Ideas); Search.Focus(); Search.SelectAll(); Look(Gaze.Ideas); }),
+            ("X", 1438, 417, "New conversation", Restart),
+            ("B", 1540, 424, "Put away", () => { if (SettingsOpen) ShowSettingsPage(false); else CloseRequested?.Invoke(); }),
+            ("A", 1490, 481, "Send", Send),
+        })
         {
-            bool primary = f.Letter == "A";
-            var cap = PadKey(new Border
-            {
-                Width = 42, Height = 42, CornerRadius = new(21), BorderThickness = new(primary ? 2 : 1),
-                BorderBrush = primary ? DS.Brush("DS.AccentHi") : new SolidColorBrush(Edge),
-                Background = primary ? new RadialGradientBrush(Color.FromRgb(70, 140, 250), Color.FromRgb(28, 70, 160)) : new RadialGradientBrush(CapLight, CapDark),
-                Effect = primary ? new DropShadowEffect { Color = Color.FromRgb(70, 150, 255), BlurRadius = 16, ShadowDepth = 0, Opacity = .7 } : null,
-                Child = Kit.Text(f.Letter, 17, primary ? "DS.Text" : "DS.TextSoft", FontWeights.SemiBold).Also(t => t.HorizontalAlignment = HorizontalAlignment.Center),
-            }, f.Tip, f.Act);
-            Canvas.SetLeft(cap, RightX - 21 + f.X * 42); Canvas.SetTop(cap, PadY - 21 + f.Y * 42);
-            register(cap); pad.Children.Add(cap);
-            if (primary) send = cap;
+            var cap = Hit(x - 35, y - 35, 70, 70, 35, tip, act);
+            pad.Children.Add(cap);
+            if (letter == "A") send = cap;
         }
-        Legend(pad, RightX, PadY + 74, "A send · B away\nX new · Y search");
         send ??= new Button();
-        ShowIdeas("");
+        ShowIdeas(""); ShowView(View.Chat);
 
         Body = new Border
         {
@@ -260,19 +277,6 @@ public sealed class AgentPanel
         ShowState(); Look(Gaze.Idle);
     }
 
-    (Button, Border, TextBlock) Bumper(string key, string label, double x, CornerRadius corners)
-    {
-        var text = Kit.Text(label, 13, "DS.TextSoft");
-        var cap = new Border
-        {
-            Width = 220, Height = 50, CornerRadius = corners, BorderThickness = new(1), BorderBrush = new SolidColorBrush(Edge), Background = new LinearGradientBrush(CapLight, CapDark, 90),
-            Child = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Top, Margin = new(0, 9, 0, 0), Children = { Kit.Text(key, 12, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(0, 0, 8, 0)), text } },
-        };
-        var button = PadKey(cap, key + " · " + label, null);
-        Canvas.SetLeft(button, x); Canvas.SetTop(button, 10);
-        return (button, cap, text);
-    }
-
     /// <summary>A control on the controller: its own drawing, a lit edge when hovered or focused.</summary>
     static Button PadKey(Border look, string tip, Action? act)
     {
@@ -285,12 +289,6 @@ public sealed class AgentPanel
         button.GotKeyboardFocus += (_, _) => Lit(true); button.LostKeyboardFocus += (_, _) => Lit(button.IsMouseOver);
         if (act != null) button.Click += (_, _) => act();
         return button;
-    }
-
-    void Legend(Canvas pad, double x, double y, string text)
-    {
-        var t = Kit.Text(text, 11.5, "DS.TextMuted").Also(t => { t.Foreground = new SolidColorBrush(skin.Ink); t.TextAlignment = TextAlignment.Center; t.Width = 150; t.TextTrimming = TextTrimming.None; t.IsHitTestVisible = false; });
-        Canvas.SetLeft(t, x - 75); Canvas.SetTop(t, y); pad.Children.Add(t);
     }
 
     void Idea(int step)
@@ -314,44 +312,79 @@ public sealed class AgentPanel
             var card = PadKey(new Border
             {
                 CornerRadius = new(12), Padding = new(12, 8, 12, 9), Margin = new(0, 0, 0, 6), BorderThickness = new(1),
-                Background = new SolidColorBrush(Color.FromArgb(70, 30, 44, 76)), BorderBrush = new SolidColorBrush(Color.FromArgb(40, 120, 170, 255)),
-                Child = new StackPanel { Children = { Wrap(idea.Have, 12.5, "DS.TextMuted"), Wrap("“" + idea.Say + "”", 14, "DS.AccentHi", 3) } },
+                Background = new SolidColorBrush(Card), BorderBrush = new SolidColorBrush(Line),
+                Child = new StackPanel { Children = { Wrap(idea.Have, 12.5, "DS.TextMuted"), Wrap("“" + idea.Say + "”", 14, "DS.Text", 3) } },
             }, "Say it", null);
             string say = idea.Say;
-            card.Click += (_, _) => { if (!busy) { Input.Text = say; Send(); } };
+            card.Click += (_, _) => { if (!busy) { ShowView(View.Chat); Input.Text = say; Send(); } };
             register(card); ideasList.Children.Add(card);
         }
     }
+
+    /// <summary>The screen shows the conversation or the ideas; the rail and the pills say which.</summary>
+    void ShowView(View view)
+    {
+        scroller.Visibility = view == View.Chat ? Visibility.Visible : Visibility.Collapsed;
+        ideasView.Visibility = view == View.Ideas ? Visibility.Visible : Visibility.Collapsed;
+        foreach (var (v, look) in rail)
+        {
+            bool on = v == view;
+            look.Background = on ? new SolidColorBrush(Color.FromRgb(34, 39, 47)) : Brushes.Transparent;
+            if (look.Child is Grid { Children: [Border stripe, TextBlock icon] }) { stripe.Background = on ? new SolidColorBrush(Amber) : Brushes.Transparent; icon.Foreground = on ? DS.Brush("DS.Text") : DS.Brush("DS.TextSoft"); }
+        }
+        if (view == View.Chat) scroller.ScrollToEnd();
+        Pills();
+    }
+
+    /// <summary>The pill whose topic is listed is lit amber.</summary>
+    void Pills()
+    {
+        string q = ideasView.Visibility == Visibility.Visible ? Search.Text.Trim() : "";
+        foreach (var (query, look, text, icon) in topics)
+        {
+            bool on = string.Equals(q, query, StringComparison.OrdinalIgnoreCase);
+            look.Background = new SolidColorBrush(on ? Amber : Card);
+            look.BorderBrush = new SolidColorBrush(on ? Amber : Line);
+            var ink = on ? new SolidColorBrush(Color.FromRgb(24, 20, 8)) : DS.Brush("DS.TextSoft");
+            text.Foreground = ink; icon.Foreground = ink;
+        }
+    }
+
+    /// <summary>A text box drawn as its text alone: the chat bar around it is the box.</summary>
+    static ControlTemplate Bare()
+    {
+        var host = new FrameworkElementFactory(typeof(ScrollViewer)) { Name = "PART_ContentHost" };
+        host.SetValue(Control.PaddingProperty, new TemplateBindingExtension(Control.PaddingProperty));
+        host.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center);
+        return new ControlTemplate(typeof(TextBox)) { VisualTree = host };
+    }
+
+    static Border Rule() => new() { Width = 1, Height = 22, Margin = new(14, 0, 14, 0), VerticalAlignment = VerticalAlignment.Center, Background = new SolidColorBrush(Line) };
+    static Border Chip(FrameworkElement dot, TextBlock text) => new()
+    {
+        CornerRadius = new(14), Height = 28, Padding = new(10, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center, BorderThickness = new(1), BorderBrush = new SolidColorBrush(Line), Background = new SolidColorBrush(Card),
+        Child = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Children = { dot, text.Also(t => t.VerticalAlignment = VerticalAlignment.Center) } },
+    };
 
     // ---- the eyes: where it looks says what it's doing ----
     enum Gaze { Idle, Typing, Thinking, Down, Ideas }
     void Eye(Canvas pad, double cx, double cy)
     {
-        var well = new System.Windows.Shapes.Ellipse { Width = 100, Height = 100, Fill = new RadialGradientBrush(Color.FromRgb(5, 8, 16), Color.FromRgb(12, 17, 30)), Stroke = new SolidColorBrush(Edge), StrokeThickness = 1.2, IsHitTestVisible = false };
-        Canvas.SetLeft(well, cx - 50); Canvas.SetTop(well, cy - 50); pad.Children.Add(well);
-        if (skin.Rings is { Length: 2 } rings)
-        {
-            var ring = new System.Windows.Shapes.Ellipse { Width = 108, Height = 108, StrokeThickness = 4, IsHitTestVisible = false, Stroke = new LinearGradientBrush(rings[0], rings[1], 45),
-                Effect = new DropShadowEffect { Color = rings[0], BlurRadius = 18, ShadowDepth = 0, Opacity = .85 } };
-            Canvas.SetLeft(ring, cx - 54); Canvas.SetTop(ring, cy - 54); pad.Children.Add(ring);
-        }
         var look = new TranslateTransform(); var lid = new ScaleTransform(1, 1);
         var pupil = new System.Windows.Shapes.Rectangle { Width = 13, Height = 24, RadiusX = 6.5, RadiusY = 6.5, Fill = new SolidColorBrush(AgentMark.Ice), RenderTransformOrigin = new(.5, .5), RenderTransform = lid,
             Effect = new DropShadowEffect { Color = AgentMark.Ice, BlurRadius = 18, ShadowDepth = 0, Opacity = 1 } };
-        var cap = new Grid
-        {
-            Width = 74, Height = 74, IsHitTestVisible = false, RenderTransform = look,
-            Children =
-            {
-                new System.Windows.Shapes.Ellipse { Fill = new RadialGradientBrush(new GradientStopCollection { new(Color.FromRgb(58, 72, 102), 0), new(CapDark, 1) }) { GradientOrigin = new(.4, .35) }, Stroke = new SolidColorBrush(Edge), StrokeThickness = 1.5 },
-                new System.Windows.Shapes.Ellipse { Margin = new(9), Stroke = new SolidColorBrush(Color.FromArgb(40, 255, 255, 255)), StrokeThickness = 1 },
-                pupil,
-                Squint(cx < DesignWidth / 2),
-            },
-        };
+        var cap = new Grid { Width = 74, Height = 74, IsHitTestVisible = false, RenderTransform = look, Children = { pupil, Squint(cx < DesignWidth / 2) } };
         Canvas.SetLeft(cap, cx - 37); Canvas.SetTop(cap, cy - 37); pad.Children.Add(cap);
         eyes.Add((look, lid, cx < DesignWidth / 2 ? 1 : -1));
         squints.Add((pupil, cap.Children[^1]));
+    }
+
+    /// <summary>A drawn control made real: an invisible button over it, lit round its edge when hovered or focused.</summary>
+    Button Hit(double x, double y, double w, double h, double radius, string tip, Action act)
+    {
+        var button = PadKey(new Border { Width = w, Height = h, CornerRadius = new(radius), Background = Brushes.Transparent, BorderThickness = new(2), BorderBrush = Brushes.Transparent }, tip, act);
+        Canvas.SetLeft(button, x); Canvas.SetTop(button, y); register(button);
+        return button;
     }
 
     /// <summary>The left eye's ">" or the right eye's "<": lit like the pupil, hidden until it laughs.</summary>
@@ -612,7 +645,7 @@ public sealed class AgentPanel
         status.Text = "Ready";
         statusDot.Background = DS.Brush("DS.Success");
         if (!lightsOn) for (int i = 0; i < 4; i++) leds[i].Background = i == Math.Clamp(player, 0, 3) || busy ? statusDot.Background : new SolidColorBrush(Color.FromArgb(40, 255, 255, 255));
-        send.IsEnabled = !busy;
+        send.IsEnabled = !busy; sendRound.IsEnabled = !busy; sendRound.Opacity = busy ? .45 : 1;
     }
 
     async void Send() { if (Input.Text.Trim() is { Length: > 0 } sentence && !busy) { Input.Text = ""; await Ask(sentence); } }
@@ -622,16 +655,17 @@ public sealed class AgentPanel
     public async Task<AgentTurn?> Ask(string sentence)
     {
         if (busy) return null;
+        ShowView(View.Chat);
         // broken English is read as plain English first; the owner sees how (Preview 6)
         string said = sentence; sentence = AgentGrammar.Plain(said); string? reading = AgentGrammar.Reading(said, sentence);
         // the help list is the app's own answer: instant, the same online and offline
-        if (AgentHelp.Asks(sentence)) { Mine(said, reading); announced = ""; Search.Text = ""; settle.Stop(); ShowIdeas("", everything: true); Searching(false); Look(Gaze.Ideas); Say(AgentVariety.Pick("help", ["Here's everything I can do, on the left. Pick one, or search it. *proudly clicks every button*", "Ta-da! My whole skill list, on the left. Pick one.", "On the left: everything I'm good at. It's a long list. *ahem*"]), null); _ = Lights(AgentMood.Good); return null; }
+        if (AgentHelp.Asks(sentence)) { Mine(said, reading); announced = ""; Search.Text = ""; settle.Stop(); ShowIdeas("", everything: true); ShowView(View.Ideas); Searching(false); Look(Gaze.Ideas); Say(AgentVariety.Pick("help", ["Here's everything I can do. Pick one, or search it. *proudly clicks every button*", "Ta-da! My whole skill list. Pick one.", "Everything I'm good at, listed. It's a long list. *ahem*"]), null); _ = Lights(AgentMood.Good); return null; }
         // a topic alone is a search: the ideas narrow to it, and the app answers itself
         // the app's own commands: the controller's name, the battery, another controller, a star, a donation
         if (AgentCommands.Parse(sentence) is var command and not AgentCommand.None && (!session.HasPendingClarification || command != AgentCommand.AboutController)) { Mine(said, reading); session.CancelClarification(); await Do(command); return null; }
         if (!session.HasPendingClarification && AgentIdeas.Topic(sentence) is { } topic)
         {
-            Mine(said, reading); announced = topic; Search.Text = topic; settle.Stop();
+            Mine(said, reading); announced = topic; Search.Text = topic; settle.Stop(); ShowView(View.Ideas);
             Look(Gaze.Ideas); Say(AgentIdeas.TopicReply(topic), null); _ = Lights(AgentMood.Good); return null;
         }
         busy = true; settle.Stop(); Searching(true); ShowState(); Thinking?.Invoke(true); Circling(true);
@@ -706,8 +740,8 @@ public sealed class AgentPanel
         {
             CornerRadius = new(16), Padding = new(14, 10, 14, 10), Margin = mine ? new(50, 5, 0, 5) : new(0, 5, 24, 5),
             HorizontalAlignment = mine ? HorizontalAlignment.Right : HorizontalAlignment.Left, BorderThickness = new(1),
-            Background = new SolidColorBrush(mine ? Color.FromArgb(150, 36, 82, 160) : Color.FromArgb(140, 14, 24, 48)),
-            BorderBrush = new SolidColorBrush(mine ? Color.FromArgb(120, 125, 182, 255) : Color.FromArgb(60, 120, 170, 255)),
+            Background = new SolidColorBrush(mine ? Color.FromRgb(34, 39, 47) : Card),
+            BorderBrush = new SolidColorBrush(mine ? Color.FromRgb(58, 64, 74) : Line),
             Child = Wrap(text, 14, "DS.Text"),
         };
         transcript.Children.Add(bubble); Fx.Appear(bubble, .97, 200); scroller.ScrollToEnd(); return bubble;
@@ -717,13 +751,16 @@ public sealed class AgentPanel
     Border Mine(string said, string? reading)
     {
         var bubble = Bubble(said, mine: true);
+        lastMine = (said, [bubble]);
         if (reading != null)
         {
-            transcript.Children.Add(Wrap("I read that as: " + reading, 12, "DS.TextMuted").Also(t => { t.HorizontalAlignment = HorizontalAlignment.Right; t.Margin = new(50, 0, 6, 6); }));
+            var read = Wrap("I read that as: " + reading, 12, "DS.TextMuted").Also(t => { t.HorizontalAlignment = HorizontalAlignment.Right; t.Margin = new(50, 0, 6, 6); });
+            transcript.Children.Add(read); lastMine.Value.Shown.Add(read);
             scroller.ScrollToEnd();
         }
         return bubble;
     }
+    (string Said, List<UIElement> Shown)? lastMine;
 
     void Say(string text, string? detail)
     {
@@ -737,7 +774,21 @@ public sealed class AgentPanel
     {
         var stack = new StackPanel();
         var v = turn.Verdict;
-        stack.Children.Add(Wrap(v.Proposal?.Speech is { Length: > 0 } speech ? speech : "I didn't give a usable answer.", 14, "DS.Text"));
+        var sticks = failure == null && undo != null && turn.Outcome.Next is { } curved ? AgentResponsePreview.ChangedSticks(undo, curved) : [];
+        bool hero = sticks.Count > 0;
+        string spoken = v.Proposal?.Speech is { Length: > 0 } speech ? speech : "I didn't give a usable answer.";
+        if (hero)
+        {
+            stack.Children.Add(Wrap(spoken, 23, "DS.Text").Also(t => { t.FontWeight = FontWeights.Bold; t.TextAlignment = TextAlignment.Center; t.HorizontalAlignment = HorizontalAlignment.Center; t.MaxWidth = 640; }));
+            if (lastMine is { } asked)
+            {
+                foreach (var shown in asked.Shown) transcript.Children.Remove(shown);
+                lastMine = null;
+                stack.Children.Add(new Border { CornerRadius = new(10), Padding = new(16, 7, 16, 8), Margin = new(0, 10, 0, 2), HorizontalAlignment = HorizontalAlignment.Center, BorderThickness = new(1),
+                    BorderBrush = new SolidColorBrush(Color.FromRgb(58, 64, 74)), Background = new SolidColorBrush(Color.FromRgb(34, 39, 47)), Child = Wrap(asked.Said, 14, "DS.Text") });
+            }
+        }
+        else stack.Children.Add(Wrap(spoken, 17, "DS.Text").Also(t => t.FontWeight = FontWeights.SemiBold));
         // what the app itself measured, before what the model made of it
         if (turn.Measured is { } m)
         {
@@ -746,29 +797,23 @@ public sealed class AgentPanel
                 stack.Children.Add(Wrap(string.Create(System.Globalization.CultureInfo.InvariantCulture, $"Measured · {AgentApplier.Name(d.Stick)} rests at {d.RestX:+0.0;-0.0;0.0}%, {d.RestY:+0.0;-0.0;0.0}% and wanders up to {d.Peak:0.0}%"), 14, "DS.Warn", 8));
         }
         foreach (var c in turn.Outcome.Changes)
-            stack.Children.Add(Wrap($"{c.What}   {c.Before} → {c.After}", 14, "DS.AccentHi", 6));
-        if (failure == null && undo != null && turn.Outcome.Next is { } saved)
-        {
-            foreach (var group in AgentResponsePreview.Samples(undo, saved).GroupBy(row => row.Target))
+            stack.Children.Add(Wrap($"{c.What}   {c.Before} → {c.After}", hero ? 12.5 : 14, hero ? "DS.TextMuted" : "DS.AccentHi", 6).Also(t => { if (hero) t.HorizontalAlignment = HorizontalAlignment.Center; }));
+        // a stick that changed: its curve now and the one proposed, side by side
+        if (hero && undo != null && turn.Outcome.Next is { } saved)
+            foreach (var stick in sticks)
             {
-                var preview = new StackPanel { Margin = new(0, 8, 0, 0) };
-                preview.Children.Add(Kit.Text(AgentApplier.Name(group.Key) + " · horizontal output", 12, "DS.TextMuted"));
-                var columns = new System.Windows.Controls.Primitives.UniformGrid { Columns = 3, Margin = new(0, 4, 0, 0) };
-                foreach (var sample in group)
-                {
-                    var cell = new StackPanel { Margin = new(0, 0, 10, 0) };
-                    cell.Children.Add(Kit.Text($"{sample.Input:0}% push", 12, "DS.TextSoft"));
-                    cell.Children.Add(Kit.Text(FormattableString.Invariant($"{sample.BeforePercent:0.0}% → {sample.AfterPercent:0.0}%"), 13, "DS.AccentHi"));
-                    columns.Children.Add(cell);
-                }
-                preview.Children.Add(columns);
-                if (group.First().ContextualNote is { } note) preview.Children.Add(Wrap(note, 12, "DS.TextMuted", 4));
-                stack.Children.Add(preview);
+                var points = AgentResponsePreview.Curve(undo, saved, stick);
+                var pair = new System.Windows.Controls.Primitives.UniformGrid { Columns = 2, Margin = new(0, 10, 0, 0) };
+                pair.Children.Add(CurveCard("Current", AgentApplier.Name(stick), points.Select(p => (p.Input, p.Before)).ToList(), proposed: false));
+                pair.Children.Add(CurveCard("Proposed", AgentApplier.Name(stick), points.Select(p => (p.Input, p.After)).ToList(), proposed: true));
+                stack.Children.Add(pair);
+                if (AgentResponsePreview.Samples(undo, saved).FirstOrDefault(s => s.Target == stick)?.ContextualNote is { } note) stack.Children.Add(Wrap(note, 12, "DS.TextMuted", 6));
             }
-        }
         // why it fits, or the answer to a question: the model's words, from the settings' meanings
-        if (v.Valid && v.Proposal?.Recap is { Length: > 0 } recap)
-            stack.Children.Add(new Border { BorderBrush = DS.Brush("DS.AccentHi"), BorderThickness = new(2, 0, 0, 0), Padding = new(12, 2, 0, 2), Margin = new(0, 10, 0, 0), Child = Wrap(recap, 13.5, "DS.TextSoft") });
+        if (v.Valid && v.Proposal?.Recap is { Length: > 0 } recap && hero)
+            stack.Children.Add(Wrap(recap, 14.5, "DS.Text", 12).Also(t => { t.TextAlignment = TextAlignment.Center; t.HorizontalAlignment = HorizontalAlignment.Center; t.MaxWidth = 680; }));
+        else if (v.Valid && v.Proposal?.Recap is { Length: > 0 } other)
+            stack.Children.Add(new Border { BorderBrush = DS.Brush("DS.AccentHi"), BorderThickness = new(2, 0, 0, 0), Padding = new(12, 2, 0, 2), Margin = new(0, 10, 0, 0), Child = Wrap(other, 13.5, "DS.TextSoft") });
         // the switch: "" when it worked, otherwise why not
         if (switched != null && turn.Outcome.PcMode is { } pc)
             stack.Children.Add(Wrap(switched.Length == 0 ? $"PC mode   {(pc ? "on" : "off")}" : "PC mode · " + switched, 14, switched.Length == 0 ? "DS.AccentHi" : "DS.Warn", 6));
@@ -787,9 +832,83 @@ public sealed class AgentPanel
             : turn.Outcome.Next != null && turn.Outcome.Changes.Count > 0 ? $"Applied · {turn.Outcome.Changes.Count} change{(turn.Outcome.Changes.Count == 1 ? "" : "s")}{(link == null ? " · preview only" : "")}"
             : !v.Valid ? "Rejected · nothing changed · " + AgentSession.Problems(v)
             : turn.Outcome.Error != null ? "Rejected · " + turn.Outcome.Error : "No changes");
-        stack.Children.Add(Wrap(verdict, 14, failure != null || !v.Valid || turn.Outcome.Error != null ? "DS.Danger" : turn.Outcome.Changes.Count > 0 ? "DS.Success" : "DS.TextMuted", 10).Also(t => t.FontWeight = FontWeights.SemiBold));
+        var verdictText = Wrap(verdict, 14, failure != null || !v.Valid || turn.Outcome.Error != null ? "DS.Danger" : turn.Outcome.Changes.Count > 0 ? "DS.Success" : "DS.TextMuted").Also(t => { t.FontWeight = FontWeights.SemiBold; t.VerticalAlignment = VerticalAlignment.Center; });
+        var footer = new DockPanel { Margin = new(0, 12, 0, 0), LastChildFill = true };
+        // applied straight away, so the way back sits beside it: only the latest change can be undone
+        if (failure == null && undo != null && turn.Outcome.Next != null && turn.Outcome.Changes.Count > 0)
+        {
+            var back = undo;
+            var undoButton = PadKey(new Border { CornerRadius = new(15), Height = 30, Padding = new(14, 0, 14, 0), BorderThickness = new(1.5), BorderBrush = new SolidColorBrush(Amber), Background = Brushes.Transparent,
+                Child = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Children = { Kit.Icon("", 12, "DS.Text").Also(i => { i.Foreground = new SolidColorBrush(Amber); i.Margin = new(0, 0, 7, 0); }), Kit.Text("Undo", 13, "DS.Text", FontWeights.SemiBold).Also(t => t.Foreground = new SolidColorBrush(Amber)) } } }, "Undo this change", null);
+            undoButton.Click += (_, _) => Undo(undoButton, back);
+            if (undoLatest != null) { undoLatest.IsEnabled = false; undoLatest.Opacity = .35; }
+            undoLatest = undoButton; register(undoButton);
+            DockPanel.SetDock(undoButton, Dock.Right); footer.Children.Add(undoButton);
+        }
+        footer.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = { Kit.Icon("", 13, "DS.TextMuted").Also(i => i.Margin = new(0, 0, 8, 0)), verdictText } });
+        stack.Children.Add(footer);
 
-        var bubble = Bubble("", false); bubble.Child = stack; scroller.ScrollToEnd();
+        var bubble = Bubble("", false); bubble.Child = stack; bubble.HorizontalAlignment = HorizontalAlignment.Stretch;
+        if (hero) { bubble.Background = Brushes.Transparent; bubble.BorderBrush = Brushes.Transparent; bubble.Margin = new(0, 10, 12, 6); }
+        scroller.ScrollToEnd();
+    }
+
+    void Undo(Button button, PcModeProfile back)
+    {
+        if (busy || button != undoLatest) return;
+        try { Store(back); }
+        catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException) { Say("Couldn't undo: " + error.Message, null); _ = Lights(AgentMood.Failed); return; }
+        button.IsEnabled = false; button.Opacity = .35; undoLatest = null;
+        ShowSettings(new HashSet<string>());
+        Say("Undone. Back to how it was.", null); _ = Lights(AgentMood.Good);
+    }
+
+    /// <summary>A stick's curve as a small card: push across, output up; the proposed one in amber with its area filled.</summary>
+    static Border CurveCard(string title, string stick, IReadOnlyList<(double Input, double Output)> points, bool proposed)
+    {
+        const double W = 300, H = 92;
+        var accent = proposed ? Amber : Color.FromRgb(150, 158, 170);
+        var plot = new Canvas { Width = W, Height = H, ClipToBounds = true, Margin = new(0, 8, 0, 0) };
+        for (int i = 1; i < 4; i++)
+        {
+            plot.Children.Add(new System.Windows.Shapes.Line { X1 = W * i / 4, X2 = W * i / 4, Y1 = 0, Y2 = H, Stroke = new SolidColorBrush(Color.FromArgb(22, 255, 255, 255)), StrokeThickness = 1 });
+            plot.Children.Add(new System.Windows.Shapes.Line { X1 = 0, X2 = W, Y1 = H * i / 4, Y2 = H * i / 4, Stroke = new SolidColorBrush(Color.FromArgb(22, 255, 255, 255)), StrokeThickness = 1 });
+        }
+        var line = new PointCollection(points.Select(p => new Point(W * p.Input / 100, H - H * Math.Clamp(p.Output, 0, 100) / 100)));
+        if (proposed)
+        {
+            var area = new PointCollection(line) { new Point(W, H), new Point(0, H) };
+            plot.Children.Add(new System.Windows.Shapes.Polygon { Points = area, Fill = new LinearGradientBrush(Color.FromArgb(90, Amber.R, Amber.G, Amber.B), Color.FromArgb(0, Amber.R, Amber.G, Amber.B), 90) });
+        }
+        plot.Children.Add(new System.Windows.Shapes.Polyline { Points = line, Stroke = new SolidColorBrush(accent), StrokeThickness = proposed ? 2.5 : 2, StrokeLineJoin = PenLineJoin.Round });
+        // the points marked along it, the last one the brightest
+        for (int i = 0; i < line.Count; i += Math.Max(1, (line.Count - 1) / 6))
+        {
+            bool end = i >= line.Count - 1 - Math.Max(1, (line.Count - 1) / 6) / 2; double r = end ? 4.5 : 3;
+            var dot = new System.Windows.Shapes.Ellipse { Width = 2 * r, Height = 2 * r, Fill = new SolidColorBrush(accent) };
+            Canvas.SetLeft(dot, Math.Clamp(line[i].X, r, W - r) - r); Canvas.SetTop(dot, Math.Clamp(line[i].Y, r, H - r) - r); plot.Children.Add(dot);
+        }
+        var head = new DockPanel();
+        var name = Kit.Text(stick, 12, "DS.TextMuted"); DockPanel.SetDock(name, Dock.Right); head.Children.Add(name);
+        head.Children.Add(Kit.Text(title, 13.5, "DS.Text", FontWeights.SemiBold).Also(t => { if (proposed) t.Foreground = new SolidColorBrush(Amber); }));
+        return new Border
+        {
+            CornerRadius = new(12), Padding = new(14, 10, 14, 10), Margin = proposed ? new(6, 0, 0, 0) : new(0, 0, 6, 0), BorderThickness = new(1),
+            BorderBrush = new SolidColorBrush(proposed ? Color.FromArgb(150, Amber.R, Amber.G, Amber.B) : Line), Background = new SolidColorBrush(Color.FromRgb(15, 18, 23)),
+            Child = new StackPanel { Children = { head, Axes(new Viewbox { Stretch = Stretch.Fill, Height = H, Child = plot }) } },
+        };
+    }
+
+    /// <summary>The plot with its axes named: output up the side, the stick's push along the bottom.</summary>
+    static Grid Axes(UIElement plot)
+    {
+        var grid = new Grid { ColumnDefinitions = { new() { Width = GridLength.Auto }, new() }, RowDefinitions = { new(), new() { Height = GridLength.Auto } } };
+        var output = Kit.Text("Output", 10.5, "DS.TextMuted").Also(t => { t.LayoutTransform = new RotateTransform(-90); t.Margin = new(0, 0, 6, 0); t.HorizontalAlignment = HorizontalAlignment.Center; });
+        grid.Children.Add(output);
+        Grid.SetColumn(plot, 1); grid.Children.Add(plot);
+        var push = Kit.Text("Stick deflection →", 11, "DS.TextMuted").Also(t => { t.HorizontalAlignment = HorizontalAlignment.Center; t.Margin = new(0, 4, 0, 0); });
+        Grid.SetRow(push, 1); Grid.SetColumn(push, 1); grid.Children.Add(push);
+        return grid;
     }
 
     public bool SettingsOpen => settingsBox.Visibility == Visibility.Visible;

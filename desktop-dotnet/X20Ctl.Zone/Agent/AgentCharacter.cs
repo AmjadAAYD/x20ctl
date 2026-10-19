@@ -18,9 +18,9 @@ public static class AgentCharacter
         """;
 
     public static string Greeting(string name) => AgentVariety.Pick("greeting", [
-        $"Hey, it's me, your {name}! *wiggles sticks* Tell me how you play or what feels wrong, and I'll tune myself. Search the ideas on the left, or say HELP.",
-        $"*boots up* Your {name}, reporting for duty! What should I tune today? Search the ideas on the left, or say HELP.",
-        $"Hi! Your {name} here, fully awake and ready. Tell me what feels off, search the ideas on the left, or say HELP.",
+        $"Hey, it's me, your {name}! *wiggles sticks* Tell me how you play or what feels wrong, and I'll tune myself. Pick a topic above, or say HELP.",
+        $"*boots up* Your {name}, reporting for duty! What should I tune today? Pick a topic above, or say HELP.",
+        $"Hi! Your {name} here, fully awake and ready. Tell me what feels off, pick a topic above, or say HELP.",
     ]);
 
     public const string NotUnderstood = "Beep… boop… that one flew right past my sensors.";

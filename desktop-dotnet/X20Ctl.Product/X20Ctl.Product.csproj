@@ -32,6 +32,7 @@
     <EmbeddedResource Include="../../NOTICE" LogicalName="NOTICE.txt" />
     <!-- the X20CTL logo (tools/build_brand_mark.py, from Brand/x20ctl-logo.png); the intro film ends on the same art -->
     <Resource Include="Brand/x20ctl-mark.png" Link="Assets/brand.png" />
+    <Resource Include="Agent/agent-shell.png" />
     <!-- the app icon (the logo on its white tile) as an image, for the setup -->
     <Resource Include="Brand/x20ctl-icon.png" Link="Assets/icon.png" />
     <Content Include="../../x20ctl/controllers/catalog.json" Link="Data/catalog.json" CopyToOutputDirectory="PreserveNewest" />

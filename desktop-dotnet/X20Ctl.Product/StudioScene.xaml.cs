@@ -142,8 +142,8 @@ public partial class StudioScene : UserControl
             agentPanel.MouseSwitch = on => { if (MouseService == null) return "Mouse mode isn't available in this window."; if(on){try{MouseService.TakeControl(Player,Model.Id);}catch(InvalidOperationException error){return error.Message;}}else if(MouseService.OwnerPlayer==Player && MouseService.OwnerModel==Model.Id)MouseService.Active=false; if (ManagementPage == "Mouse") ShowManagement("Mouse"); return null; };
             Grid.SetZIndex(agentPanel.Body, 41); StudioShell.Children.Add(agentPanel.Body);
         }
-        // across the Studio, from under the tabs to above the round button (owner's sketch, 13 Oct), keeping a controller's
-        // shape: as wide as the room allows, centred
+        // across the Studio, nearly all of it (owner's concept, 19 Oct: the screen as big as it can be), keeping a controller's
+        // shape: as large as the room allows, centred
         SizeAgentController();
         agentPanel.Body.HorizontalAlignment=HorizontalAlignment.Right;agentPanel.Body.VerticalAlignment=VerticalAlignment.Bottom;
         agentPanel.Show();InputContextChanged?.Invoke(); if (agentPill != null) agentPill.ToolTip = "Put Agent XCTL away";
@@ -153,11 +153,11 @@ public partial class StudioScene : UserControl
     private void SizeAgentController()
     {
         if (agentPanel == null) return;
-        double room=Math.Max(180,StudioShell.ActualHeight-230), wide=Math.Max(280,StudioShell.ActualWidth-60);
+        double room=Math.Max(180,StudioShell.ActualHeight-70), wide=Math.Max(280,StudioShell.ActualWidth-40);
         double high=Math.Min(room,wide*Agent.AgentPanel.DesignHeight/Agent.AgentPanel.DesignWidth);
         double across=high*Agent.AgentPanel.DesignWidth/Agent.AgentPanel.DesignHeight;
         agentPanel.Body.Width=across;agentPanel.Body.Height=high;
-        agentPanel.Body.Margin=new(0,0,Math.Max(20,(StudioShell.ActualWidth-across)/2),100);
+        agentPanel.Body.Margin=new(0,0,Math.Max(20,(StudioShell.ActualWidth-across)/2),Math.Max(20,(StudioShell.ActualHeight-high)/2));
     }
     /// <summary>The agent sent the owner to a page: put the window away and go there.</summary>
     private void AgentGoTo(string page)
