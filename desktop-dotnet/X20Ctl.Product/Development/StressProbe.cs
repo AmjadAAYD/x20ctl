@@ -52,6 +52,9 @@ internal static class StressProbe
             w.ReviewOpen(3); await Task.Delay(400); w.ReviewOpen(2); w.ReviewOpen(3); await Task.Delay(400); Shot("17-write-recording");
             var sample = Path.Combine(directory, "write-sample.btsnoop");
             if (File.Exists(sample)) { await w.ReviewRead(sample); await Task.Delay(600); Shot("18-write-results"); await w.ReviewSend(); await Task.Delay(400); Shot("19-write-sent"); await w.ReviewRead(sample); await Task.Delay(400); log.Add("results shown twice without a crash"); } else log.Add("no sample recording");
+            // a Filtered log: nothing learned, and the way back to setting up the phone
+            var filtered = Path.Combine(directory, "write-filtered.btsnoop");
+            if (File.Exists(filtered)) { await w.ReviewRead(filtered); await Task.Delay(600); Shot("18b-write-filtered"); }
             w.ReviewPhone(true); w.ReviewOpen(1); await Task.Delay(400); Shot("20-write-iphone-phone");
             w.ReviewOpen(3); await Task.Delay(400); Shot("21-write-iphone-recording");
             // the step-by-step guides: every Samsung step, the help panel, and the other phones' odd ones out

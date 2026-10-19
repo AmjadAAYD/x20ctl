@@ -314,7 +314,8 @@ public sealed class WriteScanView : Grid
         if (report is null) return RecordingPage();
         headline.Children.Clear();
         var id = report.Fingerprint.Identity;
-        headline.Children.Add(Card("Protocol", report.IsKeyLinker ? $"KeyLinker: {report.KeyLinker.Frames.Count} frames decoded" : "No KeyLinker frames. Inconclusive: another protocol, or a partial log; the raw writes are grouped below."));
+        headline.Children.Add(Card("Protocol", report.IsKeyLinker ? $"KeyLinker: {report.KeyLinker.Frames.Count} frames decoded" : report.Filtered ? "Unreadable: the Filtered log cuts every message short"
+            : "No KeyLinker frames. Inconclusive: another protocol, or a partial log; the raw writes are grouped below."));
         headline.Children.Add(Card("Controller says", id is null ? "No identity reply in this recording" : $"vendor {id.Vid}, product {id.Pid}, firmware {id.Version}"));
         headline.Children.Add(Card("Versus the X20", report.Differences.Count == 0 ? (id is null && report.KeyLinker.Descriptor is null ? "Not enough to compare" : "The same as the recorded X20 in all it reports") : $"{report.Differences.Count} differences"));
         headline.Children.Add(Card("Changes found", report.IsKeyLinker ? $"{Count(report.KeyLinker.Changes.Count, "write")}, {Count(report.KeyLinker.Changes.Sum(c => c.Bytes.Count), "byte")} changed, {report.KeyLinker.Changes.Count(c => c.ReadBack == "matches")} read back as stored" : $"{report.Shapes.Count} kinds of write"));
@@ -334,10 +335,44 @@ public sealed class WriteScanView : Grid
             Wrap(iphone ? "When you're done: remove Apple's Bluetooth profile in Settings, General, VPN & Device Management."
                 : "When you're done: in Developer options, turn \"Enable Bluetooth HCI snoop log\" off again.", 13.5, "DS.TextMuted").Also(t => t.Margin = new(0, 8, 0, 0)) } };
         var dock = new DockPanel();
+        var verdict = VerdictPanel(report.Verdict());
+        DockPanel.SetDock(verdict, Dock.Top); dock.Children.Add(verdict);
         DockPanel.SetDock(headline, Dock.Top); dock.Children.Add(Detach(headline));
         DockPanel.SetDock(foot, Dock.Bottom); dock.Children.Add(foot);
         dock.Children.Add(new Border { CornerRadius = new(12), ClipToBounds = true, Child = Detach(summary) });
         return Kit.Panel("Results", report.Plan.Setting.Length > 0 ? $"{report.Plan.Setting}, in {report.Source}" : report.Source, null, dock);
+    }
+
+    /// <summary>The verdict first: how sure the scan is, what it learned, what that rests on, and, when it falls short,
+    /// what to do differently with a way straight back to the step that fixes it.</summary>
+    private FrameworkElement VerdictPanel(WriteScanVerdict v)
+    {
+        var c = v.Level switch { "High" => Color.FromRgb(52, 211, 153), "Medium" => Color.FromRgb(245, 180, 91), _ => Color.FromRgb(232, 54, 79) };
+        var pill = new Border { CornerRadius = new(12), Padding = new(12, 5, 12, 5), Margin = new(0, 0, 14, 0), VerticalAlignment = VerticalAlignment.Center, BorderThickness = new(1),
+            Background = new SolidColorBrush(Color.FromArgb(48, c.R, c.G, c.B)), BorderBrush = new SolidColorBrush(Color.FromArgb(150, c.R, c.G, c.B)),
+            Child = Kit.Text(v.Level == "None" ? "NOTHING LEARNED" : v.Level.ToUpperInvariant() + " CONFIDENCE", 12.5, "DS.Text", FontWeights.Bold).Also(t => t.Foreground = new SolidColorBrush(c)) };
+        var top = new DockPanel { Children = { pill, Kit.Text(v.Headline, 21, "DS.Text", FontWeights.Bold).Also(t => { t.TextWrapping = TextWrapping.Wrap; t.VerticalAlignment = VerticalAlignment.Center; }) } };
+        DockPanel.SetDock(pill, Dock.Left);
+        var checks = new StackPanel { Margin = new(0, 12, 0, 0) };
+        foreach (var check in v.Checks.Take(7))
+            checks.Children.Add(new DockPanel { Margin = new(0, 0, 0, 5), Children = {
+                Kit.Text(check.Passed ? "✓" : "✕", 14.5, "DS.Text", FontWeights.Bold).Also(t => { t.Width = 22; t.Foreground = new SolidColorBrush(check.Passed ? Color.FromRgb(52, 211, 153) : Color.FromRgb(245, 180, 91)); DockPanel.SetDock(t, Dock.Left); }),
+                Wrap(check.Text, 14, check.Passed ? "DS.TextSoft" : "DS.Text") } });
+        var body = new Grid(); body.ColumnDefinitions.Add(new() { Width = new(1.3, GridUnitType.Star) }); body.ColumnDefinitions.Add(new() { Width = new(24) }); body.ColumnDefinitions.Add(new());
+        body.Children.Add(checks);
+        if (v.Fixes.Count > 0)
+        {
+            bool phoneFix = report?.Filtered == true || report?.Messages == 0;
+            var again = Action("", phoneFix ? "Set up the phone again" : "Do the test again", "ActionButton");
+            again.Click += (_, _) => { notes.RemoveAll(n => !n.Event.EndsWith(" ready")); part = 0; if (phoneFix) { prepareAt = 0; Show(1); } else Show(2); };
+            var fixes = new StackPanel { Margin = new(0, 12, 0, 0), Children = { Kit.Text("FOR A BETTER RECORDING", 12, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(0, 0, 0, 6)) } };
+            foreach (var f in v.Fixes.Take(4)) fixes.Children.Add(Wrap("•  " + f, 14, "DS.Text").Also(t => t.Margin = new(0, 0, 0, 5)));
+            fixes.Children.Add(new WrapPanel { Margin = new(0, 6, 0, 0), Children = { again } });
+            Grid.SetColumn(fixes, 2); body.Children.Add(fixes);
+        }
+        return new Border { CornerRadius = new(14), Margin = new(0, 0, 0, 6), Padding = new(20, 16, 20, 14), BorderThickness = new(1),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(90, c.R, c.G, c.B)), Background = new LinearGradientBrush(Color.FromArgb(150, 20, 34, 70), Color.FromArgb(110, 10, 18, 40), 90),
+            Child = new StackPanel { Children = { top, body } } };
     }
 
     private void BuildSendPanel()
