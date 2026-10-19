@@ -212,7 +212,7 @@ public sealed class AgentPanel
         var layout = new DockPanel(); DockPanel.SetDock(railBox, Dock.Left); layout.Children.Add(railBox); layout.Children.Add(new Grid { Children = { content, settingsBox } });
         var screen = new Border
         {
-            Width = 990, Height = 588, CornerRadius = new(18), Padding = new(14, 14, 18, 12), BorderThickness = new(1.5), Child = layout,
+            Width = 990, Height = 580, CornerRadius = new(18), Padding = new(14, 14, 18, 12), BorderThickness = new(1.5), Child = layout,
             Background = new LinearGradientBrush(ScreenTop, ScreenBottom, 90),
             BorderBrush = new SolidColorBrush(Color.FromArgb(200, 4, 6, 12)),
         };
@@ -233,31 +233,37 @@ public sealed class AgentPanel
             Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 44, ShadowDepth = 12, Opacity = .6 },
         };
         pad.Children.Add(shell); Drag(shell);
-        // the grips in their own colour, and the light strips the real pad has
-        pad.Children.Add(new System.Windows.Shapes.Path
-        {
-            // the shell where the grips are, as one shape (a clip here stopped the whole page drawing)
-            Data = new CombinedGeometry(GeometryCombineMode.Intersect, ShellShape, new GeometryGroup { Children = { new RectangleGeometry(new Rect(0, 600, 214, 160), 60, 60), new RectangleGeometry(new Rect(DesignWidth - 214, 600, 214, 160), 60, 60) } }),
-            Fill = skin.Grip, IsHitTestVisible = false,
-        });
+        // machined (owner's concept, 19 Oct 2026): a soft sheen across the top, and the top edge catching the light
+        pad.Children.Add(new System.Windows.Shapes.Path { Data = ShellShape, IsHitTestVisible = false,
+            Fill = new RadialGradientBrush(Color.FromArgb(skin.Light ? (byte)70 : (byte)34, 255, 255, 255), Color.FromArgb(0, 255, 255, 255)) { Center = new(.5, 0), GradientOrigin = new(.5, 0), RadiusX = .55, RadiusY = .5 } });
+        pad.Children.Add(new System.Windows.Shapes.Path { Data = ShellShape, IsHitTestVisible = false, StrokeThickness = 3,
+            Stroke = new LinearGradientBrush(new GradientStopCollection { new(Color.FromArgb(110, 255, 255, 255), 0), new(Color.FromArgb(0, 255, 255, 255), .3) }, 90) });
+        // the grips in their own colour, knurled so they read as handles, and the light strips the real pad has
+        // (the shell where the grips are, as one shape: a clip here stopped the whole page drawing)
+        var grips = new CombinedGeometry(GeometryCombineMode.Intersect, ShellShape, new GeometryGroup { Children = { new RectangleGeometry(new Rect(0, 560, 230, 200), 70, 70), new RectangleGeometry(new Rect(DesignWidth - 230, 560, 230, 200), 70, 70) } });
+        pad.Children.Add(new System.Windows.Shapes.Path { Data = grips, Fill = skin.Grip, IsHitTestVisible = false });
+        pad.Children.Add(new System.Windows.Shapes.Path { Data = grips, Fill = Knurl(skin.GripTop.R + skin.GripTop.G + skin.GripTop.B > 450), IsHitTestVisible = false });
+        pad.Children.Add(new System.Windows.Shapes.Path { Data = grips, IsHitTestVisible = false, StrokeThickness = 2, Stroke = new LinearGradientBrush(Color.FromArgb(70, 255, 255, 255), Color.FromArgb(0, 255, 255, 255), 90) });
         if (skin.Strips is { Length: 2 } strips)
             // they hug the screen (owner, 13 Oct): down each side, round the bottom corner, and along the bottom
-            foreach (var (data, from, to) in new[] { ("M 199,175 L 199,640 Q 199,666 225,666 L 470,666", strips[0], strips[1]), ($"M {DesignWidth - 199},175 L {DesignWidth - 199},640 Q {DesignWidth - 199},666 {DesignWidth - 225},666 L {DesignWidth - 470},666", strips[1], strips[0]) })
+            foreach (var (data, from, to) in new[] { ("M 187,175 L 187,636 Q 187,664 215,664 L 470,664", strips[0], strips[1]), ($"M {DesignWidth - 187},175 L {DesignWidth - 187},636 Q {DesignWidth - 187},664 {DesignWidth - 215},664 L {DesignWidth - 470},664", strips[1], strips[0]) })
                 pad.Children.Add(new System.Windows.Shapes.Path
                 {
                     Data = Geometry.Parse(data), StrokeThickness = 4, StrokeLineJoin = PenLineJoin.Round, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, IsHitTestVisible = false,
                     Stroke = new LinearGradientBrush(from, to, 45), Effect = new DropShadowEffect { Color = from, BlurRadius = 22, ShadowDepth = 0, Opacity = .9 },
                 });
-        // grip texture, so the lower corners read as handles
-        foreach (var (x, dir) in new[] { (75.0, 1), (DesignWidth - 75, -1) })
-            for (int i = 0; i < 4; i++)
-                pad.Children.Add(new System.Windows.Shapes.Line { X1 = x - 22 * dir + i * 12 * dir, Y1 = 668 + i * 8, X2 = x - 8 * dir + i * 12 * dir, Y2 = 704 + i * 8, Stroke = new SolidColorBrush(skin.GripTop.R + skin.GripTop.G + skin.GripTop.B > 450 ? Color.FromArgb(40, 0, 0, 0) : Color.FromArgb(28, 255, 255, 255)), StrokeThickness = 2, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, IsHitTestVisible = false });
         // the player lights: this player's is lit in the model's state; they chase while it thinks
         for (int i = 0; i < 4; i++)
         {
             leds[i] = new Border { Width = 22, Height = 7, CornerRadius = new(3.5), IsHitTestVisible = false };
             Canvas.SetLeft(leds[i], DesignWidth / 2 - 56 + i * 28); Canvas.SetTop(leds[i], 56); pad.Children.Add(leds[i]);
         }
+        // the screen sits in a raised bezel: a dark lip, lit along its top edge
+        var bezel = new Border { Width = 1006, Height = 596, CornerRadius = new(26), BorderThickness = new(1.5), IsHitTestVisible = false,
+            Background = new LinearGradientBrush(Color.FromRgb(14, 15, 18), Color.FromRgb(4, 4, 6), 90),
+            BorderBrush = new LinearGradientBrush(Color.FromArgb(120, 255, 255, 255), Color.FromArgb(18, 255, 255, 255), 90),
+            Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 18, ShadowDepth = 3, Direction = 270, Opacity = .55 } };
+        Canvas.SetLeft(bezel, (DesignWidth - 1006) / 2); Canvas.SetTop(bezel, 64); pad.Children.Add(bezel);
         Canvas.SetLeft(screen, (DesignWidth - 990) / 2); Canvas.SetTop(screen, 72); pad.Children.Add(screen);
 
         // the sticks are its eyes
@@ -271,13 +277,22 @@ public sealed class AgentPanel
             ("◀", -1, 0, "Previous idea", () => Idea(-1)),
             ("▶", 1, 0, "Next idea", () => Idea(1)),
         };
-        var hub = new Border { Width = 34, Height = 34, Background = new LinearGradientBrush(CapLight, CapDark, 90), IsHitTestVisible = false };
-        Canvas.SetLeft(hub, LeftX - 17); Canvas.SetTop(hub, PadY - 17); pad.Children.Add(hub);
+        // one cross, in a shallow well, with a dimple at its centre; its arms are the buttons
+        var well = new System.Windows.Shapes.Ellipse { Width = 150, Height = 150, IsHitTestVisible = false, Fill = new RadialGradientBrush(Color.FromArgb(70, 0, 0, 0), Color.FromArgb(0, 0, 0, 0)) };
+        Canvas.SetLeft(well, LeftX - 75); Canvas.SetTop(well, PadY - 75); pad.Children.Add(well);
+        pad.Children.Add(new System.Windows.Shapes.Path
+        {
+            Data = new CombinedGeometry(GeometryCombineMode.Union, new RectangleGeometry(new Rect(LeftX - 18, PadY - 54, 36, 108), 8, 8), new RectangleGeometry(new Rect(LeftX - 54, PadY - 18, 108, 36), 8, 8)),
+            Fill = new LinearGradientBrush(CapLight, CapDark, 90), Stroke = new SolidColorBrush(Edge), StrokeThickness = 1, IsHitTestVisible = false,
+            Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 10, ShadowDepth = 3, Direction = 270, Opacity = .6 },
+        });
+        var dimple = new System.Windows.Shapes.Ellipse { Width = 16, Height = 16, IsHitTestVisible = false, Fill = new RadialGradientBrush(CapDark, CapLight) { GradientOrigin = new(.5, .8) } };
+        Canvas.SetLeft(dimple, LeftX - 8); Canvas.SetTop(dimple, PadY - 8); pad.Children.Add(dimple);
         foreach (var d in dpad)
         {
             var arm = PadKey(new Border
             {
-                Width = 34, Height = 36, BorderThickness = new(1), BorderBrush = new SolidColorBrush(Edge), Background = new LinearGradientBrush(CapLight, CapDark, 90),
+                Width = 34, Height = 36, BorderThickness = new(1), BorderBrush = Brushes.Transparent, Background = Brushes.Transparent,
                 CornerRadius = d.Y < 0 ? new(8, 8, 0, 0) : d.Y > 0 ? new(0, 0, 8, 8) : d.X < 0 ? new(8, 0, 0, 8) : new(0, 8, 8, 0),
                 Child = Kit.Text(d.Glyph, 11, "DS.TextMuted").Also(t => t.HorizontalAlignment = HorizontalAlignment.Center),
             }, d.Tip, d.Act);
@@ -285,7 +300,7 @@ public sealed class AgentPanel
             Canvas.SetLeft(arm, LeftX - 17 + d.X * 35 - (d.X < 0 ? 2 : 0)); Canvas.SetTop(arm, PadY - 17 + d.Y * 35 - (d.Y < 0 ? 2 : 0));
             register(arm); pad.Children.Add(arm);
         }
-        Legend(pad, LeftX, PadY + 74, "▲▼ scroll\n◀▶ ideas");
+        Legend(pad, LeftX, PadY + 84, "▲▼ SCROLL\n◀▶ IDEAS");
 
         // right: the face buttons. A sends, B puts it away, X starts over, Y shows every idea
         var face = new (string Letter, double X, double Y, string Tip, Action Act)[]
@@ -300,17 +315,17 @@ public sealed class AgentPanel
             bool primary = f.Letter == "A";
             var cap = PadKey(new Border
             {
-                Width = 42, Height = 42, CornerRadius = new(21), BorderThickness = new(primary ? 2 : 1),
-                BorderBrush = primary ? DS.Brush("DS.AccentHi") : new SolidColorBrush(Edge),
-                Background = primary ? new RadialGradientBrush(Color.FromRgb(70, 140, 250), Color.FromRgb(28, 70, 160)) : new RadialGradientBrush(CapLight, CapDark),
-                Effect = primary ? new DropShadowEffect { Color = Color.FromRgb(70, 150, 255), BlurRadius = 16, ShadowDepth = 0, Opacity = .7 } : null,
-                Child = Kit.Text(f.Letter, 17, primary ? "DS.Text" : "DS.TextSoft", FontWeights.SemiBold).Also(t => t.HorizontalAlignment = HorizontalAlignment.Center),
+                Width = 46, Height = 46, CornerRadius = new(23), BorderThickness = new(primary ? 2.5 : 1),
+                BorderBrush = primary ? new SolidColorBrush(Amber) : new SolidColorBrush(Edge),
+                Background = new RadialGradientBrush(new GradientStopCollection { new(Color.FromRgb(70, 72, 80), 0), new(Color.FromRgb(30, 31, 36), .55), new(Color.FromRgb(12, 12, 15), 1) }) { GradientOrigin = new(.35, .28) },
+                Effect = primary ? new DropShadowEffect { Color = Amber, BlurRadius = 18, ShadowDepth = 0, Opacity = .65 } : new DropShadowEffect { Color = Colors.Black, BlurRadius = 8, ShadowDepth = 3, Direction = 270, Opacity = .6 },
+                Child = Kit.Text(f.Letter, 19, "DS.Text", FontWeights.SemiBold).Also(t => { t.HorizontalAlignment = HorizontalAlignment.Center; if (primary) t.Foreground = new SolidColorBrush(Amber); }),
             }, f.Tip, f.Act);
-            Canvas.SetLeft(cap, RightX - 21 + f.X * 42); Canvas.SetTop(cap, PadY - 21 + f.Y * 42);
+            Canvas.SetLeft(cap, RightX - 23 + f.X * 48); Canvas.SetTop(cap, PadY - 23 + f.Y * 48);
             register(cap); pad.Children.Add(cap);
             if (primary) send = cap;
         }
-        Legend(pad, RightX, PadY + 74, "A send · B away\nX new · Y search");
+        Legend(pad, RightX, PadY + 84, "A SEND · B AWAY\nX NEW · Y SEARCH");
         send ??= new Button();
         ShowIdeas(""); ShowView(View.Chat);
 
@@ -329,11 +344,13 @@ public sealed class AgentPanel
 
     (Button, Border, TextBlock) Bumper(string key, string label, double x, CornerRadius corners)
     {
-        var text = Kit.Text(label, 13, "DS.TextSoft");
+        var text = Kit.Text(label.ToUpperInvariant(), 12.5, "DS.TextSoft", FontWeights.SemiBold);
         var cap = new Border
         {
-            Width = 220, Height = 50, CornerRadius = corners, BorderThickness = new(1), BorderBrush = new SolidColorBrush(Edge), Background = new LinearGradientBrush(CapLight, CapDark, 90),
-            Child = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Top, Margin = new(0, 9, 0, 0), Children = { Kit.Text(key, 12, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(0, 0, 8, 0)), text } },
+            Width = 220, Height = 50, CornerRadius = corners, BorderThickness = new(1, 1.5, 1, 0),
+            BorderBrush = new LinearGradientBrush(Color.FromArgb(120, 255, 255, 255), Color.FromArgb(0, 255, 255, 255), 90),
+            Background = new LinearGradientBrush(new GradientStopCollection { new(Color.FromRgb(64, 66, 74), 0), new(Color.FromRgb(30, 31, 36), .45), new(Color.FromRgb(18, 18, 22), 1) }, 90),
+            Child = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Top, Margin = new(0, 10, 0, 0), Children = { Kit.Text(key, 12, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(0, 0, 10, 0)), text } },
         };
         var button = PadKey(cap, key + " · " + label, null);
         Canvas.SetLeft(button, x); Canvas.SetTop(button, 10);
@@ -354,9 +371,17 @@ public sealed class AgentPanel
         return button;
     }
 
+    /// <summary>Fine diagonal ridges for the grips: dark on a light grip, light on a dark one.</summary>
+    static Brush Knurl(bool lightGrip)
+    {
+        var ink = new SolidColorBrush(lightGrip ? Color.FromArgb(46, 0, 0, 0) : Color.FromArgb(30, 255, 255, 255));
+        var ridge = new GeometryDrawing(null, new Pen(ink, 1.2), new GeometryGroup { Children = { new LineGeometry(new Point(0, 6), new Point(6, 0)), new LineGeometry(new Point(-1, 1), new Point(1, -1)), new LineGeometry(new Point(5, 7), new Point(7, 5)) } });
+        return new DrawingBrush(ridge) { TileMode = TileMode.Tile, Viewport = new Rect(0, 0, 6, 6), ViewportUnits = BrushMappingMode.Absolute, Viewbox = new Rect(0, 0, 6, 6), ViewboxUnits = BrushMappingMode.Absolute };
+    }
+
     void Legend(Canvas pad, double x, double y, string text)
     {
-        var t = Kit.Text(text, 11.5, "DS.TextMuted").Also(t => { t.Foreground = new SolidColorBrush(skin.Ink); t.TextAlignment = TextAlignment.Center; t.Width = 150; t.TextTrimming = TextTrimming.None; t.IsHitTestVisible = false; });
+        var t = Kit.Text(text, 11, "DS.TextMuted", FontWeights.SemiBold).Also(t => { t.Foreground = new SolidColorBrush(skin.Ink); t.TextAlignment = TextAlignment.Center; t.Width = 150; t.TextTrimming = TextTrimming.None; t.IsHitTestVisible = false; });
         Canvas.SetLeft(t, x - 75); Canvas.SetTop(t, y); pad.Children.Add(t);
     }
 
