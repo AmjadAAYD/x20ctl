@@ -88,14 +88,14 @@ public sealed class AgentPanel
 
     /// <summary>The controller is drawn at this size and scaled as a whole to the room it's given: wide, across the Studio
     /// (owner's sketch, 13 Oct); its screen follows the owner's design of 19 Oct: a rail, a header, topic pills and the chat.</summary>
-    public const double DesignWidth = 1400, DesignHeight = 580;
-    static readonly Geometry ShellShape = Geometry.Parse("M 140,46 H 1260 C 1350,46 1400,100 1400,180 L 1400,470 C 1400,550 1345,580 1290,580 C 1240,580 1212,552 1196,522 Q 1180,500 1140,500 H 260 Q 220,500 204,522 C 188,552 160,580 110,580 C 55,580 0,550 0,470 L 0,180 C 0,100 50,46 140,46 Z");
+    public const double DesignWidth = 1400, DesignHeight = 750;
+    static readonly Geometry ShellShape = Geometry.Parse("M 140,46 H 1260 C 1350,46 1400,100 1400,180 L 1400,640 C 1400,720 1345,750 1290,750 C 1240,750 1212,722 1196,692 Q 1180,670 1140,670 H 260 Q 220,670 204,692 C 188,722 160,750 110,750 C 55,750 0,720 0,640 L 0,180 C 0,100 50,46 140,46 Z");
     // the controller's own colours (AgentSkin): its caps, edges and the ink printed on its shell
     readonly AgentSkin skin;
     Color CapLight => skin.CapLight;
     Color CapDark => skin.CapDark;
     Color Edge => skin.Edge;
-    const double LeftX = 100, RightX = 1300, EyeY = 165, PadY = 318;
+    const double LeftX = 100, RightX = 1300, EyeY = 165, PadY = 430;
 
     public AgentPanel(string modelId, string controllerName, PcModeLink? link, Action<Button> register, int player = 0, Func<Action<string, int>, IDriftMeter>? meter = null, bool reducedMotion = false)
     {
@@ -138,7 +138,7 @@ public sealed class AgentPanel
 
         // the conversation
         scroller = new ScrollViewer { Content = transcript, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
-        transcript.LayoutTransform = new ScaleTransform(.8, .8);
+        transcript.LayoutTransform = new ScaleTransform(.95, .95);
 
         // the ideas: a search, a line saying what's listed, and the list
         Search = new TextBox { FontSize = 14, MinHeight = 38, Padding = new(24, 8, 10, 7), VerticalContentAlignment = VerticalAlignment.Center, ToolTip = "Search the ideas: sticks, triggers, turbo…" };
@@ -212,7 +212,7 @@ public sealed class AgentPanel
         var layout = new DockPanel(); DockPanel.SetDock(railBox, Dock.Left); layout.Children.Add(railBox); layout.Children.Add(new Grid { Children = { content, settingsBox } });
         var screen = new Border
         {
-            Width = 990, Height = 418, CornerRadius = new(18), Padding = new(14, 14, 18, 12), BorderThickness = new(1.5), Child = layout,
+            Width = 990, Height = 588, CornerRadius = new(18), Padding = new(14, 14, 18, 12), BorderThickness = new(1.5), Child = layout,
             Background = new LinearGradientBrush(ScreenTop, ScreenBottom, 90),
             BorderBrush = new SolidColorBrush(Color.FromArgb(200, 4, 6, 12)),
         };
@@ -237,12 +237,12 @@ public sealed class AgentPanel
         pad.Children.Add(new System.Windows.Shapes.Path
         {
             // the shell where the grips are, as one shape (a clip here stopped the whole page drawing)
-            Data = new CombinedGeometry(GeometryCombineMode.Intersect, ShellShape, new GeometryGroup { Children = { new RectangleGeometry(new Rect(0, 430, 214, 160), 60, 60), new RectangleGeometry(new Rect(DesignWidth - 214, 430, 214, 160), 60, 60) } }),
+            Data = new CombinedGeometry(GeometryCombineMode.Intersect, ShellShape, new GeometryGroup { Children = { new RectangleGeometry(new Rect(0, 600, 214, 160), 60, 60), new RectangleGeometry(new Rect(DesignWidth - 214, 600, 214, 160), 60, 60) } }),
             Fill = skin.Grip, IsHitTestVisible = false,
         });
         if (skin.Strips is { Length: 2 } strips)
             // they hug the screen (owner, 13 Oct): down each side, round the bottom corner, and along the bottom
-            foreach (var (data, from, to) in new[] { ("M 199,175 L 199,470 Q 199,496 225,496 L 470,496", strips[0], strips[1]), ($"M {DesignWidth - 199},175 L {DesignWidth - 199},470 Q {DesignWidth - 199},496 {DesignWidth - 225},496 L {DesignWidth - 470},496", strips[1], strips[0]) })
+            foreach (var (data, from, to) in new[] { ("M 199,175 L 199,640 Q 199,666 225,666 L 470,666", strips[0], strips[1]), ($"M {DesignWidth - 199},175 L {DesignWidth - 199},640 Q {DesignWidth - 199},666 {DesignWidth - 225},666 L {DesignWidth - 470},666", strips[1], strips[0]) })
                 pad.Children.Add(new System.Windows.Shapes.Path
                 {
                     Data = Geometry.Parse(data), StrokeThickness = 4, StrokeLineJoin = PenLineJoin.Round, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, IsHitTestVisible = false,
@@ -251,7 +251,7 @@ public sealed class AgentPanel
         // grip texture, so the lower corners read as handles
         foreach (var (x, dir) in new[] { (75.0, 1), (DesignWidth - 75, -1) })
             for (int i = 0; i < 4; i++)
-                pad.Children.Add(new System.Windows.Shapes.Line { X1 = x - 22 * dir + i * 12 * dir, Y1 = 498 + i * 8, X2 = x - 8 * dir + i * 12 * dir, Y2 = 534 + i * 8, Stroke = new SolidColorBrush(skin.GripTop.R + skin.GripTop.G + skin.GripTop.B > 450 ? Color.FromArgb(40, 0, 0, 0) : Color.FromArgb(28, 255, 255, 255)), StrokeThickness = 2, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, IsHitTestVisible = false });
+                pad.Children.Add(new System.Windows.Shapes.Line { X1 = x - 22 * dir + i * 12 * dir, Y1 = 668 + i * 8, X2 = x - 8 * dir + i * 12 * dir, Y2 = 704 + i * 8, Stroke = new SolidColorBrush(skin.GripTop.R + skin.GripTop.G + skin.GripTop.B > 450 ? Color.FromArgb(40, 0, 0, 0) : Color.FromArgb(28, 255, 255, 255)), StrokeThickness = 2, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, IsHitTestVisible = false });
         // the player lights: this player's is lit in the model's state; they chase while it thinks
         for (int i = 0; i < 4; i++)
         {
@@ -850,7 +850,7 @@ public sealed class AgentPanel
     {
         var stack = new StackPanel();
         var v = turn.Verdict;
-        stack.Children.Add(Wrap(v.Proposal?.Speech is { Length: > 0 } speech ? speech : "I didn't give a usable answer.", 14, "DS.Text"));
+        stack.Children.Add(Wrap(v.Proposal?.Speech is { Length: > 0 } speech ? speech : "I didn't give a usable answer.", 17, "DS.Text").Also(t => t.FontWeight = FontWeights.SemiBold));
         // what the app itself measured, before what the model made of it
         if (turn.Measured is { } m)
         {
