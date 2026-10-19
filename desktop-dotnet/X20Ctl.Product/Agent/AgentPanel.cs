@@ -88,18 +88,13 @@ public sealed class AgentPanel
 
     /// <summary>The controller is drawn at this size and scaled as a whole to the room it's given: wide, across the Studio
     /// (owner's sketch, 13 Oct); its screen follows the owner's design of 19 Oct: a rail, a header, topic pills and the chat.</summary>
-    public const double DesignWidth = 1400, DesignHeight = 750;
-    static readonly Geometry ShellShape = Geometry.Parse("M 140,46 H 1260 C 1350,46 1400,100 1400,180 L 1400,640 C 1400,720 1345,750 1290,750 C 1240,750 1212,722 1196,692 Q 1180,670 1140,670 H 260 Q 220,670 204,692 C 188,722 160,750 110,750 C 55,750 0,720 0,640 L 0,180 C 0,100 50,46 140,46 Z");
-    // the controller's own colours (AgentSkin): its caps, edges and the ink printed on its shell
-    readonly AgentSkin skin;
-    Color CapLight => skin.CapLight;
-    Color CapDark => skin.CapDark;
-    Color Edge => skin.Edge;
-    const double LeftX = 100, RightX = 1300, EyeY = 165, PadY = 430;
+    public const double DesignWidth = 1740, DesignHeight = 800;
+    // the art's own places: the display, the stick caps, the D-pad's centre
+    const double ScreenZoom = 1.2, ScreenX = 382, ScreenY = 71, LeftX = 247, RightX = 1499, EyeY = 214, PadX = 270, PadY = 446;
 
     public AgentPanel(string modelId, string controllerName, PcModeLink? link, Action<Button> register, int player = 0, Func<Action<string, int>, IDriftMeter>? meter = null, bool reducedMotion = false)
     {
-        this.reducedMotion = reducedMotion; this.modelId = modelId; this.link = link; this.player = player; this.register = register; skin = AgentSkin.For(modelId);
+        this.reducedMotion = reducedMotion; this.modelId = modelId; this.link = link; this.player = player; this.register = register;
         string name = controllerName.Replace("EasySMX ", ""); padName = name;
         // drift is read from the real controller; a review harness can hand in its own reading instead
         session = new AgentSession(offlineAgent, modelId, name) { Docs = keywords.Value, Meter = (meter ?? (progress => new XInputDriftMeter(player, progress)))(Measuring), ControllerFacts = Facts(modelId) };
@@ -212,120 +207,58 @@ public sealed class AgentPanel
         var layout = new DockPanel(); DockPanel.SetDock(railBox, Dock.Left); layout.Children.Add(railBox); layout.Children.Add(new Grid { Children = { content, settingsBox } });
         var screen = new Border
         {
-            Width = 990, Height = 580, CornerRadius = new(18), Padding = new(14, 14, 18, 12), BorderThickness = new(1.5), Child = layout,
+            Width = 984, Height = 631,
+            Child = new Viewbox { Stretch = Stretch.Fill, Child = new Border { Width = 984 / ScreenZoom, Height = 631 / ScreenZoom, Padding = new(18, 15, 20, 13), Child = layout } },
             Background = new LinearGradientBrush(ScreenTop, ScreenBottom, 90),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(200, 4, 6, 12)),
         };
 
-        // ---- the controller around it ----
+        // ---- the controller around it: the owner's concept art (19 Oct 2026, "literally, same design"), cut from its
+        // backdrop with the screen emptied; the live screen sits in its display, and each drawn control is a real button ----
         var pad = new Canvas { Width = DesignWidth, Height = DesignHeight, RenderTransform = shake };
-        // the bumpers, behind the shell's top edge: LB starts over, RB opens the settings
-        var (startOver, _, _) = Bumper("LB", "Start over", 70, new CornerRadius(26, 18, 6, 6));
-        startOver.Click += (_, _) => Restart();
-        var (settingsButton, _, _) = Bumper("RB", "Settings", DesignWidth - 70 - 220, new CornerRadius(18, 26, 6, 6));
-        settingsButton.Click += (_, _) => { ShowSettingsPage(!SettingsOpen); };
-        register(startOver); register(settingsButton);
-        pad.Children.Add(startOver); pad.Children.Add(settingsButton);
-        var shell = new System.Windows.Shapes.Path
-        {
-            Data = ShellShape, StrokeThickness = 1.5, Stroke = new LinearGradientBrush(skin.Stroke, Color.FromArgb(40, skin.Stroke.R, skin.Stroke.G, skin.Stroke.B), 90),
-            Fill = skin.Shell,
-            Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 44, ShadowDepth = 12, Opacity = .6 },
-        };
-        pad.Children.Add(shell); Drag(shell);
-        // machined (owner's concept, 19 Oct 2026): a soft sheen across the top, and the top edge catching the light
-        pad.Children.Add(new System.Windows.Shapes.Path { Data = ShellShape, IsHitTestVisible = false,
-            Fill = new RadialGradientBrush(Color.FromArgb(skin.Light ? (byte)70 : (byte)34, 255, 255, 255), Color.FromArgb(0, 255, 255, 255)) { Center = new(.5, 0), GradientOrigin = new(.5, 0), RadiusX = .55, RadiusY = .5 } });
-        pad.Children.Add(new System.Windows.Shapes.Path { Data = ShellShape, IsHitTestVisible = false, StrokeThickness = 3,
-            Stroke = new LinearGradientBrush(new GradientStopCollection { new(Color.FromArgb(110, 255, 255, 255), 0), new(Color.FromArgb(0, 255, 255, 255), .3) }, 90) });
-        // the grips in their own colour, knurled so they read as handles, and the light strips the real pad has
-        // (the shell where the grips are, as one shape: a clip here stopped the whole page drawing)
-        var grips = new CombinedGeometry(GeometryCombineMode.Intersect, ShellShape, new GeometryGroup { Children = { new RectangleGeometry(new Rect(0, 560, 230, 200), 70, 70), new RectangleGeometry(new Rect(DesignWidth - 230, 560, 230, 200), 70, 70) } });
-        pad.Children.Add(new System.Windows.Shapes.Path { Data = grips, Fill = skin.Grip, IsHitTestVisible = false });
-        pad.Children.Add(new System.Windows.Shapes.Path { Data = grips, Fill = Knurl(skin.GripTop.R + skin.GripTop.G + skin.GripTop.B > 450), IsHitTestVisible = false });
-        pad.Children.Add(new System.Windows.Shapes.Path { Data = grips, IsHitTestVisible = false, StrokeThickness = 2, Stroke = new LinearGradientBrush(Color.FromArgb(70, 255, 255, 255), Color.FromArgb(0, 255, 255, 255), 90) });
-        if (skin.Strips is { Length: 2 } strips)
-            // they hug the screen (owner, 13 Oct): down each side, round the bottom corner, and along the bottom
-            foreach (var (data, from, to) in new[] { ("M 187,175 L 187,636 Q 187,664 215,664 L 470,664", strips[0], strips[1]), ($"M {DesignWidth - 187},175 L {DesignWidth - 187},636 Q {DesignWidth - 187},664 {DesignWidth - 215},664 L {DesignWidth - 470},664", strips[1], strips[0]) })
-                pad.Children.Add(new System.Windows.Shapes.Path
-                {
-                    Data = Geometry.Parse(data), StrokeThickness = 4, StrokeLineJoin = PenLineJoin.Round, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, IsHitTestVisible = false,
-                    Stroke = new LinearGradientBrush(from, to, 45), Effect = new DropShadowEffect { Color = from, BlurRadius = 22, ShadowDepth = 0, Opacity = .9 },
-                });
-        // the player lights: this player's is lit in the model's state; they chase while it thinks
+        var art = new System.Windows.Controls.Image { Width = DesignWidth, Height = DesignHeight, Stretch = Stretch.Fill, Source = new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/X20Ctl;component/Agent/agent-shell.png")),
+            Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 44, ShadowDepth = 12, Opacity = .6 } };
+        pad.Children.Add(art); Drag(art);
+        // the player lights, over the drawn ones: this player's lit in the agent's state; they chase while it thinks
         for (int i = 0; i < 4; i++)
         {
-            leds[i] = new Border { Width = 22, Height = 7, CornerRadius = new(3.5), IsHitTestVisible = false };
-            Canvas.SetLeft(leds[i], DesignWidth / 2 - 56 + i * 28); Canvas.SetTop(leds[i], 56); pad.Children.Add(leds[i]);
+            leds[i] = new Border { Width = 28, Height = 10, CornerRadius = new(5), IsHitTestVisible = false };
+            Canvas.SetLeft(leds[i], 795 + i * 43); Canvas.SetTop(leds[i], 48); pad.Children.Add(leds[i]);
         }
-        // the screen sits in a raised bezel: a dark lip, lit along its top edge
-        var bezel = new Border { Width = 1006, Height = 596, CornerRadius = new(26), BorderThickness = new(1.5), IsHitTestVisible = false,
-            Background = new LinearGradientBrush(Color.FromRgb(14, 15, 18), Color.FromRgb(4, 4, 6), 90),
-            BorderBrush = new LinearGradientBrush(Color.FromArgb(120, 255, 255, 255), Color.FromArgb(18, 255, 255, 255), 90),
-            Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 18, ShadowDepth = 3, Direction = 270, Opacity = .55 } };
-        Canvas.SetLeft(bezel, (DesignWidth - 1006) / 2); Canvas.SetTop(bezel, 64); pad.Children.Add(bezel);
-        Canvas.SetLeft(screen, (DesignWidth - 990) / 2); Canvas.SetTop(screen, 72); pad.Children.Add(screen);
+        // the display is an octagon: the screen is cut to it
+        screen.Clip = Geometry.Parse("M 37,2 L 938,2 L 984,49 L 984,558 L 915,631 L 66,631 L 0,563 L 0,54 Z");
+        Canvas.SetLeft(screen, ScreenX); Canvas.SetTop(screen, ScreenY); pad.Children.Add(screen);
+
+        // the bumpers, as drawn: LB the ideas, RB the settings
+        var ideasBumper = Hit(280, 10, 200, 50, 18, "LB · Ideas", () => { ShowView(View.Ideas); Search.Focus(); Look(Gaze.Ideas); });
+        var settingsButton = Hit(1265, 10, 205, 50, 18, "RB · Settings", () => ShowSettingsPage(!SettingsOpen));
+        pad.Children.Add(ideasBumper); pad.Children.Add(settingsButton);
 
         // the sticks are its eyes
-        Eye(pad, LeftX, EyeY); Eye(pad, RightX, EyeY);
+        Eye(pad, LeftX, EyeY); Eye(pad, RightX, EyeY + 2);
 
         // left: the D-pad scrolls the conversation, and steps through the ideas
-        var dpad = new (string Glyph, double X, double Y, string Tip, Action Act)[]
+        foreach (var (x, y, tip, act) in new (double, double, string, Action)[]
         {
-            ("▲", 0, -1, "Scroll up", () => scroller.ScrollToVerticalOffset(scroller.VerticalOffset - 140)),
-            ("▼", 0, 1, "Scroll down", () => scroller.ScrollToVerticalOffset(scroller.VerticalOffset + 140)),
-            ("◀", -1, 0, "Previous idea", () => Idea(-1)),
-            ("▶", 1, 0, "Next idea", () => Idea(1)),
-        };
-        // one cross, in a shallow well, with a dimple at its centre; its arms are the buttons
-        var well = new System.Windows.Shapes.Ellipse { Width = 150, Height = 150, IsHitTestVisible = false, Fill = new RadialGradientBrush(Color.FromArgb(70, 0, 0, 0), Color.FromArgb(0, 0, 0, 0)) };
-        Canvas.SetLeft(well, LeftX - 75); Canvas.SetTop(well, PadY - 75); pad.Children.Add(well);
-        pad.Children.Add(new System.Windows.Shapes.Path
-        {
-            Data = new CombinedGeometry(GeometryCombineMode.Union, new RectangleGeometry(new Rect(LeftX - 18, PadY - 54, 36, 108), 8, 8), new RectangleGeometry(new Rect(LeftX - 54, PadY - 18, 108, 36), 8, 8)),
-            Fill = new LinearGradientBrush(CapLight, CapDark, 90), Stroke = new SolidColorBrush(Edge), StrokeThickness = 1, IsHitTestVisible = false,
-            Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 10, ShadowDepth = 3, Direction = 270, Opacity = .6 },
-        });
-        var dimple = new System.Windows.Shapes.Ellipse { Width = 16, Height = 16, IsHitTestVisible = false, Fill = new RadialGradientBrush(CapDark, CapLight) { GradientOrigin = new(.5, .8) } };
-        Canvas.SetLeft(dimple, LeftX - 8); Canvas.SetTop(dimple, PadY - 8); pad.Children.Add(dimple);
-        foreach (var d in dpad)
-        {
-            var arm = PadKey(new Border
-            {
-                Width = 34, Height = 36, BorderThickness = new(1), BorderBrush = Brushes.Transparent, Background = Brushes.Transparent,
-                CornerRadius = d.Y < 0 ? new(8, 8, 0, 0) : d.Y > 0 ? new(0, 0, 8, 8) : d.X < 0 ? new(8, 0, 0, 8) : new(0, 8, 8, 0),
-                Child = Kit.Text(d.Glyph, 11, "DS.TextMuted").Also(t => t.HorizontalAlignment = HorizontalAlignment.Center),
-            }, d.Tip, d.Act);
-            if (d.X != 0) { ((Border)arm.Content).Width = 36; ((Border)arm.Content).Height = 34; }
-            Canvas.SetLeft(arm, LeftX - 17 + d.X * 35 - (d.X < 0 ? 2 : 0)); Canvas.SetTop(arm, PadY - 17 + d.Y * 35 - (d.Y < 0 ? 2 : 0));
-            register(arm); pad.Children.Add(arm);
-        }
-        Legend(pad, LeftX, PadY + 84, "▲▼ SCROLL\n◀▶ IDEAS");
+            (0, -1, "Scroll up", () => scroller.ScrollToVerticalOffset(scroller.VerticalOffset - 140)),
+            (0, 1, "Scroll down", () => scroller.ScrollToVerticalOffset(scroller.VerticalOffset + 140)),
+            (-1, 0, "Previous idea", () => Idea(-1)),
+            (1, 0, "Next idea", () => Idea(1)),
+        })
+            pad.Children.Add(Hit(PadX - 24 + x * 52, PadY - 24 + y * 52, 48, 48, 8, tip, act));
 
-        // right: the face buttons. A sends, B puts it away, X starts over, Y shows every idea
-        var face = new (string Letter, double X, double Y, string Tip, Action Act)[]
+        // right: the face buttons. A sends, B puts it away, X starts over, Y searches the ideas
+        foreach (var (letter, x, y, tip, act) in new (string, double, double, string, Action)[]
         {
-            ("Y", 0, -1, "Search the ideas", () => { ShowView(View.Ideas); Search.Focus(); Search.SelectAll(); Look(Gaze.Ideas); }),
-            ("X", -1, 0, "New conversation", Restart),
-            ("B", 1, 0, "Put away", () => { if (SettingsOpen) ShowSettingsPage(false); else CloseRequested?.Invoke(); }),
-            ("A", 0, 1, "Send", Send),
-        };
-        foreach (var f in face)
+            ("Y", 1505, 359, "Search the ideas", () => { ShowView(View.Ideas); Search.Focus(); Search.SelectAll(); Look(Gaze.Ideas); }),
+            ("X", 1438, 417, "New conversation", Restart),
+            ("B", 1570, 426, "Put away", () => { if (SettingsOpen) ShowSettingsPage(false); else CloseRequested?.Invoke(); }),
+            ("A", 1506, 480, "Send", Send),
+        })
         {
-            bool primary = f.Letter == "A";
-            var cap = PadKey(new Border
-            {
-                Width = 46, Height = 46, CornerRadius = new(23), BorderThickness = new(primary ? 2.5 : 1),
-                BorderBrush = primary ? new SolidColorBrush(Amber) : new SolidColorBrush(Edge),
-                Background = new RadialGradientBrush(new GradientStopCollection { new(Color.FromRgb(70, 72, 80), 0), new(Color.FromRgb(30, 31, 36), .55), new(Color.FromRgb(12, 12, 15), 1) }) { GradientOrigin = new(.35, .28) },
-                Effect = primary ? new DropShadowEffect { Color = Amber, BlurRadius = 18, ShadowDepth = 0, Opacity = .65 } : new DropShadowEffect { Color = Colors.Black, BlurRadius = 8, ShadowDepth = 3, Direction = 270, Opacity = .6 },
-                Child = Kit.Text(f.Letter, 19, "DS.Text", FontWeights.SemiBold).Also(t => { t.HorizontalAlignment = HorizontalAlignment.Center; if (primary) t.Foreground = new SolidColorBrush(Amber); }),
-            }, f.Tip, f.Act);
-            Canvas.SetLeft(cap, RightX - 23 + f.X * 48); Canvas.SetTop(cap, PadY - 23 + f.Y * 48);
-            register(cap); pad.Children.Add(cap);
-            if (primary) send = cap;
+            var cap = Hit(x - 35, y - 35, 70, 70, 35, tip, act);
+            pad.Children.Add(cap);
+            if (letter == "A") send = cap;
         }
-        Legend(pad, RightX, PadY + 84, "A SEND · B AWAY\nX NEW · Y SEARCH");
         send ??= new Button();
         ShowIdeas(""); ShowView(View.Chat);
 
@@ -342,21 +275,6 @@ public sealed class AgentPanel
         ShowState(); Look(Gaze.Idle);
     }
 
-    (Button, Border, TextBlock) Bumper(string key, string label, double x, CornerRadius corners)
-    {
-        var text = Kit.Text(label.ToUpperInvariant(), 12.5, "DS.TextSoft", FontWeights.SemiBold);
-        var cap = new Border
-        {
-            Width = 220, Height = 50, CornerRadius = corners, BorderThickness = new(1, 1.5, 1, 0),
-            BorderBrush = new LinearGradientBrush(Color.FromArgb(120, 255, 255, 255), Color.FromArgb(0, 255, 255, 255), 90),
-            Background = new LinearGradientBrush(new GradientStopCollection { new(Color.FromRgb(64, 66, 74), 0), new(Color.FromRgb(30, 31, 36), .45), new(Color.FromRgb(18, 18, 22), 1) }, 90),
-            Child = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Top, Margin = new(0, 10, 0, 0), Children = { Kit.Text(key, 12, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(0, 0, 10, 0)), text } },
-        };
-        var button = PadKey(cap, key + " · " + label, null);
-        Canvas.SetLeft(button, x); Canvas.SetTop(button, 10);
-        return (button, cap, text);
-    }
-
     /// <summary>A control on the controller: its own drawing, a lit edge when hovered or focused.</summary>
     static Button PadKey(Border look, string tip, Action? act)
     {
@@ -369,20 +287,6 @@ public sealed class AgentPanel
         button.GotKeyboardFocus += (_, _) => Lit(true); button.LostKeyboardFocus += (_, _) => Lit(button.IsMouseOver);
         if (act != null) button.Click += (_, _) => act();
         return button;
-    }
-
-    /// <summary>Fine diagonal ridges for the grips: dark on a light grip, light on a dark one.</summary>
-    static Brush Knurl(bool lightGrip)
-    {
-        var ink = new SolidColorBrush(lightGrip ? Color.FromArgb(46, 0, 0, 0) : Color.FromArgb(30, 255, 255, 255));
-        var ridge = new GeometryDrawing(null, new Pen(ink, 1.2), new GeometryGroup { Children = { new LineGeometry(new Point(0, 6), new Point(6, 0)), new LineGeometry(new Point(-1, 1), new Point(1, -1)), new LineGeometry(new Point(5, 7), new Point(7, 5)) } });
-        return new DrawingBrush(ridge) { TileMode = TileMode.Tile, Viewport = new Rect(0, 0, 6, 6), ViewportUnits = BrushMappingMode.Absolute, Viewbox = new Rect(0, 0, 6, 6), ViewboxUnits = BrushMappingMode.Absolute };
-    }
-
-    void Legend(Canvas pad, double x, double y, string text)
-    {
-        var t = Kit.Text(text, 11, "DS.TextMuted", FontWeights.SemiBold).Also(t => { t.Foreground = new SolidColorBrush(skin.Ink); t.TextAlignment = TextAlignment.Center; t.Width = 150; t.TextTrimming = TextTrimming.None; t.IsHitTestVisible = false; });
-        Canvas.SetLeft(t, x - 75); Canvas.SetTop(t, y); pad.Children.Add(t);
     }
 
     void Idea(int step)
@@ -464,31 +368,21 @@ public sealed class AgentPanel
     enum Gaze { Idle, Typing, Thinking, Down, Ideas }
     void Eye(Canvas pad, double cx, double cy)
     {
-        var well = new System.Windows.Shapes.Ellipse { Width = 100, Height = 100, Fill = new RadialGradientBrush(Color.FromRgb(5, 8, 16), Color.FromRgb(12, 17, 30)), Stroke = new SolidColorBrush(Edge), StrokeThickness = 1.2, IsHitTestVisible = false };
-        Canvas.SetLeft(well, cx - 50); Canvas.SetTop(well, cy - 50); pad.Children.Add(well);
-        if (skin.Rings is { Length: 2 } rings)
-        {
-            var ring = new System.Windows.Shapes.Ellipse { Width = 108, Height = 108, StrokeThickness = 4, IsHitTestVisible = false, Stroke = new LinearGradientBrush(rings[0], rings[1], 45),
-                Effect = new DropShadowEffect { Color = rings[0], BlurRadius = 18, ShadowDepth = 0, Opacity = .85 } };
-            Canvas.SetLeft(ring, cx - 54); Canvas.SetTop(ring, cy - 54); pad.Children.Add(ring);
-        }
         var look = new TranslateTransform(); var lid = new ScaleTransform(1, 1);
         var pupil = new System.Windows.Shapes.Rectangle { Width = 13, Height = 24, RadiusX = 6.5, RadiusY = 6.5, Fill = new SolidColorBrush(AgentMark.Ice), RenderTransformOrigin = new(.5, .5), RenderTransform = lid,
             Effect = new DropShadowEffect { Color = AgentMark.Ice, BlurRadius = 18, ShadowDepth = 0, Opacity = 1 } };
-        var cap = new Grid
-        {
-            Width = 74, Height = 74, IsHitTestVisible = false, RenderTransform = look,
-            Children =
-            {
-                new System.Windows.Shapes.Ellipse { Fill = new RadialGradientBrush(new GradientStopCollection { new(Color.FromRgb(58, 72, 102), 0), new(CapDark, 1) }) { GradientOrigin = new(.4, .35) }, Stroke = new SolidColorBrush(Edge), StrokeThickness = 1.5 },
-                new System.Windows.Shapes.Ellipse { Margin = new(9), Stroke = new SolidColorBrush(Color.FromArgb(40, 255, 255, 255)), StrokeThickness = 1 },
-                pupil,
-                Squint(cx < DesignWidth / 2),
-            },
-        };
+        var cap = new Grid { Width = 74, Height = 74, IsHitTestVisible = false, RenderTransform = look, Children = { pupil, Squint(cx < DesignWidth / 2) } };
         Canvas.SetLeft(cap, cx - 37); Canvas.SetTop(cap, cy - 37); pad.Children.Add(cap);
         eyes.Add((look, lid, cx < DesignWidth / 2 ? 1 : -1));
         squints.Add((pupil, cap.Children[^1]));
+    }
+
+    /// <summary>A drawn control made real: an invisible button over it, lit round its edge when hovered or focused.</summary>
+    Button Hit(double x, double y, double w, double h, double radius, string tip, Action act)
+    {
+        var button = PadKey(new Border { Width = w, Height = h, CornerRadius = new(radius), Background = Brushes.Transparent, BorderThickness = new(2), BorderBrush = Brushes.Transparent }, tip, act);
+        Canvas.SetLeft(button, x); Canvas.SetTop(button, y); register(button);
+        return button;
     }
 
     /// <summary>The left eye's ">" or the right eye's "<": lit like the pupil, hidden until it laughs.</summary>
@@ -964,6 +858,13 @@ public sealed class AgentPanel
             plot.Children.Add(new System.Windows.Shapes.Polygon { Points = area, Fill = new LinearGradientBrush(Color.FromArgb(90, Amber.R, Amber.G, Amber.B), Color.FromArgb(0, Amber.R, Amber.G, Amber.B), 90) });
         }
         plot.Children.Add(new System.Windows.Shapes.Polyline { Points = line, Stroke = new SolidColorBrush(accent), StrokeThickness = proposed ? 2.5 : 2, StrokeLineJoin = PenLineJoin.Round });
+        // the points marked along it, the last one the brightest
+        for (int i = 0; i < line.Count; i += Math.Max(1, (line.Count - 1) / 6))
+        {
+            bool end = i >= line.Count - 1 - Math.Max(1, (line.Count - 1) / 6) / 2; double r = end ? 4.5 : 3;
+            var dot = new System.Windows.Shapes.Ellipse { Width = 2 * r, Height = 2 * r, Fill = new SolidColorBrush(accent) };
+            Canvas.SetLeft(dot, Math.Clamp(line[i].X, r, W - r) - r); Canvas.SetTop(dot, Math.Clamp(line[i].Y, r, H - r) - r); plot.Children.Add(dot);
+        }
         var head = new DockPanel();
         var name = Kit.Text(stick, 12, "DS.TextMuted"); DockPanel.SetDock(name, Dock.Right); head.Children.Add(name);
         head.Children.Add(Kit.Text(title, 13.5, "DS.Text", FontWeights.SemiBold).Also(t => { if (proposed) t.Foreground = new SolidColorBrush(Amber); }));
@@ -971,8 +872,20 @@ public sealed class AgentPanel
         {
             CornerRadius = new(12), Padding = new(14, 10, 14, 10), Margin = proposed ? new(6, 0, 0, 0) : new(0, 0, 6, 0), BorderThickness = new(1),
             BorderBrush = new SolidColorBrush(proposed ? Color.FromArgb(150, Amber.R, Amber.G, Amber.B) : Line), Background = new SolidColorBrush(Color.FromRgb(15, 18, 23)),
-            Child = new StackPanel { Children = { head, new Viewbox { Stretch = Stretch.Fill, Height = H, Child = plot } } },
+            Child = new StackPanel { Children = { head, Axes(new Viewbox { Stretch = Stretch.Fill, Height = H, Child = plot }) } },
         };
+    }
+
+    /// <summary>The plot with its axes named: output up the side, the stick's push along the bottom.</summary>
+    static Grid Axes(UIElement plot)
+    {
+        var grid = new Grid { ColumnDefinitions = { new() { Width = GridLength.Auto }, new() }, RowDefinitions = { new(), new() { Height = GridLength.Auto } } };
+        var output = Kit.Text("Output", 10.5, "DS.TextMuted").Also(t => { t.LayoutTransform = new RotateTransform(-90); t.Margin = new(0, 0, 6, 0); t.HorizontalAlignment = HorizontalAlignment.Center; });
+        grid.Children.Add(output);
+        Grid.SetColumn(plot, 1); grid.Children.Add(plot);
+        var push = Kit.Text("Stick deflection →", 11, "DS.TextMuted").Also(t => { t.HorizontalAlignment = HorizontalAlignment.Center; t.Margin = new(0, 4, 0, 0); });
+        Grid.SetRow(push, 1); Grid.SetColumn(push, 1); grid.Children.Add(push);
+        return grid;
     }
 
     public bool SettingsOpen => settingsBox.Visibility == Visibility.Visible;
