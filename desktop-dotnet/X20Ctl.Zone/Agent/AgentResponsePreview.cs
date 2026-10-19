@@ -33,6 +33,30 @@ public static class AgentResponsePreview
         return samples;
     }
 
+    /// <summary>The whole response of one stick before and after, input 0..100% in equal steps, for drawing as a curve.</summary>
+    public static IReadOnlyList<(double Input, double Before, double After)> Curve(PcModeProfile before, PcModeProfile after, string target, int steps = 24)
+    {
+        var (bc, bt) = Settings(before, target);
+        var (ac, at) = Settings(after, target);
+        var points = new List<(double, double, double)>(steps + 1);
+        for (int i = 0; i <= steps; i++)
+        {
+            double input = 100.0 * i / steps;
+            short x = (short)Math.Min(32767, Math.Round(input * 32768 / 100));
+            points.Add((input, Percent(x, bc, bt), Percent(x, ac, at)));
+        }
+        return points;
+    }
+
+    /// <summary>The sticks whose response differs between the two profiles.</summary>
+    public static IReadOnlyList<string> ChangedSticks(PcModeProfile before, PcModeProfile after)
+        => new[] { "LeftStick", "RightStick" }.Where(target =>
+        {
+            var (bc, bt) = Settings(before, target);
+            var (ac, at) = Settings(after, target);
+            return CurveKey(bc) != CurveKey(ac) || TuningKey(bt) != TuningKey(at);
+        }).ToArray();
+
     static double Percent(short x, SetupCurve? curve, StickTuning? tuning)
         => PadProcessor.Stick(x, 0, curve, tuning).Item1 / 32767.0 * 100;
 

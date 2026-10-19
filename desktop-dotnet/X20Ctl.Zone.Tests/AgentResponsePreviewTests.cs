@@ -106,4 +106,23 @@ public sealed class AgentResponsePreviewTests
         Assert.Equal(new[] { "LeftStick", "LeftStick", "LeftStick", "RightStick", "RightStick", "RightStick" },
             AgentResponsePreview.Samples(new(), after).Select(s => s.Target));
     }
+
+    [Fact]
+    public void Curve_matches_the_samples_and_spans_the_whole_travel()
+    {
+        var before = new PcModeProfile();
+        var after = new PcModeProfile { Curves = { ["RightStick"] = Curve(10, 90) } };
+        var curve = AgentResponsePreview.Curve(before, after, "RightStick", 4);
+        Assert.Equal(new double[] { 0, 25, 50, 75, 100 }, curve.Select(p => p.Input));
+        var samples = AgentResponsePreview.Samples(before, after);
+        foreach (var s in samples)
+        {
+            var point = curve.Single(p => p.Input == s.Input);
+            Assert.Equal(s.BeforePercent, point.Before);
+            Assert.Equal(s.AfterPercent, point.After);
+        }
+        Assert.Equal(0, curve[0].After);
+        Assert.Equal(new[] { "RightStick" }, AgentResponsePreview.ChangedSticks(before, after));
+        Assert.Empty(AgentResponsePreview.ChangedSticks(before, before));
+    }
 }
