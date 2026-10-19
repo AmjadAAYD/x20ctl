@@ -8,7 +8,7 @@ using X20Ctl.Zone.Agent;
 namespace X20Ctl.Product.Development;
 
 /// <summary>
-/// --review-talk DIRECTORY: the agent window against the real local model. Opens an X20 Pro, sends sentences through it
+/// --review-talk DIRECTORY: the agent window and its phrasebook, as an owner uses them. Opens an X20 Pro, sends sentences through it
 /// exactly as typed, then an X20 for the paddle it doesn't have, and writes captures (rendered, never the screen) and a log
 /// of every turn: the model's raw output, each check, what changed, and the token counts and times the model reported.
 /// Settings go to a fixture file in DIRECTORY; PC mode stays off.
@@ -55,6 +55,7 @@ internal static class TalkReview
                 for (int a = 0; a < turn.Attempts.Count; a++) log.AppendLine($"output {a + 1}: {turn.Attempts[a].Content.ReplaceLineEndings(" ")}");
                 if (turn.Verdict.StructureError != null) log.AppendLine("structure: " + turn.Verdict.StructureError);
                 foreach (var c in turn.Verdict.Checks) log.AppendLine($"  {c.State,-11} {c.Action.Action} {c.Action.Target} {c.Action.ValueText} · {c.Message}");
+                if (turn.Verdict.Proposal?.Speech is { Length: > 0 } said) log.AppendLine("said: " + said);
                 log.AppendLine("valid: " + turn.Verdict.Valid + (turn.Outcome.Error != null ? " · " + turn.Outcome.Error : ""));
                 foreach (var c in turn.Outcome.Changes) log.AppendLine($"  changed {c.What}: {c.Before} -> {c.After}");
                 if (turn.Measured != null) log.AppendLine("measured (fixture): " + turn.Measured.Describe());
