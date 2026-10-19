@@ -33,12 +33,12 @@ internal static class AgentLookReview
             await talk.Ask("What's my current battery?"); await Shot("2-battery");
             await talk.Ask("Turbo on X, 12 a second"); await Shot("4-after");
             await talk.Ask("Make my right stick good for sniping"); await Shot("5-after-curve");
-            // every model's own look: the window open on each
+            // every model: the same controller, opened with each one's name
             foreach (var model in new[] { "x20", "x05", "x05_pro", "x10", "d10", "x15", "dune" })
             {
                 studio.CloseAgent(); window.Host.ReturnToZone(); await Task.Delay(500);
                 window.Scene.AssignController(0, window.Host.Catalog.Get(model)); window.Host.EnterStudio(0); await Task.Delay(1200);
-                studio = window.Host.Studio!; studio.OpenAgent(); await Shot("6-skin-" + model);
+                studio = window.Host.Studio!; studio.OpenAgent(); await Shot("6-model-" + model);
             }
         }
         finally { window.Close(); }

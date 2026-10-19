@@ -2,6 +2,27 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **Agent XCTL has a new look.** The agent is now a large handheld-style controller, with its screen filling the middle. The drawn controls work:
+  - LB opens the ideas.
+  - RB opens the settings.
+  - The D-pad scrolls the conversation and steps through the ideas.
+  - A sends, B puts the agent away, X starts a new conversation and Y searches the ideas.
+  - FRONT / BACK on the bar under the screen puts the agent away and shows the back of your controller, where its paddles are.
+
+  The sticks are its eyes.
+- **A clearer agent screen.**
+  - A rail on the left leads to the conversation, the ideas, another controller, the settings as they are now and PC mode.
+  - Topic pills sit across the top: Aim & sticks, Triggers, Buttons and PC mode.
+  - The chat bar along the bottom has a round send button.
+- **Answers that change a stick show it.** The answer has a headline with your words under it. Current and Proposed curve cards come next, then one line on why, then Undo.
+
+### Fixed
+
+- **Sending from the ideas returns to the conversation**, so you see the answer.
+- **When the agent can't do something, it says why in plain words.** For example: "Left stick dead zone: 0 to 40 only; 260 is outside." Before, it showed internal names.
+
 ## [V0.017.1] - 2026-10-19
 
 Tagged `v0.017.1`. Everything in V0.017 is included.

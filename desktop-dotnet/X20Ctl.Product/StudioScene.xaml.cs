@@ -170,6 +170,7 @@ public partial class StudioScene : UserControl
             case "Curves": ShowCurves(true); break;
             case "Macros": ShowMacros(true); break;
             case "Vibration": ShowVibration(true); break;
+            case "Back": ShowButtons(); buttonsPage?.ShowView(true); break;
             default: ShowButtons(); break;
         }
     }
