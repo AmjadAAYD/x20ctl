@@ -232,6 +232,11 @@ public sealed class AgentPanel
         var ideasBumper = Hit(280, 10, 200, 50, 18, "LB · Ideas", () => { ShowView(View.Ideas); Search.Focus(); Look(Gaze.Ideas); });
         var settingsButton = Hit(1265, 10, 205, 50, 18, "RB · Settings", () => ShowSettingsPage(!SettingsOpen));
         pad.Children.Add(ideasBumper); pad.Children.Add(settingsButton);
+        // the bar under the screen, as drawn: its LB and RB do what the bumpers do; FRONT / BACK puts the agent away on the
+        // back of this controller, where its paddles are
+        pad.Children.Add(Hit(640, 708, 112, 40, 14, "LB · Ideas", () => { ShowView(View.Ideas); Search.Focus(); Look(Gaze.Ideas); }));
+        pad.Children.Add(Hit(788, 708, 170, 40, 14, "Back of the controller", () => PageRequested?.Invoke("Back")));
+        pad.Children.Add(Hit(994, 708, 112, 40, 14, "RB · Settings", () => ShowSettingsPage(!SettingsOpen)));
 
         // the sticks are its eyes
         // each eye at the centre of its stick's dish, measured on the art
