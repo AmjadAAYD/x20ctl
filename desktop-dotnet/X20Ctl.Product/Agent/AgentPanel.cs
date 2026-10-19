@@ -749,13 +749,16 @@ public sealed class AgentPanel
     Border Mine(string said, string? reading)
     {
         var bubble = Bubble(said, mine: true);
+        lastMine = (said, [bubble]);
         if (reading != null)
         {
-            transcript.Children.Add(Wrap("I read that as: " + reading, 12, "DS.TextMuted").Also(t => { t.HorizontalAlignment = HorizontalAlignment.Right; t.Margin = new(50, 0, 6, 6); }));
+            var read = Wrap("I read that as: " + reading, 12, "DS.TextMuted").Also(t => { t.HorizontalAlignment = HorizontalAlignment.Right; t.Margin = new(50, 0, 6, 6); });
+            transcript.Children.Add(read); lastMine.Value.Shown.Add(read);
             scroller.ScrollToEnd();
         }
         return bubble;
     }
+    (string Said, List<UIElement> Shown)? lastMine;
 
     void Say(string text, string? detail)
     {
@@ -769,7 +772,21 @@ public sealed class AgentPanel
     {
         var stack = new StackPanel();
         var v = turn.Verdict;
-        stack.Children.Add(Wrap(v.Proposal?.Speech is { Length: > 0 } speech ? speech : "I didn't give a usable answer.", 17, "DS.Text").Also(t => t.FontWeight = FontWeights.SemiBold));
+        var sticks = failure == null && undo != null && turn.Outcome.Next is { } curved ? AgentResponsePreview.ChangedSticks(undo, curved) : [];
+        bool hero = sticks.Count > 0;
+        string spoken = v.Proposal?.Speech is { Length: > 0 } speech ? speech : "I didn't give a usable answer.";
+        if (hero)
+        {
+            stack.Children.Add(Wrap(spoken, 23, "DS.Text").Also(t => { t.FontWeight = FontWeights.Bold; t.TextAlignment = TextAlignment.Center; t.HorizontalAlignment = HorizontalAlignment.Center; t.MaxWidth = 640; }));
+            if (lastMine is { } asked)
+            {
+                foreach (var shown in asked.Shown) transcript.Children.Remove(shown);
+                lastMine = null;
+                stack.Children.Add(new Border { CornerRadius = new(10), Padding = new(16, 7, 16, 8), Margin = new(0, 10, 0, 2), HorizontalAlignment = HorizontalAlignment.Center, BorderThickness = new(1),
+                    BorderBrush = new SolidColorBrush(Color.FromRgb(58, 64, 74)), Background = new SolidColorBrush(Color.FromRgb(34, 39, 47)), Child = Wrap(asked.Said, 14, "DS.Text") });
+            }
+        }
+        else stack.Children.Add(Wrap(spoken, 17, "DS.Text").Also(t => t.FontWeight = FontWeights.SemiBold));
         // what the app itself measured, before what the model made of it
         if (turn.Measured is { } m)
         {
@@ -778,10 +795,10 @@ public sealed class AgentPanel
                 stack.Children.Add(Wrap(string.Create(System.Globalization.CultureInfo.InvariantCulture, $"Measured · {AgentApplier.Name(d.Stick)} rests at {d.RestX:+0.0;-0.0;0.0}%, {d.RestY:+0.0;-0.0;0.0}% and wanders up to {d.Peak:0.0}%"), 14, "DS.Warn", 8));
         }
         foreach (var c in turn.Outcome.Changes)
-            stack.Children.Add(Wrap($"{c.What}   {c.Before} → {c.After}", 14, "DS.AccentHi", 6));
+            stack.Children.Add(Wrap($"{c.What}   {c.Before} → {c.After}", hero ? 12.5 : 14, hero ? "DS.TextMuted" : "DS.AccentHi", 6).Also(t => { if (hero) t.HorizontalAlignment = HorizontalAlignment.Center; }));
         // a stick that changed: its curve now and the one proposed, side by side
-        if (failure == null && undo != null && turn.Outcome.Next is { } saved)
-            foreach (var stick in AgentResponsePreview.ChangedSticks(undo, saved))
+        if (hero && undo != null && turn.Outcome.Next is { } saved)
+            foreach (var stick in sticks)
             {
                 var points = AgentResponsePreview.Curve(undo, saved, stick);
                 var pair = new System.Windows.Controls.Primitives.UniformGrid { Columns = 2, Margin = new(0, 10, 0, 0) };
@@ -791,8 +808,10 @@ public sealed class AgentPanel
                 if (AgentResponsePreview.Samples(undo, saved).FirstOrDefault(s => s.Target == stick)?.ContextualNote is { } note) stack.Children.Add(Wrap(note, 12, "DS.TextMuted", 6));
             }
         // why it fits, or the answer to a question: the model's words, from the settings' meanings
-        if (v.Valid && v.Proposal?.Recap is { Length: > 0 } recap)
-            stack.Children.Add(new Border { BorderBrush = DS.Brush("DS.AccentHi"), BorderThickness = new(2, 0, 0, 0), Padding = new(12, 2, 0, 2), Margin = new(0, 10, 0, 0), Child = Wrap(recap, 13.5, "DS.TextSoft") });
+        if (v.Valid && v.Proposal?.Recap is { Length: > 0 } recap && hero)
+            stack.Children.Add(Wrap(recap, 14.5, "DS.Text", 12).Also(t => { t.TextAlignment = TextAlignment.Center; t.HorizontalAlignment = HorizontalAlignment.Center; t.MaxWidth = 680; }));
+        else if (v.Valid && v.Proposal?.Recap is { Length: > 0 } other)
+            stack.Children.Add(new Border { BorderBrush = DS.Brush("DS.AccentHi"), BorderThickness = new(2, 0, 0, 0), Padding = new(12, 2, 0, 2), Margin = new(0, 10, 0, 0), Child = Wrap(other, 13.5, "DS.TextSoft") });
         // the switch: "" when it worked, otherwise why not
         if (switched != null && turn.Outcome.PcMode is { } pc)
             stack.Children.Add(Wrap(switched.Length == 0 ? $"PC mode   {(pc ? "on" : "off")}" : "PC mode · " + switched, 14, switched.Length == 0 ? "DS.AccentHi" : "DS.Warn", 6));
@@ -827,7 +846,9 @@ public sealed class AgentPanel
         footer.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = { Kit.Icon("", 13, "DS.TextMuted").Also(i => i.Margin = new(0, 0, 8, 0)), verdictText } });
         stack.Children.Add(footer);
 
-        var bubble = Bubble("", false); bubble.Child = stack; bubble.HorizontalAlignment = HorizontalAlignment.Stretch; scroller.ScrollToEnd();
+        var bubble = Bubble("", false); bubble.Child = stack; bubble.HorizontalAlignment = HorizontalAlignment.Stretch;
+        if (hero) { bubble.Background = Brushes.Transparent; bubble.BorderBrush = Brushes.Transparent; bubble.Margin = new(0, 10, 12, 6); }
+        scroller.ScrollToEnd();
     }
 
     void Undo(Button button, PcModeProfile back)
