@@ -123,7 +123,13 @@ studio.SetBatteryLevel(null);if(battery.Text!="Battery · Not reported")throw ne
 Console.WriteLine("PASS: every glass tab route select exactly one destination; battery coarse/wired/unavailable states.");
 studio.OpenAgent();if(studio.AgentWindow!.Body.Child is not System.Windows.Controls.Viewbox)throw new Exception("Agent controller design replaced by drawer");studio.Measure(new Size(1000,650));studio.Arrange(new Rect(0,0,1000,650));studio.UpdateLayout();
 if(studio.AgentWindow!.Body.Height>650||studio.AgentWindow.Body.Width>1000)throw new Exception("Controller Agent resize failed");studio.CloseAgent();
-Console.WriteLine("PASS: isolated Studio tab overflow, hidden destination, Dashboard restoration, controller Agent resize.");
+static System.Windows.Controls.Button? AgentKey(object node,string tip){if(node is System.Windows.Controls.Button b&&b.ToolTip as string==tip)return b;if(node is DependencyObject d)foreach(var child in LogicalTreeHelper.GetChildren(d))if(AgentKey(child,tip) is {} hit)return hit;return null;}
+studio.OpenAgent();var backKey=AgentKey(studio.AgentWindow!.Body,"Back of the controller")??throw new Exception("Agent FRONT / BACK bar not clickable");
+backKey.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+var agentButtons=(ButtonsConsolePage)typeof(StudioScene).GetField("buttonsPage",BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(studio)!;
+if(!agentButtons.IsRear||studio.CurrentPage!="Buttons"||studio.AgentWindow.Body.IsHitTestVisible)throw new Exception("Agent FRONT / BACK did not put the agent away on the back of the controller");
+foreach(var tip in new[]{"LB · Ideas","RB · Settings"})if(AgentKey(studio.AgentWindow.Body,tip) is null)throw new Exception("Agent bar key missing: "+tip);
+Console.WriteLine("PASS: isolated Studio tab overflow, hidden destination, Dashboard restoration, controller Agent resize, Agent FRONT / BACK opens the back.");
 var installed=GameLibrary.ScanAsync().GetAwaiter().GetResult();
 field.SetValue(null,Task.FromResult<IReadOnlyList<GameEntry>>(installed));
 var livePage=new DashboardConsolePage(realModel,0,0,0,true);

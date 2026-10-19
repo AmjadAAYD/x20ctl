@@ -203,7 +203,23 @@ public sealed class AgentSession(IAgentModel model, string modelId, string contr
         System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
     /// <summary>The validator's objections in one line, for the model's second attempt and for the app's own message.</summary>
-    public static string Problems(AgentVerdict verdict) => verdict.StructureError ?? string.Join(" ", verdict.Checks.Where(c => c.State == CheckState.Rejected).Select(c => $"{c.Action.Action} on {c.Action.Target}: {c.Message}"));
+    public static string Problems(AgentVerdict verdict) => verdict.StructureError ?? string.Join(" ", verdict.Checks.Where(c => c.State == CheckState.Rejected).Select(c => $"{Label(c.Action)}: {c.Message}"));
+
+    /// <summary>A setting as the owner reads it, never its code name: "Left stick dead zone", "Turbo on X", "Paddle on M5".</summary>
+    public static string Label(AgentAction a)
+    {
+        string name = AgentKnowledge.Settings.FirstOrDefault(m => m.Action == a.Action)?.Name ?? a.Action, target = AgentApplier.Name(a.Target);
+        // a stick or trigger setting takes the control's name in place of the word: "Stick dead zone" on the left stick
+        string word = target.EndsWith(" stick", StringComparison.Ordinal) ? "stick" : target.EndsWith(" trigger", StringComparison.Ordinal) ? "trigger" : "";
+        var plain = new System.Text.RegularExpressions.Regex($@"\b{word}\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (word.Length > 0 && plain.IsMatch(name))
+        {
+            string named = plain.Replace(name, target.ToLowerInvariant(), 1);
+            return char.ToUpperInvariant(named[0]) + named[1..];
+        }
+        if (a.Target == AgentVocabulary.All) return name + " for everything";
+        return a.Target is "" or AgentVocabulary.PcModeTarget or AgentVocabulary.MouseTarget or AgentVocabulary.PageTarget ? name : $"{name} on {target}";
+    }
 
     public string SystemPrompt(PcModeProfile current) => (SystemPromptOverride.Length > 0 ? SystemPromptOverride : DefaultPrompt(controllerName, modelId))
         + (ControllerFacts.Length > 0 ? "\n\nWhat I am (use it when choosing values):\n" + ControllerFacts : "") + "\n\nMy settings right now:\n" + Describe(current);
