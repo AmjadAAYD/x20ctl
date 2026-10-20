@@ -16,6 +16,8 @@ internal static class TimingReview
         var sinceStart = DateTime.Now - Process.GetCurrentProcess().StartTime;
         lines.Add($"process start to harness: {sinceStart.TotalMilliseconds:0} ms");
         var clock = Stopwatch.StartNew();
+        if (Environment.GetEnvironmentVariable("X20CTL_TIMING_LAUNCH") == "1") { await Launch(file, lines, folder, clock); return; }
+        if (Environment.GetEnvironmentVariable("X20CTL_TIMING_FILM") == "1") { await FilmOpen(file, lines); return; }
         if (Environment.GetEnvironmentVariable("X20CTL_TIMING_PARTS") == "1")
         {   // the window's two big parts on their own, cold (so this run's later numbers are warm)
             var scene = new ZoneScene(true); lines.Add($"  ZoneScene alone: {clock.ElapsedMilliseconds} ms");
@@ -108,6 +110,61 @@ internal static class TimingReview
             var t = Stopwatch.StartNew(); action(); long build = t.ElapsedMilliseconds; await Frame();
             lines.Add($"{name}: {build} ms to build, {t.ElapsedMilliseconds} ms to first frame");
         }
+    }
+
+    /// <summary>X20CTL_TIMING_LAUNCH=1: the window as a real launch builds it (the intro film, the native core, the tray icon),
+    /// on fixture files, timed from process start until the intro hands over to the Zone.</summary>
+    static async Task Launch(string file, List<string> lines, string folder, Stopwatch clock)
+    {
+        double Since() => (DateTime.Now - Process.GetCurrentProcess().StartTime).TotalMilliseconds;
+        ProductWindow? window = null;
+        try
+        {
+            window = new ProductWindow(false, Path.Combine(folder, "assignments.json"), firstRun: true, nativeEngine: true);
+            lines.Add($"window constructed: {clock.ElapsedMilliseconds} ms (process start {Since():0} ms)");
+            var tray = Stopwatch.StartNew(); new TrayIcon(window).Dispose(); lines.Add($"tray icon: {tray.ElapsedMilliseconds} ms");
+            var rendered = new TaskCompletionSource(); window.ContentRendered += (_, _) => rendered.TrySetResult();
+            window.Show(); await rendered.Task; await Frame();
+            lines.Add($"first frame: process start {Since():0} ms");
+            var host = window.Host; bool film = false, engine = false; var limit = Stopwatch.StartNew();
+            while (host.Intro != null && limit.Elapsed < TimeSpan.FromSeconds(20))
+            {
+                if (!film && host.Intro.FilmOpened) { film = true; lines.Add($"intro film opened: process start {Since():0} ms"); }
+                if (!engine && host.Engine != null && host.NativeEngineStatus.StartsWith("Native C++")) { engine = true; lines.Add($"native core ready: process start {Since():0} ms"); }
+                await Task.Delay(10);
+            }
+            lines.Add($"intro handed over to the Zone: process start {Since():0} ms");
+        }
+        catch (Exception failure) { lines.Add("FAILED: " + failure); }
+        finally { window?.Close(); File.WriteAllLines(file, lines); try { Directory.Delete(folder, true); } catch (IOException) { } }
+    }
+
+    /// <summary>X20CTL_TIMING_FILM=1: no window at all. How long the intro film takes to open on its own, and how long the
+    /// UI thread is held while it does.</summary>
+    static async Task FilmOpen(string file, List<string> lines)
+    {
+        double Since() => (DateTime.Now - Process.GetCurrentProcess().StartTime).TotalMilliseconds;
+        foreach (int round in new[] { 1, 2 })
+        {
+            var clock = Stopwatch.StartNew();
+            var player = new System.Windows.Media.MediaPlayer { IsMuted = true };
+            var opened = new TaskCompletionSource<string>();
+            player.MediaOpened += (_, _) => opened.TrySetResult("opened");
+            player.MediaFailed += (_, e) => opened.TrySetResult("failed: " + e.ErrorException.Message);
+            player.Open(new Uri(Path.Combine(AppContext.BaseDirectory, "Brand", "intro.mp4")));
+            lines.Add($"round {round}: Open() held the UI thread {clock.ElapsedMilliseconds} ms (process start {Since():0} ms)");
+            TimeSpan longest = TimeSpan.Zero; var limit = Stopwatch.StartNew();
+            while (!opened.Task.IsCompleted && limit.Elapsed < TimeSpan.FromSeconds(10)) { var before = clock.Elapsed; await Task.Delay(5); if (clock.Elapsed - before > longest) longest = clock.Elapsed - before; }
+            lines.Add($"round {round}: {(opened.Task.IsCompleted ? opened.Task.Result : "timed out")} after {clock.ElapsedMilliseconds} ms, longest UI stall {longest.TotalMilliseconds:0} ms, {player.NaturalVideoWidth}x{player.NaturalVideoHeight}");
+            var play = Stopwatch.StartNew(); player.Play(); lines.Add($"round {round}: Play() held the UI thread {play.ElapsedMilliseconds} ms"); await Task.Delay(300);
+            lines.Add($"round {round}: position after 300 ms of play: {player.Position.TotalMilliseconds:0} ms");
+            player.Close();
+        }
+        // the launch path: the film opened early is handed to the intro already open, so it can play from the first frame
+        IntroView.PreloadFilm(); await Task.Delay(1500);
+        var intro = new IntroView(false); lines.Add($"intro built 1.5 s after the early open: film already open {intro.FilmOpened}"); intro.Finish();
+        IntroView.PreloadFilm(); IntroView.DiscardPreload(); var plain = new IntroView(false); lines.Add($"after a discarded early open the intro opens its own: open at once {plain.FilmOpened}"); plain.Finish();
+        File.WriteAllLines(file, lines);
     }
 
     [System.Runtime.InteropServices.DllImport("kernel32.dll")] static extern int GetCurrentThreadId();
