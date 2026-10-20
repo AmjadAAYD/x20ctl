@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+## [V0.018] - 2026-10-20
+
+Tagged `v0.018`. Everything in V0.017.1 is included.
+
 ### Added
 
 - **Save your settings as a setup.**
@@ -67,6 +71,11 @@
 - **Buttons and Curves fill the window on Linux**, and scroll when it is too short.
 - **Every Studio tab shows on a narrow Linux window**, and notices wrap instead of being cut off.
 - **Choosing a controller on Linux opens at once after the first time.**
+
+### Not tested yet
+
+- The Linux opening, motion and layout on a Linux desktop. They were checked by drawing every screen and clicking through them without a display, on Windows. The Flatpak has no sound permission, so its opening is silent.
+- The faster start, timed with X20CTL on screen.
 
 ## [V0.017.1] - 2026-10-19
 
