@@ -6,12 +6,23 @@
 
 Its sound is synthesised in the same way as the score below, by a later revision of `tools/build_intro_sound.py` (18 October). That revision uses frosted-glass tones, resonant air tuned to a chord, a warm pad on open fifths in D, and a stereo room. Like the earlier score, it uses no samples, recordings or kits. That revision has not yet been committed to this repository, so running the script here rebuilds the 17 October score, not the film's sound.
 
+Camera: after 19 October the camera zooms out gradually while the outline is drawn (1.2 to 2.28 s), so it no longer swings down and back up at about 2 s. The film is Draft 7 (`x20ctl-intro-v5-draft7-impact.mp4`), whose strike has a bolder impact frame (4.03 to 4.10 s). It differs from Draft 6 only in those frames, and its sound track is byte-identical to the earlier film's.
+
 The sound is off with reduced motion (no film plays), in development fixtures, and when the player mutes it. Tools → Opening intro → Sound turns it off for every launch.
+
+## The film on Linux - 20 October 2026
+
+The Linux Studio plays the same film, picture and sound. `tools/linux-studio/build_intro_film.py` makes two files from `intro.mp4`, kept in `desktop-dotnet/X20Ctl.Linux/Brand`:
+
+- `intro-film.frames`: the picture as 426 standalone WebP stills in a zip (60 fps, 1600x900), so no video codec is needed on the system.
+- `intro-film.wav`: the film's own sound, unchanged, as 48 kHz 16-bit stereo PCM.
+
+Nothing is added to or taken from the film. The Linux app no longer packages `intro.wav` below.
 
 ## The Linux score - 17 October 2026
 
 
-`intro.wav` (stereo, 48 kHz, 16-bit, 7.1 s) is made entirely by `tools/build_intro_sound.py`, and running the script again rebuilds the file. It contains no samples, recordings or sound kits, and nothing taken from another product.
+Until 20 October the Linux Studio played this score over an intro drawn in code; it now plays the film above. `intro.wav` (stereo, 48 kHz, 16-bit, 7.1 s) is made entirely by `tools/build_intro_sound.py`, and running the script again rebuilds the file. It contains no samples, recordings or sound kits, and nothing taken from another product.
 
 The script builds every sound itself:
 

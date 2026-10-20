@@ -53,9 +53,12 @@ public sealed class ProductWindow : Window
         // taskbar for sure) only while this window is the active one; otherwise it sits above the taskbar
         Activated+=(_,_)=>FitToFocus();Deactivated+=(_,_)=>FitToFocus();
         Closed+=async(_,_)=>{tray?.Dispose();batteryTimer?.Stop();Host.MouseMode?.Dispose();Host.PcMode?.Dispose();await Host.StopNativeEngineAsync();};
-        if(trayIcon){tray=new TrayIcon(this);Closing+=(_,e)=>{if(tray.Quitting)return;e.Cancel=true;tray.HideToTray();};if(Host.PcMode is{} pc){pc.Changed+=()=>Dispatcher.BeginInvoke(()=>tray?.SetStatus(pc.State==PcModeState.Active?(pc.Suspended?"X20CTL · PC mode paused":"X20CTL · PC mode active"):"X20CTL · Controller Studio"));pc.Notice+=text=>Dispatcher.BeginInvoke(()=>tray?.Notify("PC mode",text));}
+        // the tray icon (WinForms, about 0.1 s to start) comes once the window has drawn, so it never holds back the first frame
+        if(trayIcon){Closing+=(_,e)=>{if(tray==null||tray.Quitting)return;e.Cancel=true;tray.HideToTray();};ContentRendered+=(_,_)=>Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle,new Action(()=>{
+            if(tray!=null)return;tray=new TrayIcon(this);
+            if(Host.PcMode is{} pc){string Status()=>pc.State==PcModeState.Active?(pc.Suspended?"X20CTL · PC mode paused":"X20CTL · PC mode active"):"X20CTL · Controller Studio";tray.SetStatus(Status());pc.Changed+=()=>Dispatcher.BeginInvoke(()=>tray?.SetStatus(Status()));pc.Notice+=text=>Dispatcher.BeginInvoke(()=>tray?.Notify("PC mode",text));}
             if(Host.MouseMode is{} mouse){tray.AddToggle("Controller as mouse",()=>mouse.Active,on=>mouse.Active=on);mouse.Notice+=text=>Dispatcher.BeginInvoke(()=>tray?.Notify("Controller as mouse",text));}
-            WatchBattery();}
+            WatchBattery();}));}
     }
     private System.Windows.Threading.DispatcherTimer? batteryTimer; private bool batteryWarned;
     /// <summary>The controller's battery in the tray tooltip, read once a minute from what Windows reports (XInput's

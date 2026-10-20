@@ -82,10 +82,16 @@ public partial class App : Application
                 ShutdownMode = ShutdownMode.OnExplicitShutdown;
                 await Development.SetupReview.Run(e.Args[1]); Shutdown(0); return;
             }
+            if (e.Args.SequenceEqual(new[] { "--warm-up" }))
+            {   // the updater runs a newly installed exe this way once: starting is enough to unpack it, so its first real open is quick
+                Shutdown(0); return;
+            }
             if (Setup.Installer.Detect(e.Args, Environment.ProcessPath) is var setup && setup != Setup.SetupMode.None)
             {   // the setup, the uninstaller and their silent forms are this same exe
                 Setup.SetupApp.Run(this, setup, e.Args); return;
             }
+            // the intro film starts opening now, while the window is built, so it plays from the first frame
+            if (ProductHost.IntroAtLaunch(e.Args.Contains("--reduced-motion"))) IntroView.PreloadFilm();
             Setup.Installer.RefreshIfInstalled();
             if (e.Args.Length > 0 && !e.Args.SequenceEqual(new[] { "--reduced-motion" }))
                 throw new ArgumentException("Use --reduced-motion, --setup, --uninstall, --review-zone DIRECTORY, or --review-studio DIRECTORY.");

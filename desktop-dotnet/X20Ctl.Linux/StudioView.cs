@@ -5,6 +5,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Controls.Shapes;
+using Avalonia.Threading;
 using X20Ctl.Zone;
 namespace X20Ctl.Linux;
 
@@ -15,6 +16,11 @@ internal sealed class StudioView : UserControl
     readonly StudioState state; readonly Dictionary<string, Control> pages = new();
     readonly ContentControl host = new(); readonly StackPanel strip = new() { Orientation = Orientation.Horizontal, Spacing = 4 };
     readonly Border footerHost = new();
+    // the tab strip: each tab's label and the blank line under it, and the one white underline that slides between them
+    readonly Dictionary<string, (Border Tab, TextBlock Label, Border Line)> tabs = new();
+    readonly Canvas overlay = new() { IsHitTestVisible = false };
+    readonly Border underline = new() { Height = 2, Background = T.Text, CornerRadius = new CornerRadius(1) };
+    Action stopUnderline = () => { };
     string current = "Dashboard";
     public Control Header { get; }
     public Control Footer => footerHost;
@@ -27,10 +33,46 @@ internal sealed class StudioView : UserControl
         var rb = new Pill("RB  ›", Pill.Kinds.Ghost, () => Step(1), 12) { Padding = new Thickness(14, 5) };
         var tabRow = new Grid { Margin = new Thickness(36, 12, 36, 6), ColumnDefinitions = new("Auto,*,Auto") };
         tabRow.Children.Add(lb);
-        var scroll = new ScrollViewer { Content = strip, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Hidden, VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled, Margin = new Thickness(18, 0), VerticalAlignment = VerticalAlignment.Center };
+        foreach (string t in Tabs) strip.Children.Add(Tab(t));
+        overlay.Children.Add(underline);
+        var scroll = new ScrollViewer { Content = new Grid { Children = { strip, overlay } }, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Hidden, VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled, Margin = new Thickness(18, 0), VerticalAlignment = VerticalAlignment.Center };
         Grid.SetColumn(scroll, 1); tabRow.Children.Add(scroll); Grid.SetColumn(rb, 2); tabRow.Children.Add(rb);
         var layout = new DockPanel(); DockPanel.SetDock(tabRow, Dock.Top); layout.Children.Add(tabRow); layout.Children.Add(host);
         Content = layout; if (PcModeHub.Shared.AutoFor(state.Model.Id)) current = "PC mode"; Show(current);
+        // the underline finds its first tab once the strip is laid out
+        strip.SizeChanged += (_, _) => { if (double.IsNaN(Canvas.GetLeft(underline))) Underline(false); };
+        scroll.SizeChanged += (_, e) => Fit(e.NewSize.Width);
+    }
+
+    Control Tab(string name)
+    {
+        var label = T.Label(name, 15, T.Soft); label.TextWrapping = TextWrapping.NoWrap;
+        var line = new Border { Height = 2, Margin = new Thickness(2, 5, 2, 0), HorizontalAlignment = HorizontalAlignment.Stretch };
+        var tab = new Border { Padding = new Thickness(18, 6), Cursor = new Cursor(StandardCursorType.Hand), Background = Brushes.Transparent, Child = T.Stack(0, label, line) };
+        tab.PointerEntered += (_, _) => { if (name != current) label.Foreground = T.Text; };
+        tab.PointerExited += (_, _) => { if (name != current) label.Foreground = T.Soft; };
+        tab.PointerPressed += (_, _) => Show(name);
+        tabs[name] = (tab, label, line); return tab;
+    }
+
+    /// <summary>On a narrow window the tabs close up, so every one of them still shows; the current one is scrolled to
+    /// if they still don't fit.</summary>
+    void Fit(double room)
+    {
+        double wide = tabs.Values.Sum(t => t.Label.DesiredSize.Width + 36 + 4) - 4;
+        bool tight = wide > room, changed = tight != (strip.Spacing == 0); strip.Spacing = tight ? 0 : 4;
+        if (changed) foreach (var t in tabs.Values) t.Tab.Padding = new Thickness(tight ? 11 : 18, 6);
+        Dispatcher.UIThread.Post(() => { if (changed) Underline(false); tabs[current].Tab.BringIntoView(); }, DispatcherPriority.Loaded);
+    }
+
+    /// <summary>Moves the underline under the current tab: gliding there (260 ms), or straight there before the strip is shown.</summary>
+    void Underline(bool glide)
+    {
+        if (!tabs.TryGetValue(current, out var tab) || tab.Line.Bounds.Width <= 0 || tab.Line.TranslatePoint(default, overlay) is not { } to) return;
+        double x0 = Canvas.GetLeft(underline), w0 = underline.Width, x1 = to.X, w1 = tab.Line.Bounds.Width; Canvas.SetTop(underline, to.Y);
+        stopUnderline();
+        if (!glide || double.IsNaN(x0) || double.IsNaN(w0)) { Canvas.SetLeft(underline, x1); underline.Width = w1; return; }
+        stopUnderline = Motion.Run(260, t => { double e = Motion.CubicOut(t); Canvas.SetLeft(underline, Motion.Lerp(x0, x1, e)); underline.Width = Motion.Lerp(w0, w1, e); });
     }
 
     static Control BuildHeader(StudioState state, Action back, TextBlock clock, Bitmap? mark)
@@ -76,21 +118,19 @@ internal sealed class StudioView : UserControl
         _ => new DashboardPage(state, ShowTab)
     };
 
+    /// <summary>Opens a tab: its page slides in from the side it lies on, and the underline glides to it.</summary>
     void Show(string name)
     {
+        int from = Array.IndexOf(Tabs, current), to = Array.IndexOf(Tabs, name);
+        bool moved = host.Content != null && name != current;
         current = name;
         // pages that summarise or follow the drafts are rebuilt each time they open
         if (!pages.TryGetValue(name, out var page) || name is "Dashboard" or "Setups" or "Device" or "PC mode") pages[name] = page = Page(name);
         host.Content = page;
-        strip.Children.Clear();
-        foreach (string t in Tabs)
-        {
-            string n = t; bool on = n == current;
-            var label = T.Label(n, 15, on ? T.Text : T.Soft, on ? FontWeight.SemiBold : FontWeight.Normal); label.TextWrapping = TextWrapping.NoWrap;
-            var underline = new Border { Height = 2, Background = on ? T.Text : Brushes.Transparent, CornerRadius = new CornerRadius(1), Margin = new Thickness(2, 5, 2, 0), HorizontalAlignment = HorizontalAlignment.Stretch };
-            var tab = new Border { Padding = new Thickness(18, 6), Cursor = new Cursor(StandardCursorType.Hand), Background = Brushes.Transparent, Child = T.Stack(0, label, underline) };
-            tab.PointerPressed += (_, _) => Show(n); strip.Children.Add(tab);
-        }
+        if (moved) Motion.SlideIn(page, to > from ? 28 : -28);
+        foreach (var (n, (_, label, _)) in tabs) { bool on = n == current; label.Foreground = on ? T.Text : T.Soft; label.FontWeight = on ? FontWeight.SemiBold : FontWeight.Normal; }
+        // the new label's width settles in this layout pass; the underline moves after it
+        Dispatcher.UIThread.Post(() => { Underline(moved); tabs[current].Tab.BringIntoView(); }, DispatcherPriority.Loaded);
         footerHost.Child = Footing(name);
     }
 

@@ -79,7 +79,9 @@ internal static class Parts
         var text = new TextBlock { FontSize = 13.5, Foreground = T.Soft, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap, FontFamily = T.Font };
         text.Inlines!.Add(new Avalonia.Controls.Documents.Run(bold) { FontWeight = FontWeight.SemiBold, Foreground = T.Text });
         text.Inlines.Add(new Avalonia.Controls.Documents.Run(" · " + rest));
-        return new Border { Background = T.B("#4D0B1430"), BorderBrush = T.B("#334F7FD0"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(14), Padding = new Thickness(18, 11), Child = T.Line(14, icon, text) };
+        // a grid, not a row: the text gets the width that is left and wraps in it on a narrow window
+        var body = new Grid { ColumnDefinitions = new("Auto,*"), ColumnSpacing = 14, Children = { icon, text } }; Grid.SetColumn(text, 1);
+        return new Border { Background = T.B("#4D0B1430"), BorderBrush = T.B("#334F7FD0"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(14), Padding = new Thickness(18, 11), Child = body };
     }
 
     /// <summary>A round key cap. <paramref name="ring"/> colours the face buttons; <paramref name="current"/> lights the one the selected control sends.</summary>

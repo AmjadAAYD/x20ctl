@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+## [V0.018] - 2026-10-20
+
+Tagged `v0.018`. Everything in V0.017.1 is included.
+
 ### Added
 
 - **Save your settings as a setup.**
@@ -19,6 +23,11 @@
 
 ### Changed
 
+- **The opening no longer lurches, and its strike hits harder.** About two seconds in, while the outline was being drawn, the camera swung down and back up in a fraction of a second. It now zooms out gradually while the bird draws, so the whole route stays in view. The strike's impact frame has bolder speed lines. The sound and the logo's flight to the header are unchanged.
+- **X20CTL opens faster.**
+  - The intro film starts loading the moment X20CTL starts, so it plays as soon as the window appears instead of up to a second later.
+  - After an update installs itself, the new version unpacks in the background, so its first open is about 2 s quicker.
+  - The tray icon is set up just after the window appears, not before.
 - **Agent XCTL has a new look.** The agent is now a large handheld-style controller, with its screen filling the middle. The drawn controls work:
   - LB opens the ideas.
   - RB opens the settings.
@@ -49,6 +58,24 @@
 
 - **Sending from the ideas returns to the conversation**, so you see the answer.
 - **When the agent can't do something, it says why in plain words.** For example: "Left stick dead zone: 0 to 40 only; 260 is outside." Before, it showed internal names.
+
+### Linux
+
+- **The Linux app opens with the Windows film, sound included.** Then the logo flies onto the header while the Controller Zone grows in around it, as on Windows. Esc, a click or any key skips it; M mutes it, and the choice is remembered.
+- **The Linux app moves like the Windows one.**
+  - Screens grow or shrink in as they change.
+  - A player's card glides into the big spot.
+  - Studio tabs slide in from their side, and the underline glides after them.
+  - Buttons press in and spring back.
+- **A bigger curve graph on Linux.** It spans the card, the stick buttons sit beside the stick's name, and the presets stand beside the graph.
+- **Buttons and Curves fill the window on Linux**, and scroll when it is too short.
+- **Every Studio tab shows on a narrow Linux window**, and notices wrap instead of being cut off.
+- **Choosing a controller on Linux opens at once after the first time.**
+
+### Not tested yet
+
+- The Linux opening, motion and layout on a Linux desktop. They were checked by drawing every screen and clicking through them without a display, on Windows. The Flatpak has no sound permission, so its opening is silent.
+- The faster start, timed with X20CTL on screen.
 
 ## [V0.017.1] - 2026-10-19
 

@@ -92,6 +92,9 @@ public static class Updater
             return (false, $"Couldn't replace the exe in {folder} ({error.Message}). Download the new version from GitHub instead.");
         }
         Installed = release.Version;
+        // the one-file exe unpacks itself the first time it starts (about 2 s): do that now, in the background, rather than at the next open
+        try { using var warm = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exe, "--warm-up") { UseShellExecute = false, WorkingDirectory = folder }); }
+        catch (Exception error) when (error is System.ComponentModel.Win32Exception or InvalidOperationException) { }
         return (true, $"{release.Title} is installed. It starts the next time you open X20CTL.");
     }
 
