@@ -1,0 +1,51 @@
+name: Sync README release button
+
+on:
+  release:
+    types: [published, edited]
+  # Releases published with GITHUB_TOKEN do not trigger another release workflow.
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: readme-latest-release
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      # Always run trusted code from the default branch, never the release tag or artifacts.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Update the latest stable release label
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          latest_tag=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)
+          python tools/sync_readme_release.py "$latest_tag"
+      - name: Commit the download button only when changed
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          git add README.md assets/readme/bg/nav1.svg
+          if git diff --cached --quiet; then exit 0; fi
+          git config user.name 'Amjad AAYD'
+          git config user.email 'amjadaayd0@gmail.com'
+          git commit -m 'docs: sync download button with latest release'
+          git push origin "HEAD:$DEFAULT_BRANCH"
