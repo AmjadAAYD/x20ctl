@@ -39,29 +39,35 @@ public sealed class IntroView:Grid
     public static bool HasIntroScore => System.IO.File.Exists(FilmPath);
     private static string FilmPath => System.IO.Path.Combine(AppContext.BaseDirectory,"Brand","intro.mp4");
 
-    private readonly MediaElement? film;
+    private readonly MediaPlayer? film;
+    // the film's picture: its 1920x1080 frame drawn by the player, filling the view and centred (cropping the edges)
+    private readonly Image? filmView;
     private readonly Image cover=new(){IsHitTestVisible=false,Opacity=0,Stretch=Stretch.Fill,HorizontalAlignment=HorizontalAlignment.Left,VerticalAlignment=VerticalAlignment.Top};
     private readonly System.Windows.Shapes.Rectangle backdrop=new(){Fill=new SolidColorBrush(Color.FromRgb(2,4,10)),IsHitTestVisible=false};
     private readonly IIntroHandoff? handoff;
     private readonly System.Windows.Threading.DispatcherTimer clock=new(System.Windows.Threading.DispatcherPriority.Render){Interval=TimeSpan.FromMilliseconds(15)};
-    private bool finished,startRequested,began,opened,handing,targetsRead;
+    private bool finished,startRequested,began,opened,failed,handing,targetsRead;
     private DateTime beganAt;private double? frozenAt;private Rect? markTarget;
 
     public IntroView(bool reduced,bool muted=false,IIntroHandoff? handoff=null)
     {
         Reduced=reduced;Muted=muted;this.handoff=handoff;
         Children.Add(backdrop);
+        var early=preloaded;bool earlyOpened=preloadOpened,earlyFailed=preloadFailed;preloaded=null;preloadOpened=preloadFailed=false;
         if(!reduced&&HasIntroScore)
         {
-            film=new MediaElement{LoadedBehavior=MediaState.Manual,UnloadedBehavior=MediaState.Close,Stretch=Stretch.UniformToFill,ScrubbingEnabled=true,HorizontalAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Center,IsHitTestVisible=false,Volume=.8};
+            film=early??NewPlayer();
             ApplyMute();
-            // centred: WPF pins an element larger than its slot to the top left otherwise, and the cover expects it centred
             // playback starts when the file opens; the clock is set from that moment so the hand-over meets the picture
             film.MediaOpened+=(_,_)=>{opened=true;if(frozenAt==null)beganAt=DateTime.UtcNow;};
             film.MediaFailed+=(_,_)=>Finish();
-            film.Source=new Uri(FilmPath);
-            Children.Add(film);
+            if(early==null)film.Open(new Uri(FilmPath));else{opened=earlyOpened;failed=earlyFailed;}
+            // centred: WPF pins an element larger than its slot to the top left otherwise, and the cover expects it centred
+            filmView=new Image{Source=new DrawingImage(new VideoDrawing{Player=film,Rect=new Rect(0,0,1920,1080)}),Stretch=Stretch.UniformToFill,HorizontalAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Center,IsHitTestVisible=false};
+            Children.Add(filmView);
+            Unloaded+=(_,_)=>film.Close();
         }
+        else early?.Close();
         cover.Source=new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/X20Ctl;component/Assets/brand.png"));
         Children.Add(cover);
         Skip=new Button{Content="Skip · Esc / B",HorizontalAlignment=HorizontalAlignment.Right,VerticalAlignment=VerticalAlignment.Bottom,Margin=new(0,0,36,36),Style=DS.Style("DS.Secondary"),Opacity=.8};Skip.Click+=(_,_)=>Finish();
@@ -74,6 +80,22 @@ public sealed class IntroView:Grid
         Loaded+=(_,_)=>{if(startRequested)Begin();};
     }
 
+    /// <summary>The film has opened (timing review).</summary>
+    public bool FilmOpened=>opened;
+    // the film starts opening at launch, while the window is still being built (App calls PreloadFilm), so it plays from
+    // the first frame instead of opening only once the window is up: opening takes about a second, nearly all off the UI thread
+    private static MediaPlayer? preloaded;private static bool preloadOpened,preloadFailed;
+    private static MediaPlayer NewPlayer()=>new(){ScrubbingEnabled=true,Volume=.8,IsMuted=true};
+    public static void PreloadFilm()
+    {
+        if(preloaded!=null||!HasIntroScore)return;
+        var player=NewPlayer();preloaded=player;
+        player.MediaOpened+=(_,_)=>{if(preloaded==player)preloadOpened=true;};
+        player.MediaFailed+=(_,_)=>{if(preloaded==player)preloadFailed=true;};
+        player.Open(new Uri(FilmPath));
+    }
+    /// <summary>The launch turned out to have no intro: the film opened early is let go.</summary>
+    public static void DiscardPreload(){var player=preloaded;preloaded=null;preloadOpened=preloadFailed=false;player?.Close();}
     private double Elapsed=>frozenAt??(DateTime.UtcNow-beganAt).TotalSeconds;
     private void ApplyMute(){if(film!=null)film.IsMuted=Muted||!SoundEnabled||ReviewSandbox.Active;}
     private void ShowMute()=>Mute.Content=Muted?"Unmute · M / Y":"Mute · M / Y";
@@ -82,6 +104,7 @@ public sealed class IntroView:Grid
     private void Begin()
     {
         if(finished||began)return;began=true;beganAt=DateTime.UtcNow;
+        if(failed){Finish();return;}
         film?.Play();clock.Start();
     }
     /// <summary>Mute silences the film at once; unmuting brings it back where the picture is.</summary>
@@ -123,7 +146,7 @@ public sealed class IntroView:Grid
         // centred on the film's logo: the ink's centre in the image lands on the logo's centre
         double k=cover.Width/512;var at=new Point(logo.X+logo.Width/2-(MarkInk.X+MarkInk.Width/2)*k,logo.Y+logo.Height/2-(MarkInk.Y+MarkInk.Height/2)*k);
         double shown=t>=CoverAt?1:0;
-        if(film!=null)film.Opacity=1-Smooth(Win(t,CoverAt+.01,FlyAt));
+        if(filmView!=null)filmView.Opacity=1-Smooth(Win(t,CoverAt+.01,FlyAt));
 
         // the hand-over (owner 12 Oct 2026): the logo travels to the header mark, shrinking as it goes, while the dark
         // fades and the Zone grows in around it; it lands on the header mark exactly

@@ -19,6 +19,10 @@
 
 ### Changed
 
+- **X20CTL opens faster.**
+  - The intro film starts loading the moment X20CTL starts, so it plays as soon as the window appears instead of up to a second later.
+  - After an update installs itself, the new version unpacks in the background, so its first open is about 2 s quicker.
+  - The tray icon is set up just after the window appears, not before.
 - **Agent XCTL has a new look.** The agent is now a large handheld-style controller, with its screen filling the middle. The drawn controls work:
   - LB opens the ideas.
   - RB opens the settings.

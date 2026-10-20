@@ -49,7 +49,7 @@ public sealed class ProductHost : Grid
     {
         Zone = zone; Children.Add(zone);
         support=openSupport??ProductLinks.OpenSupport;
-        preferences=new(assignmentPath==null?Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),"x20ctl","native","preferences.v1.json"):Path.Combine(Path.GetDirectoryName(Path.GetFullPath(assignmentPath))!,"preferences-fixture.json"));
+        preferences=new(assignmentPath==null?PreferencesPath:Path.Combine(Path.GetDirectoryName(Path.GetFullPath(assignmentPath))!,"preferences-fixture.json"));
         try{preferences.Load();preferencesHealthy=true;}catch(Exception error) when(error is IOException or System.Text.Json.JsonException or InvalidOperationException){Zone.FeedbackText.Text="Startup preferences unavailable; original file preserved. "+error.Message;}
         // every launch asks GitHub for a newer version (owner request, 13 Oct 2026); a popup follows the intro only when there is one.
         // Tools → "Keep X20CTL up to date" decides whether it also installs itself. Never for review fixtures.
@@ -166,7 +166,16 @@ public sealed class ProductHost : Grid
     }
     // every launch opens with the intro, like Steam Big Picture (owner direction 10 Oct 2026), unless the player turned it
     // off in Tools (owner request 12 Oct 2026); Replay Intro still plays it
-    public void Startup(){if(preferencesHealthy&&!preferences.IntroOnLaunch)return;StartIntro();}
+    public void Startup(){if(preferencesHealthy&&!preferences.IntroOnLaunch){IntroView.DiscardPreload();return;}StartIntro();}
+    private static string PreferencesPath=>Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),"x20ctl","native","preferences.v1.json");
+    /// <summary>Whether this launch opens with the intro film, read before the window exists so the film can start opening early.
+    /// The same rule as <see cref="Startup"/>: on unless the player turned it off, and never with reduced motion.</summary>
+    public static bool IntroAtLaunch(bool reducedMotion)
+    {
+        if(reducedMotion||!SystemParameters.ClientAreaAnimation)return false;
+        try{var launch=new ProductPreferences(PreferencesPath);launch.Load();return launch.IntroOnLaunch;}
+        catch(Exception error) when(error is IOException or System.Text.Json.JsonException or InvalidOperationException){return true;}
+    }
     public async Task InitializeNativeEngineAsync()
     {
         if(Engine!=null)return;
