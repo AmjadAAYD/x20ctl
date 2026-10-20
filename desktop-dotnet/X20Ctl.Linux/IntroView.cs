@@ -1,108 +1,163 @@
-using System.Text.Json;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
-using Avalonia.Threading;
 namespace X20Ctl.Linux;
 
-/// <summary>The opening, in time with Brand/intro.wav: three LED eyes, the controller's own outline drawn in white, two blades sliding in and locking into the X, the slogan,
-/// then the mark flying to the header logo. Any key or click skips it; M mutes the score.</summary>
-public sealed class IntroView : Control
+/// <summary>What the opening hands over to: the Controller Zone under it. The intro flies its logo onto the header's mark,
+/// so its last frame and the Zone's first are the same picture (as on Windows, X20Ctl.Product/ZoneScene.Intro.cs).</summary>
+internal interface IIntroHandoff
 {
-    // the same beats as the score (tools/build_intro_sound.py)
-    const double Total = 7.1, EyesAt = .18, OutlineFrom = 1.45, OutlineFor = 1.0, SlideFrom = 2.95, LockAt = 4.03, SloganAt = 5.1, FlyFrom = 5.95, FlyFor = .85;
-    static readonly Color Blue = Color.FromRgb(81, 190, 255), Orange = Color.FromRgb(255, 163, 84);
-    readonly Bitmap? mark; readonly Action done; readonly DispatcherTimer tick; readonly DateTime start = DateTime.UtcNow;
-    readonly Point[] outline; readonly IntroSound sound = new(); bool finished;
+    /// <summary>The ink box of the header's logo, in <paramref name="to"/>'s coordinates; null when it isn't laid out.</summary>
+    Rect? MarkTarget(Visual to);
+    /// <summary>The Zone shows, with everything the intro still has to reveal hidden.</summary>
+    void HandoffBegin();
+    /// <summary>reveal: the interface around the logo (0..1); brand: the header's logo and name; pulse: the logo's one
+    /// landing pulse (a scale, 1 at rest).</summary>
+    void Handoff(double reveal, double brand, double pulse);
+    /// <summary>Everything back to normal.</summary>
+    void HandoffEnd();
+}
 
-    public IntroView(Bitmap? mark, string modelId, Action done, bool silent = false)
+/// <summary>The opening: the Windows app's film, picture and sound, then its logo flies onto the header's mark while the
+/// Zone grows in around it, with the Windows timings and curve (X20Ctl.Product/ProductExperience.cs, IntroView). Esc, any
+/// other key or a click skips it; M mutes it, and the choice is remembered as the intro's Sound setting.</summary>
+internal sealed class IntroView : Panel
+{
+    const double CoverAt = 6.45, FlyAt = 6.6, FlyFor = .8, Total = FlyAt + FlyFor, OpenWithin = 2.5;
+    // the logo's ink in the film's 1920x1080 frame, and inside Brand/x20ctl-mark.png (512 px): the same boxes as Windows
+    static readonly Rect FilmLogo = new(622.42, 235.10, 674.90, 469.80), MarkInk = new(10, 85, 492, 342);
+    static readonly Color Dark = Color.FromRgb(2, 4, 10);
+
+    readonly Bitmap? mark; readonly IIntroHandoff? handoff; readonly Action done; readonly bool silent;
+    readonly IntroFilm? film = IntroFilm.Open(); readonly IntroSound sound = new();
+    readonly Pill skip, mute; readonly Surface picture;
+    readonly DateTime created = DateTime.UtcNow;
+    bool finished, began, muted, handing, targetsRead; DateTime beganAt; double? frozen; Rect? markTarget;
+    // what Render draws, worked out each frame by Step
+    double backdrop = 1, filmOpacity = 1, coverOpacity, coverSize; Matrix coverPlace = Matrix.Identity;
+
+    public IntroView(Bitmap? mark, IIntroHandoff? handoff, Action done, bool silent = false)
     {
-        this.mark = mark; this.done = done; outline = Outline(modelId); IsHitTestVisible = true; Focusable = true;
-        tick = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) }; tick.Tick += (_, _) => { if (Elapsed >= Total) Finish(); else InvalidateVisual(); }; tick.Start();
-        PointerPressed += (_, _) => Finish(); KeyDown += (_, e) => { if (e.Key == Avalonia.Input.Key.M) sound.Stop(); else Finish(); };
-        if (!silent && AppSettings.Shared.IntroSound) sound.Start();
-        AttachedToVisualTree += (_, _) => Focus();
+        this.mark = mark; this.handoff = handoff; this.done = done; this.silent = silent || ReviewMode.Headless;
+        muted = !AppSettings.Shared.IntroSound; Focusable = true; ClipToBounds = true;
+        skip = new Pill("Skip · Esc", Pill.Kinds.Ghost, Finish) { Padding = new Thickness(20, 10), Opacity = .8 };
+        mute = new Pill("", Pill.Kinds.Ghost, ToggleMute) { Padding = new Thickness(20, 10), Opacity = .8, IsVisible = film != null };
+        ShowMute();
+        Children.Add(picture = new Surface(this));
+        Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 36, 36), Children = { mute, skip } });
+        PointerPressed += (_, e) => { if (!e.Handled) Finish(); };
+        KeyDown += (_, e) => { e.Handled = true; if (e.Key == Key.M) ToggleMute(); else Finish(); };
+        AttachedToVisualTree += (_, _) => { Focus(); if (frozen == null) TopLevel.GetTopLevel(this)?.RequestAnimationFrame(Tick); };
+        Step(0);
     }
 
-    static Point[] Outline(string modelId)
+    void ShowMute() => mute.Text = muted ? "Unmute · M" : "Mute · M";
+    /// <summary>Mute stops the sound at once; unmuting brings it back where the picture is.</summary>
+    public void ToggleMute()
     {
-        try
+        if (film == null || finished) return;
+        muted = !muted; ShowMute();
+        if (muted) sound.Stop(); else if (began && !silent) sound.Start(Elapsed);
+        if (!silent) { AppSettings.Shared.IntroSound = !muted; AppSettings.Shared.Save(); }
+    }
+
+    public void Finish()
+    {
+        if (finished) return; finished = true;
+        sound.Stop(); film?.Dispose();
+        handoff?.HandoffEnd(); done();
+    }
+
+    /// <summary>Review hook: hold the intro at <paramref name="t"/> seconds, and say when the film's frame for it is decoded.</summary>
+    public bool Freeze(double t) { frozen = t; Step(t); return film == null || film.Holds(t); }
+
+    double Elapsed => frozen ?? (began ? (DateTime.UtcNow - beganAt).TotalSeconds : 0);
+
+    void Tick(TimeSpan _)
+    {
+        if (finished || frozen != null) return;
+        if (!began)
         {
-            using var doc = JsonDocument.Parse(File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Data", "vibration-outlines.json")));
-            var all = doc.RootElement.GetProperty("silhouettes");
-            var list = all.TryGetProperty(modelId, out var own) ? own : all.EnumerateObject().First().Value;
-            return list.EnumerateArray().Select(p => new Point(p[0].GetDouble(), p[1].GetDouble())).ToArray();
+            // the clock starts with the film's first picture, and the sound with it
+            if (film == null || film.Ready) { began = true; beganAt = DateTime.UtcNow; if (film != null && !muted && !silent) sound.Start(); }
+            // a film that never shows must not hold the app behind a dark screen
+            else if (film.Failed || (DateTime.UtcNow - created).TotalSeconds > OpenWithin) { Finish(); return; }
         }
-        catch (Exception e) when (e is IOException or JsonException or KeyNotFoundException or InvalidOperationException) { return []; }
+        Step(Elapsed);
+        if (!finished) TopLevel.GetTopLevel(this)?.RequestAnimationFrame(Tick);
     }
 
-    /// <summary>Set by the review run to draw a chosen moment instead of the clock.</summary>
-    public double? Frozen { get; set; }
-    double Elapsed => Frozen ?? (DateTime.UtcNow - start).TotalSeconds;
+    void Step(double t)
+    {
+        if (finished) return;
+        if (film == null && t < CoverAt) t = CoverAt; // no film: start at the logo and hand over at once
+        // decode one frame ahead: the picture shown next frame is the one asked for now
+        film?.Seek(frozen == null ? t + 1 / 60.0 : t);
+
+        // the cover: the film's logo, laid exactly over it; then the film fades out from under it
+        var logo = OnScreen(FilmLogo);
+        coverSize = logo.Width * 512 / MarkInk.Width; double k = coverSize / 512;
+        var at = new Point(logo.Center.X - MarkInk.Center.X * k, logo.Center.Y - MarkInk.Center.Y * k);
+        filmOpacity = film == null ? 0 : 1 - Smooth(Win(t, CoverAt + .01, FlyAt));
+
+        // the hand-over: the logo travels to the header's mark, shrinking as it goes, while the dark fades and the Zone
+        // grows in around it; it lands on the header's mark exactly
+        if (t >= FlyAt && !targetsRead) { targetsRead = true; markTarget = handoff?.MarkTarget(this); handoff?.HandoffBegin(); handing = handoff != null; }
+        double q = CubicBezier(Win(t, FlyAt, FlyAt + FlyFor), .16, .84, .24, 1);
+        coverPlace = Matrix.CreateTranslation(at.X, at.Y); if (markTarget is Rect target && q > 0) coverPlace *= Fly(logo, target, q);
+        double brand = markTarget == null ? Smooth(Win(t, FlyAt, FlyAt + .5)) : Smooth(Win(q, .85, 1));
+        coverOpacity = (t >= CoverAt ? 1 : 0) * (1 - brand);
+        backdrop = 1 - Smooth(Win(t, FlyAt + .05, FlyAt + .7));
+        double landed = Win(t, FlyAt + FlyFor, FlyAt + FlyFor + .14);
+        if (handing) handoff!.Handoff(Win(t, FlyAt, FlyAt + FlyFor + .1), brand, landed > 0 && landed < 1 ? 1 + .03 * Math.Sin(Math.PI * landed) : 1);
+        skip.Opacity = mute.Opacity = .8 * (1 - Smooth(Win(t, FlyAt, FlyAt + .3)));
+        // nearly settled: the Zone already answers the mouse
+        IsHitTestVisible = t < Total - .1;
+        picture.InvalidateVisual();
+        if (t >= Total + .15 && frozen == null) Finish();
+    }
+
+    /// <summary>The dark, the film and the logo, drawn under the buttons.</summary>
+    sealed class Surface(IntroView owner) : Control
+    {
+        public override void Render(DrawingContext dc) => owner.Paint(dc);
+    }
+    void Paint(DrawingContext dc)
+    {
+        var bounds = new Rect(Bounds.Size); if (bounds.Width < 2 || finished) return;
+        if (backdrop > 0) dc.FillRectangle(new SolidColorBrush(Dark, backdrop), bounds);
+        if (filmOpacity > 0 && film?.Picture() is { } frame)
+            using (dc.PushOpacity(filmOpacity)) dc.DrawImage(frame, new Rect(frame.Size), OnScreen(new Rect(0, 0, 1920, 1080)));
+        if (mark != null && coverOpacity > 0)
+            using (dc.PushTransform(coverPlace)) using (dc.PushOpacity(coverOpacity)) dc.DrawImage(mark, new Rect(0, 0, coverSize, coverSize));
+    }
+
+    /// <summary>A box in the film's 1920x1080 frame, where it lands on this view (the film fills it, cropping the edges).</summary>
+    Rect OnScreen(Rect r)
+    {
+        double w = Bounds.Width > 0 ? Bounds.Width : 1920, h = Bounds.Height > 0 ? Bounds.Height : 1080, k = Math.Max(w / 1920, h / 1080);
+        double ox = (w - 1920 * k) / 2, oy = (h - 1080 * k) / 2; return new(ox + r.X * k, oy + r.Y * k, r.Width * k, r.Height * k);
+    }
+    /// <summary>From the middle to the header: position and size together, along a curve that runs left before it rises
+    /// into the tile from below, so it never crosses the name beside it.</summary>
+    static Matrix Fly(Rect from, Rect to, double q)
+    {
+        double scale = Math.Exp(Math.Log(Math.Min(to.Width / from.Width, to.Height / from.Height)) * q);
+        Point a = from.Center, b = to.Center, c = new(a.X + (b.X - a.X) * .9, a.Y + (b.Y - a.Y) * .2);
+        double u = 1 - q; var at = new Point(u * u * a.X + 2 * u * q * c.X + q * q * b.X, u * u * a.Y + 2 * u * q * c.Y + q * q * b.Y);
+        return Matrix.CreateTranslation(-a.X, -a.Y) * Matrix.CreateScale(scale, scale) * Matrix.CreateTranslation(at.X, at.Y);
+    }
+    static double Win(double t, double a, double b) => Math.Clamp((t - a) / (b - a), 0, 1);
     static double Smooth(double x) { x = Math.Clamp(x, 0, 1); return x * x * (3 - 2 * x); }
-    static double Lerp(double a, double b, double f) => a + (b - a) * f;
-
-    public void Finish() { if (finished) return; finished = true; tick.Stop(); sound.Stop(); done(); }
-
-    public override void Render(DrawingContext dc)
+    /// <summary>CSS-style cubic-bezier(x1, y1, x2, y2) easing.</summary>
+    static double CubicBezier(double x, double x1, double y1, double x2, double y2)
     {
-        double t = Elapsed, w = Bounds.Width, h = Bounds.Height; if (w < 10) return;
-        double fade = 1 - Smooth((t - (Total - .35)) / .35);
-        dc.DrawRectangle(new SolidColorBrush(Color.FromRgb(4, 8, 20), fade), null, new Rect(0, 0, w, h));
-        double cx = w / 2, cy = h / 2 - 20, reach = Math.Min(w, h) * .24;
-
-        // the three eyes, left to right
-        for (int i = 0; i < 3; i++)
-        {
-            double on = Smooth((t - EyesAt - i * .18) / .2) * (1 - Smooth((t - OutlineFrom - .6) / .5));
-            if (on <= 0) continue;
-            var at = new Point(cx + (i - 1) * 34, cy - reach * 1.5);
-            dc.DrawEllipse(new SolidColorBrush(Blue, on * .3), null, at, 14, 14); dc.DrawEllipse(new SolidColorBrush(Blue, on), null, at, 5, 5);
-        }
-
-        // the controller's own outline, drawn by a single smooth stroke
-        double drawn = Smooth((t - OutlineFrom) / OutlineFor), outlineFade = 1 - Smooth((t - SlideFrom - .3) / .7);
-        if (outline.Length > 1 && drawn > 0 && outlineFade > 0)
-        {
-            double width = Math.Min(w * .5, 760), height = width * 1024 / 1536, ox = cx - width / 2, oy = cy - height / 2 + 10;
-            int last = Math.Max(1, (int)(outline.Length * drawn)); var geo = new StreamGeometry();
-            using (var g = geo.Open())
-            {
-                g.BeginFigure(new Point(ox + outline[0].X * width, oy + outline[0].Y * height), false);
-                for (int i = 1; i < last; i++) g.LineTo(new Point(ox + outline[i].X * width, oy + outline[i].Y * height));
-                g.EndFigure(drawn >= 1);
-            }
-            dc.DrawGeometry(null, new Pen(new SolidColorBrush(Colors.White, .18 * outlineFade), 9, lineCap: PenLineCap.Round, lineJoin: PenLineJoin.Round), geo);
-            dc.DrawGeometry(null, new Pen(new SolidColorBrush(Colors.White, .9 * outlineFade), 2.4, lineCap: PenLineCap.Round, lineJoin: PenLineJoin.Round), geo);
-        }
-
-        // the blades slide in from opposite corners and lock at the heart
-        double glide = Smooth((t - SlideFrom) / (LockAt - SlideFrom)), lock_ = Smooth((t - LockAt) / .4);
-        if (glide > 0)
-            for (int i = 0; i < 2; i++)
-            {
-                double dir = i == 0 ? 1 : -1; var colour = i == 0 ? Blue : Orange; double off = (1 - glide) * reach * 2.2;
-                Point a = new(cx - dir * reach - dir * off, cy - reach - off * .6), b = new(cx + dir * reach - dir * off, cy + reach - off * .6);
-                double alpha = Math.Clamp(glide * 1.4, 0, 1) * (1 - Smooth((t - LockAt - .1) / .6));
-                dc.DrawLine(new Pen(new SolidColorBrush(colour, alpha * .25), 44, lineCap: PenLineCap.Round), a, b);
-                dc.DrawLine(new Pen(new SolidColorBrush(colour, alpha), 18 + 6 * lock_, lineCap: PenLineCap.Round), a, b);
-            }
-        double flash = Math.Exp(-Math.Pow((t - LockAt - .1) / .14, 2));
-        if (flash > .01) dc.DrawEllipse(new RadialGradientBrush { GradientStops = { new GradientStop(Color.FromArgb((byte)(200 * flash), 255, 255, 255), 0), new GradientStop(Color.FromArgb(0, 255, 255, 255), 1) } }, null, new Point(cx, cy), reach * .9, reach * .9);
-
-        // the mark settles, then flies to the header logo
-        double settle = Smooth((t - LockAt - .2) / .6), fly = Smooth((t - FlyFrom) / FlyFor);
-        if (mark != null && settle > 0)
-        {
-            double size = Lerp(reach * 1.5, 46 * .6, fly); Point pos = new(Lerp(cx, 26 + 23, fly), Lerp(cy, 16 + 28, fly));
-            using (dc.PushOpacity(settle)) dc.DrawImage(mark, new Rect(pos.X - size / 2, pos.Y - size / 2, size, size));
-        }
-        if (t > SloganAt)
-        {
-            double a = Smooth((t - SloganAt) / .4) * (1 - Smooth((t - FlyFrom) / .35));
-            var text = new FormattedText("Keep it 20", System.Globalization.CultureInfo.InvariantCulture, FlowDirection.LeftToRight, new Typeface(T.Font, FontStyle.Normal, FontWeight.Medium), 30, new SolidColorBrush(Color.FromRgb(236, 241, 250), a));
-            dc.DrawText(text, new Point(cx - text.Width / 2, cy + reach * 1.25));
-        }
+        if (x <= 0) return 0; if (x >= 1) return 1; double u = x;
+        for (int i = 0; i < 8; i++) { double cx = Bz(u, x1, x2) - x, d = 3 * (1 - u) * (1 - u) * x1 + 6 * (1 - u) * u * (x2 - x1) + 3 * u * u * (1 - x2); if (Math.Abs(d) < 1e-6) break; u = Math.Clamp(u - cx / d, 0, 1); }
+        return Bz(u, y1, y2);
+        static double Bz(double t, double a, double b) => 3 * (1 - t) * (1 - t) * t * a + 3 * (1 - t) * t * t * b + t * t * t;
     }
 }

@@ -182,4 +182,9 @@ internal sealed class DashboardPage : UserControl
 }
 
 /// <summary>Set by the screenshot run so no one's library appears in images.</summary>
-internal static class ReviewMode { public static bool HideLibrary; public static IReadOnlyList<EvDevice>? Pads; }
+internal static class ReviewMode
+{
+    public static bool HideLibrary; public static IReadOnlyList<EvDevice>? Pads;
+    /// <summary>The headless review (X20Ctl.Linux.Review): no launch intro or update check, and the intro stays silent.</summary>
+    public static bool Headless;
+}

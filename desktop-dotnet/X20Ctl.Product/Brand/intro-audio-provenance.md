@@ -8,10 +8,19 @@ Its sound is synthesised in the same way as the score below, by a later revision
 
 The sound is off with reduced motion (no film plays), in development fixtures, and when the player mutes it. Tools → Opening intro → Sound turns it off for every launch.
 
+## The film on Linux - 20 October 2026
+
+The Linux Studio plays the same film, picture and sound. `tools/linux-studio/build_intro_film.py` makes two files from `intro.mp4`, kept in `desktop-dotnet/X20Ctl.Linux/Brand`:
+
+- `intro-film.frames`: the picture as 426 standalone WebP stills in a zip (60 fps, 1600x900), so no video codec is needed on the system.
+- `intro-film.wav`: the film's own sound, unchanged, as 48 kHz 16-bit stereo PCM.
+
+Nothing is added to or taken from the film. The Linux app no longer packages `intro.wav` below.
+
 ## The Linux score - 17 October 2026
 
 
-`intro.wav` (stereo, 48 kHz, 16-bit, 7.1 s) is made entirely by `tools/build_intro_sound.py`, and running the script again rebuilds the file. It contains no samples, recordings or sound kits, and nothing taken from another product.
+Until 20 October the Linux Studio played this score over an intro drawn in code; it now plays the film above. `intro.wav` (stereo, 48 kHz, 16-bit, 7.1 s) is made entirely by `tools/build_intro_sound.py`, and running the script again rebuilds the file. It contains no samples, recordings or sound kits, and nothing taken from another product.
 
 The script builds every sound itself:
 

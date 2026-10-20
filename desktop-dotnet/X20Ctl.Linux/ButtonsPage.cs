@@ -43,16 +43,17 @@ internal sealed class ButtonsPage : UserControl
 
     void Build()
     {
-        var page = new Grid { RowDefinitions = new("Auto,Auto,Auto"), Margin = new Thickness(36, 6, 36, 18) };
+        // the pad and its mapping take the height the showcase leaves; on a short window the page scrolls
+        var page = new Grid { RowDefinitions = new("Auto,*,Auto"), Margin = new Thickness(36, 6, 36, 18) };
         var draft = Parts.Draft(state, () => { selected = null; Build(); }); draft.Margin = new Thickness(0, 0, 0, 14); page.Children.Add(draft);
 
-        var top = new Grid { ColumnDefinitions = new("1.12*,1*"), Height = 420 }; Grid.SetRow(top, 1);
+        var top = new Grid { ColumnDefinitions = new("1.12*,1*"), MinHeight = 320 }; Grid.SetRow(top, 1);
         top.Children.Add(Visualizer());
         var side = Mapping(); side.Margin = new Thickness(18, 0, 0, 0); Grid.SetColumn(side, 1); top.Children.Add(side);
         page.Children.Add(top);
 
         var show = Showcase(); show.Margin = new Thickness(0, 18, 0, 0); Grid.SetRow(show, 2); page.Children.Add(show);
-        Content = new ScrollViewer { Content = page };
+        Content = new FillScroll(page, 640);
     }
 
     // ---- the pad ------------------------------------------------------------------------------------------------

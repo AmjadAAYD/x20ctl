@@ -17,12 +17,16 @@
     <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.4" />
   </ItemGroup>
   <ItemGroup>
+    <!-- the headless screen renderer (desktop-dotnet/X20Ctl.Linux.Review) sets the review switches -->
+    <InternalsVisibleTo Include="X20Ctl.Linux.Review" />
     <ProjectReference Include="../X20Ctl.Zone/X20Ctl.Zone.csproj" />
     <Content Include="../../x20ctl/controllers/catalog.json" Link="Data/catalog.json" CopyToOutputDirectory="PreserveNewest" />
     <AvaloniaResource Include="../../src/assets/controllers/*/native/front-full.png;../../src/assets/controllers/*/native/rear-full.png" Link="Assets/%(RecursiveDir)%(Filename)%(Extension)" />
     <AvaloniaResource Include="../X20Ctl.Product/Brand/x20ctl-mark.png" Link="Assets/x20ctl-mark.png" />
     <AvaloniaResource Include="../X20Ctl.Product/Brand/x20ctl-icon.png" Link="Assets/x20ctl-icon.png" />
-    <Content Include="../X20Ctl.Product/Brand/intro.wav" Link="Brand/intro.wav" CopyToOutputDirectory="PreserveNewest" />
+    <!-- the opening film as stills, and its sound (tools/linux-studio/build_intro_film.py, from X20Ctl.Product/Brand/intro.mp4) -->
+    <Content Include="Brand/intro-film.frames;Brand/intro-film.wav" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../X20Ctl.Product/Brand/intro-audio-provenance.md" Link="Brand/intro-audio-provenance.md" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../src/assets/controllers/framing.json" Link="Data/framing.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../src/assets/controllers/vibration-outlines.json" Link="Data/vibration-outlines.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
