@@ -19,6 +19,7 @@
 
 ### Changed
 
+- **The opening no longer lurches, and its strike hits harder.** About two seconds in, while the outline was being drawn, the camera swung down and back up in a fraction of a second. It now zooms out gradually while the bird draws, so the whole route stays in view. The strike's impact frame has bolder speed lines. The sound and the logo's flight to the header are unchanged.
 - **X20CTL opens faster.**
   - The intro film starts loading the moment X20CTL starts, so it plays as soon as the window appears instead of up to a second later.
   - After an update installs itself, the new version unpacks in the background, so its first open is about 2 s quicker.
