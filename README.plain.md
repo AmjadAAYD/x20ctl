@@ -4,7 +4,7 @@
 
 [Download V0.017](https://github.com/AmjadAAYD/x20ctl/releases/tag/v0.017) · [Changelog](CHANGELOG.md) · [Controller not working?](IF-YOUR-CONTROLLER-ISNT-WORKING.md) · [Issues](https://github.com/AmjadAAYD/x20ctl/issues)
 
-**Thank you EasySMX for supplying an EasySMX X20 Pro to build and test X20CTL.**
+**Thank you EasySMX Kiin & Team EasySMX for supplying an EasySMX X20 Pro to build and test X20CTL.**
 
 *This is the plain-text version of the README. The main README is an illustrated page; this copy keeps everything selectable and copyable.*
 
