@@ -50,6 +50,8 @@ public partial class StudioScene : UserControl
     public event Action? BackRequested;
     /// <summary>The title-bar Support pill; the host decides how to open the link (and the stress harness stubs it).</summary>
     public event Action? SupportRequested;
+    public event Action<string>? AgentScanRequested;
+    public event Action<string>? AgentFeedbackRequested;
     private readonly ControllerLayout layout;
     private readonly Dictionary<string, PhysicalHotspot> controls = new();
     private readonly List<Button> targetButtons = new();
@@ -139,6 +141,7 @@ public partial class StudioScene : UserControl
             agentPanel.Body.HorizontalAlignment = HorizontalAlignment.Right; agentPanel.Body.VerticalAlignment = VerticalAlignment.Bottom; agentPanel.Body.Margin = new(0, 0, 30, 170);
             agentPanel.CloseRequested += CloseAgent; agentPanel.ChangeControllerRequested += () => { CloseAgent(); BackRequested?.Invoke(); }; agentPanel.Walkthrough = PlayAgentTour;
             agentPanel.PageRequested += AgentGoTo;
+            agentPanel.FeedbackRequested += draft => { CloseAgent(); AgentFeedbackRequested?.Invoke(draft); };
             agentPanel.MouseSwitch = on => { if (MouseService == null) return "Mouse mode isn't available in this window."; if(on){try{MouseService.TakeControl(Player,Model.Id);}catch(InvalidOperationException error){return error.Message;}}else if(MouseService.OwnerPlayer==Player && MouseService.OwnerModel==Model.Id)MouseService.Active=false; if (ManagementPage == "Mouse") ShowManagement("Mouse"); return null; };
             Grid.SetZIndex(agentPanel.Body, 41); StudioShell.Children.Add(agentPanel.Body);
         }
@@ -165,6 +168,7 @@ public partial class StudioScene : UserControl
         CloseAgent();
         switch (page)
         {
+            case "ReadScan" or "WriteScan": AgentScanRequested?.Invoke(page); break;
             case "Diagnostics" or "Tools": ShowManagement("Diagnostics"); break;
             case "Mouse" or "PcMode" or "Device": ShowManagement(page); break;
             case "Curves": ShowCurves(true); break;

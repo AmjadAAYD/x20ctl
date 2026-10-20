@@ -1,6 +1,6 @@
 ﻿<UserControl x:Class="X20Ctl.Product.DockView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:X20Ctl.Product" UseLayoutRounding="True">
   <UserControl.RenderTransform><TransformGroup><ScaleTransform x:Name="PlacementScale" ScaleX="1" ScaleY="1" /><TranslateTransform x:Name="PlacementOffset" /></TransformGroup></UserControl.RenderTransform>
-  <Grid RenderTransformOrigin=".5,.5">
+  <Grid RenderTransformOrigin=".5,.5" ClipToBounds="True">
     <Grid.RenderTransform><ScaleTransform x:Name="LiftScale" ScaleX="1" ScaleY="1" /></Grid.RenderTransform>
     <!-- a controller card in Steam's restraint: navy-grey glass, one blue accent for the chosen controller, a white edge
          for focus; the whole card is the focus/click target -->

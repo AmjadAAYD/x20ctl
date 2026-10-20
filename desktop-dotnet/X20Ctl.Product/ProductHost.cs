@@ -140,6 +140,16 @@ public sealed class ProductHost : Grid
         if(pc)PcModeSync.Prepare(pcModeStore!,draft,curveDraft,macroDraft);
         Studio = new(player, model, draft, Zone.ReducedMotion, curveDraft,macroDraft,vibrationDraft,setupStore,legacySources,activeSetup); if(PcMode!=null&&pcModeStore!=null)Studio.PcMode=new(pcModeStore,PcMode,preferencesHealthy?preferences:null);Studio.MouseService=MouseMode;Studio.PcModeSwitched+=()=>Dispatcher.BeginInvoke(()=>{EnterStudio(player);Studio?.ShowManagement("PcMode");});Studio.BackRequested += ReturnToZone;Studio.SupportRequested+=OpenSupport;Studio.ActiveSetupChanged+=id=>activeSetups[key]=id;
         Studio.SetBatteryLevel(batteryLevels[player]);
+        Studio.AgentScanRequested += page => { if (page == "ReadScan") OpenCheck(); else OpenWriteScan(); };
+        Studio.AgentFeedbackRequested += draft =>
+        {
+            ShowSettings();
+            var form = Settings!.FeedbackForm;
+            string previous = form.Message.Text;
+            string combined = string.IsNullOrWhiteSpace(previous) ? draft : previous + "\n\n" + draft;
+            form.Message.Text = combined[..Math.Min(4000, combined.Length)];
+            Settings.ShowFeedback(true);
+        };
         Studio.NativeEngineStatus=NativeEngineStatus;
         Studio.InputContextChanged+=()=>_=UpdateNativeContext();
         if(Engine!=null)_=RefreshNativeCapabilities(model.Id);
