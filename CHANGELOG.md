@@ -50,6 +50,19 @@
 - **Sending from the ideas returns to the conversation**, so you see the answer.
 - **When the agent can't do something, it says why in plain words.** For example: "Left stick dead zone: 0 to 40 only; 260 is outside." Before, it showed internal names.
 
+### Linux
+
+- **The Linux app opens with the Windows film, sound included.** Then the logo flies onto the header while the Controller Zone grows in around it, as on Windows. Esc, a click or any key skips it; M mutes it, and the choice is remembered.
+- **The Linux app moves like the Windows one.**
+  - Screens grow or shrink in as they change.
+  - A player's card glides into the big spot.
+  - Studio tabs slide in from their side, and the underline glides after them.
+  - Buttons press in and spring back.
+- **A bigger curve graph on Linux.** It spans the card, the stick buttons sit beside the stick's name, and the presets stand beside the graph.
+- **Buttons and Curves fill the window on Linux**, and scroll when it is too short.
+- **Every Studio tab shows on a narrow Linux window**, and notices wrap instead of being cut off.
+- **Choosing a controller on Linux opens at once after the first time.**
+
 ## [V0.017.1] - 2026-10-19
 
 Tagged `v0.017.1`. Everything in V0.017 is included.

@@ -52,6 +52,18 @@ internal static class T
         try { return new Bitmap(AssetLoader.Open(new Uri($"avares://x20ctl-studio/Assets/{modelId}/native/{file}.png"))); }
         catch (Exception) { return null; }
     }
+
+    static readonly Dictionary<string, Bitmap?> Small = new();
+    /// <summary>A photo decoded at <paramref name="width"/> pixels and kept: the chooser's eight cards then cost about
+    /// what two full photos do, and open at once the second time.</summary>
+    public static Bitmap? Art(string modelId, string file, int width)
+    {
+        string key = $"{modelId}/{file}@{width}";
+        if (Small.TryGetValue(key, out var kept)) return kept;
+        try { using var s = AssetLoader.Open(new Uri($"avares://x20ctl-studio/Assets/{modelId}/native/{file}.png")); kept = Bitmap.DecodeToWidth(s, width, BitmapInterpolationMode.HighQuality); }
+        catch (Exception) { kept = null; }
+        return Small[key] = kept;
+    }
 }
 
 /// <summary>A pill button: ghost, primary (blue), light (selected) or flat. Drawn here so hover and press behave the same on every desktop.</summary>
@@ -65,8 +77,10 @@ internal sealed class Pill : Border
         this.kind = kind; if (click != null) Click += click;
         label = T.Label(text, size, null, FontWeight.Medium); label.TextWrapping = TextWrapping.NoWrap; label.HorizontalAlignment = HorizontalAlignment.Center; label.VerticalAlignment = VerticalAlignment.Center;
         Child = label; Padding = new Thickness(18, 9); CornerRadius = new CornerRadius(40); BorderThickness = new Thickness(1); Cursor = new Cursor(StandardCursorType.Hand);
-        PointerEntered += (_, _) => { hover = true; Paint(); }; PointerExited += (_, _) => { hover = false; Paint(); };
-        PointerPressed += (_, e) => { if (enabled && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) { Click?.Invoke(); e.Handled = true; } };
+        PointerEntered += (_, _) => { hover = true; Paint(); }; PointerExited += (_, _) => { hover = false; Paint(); Motion.Press(this, false); };
+        // it presses in and springs back (Windows: .94 over 80 ms, back over 260 ms); the click happens on the press
+        PointerPressed += (_, e) => { if (enabled && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) { Motion.Press(this, true); Click?.Invoke(); e.Handled = true; } };
+        PointerReleased += (_, _) => Motion.Press(this, false); PointerCaptureLost += (_, _) => Motion.Press(this, false);
         Paint();
     }
     public string Text { get => label.Text ?? ""; set => label.Text = value; }
@@ -83,6 +97,31 @@ internal sealed class Pill : Border
             _ => (h ? T.ButtonHover : T.ButtonFill, T.Hairline, T.Text)
         };
         Opacity = enabled ? 1 : .45;
+    }
+}
+
+/// <summary>A page that fills the height it is given when there is room, and scrolls when there isn't: it is laid out at
+/// the viewport's height, but never below <paramref name="minHeight"/>. Its star rows grow on a tall window.</summary>
+internal sealed class FillScroll : ScrollViewer
+{
+    public FillScroll(Control page, double minHeight)
+    {
+        Content = new Filler(this, minHeight) { Child = page };
+        HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled;
+    }
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        if (change.Property == ViewportProperty && Content is Control filler) filler.InvalidateMeasure();
+    }
+    sealed class Filler(FillScroll owner, double minHeight) : Decorator
+    {
+        protected override Size MeasureOverride(Size available)
+        {
+            double height = Math.Max(minHeight, owner.Viewport.Height);
+            Child?.Measure(new Size(available.Width, height));
+            return new Size(Child?.DesiredSize.Width ?? 0, height);
+        }
     }
 }
 
@@ -148,12 +187,18 @@ internal sealed class ControllerArt : Panel
     public static readonly Size Photo = new(1536, 1024);
     static readonly Dictionary<string, Rect> Frames = LoadFrames();
 
-    readonly Bitmap? bitmap; readonly Rect crop; readonly bool shadow;
+    readonly Bitmap? bitmap; readonly Rect crop, source; bool shadow;
     Rect dest;
-    public ControllerArt(string modelId, bool rear = false, bool shadow = true)
+    /// <summary>The soft floor shadow under the pad (the Zone's hero has one, the cards beside it don't).</summary>
+    public bool Shadow { get => shadow; set { if (shadow == value) return; shadow = value; Children[0].InvalidateVisual(); } }
+    /// <param name="small">Drawn small (a card): a smaller copy of the photo, decoded once and kept.</param>
+    public ControllerArt(string modelId, bool rear = false, bool shadow = true, bool small = false)
     {
-        this.shadow = shadow; bitmap = T.Art(modelId, rear ? "rear-full" : "front-full");
+        this.shadow = shadow; string file = rear ? "rear-full" : "front-full";
+        bitmap = small ? T.Art(modelId, file, 768) : T.Art(modelId, file);
         crop = Frames.TryGetValue(modelId + (rear ? ":back" : ":front"), out var f) ? f : new Rect(Photo);
+        // the crop is in the full photo's pixels; a smaller copy takes it scaled down
+        double k = bitmap == null ? 1 : bitmap.Size.Width / Photo.Width; source = new Rect(crop.X * k, crop.Y * k, crop.Width * k, crop.Height * k);
         Children.Add(new Surface(this));
     }
 
@@ -211,7 +256,7 @@ internal sealed class ControllerArt : Panel
             var c = new Point(dest.Center.X, dest.Bottom - dest.Height * .02);
             ctx.DrawEllipse(new RadialGradientBrush { GradientStops = { new(Color.Parse("#A0000000"), 0), new(Color.Parse("#00000000"), 1) } }, null, c, dest.Width * .36, dest.Height * .075);
         }
-        if (bitmap != null) ctx.DrawImage(bitmap, crop, dest);
+        if (bitmap != null) ctx.DrawImage(bitmap, source, dest);
     }
 }
 

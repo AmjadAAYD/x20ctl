@@ -64,7 +64,7 @@ internal sealed class CurvesPage : UserControl, IKeyPage
     {
         var cur = state.Curves[channel]; var tune = state.Tune(channel);
         var page = new Grid { Margin = new Thickness(36, 4, 36, 14), RowDefinitions = new("*,Auto") };
-        var upper = new Grid { ColumnDefinitions = new("1*,1.45*"), MinHeight = 520 };
+        var upper = new Grid { ColumnDefinitions = new("1*,1.45*"), MinHeight = 480 };
 
         var art = new ControllerArt(state.Model.Id) { Margin = new Thickness(0, 4, 0, 0) };
         string? stick = channel switch { CurveChannel.LeftStick => "L3", CurveChannel.RightStick => "R3", _ => null };
@@ -82,14 +82,19 @@ internal sealed class CurvesPage : UserControl, IKeyPage
         var tools = T.Line(10, new Pill("Reset curve", Pill.Kinds.Ghost, () => { state.Curves.Reset(channel); state.ResetTune(channel); Build(); }) { Enabled = !IsDefault(cur, tune), Padding = new Thickness(22, 11) }, new Pill("Advanced", Pill.Kinds.Ghost, () => Content = new StickToolsView(state, () => Build())) { Padding = new Thickness(22, 11) },
             new Pill("Reset options ⌄", Pill.Kinds.Ghost, () => { state.Curves.ResetAll(); state.ResetTunes(); Build(); }) { Padding = new Thickness(22, 11) }, new Pill(keyboard ? "Stop keyboard test" : "Keyboard test", keyboard ? Pill.Kinds.Light : Pill.Kinds.Ghost, () => { keyboard = !keyboard; held.Clear(); kx = ky = kl = kr = 0; Build(); }) { Padding = new Thickness(22, 11) });
         var channels = T.Line(10, Enum.GetValues<CurveChannel>().Select(c => (Control)new Pill(Short[(int)c], c == channel ? Pill.Kinds.Light : Pill.Kinds.Ghost, () => { channel = c; Build(); })).ToArray());
-        var presets = T.Line(10, CurveDraft.Presets.Keys.Select(k => (Control)Preset(k, cur)).ToArray());
+        // the presets stand in a column beside the graph, so the graph has the card's height
+        var presets = T.Stack(8, CurveDraft.Presets.Keys.Select(k => Preset(k, cur)).ToArray());
         string state2 = IsDefault(cur, tune) ? "Unmodified" : "Modified";
         graph = new CurveEditor(state, channel, () => Build()) { MinHeight = 250, HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Stretch };
-        var rightBody = new Grid { RowDefinitions = new("Auto,Auto,Auto,Auto,Auto,*") };
+        var rightBody = new Grid { RowDefinitions = new("Auto,Auto,Auto,*") };
         void Add(Control c, int row, double top = 0) { c.Margin = new Thickness(0, top, 0, 0); Grid.SetRow(c, row); rightBody.Children.Add(c); }
-        Add(notice, 0); Add(tools, 1, 14);
-        Add(T.Stack(0, T.Label(Long[(int)channel], 34, null, FontWeight.SemiBold), T.Label(Cap(cur.Preset) + " curve · " + state2, 16, T.Soft)), 2, 14);
-        Add(channels, 3, 10); Add(presets, 4, 10); Add(graph, 5, 8);
+        // the channel beside its name
+        var heading = new Grid { ColumnDefinitions = new("*,Auto") };
+        heading.Children.Add(T.Stack(0, T.Label(Long[(int)channel], 34, null, FontWeight.SemiBold), T.Label(Cap(cur.Preset) + " curve · " + state2, 16, T.Soft)));
+        channels.VerticalAlignment = VerticalAlignment.Center; Grid.SetColumn(channels, 1); heading.Children.Add(channels);
+        var body = new Grid { ColumnDefinitions = new("*,Auto") };
+        body.Children.Add(graph); presets.Margin = new Thickness(16, 6, 0, 0); Grid.SetColumn(presets, 1); body.Children.Add(presets);
+        Add(notice, 0); Add(heading, 1, 14); Add(tools, 2, 12); Add(body, 3, 14);
         upper.Children.Add(Wrap(T.Card(rightBody, 18, 18), 1));
         page.Children.Add(upper);
 
@@ -100,7 +105,8 @@ internal sealed class CurvesPage : UserControl, IKeyPage
         var msg = hint = T.Label("Connect a controller or use Keyboard test", 14, T.Soft); msg.VerticalAlignment = VerticalAlignment.Center; msg.HorizontalAlignment = HorizontalAlignment.Center; Grid.SetColumn(msg, 2);
         inner.Children.Add(a); inner.Children.Add(b); inner.Children.Add(msg);
         var sliders = T.Card(inner, 22); Grid.SetRow(sliders, 1); page.Children.Add(sliders);
-        Content = new ScrollViewer { Content = page }; Live();
+        // the curve takes the height the sliders leave; on a short window the page scrolls
+        Content = new FillScroll(page, 680); Live();
     }
 
     static Control Place(Control c, int row) { Grid.SetRow(c, row); return c; }
@@ -145,11 +151,21 @@ internal sealed class CurveEditor : Control
 {
     readonly StudioState state; readonly CurveChannel channel; readonly Action changed; int dragging = -1; double? live;
     public void Show(double? push) { if (live == push) return; live = push; InvalidateVisual(); }
-    const double Left = 56, Right = 40, Top = 24, Bottom = 44;
+    const double Left = 34, Right = 40, Top = 24, Bottom = 44;
 
     public CurveEditor(StudioState state, CurveChannel channel, Action changed) { this.state = state; this.channel = channel; this.changed = changed; Cursor = new Cursor(StandardCursorType.Arrow); }
 
-    Rect Plot { get { double s = Math.Min(Bounds.Width - Left - Right, Bounds.Height - Top - Bottom); s = Math.Max(s, 60); return new Rect((Bounds.Width - s) / 2 + 6, Top, s, s); } }
+    /// <summary>The plot fills the control from its top left: wider than tall, as on Windows (408 x 240), never wider than
+    /// 2.2 times its height nor narrower than square.</summary>
+    Rect Plot
+    {
+        get
+        {
+            double w = Math.Max(60, Bounds.Width - Left - Right), h = Math.Max(60, Bounds.Height - Top - Bottom);
+            if (w < h) h = w; else w = Math.Min(w, h * 2.2);
+            return new Rect(Left, Top, w, h);
+        }
+    }
     SetupCurve Curve => CurveGraph.Of(state.Curves[channel]);
 
     Point Handle(int i)
