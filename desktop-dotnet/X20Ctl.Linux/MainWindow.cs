@@ -144,6 +144,27 @@ public sealed class MainView : UserControl, IIntroHandoff
         return new Border { BorderBrush = T.Hairline, BorderThickness = new Thickness(0, 1, 0, 0), Padding = new Thickness(30, 14, 30, 16), Child = inner, Background = T.B("#33040814") };
     }
 
+    /// <summary>The Zone's Support pill, as on Windows (ZoneSurfaces.xaml Zone.Support): a warm gradient, a white heart
+    /// badge, the word, and a small menu mark; it opens Ko-fi in the browser.</summary>
+    static Control SupportPill()
+    {
+        var heart = new Border { Width = 28, Height = 28, CornerRadius = new CornerRadius(14), Background = Brushes.White, Child = new TextBlock { Text = "♥", FontSize = 19, FontWeight = FontWeight.Bold, Foreground = T.B("#EF4367"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, -2, 0, 0) } };
+        var menu = new Border { Width = 25, Height = 22, CornerRadius = new CornerRadius(11), BorderBrush = T.B("#D9FFE6D5"), BorderThickness = new Thickness(1), Background = T.B("#14FFFFFF"), Child = new TextBlock { Text = "≡", FontSize = 15, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, -2, 0, 0) } };
+        var word = new TextBlock { Text = "Support", FontSize = 14, FontWeight = FontWeight.SemiBold, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+        var row = new Grid { Margin = new Thickness(5, 0, 8, 0), ColumnDefinitions = new("28,*,25") };
+        row.Children.Add(heart); Grid.SetColumn(word, 1); row.Children.Add(word); Grid.SetColumn(menu, 2); row.Children.Add(menu);
+        var face = new Border
+        {
+            Width = 150, Height = 40, CornerRadius = new CornerRadius(20), BorderBrush = T.B("#FFB29B"), BorderThickness = new Thickness(1), Child = row, Cursor = new Cursor(StandardCursorType.Hand),
+            Background = new LinearGradientBrush { StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative), EndPoint = new RelativePoint(1, .2, RelativeUnit.Relative), GradientStops = { new(Color.Parse("#F33B67"), 0), new(Color.Parse("#F1653D"), .7), new(Color.Parse("#FA843D"), 1) } }
+        };
+        face.PointerEntered += (_, _) => face.BorderBrush = Brushes.White; face.PointerExited += (_, _) => face.BorderBrush = T.B("#FFB29B");
+        face.PointerPressed += (_, _) => face.Opacity = .75; face.PointerCaptureLost += (_, _) => face.Opacity = 1;
+        face.PointerReleased += (_, e) => { face.Opacity = 1; if (face.Bounds.Contains(e.GetPosition(face.Parent as Visual))) ExternalLinks.Open(ExternalLinks.Support); };
+        Avalonia.Automation.AutomationProperties.SetName(face, "Support");
+        return face;
+    }
+
     // ---- screens ------------------------------------------------------------------------------------------------
 
     /// <summary>The Controller Zone, coming back from a deeper screen (as on Windows: from .94 over 380 ms).</summary>
@@ -153,7 +174,7 @@ public sealed class MainView : UserControl, IIntroHandoff
         screen = "zone"; studio = null;
         var tools = new Pill("Tools", Pill.Kinds.Ghost, ShowTools); tools.Padding = new Thickness(20, 10);
         zone = new ZonePage(session, EnterStudio, Choose, Remove);
-        Swap(ZoneHeader("Controller Zone", tools), zone, FootBar(Hints.Row(("A", "Select player"), ("B", "Back"), ("≡", "Tools"))), .94, 380, animate);
+        Swap(ZoneHeader("Controller Zone", T.Line(12, tools, SupportPill())), zone, FootBar(Hints.Row(("A", "Select player"), ("B", "Back"), ("≡", "Tools"))), .94, 380, animate);
     }
 
     // ---- tools --------------------------------------------------------------------------------------------------

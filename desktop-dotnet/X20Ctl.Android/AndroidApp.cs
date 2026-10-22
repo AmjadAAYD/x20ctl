@@ -54,6 +54,8 @@ public sealed class MainActivity : AvaloniaMainActivity
         }
         base.OnCreate(savedInstanceState);
         FullScreen();
+        // Back (button or edge swipe) goes one screen up; on the Controller Zone it sends the app to the background
+        OnBackPressedDispatcher.AddCallback(this, new BackToPreviousScreen(this));
     }
 
     public override void OnWindowFocusChanged(bool hasFocus)
@@ -83,5 +85,13 @@ public sealed class MainActivity : AvaloniaMainActivity
     {
         if (e is not null && PadInput.Motion(e)) return true;
         return base.DispatchGenericMotionEvent(e);
+    }
+}
+
+sealed class BackToPreviousScreen(Activity activity) : AndroidX.Activity.OnBackPressedCallback(true)
+{
+    public override void HandleOnBackPressed()
+    {
+        if (!PhoneHost.Back()) activity.MoveTaskToBack(true);
     }
 }

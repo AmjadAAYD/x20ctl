@@ -59,7 +59,7 @@ internal sealed class StudioView : UserControl
         var tab = new Border { Padding = new Thickness(18, Phone.Active ? 10 : 6), Cursor = new Cursor(StandardCursorType.Hand), Background = Brushes.Transparent, Child = T.Stack(0, label, line) };
         tab.PointerEntered += (_, _) => { if (name != current) label.Foreground = T.Text; };
         tab.PointerExited += (_, _) => { if (name != current) label.Foreground = T.Soft; };
-        tab.PointerPressed += (_, _) => Show(name);
+        if (Phone.Active) tab.Tapped += (_, _) => Show(name); else tab.PointerPressed += (_, _) => Show(name);
         tabs[name] = (tab, label, line); return tab;
     }
 

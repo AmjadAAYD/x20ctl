@@ -8,8 +8,11 @@ default), so it plays the same film as standalone WebP stills, which it decodes 
 
 Every still stands alone, so a slow machine skips frames instead of falling behind the sound.
 
+The Android app gets its own lighter copy, 1280x720 at 30 fps, which a phone decodes and draws with room to spare
+(--phone: desktop-dotnet/X20Ctl.Android/Brand/intro-film.frames; it shares the Linux sound file).
+
 Needs an ffmpeg with libwebp: the one on PATH, or `pip install imageio-ffmpeg`.
-Run from the repository root:  python tools/linux-studio/build_intro_film.py
+Run from the repository root:  python tools/linux-studio/build_intro_film.py [--phone]
 """
 import json
 import pathlib
@@ -23,6 +26,9 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 SOURCE = ROOT / "desktop-dotnet" / "X20Ctl.Product" / "Brand" / "intro.mp4"
 OUT = ROOT / "desktop-dotnet" / "X20Ctl.Linux" / "Brand"
 FPS, WIDTH, HEIGHT, QUALITY = 60, 1600, 900, 80
+if "--phone" in sys.argv:
+    OUT = ROOT / "desktop-dotnet" / "X20Ctl.Android" / "Brand"
+    FPS, WIDTH, HEIGHT = 30, 1280, 720
 
 
 def ffmpeg() -> str:
@@ -52,6 +58,9 @@ def main() -> None:
             pack.writestr(zipfile.ZipInfo("film.json", (2026, 10, 19, 0, 0, 0)), json.dumps(meta, indent=2))
             for i, still in enumerate(stills):
                 pack.write(still, f"f{i:04d}.webp")
+    if "--phone" in sys.argv:
+        print(f"{len(stills)} frames at {FPS} fps, {WIDTH}x{HEIGHT}: {(OUT / 'intro-film.frames').stat().st_size / 1e6:.1f} MB")
+        return
     subprocess.run([tool, "-hide_banner", "-loglevel", "error", "-y", "-i", str(SOURCE), "-vn",
                     "-c:a", "pcm_s16le", "-ar", "48000", "-ac", "2", str(OUT / "intro-film.wav")], check=True)
     print(f"{len(stills)} frames at {FPS} fps, {WIDTH}x{HEIGHT}: {(OUT / 'intro-film.frames').stat().st_size / 1e6:.1f} MB; "

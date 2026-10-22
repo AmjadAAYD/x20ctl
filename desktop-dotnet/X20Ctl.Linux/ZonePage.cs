@@ -74,7 +74,7 @@ internal sealed class ZonePage : UserControl
 
         Rect[] Places(Size size)
         {
-            double gap = Phone.Active ? 12 : 18, heroWidth = Math.Round(size.Width * 2.08 / 3.08), x = heroWidth + (Phone.Active ? 18 : 26), width = Math.Max(0, size.Width - x), height = Math.Max(0, (size.Height - 2 * gap) / 3);
+            double gap = Phone.Active ? 12 : 18, heroWidth = Math.Round(size.Width * (Phone.Active ? 1.9 / 2.9 : 2.08 / 3.08)), x = heroWidth + (Phone.Active ? 18 : 26), width = Math.Max(0, size.Width - x), height = Math.Max(0, (size.Height - 2 * gap) / 3);
             var places = new Rect[4]; int row = 0;
             for (int i = 0; i < 4; i++) places[i] = i == Hero ? new Rect(0, 0, heroWidth, size.Height) : new Rect(x, row++ * (height + gap), width, height);
             if (from != null)
@@ -121,7 +121,8 @@ internal sealed class ZonePage : UserControl
             if (model != null) art = new ControllerArt(model.Id) { RenderTransformOrigin = RelativePoint.Center };
             Child = layers = new Layers(this, art); ClipToBounds = true;
             PointerEntered += (_, _) => { hover = true; Paint(); }; PointerExited += (_, _) => { hover = false; Paint(); };
-            PointerPressed += (_, e) => { if (!hero && model != null && !e.Handled) { e.Handled = true; page.Select(Slot); } };
+            if (Phone.Active) Tapped += (_, e) => { if (!hero && model != null && !e.Handled) { e.Handled = true; page.Select(Slot); } };
+            else PointerPressed += (_, e) => { if (!hero && model != null && !e.Handled) { e.Handled = true; page.Select(Slot); } };
         }
         public double Details { set => layers.Words.Opacity = value; }
         public double ArtScale { set { if (art != null) art.RenderTransform = value == 1 ? null : new ScaleTransform(value, value); } }
@@ -162,10 +163,10 @@ internal sealed class ZonePage : UserControl
             else if (compact && !asHero)
             {
                 g.RowDefinitions = new("*"); g.ColumnDefinitions = new("*,Auto"); g.Children.Clear();
-                var add = new Pill("+ Add controller", Pill.Kinds.Primary, () => page.choose(Slot)) { Padding = new Thickness(16, 10), HorizontalAlignment = HorizontalAlignment.Left };
+                var add = new Pill("+ Add controller", Pill.Kinds.Primary, () => page.choose(Slot)) { Padding = new Thickness(14, 10), HorizontalAlignment = HorizontalAlignment.Left };
                 var words = T.Stack(10, T.Label("Player " + (Slot + 1), 17, null, FontWeight.Bold), add); words.VerticalAlignment = VerticalAlignment.Center;
                 g.Children.Add(words);
-                var outline = Silhouette(.72); outline.VerticalAlignment = VerticalAlignment.Center; outline.Margin = new Thickness(10, 0, 4, 0); Grid.SetColumn(outline, 1); g.Children.Add(outline);
+                var outline = Silhouette(.62); outline.VerticalAlignment = VerticalAlignment.Center; outline.Margin = new Thickness(10, 0, 4, 0); Grid.SetColumn(outline, 1); g.Children.Add(outline);
             }
             else
             {

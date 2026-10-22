@@ -35,19 +35,21 @@ internal sealed class PhoneHost : Border
     const double UnitDp = .9, MinHeight_ = 430;
     readonly MainView view;
     readonly Viewbox box;
+    /// <summary>The phone's Back, from the activity: one screen up; false on the Controller Zone, where it leaves the app.</summary>
+    public static Func<bool> Back { get; private set; } = () => false;
 
     public PhoneHost()
     {
         var clock = System.Diagnostics.Stopwatch.StartNew();
         view = new MainView();
         global::Android.Util.Log.Info("X20CTL", $"startup: screens built in {clock.ElapsedMilliseconds} ms");
+        Back = view.Back;
         Background = new SolidColorBrush(T.Void);
         box = new Viewbox { Stretch = Stretch.Uniform, Child = view };
         Child = box;
         AttachedToVisualTree += (_, _) =>
         {
             if (TopLevel.GetTopLevel(this) is not { } top) return;
-            top.BackRequested += (_, e) => e.Handled = view.Back();
             // edge to edge: the dark fills the whole screen, the content keeps clear of the cutout and rounded corners
             if (top.InsetsManager is { } insets)
             {
