@@ -5,7 +5,7 @@
     <TargetFramework>net10.0-android</TargetFramework>
     <OutputType>Exe</OutputType>
     <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
+    <ImplicitUsings>disable</ImplicitUsings>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <!-- the shared screens load their art as avares://x20ctl-studio/... -->
     <AssemblyName>x20ctl-studio</AssemblyName>
@@ -28,6 +28,17 @@
     <PackageReference Include="Avalonia.Android" Version="12.1.4" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.4" />
     <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.4" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- the plain .NET implicit usings only: the Android SDK's own (Android.App, Android.Widget...) clash with Avalonia's
+         names (Application, CheckBox) in the shared screens, and the Android files here name their namespaces themselves -->
+    <Using Include="System" />
+    <Using Include="System.Collections.Generic" />
+    <Using Include="System.IO" />
+    <Using Include="System.Linq" />
+    <Using Include="System.Net.Http" />
+    <Using Include="System.Threading" />
+    <Using Include="System.Threading.Tasks" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../X20Ctl.Zone/X20Ctl.Zone.csproj" />

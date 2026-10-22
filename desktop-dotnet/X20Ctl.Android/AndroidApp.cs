@@ -44,17 +44,17 @@ public sealed class MainActivity : AvaloniaMainActivity
     protected override void OnCreate(Bundle? savedInstanceState)
     {
         base.OnCreate(savedInstanceState);
-        Immersive();
+        FullScreen();
     }
 
     public override void OnWindowFocusChanged(bool hasFocus)
     {
         base.OnWindowFocusChanged(hasFocus);
-        if (hasFocus) Immersive();
+        if (hasFocus) FullScreen();
     }
 
     // full screen like a console app: the status and navigation bars come back with a swipe from the edge
-    void Immersive()
+    void FullScreen()
     {
         if (Window is not { } window) return;
         var insets = AndroidX.Core.View.WindowCompat.GetInsetsController(window, window.DecorView);
