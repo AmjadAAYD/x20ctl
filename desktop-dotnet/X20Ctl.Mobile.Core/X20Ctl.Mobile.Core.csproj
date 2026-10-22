@@ -1,6 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <!-- The phone app's logic that has nothing to do with Android: the Bluetooth allowlist, gamepad mapping, read scan text. Tested on any machine. -->
-  <PropertyGroup><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
-  <ItemGroup><ProjectReference Include="../X20Ctl.Zone/X20Ctl.Zone.csproj" /></ItemGroup>
-  <ItemGroup><InternalsVisibleTo Include="X20Ctl.Mobile.Core.Tests" /></ItemGroup>
-</Project>

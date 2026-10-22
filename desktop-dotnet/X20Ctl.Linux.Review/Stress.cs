@@ -37,7 +37,7 @@ internal static class Stress
         async Task Settle(string after)
         {
             await Task.Delay(900);
-            var stage = (Grid)window.Content!;
+            var stage = (Grid)window.View.Content!;
             var extra = stage.Children.Skip(2).Select(c => c.GetType().Name).ToList();
             if (extra.Count > 0) failures.Add($"{after}: left on the stage: {string.Join(", ", extra)}");
             var root = stage.Children.OfType<Grid>().FirstOrDefault(g => g.Children.OfType<ContentControl>().Count() == 3);

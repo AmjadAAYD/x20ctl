@@ -216,7 +216,7 @@ internal sealed class ControllerArt : Panel
         var map = new Dictionary<string, Rect>();
         try
         {
-            using var doc = JsonDocument.Parse(File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Data", "framing.json")));
+            using var doc = JsonDocument.Parse(File.ReadAllBytes(Path.Combine(AppContent.Root, "Data", "framing.json")));
             foreach (var m in doc.RootElement.GetProperty("models").EnumerateObject())
                 foreach (var side in new[] { "front", "back" })
                     if (m.Value.TryGetProperty(side, out var a) && a.GetArrayLength() == 4) map[m.Name + ":" + side] = new Rect(a[0].GetDouble(), a[1].GetDouble(), a[2].GetDouble(), a[3].GetDouble());

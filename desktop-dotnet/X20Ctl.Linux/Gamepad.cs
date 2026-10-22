@@ -21,6 +21,10 @@ internal sealed class GamepadReader : IDisposable
     public bool Connected => Device != null;
     public event Action<PadFrame>? Frame;
 
+    /// <summary>Set by a platform that delivers controller input itself (the Android app). Readers then follow it
+    /// instead of /dev/input.</summary>
+    public static ExternalPad? External { get; set; }
+
     public static string? Find()
     {
         if (!OperatingSystem.IsLinux()) return null;
@@ -30,6 +34,12 @@ internal sealed class GamepadReader : IDisposable
 
     public void Start()
     {
+        if (External is { } outside)
+        {
+            Device = outside.Name ?? "Controller"; started = DateTime.UtcNow;
+            outside.Frame += FromOutside;
+            return;
+        }
         if (Find() is not { } path) return;
         Device = path; started = DateTime.UtcNow;
         _ = Task.Run(() => Read(path), stop.Token);
@@ -61,8 +71,16 @@ internal sealed class GamepadReader : IDisposable
     /// <summary>Input updates per second since the reader started.</summary>
     public double Rate { get { lock (gate) return updates / Math.Max(.001, (DateTime.UtcNow - started).TotalSeconds); } }
 
+    void FromOutside(PadFrame frame)
+    {
+        lock (gate) updates++;
+        Device = External?.Name ?? Device;
+        Frame?.Invoke(frame);
+    }
+
     public PadFrame Snapshot()
     {
+        if (External is { } outside) return outside.Last;
         lock (gate)
         {
             var down = new HashSet<string>();
@@ -76,5 +94,21 @@ internal sealed class GamepadReader : IDisposable
         }
     }
 
-    public void Dispose() => stop.Cancel();
+    public void Dispose() { stop.Cancel(); if (External is { } outside) outside.Frame -= FromOutside; }
+}
+
+/// <summary>Controller input handed over by the platform, already in the app's names. Raised on the UI thread.</summary>
+public sealed class ExternalPad
+{
+    internal PadFrame Last { get; private set; } = PadFrame.Empty;
+    public string? Name { get; private set; }
+    internal event Action<PadFrame>? Frame;
+    /// <summary>A new reading: <paramref name="down"/> holds button names (A, B, X, Y, LB, RB, LT, RT, SELECT, START, HOME,
+    /// L3, R3, DPAD_UP/DOWN/LEFT/RIGHT); sticks -1 to 1 with up negative, triggers 0 to 1.</summary>
+    public void Push(string? name, IReadOnlySet<string> down, double lx, double ly, double rx, double ry, double lt, double rt)
+    {
+        Name = name ?? Name;
+        Last = new PadFrame(down, lx, ly, rx, ry, lt, rt, Stopwatch.GetTimestamp());
+        Frame?.Invoke(Last);
+    }
 }

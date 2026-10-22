@@ -18,16 +18,30 @@ internal sealed class Session
     public StudioState?[] Studios { get; } = new StudioState?[4];
     public Session()
     {
-        Catalog = new ControllerCatalog(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Data", "catalog.json")));
+        Catalog = new ControllerCatalog(File.ReadAllText(Path.Combine(AppContent.Root, "Data", "catalog.json")));
         Players[0] = Catalog.Find("x20_pro");
     }
     public StudioState? StudioFor(int slot) => Players[slot] is { } m ? Studios[slot] ??= Made(m, slot) : null;
     static StudioState Made(ControllerModel m, int slot) { var s = new StudioState(m, slot); PcModeHub.Shared.Prepare(s); return s; }
 }
 
-/// <summary>The window: the stage behind, a header, the current screen, and the hint row. Screens swap in place, the old
-/// one fading away as the new one arrives, with the Windows app's values (X20Ctl.Product/ProductHost.cs).</summary>
-public sealed class MainWindow : Window, IIntroHandoff
+/// <summary>The desktop window: it holds the <see cref="MainView"/>, which is the whole app.</summary>
+public sealed class MainWindow : Window
+{
+    public MainView View { get; } = new();
+    public MainWindow()
+    {
+        Title = "X20CTL"; Width = 1500; Height = 900; MinWidth = 1100; MinHeight = 680; FontFamily = T.Font; Background = new SolidColorBrush(T.Void);
+        Content = View;
+    }
+    /// <summary>--shots DIRECTORY: renders the screens, then closes.</summary>
+    public async Task Shots(string directory) { await View.Shots(directory); Close(); }
+}
+
+/// <summary>The app: the stage behind, a header, the current screen, and the hint row. Screens swap in place, the old
+/// one fading away as the new one arrives, with the Windows app's values (X20Ctl.Product/ProductHost.cs). The desktop
+/// window holds it; the Android app shows it on its own.</summary>
+public sealed class MainView : UserControl, IIntroHandoff
 {
     readonly Session session = new();
     readonly Grid root = new() { RowDefinitions = new("Auto,*,Auto") };
@@ -44,20 +58,28 @@ public sealed class MainWindow : Window, IIntroHandoff
     string screen = "zone";
     int choosing;
 
-    public MainWindow()
+    public MainView()
     {
-        Title = "X20CTL"; Width = 1500; Height = 900; MinWidth = 1100; MinHeight = 680; FontFamily = T.Font; Background = new SolidColorBrush(T.Void);
-        Motion.Clock = this;
+        FontFamily = T.Font; Background = new SolidColorBrush(T.Void);
         var stage = new Grid(); stage.Children.Add(new Backdrop()); stage.Children.Add(root); Content = stage;
         root.Children.Add(header); Grid.SetRow(body, 1); root.Children.Add(body); Grid.SetRow(footer, 2); root.Children.Add(footer);
         var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) }; timer.Tick += (_, _) => { foreach (var c in clocks) c.Text = DateTime.Now.ToString("HH:mm"); }; timer.Start();
-        KeyDown += OnKey; KeyUp += (_, e) => { if (screen == "studio") studio?.HandleKey(e, false); }; ShowZone(animate: false);
+        ShowZone(animate: false);
         bool live = !ReviewMode.Headless && Environment.GetCommandLineArgs().All(a => a != "--shots");
-        if (live) Opened += async (_, _) =>
+        // keys reach the window (or the phone's view) wherever focus is; the window's render clock drives every animation
+        TopLevel? top = null;
+        void KeyUpHandler(object? _, KeyEventArgs e) { if (screen == "studio") studio?.HandleKey(e, false); }
+        AttachedToVisualTree += async (_, _) =>
         {
+            if (top != null || TopLevel.GetTopLevel(this) is not { } t) return;
+            top = t; Motion.Clock = t;
+            t.AddHandler(KeyDownEvent, OnKey); t.AddHandler(KeyUpEvent, KeyUpHandler);
+            if (!live) return;
+            live = false;
             if (AppSettings.Shared.IntroOnLaunch) { ShowIntro(); while (intro != null) await Task.Delay(100); }
-            if (AppSettings.Shared.AutoUpdate) await OfferUpdate();
+            if (AppSettings.Shared.AutoUpdate && !Phone.Active) await OfferUpdate();
         };
+        DetachedFromVisualTree += (_, _) => { if (top == null) return; top.RemoveHandler(KeyDownEvent, OnKey); top.RemoveHandler(KeyUpEvent, KeyUpHandler); top = null; };
     }
 
     static Bitmap? Load(string file)
@@ -204,6 +226,18 @@ public sealed class MainWindow : Window, IIntroHandoff
         if (brandTile != null) brandTile.RenderTransform = null;
     }
 
+    /// <summary>The phone's Back: one screen up, as Escape does. False on the Controller Zone, where Back leaves the app.</summary>
+    public bool Back()
+    {
+        if (intro != null) { intro.Finish(); return true; }
+        switch (screen)
+        {
+            case "zone": return false;
+            case "about" or "feedback" or "check": ShowTools(); return true;
+            default: ShowZone(); return true;
+        }
+    }
+
     void Choose(int slot)
     {
         screen = "choose"; choosing = slot; zone = null;
@@ -224,7 +258,7 @@ public sealed class MainWindow : Window, IIntroHandoff
         Swap(studio.Header, studio, studio.Footer, 1.02, 300);
     }
 
-    /// <summary>--shots DIRECTORY: renders the screens from the window's own visuals, then exits.</summary>
+    /// <summary>--shots DIRECTORY: renders the screens from the app's own visuals.</summary>
     public async Task Shots(string directory)
     {
         Directory.CreateDirectory(directory);
@@ -261,6 +295,5 @@ public sealed class MainWindow : Window, IIntroHandoff
             await Shot("intro-" + at.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture), wait: false);
         }
         film.Finish(); ((Grid)Content!).Children.Remove(film);
-        Close();
     }
 }

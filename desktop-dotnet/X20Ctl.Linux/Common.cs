@@ -124,3 +124,17 @@ internal static class Parts
         return new Border { Background = T.B("#33FFFFFF") is var _ ? T.B("#240B1430") : null, CornerRadius = new CornerRadius(10), Padding = new Thickness(16, 11), Child = inner, BorderBrush = T.B("#10FFFFFF"), BorderThickness = new Thickness(1) };
     }
 }
+
+/// <summary>Where the app's bundled data (Data/, Brand/) is: next to the program on the desktop; the Android app unpacks
+/// it into its own folder and points here before the first screen.</summary>
+public static class AppContent
+{
+    public static string Root { get; set; } = AppContext.BaseDirectory;
+}
+
+/// <summary>Set by the Android app. Hides what only means something on a computer: PC mode, controller-as-mouse, the
+/// update offer for desktop builds.</summary>
+public static class Phone
+{
+    public static bool Active { get; set; }
+}

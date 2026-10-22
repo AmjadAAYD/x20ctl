@@ -66,7 +66,7 @@ internal sealed class OutlineLayer : Control
         var map = new Dictionary<string, List<Stroke>>();
         try
         {
-            using var doc = JsonDocument.Parse(File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Data", "vibration-outlines.json")));
+            using var doc = JsonDocument.Parse(File.ReadAllBytes(Path.Combine(AppContent.Root, "Data", "vibration-outlines.json")));
             foreach (var m in doc.RootElement.GetProperty("models").EnumerateObject())
             {
                 var list = new List<Stroke>();

@@ -12,7 +12,7 @@ namespace X20Ctl.Linux;
 /// uses; the UI thread copies the newest one into the bitmap it draws. Every still stands alone, so a slow machine skips frames rather than lagging.</summary>
 internal sealed class IntroFilm : IDisposable
 {
-    public static string FilePath => Path.Combine(AppContext.BaseDirectory, "Brand", "intro-film.frames");
+    public static string FilePath => Path.Combine(AppContent.Root, "Brand", "intro-film.frames");
     public static bool Installed => File.Exists(FilePath);
 
     readonly ZipArchive pack; readonly ZipArchiveEntry[] stills; readonly double fps;

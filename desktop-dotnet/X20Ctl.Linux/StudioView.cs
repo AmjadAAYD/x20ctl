@@ -12,7 +12,10 @@ namespace X20Ctl.Linux;
 /// <summary>One controller's Studio: header, the tab strip, the page, and the hint row that changes with the page.</summary>
 internal sealed class StudioView : UserControl
 {
-    public static readonly string[] Tabs = ["Dashboard", "Buttons", "Curves", "Macros", "Vibration", "PC mode", "Device", "Mouse", "Setups", "Tester", "Diagnostics"];
+    static readonly string[] AllTabs = ["Dashboard", "Buttons", "Curves", "Macros", "Vibration", "PC mode", "Device", "Mouse", "Setups", "Tester", "Diagnostics"];
+    // a phone is not a PC: no virtual pad to drive and no pointer to steer
+    static readonly string[] PhoneTabs = AllTabs.Where(t => t is not ("PC mode" or "Mouse")).ToArray();
+    public static string[] Tabs => Phone.Active ? PhoneTabs : AllTabs;
     readonly StudioState state; readonly Dictionary<string, Control> pages = new();
     readonly ContentControl host = new(); readonly StackPanel strip = new() { Orientation = Orientation.Horizontal, Spacing = 4 };
     readonly Border footerHost = new();
@@ -101,7 +104,7 @@ internal sealed class StudioView : UserControl
         else if (e.Key == Key.PageDown || e.Key == Key.OemCloseBrackets) Step(1);
     }
     void Step(int d) => Show(Tabs[(Array.IndexOf(Tabs, current) + d + Tabs.Length) % Tabs.Length]);
-    public void ShowTab(string name) => Show(name);
+    public void ShowTab(string name) => Show(Tabs.Contains(name) ? name : "Dashboard");
 
     Control Page(string name) => name switch
     {

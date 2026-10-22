@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <style name="X20Theme" parent="@style/Theme.AppCompat.NoActionBar">
+    <item name="android:windowBackground">@color/x20_void</item>
+    <item name="android:statusBarColor">@color/x20_void</item>
+    <item name="android:navigationBarColor">@color/x20_void</item>
+  </style>
+  <color name="x20_void">#04070F</color>
+</resources>

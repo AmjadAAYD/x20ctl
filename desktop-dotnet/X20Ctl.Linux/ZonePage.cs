@@ -254,7 +254,7 @@ internal sealed class ChooserPage : UserControl
         var facts = new Dictionary<string, Facts>();
         try
         {
-            using var doc = JsonDocument.Parse(File.ReadAllBytes(System.IO.Path.Combine(AppContext.BaseDirectory, "Data", "catalog.json")));
+            using var doc = JsonDocument.Parse(File.ReadAllBytes(System.IO.Path.Combine(AppContent.Root, "Data", "catalog.json")));
             foreach (var item in doc.RootElement.EnumerateArray())
             {
                 string id = item.GetProperty("id").GetString()!; var parts = new List<string>();

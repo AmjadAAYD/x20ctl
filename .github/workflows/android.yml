@@ -2,9 +2,8 @@ name: Android
 on:
   push:
     paths:
-      - 'desktop-dotnet/X20Ctl.Mobile/**'
-      - 'desktop-dotnet/X20Ctl.Mobile.Core/**'
-      - 'desktop-dotnet/X20Ctl.Mobile.Core.Tests/**'
+      - 'desktop-dotnet/X20Ctl.Android/**'
+      - 'desktop-dotnet/X20Ctl.Linux/**'
       - 'desktop-dotnet/X20Ctl.Zone/**'
       - '.github/workflows/android.yml'
   pull_request:
@@ -24,13 +23,20 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
-      - name: Phone logic tests
-        run: dotnet test desktop-dotnet/X20Ctl.Mobile.Core.Tests
+      - name: Shared screens still build and render (Linux Studio, headless)
+        # the phone shows these same screens at about 1430x680 before scaling
+        run: dotnet run --project desktop-dotnet/X20Ctl.Linux.Review -c Release -- --shots out/shots 1430x680
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phone-size-screens
+          path: out/shots/*.png
+          retention-days: 14
       - name: Install the Android workload
-        run: dotnet workload install maui-android
+        run: dotnet workload install android
       - name: Build the APK
-        # Release build signed with the SDK's debug key: installable for testing, not a store release.
-        run: dotnet publish desktop-dotnet/X20Ctl.Mobile -f net10.0-android -c Release -o out/android
+        # The Linux Studio's screens in an Android shell. Release build signed with the SDK's debug key:
+        # installable for testing, not a store release.
+        run: dotnet publish desktop-dotnet/X20Ctl.Android -c Release -o out/android
       - uses: actions/upload-artifact@v4
         with:
           name: x20ctl-android-apk

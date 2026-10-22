@@ -6,14 +6,17 @@ namespace X20Ctl.Linux;
 /// stoppable. Starting part-way (unmuting mid-film) plays a copy cut at that moment, since none of them can seek.</summary>
 internal sealed class IntroSound : IDisposable
 {
-    public static string FilePath => Path.Combine(AppContext.BaseDirectory, "Brand", "intro-film.wav");
-    Process? process; string? cut;
+    public static string FilePath => Path.Combine(AppContent.Root, "Brand", "intro-film.wav");
+    Process? process; string? cut; IDisposable? played;
+    /// <summary>Set by a platform without a command-line player (the Android app): plays a WAV file, stopped by disposing.</summary>
+    public static Func<string, IDisposable?>? Player { get; set; }
 
     public void Start(double from = 0)
     {
         Stop();
         string file = FilePath; if (!File.Exists(file)) return;
         if (from > .05) { cut = Cut(file, from); if (cut == null) return; file = cut; }
+        if (Player is { } play) { played = play(file); return; }
         foreach (string player in new[] { "pw-play", "paplay", "aplay", "afplay" })
         {
             try
@@ -58,6 +61,7 @@ internal sealed class IntroSound : IDisposable
     {
         try { if (process is { HasExited: false }) process.Kill(); } catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception) { }
         process = null;
+        played?.Dispose(); played = null;
         if (cut != null) { try { File.Delete(cut); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { } cut = null; }
     }
     public void Dispose() => Stop();

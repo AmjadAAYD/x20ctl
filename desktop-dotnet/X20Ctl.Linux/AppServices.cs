@@ -31,9 +31,12 @@ internal sealed class AppSettings
 internal static class ExternalLinks
 {
     public const string Repository = "https://github.com/AmjadAAYD/x20ctl", Support = "https://ko-fi.com/x20ctl", ApexSenseBridge = "https://github.com/ReynArts/ApexSenseBridge", Releases = Repository + "/releases";
+    /// <summary>Set by a platform with its own way to open a link (the Android app).</summary>
+    public static Action<string>? Opener { get; set; }
     public static void Open(string url)
     {
         if (!url.StartsWith("https://", StringComparison.Ordinal)) return;
+        if (Opener is { } open) { open(url); return; }
         try
         {
             if (OperatingSystem.IsWindows()) System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
