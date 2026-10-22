@@ -5,6 +5,7 @@ on:
       - 'desktop-dotnet/X20Ctl.Android/**'
       - 'desktop-dotnet/X20Ctl.Linux/**'
       - 'desktop-dotnet/X20Ctl.Zone/**'
+      - 'tools/phone-preview/**'
       - '.github/workflows/android.yml'
   pull_request:
   workflow_dispatch:
@@ -43,3 +44,92 @@ jobs:
           path: out/android/*-Signed.apk
           if-no-files-found: error
           retention-days: 30
+  phone-preview:
+    # The app on an emulator: screen recording and timed screenshots, so the phone app can be checked without a phone
+    name: Phone preview (emulator)
+    needs: apk
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: x20ctl-android-apk
+          path: apk
+      - name: Let the emulator use KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          disable-animations: false
+          script: bash tools/phone-preview/capture.sh "$(ls apk/*.apk | head -1)" out/preview/phone
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phone-preview
+          path: out/preview
+          retention-days: 14
+  windows-reference:
+    # The Windows app's own renders of the same moments, to compare the phone against
+    name: Windows reference renders
+    if: github.event_name != 'pull_request'
+    runs-on: windows-2025
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build the native engine
+        run: |
+          cmake -S native-core -B artifacts/product-engine-phase/native-build -A x64
+          cmake --build artifacts/product-engine-phase/native-build --config Release --target x20ctl-engine
+      - name: Render the intro and the Controller Zone motion
+        shell: pwsh
+        run: |
+          dotnet build desktop-dotnet/X20Ctl.Product -c Release -o out/product
+          $exe = (Resolve-Path out/product/X20Ctl.exe).Path
+          foreach ($r in @('intro', 'zone-motion')) {
+            $p = Start-Process $exe -ArgumentList "--review-$r", "$PWD/out/preview/windows/$r" -PassThru -Wait
+            "review-$r exit $($p.ExitCode)"
+          }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-reference
+          path: out/preview/windows
+          retention-days: 14
+  publish-preview:
+    # Artifact downloads are not reachable from every place that reviews the app, so the previews are also kept on
+    # the phone-previews branch, one folder per commit (never force-pushed; the branch can be deleted at any time)
+    name: Keep previews on the phone-previews branch
+    needs: [phone-preview, windows-reference]
+    if: always() && needs.phone-preview.result == 'success'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: '{phone-preview,windows-reference}'
+          path: dl
+      - name: Commit to phone-previews
+        env:
+          SHA: ${{ github.sha }}
+          REPO: ${{ github.repository }}
+          TOKEN: ${{ github.token }}
+        run: |
+          git init -q previews && cd previews
+          git remote add origin "https://x-access-token:${TOKEN}@github.com/${REPO}.git"
+          if git fetch -q --depth 1 origin phone-previews; then git checkout -q -b phone-previews FETCH_HEAD; else git checkout -q --orphan phone-previews; fi
+          dest="runs/${SHA:0:7}"; mkdir -p "$dest"
+          cp -r ../dl/phone-preview "$dest/" 2>/dev/null || true
+          cp -r ../dl/windows-reference "$dest/" 2>/dev/null || true
+          echo "${SHA:0:7}" > LATEST
+          git add -A
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -q -m "Previews for ${SHA:0:7}"
+          git push -q origin phone-previews
