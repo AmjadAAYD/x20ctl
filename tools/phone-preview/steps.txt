@@ -1,0 +1,12 @@
+# name  kind  argument [fallback x y]   kinds: text (tap the control showing it, _ for a space), at (x y as screen fractions),
+# key (Android key code), swipe (x1 y1 x2 y2 fractions). Each step is followed by two screenshots.
+zone-player2     text  Player_2  0.79 0.30
+zone-player1     text  Player_1  0.35 0.50
+enter-studio     text  Enter_Studio  0.62 0.80
+tab-buttons      text  Buttons
+tab-curves       text  Curves
+tab-macros       text  Macros
+tab-vibration    text  Vibration
+tabs-swipe       swipe 0.7 0.12 0.3 0.12
+back-to-zone     key   4
+tools            text  Tools  0.92 0.06

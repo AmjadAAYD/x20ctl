@@ -35,6 +35,7 @@ internal sealed class StudioView : UserControl
         var lb = new Pill("‹  LB", Pill.Kinds.Ghost, () => Step(-1), 12) { Padding = new Thickness(14, 5) };
         var rb = new Pill("RB  ›", Pill.Kinds.Ghost, () => Step(1), 12) { Padding = new Thickness(14, 5) };
         var tabRow = new Grid { Margin = new Thickness(36, 12, 36, 6), ColumnDefinitions = new("Auto,*,Auto") };
+        lb.IsVisible = rb.IsVisible = !Phone.Active;
         tabRow.Children.Add(lb);
         foreach (string t in Tabs) strip.Children.Add(Tab(t));
         overlay.Children.Add(underline);
@@ -156,6 +157,7 @@ internal sealed class StudioView : UserControl
         inner.Children.Add(hints);
         var apply = new Pill("Apply Changes", Pill.Kinds.Primary) { Padding = new Thickness(26, 12) };
         apply.Click += () => { PcModeHub.Shared.Save(state); Show(current); };
+        if (Phone.Active && headline == null && name is not ("Buttons" or "Curves" or "Macros")) return new Border();
         var row = new Grid { ColumnDefinitions = new("*,Auto") }; row.Children.Add(inner);
         if (name is "Buttons" or "Curves" or "Macros") { apply.VerticalAlignment = VerticalAlignment.Center; Grid.SetColumn(apply, 1); row.Children.Add(apply); }
         return new Border { BorderBrush = T.Hairline, BorderThickness = new Thickness(0, 1, 0, 0), Padding = new Thickness(30, 12, 30, 14), Child = row, Background = T.B("#33040814") };

@@ -265,6 +265,7 @@ internal static class Hints
 {
     public static Control Row(params (string Glyph, string Text)[] items)
     {
+        if (Phone.Active) return new Border();
         var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 26 };
         foreach (var (g, t) in items) row.Children.Add(Item(g, t));
         return row;

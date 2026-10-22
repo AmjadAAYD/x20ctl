@@ -1,4 +1,0 @@
-# name  x-fraction  y-fraction (of the landscape screen), tapped in order after the intro
-zone-player1   0.35 0.50
-zone-player2   0.79 0.30
-back           key 4

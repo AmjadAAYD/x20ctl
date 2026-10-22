@@ -42,7 +42,15 @@ internal sealed class PhoneHost : Border
         Child = box;
         AttachedToVisualTree += (_, _) =>
         {
-            if (TopLevel.GetTopLevel(this) is { } top) top.BackRequested += (_, e) => e.Handled = view.Back();
+            if (TopLevel.GetTopLevel(this) is not { } top) return;
+            top.BackRequested += (_, e) => e.Handled = view.Back();
+            // edge to edge: the dark fills the whole screen, the content keeps clear of the cutout and rounded corners
+            if (top.InsetsManager is { } insets)
+            {
+                insets.DisplayEdgeToEdgePreference = true; insets.IsSystemBarVisible = false;
+                Padding = insets.SafeAreaPadding; insets.SafeAreaChanged += (_, e) => Padding = e.SafeAreaPadding;
+            }
+            FrameMeter.Start(top);
         };
     }
 
@@ -54,5 +62,29 @@ internal sealed class PhoneHost : Border
             view.Width = Math.Max(MinWidth_, DesignHeight * available.Width / available.Height);
         }
         return base.MeasureOverride(available);
+    }
+}
+
+/// <summary>Logs how smoothly the app draws for its first half minute (the intro and the first screens): frames per
+/// second and the longest gap between frames, every two seconds, to the Android log under the X20CTL tag.</summary>
+internal static class FrameMeter
+{
+    public static void Start(TopLevel top)
+    {
+        var started = System.Diagnostics.Stopwatch.StartNew(); TimeSpan? last = null; int frames = 0; double worst = 0, windowStart = 0;
+        void Frame(TimeSpan now)
+        {
+            if (last == null) global::Android.Util.Log.Info("X20CTL", $"startup: first frame at {started.ElapsedMilliseconds} ms after the view attached");
+            else { worst = Math.Max(worst, (now - last.Value).TotalMilliseconds); frames++; }
+            last = now;
+            double at = started.Elapsed.TotalSeconds;
+            if (at - windowStart >= 2)
+            {
+                global::Android.Util.Log.Info("X20CTL", $"frames: {at:0.0}s {frames / (at - windowStart):0} fps, longest gap {worst:0} ms");
+                frames = 0; worst = 0; windowStart = at;
+            }
+            if (at < 30) top.RequestAnimationFrame(Frame);
+        }
+        top.RequestAnimationFrame(Frame);
     }
 }

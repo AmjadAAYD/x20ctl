@@ -17,7 +17,9 @@ public sealed class AndroidApp : AvaloniaAndroidApplication<PhoneApp>
     protected override AppBuilder CustomizeAppBuilder(AppBuilder builder)
     {
         // before the first screen: the bundled data unpacked, and the phone's own sound and controller input plugged in
+        var clock = System.Diagnostics.Stopwatch.StartNew();
         AppContent.Root = ContentUnpacker.Unpack(this);
+        global::Android.Util.Log.Info("X20CTL", $"startup: content ready in {clock.ElapsedMilliseconds} ms");
         Phone.Active = true;
         IntroSound.Player = PhoneSound.Play;
         GamepadReader.External = PadInput.Pad;
@@ -43,6 +45,13 @@ public sealed class MainActivity : AvaloniaMainActivity
 {
     protected override void OnCreate(Bundle? savedInstanceState)
     {
+        // draw under the camera cutout too, so no strip of window shows beside the app; the app pads its content
+        if (OperatingSystem.IsAndroidVersionAtLeast(28) && Window is { } window)
+        {
+            var attributes = window.Attributes!;
+            attributes.LayoutInDisplayCutoutMode = LayoutInDisplayCutoutMode.ShortEdges;
+            window.Attributes = attributes;
+        }
         base.OnCreate(savedInstanceState);
         FullScreen();
     }

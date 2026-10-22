@@ -89,12 +89,12 @@ jobs:
         run: |
           cmake -S native-core -B artifacts/product-engine-phase/native-build -A x64
           cmake --build artifacts/product-engine-phase/native-build --config Release --target x20ctl-engine
-      - name: Render the intro and the Controller Zone motion
+      - name: Render every main screen and the Controller Zone motion
         shell: pwsh
         run: |
           dotnet build desktop-dotnet/X20Ctl.Product -c Release -o out/product
           $exe = (Resolve-Path out/product/X20Ctl.exe).Path
-          foreach ($r in @('intro', 'zone-motion')) {
+          foreach ($r in @('readme', 'zone-motion')) {
             $p = Start-Process $exe -ArgumentList "--review-$r", "$PWD/out/preview/windows/$r" -PassThru -Wait
             "review-$r exit $($p.ExitCode)"
           }

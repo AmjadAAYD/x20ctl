@@ -43,7 +43,7 @@ internal sealed class IntroView : Panel
     {
         this.mark = mark; this.handoff = handoff; this.done = done; this.silent = silent || ReviewMode.Headless;
         muted = !AppSettings.Shared.IntroSound; Focusable = true; ClipToBounds = true;
-        skip = new Pill("Skip · Esc", Pill.Kinds.Ghost, Finish) { Padding = new Thickness(20, 10), Opacity = .8 };
+        skip = new Pill(Phone.Active ? "Skip" : "Skip · Esc", Pill.Kinds.Ghost, Finish) { Padding = new Thickness(20, 10), Opacity = .8 };
         mute = new Pill("", Pill.Kinds.Ghost, ToggleMute) { Padding = new Thickness(20, 10), Opacity = .8, IsVisible = film != null };
         ShowMute();
         Children.Add(picture = new Surface(this));
@@ -54,7 +54,7 @@ internal sealed class IntroView : Panel
         Step(0);
     }
 
-    void ShowMute() => mute.Text = muted ? "Unmute · M" : "Mute · M";
+    void ShowMute() => mute.Text = Phone.Active ? (muted ? "Unmute" : "Mute") : muted ? "Unmute · M" : "Mute · M";
     /// <summary>Mute stops the sound at once; unmuting brings it back where the picture is.</summary>
     public void ToggleMute()
     {

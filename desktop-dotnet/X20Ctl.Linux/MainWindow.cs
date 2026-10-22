@@ -134,6 +134,8 @@ public sealed class MainView : UserControl, IIntroHandoff
 
     Control FootBar(Control hints, string? headline = null)
     {
+        // a phone has no keys to name: the screen ends where its content does
+        if (Phone.Active && headline == null) return new Border();
         var inner = new StackPanel { Spacing = 10 };
         if (headline != null) inner.Children.Add(T.Label(headline, 18, null, FontWeight.Medium));
         inner.Children.Add(hints);
