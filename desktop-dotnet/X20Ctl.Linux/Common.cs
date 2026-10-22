@@ -66,7 +66,7 @@ internal static class Parts
     public static Control Draft(StudioState state, Action? reset = null, bool withReset = true)
     {
         var dot = new Border { Width = 7, Height = 7, CornerRadius = new CornerRadius(4), Background = T.Warn, VerticalAlignment = VerticalAlignment.Center };
-        var status = T.Line(20, T.Label("Working Draft", 22, null, FontWeight.SemiBold), T.Line(6, dot, T.Label("No input", 15, T.Warn)), T.Label("PC mode", 15, T.Soft));
+        var status = T.Line(20, T.Label("Working Draft", 22, null, FontWeight.SemiBold), T.Line(6, dot, T.Label("No input", 15, T.Warn)), T.Label(Phone.Active ? "On this phone" : "PC mode", 15, T.Soft));
         status.VerticalAlignment = VerticalAlignment.Center;
         var row = new Grid { ColumnDefinitions = new("*,Auto") }; row.Children.Add(status);
         if (withReset) { var r = new Pill("Reset draft", Pill.Kinds.Ghost, () => { state.ResetAll(); reset?.Invoke(); }) { Padding = new Thickness(26, 12) }; Grid.SetColumn(r, 1); row.Children.Add(r); }

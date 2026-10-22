@@ -111,7 +111,7 @@ internal sealed class ButtonsPage : UserControl
             var cur = T.Label("Current mapping: " + Names.Of(from) + " → " + Names.Of(to), 15, null, FontWeight.Medium); cur.VerticalAlignment = VerticalAlignment.Center; foot.Children.Add(cur);
             var restore = new Pill("Restore " + Names.Of(from) + " → " + Names.Of(from), Pill.Kinds.Ghost, () => { state.Buttons.Reset(from); Build(); }) { Enabled = to != from }; Grid.SetColumn(restore, 1); foot.Children.Add(restore);
             col.Children.Add(new Border { Background = T.B("#4D0B1430"), BorderBrush = T.B("#334F7FD0"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(14), Padding = new Thickness(20, 14), Child = T.Stack(10, ends, foot) });
-            col.Children.Add(T.Label("PC MODE · Processed by X20CTL on this PC. Controller memory is unchanged.", 12.5, T.Soft));
+            col.Children.Add(T.Label(Phone.Active ? "DRAFT · Kept on this phone. Controller memory is unchanged." : "PC MODE · Processed by X20CTL on this PC. Controller memory is unchanged.", 12.5, T.Soft));
             col.Children.Add(T.Label("Assign " + Names.Of(from) + " to:", 14, T.Soft));
             col.Children.Add(Segmented.Make(Groups, group, v => { group = v; Build(); }, 13));
             var wrap = new WrapPanel();

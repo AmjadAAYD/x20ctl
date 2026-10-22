@@ -37,12 +37,14 @@ internal sealed class ToolsPage : UserControl
 
     void Build()
     {
-        var page = new Grid { Margin = new Thickness(60, 14, 60, 18), RowDefinitions = new("*,Auto") };
+        bool phone = Phone.Active;
+        var page = new Grid { Margin = phone ? new Thickness(28, 6, 28, 16) : new Thickness(60, 14, 60, 18), RowDefinitions = new("*,Auto"), MinHeight = phone ? 620 : 0 };
         var hub = new Grid { ColumnDefinitions = new("1.05*,24,1*") };
         hub.Children.Add(Hero());
         var tiles = new Grid { ColumnDefinitions = new("*,24,*"), RowDefinitions = new("*,24,*,24,*,24,*") }; Grid.SetColumn(tiles, 2);
-        Place(tiles, Tile(Pad, "PC mode", "Remaps, turbo and macros for any pad.", "#34D399", go.PcMode), 0, 0);
-        Place(tiles, Tile(Blue, "Write scan", "What an app writes. 20 to 40 min.", "#6EA0EB", go.WriteScan), 0, 2);
+        // a phone has no PC mode: Write scan takes the whole first row
+        if (!phone) Place(tiles, Tile(Pad, "PC mode", "Remaps, turbo and macros for any pad.", "#34D399", go.PcMode), 0, 0);
+        var scan = Tile(Blue, "Write scan", "What an app writes. 20 to 40 min.", "#6EA0EB", go.WriteScan); Place(tiles, scan, 0, phone ? 0 : 2); if (phone) Grid.SetColumnSpan(scan, 3);
         Place(tiles, Tile(Play, "Replay Intro", "Watch the X20CTL opening again.", "#3D8BFF", go.Replay), 2, 0);
         Place(tiles, Tile(Info, "About", "What X20CTL is, who made it, and credits.", "#96AFD7", go.About, true), 2, 2);
         Place(tiles, Tile(Heart, "Support X20CTL", "Help keep it going on Ko-fi.", "#FF5C7A", () => ExternalLinks.Open(ExternalLinks.Support)), 4, 0);
@@ -50,7 +52,8 @@ internal sealed class ToolsPage : UserControl
         var fb = Tile(Chat, "Send feedback", "Report a bug, ask for a feature or tell us about your controller.", "#6EA0EB", go.Feedback); Place(tiles, fb, 6, 0); Grid.SetColumnSpan(fb, 3);
         hub.Children.Add(tiles); page.Children.Add(hub);
 
-        var bars = new Grid { ColumnDefinitions = new("1.35*,16,1*"), Margin = new Thickness(0, 18, 0, 0) }; Grid.SetRow(bars, 1);
+        // side by side on the desktop; stacked on a phone, where half the width is too narrow for either
+        var bars = phone ? new Grid { RowDefinitions = new("Auto,12,Auto"), Margin = new Thickness(0, 14, 0, 0) } : new Grid { ColumnDefinitions = new("1.35*,16,1*"), Margin = new Thickness(0, 18, 0, 0) }; Grid.SetRow(bars, 1);
         var update = T.Stack(2, T.Label("Keep X20CTL up to date", 16, null, FontWeight.SemiBold), T.Label(updateLine, 13, T.Soft)); ((TextBlock)update.Children[1]).TextWrapping = TextWrapping.Wrap;
         var left = new Grid { ColumnDefinitions = new("Auto,16,*,Auto") };
         left.Children.Add(Switches.Make(settings.AutoUpdate, v => { settings.AutoUpdate = v; settings.Save(); updateLine = UpdateLine(v); Build(); }));
@@ -63,7 +66,7 @@ internal sealed class ToolsPage : UserControl
         var sw = T.Line(16, Switches.Make(settings.IntroOnLaunch, v => { settings.IntroOnLaunch = v; settings.Save(); Build(); }), T.Label("At launch", 15), Switches.Make(settings.IntroSound, v => { settings.IntroSound = v; settings.Save(); Build(); }), T.Label("Sound", 15));
         foreach (var c in sw.Children.OfType<TextBlock>()) c.VerticalAlignment = VerticalAlignment.Center;
         sw.VerticalAlignment = VerticalAlignment.Center; Grid.SetColumn(sw, 1); intro.Children.Add(sw);
-        var ib = T.Card(intro, 18, 16); Grid.SetColumn(ib, 2); bars.Children.Add(ib);
+        var ib = T.Card(intro, 18, 16); if (phone) Grid.SetRow(ib, 2); else Grid.SetColumn(ib, 2); bars.Children.Add(ib);
         page.Children.Add(bars);
         Content = page;
     }

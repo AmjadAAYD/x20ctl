@@ -89,7 +89,7 @@ internal sealed class MacrosPage : UserControl
     {
         var page = new Grid { Margin = new Thickness(36, 4, 36, 14), RowDefinitions = new("Auto,Auto,Auto,Auto") };
         var draft = Parts.Draft(state, () => { index = -1; Build(); }); draft.Margin = new Thickness(0, 0, 0, 10); page.Children.Add(draft);
-        var notice = Parts.Notice("Macros · PC mode", "Applies on this PC, to games, for any controller. PC mode can't see a back paddle, so pick the button that plays each slot."); notice.Margin = new Thickness(0, 0, 0, 12); Grid.SetRow(notice, 1); page.Children.Add(notice);
+        var notice = (Phone.Active ? Parts.Notice("Macros · Draft", "Kept on this phone. Macros play through PC mode on a computer; nothing is written to the controller.") : Parts.Notice("Macros · PC mode", "Applies on this PC, to games, for any controller. PC mode can't see a back paddle, so pick the button that plays each slot.")); notice.Margin = new Thickness(0, 0, 0, 12); Grid.SetRow(notice, 1); page.Children.Add(notice);
 
         var mid = new Grid { ColumnDefinitions = new("360,*"), Margin = new Thickness(0, 0, 0, 14) }; Grid.SetRow(mid, 2);
         mid.Children.Add(Slots());

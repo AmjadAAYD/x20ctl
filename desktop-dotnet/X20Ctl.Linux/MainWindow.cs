@@ -186,6 +186,8 @@ public sealed class MainView : UserControl, IIntroHandoff
         bool returning = screenName == "tools" && screen is "about" or "feedback" or "check";
         screen = screenName; studio = null; zone = null;
         var pill = new Pill("←  " + back, Pill.Kinds.Ghost, back == "Controller Zone" ? ShowZone : ShowTools) { Padding = new Thickness(20, 10) };
+        // a phone shows the top of the page and scrolls to the rest
+        if (Phone.Active) page = new ScrollViewer { Content = page, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
         Swap(ZoneHeader(section, pill), page, FootBar(Hints.Row(("A", "Select"), ("B", "Back"))), returning ? .96 : 1.04, returning ? 340 : 320);
     }
 

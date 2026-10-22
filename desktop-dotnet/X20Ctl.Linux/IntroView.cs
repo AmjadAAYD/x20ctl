@@ -38,7 +38,7 @@ internal sealed class IntroView : Panel
     bool finished, began, muted, handing, targetsRead; DateTime beganAt; double? frozen; Rect? markTarget;
     // on a phone the film's clock advances by at most a fifteenth of a second a frame, so a stall (the first screens
     // still loading) holds the picture instead of jumping past it; the sound is put back in step when it drifts
-    DateTime lastTick; double phoneClock, drift;
+    DateTime lastTick, lastResync; double phoneClock, drift;
     // what Render draws, worked out each frame by Step
     double backdrop = 1, filmOpacity = 1, coverOpacity, coverSize; Matrix coverPlace = Matrix.Identity;
 
@@ -93,7 +93,7 @@ internal sealed class IntroView : Panel
         {
             var now = DateTime.UtcNow; double dt = (now - lastTick).TotalSeconds, step = Math.Min(dt, 1 / 15.0); lastTick = now;
             phoneClock += step; drift += dt - step;
-            if (drift > .15) { drift = 0; if (film != null && !muted && !silent && phoneClock < CoverAt) sound.Start(phoneClock); }
+            if (drift > .25 && (now - lastResync).TotalSeconds > 1.5) { drift = 0; lastResync = now; if (film != null && !muted && !silent && phoneClock < CoverAt - .5) sound.Start(phoneClock); }
         }
         Step(Elapsed);
         if (!finished) TopLevel.GetTopLevel(this)?.RequestAnimationFrame(Tick);
