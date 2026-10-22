@@ -1,0 +1,39 @@
+name: Android
+on:
+  push:
+    paths:
+      - 'desktop-dotnet/X20Ctl.Mobile/**'
+      - 'desktop-dotnet/X20Ctl.Mobile.Core/**'
+      - 'desktop-dotnet/X20Ctl.Mobile.Core.Tests/**'
+      - 'desktop-dotnet/X20Ctl.Zone/**'
+      - '.github/workflows/android.yml'
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  apk:
+    name: Phone app (Android APK)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Phone logic tests
+        run: dotnet test desktop-dotnet/X20Ctl.Mobile.Core.Tests
+      - name: Install the Android workload
+        run: dotnet workload install maui-android
+      - name: Build the APK
+        # Release build signed with the SDK's debug key: installable for testing, not a store release.
+        run: dotnet publish desktop-dotnet/X20Ctl.Mobile -f net10.0-android -c Release -o out/android
+      - uses: actions/upload-artifact@v4
+        with:
+          name: x20ctl-android-apk
+          path: out/android/*-Signed.apk
+          if-no-files-found: error
+          retention-days: 30
