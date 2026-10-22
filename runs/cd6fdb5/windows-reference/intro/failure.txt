@@ -1,0 +1,3 @@
+System.NullReferenceException: Object reference not set to an instance of an object.
+   at X20Ctl.Product.Development.IntroReview.Run(String directory) in D:\a\x20ctl\x20ctl\desktop-dotnet\X20Ctl.Product\Development\IntroReview.cs:line 27
+   at X20Ctl.Product.App.OnStartup(Object sender, StartupEventArgs e) in D:\a\x20ctl\x20ctl\desktop-dotnet\X20Ctl.Product\App.xaml.cs:line 67
