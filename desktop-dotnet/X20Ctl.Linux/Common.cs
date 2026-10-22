@@ -138,3 +138,14 @@ public static class Phone
 {
     public static bool Active { get; set; }
 }
+
+/// <summary>A click on the desktop happens on the press; on a phone it waits for a tap, so a swipe that starts on a
+/// control scrolls the screen instead of pressing it.</summary>
+internal static class Touch
+{
+    public static void OnTap(this Avalonia.Controls.Control control, Action act)
+    {
+        if (Phone.Active) control.Tapped += (_, _) => act();
+        else control.PointerPressed += (_, _) => act();
+    }
+}

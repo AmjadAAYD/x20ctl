@@ -254,7 +254,7 @@ internal sealed class ChooserPage : UserControl
             var card = T.Card(col, 16, 14); card.Margin = new Thickness(0, 0, 14, 14); card.Cursor = new Cursor(StandardCursorType.Hand);
             card.PointerEntered += (_, _) => card.BorderBrush = T.B("#66AFC8FF"); card.PointerExited += (_, _) => card.BorderBrush = (s.Players[slot]?.Id == m.Id) ? Brushes.White : T.Hairline;
             if (s.Players[slot]?.Id == m.Id) { card.BorderBrush = Brushes.White; card.BorderThickness = new Thickness(2); }
-            card.PointerPressed += (_, _) => pick(m);
+            card.OnTap(() => pick(m));
             grid.Children.Add(card);
         }
         Content = new ScrollViewer { Content = T.Stack(0, top, grid), Padding = new Thickness(0), Margin = new Thickness(60, 20, 46, 0), HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };

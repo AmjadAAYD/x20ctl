@@ -81,7 +81,7 @@ internal sealed class ButtonsPage : UserControl
         };
         if (name is "LB" or "RB" or "LT" or "RT") ring.Width = ring.Height = on ? 34 : 30;
         string key = name;
-        ring.PointerPressed += (_, _) => { selected = key; listing = false; Build(); };
+        ring.OnTap(() => { selected = key; listing = false; Build(); });
         ring.PointerEntered += (_, _) => { if (selected != key && !changed) ring.BorderBrush = T.B("#7DB6FF"); }; ring.PointerExited += (_, _) => { if (selected != key && !changed) ring.BorderBrush = T.B("#14FFFFFF"); };
         if (changed) ring.Child = Parts.Center(T.Label(Names.Of(state.Buttons.Target(name)), 12, T.Text, FontWeight.SemiBold));
         ControllerArt.SetAnchor(ring, new Point(p.X, p.Y));
@@ -172,7 +172,7 @@ internal sealed class ButtonsPage : UserControl
         {
             bool current = to == key; var c = make(current);
             c.Cursor = new Cursor(StandardCursorType.Hand);
-            c.PointerPressed += (_, _) => { if (selected == null) return; if (key == "DEFAULT") state.Buttons.Reset(selected); else state.Buttons.Set(selected, key); Build(); };
+            c.OnTap(() => { if (selected == null) return; if (key == "DEFAULT") state.Buttons.Reset(selected); else state.Buttons.Set(selected, key); Build(); });
             c.PointerEntered += (_, _) => c.Opacity = .85; c.PointerExited += (_, _) => c.Opacity = 1;
             return c;
         }

@@ -124,7 +124,7 @@ internal sealed class DashboardPage : UserControl
                     Width = tileWidth, Height = tileWidth * .83, CornerRadius = new CornerRadius(12), Cursor = new Cursor(StandardCursorType.Hand), Background = on ? T.B("#552A62C8") : T.B("#400B1430"), BorderBrush = on ? T.AccentHi : T.B("#12FFFFFF"), BorderThickness = new Thickness(on ? 2 : 1), Padding = new Thickness(14),
                     Child = TileFace(games[i])
                 };
-                tile.PointerPressed += (_, _) => { pick = index; Build(); };
+                tile.OnTap(() => { pick = index; Build(); });
                 row.Children.Add(tile);
             }
             strip = new ScrollViewer { Content = row, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto, VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };

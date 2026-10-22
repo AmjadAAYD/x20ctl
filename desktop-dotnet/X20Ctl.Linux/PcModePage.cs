@@ -180,7 +180,7 @@ internal sealed class PcModePage : UserControl
     {
         var knob = new Border { Width = 22, Height = 22, CornerRadius = new CornerRadius(11), Background = Brushes.White, HorizontalAlignment = on ? HorizontalAlignment.Right : HorizontalAlignment.Left, Margin = new Thickness(3), VerticalAlignment = VerticalAlignment.Center };
         var track = new Border { Width = 56, Height = 30, CornerRadius = new CornerRadius(15), Background = on ? T.PrimaryFill : T.B("#33FFFFFF"), BorderBrush = T.B("#55FFFFFF"), BorderThickness = new Thickness(1), Child = knob, Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand) };
-        track.PointerPressed += (_, _) => set(!on); return track;
+        track.OnTap(() => set(!on)); return track;
     }
 
     static Control Section(string title, string text)
@@ -192,7 +192,7 @@ internal sealed class PcModePage : UserControl
     static Control Expander(string title, bool open, Action<bool> set, Control body)
     {
         var header = T.Line(10, T.Label(open ? "⌄" : "›", 16, T.Soft), T.Label(title, 15.5, T.Text)); header.Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand);
-        header.PointerPressed += (_, _) => set(!open);
+        header.OnTap(() => set(!open));
         var s = T.Stack(10, header); if (open) { body.Margin = new Thickness(26, 0, 0, 0); s.Children.Add(body); }
         s.Margin = new Thickness(0, 18, 0, 0); return s;
     }

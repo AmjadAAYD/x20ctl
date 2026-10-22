@@ -114,7 +114,7 @@ internal sealed class MacrosPage : UserControl
                 Background = on ? T.PrimaryFill : T.B("#4D14213F"), BorderBrush = on ? T.B("#9CCBFF") : T.Hairline, BorderThickness = new Thickness(1),
                 Child = T.Stack(1, Parts.Center(T.Label(name, 19, null, FontWeight.SemiBold)), Parts.Center(T.Label(n == 0 ? "Empty" : n + (n == 1 ? " event" : " events"), 11.5, on ? T.Text : T.Soft)))
             };
-            cell.PointerPressed += (_, _) => { slot = name; index = M[name].Count > 0 ? 0 : -1; Build(); };
+            cell.OnTap(() => { slot = name; index = M[name].Count > 0 ? 0 : -1; Build(); });
             tiles.Children.Add(cell);
         }
         var played = new Grid { ColumnDefinitions = new("Auto,*"), Margin = new Thickness(0, 12, 0, 0) };
@@ -155,7 +155,7 @@ internal sealed class MacrosPage : UserControl
                 Background = on ? T.B("#CC2A62C8") : T.B("#4D14213F"), BorderBrush = on ? T.B("#CFE3FF") : T.Hairline, BorderThickness = new Thickness(on ? 2 : 1),
                 Child = T.Stack(1, T.Line(8, T.Label((at + 1).ToString("00"), 16, null, FontWeight.SemiBold), T.Label(what, 16, null, FontWeight.SemiBold)), T.Label($"{e.HoldMs} ms hold · {e.PauseMs} ms pause", 12.5, on ? T.B("#DCEBFF") : T.Soft))
             };
-            chip.PointerPressed += (_, _) => { index = at; Build(); }; chips.Children.Add(chip);
+            chip.OnTap(() => { index = at; Build(); }); chips.Children.Add(chip);
         }
         if (events.Count == 0) chips.Children.Add(T.Label("No events yet. Add one to start " + slot + ".", 14, T.Soft));
 
@@ -197,7 +197,7 @@ internal sealed class MacrosPage : UserControl
         Control Toggle(string key, Func<bool, Control> make)
         {
             bool on = e.Buttons.Contains(key); var c = make(on); c.Cursor = new Cursor(StandardCursorType.Hand);
-            c.PointerPressed += (_, _) => Set(e with { Buttons = on ? e.Buttons.Where(b => b != key).ToList() : [.. e.Buttons, key] });
+            c.OnTap(() => Set(e with { Buttons = on ? e.Buttons.Where(b => b != key).ToList() : [.. e.Buttons, key] }));
             return c;
         }
         Control Group(string title, Control body) => T.Stack(12, Parts.Center(Parts.Caps(title)), Parts.Center(body));
@@ -227,7 +227,7 @@ internal sealed class MacrosPage : UserControl
             var cells = new (StickHeading H, string Glyph, int R, int C)[] { (StickHeading.UpLeft, "↖", 0, 0), (StickHeading.Up, "↑", 0, 1), (StickHeading.UpRight, "↗", 0, 2), (StickHeading.Left, "←", 1, 0), (StickHeading.Neutral, "●", 1, 1), (StickHeading.Right, "→", 1, 2), (StickHeading.DownLeft, "↙", 2, 0), (StickHeading.Down, "↓", 2, 1), (StickHeading.DownRight, "↘", 2, 2) };
             foreach (var (h, glyph, r, c) in cells)
             {
-                var heading = h; var key = Parts.Key(glyph, 52, 46, current == heading, 18); key.Margin = new Thickness(3); key.Cursor = new Cursor(StandardCursorType.Hand); key.PointerPressed += (_, _) => Set(make(heading));
+                var heading = h; var key = Parts.Key(glyph, 52, 46, current == heading, 18); key.Margin = new Thickness(3); key.Cursor = new Cursor(StandardCursorType.Hand); key.OnTap(() => Set(make(heading)));
                 Grid.SetRow(key, r); Grid.SetColumn(key, c); g.Children.Add(key);
             }
             return T.Stack(8, Parts.Center(Parts.Caps(title)), Parts.Center(g));

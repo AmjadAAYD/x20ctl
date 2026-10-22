@@ -79,7 +79,9 @@ internal sealed class Pill : Border
         Child = label; Padding = new Thickness(18, 9); CornerRadius = new CornerRadius(40); BorderThickness = new Thickness(1); Cursor = new Cursor(StandardCursorType.Hand);
         PointerEntered += (_, _) => { hover = true; Paint(); }; PointerExited += (_, _) => { hover = false; Paint(); Motion.Press(this, false); };
         // it presses in and springs back (Windows: .94 over 80 ms, back over 260 ms); the click happens on the press
-        PointerPressed += (_, e) => { if (enabled && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) { Motion.Press(this, true); Click?.Invoke(); e.Handled = true; } };
+        // on a phone it presses in on touch but acts on the tap, so a swipe that starts on it still scrolls
+        PointerPressed += (_, e) => { if (enabled && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) { Motion.Press(this, true); if (!Phone.Active) { Click?.Invoke(); e.Handled = true; } } };
+        if (Phone.Active) Tapped += (_, e) => { if (enabled) { Click?.Invoke(); e.Handled = true; } };
         PointerReleased += (_, _) => Motion.Press(this, false); PointerCaptureLost += (_, _) => Motion.Press(this, false);
         Paint();
     }

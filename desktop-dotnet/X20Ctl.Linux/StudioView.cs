@@ -19,6 +19,7 @@ internal sealed class StudioView : UserControl
     readonly StudioState state; readonly Dictionary<string, Control> pages = new();
     readonly ContentControl host = new(); readonly StackPanel strip = new() { Orientation = Orientation.Horizontal, Spacing = 4 };
     readonly Border footerHost = new();
+    ScrollViewer? scroller;
     // the tab strip: each tab's label and the blank line under it, and the one white underline that slides between them
     readonly Dictionary<string, (Border Tab, TextBlock Label, Border Line)> tabs = new();
     readonly Canvas overlay = new() { IsHitTestVisible = false };
@@ -43,7 +44,7 @@ internal sealed class StudioView : UserControl
         Grid.SetColumn(scroll, 1); tabRow.Children.Add(scroll); Grid.SetColumn(rb, 2); tabRow.Children.Add(rb);
         var layout = new DockPanel(); DockPanel.SetDock(tabRow, Dock.Top); layout.Children.Add(tabRow);
         // a phone shows the top of each tab and scrolls to the rest with a swipe; the tab keeps its desktop height
-        if (Phone.Active) layout.Children.Add(new ScrollViewer { Content = host, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled, VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto });
+        if (Phone.Active) layout.Children.Add(scroller = new ScrollViewer { Content = host, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled, VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto });
         else layout.Children.Add(host);
         if (Phone.Active) host.MinHeight = 600;
         Content = layout; if (PcModeHub.Shared.AutoFor(state.Model.Id)) current = "PC mode"; Show(current);
@@ -135,6 +136,7 @@ internal sealed class StudioView : UserControl
         // pages that summarise or follow the drafts are rebuilt each time they open
         if (!pages.TryGetValue(name, out var page) || name is "Dashboard" or "Setups" or "Device" or "PC mode") pages[name] = page = Page(name);
         host.Content = page;
+        if (moved && scroller != null) scroller.Offset = default;
         if (moved) Motion.SlideIn(page, to > from ? 28 : -28);
         foreach (var (n, (_, label, _)) in tabs) { bool on = n == current; label.Foreground = on ? T.Text : T.Soft; label.FontWeight = on ? FontWeight.SemiBold : FontWeight.Normal; }
         // the new label's width settles in this layout pass; the underline moves after it

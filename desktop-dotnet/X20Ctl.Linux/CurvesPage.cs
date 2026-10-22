@@ -129,7 +129,7 @@ internal sealed class CurvesPage : UserControl, IKeyPage
         var icon = new Path { Width = 30, Height = 18, Stretch = Stretch.None, Stroke = on ? T.B("#2F7BFF") : T.AccentHi, StrokeThickness = 1.6, Data = Mini(pts.First, pts.Second) };
         var label = T.Label(Cap(key), 14.5, on ? T.B("#0A1226") : T.Text, FontWeight.Medium); label.VerticalAlignment = VerticalAlignment.Center;
         var chip = new Border { Background = on ? T.B("#F4F7FD") : T.ButtonFill, BorderBrush = on ? Brushes.Transparent : T.Hairline, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(40), Padding = new Thickness(16, 8), Cursor = new Cursor(StandardCursorType.Hand), Child = T.Line(8, icon, label) };
-        chip.PointerPressed += (_, _) => { state.Curves.SetPreset(channel, key); Build(); };
+        chip.OnTap(() => { state.Curves.SetPreset(channel, key); Build(); });
         return chip;
     }
 

@@ -15,7 +15,7 @@ internal static class Switches
     {
         var knob = new Border { Width = 22, Height = 22, CornerRadius = new CornerRadius(11), Background = Brushes.White, HorizontalAlignment = on ? HorizontalAlignment.Right : HorizontalAlignment.Left, Margin = new Thickness(3), VerticalAlignment = VerticalAlignment.Center };
         var track = new Border { Width = 56, Height = 30, CornerRadius = new CornerRadius(15), Background = on ? T.PrimaryFill : T.B("#33FFFFFF"), BorderBrush = T.B("#55FFFFFF"), BorderThickness = new Thickness(1), Child = knob, Opacity = enabled ? 1 : .45, Cursor = new Cursor(StandardCursorType.Hand) };
-        if (enabled) track.PointerPressed += (_, _) => set(!on);
+        if (enabled) track.OnTap(() => set(!on));
         return track;
     }
 }
@@ -39,9 +39,10 @@ internal sealed class ToolsPage : UserControl
     {
         bool phone = Phone.Active;
         var page = new Grid { Margin = phone ? new Thickness(28, 6, 28, 16) : new Thickness(60, 14, 60, 18), RowDefinitions = new("*,Auto"), MinHeight = phone ? 620 : 0 };
-        var hub = new Grid { ColumnDefinitions = new("1.05*,24,1*") };
+        var hub = new Grid { ColumnDefinitions = new(phone ? ".8*,16,1.5*" : "1.05*,24,1*") };
         hub.Children.Add(Hero());
-        var tiles = new Grid { ColumnDefinitions = new("*,24,*"), RowDefinitions = new("*,24,*,24,*,24,*") }; Grid.SetColumn(tiles, 2);
+        var gap = phone ? 14 : 24;
+        var tiles = new Grid { ColumnDefinitions = new($"*,{gap},*"), RowDefinitions = new($"*,{gap},*,{gap},*,{gap},*") }; Grid.SetColumn(tiles, 2);
         // a phone has no PC mode: Write scan takes the whole first row
         if (!phone) Place(tiles, Tile(Pad, "PC mode", "Remaps, turbo and macros for any pad.", "#34D399", go.PcMode), 0, 0);
         var scan = Tile(Blue, "Write scan", "What an app writes. 20 to 40 min.", "#6EA0EB", go.WriteScan); Place(tiles, scan, 0, phone ? 0 : 2); if (phone) Grid.SetColumnSpan(scan, 3);
@@ -105,12 +106,13 @@ internal sealed class ToolsPage : UserControl
 
     static Border Tile(string icon, string title, string text, string colour, Action click, bool dim = false)
     {
-        var body = T.Stack(5, T.Label(title, 20, null, FontWeight.SemiBold), T.Label(text, 13.5, T.Soft)); ((TextBlock)body.Children[1]).TextWrapping = TextWrapping.Wrap; body.VerticalAlignment = VerticalAlignment.Center;
-        var row = new Grid { ColumnDefinitions = new("Auto,16,*,Auto") }; row.Children.Add(Icon(icon, colour, 56) is var i ? i : null!);
-        Grid.SetColumn(body, 2); row.Children.Add(body); var arrow = Arrow(); Grid.SetColumn(arrow, 3); row.Children.Add(arrow);
-        var card = T.Card(row, 20, 20, raised: true); card.Cursor = new Cursor(StandardCursorType.Hand);
+        bool phone = Phone.Active;
+        var body = T.Stack(phone ? 3 : 5, T.Label(title, phone ? 17 : 20, null, FontWeight.SemiBold), T.Label(text, phone ? 12.5 : 13.5, T.Soft)); ((TextBlock)body.Children[1]).TextWrapping = TextWrapping.Wrap; body.VerticalAlignment = VerticalAlignment.Center;
+        var row = new Grid { ColumnDefinitions = new(phone ? "Auto,12,*" : "Auto,16,*,Auto") }; row.Children.Add(Icon(icon, colour, phone ? 42 : 56) is var i ? i : null!);
+        Grid.SetColumn(body, 2); row.Children.Add(body); if (!phone) { var arrow = Arrow(); Grid.SetColumn(arrow, 3); row.Children.Add(arrow); }
+        var card = T.Card(row, phone ? 14 : 20, phone ? 14 : 20, raised: true); card.Cursor = new Cursor(StandardCursorType.Hand);
         card.PointerEntered += (_, _) => card.BorderBrush = T.B("#66AFC8FF"); card.PointerExited += (_, _) => card.BorderBrush = T.Hairline;
-        card.PointerPressed += (_, _) => click(); return card;
+        card.OnTap(() => click()); return card;
     }
 
     Control Hero()
@@ -123,7 +125,7 @@ internal sealed class ToolsPage : UserControl
         var title = T.Label("Controller not working?", 38, null, FontWeight.Bold); title.Margin = new Thickness(0, 14, 0, 4); Grid.SetRow(title, 1); g.Children.Add(title);
         var sub = T.Label("Read scan, then Write scan, then send both reports online together.", 16.5, T.Soft); Grid.SetRow(sub, 2); g.Children.Add(sub);
         var foot = new Grid { Margin = new Thickness(0, 14, 0, 0), ColumnDefinitions = new("*,Auto") }; foot.Children.Add(steps); var arrow = Arrow(); Grid.SetColumn(arrow, 1); foot.Children.Add(arrow); Grid.SetRow(foot, 3); g.Children.Add(foot);
-        var card = T.Card(g, 28, 22, raised: true); card.BorderBrush = T.B("#7FA5E0FF"); card.BorderThickness = new Thickness(1.6); card.Cursor = new Cursor(StandardCursorType.Hand); card.PointerPressed += (_, _) => go.Check(); return card;
+        var card = T.Card(g, 28, 22, raised: true); card.BorderBrush = T.B("#7FA5E0FF"); card.BorderThickness = new Thickness(1.6); card.Cursor = new Cursor(StandardCursorType.Hand); card.OnTap(() => go.Check()); return card;
     }
 
     /// <summary>A small drawing of a monitor running the scan: bars, a stick circle and a progress line.</summary>

@@ -59,7 +59,7 @@ internal sealed class SetupsPage : UserControl
                 new Pill("Rename", Pill.Kinds.Ghost, () => { renaming = id; Build(); }) { Padding = new Thickness(16, 8) }, new Pill("Export", Pill.Kinds.Ghost, () => Export(id)) { Padding = new Thickness(16, 8) }, new Pill("Delete", Pill.Kinds.Ghost, () => Do(() => store.Delete(id))) { Padding = new Thickness(16, 8) });
             var card = T.Card(T.Stack(10, title, line, row), 20); card.Width = 420; card.Margin = new Thickness(0, 0, 16, 16);
             if (on) card.BorderBrush = T.B("#7FA5E0FF");
-            card.PointerPressed += (_, _) => { selected = id; };
+            card.OnTap(() => { selected = id; });
             wrap.Children.Add(card);
         }
         return new ScrollViewer { Content = wrap };

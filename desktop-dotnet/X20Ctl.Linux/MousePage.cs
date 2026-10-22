@@ -71,7 +71,7 @@ internal sealed class MousePage : UserControl, IKeyPage
     {
         var knob = new Border { Width = 22, Height = 22, CornerRadius = new CornerRadius(11), Background = Brushes.White, HorizontalAlignment = on ? HorizontalAlignment.Right : HorizontalAlignment.Left, Margin = new Thickness(3), VerticalAlignment = VerticalAlignment.Center };
         var track = new Border { Width = 56, Height = 30, CornerRadius = new CornerRadius(15), Background = on ? T.PrimaryFill : T.B("#33FFFFFF"), BorderBrush = T.B("#55FFFFFF"), BorderThickness = new Thickness(1), Child = knob, Cursor = new Cursor(StandardCursorType.Hand) };
-        track.PointerPressed += (_, _) => set(!on); return track;
+        track.OnTap(() => set(!on)); return track;
     }
 
     // ---- the pad and its buttons -----------------------------------------------------------------------------------
@@ -91,7 +91,7 @@ internal sealed class MousePage : UserControl, IKeyPage
                 Background = on ? T.B("#552A62C8") : T.B("#33FFFFFF"), BorderBrush = on ? T.B("#9CCBFF") : T.B("#22FFFFFF"),
                 Child = T.Line(10, T.Label(Input(k), 13.5, T.Text, FontWeight.SemiBold), T.Label(Action(k), 13.5, T.Soft))
             };
-            chip.PointerPressed += (_, _) => { selected = k; Build(); }; chips.Children.Add(chip);
+            chip.OnTap(() => { selected = k; Build(); }); chips.Children.Add(chip);
         }
         var note = T.Label("Select an input on the artwork or below. Gyro, touch surfaces and independent rear inputs are unavailable from this source.", 12.5, T.Soft);
         return T.Card(T.Stack(6, Parts.Caps("BUTTON MAPPINGS"), T.Label($"{configured} / {Order.Length} configured", 13.5, T.Soft), art, chips, note), 24);
@@ -107,7 +107,7 @@ internal sealed class MousePage : UserControl, IKeyPage
             BoxShadow = on ? new BoxShadows(new BoxShadow { Blur = 18, Color = Color.Parse("#993D8BFF") }) : default
         };
         if (name is "LB" or "RB" or "LT" or "RT") ring.Width = ring.Height = on ? 34 : 30;
-        string key = name; ring.PointerPressed += (_, _) => { selected = key; Build(); };
+        string key = name; ring.OnTap(() => { selected = key; Build(); });
         ControllerArt.SetAnchor(ring, new Point(pt.X, pt.Y)); return ring;
     }
 
@@ -121,7 +121,7 @@ internal sealed class MousePage : UserControl, IKeyPage
         {
             string g = group; bool isOpen = open == g;
             var header = T.Line(10, T.Label(isOpen ? "⌄" : "›", 15, T.Soft), T.Label(g, 14, T.Text)); header.Cursor = new Cursor(StandardCursorType.Hand); header.Margin = new Thickness(0, 6, 0, 0);
-            header.PointerPressed += (_, _) => { open = isOpen ? "" : g; Build(); }; col.Children.Add(header);
+            header.OnTap(() => { open = isOpen ? "" : g; Build(); }); col.Children.Add(header);
             if (!isOpen) continue;
             var wrap = new WrapPanel { Margin = new Thickness(22, 0, 0, 0) };
             foreach (var action in Enum.GetValues<MouseAction>().Where(a => Category(a) == g))
