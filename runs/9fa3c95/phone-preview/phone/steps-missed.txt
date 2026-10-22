@@ -1,0 +1,1 @@
+s10-tools: no control showing "Tools"
