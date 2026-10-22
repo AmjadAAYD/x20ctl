@@ -63,8 +63,9 @@ internal sealed class CurvesPage : UserControl, IKeyPage
     void Build()
     {
         var cur = state.Curves[channel]; var tune = state.Tune(channel);
-        var page = new Grid { Margin = new Thickness(36, 4, 36, 14), RowDefinitions = new("*,Auto") };
-        var upper = new Grid { ColumnDefinitions = new("1*,1.45*"), MinHeight = 480 };
+        bool phone = Phone.Active;
+        var page = new Grid { Margin = phone ? new Thickness(24, 4, 24, 14) : new Thickness(36, 4, 36, 14), RowDefinitions = new("*,Auto") };
+        var upper = new Grid { ColumnDefinitions = new(phone ? ".8*,1.6*" : "1*,1.45*"), MinHeight = 480 };
 
         var art = new ControllerArt(state.Model.Id) { Margin = new Thickness(0, 4, 0, 0) };
         string? stick = channel switch { CurveChannel.LeftStick => "L3", CurveChannel.RightStick => "R3", _ => null };
@@ -79,7 +80,7 @@ internal sealed class CurvesPage : UserControl, IKeyPage
         upper.Children.Add(left);
 
         var notice = (Phone.Active ? Parts.Notice("Curves · Draft", "Kept on this phone for the selected player. Nothing is written to the controller.") : Parts.Notice("Curves · PC mode", "Saved on this PC for the selected player. Nothing is written to the controller."));
-        var tools = T.Line(10, new Pill("Reset curve", Pill.Kinds.Ghost, () => { state.Curves.Reset(channel); state.ResetTune(channel); Build(); }) { Enabled = !IsDefault(cur, tune), Padding = new Thickness(22, 11) }, new Pill("Advanced", Pill.Kinds.Ghost, () => Content = new StickToolsView(state, () => Build())) { Padding = new Thickness(22, 11) },
+        var tools = T.Flow(10, new Pill("Reset curve", Pill.Kinds.Ghost, () => { state.Curves.Reset(channel); state.ResetTune(channel); Build(); }) { Enabled = !IsDefault(cur, tune), Padding = new Thickness(22, 11) }, new Pill("Advanced", Pill.Kinds.Ghost, () => Content = new StickToolsView(state, () => Build())) { Padding = new Thickness(22, 11) },
             new Pill("Reset options ⌄", Pill.Kinds.Ghost, () => { state.Curves.ResetAll(); state.ResetTunes(); Build(); }) { Padding = new Thickness(22, 11) }, new Pill(keyboard ? "Stop keyboard test" : "Keyboard test", keyboard ? Pill.Kinds.Light : Pill.Kinds.Ghost, () => { keyboard = !keyboard; held.Clear(); kx = ky = kl = kr = 0; Build(); }) { Padding = new Thickness(22, 11) });
         var channels = T.Line(10, Enum.GetValues<CurveChannel>().Select(c => (Control)new Pill(Short[(int)c], c == channel ? Pill.Kinds.Light : Pill.Kinds.Ghost, () => { channel = c; Build(); })).ToArray());
         // the presets stand in a column beside the graph, so the graph has the card's height
@@ -89,9 +90,10 @@ internal sealed class CurvesPage : UserControl, IKeyPage
         var rightBody = new Grid { RowDefinitions = new("Auto,Auto,Auto,*") };
         void Add(Control c, int row, double top = 0) { c.Margin = new Thickness(0, top, 0, 0); Grid.SetRow(c, row); rightBody.Children.Add(c); }
         // the channel beside its name
-        var heading = new Grid { ColumnDefinitions = new("*,Auto") };
-        heading.Children.Add(T.Stack(0, T.Label(Long[(int)channel], 34, null, FontWeight.SemiBold), T.Label(Cap(cur.Preset) + " curve · " + state2, 16, T.Soft)));
-        channels.VerticalAlignment = VerticalAlignment.Center; Grid.SetColumn(channels, 1); heading.Children.Add(channels);
+        // the channel beside its name; on a phone the channel buttons go under it
+        var heading = phone ? new Grid { RowDefinitions = new("Auto,Auto") } : new Grid { ColumnDefinitions = new("*,Auto") };
+        heading.Children.Add(T.Stack(0, T.Label(Long[(int)channel], phone ? 28 : 34, null, FontWeight.SemiBold), T.Label(Cap(cur.Preset) + " curve · " + state2, 16, T.Soft)));
+        channels.VerticalAlignment = VerticalAlignment.Center; if (phone) { Grid.SetRow(channels, 1); channels.Margin = new Thickness(0, 10, 0, 0); channels.HorizontalAlignment = HorizontalAlignment.Left; } else Grid.SetColumn(channels, 1); heading.Children.Add(channels);
         var body = new Grid { ColumnDefinitions = new("*,Auto") };
         body.Children.Add(graph); presets.Margin = new Thickness(16, 6, 0, 0); Grid.SetColumn(presets, 1); body.Children.Add(presets);
         Add(notice, 0); Add(heading, 1, 14); Add(tools, 2, 12); Add(body, 3, 14);

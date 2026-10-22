@@ -25,13 +25,13 @@ internal sealed class VibrationPage : UserControl
         var page = new Grid { Margin = new Thickness(36, 2, 36, 14), RowDefinitions = new("Auto,*,Auto") };
         var notice = Parts.Notice("Vibration preview", "Native configuration is unavailable for this model. Preview stays local."); notice.Margin = new Thickness(0, 0, 0, 12); page.Children.Add(notice);
 
-        var body = new Grid { ColumnDefinitions = new("1.45*,1*"), MinHeight = 520 }; Grid.SetRow(body, 1);
+        var body = new Grid { ColumnDefinitions = new(Phone.Active ? "1.1*,1*" : "1.45*,1*"), MinHeight = 520 }; Grid.SetRow(body, 1);
         var art = new ControllerArt(state.Model.Id) { Margin = new Thickness(8) }; art.Children.Add(layer);
         body.Children.Add(T.Card(art, 10));
 
         var slider = new FlatSlider { Minimum = 0, Maximum = 100, Value = state.VibrationPreview };
         slider.ValueChanged += v => Set((int)v, false);
-        var presets = T.Line(8, new[] { 0, 25, 50, 75, 100 }.Select(p => (Control)new Pill(p == 0 ? "Off" : p + "%", Pill.Kinds.Ghost, () => { slider.Value = p; Set(p, false); }) { Padding = new Thickness(15, 8) }).ToArray());
+        var presets = T.Flow(8, new[] { 0, 25, 50, 75, 100 }.Select(p => (Control)new Pill(p == 0 ? "Off" : p + "%", Pill.Kinds.Ghost, () => { slider.Value = p; Set(p, false); }) { Padding = new Thickness(15, 8) }).ToArray());
         bool triggers = state.Model.Id is "x20_pro" or "dune";
         var segs = Segmented.Make(triggers ? [.. Regions, "Triggers"] : Regions, region, v => { region = v; layer.Region = v; Build(); }, 13.5);
         var right = T.Stack(12,

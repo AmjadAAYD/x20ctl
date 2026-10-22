@@ -38,6 +38,8 @@ internal static class T
 
     public static StackPanel Stack(double spacing, params Control[] children) { var s = new StackPanel { Spacing = spacing }; foreach (var c in children) s.Children.Add(c); return s; }
     public static StackPanel Line(double spacing, params Control[] children) { var s = new StackPanel { Spacing = spacing, Orientation = Orientation.Horizontal }; foreach (var c in children) s.Children.Add(c); return s; }
+    /// <summary>A row on the desktop; on a phone it wraps onto more lines rather than running off the edge.</summary>
+    public static Panel Flow(double gap, params Control[] children) => Phone.Active ? Wrap(gap, children) : Line(gap, children);
     public static WrapPanel Wrap(double gap, params Control[] children) { var w = new WrapPanel(); foreach (var c in children) { c.Margin = new Thickness(0, 0, gap, gap); w.Children.Add(c); } return w; }
 
     public static Control StatusChip(string text, IBrush dot)

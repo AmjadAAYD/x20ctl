@@ -196,10 +196,11 @@ internal sealed class ButtonsPage : UserControl
         var system = T.Line(10, Output("SELECT", cur => Parts.Key("View", 78, 44, cur)), Output("START", cur => Parts.Key("Menu", 78, 44, cur)));
         var special = T.Stack(10, Output("DEFAULT", cur => Parts.Key("Default", 170, 44, selected != null && to == selected, icon: "↺")), Output("NONE", cur => Parts.Key("Disabled", 170, 44, cur, icon: "✕")));
 
-        var tiles = new Grid { ColumnDefinitions = new("1.15*,1.05*,1.3*,1*,0.95*,0.95*"), Margin = new Thickness(0, 12, 0, 0) };
         var list = new[] { Tilebox("FACE", diamond), Tilebox("D-PAD", pad), Tilebox("SHOULDERS", shoulders), Tilebox("STICKS", sticks), Tilebox("SYSTEM", system), Tilebox("SPECIAL", special) };
-        for (int i = 0; i < list.Length; i++) { Grid.SetColumn(list[i], i); tiles.Children.Add(list[i]); }
-        ((Border)list[^1]).Margin = new Thickness(0);
+        // one row of six on the desktop; two rows of three on a phone, where six don't fit side by side
+        var tiles = Phone.Active ? new Grid { ColumnDefinitions = new("*,*,*"), RowDefinitions = new("Auto,Auto"), Margin = new Thickness(0, 12, 0, 0) } : new Grid { ColumnDefinitions = new("1.15*,1.05*,1.3*,1*,0.95*,0.95*"), Margin = new Thickness(0, 12, 0, 0) };
+        for (int i = 0; i < list.Length; i++) { Grid.SetColumn(list[i], Phone.Active ? i % 3 : i); Grid.SetRow(list[i], Phone.Active ? i / 3 : 0); if (Phone.Active) ((Border)list[i]).Margin = new Thickness(0, 0, i % 3 < 2 ? 10 : 0, 10); tiles.Children.Add(list[i]); }
+        if (!Phone.Active) ((Border)list[^1]).Margin = new Thickness(0);
         return T.Card(T.Stack(0, head, tiles), 20);
     }
 }
