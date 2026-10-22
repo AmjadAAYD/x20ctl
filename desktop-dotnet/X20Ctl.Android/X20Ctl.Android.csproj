@@ -53,7 +53,7 @@
     <AndroidAsset Include="../../x20ctl/controllers/catalog.json" Link="Assets/Data/catalog.json" />
     <AndroidAsset Include="../../src/assets/controllers/framing.json" Link="Assets/Data/framing.json" />
     <AndroidAsset Include="../../src/assets/controllers/vibration-outlines.json" Link="Assets/Data/vibration-outlines.json" />
-    <!-- the phone's lighter copy of the film (tools/linux-studio/build_intro_film.py --phone) -->
+    <!-- the phone's lighter copy of the film (tools/linux-studio/build_intro_film.py with the phone option) -->
     <AndroidAsset Include="Brand/intro-film.frames" Link="Assets/Brand/intro-film.frames" />
     <AndroidAsset Include="../X20Ctl.Linux/Brand/intro-film.wav" Link="Assets/Brand/intro-film.wav" />
   </ItemGroup>
