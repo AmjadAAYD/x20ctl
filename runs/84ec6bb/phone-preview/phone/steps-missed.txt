@@ -1,0 +1,3 @@
+s01-zone-player2: no control showing "Player 2"
+s02-zone-player1: no control showing "Player 1"
+s10-tools: no control showing "Tools"
