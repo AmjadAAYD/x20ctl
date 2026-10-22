@@ -103,13 +103,15 @@ public sealed class MainView : UserControl, IIntroHandoff
 
     Control ZoneHeader(string section, Control? right)
     {
-        var mark = new Image { Source = icon, Width = 46, Height = 46 };
-        var tile = new Border { Width = 46, Height = 46, Child = icon == null ? null : mark, RenderTransformOrigin = RelativePoint.Center };
-        var word = T.Label("X20CTL", 24, null, FontWeight.Bold);
+        // a phone's header is a little shorter, leaving the room to the screen under it
+        double size = Phone.Active ? 40 : 46;
+        var mark = new Image { Source = icon, Width = size, Height = size };
+        var tile = new Border { Width = size, Height = size, Child = icon == null ? null : mark, RenderTransformOrigin = RelativePoint.Center };
+        var word = T.Label("X20CTL", Phone.Active ? 22 : 24, null, FontWeight.Bold);
         var rule = new Border { Width = 1, Height = 22, Background = T.Hairline, VerticalAlignment = VerticalAlignment.Center };
-        var title = T.Label(section, 18, T.Soft); title.VerticalAlignment = VerticalAlignment.Center;
+        var title = T.Label(section, Phone.Active ? 17 : 18, T.Soft); title.VerticalAlignment = VerticalAlignment.Center;
         var left = T.Line(14, tile, word, rule, title); left.VerticalAlignment = VerticalAlignment.Center;
-        var bar = new Grid { Margin = new Thickness(26, 16, 26, 0), Height = 56, ColumnDefinitions = new("*,Auto") };
+        var bar = new Grid { Margin = Phone.Active ? new Thickness(24, 8, 24, 0) : new Thickness(26, 16, 26, 0), Height = Phone.Active ? 50 : 56, ColumnDefinitions = new("*,Auto") };
         bar.Children.Add(left);
         var tail = T.Line(18, right ?? new Border(), NewClock()); tail.VerticalAlignment = VerticalAlignment.Center; Grid.SetColumn(tail, 1); bar.Children.Add(tail);
         (brandTile, brandMark, brandWord, brandRule, brandLabel, headerActions) = (tile, mark, word, rule, title, tail);
@@ -198,10 +200,10 @@ public sealed class MainView : UserControl, IIntroHandoff
 
     // ---- the intro's hand-over ---------------------------------------------------------------------------------
 
-    // the logo inside the header's 46 px app icon (tools/build_brand_mark.py tile(): 86% wide, centred, its middle at 47%)
-    static readonly Rect MarkInk = new(.07 * 46, (.47 - .43 * 662 / 951) * 46, .86 * 46, .86 * 662 / 951 * 46);
+    // the logo inside the header's app icon (tools/build_brand_mark.py tile(): 86% wide, centred, its middle at 47%)
+    static Rect MarkInk(double s) => new(.07 * s, (.47 - .43 * 662 / 951) * s, .86 * s, .86 * 662 / 951 * s);
     Rect? IIntroHandoff.MarkTarget(Visual to) =>
-        brandTile is { Bounds.Width: > 0 } tile && tile.TransformToVisual(to) is { } m ? MarkInk.TransformToAABB(m) : null;
+        brandTile is { Bounds.Width: > 0 } tile && tile.TransformToVisual(to) is { } m ? MarkInk(tile.Bounds.Width).TransformToAABB(m) : null;
     IEnumerable<Control> Revealed => new[] { headerActions, brandRule, brandLabel, brandTile, zone?.Heading, footer }.Concat(zone?.Cards ?? []).OfType<Control>();
     void IIntroHandoff.HandoffBegin()
     {

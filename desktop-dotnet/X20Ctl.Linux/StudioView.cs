@@ -34,14 +34,18 @@ internal sealed class StudioView : UserControl
         Header = BuildHeader(state, back, clock, mark);
         var lb = new Pill("‹  LB", Pill.Kinds.Ghost, () => Step(-1), 12) { Padding = new Thickness(14, 5) };
         var rb = new Pill("RB  ›", Pill.Kinds.Ghost, () => Step(1), 12) { Padding = new Thickness(14, 5) };
-        var tabRow = new Grid { Margin = new Thickness(36, 12, 36, 6), ColumnDefinitions = new("Auto,*,Auto") };
+        var tabRow = new Grid { Margin = Phone.Active ? new Thickness(14, 2, 14, 2) : new Thickness(36, 12, 36, 6), ColumnDefinitions = new("Auto,*,Auto") };
         lb.IsVisible = rb.IsVisible = !Phone.Active;
         tabRow.Children.Add(lb);
         foreach (string t in Tabs) strip.Children.Add(Tab(t));
         overlay.Children.Add(underline);
         var scroll = new ScrollViewer { Content = new Grid { Children = { strip, overlay } }, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Hidden, VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled, Margin = new Thickness(18, 0), VerticalAlignment = VerticalAlignment.Center };
         Grid.SetColumn(scroll, 1); tabRow.Children.Add(scroll); Grid.SetColumn(rb, 2); tabRow.Children.Add(rb);
-        var layout = new DockPanel(); DockPanel.SetDock(tabRow, Dock.Top); layout.Children.Add(tabRow); layout.Children.Add(host);
+        var layout = new DockPanel(); DockPanel.SetDock(tabRow, Dock.Top); layout.Children.Add(tabRow);
+        // a phone shows the top of each tab and scrolls to the rest with a swipe; the tab keeps its desktop height
+        if (Phone.Active) layout.Children.Add(new ScrollViewer { Content = host, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled, VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto });
+        else layout.Children.Add(host);
+        if (Phone.Active) host.MinHeight = 600;
         Content = layout; if (PcModeHub.Shared.AutoFor(state.Model.Id)) current = "PC mode"; Show(current);
         // the underline finds its first tab once the strip is laid out
         strip.SizeChanged += (_, _) => { if (double.IsNaN(Canvas.GetLeft(underline))) Underline(false); };
@@ -52,7 +56,7 @@ internal sealed class StudioView : UserControl
     {
         var label = T.Label(name, 15, T.Soft); label.TextWrapping = TextWrapping.NoWrap;
         var line = new Border { Height = 2, Margin = new Thickness(2, 5, 2, 0), HorizontalAlignment = HorizontalAlignment.Stretch };
-        var tab = new Border { Padding = new Thickness(18, 6), Cursor = new Cursor(StandardCursorType.Hand), Background = Brushes.Transparent, Child = T.Stack(0, label, line) };
+        var tab = new Border { Padding = new Thickness(18, Phone.Active ? 10 : 6), Cursor = new Cursor(StandardCursorType.Hand), Background = Brushes.Transparent, Child = T.Stack(0, label, line) };
         tab.PointerEntered += (_, _) => { if (name != current) label.Foreground = T.Text; };
         tab.PointerExited += (_, _) => { if (name != current) label.Foreground = T.Soft; };
         tab.PointerPressed += (_, _) => Show(name);
@@ -65,7 +69,7 @@ internal sealed class StudioView : UserControl
     {
         double wide = tabs.Values.Sum(t => t.Label.DesiredSize.Width + 36 + 4) - 4;
         bool tight = wide > room, changed = tight != (strip.Spacing == 0); strip.Spacing = tight ? 0 : 4;
-        if (changed) foreach (var t in tabs.Values) t.Tab.Padding = new Thickness(tight ? 11 : 18, 6);
+        if (changed) foreach (var t in tabs.Values) t.Tab.Padding = new Thickness(tight ? 11 : 18, Phone.Active ? 10 : 6);
         Dispatcher.UIThread.Post(() => { if (changed) Underline(false); tabs[current].Tab.BringIntoView(); }, DispatcherPriority.Loaded);
     }
 
@@ -92,7 +96,7 @@ internal sealed class StudioView : UserControl
         var shortName = state.Model.Name.Replace("EasySMX ", "");
         var device = T.Line(8, T.Label("🎮", 14, T.AccentHi), T.Label(shortName, 14, null, FontWeight.Medium), T.Label("· Offline", 13.5, T.Warn), T.Label("···", 16, T.Soft)); device.VerticalAlignment = VerticalAlignment.Center;
         var tail = T.Line(18, device, new Pill("← Controller Zone", Pill.Kinds.Flat, back) { Padding = new Thickness(12, 7) }, clock); tail.VerticalAlignment = VerticalAlignment.Center;
-        var bar = new Grid { Margin = new Thickness(34, 12, 26, 0), Height = 46, ColumnDefinitions = new("*,Auto,*") };
+        var bar = new Grid { Margin = Phone.Active ? new Thickness(24, 6, 24, 0) : new Thickness(34, 12, 26, 0), Height = 46, ColumnDefinitions = new("*,Auto,*") };
         bar.Children.Add(left); Grid.SetColumn(batt, 1); bar.Children.Add(batt); tail.HorizontalAlignment = HorizontalAlignment.Right; Grid.SetColumn(tail, 2); bar.Children.Add(tail);
         return bar;
     }
@@ -157,7 +161,8 @@ internal sealed class StudioView : UserControl
         inner.Children.Add(hints);
         var apply = new Pill("Apply Changes", Pill.Kinds.Primary) { Padding = new Thickness(26, 12) };
         apply.Click += () => { PcModeHub.Shared.Save(state); Show(current); };
-        if (Phone.Active && headline == null && name is not ("Buttons" or "Curves" or "Macros")) return new Border();
+        // PC mode (and its Apply Changes) is for a PC: a phone shows no footer at all
+        if (Phone.Active) return new Border();
         var row = new Grid { ColumnDefinitions = new("*,Auto") }; row.Children.Add(inner);
         if (name is "Buttons" or "Curves" or "Macros") { apply.VerticalAlignment = VerticalAlignment.Center; Grid.SetColumn(apply, 1); row.Children.Add(apply); }
         return new Border { BorderBrush = T.Hairline, BorderThickness = new Thickness(0, 1, 0, 0), Padding = new Thickness(30, 12, 30, 14), Child = row, Background = T.B("#33040814") };

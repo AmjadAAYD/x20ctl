@@ -8,8 +8,7 @@ using X20Ctl.Linux;
 
 namespace X20Ctl.Droid;
 
-/// <summary>The Studio on a phone: the same <see cref="MainView"/> the desktop window holds, laid out at a desktop-like
-/// size and scaled to fit the screen, so every screen keeps the Windows app's proportions.</summary>
+/// <summary>The app on a phone: the same <see cref="MainView"/> the desktop window holds, in its touch layout.</summary>
 public sealed class PhoneApp : Application
 {
     public override void Initialize()
@@ -26,17 +25,22 @@ public sealed class PhoneApp : Application
 }
 
 /// <summary>
-/// Holds the app at <see cref="DesignHeight"/> units tall and as wide as the screen's shape allows (at least the desktop
-/// window's minimum width), then scales it to the screen. Back goes one screen up, as Escape does on the desktop.
+/// Holds the app at a size made for touch: one layout unit is <see cref="UnitDp"/> of the screen's density-independent
+/// pixels, so text and buttons keep a readable, tappable size on a phone, and the screens use their compact phone
+/// layouts (<see cref="Phone.Active"/>). A tablet tall enough gets the desktop layout at the same unit. Back goes one
+/// screen up, as Escape does on the desktop.
 /// </summary>
 internal sealed class PhoneHost : Border
 {
-    const double DesignHeight = 680, MinWidth_ = 1100;
-    readonly MainView view = new();
+    const double UnitDp = .9, MinHeight_ = 430;
+    readonly MainView view;
     readonly Viewbox box;
 
     public PhoneHost()
     {
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        view = new MainView();
+        global::Android.Util.Log.Info("X20CTL", $"startup: screens built in {clock.ElapsedMilliseconds} ms");
         Background = new SolidColorBrush(T.Void);
         box = new Viewbox { Stretch = Stretch.Uniform, Child = view };
         Child = box;
@@ -56,10 +60,11 @@ internal sealed class PhoneHost : Border
 
     protected override Size MeasureOverride(Size available)
     {
-        if (available.Width > 0 && available.Height > 0 && !double.IsInfinity(available.Width) && !double.IsInfinity(available.Height))
+        var room = available.Deflate(Padding);
+        if (room.Width > 0 && room.Height > 0 && !double.IsInfinity(room.Width) && !double.IsInfinity(room.Height))
         {
-            view.Height = DesignHeight;
-            view.Width = Math.Max(MinWidth_, DesignHeight * available.Width / available.Height);
+            view.Height = Math.Max(MinHeight_, room.Height / UnitDp);
+            view.Width = view.Height * room.Width / room.Height;
         }
         return base.MeasureOverride(available);
     }

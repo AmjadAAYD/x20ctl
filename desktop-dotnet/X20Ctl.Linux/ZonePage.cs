@@ -28,10 +28,12 @@ internal sealed class ZonePage : UserControl
     public ZonePage(Session session, Action enter, Action<int> choose, Action<int> remove)
     {
         this.session = session; this.enter = enter; this.choose = choose; this.remove = remove;
-        var grid = new Grid { Margin = new Thickness(60, 30, 60, 26), RowDefinitions = new("Auto,*") };
+        // on a phone the cards take the whole height: the header already names the screen
+        var grid = new Grid { Margin = Phone.Active ? new Thickness(28, 10, 28, 16) : new Thickness(60, 30, 60, 26), RowDefinitions = new("Auto,*") };
         Heading = T.Stack(2, T.Label("Player slots", 46, null, FontWeight.Bold), T.Label("Choose a player to set up its controller", 17, T.Soft));
+        Heading.IsVisible = !Phone.Active;
         grid.Children.Add(Heading);
-        stage = new Stage(this, session.Selected) { Margin = new Thickness(0, 28, 0, 0) }; Grid.SetRow(stage, 1); grid.Children.Add(stage);
+        stage = new Stage(this, session.Selected) { Margin = new Thickness(0, Phone.Active ? 0 : 28, 0, 0) }; Grid.SetRow(stage, 1); grid.Children.Add(stage);
         for (int i = 0; i < 4; i++) { docks[i] = new Dock(this, i); docks[i].Fill(i == session.Selected); stage.Children.Add(docks[i]); }
         Content = grid;
     }
@@ -72,9 +74,9 @@ internal sealed class ZonePage : UserControl
 
         Rect[] Places(Size size)
         {
-            double heroWidth = Math.Round(size.Width * 2.08 / 3.08), x = heroWidth + 26, width = Math.Max(0, size.Width - x), height = Math.Max(0, (size.Height - 36) / 3);
+            double gap = Phone.Active ? 12 : 18, heroWidth = Math.Round(size.Width * 2.08 / 3.08), x = heroWidth + (Phone.Active ? 18 : 26), width = Math.Max(0, size.Width - x), height = Math.Max(0, (size.Height - 2 * gap) / 3);
             var places = new Rect[4]; int row = 0;
-            for (int i = 0; i < 4; i++) places[i] = i == Hero ? new Rect(0, 0, heroWidth, size.Height) : new Rect(x, row++ * (height + 18), width, height);
+            for (int i = 0; i < 4; i++) places[i] = i == Hero ? new Rect(0, 0, heroWidth, size.Height) : new Rect(x, row++ * (height + gap), width, height);
             if (from != null)
                 for (int i = 0; i < 4; i++)
                 {
@@ -137,13 +139,14 @@ internal sealed class ZonePage : UserControl
         {
             hero = asHero; Paint(); if (art != null) art.Shadow = asHero;
             var spot = new Border();
-            var g = asHero ? new Grid { RowDefinitions = new("Auto,*,Auto,Auto,Auto"), Margin = new Thickness(26) } : new Grid { RowDefinitions = new("Auto,*"), Margin = new Thickness(14) };
-            g.Children.Add(T.Label("Player " + (Slot + 1), asHero ? 25 : 17, null, FontWeight.Bold));
+            bool compact = Phone.Active;
+            var g = asHero ? new Grid { RowDefinitions = new("Auto,*,Auto,Auto,Auto"), Margin = new Thickness(compact ? 20 : 26) } : new Grid { RowDefinitions = new("Auto,*"), Margin = new Thickness(14) };
+            g.Children.Add(T.Label("Player " + (Slot + 1), asHero ? (compact ? 22 : 25) : 17, null, FontWeight.Bold));
             if (model != null && asHero)
             {
                 spot.Margin = new Thickness(10, 4, 10, 4); Grid.SetRow(spot, 1); g.Children.Add(spot);
-                var name = T.Label(model.Name, 36, null, FontWeight.SemiBold); name.Margin = new Thickness(2, 0, 0, 8); Grid.SetRow(name, 2); g.Children.Add(name);
-                var status = T.StatusChip("Not connected", T.Warn); status.Margin = new Thickness(0, 0, 0, 20); Grid.SetRow(status, 3); g.Children.Add(status);
+                var name = T.Label(model.Name, compact ? 28 : 36, null, FontWeight.SemiBold); name.Margin = new Thickness(2, 0, 0, compact ? 6 : 8); Grid.SetRow(name, 2); g.Children.Add(name);
+                var status = T.StatusChip("Not connected", T.Warn); status.Margin = new Thickness(0, 0, 0, compact ? 14 : 20); Grid.SetRow(status, 3); g.Children.Add(status);
                 var buttons = new Grid { ColumnDefinitions = new("Auto,*,Auto,Auto") };
                 buttons.Children.Add(new Pill("Switch Controller", Pill.Kinds.Ghost, () => page.choose(Slot)) { Padding = new Thickness(24, 12) });
                 var rm = new Pill("Remove", Pill.Kinds.Ghost, () => page.remove(Slot)) { Padding = new Thickness(26, 12), Margin = new Thickness(0, 0, 14, 0) }; Grid.SetColumn(rm, 2); buttons.Children.Add(rm);
@@ -155,6 +158,14 @@ internal sealed class ZonePage : UserControl
                 var cell = new Grid(); spot.Margin = new Thickness(0, 4, 0, 26); cell.Children.Add(spot);
                 var name = T.Label(model.Name, 16, null, FontWeight.SemiBold); name.VerticalAlignment = VerticalAlignment.Bottom; cell.Children.Add(name);
                 Grid.SetRow(cell, 1); g.Children.Add(cell);
+            }
+            else if (compact && !asHero)
+            {
+                g.RowDefinitions = new("*"); g.ColumnDefinitions = new("*,Auto"); g.Children.Clear();
+                var add = new Pill("+ Add controller", Pill.Kinds.Primary, () => page.choose(Slot)) { Padding = new Thickness(16, 10), HorizontalAlignment = HorizontalAlignment.Left };
+                var words = T.Stack(10, T.Label("Player " + (Slot + 1), 17, null, FontWeight.Bold), add); words.VerticalAlignment = VerticalAlignment.Center;
+                g.Children.Add(words);
+                var outline = Silhouette(.72); outline.VerticalAlignment = VerticalAlignment.Center; outline.Margin = new Thickness(10, 0, 4, 0); Grid.SetColumn(outline, 1); g.Children.Add(outline);
             }
             else
             {

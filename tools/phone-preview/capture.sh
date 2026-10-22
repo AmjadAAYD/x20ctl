@@ -10,6 +10,9 @@ a wait-for-device
 a shell input keyevent 82 || true
 # the one-time "Viewing full screen" notice would cover the first screens
 a shell settings put secure immersive_mode_confirmations confirmed || true
+# a busy emulator's "isn't responding" dialogs would cover the app; let the system settle before starting
+a shell settings put global hide_error_dialogs 1 || true
+sleep 20
 a install -r "$apk" || exit 1
 size=$(a shell wm size | tr -d '\r' | awk '{print $NF}'); echo "screen $size" | tee "$out/screen.txt"
 w=${size%x*}; h=${size#*x}; if [ "$w" -lt "$h" ]; then t=$w; w=$h; h=$t; fi

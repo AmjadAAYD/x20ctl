@@ -36,6 +36,9 @@ internal sealed class IntroView : Panel
     readonly Pill skip, mute; readonly Surface picture;
     readonly DateTime created = DateTime.UtcNow;
     bool finished, began, muted, handing, targetsRead; DateTime beganAt; double? frozen; Rect? markTarget;
+    // on a phone the film's clock advances by at most a fifteenth of a second a frame, so a stall (the first screens
+    // still loading) holds the picture instead of jumping past it; the sound is put back in step when it drifts
+    DateTime lastTick; double phoneClock, drift;
     // what Render draws, worked out each frame by Step
     double backdrop = 1, filmOpacity = 1, coverOpacity, coverSize; Matrix coverPlace = Matrix.Identity;
 
@@ -74,7 +77,7 @@ internal sealed class IntroView : Panel
     /// <summary>Review hook: hold the intro at <paramref name="t"/> seconds, and say when the film's frame for it is decoded.</summary>
     public bool Freeze(double t) { frozen = t; Step(t); return film == null || film.Holds(t); }
 
-    double Elapsed => frozen ?? (began ? (DateTime.UtcNow - beganAt).TotalSeconds : 0);
+    double Elapsed => frozen ?? (!began ? 0 : Phone.Active ? phoneClock : (DateTime.UtcNow - beganAt).TotalSeconds);
 
     void Tick(TimeSpan _)
     {
@@ -82,9 +85,15 @@ internal sealed class IntroView : Panel
         if (!began)
         {
             // the clock starts with the film's first picture, and the sound with it
-            if (film == null || film.Ready) { began = true; beganAt = DateTime.UtcNow; if (film != null && !muted && !silent) sound.Start(); }
+            if (film == null || film.Ready) { began = true; beganAt = lastTick = DateTime.UtcNow; if (film != null && !muted && !silent) sound.Start(); }
             // a film that never shows must not hold the app behind a dark screen
-            else if (film.Failed || (DateTime.UtcNow - created).TotalSeconds > OpenWithin) { Finish(); return; }
+            else if (film.Failed || (DateTime.UtcNow - created).TotalSeconds > (Phone.Active ? 6 : OpenWithin)) { Finish(); return; }
+        }
+        else if (Phone.Active)
+        {
+            var now = DateTime.UtcNow; double dt = (now - lastTick).TotalSeconds, step = Math.Min(dt, 1 / 15.0); lastTick = now;
+            phoneClock += step; drift += dt - step;
+            if (drift > .15) { drift = 0; if (film != null && !muted && !silent && phoneClock < CoverAt) sound.Start(phoneClock); }
         }
         Step(Elapsed);
         if (!finished) TopLevel.GetTopLevel(this)?.RequestAnimationFrame(Tick);
