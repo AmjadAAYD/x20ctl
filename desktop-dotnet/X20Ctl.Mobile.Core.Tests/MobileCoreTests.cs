@@ -96,15 +96,23 @@ public sealed class MobileCoreTests
     [Fact]
     public void WriteScanReadsAPhoneLog()
     {
+        // one ATT write command (opcode 0x52, handle 0x0010) on connection 0x40 that isn't a KeyLinker frame
+        byte[] att = [0x52, 0x10, 0x00, 0x01], l2cap = [(byte)att.Length, 0, 4, 0, .. att], acl = [0x40, 0x00, (byte)l2cap.Length, 0, .. l2cap];
+        var (report, log, extension) = Load(BtSnoopWriter.Write([new HciRecord(0, true, acl)]));
+        Assert.False(report.IsKeyLinker);
+        Assert.Equal(1, report.AclPackets);
+        Assert.Equal("btsnoop", extension);
+        Assert.NotEmpty(log);
+    }
+
+    [Fact]
+    public void WriteScanRejectsALogWithoutPackets() =>
+        Assert.Throws<InvalidDataException>(() => Load(BtSnoopWriter.Write([])));
+
+    static (WriteScanReport Report, byte[] Log, string Extension) Load(byte[] bytes)
+    {
         var path = Path.Combine(Path.GetTempPath(), "x20ctl-mobile-" + Guid.NewGuid().ToString("N") + ".log");
-        try
-        {
-            File.WriteAllBytes(path, BtSnoopWriter.Write([]));
-            var (report, log, extension) = PhoneWriteScan.Load(new TestPlan("X20", "KeyLinker", "Vibration", "50", "80"), path);
-            Assert.False(report.IsKeyLinker);
-            Assert.Equal("btsnoop", extension);
-            Assert.NotEmpty(log);
-        }
+        try { File.WriteAllBytes(path, bytes); return PhoneWriteScan.Load(new TestPlan("X20", "KeyLinker", "Vibration", "50", "80"), path); }
         finally { File.Delete(path); }
     }
 }
