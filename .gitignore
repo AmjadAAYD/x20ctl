@@ -51,6 +51,7 @@ docs/SUBMISSIONS_SETUP.md
 *.zip
 
 # Local .NET build/test output; keep native source and review evidence separate.
+publish/
 /desktop-dotnet/**/bin/
 /desktop-dotnet/**/obj/
 /desktop-dotnet/**/TestResults/

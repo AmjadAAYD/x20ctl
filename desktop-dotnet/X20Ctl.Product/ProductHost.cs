@@ -1,4 +1,4 @@
-﻿using System.Windows.Media.Animation;
+using System.Windows.Media.Animation;
 ﻿using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -232,10 +232,46 @@ public sealed class ProductHost : Grid
             }
             if(!connected||Window.GetWindow(this)?.IsActive!=true){nativeArmed=false;return;}if(!nativeArmed){if(now.Count==0)nativeArmed=true;return;}
             if(Intro!=null){if(pressed.Contains("B"))Intro.Finish();else if(pressed.Contains("Y"))Intro.ToggleMute();return;}
-            if(Settings!=null){if(pressed.Contains("B"))CloseSettings();else if(pressed.Contains("A")&&Keyboard.FocusedElement is Button focused&&focused.IsEnabled)focused.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));else foreach(var d in new[]{("DPAD_UP",FocusNavigationDirection.Up),("DPAD_DOWN",FocusNavigationDirection.Down),("DPAD_LEFT",FocusNavigationDirection.Left),("DPAD_RIGHT",FocusNavigationDirection.Right)})if(pressed.Contains(d.Item1)&&Keyboard.FocusedElement is UIElement el)el.MoveFocus(new(d.Item2));return;}
-            if(Studio!=null)Studio.EnableNativeNavigation();else Zone.EnableNativeNavigation();
+            if(Settings!=null)
+            {
+                if(pressed.Contains("B"))CloseSettings();
+                else if(pressed.Contains("A"))
+                {
+                    var target = Keyboard.FocusedElement as Button;
+                    if(target == null && !Settings.IsKeyboardFocusWithin) { Settings.FocusFirst(); target = Keyboard.FocusedElement as Button; }
+                    if(target!=null && target.IsEnabled) target.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                }
+                else foreach(var d in new[]{("DPAD_UP",FocusNavigationDirection.Up),("DPAD_DOWN",FocusNavigationDirection.Down),("DPAD_LEFT",FocusNavigationDirection.Left),("DPAD_RIGHT",FocusNavigationDirection.Right)})
+                {
+                    if(pressed.Contains(d.Item1))
+                    {
+                        if(!Settings.IsKeyboardFocusWithin) Settings.FocusFirst();
+                        else if(Keyboard.FocusedElement is UIElement el) el.MoveFocus(new(d.Item2));
+                    }
+                }
+                return;
+            }
+            var activeNav = new List<(string button, Key key)>();
             foreach(var (button,key) in InputMap.Controller)
-            {bool repeat=(button.StartsWith("DPAD")||button.StartsWith("LS_"))&&now.Contains(button)&&time-lastNavigationUs>200000;if(!pressed.Contains(button)&&!repeat)continue;lastNavigationUs=time;var hostWindow=Window.GetWindow(this);if(hostWindow==null)return;var e=new KeyEventArgs(Keyboard.PrimaryDevice,PresentationSource.FromVisual(hostWindow)!,0,key){RoutedEvent=Keyboard.PreviewKeyDownEvent};OnKeyDown(this,e);OnKeyUp(this,new KeyEventArgs(Keyboard.PrimaryDevice,PresentationSource.FromVisual(hostWindow)!,0,key){RoutedEvent=Keyboard.PreviewKeyUpEvent});}
+            {
+                bool repeat=(button.StartsWith("DPAD")||button.StartsWith("LS_"))&&now.Contains(button)&&time-lastNavigationUs>200000;
+                if(pressed.Contains(button)||repeat) activeNav.Add((button,key));
+            }
+            if(activeNav.Count > 0)
+            {
+                lastNavigationUs=time;
+                if(Studio!=null)Studio.EnableNativeNavigation();else Zone.EnableNativeNavigation();
+                var hostWindow=Window.GetWindow(this);
+                if(hostWindow!=null)
+                {
+                    foreach(var (button, key) in activeNav)
+                    {
+                        var e=new KeyEventArgs(Keyboard.PrimaryDevice,PresentationSource.FromVisual(hostWindow)!,0,key){RoutedEvent=Keyboard.PreviewKeyDownEvent};
+                        OnKeyDown(this,e);
+                        OnKeyUp(this,new KeyEventArgs(Keyboard.PrimaryDevice,PresentationSource.FromVisual(hostWindow)!,0,key){RoutedEvent=Keyboard.PreviewKeyUpEvent});
+                    }
+                }
+            }
         }catch(Exception error) when(error is InvalidOperationException or ArgumentException or JsonException){nativeArmed=false;ResetTransientInput();NativeEngineStatus="Native input unavailable · "+error.Message;}
     }
     public void StartIntro()
@@ -304,7 +340,18 @@ public sealed class ProductHost : Grid
     {
         var key=e.Key==Key.System?e.SystemKey:e.Key;
         // the identity scan popup: Esc / B backs out, A / Enter presses the focused button, nothing behind it moves
-        if(verifyLayer!=null){if(e.Key is Key.Escape or Key.B){verifyLayer.Children.OfType<ControllerVerifyView>().FirstOrDefault()?.RaiseCancel();}else if(e.Key is Key.A or Key.Enter&&Keyboard.FocusedElement is Button pressed&&!e.IsRepeat)pressed.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));e.Handled=true;return;}
+        if(verifyLayer!=null)
+        {
+            var verifyView = verifyLayer.Children.OfType<ControllerVerifyView>().FirstOrDefault();
+            if(e.Key is Key.Escape or Key.B) verifyView?.RaiseCancel();
+            else if(e.Key is Key.A or Key.Enter)
+            {
+                var target = Keyboard.FocusedElement as Button ?? verifyView?.FirstActionButton;
+                if(target!=null && !e.IsRepeat) target.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            }
+            e.Handled=true;
+            return;
+        }
         // the Controller Check is testing the controller: its presses are never navigation; the keyboard's Esc leaves
         if(Check!=null){if(sender is ProductHost){e.Handled=true;return;}if(e.Key==Key.Escape){CloseCheck();e.Handled=true;}return;}
         // the Write scan is typed into and clicked; the keyboard's Esc leaves, nothing else navigates behind it
@@ -314,13 +361,45 @@ public sealed class ProductHost : Grid
         if(key==InputMap.Settings && Intro==null){if(Settings!=null)CloseSettings();else ShowSettings();e.Handled=true;return;}
         if(key==InputMap.ControllerZone && Intro==null && Settings==null && Studio!=null && Studio.ManagementPage is not ("Tester" or "Diagnostics")){ReturnToZone();e.Handled=true;return;}
         if(Intro!=null){if(e.Key is Key.Escape or Key.B)Intro.Finish();else if(e.Key==Key.M&&!e.IsRepeat)Intro.ToggleMute();e.Handled=true;return;}
-        if(Settings!=null){if(e.Key is Key.Escape or Key.B){if(!Settings.StepBack())CloseSettings();e.Handled=true;}else if(e.Key==Key.A && Keyboard.FocusedElement is Button button){button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));e.Handled=true;}else if(e.Key is Key.Up or Key.Down or Key.Left or Key.Right && Keyboard.FocusedElement is UIElement focused){focused.MoveFocus(new(e.Key==Key.Up?FocusNavigationDirection.Up:e.Key==Key.Down?FocusNavigationDirection.Down:e.Key==Key.Left?FocusNavigationDirection.Left:FocusNavigationDirection.Right));e.Handled=true;}return;}
+        if(Settings!=null)
+        {
+            if(e.Key is Key.Escape or Key.B){if(!Settings.StepBack())CloseSettings();e.Handled=true;}
+            else if(e.Key is Key.A or Key.Enter)
+            {
+                var target = Keyboard.FocusedElement as Button;
+                if(target == null && !Settings.IsKeyboardFocusWithin) { Settings.FocusFirst(); target = Keyboard.FocusedElement as Button; }
+                if(target!=null && !e.IsRepeat) { target.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); e.Handled=true; }
+            }
+            else if(e.Key is Key.Up or Key.Down or Key.Left or Key.Right)
+            {
+                if(!Settings.IsKeyboardFocusWithin) Settings.FocusFirst();
+                else if(Keyboard.FocusedElement is UIElement focused)
+                {
+                    focused.MoveFocus(new(e.Key==Key.Up?FocusNavigationDirection.Up:e.Key==Key.Down?FocusNavigationDirection.Down:e.Key==Key.Left?FocusNavigationDirection.Left:FocusNavigationDirection.Right));
+                }
+                e.Handled=true;
+            }
+            return;
+        }
         // the controller picker: arrows / D-pad move between cards, A / Enter chooses, B / Esc goes back
         if (Selector != null)
         {
             if (e.Key is Key.Escape or Key.B) { CloseSelector(); e.Handled = true; }
-            else if (e.Key is Key.A or Key.Enter && Keyboard.FocusedElement is Button card) { if (!e.IsRepeat) card.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); e.Handled = true; }
-            else if (e.Key is Key.Up or Key.Down or Key.Left or Key.Right && Keyboard.FocusedElement is UIElement focused) { focused.MoveFocus(new(e.Key == Key.Up ? FocusNavigationDirection.Up : e.Key == Key.Down ? FocusNavigationDirection.Down : e.Key == Key.Left ? FocusNavigationDirection.Left : FocusNavigationDirection.Right)); e.Handled = true; }
+            else if (e.Key is Key.A or Key.Enter)
+            {
+                var card = Keyboard.FocusedElement as Button;
+                if (card == null && !Selector.IsKeyboardFocusWithin) { Selector.FocusFirst(); card = Keyboard.FocusedElement as Button; }
+                if (card != null && !e.IsRepeat) { card.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); e.Handled = true; }
+            }
+            else if (e.Key is Key.Up or Key.Down or Key.Left or Key.Right)
+            {
+                if (!Selector.IsKeyboardFocusWithin) Selector.FocusFirst();
+                else if (Keyboard.FocusedElement is UIElement focused)
+                {
+                    focused.MoveFocus(new(e.Key == Key.Up ? FocusNavigationDirection.Up : e.Key == Key.Down ? FocusNavigationDirection.Down : e.Key == Key.Left ? FocusNavigationDirection.Left : FocusNavigationDirection.Right));
+                }
+                e.Handled = true;
+            }
             return;
         }
         if (Studio != null) Studio.OnKeyDown(sender, e); else Zone.OnKeyDown(sender, e);

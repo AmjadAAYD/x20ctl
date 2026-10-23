@@ -269,6 +269,8 @@ public sealed class ControllerVerifyView : Grid
         if (buttons.Children.Count > 0) buttons.Children[0].Focus();
     }
 
+    public Button? FirstActionButton => buttons.Children.OfType<Button>().FirstOrDefault();
+
     private static string ModelLabel(string id, string? fallback) => id switch
     {
         "x20" => "X20", "x20_pro" => "X20 Pro", "x15" => "X15", "x10" => "X10", "x05" => "X05", "x05_pro" => "X05 Pro", "d10" => "D10", "dune" => "Dune 8K", _ => fallback ?? id,
