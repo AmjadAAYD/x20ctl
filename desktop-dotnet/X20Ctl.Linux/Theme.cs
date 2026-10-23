@@ -125,6 +125,8 @@ internal sealed class FillScroll : ScrollViewer
         protected override Size MeasureOverride(Size available)
         {
             double height = Phone.Active ? Math.Max(minHeight, double.IsInfinity(available.Height) ? 0 : available.Height) : Math.Max(minHeight, owner.Viewport.Height);
+            // a phone's narrower layout can need more than the desktop's height: the page then grows, and the tab scrolls
+            if (Phone.Active && Child != null) { Child.Measure(new Size(available.Width, double.PositiveInfinity)); height = Math.Max(height, Child.DesiredSize.Height); }
             Child?.Measure(new Size(available.Width, height));
             return new Size(Child?.DesiredSize.Width ?? 0, height);
         }
