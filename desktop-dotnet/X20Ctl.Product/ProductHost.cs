@@ -235,10 +235,14 @@ public sealed class ProductHost : Grid
             // virtual buttons: triggers and left stick become digital presses with a threshold
             var now=payload.GetProperty("buttons").EnumerateArray().Select(v=>v.GetString()!).ToHashSet();
             if(connected){if(payload.GetProperty("lt").GetDouble()>.55)now.Add("LT");if(payload.GetProperty("rt").GetDouble()>.55)now.Add("RT");
-                double lx=payload.GetProperty("leftX").GetDouble(),ly=payload.GetProperty("leftY").GetDouble();if(Math.Abs(lx)>.6&&Math.Abs(lx)>=Math.Abs(ly))now.Add(lx>0?"LS_RIGHT":"LS_LEFT");else if(Math.Abs(ly)>.6)now.Add(ly>0?"LS_UP":"LS_DOWN");}
+                if(Studio?.IsCurves != true)
+                {
+                    double lx=payload.GetProperty("leftX").GetDouble(),ly=payload.GetProperty("leftY").GetDouble();if(Math.Abs(lx)>.6&&Math.Abs(lx)>=Math.Abs(ly))now.Add(lx>0?"LS_RIGHT":"LS_LEFT");else if(Math.Abs(ly)>.6)now.Add(ly>0?"LS_UP":"LS_DOWN");
+                }}
             var pressed=now.Except(lastNativeButtons).ToArray();lastNativeButtons=now;
             long time=value.GetProperty("timestampUs").GetInt64();
             if(Studio?.CapturingButtonEditor==true){if(connected){foreach(var button in pressed.Where(b=>!b.StartsWith("LS_")))Studio.SelectPhysicalButton(button);}nativeArmed=false;return;}
+            if(connected&&Studio?.IsCurves==true){if(pressed.Contains("L3"))Studio.Curves.SelectChannel(X20Ctl.Zone.CurveChannel.LeftStick);else if(pressed.Contains("R3"))Studio.Curves.SelectChannel(X20Ctl.Zone.CurveChannel.RightStick);}
             // Home / Guide: bring X20CTL forward from anywhere (tray, behind a game); in front it goes home
             if(connected&&pressed.Contains("HOME")&&Studio?.ManagementPage is not ("Diagnostics" or "Mouse")){HomeRequested?.Invoke();return;}
             // the controller is the mouse: its buttons click and type, so they must not also move around X20CTL (Home still comes home)

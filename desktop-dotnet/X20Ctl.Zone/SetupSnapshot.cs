@@ -19,7 +19,7 @@ public sealed class SetupSnapshot
     };
     public void Validate()
     {
-        if(ModelId!="x20" || Mappings==null || Curves==null || Macros==null || Curves.Values.Any(v=>v==null) || Macros.Values.Any(v=>v==null || v.Any(e=>e==null||e.Buttons==null)) || !Mappings.Keys.Order().SequenceEqual(ButtonDraft.Sources.Order()) || !Curves.Keys.Order().SequenceEqual(Enum.GetNames<CurveChannel>().Order()) || !Macros.Keys.Order().SequenceEqual(MacroDraft.Slots.Order()))throw new InvalidDataException("Unsupported native setup model or incomplete fields.");
+        if(ModelId is not ("x20" or "x20_pro") || Mappings==null || Curves==null || Macros==null || Curves.Values.Any(v=>v==null) || Macros.Values.Any(v=>v==null || v.Any(e=>e==null||e.Buttons==null)) || !Mappings.Keys.Order().SequenceEqual(ButtonDraft.Sources.Order()) || !Curves.Keys.Order().SequenceEqual(Enum.GetNames<CurveChannel>().Order()) || !Macros.Keys.Order().SequenceEqual(MacroDraft.Slots.Order()))throw new InvalidDataException("Unsupported native setup model or incomplete fields.");
         var buttons=new ButtonDraft(ModelId);foreach(var (key,value) in Mappings)buttons.Set(key,value);
         var curves=new CurveDraft(ModelId);foreach(var (key,value) in Curves)curves.Set(Enum.Parse<CurveChannel>(key),new(value.Preset,value.Inner,value.Outer,(value.X1,value.Y1),(value.X2,value.Y2)){BasePreset=value.BasePreset});
         var macros=new MacroDraft(ModelId);foreach(var (slot,events) in Macros)foreach(var step in events){macros.Add(slot,step.PauseMs);macros.Update(slot,macros[slot].Count-1,new(step.Id,step.Buttons,step.Left,step.Right,step.HoldMs,step.PauseMs));}

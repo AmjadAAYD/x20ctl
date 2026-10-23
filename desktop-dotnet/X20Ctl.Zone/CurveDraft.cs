@@ -16,7 +16,7 @@ public sealed class CurveDraft(string modelId)
         new Dictionary<string,((int,int),(int,int))> { ["default"] = ((85,85),(170,170)), ["quick"] = ((64,102),(166,217)), ["slow"] = ((89,51),(191,140)), ["smooth"] = ((77,59),(178,196)), ["fine"] = ((77,89),(178,196)) };
     /// <summary>PC mode applies the draft on the PC, so any model can be edited while it's on.</summary>
     public bool PcMode { get; set; }
-    public bool CanEdit => modelId == "x20" || PcMode;
+    public bool CanEdit => modelId is "x20" or "x20_pro" || PcMode;
     public bool CanApplyHardware => false;
     public int ModifiedChannels => channels.Values.Count(c=>c!=CurveSetting.Default);
     public CurveSetting this[CurveChannel channel] => channels[channel];

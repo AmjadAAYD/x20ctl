@@ -21,7 +21,7 @@ public sealed class MacroDraft(string modelId)
     private readonly Dictionary<string,List<MacroEvent>> sequences=(PhysicalSlotsFor(modelId) is { Length: > 0 } own ? own : Slots).ToDictionary(s=>s,_=>new List<MacroEvent>());
     /// <summary>PC mode applies the draft on the PC, so any model can be edited while it's on.</summary>
     public bool PcMode {get;set;}
-    public bool CanEdit=>modelId=="x20" || PcMode;
+    public bool CanEdit=>modelId is "x20" or "x20_pro" || PcMode;
     /// <summary>PC mode can't see a back paddle (EasySMX paddles send ordinary buttons, never their own), so each slot
     /// is played by a real button picked here. Null: the slot isn't used by PC mode.</summary>
     private readonly Dictionary<string,string?> triggers=(PhysicalSlotsFor(modelId) is { Length: > 0 } own ? own : Slots).ToDictionary(s=>s,_=>(string?)null);
