@@ -1,0 +1,46 @@
+{
+  "frames": 134,
+  "avgFps": 60.4,
+  "avgFrameMs": 16.56,
+  "p95FrameMs": 30.9,
+  "worstFrameMs": 57,
+  "framesOver20ms": 9,
+  "slow": [
+    {
+      "atMs": 53,
+      "frameMs": 26
+    },
+    {
+      "atMs": 83,
+      "frameMs": 30.8
+    },
+    {
+      "atMs": 114,
+      "frameMs": 30.9
+    },
+    {
+      "atMs": 146,
+      "frameMs": 31.5
+    },
+    {
+      "atMs": 177,
+      "frameMs": 31
+    },
+    {
+      "atMs": 208,
+      "frameMs": 31
+    },
+    {
+      "atMs": 240,
+      "frameMs": 32.1
+    },
+    {
+      "atMs": 328,
+      "frameMs": 57
+    },
+    {
+      "atMs": 1922,
+      "frameMs": 31.2
+    }
+  ]
+}
