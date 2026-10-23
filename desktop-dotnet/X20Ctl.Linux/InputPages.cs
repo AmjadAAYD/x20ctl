@@ -99,6 +99,8 @@ internal sealed class TesterPage : UserControl, IKeyPage
 
         var keyHint = T.Stack(2, T.Label("WASD · Left stick     Arrows · Right stick", 14, T.Soft), T.Label("Q · Hold LT     E · Hold RT", 14, T.Soft));
         var exit = new Pill(keyboard ? "Stop keyboard test" : "Keyboard Test", Pill.Kinds.Ghost, () => { keyboard = !keyboard; keys.Clear(); Apply(); Build(); }) { Padding = new Thickness(26, 12), HorizontalAlignment = HorizontalAlignment.Left };
+        // a phone has no keyboard to test with
+        if (Phone.Active) keyHint.IsVisible = exit.IsVisible = false;
         var info = T.Stack(14, T.Label("GAMEPLAY SOURCE", 13.5, T.Soft), T.Stack(2, source, sourceNote), new Border { Height = 6 }, T.Stack(2, waiting, T.Label("Hardware configuration remains separate. Independent paddle input is shown only when exposed by the input source.", 14.5, T.Soft)), exit, keyHint);
         info.VerticalAlignment = VerticalAlignment.Center; info.Margin = new Thickness(30, 0, 0, 0); Grid.SetColumn(info, 1); mid.Children.Add(info);
         page.Children.Add(mid);

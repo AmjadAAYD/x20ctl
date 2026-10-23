@@ -50,7 +50,7 @@ internal sealed class CurvesPage : UserControl, IKeyPage
                 CurveChannel.LeftTrigger => frame.LT, _ => frame.RT
             } : null;
         graph.Show(push);
-        if (hint != null) hint.Text = keyboard ? "Keyboard test · WASD, arrows, Q and E" : reader.Connected ? "Live input from the controller" : "Connect a controller or use Keyboard test";
+        if (hint != null) hint.Text = keyboard ? "Keyboard test · WASD, arrows, Q and E" : reader.Connected ? "Live input from the controller" : Phone.Active ? "Connect a controller to see live input" : "Connect a controller or use Keyboard test";
     }
 
     public void OnKey(KeyEventArgs e, bool down)
@@ -81,7 +81,7 @@ internal sealed class CurvesPage : UserControl, IKeyPage
 
         var notice = (Phone.Active ? Parts.Notice("Curves · Draft", "Kept on this phone for the selected player. Nothing is written to the controller.") : Parts.Notice("Curves · PC mode", "Saved on this PC for the selected player. Nothing is written to the controller."));
         var tools = T.Flow(10, new Pill("Reset curve", Pill.Kinds.Ghost, () => { state.Curves.Reset(channel); state.ResetTune(channel); Build(); }) { Enabled = !IsDefault(cur, tune), Padding = new Thickness(22, 11) }, new Pill("Advanced", Pill.Kinds.Ghost, () => Content = new StickToolsView(state, () => Build())) { Padding = new Thickness(22, 11) },
-            new Pill("Reset options ⌄", Pill.Kinds.Ghost, () => { state.Curves.ResetAll(); state.ResetTunes(); Build(); }) { Padding = new Thickness(22, 11) }, new Pill(keyboard ? "Stop keyboard test" : "Keyboard test", keyboard ? Pill.Kinds.Light : Pill.Kinds.Ghost, () => { keyboard = !keyboard; held.Clear(); kx = ky = kl = kr = 0; Build(); }) { Padding = new Thickness(22, 11) });
+            new Pill("Reset options ⌄", Pill.Kinds.Ghost, () => { state.Curves.ResetAll(); state.ResetTunes(); Build(); }) { Padding = new Thickness(22, 11) }, new Pill(keyboard ? "Stop keyboard test" : "Keyboard test", keyboard ? Pill.Kinds.Light : Pill.Kinds.Ghost, () => { keyboard = !keyboard; held.Clear(); kx = ky = kl = kr = 0; Build(); }) { Padding = new Thickness(22, 11), IsVisible = !Phone.Active });
         var channels = T.Line(10, Enum.GetValues<CurveChannel>().Select(c => (Control)new Pill(Short[(int)c], c == channel ? Pill.Kinds.Light : Pill.Kinds.Ghost, () => { channel = c; Build(); })).ToArray());
         // the presets stand in a column beside the graph, so the graph has the card's height
         var presets = T.Stack(8, CurveDraft.Presets.Keys.Select(k => Preset(k, cur)).ToArray());
@@ -104,7 +104,7 @@ internal sealed class CurvesPage : UserControl, IKeyPage
         var a = T.Stack(10, Slide("Inner dead zone", tune.Inner, 0, 40, v => state.SetInner(channel, v), false), Slide("Anti-dead zone", tune.AntiDeadzone, 0, 40, v => { tune.AntiDeadzone = v; Build(); }, false));
         var b = T.Stack(10, Slide("Full output at", tune.Outer, 60, 100, v => state.SetOuter(channel, v), true), Slide("Max output", tune.MaxOutput, 60, 100, v => { tune.MaxOutput = v; Build(); }, true));
         b.Margin = new Thickness(26, 0, 0, 0); Grid.SetColumn(b, 1);
-        var msg = hint = T.Label("Connect a controller or use Keyboard test", 14, T.Soft); msg.VerticalAlignment = VerticalAlignment.Center; msg.HorizontalAlignment = HorizontalAlignment.Center; Grid.SetColumn(msg, 2);
+        var msg = hint = T.Label(Phone.Active ? "Connect a controller to see live input" : "Connect a controller or use Keyboard test", 14, T.Soft); msg.VerticalAlignment = VerticalAlignment.Center; msg.HorizontalAlignment = HorizontalAlignment.Center; Grid.SetColumn(msg, 2);
         inner.Children.Add(a); inner.Children.Add(b); inner.Children.Add(msg);
         var sliders = T.Card(inner, 22); Grid.SetRow(sliders, 1); page.Children.Add(sliders);
         // the curve takes the height the sliders leave; on a short window the page scrolls

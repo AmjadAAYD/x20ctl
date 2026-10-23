@@ -137,7 +137,7 @@ internal sealed class MacrosPage : UserControl
         var events = M[slot];
         var head = new Grid { ColumnDefinitions = new("*,Auto") };
         head.Children.Add(T.Stack(1, T.Label(slot + " · Sequence", 28, null, FontWeight.SemiBold), T.Label($"Events {events.Count} · Capacity {M.EntryCount(slot)} / 47 · {M.Duration(slot)} ms", 13.5, T.Soft)));
-        var acts = T.Line(10, new Pill(recorder == null ? "●  Record" : "■  Stop", Pill.Kinds.Ghost, ToggleRecord) { Enabled = M.CanEdit, Padding = new Thickness(20, 11) }, new Pill("⭳  Read controller", Pill.Kinds.Ghost, ReadPad) { Padding = new Thickness(20, 11) },
+        var acts = T.Flow(10, new Pill(recorder == null ? "●  Record" : "■  Stop", Pill.Kinds.Ghost, ToggleRecord) { Enabled = M.CanEdit, Padding = new Thickness(20, 11) }, new Pill("⭳  Read controller", Pill.Kinds.Ghost, ReadPad) { Padding = new Thickness(20, 11) },
             new Pill("+ Add event", Pill.Kinds.Primary, () => { try { M.Add(slot); index = M[slot].Count - 1; } catch (Exception e) when (e is InvalidOperationException or ArgumentException) { } Build(); }) { Padding = new Thickness(22, 11) },
             new Pill(preview == null ? "Preview timeline" : "■  Stop preview", Pill.Kinds.Ghost, TogglePreview) { Enabled = events.Count > 0, Padding = new Thickness(20, 11) },
             new Pill("···", Pill.Kinds.Ghost, () => { M.Clear(slot); index = -1; Build(); }) { Padding = new Thickness(16, 11) });

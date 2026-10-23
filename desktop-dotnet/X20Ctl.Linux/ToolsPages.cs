@@ -117,7 +117,7 @@ internal sealed class ToolsPage : UserControl
 
     Control Hero()
     {
-        var steps = T.Line(8, new[] { "1  Read scan", "2  Write scan", "3  Send online" }.Select(s => (Control)new Border { Background = T.B("#33FFFFFF"), CornerRadius = new CornerRadius(14), Padding = new Thickness(13, 5), Child = T.Label(s, 12.5, T.Text) }).ToArray());
+        var steps = T.Flow(8, new[] { "1  Read scan", "2  Write scan", "3  Send online" }.Select(s => (Control)new Border { Background = T.B("#33FFFFFF"), CornerRadius = new CornerRadius(14), Padding = new Thickness(13, 5), Child = T.Label(s, 12.5, T.Text) }).ToArray());
         var screen = Monitor();
         var g = new Grid { RowDefinitions = new("*,Auto,Auto,Auto") };
         var top = new Grid(); top.Children.Add(Icon(Tool, "#3D8BFF", 64)); ((Control)top.Children[0]).HorizontalAlignment = HorizontalAlignment.Left; ((Control)top.Children[0]).VerticalAlignment = VerticalAlignment.Top;
