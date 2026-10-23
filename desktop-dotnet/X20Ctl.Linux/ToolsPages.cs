@@ -60,14 +60,15 @@ internal sealed class ToolsPage : UserControl
         left.Children.Add(Switches.Make(settings.AutoUpdate, v => { settings.AutoUpdate = v; settings.Save(); updateLine = UpdateLine(v); Build(); }));
         Grid.SetColumn(update, 2); update.VerticalAlignment = VerticalAlignment.Center; left.Children.Add(update);
         var check = new Pill(checking ? "Checking…" : "Check now", Pill.Kinds.Ghost, CheckNow) { Padding = new Thickness(22, 11), Enabled = !checking, VerticalAlignment = VerticalAlignment.Center }; Grid.SetColumn(check, 3); left.Children.Add(check);
-        bars.Children.Add(T.Card(left, 18, 16));
+        // the phone app doesn't update itself from GitHub releases, so it has only the intro bar
+        if (!phone) bars.Children.Add(T.Card(left, 18, 16));
 
         var intro = new Grid { ColumnDefinitions = new("*,Auto") };
         intro.Children.Add(T.Stack(2, T.Label("Opening intro", 16, null, FontWeight.SemiBold), T.Label(Phone.Active ? "A tap skips it." : "Esc skips it, M mutes it.", 13, T.Soft)));
         var sw = T.Line(16, Switches.Make(settings.IntroOnLaunch, v => { settings.IntroOnLaunch = v; settings.Save(); Build(); }), T.Label("At launch", 15), Switches.Make(settings.IntroSound, v => { settings.IntroSound = v; settings.Save(); Build(); }), T.Label("Sound", 15));
         foreach (var c in sw.Children.OfType<TextBlock>()) c.VerticalAlignment = VerticalAlignment.Center;
         sw.VerticalAlignment = VerticalAlignment.Center; Grid.SetColumn(sw, 1); intro.Children.Add(sw);
-        var ib = T.Card(intro, 18, 16); if (phone) Grid.SetRow(ib, 2); else Grid.SetColumn(ib, 2); bars.Children.Add(ib);
+        var ib = T.Card(intro, 18, 16); if (!phone) Grid.SetColumn(ib, 2); bars.Children.Add(ib);
         page.Children.Add(bars);
         Content = page;
     }
