@@ -112,6 +112,8 @@ internal sealed class FillScroll : ScrollViewer
     {
         Content = new Filler(this, minHeight) { Child = page };
         HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled;
+        // on a phone the Studio already scrolls each tab: this one only keeps the page at least this tall
+        if (Phone.Active) VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled;
     }
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
@@ -122,7 +124,7 @@ internal sealed class FillScroll : ScrollViewer
     {
         protected override Size MeasureOverride(Size available)
         {
-            double height = Math.Max(minHeight, owner.Viewport.Height);
+            double height = Phone.Active ? Math.Max(minHeight, double.IsInfinity(available.Height) ? 0 : available.Height) : Math.Max(minHeight, owner.Viewport.Height);
             Child?.Measure(new Size(available.Width, height));
             return new Size(Child?.DesiredSize.Width ?? 0, height);
         }
