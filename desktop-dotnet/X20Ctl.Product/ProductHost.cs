@@ -11,7 +11,17 @@ namespace X20Ctl.Product;
 public sealed class ProductHost : Grid
 {
     private string?[] batteryLevels=new string?[4];
-    public void UpdateBatteryLevels(string?[] levels){batteryLevels=(string?[])levels.Clone();if(Studio is {} studio)studio.SetBatteryLevel(batteryLevels[studio.Player]);}
+    private string? currentTransport;
+    public void UpdateBatteryLevels(string?[] levels, string? transport = null)
+    {
+        batteryLevels=(string?[])levels.Clone();
+        if (transport != null) currentTransport = transport;
+        if(Studio is {} studio)
+        {
+            if (currentTransport != null) studio.SetTransport(currentTransport);
+            studio.SetBatteryLevel(batteryLevels[studio.Player]);
+        }
+    }
     public ZoneScene Zone { get; }
     public ControllerCatalog Catalog { get; }
     public StudioScene? Studio { get; private set; }
@@ -113,7 +123,15 @@ public sealed class ProductHost : Grid
             var result = await ControllerVerify.Run(model.Id);
             var wait = TimeSpan.FromMilliseconds(1900) - (DateTime.UtcNow - started); if (wait > TimeSpan.Zero) await Task.Delay(wait); // long enough to read what it is doing
             if (token != verifyToken || verifyLayer != layer) return;
-            void Enter() { Close(); Children.Remove(layer); Zone.UpdateLayout(); EnterStudio(player); }
+            void Enter()
+            {
+                Close();
+                Children.Remove(layer);
+                Zone.UpdateLayout();
+                if (result.Transport is { } t)
+                    currentTransport = t == "Receiver" ? "2.4 GHz receiver" : t;
+                EnterStudio(player);
+            }
             view.ShowResult(result, model.Name, result.DetectedName, Enter,
                 id => { var other = Catalog.Find(id); Close(); if (other != null) { AssignSelection(other); EnterStudio(player); } },
                 () => _ = Scan());
@@ -140,6 +158,7 @@ public sealed class ProductHost : Grid
         if(pc)PcModeSync.Prepare(pcModeStore!,draft,curveDraft,macroDraft);
         Studio = new(player, model, draft, Zone.ReducedMotion, curveDraft,macroDraft,vibrationDraft,setupStore,legacySources,activeSetup); if(PcMode!=null&&pcModeStore!=null)Studio.PcMode=new(pcModeStore,PcMode,preferencesHealthy?preferences:null);Studio.MouseService=MouseMode;Studio.PcModeSwitched+=()=>Dispatcher.BeginInvoke(()=>{EnterStudio(player);Studio?.ShowManagement("PcMode");});Studio.BackRequested += ReturnToZone;Studio.SupportRequested+=OpenSupport;Studio.ActiveSetupChanged+=id=>activeSetups[key]=id;
         Studio.SetBatteryLevel(batteryLevels[player]);
+        if (currentTransport != null) Studio.SetTransport(currentTransport);
         Studio.NativeEngineStatus=NativeEngineStatus;
         Studio.InputContextChanged+=()=>_=UpdateNativeContext();
         if(Engine!=null)_=RefreshNativeCapabilities(model.Id);

@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -11,7 +11,7 @@ public enum VerifyOutcome { Match, Mismatch, Unconfirmed, NoController }
 
 /// <summary>What the scan on entering a controller found. Detected is a model id when Windows named the pad as one.</summary>
 public sealed record DetectedController(string Name, string? ModelId, string Detail);
-public sealed record VerifyResult(VerifyOutcome Outcome, string? DetectedId, string? DetectedName, string Detail, IReadOnlyList<DetectedController>? Controllers = null);
+public sealed record VerifyResult(VerifyOutcome Outcome, string? DetectedId, string? DetectedName, string Detail, IReadOnlyList<DetectedController>? Controllers = null, string? Transport = null);
 
 public static class ControllerVerify
 {
@@ -21,7 +21,7 @@ public static class ControllerVerify
         ["Dune / D15"] = "dune", ["X20 Pro"] = "x20_pro", ["X20"] = "x20", ["X15"] = "x15", ["X10"] = "x10", ["X05 Pro"] = "x05_pro", ["X05"] = "x05", ["D10"] = "d10",
     };
     // identities seen on real hardware that name a model outright (docs/00-findings.md); the shared Xbox identities never do
-    private static readonly Dictionary<(int, int), string> ById = new() { [(0x0079, 0x181C)] = "x20", [(0x1D57, 0xFA60)] = "x20", [(0x413D, 0x2131)] = "dune" };
+    private static readonly Dictionary<(int, int), string> ById = new() { [(0x0079, 0x181C)] = "x20", [(0x1D57, 0xFA60)] = "x20", [(0x413D, 0x2131)] = "x20_pro" };
 
     /// <summary>Asks Windows what is plugged in and whether it names itself as the model the player clicked. A name or ID is
     /// the pad's own claim; the shared Xbox identities prove nothing, so such a pad comes back Unconfirmed, never Match.</summary>
@@ -32,7 +32,8 @@ public static class ControllerVerify
         catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception or System.IO.IOException)
         { return new(VerifyOutcome.NoController, null, null, "Windows would not list devices."); }
         var found = Describe(inventory);
-        VerifyResult Result(VerifyOutcome outcome, string? id, string? name, string detail) => new(outcome, id, name, detail, found);
+        string? transport = ScanFlow.DetectTransport(inventory);
+        VerifyResult Result(VerifyOutcome outcome, string? id, string? name, string detail) => new(outcome, id, name, detail, found, transport);
         string? id = null, name = null;
         if (ScanFlow.DetectModel(inventory) is { } named && ByName.TryGetValue(named.Model, out var byName)) { id = byName; name = named.Name; }
         else foreach (var i in inventory.interfaces) if (ById.TryGetValue((i.vid, i.pid), out var byId)) { id = byId; name = $"{i.vid:X4}:{i.pid:X4}"; break; }

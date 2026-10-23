@@ -737,8 +737,8 @@ class X20:
         `keys` uses ',' to separate steps in time and '+' to join keys within a
         step: "A,B" is A then B, "A+B" is both at once.
         """
-        if not 1 <= slot <= 4:
-            raise ValueError("slot must be 1-4")
+        if not 1 <= slot <= 6:
+            raise ValueError("slot must be 1-6")
         caps = await self.capabilities()
         if not caps.macros:
             raise NotSupported("this pad does not expose macros")
@@ -755,8 +755,8 @@ class X20:
         parsing that back would be a lossy detour. `set_macro` is now this plus
         a parser.
         """
-        if not 1 <= slot <= 4:
-            raise ValueError("slot must be 1-4")
+        if not 1 <= slot <= 6:
+            raise ValueError("slot must be 1-6")
         caps = await self.capabilities()
         if not caps.macros:
             raise NotSupported("this pad does not expose macros")
@@ -835,8 +835,8 @@ class X20:
         the real record when queried as `[position, slot]`. Returns None for an
         empty slot, or when the pad does not answer.
         """
-        if not 1 <= slot <= 4:
-            raise ValueError("slot must be 1-4")
+        if not 1 <= slot <= 6:
+            raise ValueError("slot must be 1-6")
         index = slot - 1
 
         first = await self.query(p.Op.HOST_MACRO, bytes([0, index]))
@@ -862,9 +862,11 @@ class X20:
         return p.parse_macro_payload(bytes([declared]) + bytes(data))
 
     async def macros(self) -> dict[int, p.MacroProgram]:
-        """Read all four macro slots, keyed by slot number 1-4."""
+        """Read all macro slots (up to 6), keyed by slot number."""
         out: dict[int, p.MacroProgram] = {}
-        for slot in range(1, 5):
+        caps = await self.capabilities()
+        count = len(caps.macro_slots) if caps.macro_slots else 4
+        for slot in range(1, count + 1):
             program = await self.read_macro(slot)
             if program is not None:
                 out[slot] = program
@@ -876,8 +878,8 @@ class X20:
         Sends a bare [0], which is what the app emits for an empty step list.
         An empty header is a different thing and doesn't clear.
         """
-        if not 1 <= slot <= 4:
-            raise ValueError("slot must be 1-4")
+        if not 1 <= slot <= 6:
+            raise ValueError("slot must be 1-6")
         packet = p.build_macro_write(
             p.MACRO_CLEAR, slot=slot - 1, chunk=0, counter=self._next_save_counter()
         )
