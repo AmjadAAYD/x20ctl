@@ -118,12 +118,13 @@ internal sealed class ToolsPage : UserControl
     Control Hero()
     {
         var steps = T.Flow(8, new[] { "1  Read scan", "2  Write scan", "3  Send online" }.Select(s => (Control)new Border { Background = T.B("#33FFFFFF"), CornerRadius = new CornerRadius(14), Padding = new Thickness(13, 5), Child = T.Label(s, 12.5, T.Text) }).ToArray());
-        var screen = Monitor();
+        // on a phone the monitor art shrinks into the narrow hero instead of spilling out of it
+        Control screen = Phone.Active ? new Viewbox { Child = Monitor(), Stretch = Stretch.Uniform, StretchDirection = StretchDirection.DownOnly, Margin = new Thickness(0, 56, 0, 0) } : Monitor();
         var g = new Grid { RowDefinitions = new("*,Auto,Auto,Auto") };
         var top = new Grid(); top.Children.Add(Icon(Tool, "#3D8BFF", 64)); ((Control)top.Children[0]).HorizontalAlignment = HorizontalAlignment.Left; ((Control)top.Children[0]).VerticalAlignment = VerticalAlignment.Top;
         screen.HorizontalAlignment = HorizontalAlignment.Center; top.Children.Add(screen); g.Children.Add(top);
-        var title = T.Label("Controller not working?", 38, null, FontWeight.Bold); title.Margin = new Thickness(0, 14, 0, 4); Grid.SetRow(title, 1); g.Children.Add(title);
-        var sub = T.Label("Read scan, then Write scan, then send both reports online together.", 16.5, T.Soft); Grid.SetRow(sub, 2); g.Children.Add(sub);
+        var title = T.Label("Controller not working?", Phone.Active ? 28 : 38, null, FontWeight.Bold); title.Margin = new Thickness(0, 14, 0, 4); Grid.SetRow(title, 1); g.Children.Add(title);
+        var sub = T.Label("Read scan, then Write scan, then send both reports online together.", Phone.Active ? 14 : 16.5, T.Soft); Grid.SetRow(sub, 2); g.Children.Add(sub);
         var foot = new Grid { Margin = new Thickness(0, 14, 0, 0), ColumnDefinitions = new("*,Auto") }; foot.Children.Add(steps); var arrow = Arrow(); Grid.SetColumn(arrow, 1); foot.Children.Add(arrow); Grid.SetRow(foot, 3); g.Children.Add(foot);
         var card = T.Card(g, 28, 22, raised: true); card.BorderBrush = T.B("#7FA5E0FF"); card.BorderThickness = new Thickness(1.6); card.Cursor = new Cursor(StandardCursorType.Hand); card.OnTap(() => go.Check()); return card;
     }

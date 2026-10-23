@@ -141,7 +141,10 @@ internal sealed class MacrosPage : UserControl
             new Pill("+ Add event", Pill.Kinds.Primary, () => { try { M.Add(slot); index = M[slot].Count - 1; } catch (Exception e) when (e is InvalidOperationException or ArgumentException) { } Build(); }) { Padding = new Thickness(22, 11) },
             new Pill(preview == null ? "Preview timeline" : "■  Stop preview", Pill.Kinds.Ghost, TogglePreview) { Enabled = events.Count > 0, Padding = new Thickness(20, 11) },
             new Pill("···", Pill.Kinds.Ghost, () => { M.Clear(slot); index = -1; Build(); }) { Padding = new Thickness(16, 11) });
-        acts.VerticalAlignment = VerticalAlignment.Top; Grid.SetColumn(acts, 1); head.Children.Add(acts);
+        acts.VerticalAlignment = VerticalAlignment.Top; head.Children.Add(acts);
+        // on a phone the buttons go under the title, where they can wrap
+        if (Phone.Active) { head.RowDefinitions = new("Auto,Auto"); acts.Margin = new Thickness(0, 12, 0, 0); Grid.SetRow(acts, 1); Grid.SetColumnSpan(acts, 2); }
+        else Grid.SetColumn(acts, 1);
 
         var chips = new WrapPanel { Margin = new Thickness(0, 12, 0, 0) };
         if (recordNote.Length > 0) chips.Children.Add(new TextBlock { Text = recordNote, FontSize = 13.5, Foreground = T.Soft, Margin = new Thickness(0, 0, 14, 8), VerticalAlignment = VerticalAlignment.Center });

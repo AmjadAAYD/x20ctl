@@ -82,7 +82,7 @@ internal sealed class DashboardPage : UserControl
 
     void Build()
     {
-        games ??= ReviewMode.HideLibrary ? [] : GameShelf.Scan();
+        games ??= ReviewMode.HideLibrary || Phone.Active ? [] : GameShelf.Scan();
         var page = new Grid { Margin = new Thickness(36, 8, 36, 18), RowDefinitions = new("Auto,Auto") };
 
         var left = new Grid();
@@ -99,7 +99,8 @@ internal sealed class DashboardPage : UserControl
         top.Children.Add(T.Card(left, 12)); var rc = T.Card(right, 22); rc.Margin = new Thickness(18, 0, 0, 0); Grid.SetColumn(rc, 1); top.Children.Add(rc);
         page.Children.Add(top);
 
-        var shelf = Shelf(); shelf.Margin = new Thickness(0, 18, 0, 0); Grid.SetRow(shelf, 1); page.Children.Add(shelf);
+        // the shelf scans and launches PC games; a phone has none
+        if (!Phone.Active) { var shelf = Shelf(); shelf.Margin = new Thickness(0, 18, 0, 0); Grid.SetRow(shelf, 1); page.Children.Add(shelf); }
         Content = new ScrollViewer { Content = page };
     }
 
