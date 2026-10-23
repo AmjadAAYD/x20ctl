@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -11,7 +11,7 @@ public enum VerifyOutcome { Match, Mismatch, Unconfirmed, NoController }
 
 /// <summary>What the scan on entering a controller found. Detected is a model id when Windows named the pad as one.</summary>
 public sealed record DetectedController(string Name, string? ModelId, string Detail);
-public sealed record VerifyResult(VerifyOutcome Outcome, string? DetectedId, string? DetectedName, string Detail, IReadOnlyList<DetectedController>? Controllers = null);
+public sealed record VerifyResult(VerifyOutcome Outcome, string? DetectedId, string? DetectedName, string Detail, IReadOnlyList<DetectedController>? Controllers = null, string? Transport = null);
 
 public static class ControllerVerify
 {
@@ -21,7 +21,7 @@ public static class ControllerVerify
         ["Dune / D15"] = "dune", ["X20 Pro"] = "x20_pro", ["X20"] = "x20", ["X15"] = "x15", ["X10"] = "x10", ["X05 Pro"] = "x05_pro", ["X05"] = "x05", ["D10"] = "d10",
     };
     // identities seen on real hardware that name a model outright (docs/00-findings.md); the shared Xbox identities never do
-    private static readonly Dictionary<(int, int), string> ById = new() { [(0x0079, 0x181C)] = "x20", [(0x1D57, 0xFA60)] = "x20", [(0x413D, 0x2131)] = "dune" };
+    private static readonly Dictionary<(int, int), string> ById = new() { [(0x0079, 0x181C)] = "x20", [(0x1D57, 0xFA60)] = "x20" };
 
     /// <summary>Asks Windows what is plugged in and whether it names itself as the model the player clicked. A name or ID is
     /// the pad's own claim; the shared Xbox identities prove nothing, so such a pad comes back Unconfirmed, never Match.</summary>
@@ -32,10 +32,16 @@ public static class ControllerVerify
         catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception or System.IO.IOException)
         { return new(VerifyOutcome.NoController, null, null, "Windows would not list devices."); }
         var found = Describe(inventory);
-        VerifyResult Result(VerifyOutcome outcome, string? id, string? name, string detail) => new(outcome, id, name, detail, found);
+        string? transport = ScanFlow.DetectTransport(inventory);
+        VerifyResult Result(VerifyOutcome outcome, string? id, string? name, string detail) => new(outcome, id, name, detail, found, transport);
         string? id = null, name = null;
         if (ScanFlow.DetectModel(inventory) is { } named && ByName.TryGetValue(named.Model, out var byName)) { id = byName; name = named.Name; }
         else foreach (var i in inventory.interfaces) if (ById.TryGetValue((i.vid, i.pid), out var byId)) { id = byId; name = $"{i.vid:X4}:{i.pid:X4}"; break; }
+        if (id == null && inventory.interfaces.Any(i => i.vid == 0x413D && i.pid == 0x2131))
+        {
+            if (modelId is "x20_pro" or "dune") { id = modelId; name = "EasySMX 2.4 GHz receiver"; }
+            else { id = "x20_pro"; name = "EasySMX 2.4 GHz receiver (X20 Pro / Dune)"; }
+        }
         if (id == modelId) return Result(VerifyOutcome.Match, id, name, name ?? "");
         if (id != null) return Result(VerifyOutcome.Mismatch, id, name, name ?? "");
         bool pad = found.Count > 0;
@@ -52,11 +58,12 @@ public static class ControllerVerify
             var pad = group.FirstOrDefault(i => i.kind == "HID" && i.usagePage == 1 && i.usage is 4 or 5);
             var known = group.FirstOrDefault(i => ById.ContainsKey((i.vid, i.pid)));
             pad ??= group.FirstOrDefault(i => i.vid == 0x045E && (i.product.Contains("Xbox", StringComparison.OrdinalIgnoreCase) || i.product.Contains("Controller", StringComparison.OrdinalIgnoreCase)));
-            if (pad == null && known == null && named == null) continue;
+            bool isReceiver = group.Any(i => i.vid == 0x413D && i.pid == 0x2131);
+            if (pad == null && known == null && named == null && !isReceiver) continue;
             var device = pad ?? known ?? group[0];
-            string? id = named is { } n && ByName.TryGetValue(n.Model, out var mapped) ? mapped : known != null ? ById[(known.vid, known.pid)] : null;
-            string name = named?.Name ?? (!string.IsNullOrWhiteSpace(device.product) ? device.product : "Windows gamepad");
-            found.Add(new(name, id, $"{device.kind} · {device.vid:X4}:{device.pid:X4}" + (id == null ? " · model unconfirmed" : " · reported identity")));
+            string? id = named is { } n && ByName.TryGetValue(n.Model, out var mapped) ? mapped : known != null ? ById[(known.vid, known.pid)] : isReceiver ? "x20_pro" : null;
+            string name = named?.Name ?? (isReceiver ? "EasySMX 2.4 GHz receiver" : !string.IsNullOrWhiteSpace(device.product) ? device.product : "Windows gamepad");
+            found.Add(new(name, id, $"{device.kind} · {device.vid:X4}:{device.pid:X4}" + (isReceiver ? " · 2.4 GHz receiver" : id == null ? " · model unconfirmed" : " · reported identity")));
         }
         return found;
     }

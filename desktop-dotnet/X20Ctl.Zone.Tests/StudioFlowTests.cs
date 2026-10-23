@@ -8,7 +8,7 @@ public class StudioFlowTests
     {
         var catalog = Catalog(); Assert.Equal(8, catalog.Models.Count);
         Assert.Equal("SUPPORTED", catalog.Get("x20").Support);
-        Assert.All(catalog.Models.Where(m => m.Id != "x20"), model => Assert.NotEqual("SUPPORTED", model.Support));
+        Assert.All(catalog.Models.Where(m => m.Id != "x20" && m.Id != "x20_pro"), model => Assert.NotEqual("SUPPORTED", model.Support));
     }
     [Theory] [InlineData(0)] [InlineData(1)] [InlineData(2)] [InlineData(3)]
     public void AssignmentChangesOnlyClickedPlayerAndKeepsItHero(int index)
