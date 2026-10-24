@@ -780,6 +780,7 @@ UPDATER_MODELS = {
     "2093": "EasySMX S15",
     "2350": "EasySMX S10",
     "2371": "EasySMX S10 Lite",
+    "2395": "EasySMX X20 Pro",
 }
 
 

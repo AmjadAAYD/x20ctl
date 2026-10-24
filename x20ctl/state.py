@@ -42,7 +42,7 @@ RECORDS = (
     ("turbo", p.Op.HOST_TURBO, "turbo", None),
     ("changekey", p.Op.HOST_CHANGEKEY, "changekey", None),
     ("lighting", p.Op.HOST_LIGHTING, "lighting", None),
-    *((f"macro{slot}", p.Op.HOST_MACRO, "macros", slot) for slot in range(1, 5)),
+    *((f"macro{slot}", p.Op.HOST_MACRO, "macros", slot) for slot in range(1, 7)),
 )
 
 #: A record longer than this many continuation packets is refused as incomplete.

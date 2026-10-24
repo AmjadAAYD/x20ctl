@@ -54,6 +54,7 @@ from .client import CURVE_KINDS, X20, ControllerError, NotSupported, find_contro
 from .diagnose import diagnose
 from .config import load_address, save_address
 from .profiles import MacroSpec, Profile, ProfileStore, SLOTS
+from .controllers import get_profile
 from . import state
 
 
@@ -322,16 +323,19 @@ async def cmd_macro(args) -> None:
     if args.read:
         await _cmd_macro_read(args)
         return
-    if not args.slot:
-        raise SystemExit(ui.bad(f"which slot? one of {', '.join(SLOTS)}"))
-
-    slot_name = args.slot.upper()
-    if slot_name not in SLOTS:
-        raise SystemExit(ui.bad(f"slot must be one of {', '.join(SLOTS)}"))
-    index = SLOTS.index(slot_name) + 1
 
     address = await resolve(args.address)
     async with X20(address) as pad:
+        caps = await pad.capabilities()
+        slots = caps.macro_slots if caps.macro_slots else SLOTS
+        if not args.slot:
+            raise SystemExit(ui.bad(f"which slot? one of {', '.join(slots)}"))
+
+        slot_name = args.slot.upper()
+        if slot_name not in slots:
+            raise SystemExit(ui.bad(f"slot must be one of {', '.join(slots)}"))
+        index = slots.index(slot_name) + 1
+
         if args.clear:
             await pad.clear_macro(index)
             print(ui.ok(f"\n  {slot_name} cleared\n"))
@@ -355,10 +359,12 @@ async def _cmd_macro_read(args) -> None:
     address = await resolve(args.address)
     async with X20(address) as pad:
         macros = await pad.macros()
+        caps = await pad.capabilities()
 
+    slots = caps.macro_slots if caps.macro_slots else SLOTS
     print(ui.header("Macros on the controller"))
-    for slot in SLOTS:
-        program = macros.get(SLOTS.index(slot) + 1)
+    for slot in slots:
+        program = macros.get(slots.index(slot) + 1)
         print(ui.slot_line(slot, program.as_sequence() if program else None))
     print()
 
@@ -564,7 +570,8 @@ def print_profile(profile: Profile) -> None:
     if profile.vibration is not None:
         print(f"  {ui.label('vibration'.ljust(10))}{ui.bar(profile.vibration)}")
         print()
-    for slot in SLOTS:
+    slots = get_profile(profile.controller_id).macro_slots if hasattr(profile, "controller_id") else SLOTS
+    for slot in slots:
         spec = profile.macros.get(slot)
         print(ui.slot_line(slot, spec.describe() if spec else None))
     print()
@@ -598,9 +605,10 @@ async def cmd_profile_set(args) -> None:
     except FileNotFoundError:
         profile = Profile(name=args.name)
 
+    valid_slots = get_profile(profile.controller_id).macro_slots if hasattr(profile, "controller_id") else SLOTS
     slot_name = args.slot.upper()
-    if slot_name not in SLOTS:
-        raise SystemExit(ui.bad(f"slot must be one of {', '.join(SLOTS)}"))
+    if slot_name not in valid_slots:
+        raise SystemExit(ui.bad(f"slot must be one of {', '.join(valid_slots)}"))
 
     if args.clear:
         profile.macros[slot_name] = None
