@@ -96,7 +96,13 @@ public partial class ZoneScene : UserControl
     {
         // Assignment/resize snaps also invalidate an awaiting transition's old destination.
         transition?.Cancel(); CompositionTarget.Rendering -= MoveFrame; moveClock.Stop();
-        if (DockStage.ActualWidth <= 48 || DockStage.ActualHeight <= 48) return;
+        if (DockStage.ActualWidth <= 48 || DockStage.ActualHeight <= 48)
+        {
+            // the cancelled move must not leave the cards' words hidden until the next resize
+            IsTransitioning = false;
+            foreach (var dock in docks) { dock.SetMoving(false); dock.FadeHeroDetails(1, 0); }
+            return;
+        }
         PlaceViews(0); displayedHero = State.FocusedPlayer; IsTransitioning = false;
         FocusBloom.BeginAnimation(OpacityProperty, null);
         FocusBloom.Opacity = State.FocusedPlayer.HasValue ? 1 : 0;

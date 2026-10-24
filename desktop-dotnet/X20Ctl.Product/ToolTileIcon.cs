@@ -18,6 +18,10 @@ internal sealed class ToolTileIcon : FrameworkElement
     static readonly Geometry Star = Geometry.Parse("M24,8 L28.6,18.2 L40,19.5 L31.5,27.1 L33.8,38 L24,32.4 L14.2,38 L16.5,27.1 L8,19.5 L19.4,18.2 Z");
     static readonly Geometry Heart = Geometry.Parse("M24,37 C20,32 8,25 8,17 C8,7 20,7 24,15 C28,7 40,7 40,17 C40,25 28,32 24,37 Z");
 
+    // Drawing runs on the UI thread only; the glyphs must be laid out at the screen's real DPI or they blur above 100%.
+    static double pixelsPerDip = 1;
+    static readonly Typeface IconFace = new(new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
+
     public ToolTileIcon(string title)
     {
         this.title = title; Width = Height = 36; IsHitTestVisible = false;
@@ -46,15 +50,14 @@ internal sealed class ToolTileIcon : FrameworkElement
     static Geometry Shape(string path) => Geometry.Parse(path);
     static void Glyph(DrawingContext d, string glyph, double x = 24, double y = 24, double size = 27)
     {
-        var text = new FormattedText(glyph, CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
-            new Typeface(new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal), size, Ink, 1);
+        var text = new FormattedText(glyph, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, IconFace, size, Ink, pixelsPerDip);
         d.DrawText(text, P(x - text.Width / 2, y - text.Height / 2));
     }
     static void Check(DrawingContext d, double x, double y) { Line(d, x - 4, y, x - 1, y + 3); Line(d, x - 1, y + 3, x + 5, y - 4); }
 
     protected override void OnRender(DrawingContext d)
     {
-        base.OnRender(d); double t = time % 6.6;
+        base.OnRender(d); double t = time % 6.6; pixelsPerDip = VisualTreeHelper.GetDpi(this).PixelsPerDip;
         d.PushTransform(new ScaleTransform(ActualWidth / 48, ActualHeight / 48));
         switch (title)
         {

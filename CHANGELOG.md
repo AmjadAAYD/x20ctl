@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Each Tools card tells its own little story** when you hover it or tab to it: the wrench fixing, feedback travelling to its inbox, pause turning into play, a link between phone and controller, a beating heart, and the star shining and filling. They stop when you move away, and stay still with reduced motion.
+- **A Controller diagnostic in the agent.** The controller icon on the rail asks what is wrong, points to the Read scan or the Write scan, and can open Feedback with your issue filled in once you say yes.
+
+### Changed
+
+- **The agent is steadier.** Browsing the topic pills no longer makes it talk, dragging it is lighter and the eyes wobble as it moves, and its lights and eyes share one colour: green when ready, purple when thinking, blue when it answers, red when unsure.
+- **The agent's controller has the X20CTL mark** on both sides in a pale-silver print, and the bumpers follow the controller's own outline.
+- **Controller cards glide together.** The picture and the card move as one when you swap the big card, even if you swap again halfway.
+
 ### Fixed
 
 - **The mouse and the controller work together.** Using the mouse while a controller is connected no longer steals focus or stops the controller from navigating. (fixed by [Monratis](https://github.com/Monratis))

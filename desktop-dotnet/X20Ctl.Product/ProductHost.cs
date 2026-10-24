@@ -146,7 +146,9 @@ public sealed class ProductHost : Grid
             ShowSettings();
             var form = Settings!.FeedbackForm;
             string previous = form.Message.Text;
-            string combined = string.IsNullOrWhiteSpace(previous) ? draft : previous + "\n\n" + draft;
+            // the new draft is kept whole; it is the earlier text that gives way when the message is full
+            string head = string.IsNullOrWhiteSpace(previous) ? "" : previous[..Math.Min(previous.Length, Math.Max(0, 4000 - draft.Length - 2))] + "\n\n";
+            string combined = head + draft;
             form.Message.Text = combined[..Math.Min(4000, combined.Length)];
             Settings.ShowFeedback(true);
         };
