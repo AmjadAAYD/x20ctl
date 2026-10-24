@@ -47,6 +47,13 @@ public partial class App : Application
                 ShutdownMode = ShutdownMode.OnExplicitShutdown; IntroView.SoundEnabled = false;
                 await Development.TimingReview.Run(e.Args[1]); Shutdown(0); return;
             }
+            if (e.Args.Length == 2 && e.Args[0] == "--review-finishes")
+            {
+                // windowless: every picture is rendered off screen
+                ShutdownMode = ShutdownMode.OnExplicitShutdown;
+                try { await Development.FinishReview.Run(e.Args[1]); } catch (Exception failure) { File.WriteAllText(e.Args[1] + ".failure.txt", failure.ToString()); }
+                Shutdown(0); return;
+            }
             if (e.Args.Length == 2 && e.Args[0] == "--review-battery")
             {
                 ShutdownMode = ShutdownMode.OnExplicitShutdown;

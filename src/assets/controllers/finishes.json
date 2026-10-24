@@ -1,0 +1,120 @@
+{
+ "models": {
+  "d10": [
+   {
+    "id": "original",
+    "name": "Space Black",
+    "swatch": "#26272b"
+   },
+   {
+    "id": "purple",
+    "name": "Farout Purple",
+    "swatch": "#b48ce6"
+   },
+   {
+    "id": "green",
+    "name": "Wirtanen Green",
+    "swatch": "#9db33c"
+   }
+  ],
+  "dune": [
+   {
+    "id": "original",
+    "name": "Gold",
+    "swatch": "#e0aa18"
+   },
+   {
+    "id": "black",
+    "name": "Black",
+    "swatch": "#1c1c20"
+   }
+  ],
+  "x05": [
+   {
+    "id": "original",
+    "name": "Oyster White",
+    "swatch": "#eeeeec"
+   },
+   {
+    "id": "black",
+    "name": "Black and pink",
+    "swatch": "#1e1e22"
+   },
+   {
+    "id": "lime",
+    "name": "Lime",
+    "swatch": "#c8ef1e"
+   }
+  ],
+  "x05_pro": [
+   {
+    "id": "original",
+    "name": "Black",
+    "swatch": "#1f2024"
+   },
+   {
+    "id": "white",
+    "name": "White",
+    "swatch": "#e6e8ee"
+   },
+   {
+    "id": "purple",
+    "name": "Aurora Purple",
+    "swatch": "#4a3fa0"
+   }
+  ],
+  "x10": [
+   {
+    "id": "original",
+    "name": "Silver and purple",
+    "swatch": "#aeb6c4"
+   },
+   {
+    "id": "silver",
+    "name": "Silver and black",
+    "swatch": "#c9cbd0"
+   }
+  ],
+  "x15": [
+   {
+    "id": "original",
+    "name": "Mecha",
+    "swatch": "#c9b6d8"
+   },
+   {
+    "id": "starfield",
+    "name": "Starfield",
+    "swatch": "#f1f1f1"
+   },
+   {
+    "id": "wukong",
+    "name": "Wukong",
+    "swatch": "#d9cfb8"
+   }
+  ],
+  "x20": [
+   {
+    "id": "original",
+    "name": "White",
+    "swatch": "#e9eaee"
+   },
+   {
+    "id": "black",
+    "name": "Black",
+    "swatch": "#202228"
+   }
+  ],
+  "x20_pro": [
+   {
+    "id": "original",
+    "name": "Black",
+    "swatch": "#2a2b30"
+   },
+   {
+    "id": "white",
+    "name": "White",
+    "swatch": "#e4e6ea"
+   }
+  ]
+ }
+}

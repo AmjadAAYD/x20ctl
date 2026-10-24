@@ -62,10 +62,12 @@ public sealed class LiveController : Grid
         return new(region.Bounds.X * 1536, region.Bounds.Y * 1024);
     }
 
-    public void Show(string model, bool showRear)
+    /// <summary>Without a colour, the pad is shown in the colour picked for the player whose Studio is open.</summary>
+    public void Show(string model, bool showRear, string? finish = null)
     {
-        ModelId = model; rear = showRear; info = Manifest().GetValueOrDefault(model); outline.Show(model, showRear); ControllerOutline.Trim(body, model, showRear);
-        string dir = $"Assets/native/{model}/native/";
+        finish ??= PadColours.Active(model);
+        ModelId = model; rear = showRear; info = Manifest().GetValueOrDefault(model); outline.Show(model, showRear, finish); ControllerOutline.Trim(body, model, showRear, finish);
+        string dir = ControllerArt.Folder(model, finish);
         body.Source = Bitmap(dir + (rear ? "rear-body.png" : "front-body.png"));
         capLeft.Source = rear ? null : Bitmap(dir + "stick-l.png"); capRight.Source = rear ? null : Bitmap(dir + "stick-r.png");
         triggerLeft.Source = rear ? Bitmap(dir + "trigger-l.png") : null; triggerRight.Source = rear ? Bitmap(dir + "trigger-r.png") : null;

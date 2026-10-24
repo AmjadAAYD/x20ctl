@@ -11,7 +11,7 @@ internal static class ManagementVisuals
     public static Viewbox Artwork(ControllerModel model,FrameworkElement resources)
     {
         // the art carries its own alpha now; a geometry clip only re-roughened its edge, so the outline frames it instead
-        var image=new Image {Source=ControllerArt.Front(model.Id),Stretch=Stretch.Fill};RenderOptions.SetBitmapScalingMode(image,BitmapScalingMode.HighQuality);var outline=new ControllerOutline();outline.Show(model.Id,false);ControllerOutline.Trim(image,model.Id,false);return new(){Child=new Grid {Width=1536,Height=1024,Children={image,outline}},Stretch=Stretch.Uniform,IsHitTestVisible=false};
+        var image=new Image {Source=ControllerArt.Front(model.Id,PadColours.Active(model.Id)),Stretch=Stretch.Fill};RenderOptions.SetBitmapScalingMode(image,BitmapScalingMode.HighQuality);var outline=new ControllerOutline();outline.Show(model.Id,false,PadColours.Active(model.Id));ControllerOutline.Trim(image,model.Id,false,PadColours.Active(model.Id));return new(){Child=new Grid {Width=1536,Height=1024,Children={image,outline}},Stretch=Stretch.Uniform,IsHitTestVisible=false};
     }
     public static TextBlock Copy(string text,double size=16,bool strong=false)=>new(){Text=text,FontSize=size,FontWeight=strong?FontWeights.SemiBold:FontWeights.Normal,TextWrapping=TextWrapping.Wrap,Foreground=strong?Brushes.White:Brushes.LightSteelBlue};
     public static Button Action(FrameworkElement resources,string text,Action action,Action<Button> register){var button=new Button {Content=text,Style=(Style)resources.FindResource("ConsoleAction"),Margin=new(0,0,12,0)};button.Click+=(_,_)=>action();register(button);return button;}
@@ -144,7 +144,7 @@ public sealed class TesterWorkbench
     }
     public void ShowRear(bool value)
     {
-        rear=value;artwork.Source=rear?ControllerArt.Rear(model.Id):ControllerArt.Front(model.Id);artwork.Clip=model.Id=="x20"?(!rear?(Geometry)resources.FindResource("ControllerOutline"):null):ModelArtwork.Clip(model.Id,rear);controls.Children.Clear();lights.Clear();
+        rear=value;artwork.Source=rear?ControllerArt.Rear(model.Id,PadColours.Active(model.Id)):ControllerArt.Front(model.Id,PadColours.Active(model.Id));artwork.Clip=ModelArtwork.Clip(model.Id,rear);controls.Children.Clear();lights.Clear();
         foreach(var region in layout.Controls.Where(r=>r.Role!="axis" && (r.View==(rear?"back":"front") || rear&&r.View=="shoulder")))
         {var light=new PhysicalHotspot(region,animate){IsHitTestVisible=false,Focusable=false};Canvas.SetLeft(light,region.Bounds.X*1536);Canvas.SetTop(light,region.Bounds.Y*1024);controls.Children.Add(light);lights.Add(region.Key,light);}Update();
     }

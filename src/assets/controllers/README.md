@@ -1,5 +1,27 @@
 # Controller photo layers
 
+## Colours (finishes), 24 Oct 2026
+
+The owner supplied new artwork for X20, X05, X05 Pro, X10, D10, X15 and Dune in their original colours and eleven
+other colours (`controller-animation-layers.zip`), plus a white X20 Pro front and rear pair. These are edited design
+renders, not photographs of the hardware. `tools/import_finish_packs.py` places them on this 1536x1024 canvas:
+
+- each front is pinned by its two stick pivots onto the ones in `native-layers.json` (scale and offset only, no
+  stretch), so the control shapes, stick travel and hotspots measured for the model stay on their controls;
+- each rear is fitted to the model's rear silhouette; the rear's screen-left trigger is RT (`trigger-r.png`);
+- the original colour replaces `<model>/native/`; every other colour goes to `<model>/finishes/<id>/` with the same
+  eight layers; `finishes.json` lists each model's colours, the original first;
+- the rim outlines in `outlines.json` and `lighting.json` were retraced from the new originals (the old Dune
+  silhouette still included its charging dock);
+- the black X20 Pro art is unchanged; its white finish is cut from the white backdrop and fitted onto the black one by
+  matching details (SIFT), with the black finish's cap and trigger shapes reused. In the source picture the front's
+  right grip runs into the rear view, so that strip is rebuilt by mirroring the white's own left grip;
+- every other colour has its own traced rim in `outlines.json`, keyed `model/colour`.
+
+A pad's colour can't be read from its USB or Bluetooth identity, so the player picks it with Change color in the Zone.
+It is remembered per player and model. The hologram layers (`holo-*.png`) are drawn from the model's shape and are
+shared by every colour.
+
 ## Vibration contours
 
 Each model's `haptics-geometry.json` traces its grip silhouettes in front-photo

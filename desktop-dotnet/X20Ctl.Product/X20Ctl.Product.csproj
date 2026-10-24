@@ -40,6 +40,9 @@
     <Content Include="../../src/assets/controllers/x20/rear-geometry.json" Link="Data/x20-rear.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../src/assets/controllers/control-shapes.json" Link="Data/control-shapes.json" CopyToOutputDirectory="PreserveNewest" />
     <Resource Include="../../src/assets/controllers/**/native/*.png" Link="Assets/native/%(RecursiveDir)%(Filename)%(Extension)" />
+    <!-- the other colours each model comes in (tools/import_finish_packs.py), picked per player in the Zone -->
+    <Resource Include="../../src/assets/controllers/**/finishes/**/*.png" Link="Assets/native/%(RecursiveDir)%(Filename)%(Extension)" />
+    <Content Include="../../src/assets/controllers/finishes.json" Link="Data/finishes.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../src/assets/controllers/native-layers.json" Link="Data/native-layers.json" CopyToOutputDirectory="PreserveNewest" />
     <!-- the opening film with its sound (logo-preview/intro-remotion); see Brand/intro-audio-provenance.md -->
     <Content Include="Brand/intro.mp4;Brand/intro-audio-provenance.md" CopyToOutputDirectory="PreserveNewest" />

@@ -65,7 +65,7 @@ public partial class StudioScene : UserControl
     private Point? lastFocusCenter;
     public StudioScene(int player, ControllerModel model, ButtonDraft draft, bool reducedMotion = false, CurveDraft? curveDraft = null,MacroDraft? macros = null,VibrationDraft? vibration = null,SetupStore? setups=null,IReadOnlyList<string>? legacy=null,string? activeId=null)
     {
-        InitializeComponent(); Player = player; Model = model; Draft = draft;
+        InitializeComponent(); Player = player; Model = model; Draft = draft; PadColours.ActivePlayer = player;
         setupStore=setups??new(Path.Combine(Path.GetTempPath(),"x20ctl-render-setup-"+Guid.NewGuid().ToString("N")+".json"));legacySources=legacy??Array.Empty<string>();activeSetup=activeId;
         Unloaded+=(_,_)=>{StopTry();Tester?.ExitCapture();Diagnostics?.Stop();};
         macroDraft=macros ?? new MacroDraft(model.Id);vibrationDraft=vibration??new(model.Id);

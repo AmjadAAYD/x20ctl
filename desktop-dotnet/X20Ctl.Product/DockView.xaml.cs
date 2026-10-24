@@ -93,6 +93,10 @@ public partial class DockView : UserControl
         FocusButton.GotKeyboardFocus += (_, _) => UpdateCard(); FocusButton.LostKeyboardFocus += (_, _) => UpdateCard();
         FocusButton.MouseEnter += (_, _) => UpdateCard(); FocusButton.MouseLeave += (_, _) => UpdateCard();
         PlayerLabel.Text = $"Player {player.Number}";
+        // the pad's colour: picked here, remembered per player, changed with the Venom morph (owner direction 24 Oct 2026)
+        Morph = new FinishMorph(ControllerImage); ImageClip.Children.Insert(1, Morph);
+        ColourButton = new Button { Content = "Change color", Style = (Style)FindResource("ActionButton"), Height = 38, Width = 150, Visibility = Visibility.Collapsed };
+        ColourButton.Click += (_, e) => { e.Handled = true; ChangeColour(); }; ActionCanvas.Children.Add(ColourButton);
         FocusButton.TabIndex = index;
         RefreshPlayer(player);
     }
@@ -107,8 +111,8 @@ public partial class DockView : UserControl
         if (player.Model != null && (new[] { "x20", "x20_pro", "x15", "x05", "x05_pro", "x10", "d10", "dune" }.Contains(player.ModelId) || player.IsMockConnected))
         {
             string outlineModel = player.ModelId ?? (player.Model switch { "EasySMX X15" => "x15", "EasySMX X05 Pro" => "x05_pro", _ => "x20" });
-            ControllerImage.Source = ControllerArt.Front(outlineModel);
-            ArtOutline.Show(outlineModel, false); ControllerOutline.Trim(ControllerImage, outlineModel, false);
+            if (Morph.ModelId != outlineModel || Morph.Finish != PadColours.For(Index, outlineModel)) Morph.Show(outlineModel, PadColours.For(Index, outlineModel));
+            ArtOutline.Show(outlineModel, false, Morph.Finish);
             ImageClip.Clip = null;
             Illustration.Visibility = Visibility.Visible; Silhouette.Visibility = Visibility.Collapsed;
         }
@@ -207,6 +211,9 @@ public partial class DockView : UserControl
         Canvas.SetLeft(Primary, w - Primary.Width - 30); Canvas.SetTop(Primary, h - 66);
         Canvas.SetLeft(Switch, 30); Canvas.SetTop(Switch, h - 66);
         Switch.Visibility = empty ? Visibility.Collapsed : Visibility.Visible;
+        Canvas.SetLeft(ColourButton, 30 + Switch.Width + 12); Canvas.SetTop(ColourButton, h - 66);
+        ColourButton.Visibility = !empty && Player.ModelId != null && PadColours.Catalog.For(Player.ModelId).Count > 1 ? Visibility.Visible : Visibility.Collapsed;
+        System.Windows.Automation.AutomationProperties.SetName(ColourButton, $"Player {Player.Number}, Change color");
         System.Windows.Automation.AutomationProperties.SetName(Primary, $"Player {Player.Number}, {(empty ? "Choose Controller" : "Enter Studio")}");
         System.Windows.Automation.AutomationProperties.SetName(Switch, $"Player {Player.Number}, Switch Controller");
     }
@@ -228,6 +235,7 @@ public partial class DockView : UserControl
         if (moving == on) return; moving = on; UpdateCard();
         // the photo is resampled at every in-between size; high-quality scaling of a 1536 px image each frame is the other cost
         RenderOptions.SetBitmapScalingMode(ControllerImage, on ? BitmapScalingMode.Linear : BitmapScalingMode.HighQuality);
+        if (on && Morph.IsChanging) _ = Morph.ChangeTo(Morph.Finish, false);
         if (!on && fadeInMs > 0 && Card.Effect is System.Windows.Media.Effects.DropShadowEffect glow)
             glow.BeginAnimation(System.Windows.Media.Effects.DropShadowEffect.OpacityProperty, new DoubleAnimation(0, glow.Opacity, TimeSpan.FromMilliseconds(fadeInMs)));
     }
@@ -251,6 +259,17 @@ public partial class DockView : UserControl
     {
         target.BeginAnimation(property, null); target.SetValue(property, to);
         if (milliseconds > 0) target.BeginAnimation(property, new DoubleAnimation(from, to, TimeSpan.FromMilliseconds(milliseconds)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut }, FillBehavior = FillBehavior.Stop });
+    }
+    public FinishMorph Morph { get; }
+    public Button ColourButton { get; }
+    /// <summary>The next colour this model comes in, wrapping round; remembered for this player and model.</summary>
+    public Task ChangeColour()
+    {
+        if (Player.ModelId is not string model || Morph.ModelId != model) return Task.CompletedTask;
+        var next = PadColours.Catalog.Next(model, Morph.Finish);
+        PadColours.Set(Index, model, next.Id);
+        ColourButton.ToolTip = next.Name;
+        return Morph.ChangeTo(next.Id, !reducedMotion);
     }
     private void SelectPlayer(object sender, RoutedEventArgs e) => Selected?.Invoke(Index);
     private void PrimaryAction(object sender, RoutedEventArgs e) => ActionRequested?.Invoke(Index, false);
