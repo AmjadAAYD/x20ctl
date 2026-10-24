@@ -259,7 +259,29 @@ public sealed class DashboardConsolePage : Grid
     private static void ShowRing(Border art, double strength)
     {
         if (art.Tag is not Border ring) return;
-        if (DS.Motion) ring.BeginAnimation(OpacityProperty, DS.To(strength, 140)); else { ring.BeginAnimation(OpacityProperty, null); ring.Opacity = strength; }
+        if (ring.RenderTransform is not ScaleTransform settle) { settle = new ScaleTransform(1, 1); ring.RenderTransformOrigin = new(.5, .5); ring.RenderTransform = settle; }
+        bool arriving = strength >= .9 && ring.Opacity < .5;
+        if (DS.Motion) ring.BeginAnimation(OpacityProperty, DS.To(strength, 180)); else { ring.BeginAnimation(OpacityProperty, null); ring.Opacity = strength; }
+        // arriving, the frame closes in from slightly outside and settles on the cover
+        if (DS.Motion && arriving)
+        {
+            DoubleAnimation Close() => new(1.07, 1, TimeSpan.FromMilliseconds(280)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
+            settle.BeginAnimation(ScaleTransform.ScaleXProperty, Close()); settle.BeginAnimation(ScaleTransform.ScaleYProperty, Close());
+        }
+    }
+
+    // One frame follows the pointer (owner, 25 Oct 2026): the tile under it is framed exactly as a chosen game is, and the
+    // chosen game's frame steps aside while the pointer is on another tile, then returns when it leaves.
+    private Button? hovered;
+    private void RefreshRings()
+    {
+        foreach (var (card, game) in cards)
+        {
+            double want = hovered != null ? (ReferenceEquals(card, hovered) ? 1 : 0) : (current?.Id == game.Id || card.IsKeyboardFocused ? 1 : 0);
+            if (card.Tag is not Border art) continue;
+            ShowRing(art, want);
+            if (raised.TryGetValue(card, out var r) && r.Clone.Tag is Border copy) ShowRing(copy, want);
+        }
     }
 
     /// <param name="pop">a copy for the raised layer: no handlers, no registration, never hit</param>
@@ -290,17 +312,15 @@ public sealed class DashboardConsolePage : Grid
         SizeCover(art, title);
         var stack = new StackPanel { Children = { new Grid { HorizontalAlignment=HorizontalAlignment.Left, Children = { art, ring, store } }, title }, RenderTransformOrigin = new(.5, .4), RenderTransform = new TransformGroup { Children = { new ScaleTransform(1, 1), new TranslateTransform() } } };
         SizeCover(art,title);
-        var b = new Button { Content = stack, Template = Bare(), Margin = new(0, 0, 2, 2), Cursor = Cursors.Hand, FocusVisualStyle = null, ToolTip = $"{g.Name} · {g.Store}" };
+        var b = new Button { Content = stack, Template = Bare(), Margin = new(0, 0, 18, 2), Cursor = Cursors.Hand, FocusVisualStyle = null, ToolTip = $"{g.Name} · {g.Store}" };
         b.Tag = art;
         if (pop) { b.IsHitTestVisible = false; b.Focusable = false; return b; }
-        // the frame is shown on the tile and on its raised copy together
-        void Frame(double strength) { ShowRing(art, strength); if (raised.TryGetValue(b, out var r) && r.Clone.Tag is Border copy) ShowRing(copy, strength); }
-        b.GotKeyboardFocus += (_, _) => { Feature(g); Frame(1); title.Foreground = DS.Brush("DS.Text"); Settle(b, g); b.BringIntoView(new Rect(-12,0,coverHeight+12,coverHeight+34)); };
-        b.LostKeyboardFocus += (_, _) => { Frame(current?.Id==g.Id ? 1 : 0); Settle(b, g); };
-        b.MouseEnter+=(_,_)=>{ if (current?.Id != g.Id) Frame(.55); Settle(b, g); };
-        b.MouseLeave+=(_,_)=>{ if (!b.IsKeyboardFocused) Frame(current?.Id==g.Id ? 1 : 0); Settle(b, g); };
+        b.GotKeyboardFocus += (_, _) => { Feature(g); RefreshRings(); title.Foreground = DS.Brush("DS.Text"); Settle(b, g); b.BringIntoView(new Rect(-12,0,coverHeight+12,coverHeight+34)); };
+        b.LostKeyboardFocus += (_, _) => { RefreshRings(); Settle(b, g); };
+        b.MouseEnter+=(_,_)=>{ hovered = b; Settle(b, g); RefreshRings(); };
+        b.MouseLeave+=(_,_)=>{ if (ReferenceEquals(hovered, b)) hovered = null; RefreshRings(); Settle(b, g); };
 
-        b.Click += (_, _) => Feature(g);
+        b.Click += (_, _) => { Feature(g); RefreshRings(); };
         return b;
     }
 
@@ -390,8 +410,8 @@ public sealed class DashboardConsolePage : Grid
 
     private void Feature(GameEntry? g)
     {
-        if (g != null && ReferenceEquals(g, current)) return; current = g;
-        for(int i=0;i<Math.Min(cards.Count,covers.Count);i++){bool selected=cards[i].Game.Id==g?.Id;ShowRing(covers[i].art,selected?1:0);covers[i].title.Foreground=DS.Brush(selected?"DS.Text":"DS.TextSoft");}
+        if (g != null && ReferenceEquals(g, current)) return; current = g; RefreshRings();
+        for(int i=0;i<Math.Min(cards.Count,covers.Count);i++){bool selected=cards[i].Game.Id==g?.Id;covers[i].title.Foreground=DS.Brush(selected?"DS.Text":"DS.TextSoft");}
         var hero = g == null ? null : Bitmap(GameArtwork.PathFor(g)) ?? Bitmap(g.Hero); var mark = Bitmap(g?.Logo);
         if (animate && heroArt.Source != hero) { heroArt.BeginAnimation(OpacityProperty, null); heroArt.Opacity = 0; }
         heroArt.Source = hero; if (hero != null) { if (animate) heroArt.BeginAnimation(OpacityProperty, DS.To(1, 320)); else heroArt.Opacity = 1; }
@@ -419,7 +439,7 @@ public sealed class DashboardConsolePage : Grid
     private readonly Canvas raiseLayer = new() { IsHitTestVisible = false };
     private readonly Dictionary<Button, (Button Clone, ScaleTransform Scale, TranslateTransform Move)> raised = new();
     /// <summary>Review hook: raises a tile as if hovered.</summary>
-    internal void ReviewRaise(int index) { var (card, game) = cards[index]; Settle(card, game, 1.07); }
+    internal void ReviewRaise(int index) { var (card, game) = cards[index]; hovered = card; Settle(card, game, 1.07); RefreshRings(); }
     private void Settle(Button b, GameEntry g, double? force = null)
     {
         double want = force ?? (b.IsMouseOver ? 1.07 : b.IsKeyboardFocused ? 1.03 : 1), y = want > 1 ? -(want - 1) * 60 : 0;
