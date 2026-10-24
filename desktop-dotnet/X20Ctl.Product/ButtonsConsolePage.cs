@@ -18,6 +18,7 @@ public sealed class ButtonsConsolePage : Grid
     private readonly Action<string> select; private readonly Func<string, bool> openMacro; private readonly Action toggleTry;
     private readonly Grid stage = new() { Width = 1536, Height = 1024 };
     private readonly Canvas hotspots = new() { Width = 1536, Height = 1024 };
+    private readonly Canvas paddleNames = new() { Width = 1536, Height = 1024 };
     private readonly Dictionary<string, PhysicalHotspot> regions = new();
     private readonly Dictionary<string, Button> outputs = new();
     private readonly Dictionary<string, RadioButton> groups = new();
@@ -54,7 +55,7 @@ public sealed class ButtonsConsolePage : Grid
         Action<string> select, Func<string, bool> openMacro, Action toggleTry)
     {
         this.model = model; this.layout = layout; this.draft = draft; this.label = label; this.animate = animate; this.select = select; this.openMacro = openMacro; this.toggleTry = toggleTry;
-        Controller = new PhotoController(model.Id); stage.Children.Add(Controller); stage.Children.Add(hotspots);stage.Children.Add(markers);
+        Controller = new PhotoController(model.Id); stage.Children.Add(Controller); stage.Children.Add(hotspots);stage.Children.Add(markers);stage.Children.Add(paddleNames);
         RowDefinitions.Add(new()); RowDefinitions.Add(new() { Height = new(14) }); RowDefinitions.Add(new() { Height = GridLength.Auto });
         var top = new Grid(); top.ColumnDefinitions.Add(new() { Width = new(1.12, GridUnitType.Star) }); top.ColumnDefinitions.Add(new() { Width = new(16) }); top.ColumnDefinitions.Add(new() { Width = new(1, GridUnitType.Star), MinWidth = 390 });
         Children.Add(top);
@@ -109,6 +110,9 @@ public sealed class ButtonsConsolePage : Grid
         IsRear = rear; front.IsChecked = !rear; back.IsChecked = rear;
         stage.Children.Remove(Controller); bool smooth = Controller.Live.Smooth; Controller = new PhotoController(model.Id, rear); Controller.Live.Smooth = smooth; stage.Children.Insert(0, Controller);
         hotspots.Children.Clear(); regions.Clear();
+        // the paddle names sit above the controls and open their slot in Macros (owner, 25 Oct 2026)
+        Controller.Live.ShowLabels = false; paddleNames.Children.Clear();
+        if (rear) paddleNames.Children.Add(LiveController.PaddleLabels(model.Id, slot => openMacro(slot)));
         foreach (var region in layout.Controls.Where(r => r.Role != "axis" && r.Key is not ("CAPTURE" or "TURBO") && (r.View == (rear ? "back" : "front") || rear && r.View == "shoulder")))
         {
             var h = new PhysicalHotspot(region, animate) { ToolTip = label(region.Key), Tag = region.Key };
