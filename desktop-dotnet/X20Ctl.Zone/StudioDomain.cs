@@ -109,7 +109,7 @@ public sealed class ButtonDraft
     public ButtonDraft(string modelId) { ModelId = modelId; }
     /// <summary>PC mode applies the draft on the PC, so any model can be edited while it's on.</summary>
     public bool PcMode { get; set; }
-    public bool CanEdit(string source) => (ModelId == "x20" || PcMode) && Sources.Contains(source);
+    public bool CanEdit(string source) => (ModelId is "x20" or "x20_pro" || PcMode) && Sources.Contains(source);
     public string Target(string source) => changes.GetValueOrDefault(source, source);
     public void Set(string source, string target)
     {

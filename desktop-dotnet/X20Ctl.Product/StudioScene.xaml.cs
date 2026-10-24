@@ -74,8 +74,8 @@ public partial class StudioScene : UserControl
         ControllerContext.Text = $"{model.Name} · Player {player + 1}";
         layout = ControlRegions.Owned(model, File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Data/control-shapes.json")), File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Data/x20-rear.json")));
         TargetChoice.ItemsSource = ButtonDraft.Targets.Select(key => new KeyValuePair<string, string>(key, Label(key))).ToArray();
-        RearChoice.IsEnabled = model.Id == "x20";
-        CurvesNav.ToolTip = draft.PcMode ? "PC mode curves · Page Down" : model.Id == "x20" ? "Local curve drafts · Page Down" : "Curve preview · read-only for this model · Page Down";
+        RearChoice.IsEnabled = model.Id is "x20" or "x20_pro";
+        CurvesNav.ToolTip = draft.PcMode ? "PC mode curves · Page Down" : model.Id is "x20" or "x20_pro" ? "Local curve drafts · Page Down" : "Curve preview · read-only for this model · Page Down";
         Unloaded+=(_,_)=>{PcModePage.ProfileChanged-=PcProfileChanged;PcModePage.NoticeAccepted-=PcNoticeAccepted;};
         Loaded+=(_,_)=>{PcModePage.ProfileChanged-=PcProfileChanged;PcModePage.ProfileChanged+=PcProfileChanged;PcModePage.NoticeAccepted-=PcNoticeAccepted;PcModePage.NoticeAccepted+=PcNoticeAccepted;};
         BuildTargets(); BuildInventory();
@@ -86,7 +86,7 @@ public partial class StudioScene : UserControl
         foreach (var h in buttonsPage.Hotspots) RegisterFocus(h);
         Curves = new(curveDraft ?? new CurveDraft(model.Id), this,animate); ModelProfiles.Wear(Curves.Inspector, model.Id, "Curves", draft.PcMode);
         // The footer retains scope; on compact windows avoid a repeated multi-line notice crowding out the graph.
-        var curveScope=Curves.Inspector.Children.OfType<Border>().FirstOrDefault();if(curveScope!=null){Curves.Inspector.ToolTip=draft.PcMode?"Saved on this PC for the selected player. Nothing is written to the controller.":"Local preview. Native configuration is unavailable for this model.";Curves.Inspector.SizeChanged+=(_,_)=>curveScope.Visibility=Curves.Inspector.ActualWidth<680?Visibility.Collapsed:Visibility.Visible;} CurveInspectorHost.Children.Add(Kit.Panel(null, null, null, Curves.Inspector)); CurveShelfHost.Children.Add(Curves.Shelf);
+        var curveScope=Curves.Inspector.Children.OfType<Border>().FirstOrDefault();if(curveScope!=null){Curves.Inspector.ToolTip=draft.PcMode?"Saved on this PC for the selected player. Nothing is written to the controller.":model.Id is "x20" or "x20_pro"?"Local curve drafts for sticks and triggers.":"Local preview. Native configuration is unavailable for this model.";Curves.Inspector.SizeChanged+=(_,_)=>curveScope.Visibility=Curves.Inspector.ActualWidth<680?Visibility.Collapsed:Visibility.Visible;} CurveInspectorHost.Children.Add(Kit.Panel(null, null, null, Curves.Inspector)); CurveShelfHost.Children.Add(Curves.Shelf);
         Curves.ChannelSelected += channel => { SelectControl(channel switch { CurveChannel.LeftStick => "LSTICK_ANALOG", CurveChannel.RightStick => "RSTICK_ANALOG", CurveChannel.LeftTrigger => "LT", _ => "RT" }); UpdateCurveContext(); EnterMotion(CurveInspectorHost,12,220); };
         Curves.Changed += UpdateCurveContext; foreach (Button button in Curves.Buttons) RegisterFocus(button);
         ResetAllCurvesAction=new MenuItem {Header="Reset all curves",ToolTip="Reset local drafts for both sticks and both triggers."};
@@ -442,10 +442,10 @@ public partial class StudioScene : UserControl
     }
     private void AddControl(ControlRegion region, Canvas canvas)
     {
-        var button = new PhysicalHotspot(region, animate) { ToolTip = Label(region.Key), Tag = region.Key, IsEnabled = !IsCurves || region.Key is "L3" or "R3" or "LT" or "RT" };
+        var button = new PhysicalHotspot(region, animate) { ToolTip = Label(region.Key), Tag = region.Key, IsEnabled = !IsCurves || region.Key is "L3" or "R3" or "LSTICK_ANALOG" or "RSTICK_ANALOG" or "LT" or "RT" };
         var at = LiveController.Place(Model.Id, region); Canvas.SetLeft(button, at.X); Canvas.SetTop(button, at.Y);
-        button.Click += (_, _) => { if (IsCurves) Curves.SelectChannel(region.Key switch {"L3"=>CurveChannel.LeftStick,"R3"=>CurveChannel.RightStick,"LT"=>CurveChannel.LeftTrigger,_=>CurveChannel.RightTrigger}); else if (!OpenMacroSlot(region.Key)) SelectControl(region.Key); };
-        button.GotKeyboardFocus += (_, _) => { if (navigationMode) { if (IsCurves) Curves.SelectChannel(region.Key switch {"L3"=>CurveChannel.LeftStick,"R3"=>CurveChannel.RightStick,"LT"=>CurveChannel.LeftTrigger,_=>CurveChannel.RightTrigger}); else SelectControl(region.Key); } };
+        button.Click += (_, _) => { if (IsCurves) Curves.SelectChannel(region.Key switch {"L3" or "LSTICK_ANALOG"=>CurveChannel.LeftStick,"R3" or "RSTICK_ANALOG"=>CurveChannel.RightStick,"LT"=>CurveChannel.LeftTrigger,_=>CurveChannel.RightTrigger}); else if (!OpenMacroSlot(region.Key)) SelectControl(region.Key); };
+        button.GotKeyboardFocus += (_, _) => { if (navigationMode) { if (IsCurves) Curves.SelectChannel(region.Key switch {"L3" or "LSTICK_ANALOG"=>CurveChannel.LeftStick,"R3" or "RSTICK_ANALOG"=>CurveChannel.RightStick,"LT"=>CurveChannel.LeftTrigger,_=>CurveChannel.RightTrigger}); else SelectControl(region.Key); } };
         controls[region.Key] = button; canvas.Children.Add(button);
     }
     public void ClearSelection()
@@ -497,12 +497,12 @@ public partial class StudioScene : UserControl
         updating = true; var region = layout.Controls.FirstOrDefault(r => r.Key == SelectedControl);
         bool macro = region?.Role == "macro", editable = region != null && Draft.CanEdit(SelectedControl);
         SelectedName.Text = region == null ? "Choose a control" : Label(SelectedControl);
-        ControlDescription.Text = region == null ? "Every physical control is inspectable" : macro ? Model.Id=="x20"?"Rear paddle · Macro slot":"Rear control · Configuration role unverified" : region.Role == "axis" ? "Analog movement · Information only" : region.Role == "system" || SelectedControl is "SELECT" or "START" ? "System control · Information only" : SelectedControl.StartsWith("DPAD") ? "Directional input" : SelectedControl is "LB" or "RB" ? "Shoulder button" : SelectedControl is "LT" or "RT" ? "Analog trigger · Button output" : SelectedControl is "L3" or "R3" ? "Stick click" : "Face button";
-        ControlType.Text = region == null ? "CONTROLLER-FIRST MAPPING" : macro ? Model.Id=="x20"?"REAR MACRO SLOT":"REAR CONTROL" : region.Role == "axis" ? "ANALOG AXIS · READ ONLY" : region.Role == "system" ? "SYSTEM / SPECIAL CONTROL" : "PHYSICAL INPUT";
+        ControlDescription.Text = region == null ? "Every physical control is inspectable" : macro ? Model.Id is "x20" or "x20_pro"?"Rear paddle · Macro slot":"Rear control · Configuration role unverified" : region.Role == "axis" ? "Analog movement · Information only" : region.Role == "system" || SelectedControl is "SELECT" or "START" ? "System control · Information only" : SelectedControl.StartsWith("DPAD") ? "Directional input" : SelectedControl is "LB" or "RB" ? "Shoulder button" : SelectedControl is "LT" or "RT" ? "Analog trigger · Button output" : SelectedControl is "L3" or "R3" ? "Stick click" : "Face button";
+        ControlType.Text = region == null ? "CONTROLLER-FIRST MAPPING" : macro ? Model.Id is "x20" or "x20_pro"?"REAR MACRO SLOT":"REAR CONTROL" : region.Role == "axis" ? "ANALOG AXIS · READ ONLY" : region.Role == "system" ? "SYSTEM / SPECIAL CONTROL" : "PHYSICAL INPUT";
         CurrentCaption.Text = editable ? "CURRENT · PREVIEW" : "HARDWARE STATE";
         CurrentMapping.Text = editable ? Glyph(SelectedControl) : region == null ? "—" : "Unknown";
         DraftCaption.Text = macro ? "CONTROL ROLE" : editable ? "DRAFT OUTPUT" : "SUPPORT";
-        DraftMapping.Text = macro ? Model.Id=="x20"?"Macro\nslot":"Unverified" : editable ? Glyph(Draft.Target(SelectedControl)) : region == null ? "—" : "No write";
+        DraftMapping.Text = macro ? Model.Id is "x20" or "x20_pro"?"Macro\nslot":"Unverified" : editable ? Glyph(Draft.Target(SelectedControl)) : region == null ? "—" : "No write";
         UpdateGlyphScale();
         MappingArrow.Visibility = editable ? Visibility.Visible : Visibility.Hidden;
         TargetChoice.IsEnabled = editable; TargetChoice.SelectedValue = editable ? Draft.Target(SelectedControl) : null;
@@ -619,7 +619,7 @@ public partial class StudioScene : UserControl
         ResetCurveChoice.Visibility=CurveMoreChoice.Visibility=value?Visibility.Visible:Visibility.Collapsed;
         StickToolsChoice.Visibility=value&&PcMode!=null?Visibility.Visible:Visibility.Collapsed;if(!value)CloseStickTools();
         HardwareShortcuts.Visibility=FrontChoice.Visibility=RearChoice.Visibility=value?Visibility.Collapsed:Visibility.Visible;
-        foreach (var control in controls.Values) control.IsEnabled = !value || control.Region.Key is "L3" or "R3" or "LT" or "RT";
+        foreach (var control in controls.Values) control.IsEnabled = !value || control.Region.Key is "L3" or "R3" or "LSTICK_ANALOG" or "RSTICK_ANALOG" or "LT" or "RT";
         FrontChoice.IsEnabled = !value; RearChoice.IsEnabled = !value;
         PlaceCurveToolbar(value);RootLayout.RowDefinitions[4].Height=new(value?144:184);if(value){DraftBar.Visibility=Visibility.Collapsed;RootLayout.RowDefinitions[2].Height=new(0);Apply.Visibility=StatusNote.Visibility=Visibility.Collapsed;TryChoice.Content="Keyboard test";}
         if (value) Curves.SelectChannel(Curves.Channel); else { if(previousButtonControl.Length>0) SelectControl(previousButtonControl);else ClearSelection();RefreshEditor(); }
@@ -844,10 +844,16 @@ public partial class StudioScene : UserControl
     public void ObserveLiveInput(double lx, double ly, double rx, double ry, double lt, double rt)
     {
         StickTools?.ShowLive(lx,ly,rx,ry);
+        ActiveLive.SetInput(lx, ly, rx, ry, lt, rt);
         // the Curves graph follows the real stick or trigger whenever a controller is connected; Try it is the keyboard's
         if (IsCurves && ManagementPage == null)
         {
-            Curves.ShowLive(Curves.Channel switch { CurveChannel.LeftStick => Math.Sqrt(lx * lx + ly * ly), CurveChannel.RightStick => Math.Sqrt(rx * rx + ry * ry), CurveChannel.LeftTrigger => lt, _ => rt });
+            double lMag = Math.Sqrt(lx * lx + ly * ly), rMag = Math.Sqrt(rx * rx + ry * ry);
+            if (rMag > 0.15 && rMag > lMag + 0.05 && Curves.Channel != CurveChannel.RightStick) Curves.SelectChannel(CurveChannel.RightStick);
+            else if (lMag > 0.15 && lMag > rMag + 0.05 && Curves.Channel != CurveChannel.LeftStick) Curves.SelectChannel(CurveChannel.LeftStick);
+            else if (lt > 0.20 && lt > rt + 0.05 && Curves.Channel != CurveChannel.LeftTrigger) Curves.SelectChannel(CurveChannel.LeftTrigger);
+            else if (rt > 0.20 && rt > lt + 0.05 && Curves.Channel != CurveChannel.RightTrigger) Curves.SelectChannel(CurveChannel.RightTrigger);
+            Curves.ShowLive(Curves.Channel switch { CurveChannel.LeftStick => lMag, CurveChannel.RightStick => rMag, CurveChannel.LeftTrigger => lt, _ => rt });
             return;
         }
         if (!OnButtonsPage || IsTrying) return;
@@ -966,7 +972,7 @@ public partial class StudioScene : UserControl
             int step=e.Key==Key.PageDown?1:-1;int index=ManagementPage switch {"Dashboard"=>0,"PcMode"=>5,"Device"=>6,"Diagnostics"=>6,"Mouse"=>7,"Setups"=>8,_=>IsVibration?4:IsMacros?3:IsCurves?2:1};
             int next=Math.Clamp(index+step,0,8);
             // a model X20CTL can't write skips the tabs it can't use; with PC mode on only Vibration stays out of reach
-            while(Model.Id!="x20"&&(next==4||!Draft.PcMode&&next is 2 or 3))next+=step;
+            while(Model.Id is not ("x20" or "x20_pro")&&(next==4||!Draft.PcMode&&next is 2 or 3))next+=step;
             if(next==0)ShowManagement("Dashboard");else if(next>=5)ShowManagement(next switch {5=>"PcMode",6=>"Device",7=>"Mouse",_=>"Setups"});else if(next==4)ShowVibration(true);else if(next==3)ShowMacros(true);else if(next==2)ShowCurves(true);else ShowButtons();e.Handled=true;return;
         }
         if (e.Key == Key.F6) { if (!e.IsRepeat) SetNavigationPreview(!navigationMode); e.Handled = true; return; }
