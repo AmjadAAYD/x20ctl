@@ -6,15 +6,14 @@ using System.Windows.Media;
 namespace X20Ctl.Product;
 
 /// <summary>Small vector stories for Tools cards. They play on their own while visible; a hidden icon owns no frame callback.
-/// Bold strokes and filled shapes with a spring in their step, one colour accent per story, and a livelier, faster
-/// version of the same story while the card is hovered or focused.</summary>
+/// Bold strokes and filled shapes with a spring in their step, and one colour accent per story.</summary>
 internal sealed class ToolTileIcon : FrameworkElement
 {
     const double Loop = 3.6;
     readonly string title;
     readonly Stopwatch clock = new();
     bool active;
-    double time, lastElapsed, heat, heatTarget;
+    double time, lastElapsed;
     public bool IsAnimating { get; private set; }
 
     static Brush Solid(byte r, byte g, byte b, byte a = 255) { var brush = new SolidColorBrush(Color.FromArgb(a, r, g, b)); brush.Freeze(); return brush; }
@@ -36,12 +35,10 @@ internal sealed class ToolTileIcon : FrameworkElement
         IsVisibleChanged += (_, _) => UpdateClock();
     }
     public void SetActive(bool value) { if (active == value) return; active = value; time = 0; UpdateClock(); InvalidateVisual(); }
-    /// <summary>Hover or keyboard focus: the story speeds up and the icon swells with a soft halo.</summary>
-    public void SetHot(bool value) { heatTarget = value ? 1 : 0; if (!IsAnimating) { heat = heatTarget; InvalidateVisual(); } }
     public void Seek(double seconds) { StopClock(); time = seconds; InvalidateVisual(); }
     void UpdateClock()
     {
-        if (!active || !IsVisible || !IsLoaded || !DS.Motion) { StopClock(); time = 0; heat = heatTarget; InvalidateVisual(); return; }
+        if (!active || !IsVisible || !IsLoaded || !DS.Motion) { StopClock(); time = 0; InvalidateVisual(); return; }
         if (IsAnimating) return;
         clock.Restart(); lastElapsed = 0; IsAnimating = true; CompositionTarget.Rendering += Frame;
     }
@@ -53,8 +50,7 @@ internal sealed class ToolTileIcon : FrameworkElement
         double now = clock.Elapsed.TotalSeconds, dt = now - lastElapsed;
         if (dt < 1.0 / 30) return;
         lastElapsed = now; dt = Math.Min(dt, .1);
-        heat += (heatTarget - heat) * Math.Min(1, dt * 9);
-        time += dt * (1 + .8 * heat);
+        time += dt;
         InvalidateVisual();
     }
 
@@ -88,11 +84,6 @@ internal sealed class ToolTileIcon : FrameworkElement
         // Still (reduced motion, hidden, or before the first frame): the pose that says what the card is, never a blank start.
         base.OnRender(d); double t = !IsAnimating && time == 0 ? Rest(title) : time % Loop; pixelsPerDip = VisualTreeHelper.GetDpi(this).PixelsPerDip;
         d.PushTransform(new ScaleTransform(ActualWidth / 48, ActualHeight / 48));
-        if (heat > .01)
-        {   // hovered: a soft halo and a gentle swell
-            d.PushOpacity(.28 * heat); d.DrawEllipse(Blue, null, P(24, 24), 23, 23); d.Pop();
-            d.PushTransform(new ScaleTransform(1 + .1 * heat, 1 + .1 * heat, 24, 24));
-        }
         switch (title)
         {
             case "Controller not working?": Repair(d, t); break;
@@ -104,7 +95,6 @@ internal sealed class ToolTileIcon : FrameworkElement
             case "Star on GitHub": Shine(d, t); break;
             default: About(d, t); break;
         }
-        if (heat > .01) d.Pop();
         d.Pop();
     }
 

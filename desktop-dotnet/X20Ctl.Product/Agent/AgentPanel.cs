@@ -279,14 +279,14 @@ public sealed class AgentPanel
         // the bumpers: LB steps through the idea topics (the rail's bulb opens the list; this flips through it), RB leaves the
         // agent (the rail's sliders already open the settings). The plates were printed ideas / settings, so their words are
         // repainted to match what they now do.
-        Relabel(pad, new Rect(328, 25, 112, 25), -2, "LB", "TOPICS", Amber);
+        Relabel(pad, new Rect(328, 25, 112, 25), -2, "LB", "UNDO", Amber);
         Relabel(pad, new Rect(1308, 27, 144, 28), 6, "RB", "EXIT", Color.FromRgb(200, 202, 209));
-        var topicBumper = ContourHit(237, 12, "M 0,61 Q 9,35 30,19 Q 56,1 102,3 L 210,0 Q 224,0 230,15 L 251,47 Q 126,43 0,61 Z", "LB · Next topic", CycleTopic);
+        var undoBumper = ContourHit(237, 12, "M 0,61 Q 9,35 30,19 Q 56,1 102,3 L 210,0 Q 224,0 230,15 L 251,47 Q 126,43 0,61 Z", "LB · Undo the last change", UndoLast);
         var exitBumper = ContourHit(1257, 10, "M 0,49 L 25,12 Q 31,0 46,0 L 164,4 Q 210,7 236,28 Q 250,42 257,65 Q 130,45 0,49 Z", "RB · Put the agent away", LeaveAgent);
-        pad.Children.Add(topicBumper); pad.Children.Add(exitBumper);
+        pad.Children.Add(undoBumper); pad.Children.Add(exitBumper);
         // the bar under the screen, as drawn: its LB and RB do what the bumpers do; FRONT / BACK puts the agent away on the
         // back of this controller, where its paddles are
-        pad.Children.Add(Hit(640, 708, 112, 40, 14, "LB · Next topic", CycleTopic));
+        pad.Children.Add(Hit(640, 708, 112, 40, 14, "LB · Undo the last change", UndoLast));
         pad.Children.Add(Hit(788, 708, 170, 40, 14, "Back of the controller", () => PageRequested?.Invoke("Back")));
         pad.Children.Add(Hit(994, 708, 112, 40, 14, "RB · Put the agent away", LeaveAgent));
 
@@ -612,14 +612,13 @@ public sealed class AgentPanel
         catch (Exception error) when (error is System.ComponentModel.Win32Exception or InvalidOperationException) { }
     }
 
-    /// <summary>LB: the next topic's ideas (Aim &amp; sticks, Triggers, Buttons, PC mode, then round again).</summary>
-    void CycleTopic()
+    /// <summary>LB: take back the agent's last change, as if the owner had typed "undo" (it shows in the chat, and says so when
+    /// there is nothing to undo). Nothing else on the controller does this.</summary>
+    void UndoLast()
     {
-        if (topics.Count == 0) return;
-        string now = ideasView.Visibility == Visibility.Visible ? Search.Text.Trim() : "";
-        int at = topics.FindIndex(t => string.Equals(t.Query, now, StringComparison.OrdinalIgnoreCase));
-        Search.Text = topics[(at + 1) % topics.Count].Query;
-        ShowView(View.Ideas); Look(Gaze.Ideas);
+        if (busy) return;
+        ShowSettingsPage(false); ShowView(View.Chat);
+        Mine("Undo", null); session.CancelClarification(); UndoFromChat(UndoAsk.Last);
     }
 
     /// <summary>RB: put the agent away, or close the settings page first when it is open.</summary>

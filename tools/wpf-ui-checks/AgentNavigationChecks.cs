@@ -24,7 +24,7 @@ static class AgentNavigationChecks
         typeof(AgentPanel).GetMethod("Lights", privateFlags)!.Invoke(panel, new object[] { X20Ctl.Zone.Agent.AgentMood.Good }); Colour(70, 150, 255);
         typeof(AgentPanel).GetMethod("Lights", privateFlags)!.Invoke(panel, new object[] { X20Ctl.Zone.Agent.AgentMood.Unsure }); Colour(AgentMark.Red.R, AgentMark.Red.G, AgentMark.Red.B);
         typeof(AgentPanel).GetMethod("Steady", privateFlags)!.Invoke(panel, null); Colour(61, 214, 140);
-        Check(buttons.First(b => Equals(b.ToolTip, "LB · Next topic")).Content is System.Windows.Shapes.Path, "Left shoulder still uses a rectangular outline");
+        Check(buttons.First(b => Equals(b.ToolTip, "LB · Undo the last change")).Content is System.Windows.Shapes.Path, "Left shoulder still uses a rectangular outline");
         Check(buttons.First(b => Equals(b.ToolTip, "RB · Put the agent away")).Content is System.Windows.Shapes.Path, "Right shoulder still uses a rectangular outline");
         int initial = transcript.Children.Count;
         foreach (var topic in new[] { "triggers", "buttons", "aim & sticks", "triggers" }) Click("Ideas for " + topic);
@@ -35,8 +35,8 @@ static class AgentNavigationChecks
         Check(transcript.Children.Count == initial, "Search adds unsolicited chat messages");
         Check(!buttons.Any(b => Equals(b.ToolTip, "PC mode")), "PC mode rail shortcut remains");
         Check(!buttons.Any(b => Equals(b.ToolTip, "Agent settings")), "The gear that duplicated the settings button remains");
-        string first = panel.Search.Text; Click("LB · Next topic"); string second = panel.Search.Text; Click("LB · Next topic");
-        Check(second.Length > 0 && second != first && panel.Search.Text != second, "LB does not step through the topics");
+        int beforeUndo = transcript.Children.Count; Click("LB · Undo the last change");
+        Check(transcript.Children.Count >= beforeUndo + 2, "LB does not ask for and answer an undo in the chat");
         bool closed = false; panel.CloseRequested += () => closed = true; Click("RB · Put the agent away");
         Check(closed, "RB does not put the agent away");
         var pages = new List<string>(); var drafts = new List<string>();
@@ -65,7 +65,7 @@ static class AgentNavigationChecks
         var bitmap = new RenderTargetBitmap(1740, 800, 96, 96, PixelFormats.Pbgra32); bitmap.Render(panel.Body);
         var png = new PngBitmapEncoder(); png.Frames.Add(BitmapFrame.Create(bitmap));
         using (var file = System.IO.File.Create(System.IO.Path.Combine(output, "diagnostic.png"))) png.Save(file);
-        foreach (var tip in new[] { "LB · Next topic", "RB · Put the agent away" })
+        foreach (var tip in new[] { "LB · Undo the last change", "RB · Put the agent away" })
             ((System.Windows.Shapes.Path)buttons.First(b => Equals(b.ToolTip, tip)).Content).Stroke = new SolidColorBrush(Color.FromRgb(169, 207, 255));
         typeof(AgentPanel).GetMethod("Steady", privateFlags)!.Invoke(panel, null);
         panel.Body.UpdateLayout();

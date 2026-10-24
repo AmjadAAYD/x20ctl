@@ -324,7 +324,6 @@ public sealed class ProductSettings : Grid
         System.Windows.Automation.AutomationProperties.SetName(button, title);
         void Light(bool on)
         {
-            motionIcon.SetHot(on);
             face.BorderBrush = new SolidColorBrush(on ? lineOn : line);
             face.Background = new LinearGradientBrush(on ? Color.FromArgb(240, 22, 36, 74) : Color.FromArgb(230, 17, 28, 58), on ? Color.FromArgb(235, 14, 24, 52) : Color.FromArgb(225, 11, 19, 42), 90);
             arrow.Foreground = DS.Brush(on ? "DS.Text" : "DS.TextMuted");
