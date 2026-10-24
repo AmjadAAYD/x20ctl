@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -341,13 +341,20 @@ public sealed class HeaderBattery : Button
     public void Show(string? reported)
     {
         int lit = reported switch { "full" => 4, "medium" => 2, "low" => 1, _ => 0 };
-        bool warn = reported is "low" or "empty", wired = reported == "wired";
+        if (lit == 0 && reported != null)
+        {
+            if (reported.StartsWith("4/4") || reported.StartsWith("100%")) lit = 4;
+            else if (reported.StartsWith("3/4") || reported.StartsWith("75%")) lit = 3;
+            else if (reported.StartsWith("2/4") || reported.StartsWith("50%")) lit = 2;
+            else if (reported.StartsWith("1/4") || reported.StartsWith("25%")) lit = 1;
+        }
+        bool warn = reported is "low" or "empty" || (reported != null && reported.StartsWith("1/4")), wired = reported == "wired" || (reported != null && reported.Contains("charging", StringComparison.OrdinalIgnoreCase));
         var on = new SolidColorBrush(warn ? Color.FromRgb(240, 178, 92) : Color.FromRgb(232, 240, 252));
         var off = new SolidColorBrush(Color.FromArgb(34, 214, 226, 244));
         for (int i = 0; i < 4; i++) { cells[i].Background = i < lit ? on : off; cells[i].Visibility = wired ? Visibility.Hidden : Visibility.Visible; }
         plug.Visibility = wired ? Visibility.Visible : Visibility.Collapsed;
-        level.Text = reported switch { "full" => "Full", "medium" => "Medium", "low" => "Low", "empty" => "Empty", "wired" => "Wired", _ => "—" };
-        level.Foreground = warn ? on : DS.Brush(reported is "full" or "medium" or "wired" ? "DS.Text" : "DS.TextSoft");
+        level.Text = reported switch { "full" => "Full", "medium" => "Medium", "low" => "Low", "empty" => "Empty", "wired" => "Wired", null => "—", _ => reported };
+        level.Foreground = warn ? on : DS.Brush(reported is "full" or "medium" or "wired" || lit >= 2 ? "DS.Text" : "DS.TextSoft");
         System.Windows.Automation.AutomationProperties.SetName(this, "Battery " + (level.Text == "—" ? "not reported" : level.Text));
     }
 }

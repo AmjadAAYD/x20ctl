@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -29,12 +29,14 @@ public sealed class DashboardConsolePage : Grid
     private readonly TextBlock connectionValue=Kit.Text("Not detected",17,"DS.TextSoft"), batteryValue=Kit.Text("Not reported",17,"DS.TextSoft"), firmwareValue=Kit.Text("Not reported",17,"DS.TextSoft");
     private readonly TextBlock profileState=Kit.Text("No game-specific setup linked",13,"DS.TextSoft");
     private string? currentTransport;
+    private string? currentBatteryLevel;
+    private string? currentFirmware;
     public void SetTransport(string? transport)
     {
         currentTransport = transport;
         if (inputConnected == true)
             connectionValue.Text = transport != null ? $"Detected · {transport}" : "Detected · Transport not reported";
-        if (currentTransport == "2.4 GHz receiver")
+        if (currentTransport == "2.4 GHz receiver" && currentFirmware == null)
             firmwareValue.Text = "Not readable over XInput";
     }
     public void SetBatteryLevel(string? level, string? transport = null)
@@ -42,13 +44,21 @@ public sealed class DashboardConsolePage : Grid
         if (transport != null) currentTransport = transport;
         if (currentTransport == "2.4 GHz receiver" && (level is "wired" or "receiver" or null))
         {
+            if (currentBatteryLevel != null && currentBatteryLevel != "wired" && currentBatteryLevel != "receiver")
+                return;
             batteryValue.Text = "Not reported (receiver)";
             return;
         }
-        batteryValue.Text = level switch {"full"=>"Full","medium"=>"Medium","low"=>"Low","empty"=>"Empty","wired"=>"Wired",_=>"Not reported"};
+        currentBatteryLevel = level;
+        batteryValue.Text = level switch {"full"=>"Full","medium"=>"Medium","low"=>"Low","empty"=>"Empty","wired"=>"Wired",_=>level??"Not reported"};
     }
     public void SetBatteryLevel(string? level) => SetBatteryLevel(level, null);
-    public void SetFirmware(string? firmware) => firmwareValue.Text = firmware ?? "Not reported";
+    public event Action<TelemetryData>? TelemetryUpdated;
+    public void SetFirmware(string? firmware)
+    {
+        currentFirmware = firmware;
+        firmwareValue.Text = firmware ?? (currentTransport == "2.4 GHz receiver" ? "Not readable over XInput" : "Not reported");
+    }
     private readonly TextBlock gamesCount; private readonly Button play;
     private readonly List<(Button Card, GameEntry Game)> cards = new();
     private readonly bool animate;
@@ -122,7 +132,35 @@ public sealed class DashboardConsolePage : Grid
         status.Children.Add(Kit.Text("Current setup",12,"DS.TextMuted",FontWeights.SemiBold).Also(t=>t.Margin=new(0,10,0,4)));status.Children.Add(workingSetup);profileState.Margin=new(0,6,0,0);status.Children.Add(profileState);
         var stateGrid=new Grid{Margin=new(0,12,0,10)};stateGrid.ColumnDefinitions.Add(new());stateGrid.ColumnDefinitions.Add(new());stateGrid.RowDefinitions.Add(new());stateGrid.RowDefinitions.Add(new());
         var cells=new[]{("Connection",connectionValue),("Battery",batteryValue),("Firmware",firmwareValue),("Changes",changesCount)};
-        for(int i=0;i<cells.Length;i++){var text=new StackPanel();text.Children.Add(Kit.Text(cells[i].Item1,12,"DS.TextMuted").Also(t=>t.Margin=new(0,0,0,6)));cells[i].Item2.TextWrapping=TextWrapping.Wrap;text.Children.Add(cells[i].Item2);var cell=new Border{CornerRadius=new(12),Padding=new(8),Margin=new(0,0,8,8),Background=new SolidColorBrush(Color.FromArgb(16,180,205,240)),Child=text};Grid.SetRow(cell,i/2);Grid.SetColumn(cell,i%2);stateGrid.Children.Add(cell);}status.Children.Add(stateGrid);status.Children.Add(stateDetail);
+        for(int i=0;i<cells.Length;i++){
+            var text=new StackPanel();
+            text.Children.Add(Kit.Text(cells[i].Item1,12,"DS.TextMuted").Also(t=>t.Margin=new(0,0,0,6)));
+            cells[i].Item2.TextWrapping=TextWrapping.Wrap;
+            text.Children.Add(cells[i].Item2);
+            var cell=new Border{CornerRadius=new(12),Padding=new(8),Margin=new(0,0,8,8),Background=new SolidColorBrush(Color.FromArgb(16,180,205,240)),Child=text};
+            if (cells[i].Item1 == "Battery" && model.Id is "x20" or "x20_pro")
+            {
+                cell.Cursor = Cursors.Hand;
+                cell.ToolTip = "Click to refresh battery and firmware over Bluetooth";
+                cell.MouseLeftButtonUp += async (_, _) =>
+                {
+                    batteryValue.Text = "Reading…";
+                    var r = await PadBridge.Status(model.Id);
+                    if (r.Ok && r.Telemetry != null)
+                    {
+                        if (r.Telemetry.Firmware != null) SetFirmware(r.Telemetry.Firmware);
+                        if (r.Telemetry.Battery != null) SetBatteryLevel(r.Telemetry.Battery, currentTransport);
+                        TelemetryUpdated?.Invoke(r.Telemetry);
+                    }
+                    else
+                    {
+                        SetBatteryLevel(currentBatteryLevel, currentTransport);
+                    }
+                };
+            }
+            Grid.SetRow(cell,i/2);Grid.SetColumn(cell,i%2);
+            stateGrid.Children.Add(cell);
+        }status.Children.Add(stateGrid);status.Children.Add(stateDetail);
         gamesCount=new TextBlock();SetWorkingState(draftChanges,null,false);
         var statusBox = new ScrollViewer {Content=status,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled};
         statusBox.Margin=new(0);var statusPanel=Kit.Panel(null,null,null,statusBox);Grid.SetColumn(statusPanel,1);top.Children.Add(statusPanel);

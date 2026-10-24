@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -25,21 +25,29 @@ public sealed class DeviceWorkbench
     readonly TextBlock hardwareRevision=ManagementVisuals.Copy("Not reported",20,true);
     readonly TextBlock transport=ManagementVisuals.Copy("Not reported",20,true);
     private string? currentTransport;
+    public event Action<TelemetryData>? TelemetryUpdated;
+
     public void SetTransport(string? value)
     {
         currentTransport = value;
         transport.Text = value ?? "Not reported";
-        if (currentTransport == "2.4 GHz receiver")
+        if (currentTransport == "2.4 GHz receiver" && firmware.Text == "Not reported")
             firmware.Text = "Not readable over XInput";
     }
     public void SetFirmware(string? value) => firmware.Text = value ?? "Not reported";
+    private string? currentBattery;
     public void SetBatteryLevel(string? level, string? transport = null)
     {
         if (transport != null) currentTransport = transport;
         if (currentTransport == "2.4 GHz receiver" && (level is "wired" or "receiver" or null))
+        {
+            if (currentBattery != null && currentBattery != "wired" && currentBattery != "receiver")
+                return;
             battery.Text = "Not reported over receiver";
-        else
-            battery.Text = level switch {"full"=>"Full","medium"=>"Medium","low"=>"Low","empty"=>"Empty","wired"=>"Wired",_=>level??"Not reported"};
+            return;
+        }
+        currentBattery = level;
+        battery.Text = level switch {"full"=>"Full","medium"=>"Medium","low"=>"Low","empty"=>"Empty","wired"=>"Wired",_=>level??"Not reported"};
     }
     public void SetBatteryLevel(string? level) => SetBatteryLevel(level, null);
     public void SetConnection(bool connected)=>connection.Text=connected?"Gameplay input detected":"Not detected";
@@ -59,7 +67,33 @@ public sealed class DeviceWorkbench
         overview.Children.Add(Kit.Panel("Connection",null,null,status));
         var values=new System.Windows.Controls.Primitives.UniformGrid{Columns=2,Margin=new(-5,12,-5,0)};
         foreach(var (label,value) in new[]{("Battery",battery),("Firmware",firmware),("Hardware revision",hardwareRevision),("Transport",transport)})
-        {var metric=new StackPanel{Children={ManagementVisuals.Copy(label,13),value}};value.Margin=new(0,8,0,0);var tile=Kit.Panel(null,null,null,metric,new Thickness(16));tile.Margin=new(5,0,5,10);values.Children.Add(tile);}
+        {
+            var metric=new StackPanel{Children={ManagementVisuals.Copy(label,13),value}};
+            value.Margin=new(0,8,0,0);
+            var tile=Kit.Panel(null,null,null,metric,new Thickness(16));
+            tile.Margin=new(5,0,5,10);
+            if (label == "Battery" && model.Id is "x20" or "x20_pro")
+            {
+                tile.Cursor = Cursors.Hand;
+                tile.ToolTip = "Click to refresh battery and firmware over Bluetooth";
+                tile.MouseLeftButtonUp += async (_, _) =>
+                {
+                    battery.Text = "Reading…";
+                    var r = await PadBridge.Status(model.Id);
+                    if (r.Ok && r.Telemetry != null)
+                    {
+                        if (r.Telemetry.Firmware != null) SetFirmware(r.Telemetry.Firmware);
+                        if (r.Telemetry.Battery != null) SetBatteryLevel(r.Telemetry.Battery, currentTransport);
+                        TelemetryUpdated?.Invoke(r.Telemetry);
+                    }
+                    else
+                    {
+                        SetBatteryLevel(currentBattery, currentTransport);
+                    }
+                };
+            }
+            values.Children.Add(tile);
+        }
         overview.Children.Add(values);
         var profile=ModelProfiles.For(model.Id);var support=new StackPanel();
         foreach(var (label,value) in new[]{("Sticks",profile.Sticks),("Triggers",profile.Triggers),("Rear controls",profile.Paddles.Length==0?"None listed":string.Join(" · ",profile.Paddles)),("Motors",profile.Motors),("Motion",profile.Motion)})
@@ -67,6 +101,7 @@ public sealed class DeviceWorkbench
         overview.Children.Add(Kit.Panel("Model capabilities",null,null,support));
         var compatibility=new StackPanel{Children={ManagementVisuals.Copy(profile.Verified?"Local drafts available. Applying to hardware requires a verified connection.":"Layout and artwork available. Native configuration is unavailable for this model.",14),ManagementVisuals.Copy("Gyro, rear controls and independent motors appear only when the connected interface supports them.",13).Also(t=>t.Margin=new(0,8,0,0))}};
         var supportPanel=Kit.Panel("X20CTL support",null,null,compatibility);supportPanel.Margin=new(0,12,0,0);overview.Children.Add(supportPanel);
+
         OpenSetups=ManagementVisuals.Action(resources,"My setups",setups,register);OpenSetups.Visibility=Visibility.Collapsed;
     }
 }
