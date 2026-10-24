@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
@@ -233,6 +233,7 @@ public partial class StudioScene : UserControl
     /// <summary>Title-bar pills: Support (Ko-fi, opens only when chosen) in the same quiet glass as the Zone, and the controller name.</summary>
     private string? currentBatteryLevel;
     private string? currentTransport;
+    private string? currentFirmware;
     private Button? deviceControl;
     private readonly TextBlock deviceState=Kit.Text("Offline",13,"DS.TextSoft",FontWeights.SemiBold);
     private readonly TextBlock batteryLabel=Kit.Text("Battery · Not reported",13,"DS.TextSoft",FontWeights.SemiBold);
@@ -243,7 +244,7 @@ public partial class StudioScene : UserControl
         Device?.SetTransport(transport);
         if (currentTransport == "2.4 GHz receiver")
         {
-            Device?.SetFirmware("Not readable over XInput");
+            if (currentFirmware == null) Device?.SetFirmware("Not readable over XInput");
             if (currentBatteryLevel is "wired" or "receiver" or null)
             {
                 batteryLabel.Text = "Battery · Not reported (receiver)";
@@ -251,21 +252,45 @@ public partial class StudioScene : UserControl
             }
         }
     }
+    public void SetFirmware(string? fw)
+    {
+        currentFirmware = fw;
+        Dashboard?.SetFirmware(fw);
+        Device?.SetFirmware(fw);
+    }
+    public void ApplyTelemetry(TelemetryData data)
+    {
+        if (data.Firmware != null)
+        {
+            SetFirmware(data.Firmware);
+        }
+        if (data.Battery != null)
+        {
+            SetBatteryLevel(data.Battery);
+        }
+    }
     public void SetBatteryLevel(string? level)
     {
+        if (currentTransport == "2.4 GHz receiver" && (level is "wired" or "receiver" or null))
+        {
+            if (currentBatteryLevel != null && currentBatteryLevel != "wired" && currentBatteryLevel != "receiver")
+            {
+                // Preserve verified Bluetooth telemetry reading
+                return;
+            }
+            currentBatteryLevel = level;
+            Dashboard?.SetBatteryLevel(level, currentTransport);
+            Device?.SetBatteryLevel(level, currentTransport);
+            batteryLabel.Text = "Battery · Not reported (receiver)";
+            batteryLabel.Foreground = DS.Brush("DS.TextSoft");
+            UpdateDeviceHeader();
+            return;
+        }
         currentBatteryLevel = level;
         Dashboard?.SetBatteryLevel(level, currentTransport);
         Device?.SetBatteryLevel(level, currentTransport);
-        if (currentTransport == "2.4 GHz receiver" && (level is "wired" or "receiver" or null))
-        {
-            batteryLabel.Text = "Battery · Not reported (receiver)";
-            batteryLabel.Foreground = DS.Brush("DS.TextSoft");
-        }
-        else
-        {
-            batteryLabel.Text = "Battery · " + (level switch { "full" => "Full", "medium" => "Medium", "low" => "Low", "empty" => "Empty", "wired" => "Wired", _ => "Not reported" });
-            batteryLabel.Foreground = DS.Brush(level is "low" or "empty" ? "DS.Warn" : "DS.TextSoft");
-        }
+        batteryLabel.Text = "Battery · " + (level switch { "full" => "Full", "medium" => "Medium", "low" => "Low", "empty" => "Empty", "wired" => "Wired", _ => level ?? "Not reported" });
+        batteryLabel.Foreground = DS.Brush(level is "low" or "empty" ? "DS.Warn" : "DS.TextSoft");
         UpdateDeviceHeader();
     }
     private readonly HeaderBattery headerBattery=new();
@@ -310,8 +335,8 @@ public partial class StudioScene : UserControl
     {
         if(deviceControl==null)return;
         double previousWidth=deviceControl.ActualWidth;string previousText=deviceState.Text;
-        deviceState.Text="· "+(gameplayConnected==true?(currentBatteryLevel is "full" or "medium" or "low" or "empty" or "wired"?(currentBatteryLevel=="wired"?"Wired":batteryLabel.Text.Replace("Battery · ","")+" battery"):"Connected"):"Offline");
-        deviceState.Foreground=DS.Brush(gameplayConnected==true?currentBatteryLevel is "low" or "empty"?"DS.Warn":"DS.TextSoft":"DS.Warn");
+        deviceState.Text="· "+(gameplayConnected==true?(currentBatteryLevel is "full" or "medium" or "low" or "empty" or "wired"?(currentBatteryLevel=="wired"?"Wired":batteryLabel.Text.Replace("Battery · ","")+" battery"):(currentBatteryLevel!=null&&!currentBatteryLevel.Contains("Not reported")?(currentBatteryLevel.Contains("battery",StringComparison.OrdinalIgnoreCase)?currentBatteryLevel:currentBatteryLevel+" battery"):"Connected")):"Offline");
+        deviceState.Foreground=DS.Brush(gameplayConnected==true?currentBatteryLevel is "low" or "empty" || (currentBatteryLevel!=null&&currentBatteryLevel.StartsWith("1/4"))?"DS.Warn":"DS.TextSoft":"DS.Warn");
         headerBattery.Show(gameplayConnected==true?currentBatteryLevel:null);
         if(animate&&deviceControl.IsLoaded&&previousWidth>0&&previousText!=deviceState.Text){deviceControl.BeginAnimation(WidthProperty,null);deviceControl.Width=double.NaN;deviceControl.Measure(new Size(double.PositiveInfinity,36));double next=deviceControl.DesiredSize.Width;deviceControl.Width=next;deviceControl.BeginAnimation(WidthProperty,new DoubleAnimation(previousWidth,next,TimeSpan.FromMilliseconds(180)){FillBehavior=FillBehavior.Stop,EasingFunction=DS.EaseOut});}
     }
@@ -705,7 +730,7 @@ public partial class StudioScene : UserControl
     /// <summary>Open the Buttons page from anywhere (tab, Dashboard hero, review harnesses).</summary>
     public void ShowButtons() { ShowCurves(false);if(IsMacros)ShowMacros(false);if(IsVibration)ShowVibration(false);HideManagement();ButtonsNav.IsChecked=true;FrontChoice.IsEnabled=true;RearChoice.IsEnabled=Model.Id=="x20";UpdateButtonsPage(); }
     public DashboardConsolePage? Dashboard {get;private set;}
-    private DashboardConsolePage CreateDashboard(){var page=new DashboardConsolePage(Model,Player,Draft.UnsentChanges,setupStore.Items.Count(s=>s.ModelId==Model.Id),!animate,setupStore.Items.Where(s=>s.ModelId==Model.Id).ToArray(),id=>LoadSetup(setupStore.NativeSnapshot(id)));if(currentTransport!=null)page.SetTransport(currentTransport);page.SetBatteryLevel(currentBatteryLevel,currentTransport);if(gameplayConnected is bool connected)page.SetInputConnected(connected);page.ConfigureRequested+=ShowButtons;page.PageRequested+=target=>{if(target=="Buttons")ShowButtons();else if(target=="Curves")ShowCurves(true);else if(target=="Macros")ShowMacros(true);else ShowManagement(target);};return page;}
+    private DashboardConsolePage CreateDashboard(){var page=new DashboardConsolePage(Model,Player,Draft.UnsentChanges,setupStore.Items.Count(s=>s.ModelId==Model.Id),!animate,setupStore.Items.Where(s=>s.ModelId==Model.Id).ToArray(),id=>LoadSetup(setupStore.NativeSnapshot(id)));if(currentTransport!=null)page.SetTransport(currentTransport);if(currentFirmware!=null)page.SetFirmware(currentFirmware);page.SetBatteryLevel(currentBatteryLevel,currentTransport);if(gameplayConnected is bool connected)page.SetInputConnected(connected);page.ConfigureRequested+=ShowButtons;page.PageRequested+=target=>{if(target=="Buttons")ShowButtons();else if(target=="Curves")ShowCurves(true);else if(target=="Macros")ShowMacros(true);else ShowManagement(target);};return page;}
     private void DashboardTab(object sender,RoutedEventArgs e)=>ShowManagement("Dashboard");
     public void ShowMacros(bool value)
     {
@@ -757,7 +782,7 @@ public partial class StudioScene : UserControl
         ManagementBodyHost.Visibility=ManagementShelfFrame.Visibility=Visibility.Visible;ManagementBodyHost.Children.Clear();ManagementShelfHost.Children.Clear();
         ButtonsNav.IsChecked=CurvesNav.IsChecked=MacrosNav.IsChecked=VibrationNav.IsChecked=false;DeviceNav.IsChecked=page=="Device";DiagnosticsNav.IsChecked=page=="Diagnostics";MouseNav.IsChecked=page=="Mouse";PcModeNav.IsChecked=page=="PcMode";TesterNav.IsChecked=page=="Tester";SetupsNav.IsChecked=page=="Setups";DashboardNav.IsChecked=page=="Dashboard";
         if(page=="Dashboard"){Dashboard??=CreateDashboard();Dashboard.SetWorkingState(Draft.UnsentChanges,activeSetup==null?null:setupStore.Items.FirstOrDefault(x=>x.Id==activeSetup)?.Name,Draft.PcMode);ManagementBodyHost.Children.Add(Dashboard);ChangeCount.Text="Select the controller to configure it · Your games are found automatically";PrimaryHint.Text=" Select";OverviewHint.Text="";DraftChip.Text="Dashboard";Dashboard.FocusHero();}
-        else if(page=="Device"){Device??=new(Model,Player,this,RegisterFocus,()=>ShowManagement("Diagnostics"),()=>ShowManagement("Setups"));if(currentTransport!=null)Device.SetTransport(currentTransport);Device.SetBatteryLevel(currentBatteryLevel,currentTransport);if(currentTransport=="2.4 GHz receiver")Device.SetFirmware("Not readable over XInput");if(gameplayConnected is {} deviceConnected)Device.SetConnection(deviceConnected);Device.UpdateEngineStatus(NativeEngineStatus);ManagementBodyHost.Children.Add(Device.Body);ManagementShelfHost.Children.Add(Device.Shelf);ChangeCount.Text="Assigned model · Gameplay and configuration remain separate";PrimaryHint.Text=" Open";OverviewHint.Text=" My setups";DraftChip.Text="Controller overview";}
+        else if(page=="Device"){Device??=new(Model,Player,this,RegisterFocus,()=>ShowManagement("Diagnostics"),()=>ShowManagement("Setups"));Device.TelemetryUpdated-=ApplyTelemetry;Device.TelemetryUpdated+=ApplyTelemetry;if(currentTransport!=null)Device.SetTransport(currentTransport);Device.SetBatteryLevel(currentBatteryLevel,currentTransport);if(currentFirmware!=null)Device.SetFirmware(currentFirmware);else if(currentTransport=="2.4 GHz receiver")Device.SetFirmware("Not readable over XInput");if(gameplayConnected is {} deviceConnected)Device.SetConnection(deviceConnected);Device.UpdateEngineStatus(NativeEngineStatus);ManagementBodyHost.Children.Add(Device.Body);ManagementShelfHost.Children.Add(Device.Shelf);ChangeCount.Text="Assigned model · Gameplay and configuration remain separate";PrimaryHint.Text=" Open";OverviewHint.Text=" My setups";DraftChip.Text="Controller overview";}
         else if(page=="Diagnostics"){Diagnostics??=new(Player,RegisterFocus,PcMode,model:Model);ManagementBodyHost.Children.Add(Diagnostics.Body);Diagnostics.Start();ChangeCount.Text="Read-only input capture · Use Esc or the mouse to leave";PrimaryHint.Text="";OverviewHint.Text="";DraftChip.Text="Diagnostics";Diagnostics.Reset.Focus();}
         else if(page=="PcMode")
         {

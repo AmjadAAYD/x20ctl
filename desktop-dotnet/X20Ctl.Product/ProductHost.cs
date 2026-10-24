@@ -12,11 +12,53 @@ public sealed class ProductHost : Grid
 {
     private string?[] batteryLevels=new string?[4];
     private string? currentTransport;
+    public string?[] BatteryLevels => batteryLevels;
+    private string? currentFirmware;
+    private TelemetryData? latestTelemetry;
+
+    public async Task RefreshBleTelemetryAsync()
+    {
+        string? modelId = Studio?.Model.Id ?? (Zone.State.Players.Count > 0 ? Zone.State.Players[0].ModelId ?? Catalog.Models.FirstOrDefault(m => m.Name == Zone.State.Players[0].Model)?.Id : null);
+        if (modelId is not ("x20" or "x20_pro")) return;
+
+        try
+        {
+            var res = await PadBridge.Status(modelId);
+            if (res.Ok && res.Telemetry != null)
+            {
+                latestTelemetry = res.Telemetry;
+                if (res.Telemetry.Firmware != null) currentFirmware = res.Telemetry.Firmware;
+                if (res.Telemetry.Battery != null)
+                {
+                    int player = Studio?.Player ?? 0;
+                    if (player < batteryLevels.Length) batteryLevels[player] = res.Telemetry.Battery;
+                }
+                _ = Dispatcher.BeginInvoke(() =>
+                {
+                    if (Studio != null)
+                    {
+                        Studio.ApplyTelemetry(res.Telemetry);
+                    }
+                });
+            }
+        }
+        catch { }
+    }
+
     public void UpdateBatteryLevels(string?[] levels, string? transport = null)
     {
-        batteryLevels=(string?[])levels.Clone();
+        for (int i = 0; i < Math.Min(levels.Length, batteryLevels.Length); i++)
+        {
+            // If we have a verified Bluetooth telemetry reading for 2.4 GHz receiver, do not overwrite with generic receiver placeholder
+            if (transport == "2.4 GHz receiver" && (levels[i] is "receiver" or "wired" or null) &&
+                batteryLevels[i] != null && batteryLevels[i] != "receiver" && batteryLevels[i] != "wired")
+            {
+                continue;
+            }
+            batteryLevels[i] = levels[i];
+        }
         if (transport != null) currentTransport = transport;
-        if(Studio is {} studio)
+        if (Studio is { } studio)
         {
             if (currentTransport != null) studio.SetTransport(currentTransport);
             studio.SetBatteryLevel(batteryLevels[studio.Player]);
@@ -172,6 +214,9 @@ public sealed class ProductHost : Grid
         };
 
         if (currentTransport != null) Studio.SetTransport(currentTransport);
+        if (currentFirmware != null) Studio.SetFirmware(currentFirmware);
+        if (latestTelemetry != null) Studio.ApplyTelemetry(latestTelemetry);
+        // BLE telemetry is strictly user-invoked and does not auto-query on launch.
         Studio.NativeEngineStatus=NativeEngineStatus;
         Studio.InputContextChanged+=()=>_=UpdateNativeContext();
         if(Engine!=null)_=RefreshNativeCapabilities(model.Id);

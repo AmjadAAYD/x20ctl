@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -29,12 +29,14 @@ public sealed class DashboardConsolePage : Grid
     private readonly TextBlock connectionValue=Kit.Text("Not detected",17,"DS.TextSoft"), batteryValue=Kit.Text("Not reported",17,"DS.TextSoft"), firmwareValue=Kit.Text("Not reported",17,"DS.TextSoft");
     private readonly TextBlock profileState=Kit.Text("No game-specific setup linked",13,"DS.TextSoft");
     private string? currentTransport;
+    private string? currentBatteryLevel;
+    private string? currentFirmware;
     public void SetTransport(string? transport)
     {
         currentTransport = transport;
         if (inputConnected == true)
             connectionValue.Text = transport != null ? $"Detected · {transport}" : "Detected · Transport not reported";
-        if (currentTransport == "2.4 GHz receiver")
+        if (currentTransport == "2.4 GHz receiver" && currentFirmware == null)
             firmwareValue.Text = "Not readable over XInput";
     }
     public void SetBatteryLevel(string? level, string? transport = null)
@@ -42,13 +44,20 @@ public sealed class DashboardConsolePage : Grid
         if (transport != null) currentTransport = transport;
         if (currentTransport == "2.4 GHz receiver" && (level is "wired" or "receiver" or null))
         {
+            if (currentBatteryLevel != null && currentBatteryLevel != "wired" && currentBatteryLevel != "receiver")
+                return;
             batteryValue.Text = "Not reported (receiver)";
             return;
         }
-        batteryValue.Text = level switch {"full"=>"Full","medium"=>"Medium","low"=>"Low","empty"=>"Empty","wired"=>"Wired",_=>"Not reported"};
+        currentBatteryLevel = level;
+        batteryValue.Text = level switch {"full"=>"Full","medium"=>"Medium","low"=>"Low","empty"=>"Empty","wired"=>"Wired",_=>level??"Not reported"};
     }
     public void SetBatteryLevel(string? level) => SetBatteryLevel(level, null);
-    public void SetFirmware(string? firmware) => firmwareValue.Text = firmware ?? "Not reported";
+    public void SetFirmware(string? firmware)
+    {
+        currentFirmware = firmware;
+        firmwareValue.Text = firmware ?? (currentTransport == "2.4 GHz receiver" ? "Not readable over XInput" : "Not reported");
+    }
     private readonly TextBlock gamesCount; private readonly Button play;
     private readonly List<(Button Card, GameEntry Game)> cards = new();
     private readonly bool animate;
