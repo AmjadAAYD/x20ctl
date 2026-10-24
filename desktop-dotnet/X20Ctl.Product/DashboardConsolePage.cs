@@ -222,7 +222,7 @@ public sealed class DashboardConsolePage : Grid
         double w = Math.Round(coverHeight), h = Math.Round(coverHeight); // every cover shares the Genshin square frame
         if(art.Child is Image cover)cover.Stretch=Stretch.UniformToFill;
         art.Width = w; art.Height = h; art.Clip = new RectangleGeometry(new Rect(0, 0, w, h), 14, 14); title.Width = Math.Max(130,w); title.TextTrimming = TextTrimming.CharacterEllipsis; title.TextWrapping = TextWrapping.NoWrap;
-        if (art.Parent is Grid frame) { frame.Width = w; frame.Height = h; }
+        if (art.Parent is Grid frame) { frame.Width = w + 10; frame.Height = h + 10; }
     }
 
     /// <summary>Moves keyboard/gamepad focus to the hero so the page is immediately navigable.</summary>
@@ -276,17 +276,17 @@ public sealed class DashboardConsolePage : Grid
         // The selection frame: a slim blue edge with a dark line inside it (so it never fights the artwork) and a soft glow.
         // It fades in and out; it replaces the old flat 2 px border, which read as a white box on bright covers.
         // a bigger frame, set outside the cover, so a neighbouring tile rising never covers it (owner, 25 Oct 2026)
-        var ring = new Border { CornerRadius = new(17), BorderThickness = new(3.5), Margin = new(-5), IsHitTestVisible = false, Opacity = 0,
+        var ring = new Border { CornerRadius = new(17), BorderThickness = new(3.5), IsHitTestVisible = false, Opacity = 0,
             BorderBrush = new LinearGradientBrush(Color.FromRgb(168, 214, 255), Color.FromRgb(58, 138, 255), 45),
             Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = Color.FromRgb(58, 138, 255), BlurRadius = 22, ShadowDepth = 0, Opacity = .7 },
             Child = new Border { CornerRadius = new(13.5), BorderThickness = new(1), BorderBrush = new SolidColorBrush(Color.FromArgb(120, 4, 8, 20)) } };
-        art.Tag = ring;
-        var store = new Border { CornerRadius = new(9), Padding = new(8, 2, 8, 3), Background = new SolidColorBrush(Color.FromArgb(200, 6, 10, 22)), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom, Margin = new(0, 0, 10, 10), Child = Kit.Text(g.Store, 11.5, "DS.TextSoft", FontWeights.SemiBold) };
-        var title = Kit.Text(g.Name, 14, "DS.TextSoft"); title.Margin = new(2, 6, 0, 0);
+        art.Tag = ring; art.Margin = new(5); // the frame is the tile's own 5 px edge, so it rises and grows with the cover
+        var store = new Border { CornerRadius = new(9), Padding = new(8, 2, 8, 3), Background = new SolidColorBrush(Color.FromArgb(200, 6, 10, 22)), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom, Margin = new(0, 0, 15, 15), Child = Kit.Text(g.Store, 11.5, "DS.TextSoft", FontWeights.SemiBold) };
+        var title = Kit.Text(g.Name, 14, "DS.TextSoft"); title.Margin = new(7, 1, 0, 0);
         covers.Add((art, title)); SizeCover(art, title);
         var stack = new StackPanel { Children = { new Grid { HorizontalAlignment=HorizontalAlignment.Left, Children = { art, ring, store } }, title }, RenderTransformOrigin = new(.5, .4), RenderTransform = new TransformGroup { Children = { new ScaleTransform(1, 1), new TranslateTransform() } } };
         SizeCover(art,title);
-        var b = new Button { Content = stack, Template = Bare(), Margin = new(0, 0, 12, 12), Cursor = Cursors.Hand, FocusVisualStyle = null, ToolTip = $"{g.Name} · {g.Store}" };
+        var b = new Button { Content = stack, Template = Bare(), Margin = new(0, 0, 2, 2), Cursor = Cursors.Hand, FocusVisualStyle = null, ToolTip = $"{g.Name} · {g.Store}" };
         b.GotKeyboardFocus += (_, _) => { Feature(g); ShowRing(art, 1); Lift(stack, 1.03); title.Foreground = DS.Brush("DS.Text"); b.BringIntoView(new Rect(-12,0,coverHeight+12,coverHeight+34)); };
         b.LostKeyboardFocus += (_, _) => { ShowRing(art, current?.Id==g.Id ? 1 : 0);Lift(stack,1); };
         b.MouseEnter+=(_,_)=>{ Lift(stack,1.07); if (current?.Id != g.Id) ShowRing(art, .55); };
