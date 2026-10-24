@@ -11,7 +11,6 @@ Do not use a browser's Bluetooth dialog. This version discovers controllers thro
 - Check Windows Bluetooth is enabled and the controller is awake and nearby.
 - Disconnect a phone configuration app that may already hold the BLE connection.
 - Rescan. If Windows reports an adapter error, correct that first.
-- X05 is not compatible with this protocol. See [findings](docs/00-findings.md#7-other-controllers-checked).
 
 ## The app connects, but a category is unavailable
 

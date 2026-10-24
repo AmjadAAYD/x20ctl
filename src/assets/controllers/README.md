@@ -4,7 +4,9 @@
 
 The owner supplied new artwork for X20, X05, X05 Pro, X10, D10, X15 and Dune in their original colours and eleven
 other colours (`controller-animation-layers.zip`), plus a white X20 Pro front and rear pair. These are edited design
-renders, not photographs of the hardware. `tools/import_finish_packs.py` places them on this 1536x1024 canvas:
+renders, not photographs of the hardware. The X05 (not the X05 Pro) was removed from the app the same day at the
+owner's request; its art, data and catalog entry are gone. `tools/import_finish_packs.py` places them on this
+1536x1024 canvas:
 
 - each front is pinned by its two stick pivots onto the ones in `native-layers.json` (scale and offset only, no
   stretch), so the control shapes, stick travel and hotspots measured for the model stay on their controls;
@@ -16,7 +18,14 @@ renders, not photographs of the hardware. `tools/import_finish_packs.py` places 
 - the black X20 Pro art is unchanged; its white finish is cut from the white backdrop and fitted onto the black one by
   matching details (SIFT), with the black finish's cap and trigger shapes reused. In the source picture the front's
   right grip runs into the rear view, so that strip is rebuilt by mirroring the white's own left grip;
-- every other colour has its own traced rim in `outlines.json`, keyed `model/colour`.
+- every other colour has its own traced rim in `outlines.json`, keyed `model/colour`;
+- a tidy step drops what a neighbouring picture left glued to a shell: the white X20 Pro is held inside the black's
+  outline, and any rear loses a solid piece with no mirror twin (the white Pro's own front grip, a tab beside the X05
+  Pro purple rear) or a long thin strip; `--tidy-only` reruns it on the colours on disk.
+
+`tools/build_vibration_outlines.py` then retraces `vibration-outlines.json` from each colour's own front: every
+vibration stroke is cut again from that picture's inset edge between the ends of the stroke already in the file, and a
+colour gets its own strokes and silhouette keyed `model/colour`, so the Vibration page follows the pad's colour.
 
 A pad's colour can't be read from its USB or Bluetooth identity, so the player picks it with Change color in the Zone.
 It is remembered per player and model. The hologram layers (`holo-*.png`) are drawn from the model's shape and are
@@ -39,7 +48,7 @@ single contained image plane with normalized physical-button polygons; this
 keeps the HTML hover/click overlays aligned through resizing. The shared
 `ControllerView` offers Front View / Back View on Buttons and opens the selected
 macro slot. Macros is fixed to the rear view with no view-switch buttons.
-X05 has no macro buttons; X05 Pro has a slight rear tilt to show its top controls.
+X05 Pro has a slight rear tilt to show its top controls.
 All existing front images, empty-well bases and front geometry were preserved.
 
 See [rear verification and source notes](../../../docs/rear-controller-views-validation.md)

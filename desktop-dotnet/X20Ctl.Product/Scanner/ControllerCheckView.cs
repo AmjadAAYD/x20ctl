@@ -30,7 +30,7 @@ public sealed class ControllerCheckView : Grid
     /// <summary>The steps being run: every step, or after a scan just the ones that weren't seen.</summary>
     private string[] Actions = AllActions;
     private (string Name, string Model)? detected;
-    internal static readonly string[] Models = ["Unknown", "X05", "X05 Pro", "X10", "X15", "D10", "Dune / D15", "X20 Pro", "X20"];
+    internal static readonly string[] Models = ["Unknown", "X05 Pro", "X10", "X15", "D10", "Dune / D15", "X20 Pro", "X20"];
     private static readonly string[] Transports = ["Receiver", "USB cable", "Bluetooth", "Not sure"];
     private static readonly Color Green = Color.FromRgb(52, 211, 153), Amber = Color.FromRgb(245, 180, 91), Blue = Kit.Blue;
 
@@ -352,7 +352,7 @@ public sealed class ControllerCheckView : Grid
     private VendorListener? listener;
     /// <summary>The turbo step's two hold windows (step seconds): turbo on, then turbo off. They follow its Phases.</summary>
     private static readonly (double From, double To) TurboOn = (8, 13), TurboOff = (22.5, 25.5);
-    private static int PaddleCount(string model) => model switch { "X20 Pro" => 6, "X20" or "Dune / D15" or "Unknown" => 4, "X05" => 0, _ => 2 }; // the X05 has no back paddles (owner, 10 Oct 2026)
+    private static int PaddleCount(string model) => model switch { "X20 Pro" => 6, "X20" or "Dune / D15" or "Unknown" => 4, _ => 2 };
     private string ScanModel => (string)model.SelectedItem == "Unknown" && detected is { } d ? d.Model : (string)model.SelectedItem;
     /// <summary>What each step asks, phase by phase, each with its own countdown. Holds are 2 seconds, matching the hold-timing finding.</summary>
     private static (string Big, string Say, double Seconds, bool Hold)[] Phases(string a)

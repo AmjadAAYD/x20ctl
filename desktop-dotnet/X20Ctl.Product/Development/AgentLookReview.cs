@@ -51,7 +51,7 @@ internal static class AgentLookReview
             await talk.Ask("load Sniper"); await Shot("9c-load-sniper");
             await talk.Ask("what setups do I have?"); await Shot("9d-setups");
             // every model: the same controller, opened with each one's name
-            foreach (var model in new[] { "x20", "x05", "x05_pro", "x10", "d10", "x15", "dune" })
+            foreach (var model in new[] { "x20", "x05_pro", "x10", "d10", "x15", "dune" })
             {
                 studio.CloseAgent(); window.Host.ReturnToZone(); await Task.Delay(500);
                 window.Scene.AssignController(0, window.Host.Catalog.Get(model)); window.Host.EnterStudio(0); await Task.Delay(1200);

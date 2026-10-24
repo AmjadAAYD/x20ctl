@@ -12,6 +12,7 @@ public sealed class FinishCatalog
 {
     public const string Original = "original";
     private readonly Dictionary<string, IReadOnlyList<Finish>> models = new();
+    private readonly Dictionary<string, string> defaults = new();
     public FinishCatalog(string json)
     {
         using var doc = JsonDocument.Parse(json);
@@ -22,10 +23,19 @@ public sealed class FinishCatalog
                 throw new InvalidDataException($"Invalid finish list for {model.Name}.");
             models[model.Name] = list.AsReadOnly();
         }
+        if (doc.RootElement.TryGetProperty("default", out var shown))
+            foreach (var entry in shown.EnumerateObject())
+            {
+                if (entry.Value.GetString() is not { } id || !Has(entry.Name, id)) throw new InvalidDataException($"Invalid default colour for {entry.Name}.");
+                defaults[entry.Name] = id;
+            }
     }
     public static readonly FinishCatalog Empty = new("{\"models\":{}}");
     public IReadOnlyList<Finish> For(string model) => models.TryGetValue(model, out var list) ? list : [new(Original, "Original", "#808080")];
     public bool Has(string model, string finish) => For(model).Any(f => f.Id == finish);
+    /// <summary>The colour a model is shown in until its player picks one: the original, unless finishes.json names another
+    /// (owner, 24 Oct 2026: the Dune shows black).</summary>
+    public string Default(string model) => defaults.TryGetValue(model, out var id) ? id : Original;
     /// <summary>The colour after this one, wrapping round; an unknown colour starts again from the original.</summary>
     public Finish Next(string model, string? current)
     {

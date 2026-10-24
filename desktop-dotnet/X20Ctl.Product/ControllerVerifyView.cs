@@ -18,7 +18,7 @@ public static class ControllerVerify
     // model ids by the name ScanFlow.DetectModel returns
     private static readonly Dictionary<string, string> ByName = new()
     {
-        ["Dune / D15"] = "dune", ["X20 Pro"] = "x20_pro", ["X20"] = "x20", ["X15"] = "x15", ["X10"] = "x10", ["X05 Pro"] = "x05_pro", ["X05"] = "x05", ["D10"] = "d10",
+        ["Dune / D15"] = "dune", ["X20 Pro"] = "x20_pro", ["X20"] = "x20", ["X15"] = "x15", ["X10"] = "x10", ["X05 Pro"] = "x05_pro", ["D10"] = "d10",
     };
     // identities seen on real hardware that name a model outright (docs/00-findings.md); the shared Xbox identities never do
     private static readonly Dictionary<(int, int), string> ById = new() { [(0x0079, 0x181C)] = "x20", [(0x1D57, 0xFA60)] = "x20" };
@@ -280,6 +280,6 @@ public sealed class ControllerVerifyView : Grid
 
     private static string ModelLabel(string id, string? fallback) => id switch
     {
-        "x20" => "X20", "x20_pro" => "X20 Pro", "x15" => "X15", "x10" => "X10", "x05" => "X05", "x05_pro" => "X05 Pro", "d10" => "D10", "dune" => "Dune 8K", _ => fallback ?? id,
+        "x20" => "X20", "x20_pro" => "X20 Pro", "x15" => "X15", "x10" => "X10", "x05_pro" => "X05 Pro", "d10" => "D10", "dune" => "Dune 8K", _ => fallback ?? id,
     };
 }

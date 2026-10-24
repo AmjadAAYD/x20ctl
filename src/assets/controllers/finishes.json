@@ -29,23 +29,6 @@
     "swatch": "#1c1c20"
    }
   ],
-  "x05": [
-   {
-    "id": "original",
-    "name": "Oyster White",
-    "swatch": "#eeeeec"
-   },
-   {
-    "id": "black",
-    "name": "Black and pink",
-    "swatch": "#1e1e22"
-   },
-   {
-    "id": "lime",
-    "name": "Lime",
-    "swatch": "#c8ef1e"
-   }
-  ],
   "x05_pro": [
    {
     "id": "original",
@@ -107,8 +90,8 @@
   "x20_pro": [
    {
     "id": "original",
-    "name": "Black",
-    "swatch": "#2a2b30"
+    "name": "Grey",
+    "swatch": "#4a4d54"
    },
    {
     "id": "white",
@@ -116,5 +99,8 @@
     "swatch": "#e4e6ea"
    }
   ]
+ },
+ "default": {
+  "dune": "black"
  }
 }

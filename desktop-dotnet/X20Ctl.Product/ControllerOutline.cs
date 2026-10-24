@@ -43,11 +43,11 @@ public static class PadColours
         store = new(path);
         try { store.Load(); } catch (Exception error) when (error is IOException or JsonException or InvalidDataException or UnauthorizedAccessException) { store = null; }
     }
-    /// <summary>This session's pick (kept even if the file could not take it), else the remembered one, else the original.</summary>
+    /// <summary>This session's pick (kept even if the file could not take it), else the remembered one, else the model's default colour.</summary>
     public static string For(int player, string model)
     {
-        string finish = session.TryGetValue((player, model), out var picked) ? picked : store?.Get(player, model) ?? X20Ctl.Zone.FinishCatalog.Original;
-        return Catalog.Has(model, finish) ? finish : X20Ctl.Zone.FinishCatalog.Original;
+        string finish = session.TryGetValue((player, model), out var picked) ? picked : store?.Get(player, model) ?? Catalog.Default(model);
+        return Catalog.Has(model, finish) ? finish : Catalog.Default(model);
     }
     /// <summary>Remembers the colour (for this session if the file can't be written) and tells every view of the pad.</summary>
     public static void Set(int player, string model, string finish)
@@ -59,7 +59,7 @@ public static class PadColours
     private static readonly Dictionary<(int, string), string> session = new();
     /// <summary>The player whose Studio is open; its pages show that pad in its colour.</summary>
     public static int? ActivePlayer { get; set; }
-    public static string Active(string model) => ActivePlayer is int player ? For(player, model) : X20Ctl.Zone.FinishCatalog.Original;
+    public static string Active(string model) => ActivePlayer is int player ? For(player, model) : Catalog.Default(model);
 }
 
 public sealed class ControllerOutline : FrameworkElement

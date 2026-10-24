@@ -12,7 +12,7 @@ public enum AgentCommand { None, AboutController, Battery, ChangeController, Sta
 /// </summary>
 public static class AgentCommands
 {
-    static readonly string[] Models = ["x20 pro", "x20pro", "x20", "x05 pro", "x05", "dune", "x15", "easysmx"];
+    static readonly string[] Models = ["x20 pro", "x20pro", "x20", "x05 pro", "dune", "x15", "easysmx"];
 
     public static AgentCommand Parse(string sentence)
     {
@@ -23,7 +23,7 @@ public static class AgentCommands
         if (Regex.IsMatch(lower, @"\b(diagnos\w*|diagnost\w*|test (my |the )?(controller|pad|sticks?|buttons?|triggers?)|check (my |the )?(controller|pad|sticks?|buttons?))\b")) return AgentCommand.Diagnostics;
         // the battery now, not how long batteries last in general (that's a docs question)
         if (Regex.IsMatch(lower, @"\b(battery|batteries|charge left|charged|how much charge|power left)\b") && !Regex.IsMatch(lower, @"\b(hours?|last|lasts|life|lifespan|long|replace|buy)\b")) return AgentCommand.Battery;
-        if (Regex.IsMatch(lower, @"\b(change|switch|swap|another|different|other|pick|choose)\b.*\b(controllers?|pads?|gamepads?)\b|\bcontroller zone\b|\b(use|switch to|change to) (my |the )?(x20 pro|x20|x05 pro|x05|dune)\b")) return AgentCommand.ChangeController;
+        if (Regex.IsMatch(lower, @"\b(change|switch|swap|another|different|other|pick|choose)\b.*\b(controllers?|pads?|gamepads?)\b|\bcontroller zone\b|\b(use|switch to|change to) (my |the )?(x20 pro|x20|x05 pro|dune)\b")) return AgentCommand.ChangeController;
         if (Regex.IsMatch(lower, @"\b(give|leave|drop) (you |it |the (repo|project) )?(a |one )?stars?\b|\bstar (the |this |your )?(repo|project|app|it|you)\b|\bstar on github\b|^ ?star ?$")) return AgentCommand.Star;
         if (Regex.IsMatch(lower, @"\b(donate|donation|donating|tip|support (you|the (dev|developer|project|app))|ko ?fi|buy (you|the dev) a coffee)\b")) return AgentCommand.Donate;
         // only the controller's name, maybe as a question: "EasySMX X20 Pro", "what is the x20 pro?"

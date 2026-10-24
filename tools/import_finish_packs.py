@@ -7,6 +7,7 @@ native-layers.json, the rear by its silhouette. The button shapes, vibration con
 already measured for that model stay where they are; the rim outlines are retraced from the new originals. The rear's screen-left trigger is RT, which the app calls trigger-r.
 
     python tools/import_finish_packs.py PACKS_DIR [--x20pro-white PAIR.png] [--report out.json]
+    python tools/import_finish_packs.py --tidy-only    # re-tidy the colours on disk and retrace their rims
 
 The original finish of each model replaces native/; the other finishes go to <model>/finishes/<id>/. The fit is checked
 by silhouette overlap and by where each pack's stick pivots land against native-layers.json; both go in the report.
@@ -33,9 +34,6 @@ W, H = 1536, 1024
 PACKS = [
     ("x20-original", "x20", "original", "White", "#e9eaee"),
     ("x20-black", "x20", "black", "Black", "#202228"),
-    ("x05-original", "x05", "original", "Oyster White", "#eeeeec"),
-    ("x05-black", "x05", "black", "Black and pink", "#1e1e22"),
-    ("x05-lime", "x05", "lime", "Lime", "#c8ef1e"),
     ("x05_pro-original", "x05_pro", "original", "Black", "#1f2024"),
     ("x05pro-white", "x05_pro", "white", "White", "#e6e8ee"),
     ("x05pro-purple", "x05_pro", "purple", "Aurora Purple", "#4a3fa0"),
@@ -51,7 +49,9 @@ PACKS = [
     ("dune-black", "dune", "black", "Black", "#1c1c20"),
 ]
 # X20 Pro keeps its current art as the original finish; white comes from a front + rear product pair, not a pack.
-KEEP = {"x20_pro": ("original", "Black", "#2a2b30")}
+KEEP = {"x20_pro": ("original", "Grey", "#4a4d54")}
+# the colour a model is shown in until its player picks one (owner, 24 Oct 2026: the Dune shows black)
+DEFAULT = {"dune": "black"}
 WHITE_PRO = ("x20_pro", "white", "White", "#e4e6ea")
 LAYERS = {"front": [("front-full", "front-full"), ("front-no-sticks", "front-body"), ("stick-l", "stick-l"), ("stick-r", "stick-r")],
           "rear": [("rear-full", "rear-full"), ("rear-no-triggers", "rear-body"), ("trigger-rt", "trigger-r"), ("trigger-lt", "trigger-l")]}
@@ -182,6 +182,49 @@ def cut_white(image):
     out = image.copy(); out[:, :, 3] = body; return out
 
 
+def tidy(model, finish, reach=9):
+    """Drops what a neighbouring picture left glued to the shell. Any colour loses long thin strips that an opening
+    (a disc of radius reach) parts from the body, like the sliver beside the X05 Pro purple rear; real details are short
+    and stay. The white X20 Pro is the black one's shell, so it is also held inside the black's outline, which takes off
+    its own front grip that stood beside the rear in the source picture. A rear shell is mirror-symmetric, so a solid
+    piece with no twin across the middle goes too (what of that grip lay inside the black's outline, the purple tab).
+    Thin unmatched edges are the shell's own slight asymmetry and stay."""
+    folder = CONTROLLERS / model / "finishes" / finish
+    removed = {}
+    for view in ("front", "rear"):
+        alpha = rgba(folder / f"{view}-full.png")[:, :, 3]; solid = (alpha > 40).astype(np.uint8)
+        opened = cv2.morphologyEx(solid, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * reach + 1, 2 * reach + 1)))
+        count, labels, stats, _ = cv2.connectedComponentsWithStats(opened)
+        body = (labels == 1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA]))).astype(np.uint8)
+        rest = solid & ~cv2.dilate(body, np.ones((5, 5), np.uint8))
+        count, labels, stats, _ = cv2.connectedComponentsWithStats(rest)
+        strips = [i for i in range(1, count) if max(stats[i, 2], stats[i, 3]) >= 80 and stats[i, 4] >= 300]
+        drop = cv2.dilate(np.isin(labels, strips).astype(np.uint8), np.ones((5, 5), np.uint8)) > 0
+        drop &= ~(body > 0)
+        if view == "rear":
+            drop |= unmirrored(solid)
+        if (model, finish) == WHITE_PRO[:2]:
+            drop |= cv2.dilate((TARGETS[model][view] > 0).astype(np.uint8), np.ones((5, 5), np.uint8)) == 0
+        drop &= alpha > 0
+        if drop.sum() < 50: continue
+        removed[view] = int(drop.sum())
+        for name in [f"{view}-full", f"{view}-body"] + list(("stick-l", "stick-r") if view == "front" else ("trigger-l", "trigger-r")):
+            layer = rgba(folder / f"{name}.png"); layer[drop] = 0; save(layer, folder, name)
+    return removed
+
+
+def unmirrored(solid):
+    """Solid pieces with nothing opposite them across the shell's middle, found from the upper third, which no stray reaches."""
+    rows = np.nonzero(solid.any(1))[0]; top = solid[rows.min():rows.min() + (rows.max() - rows.min()) // 3]
+    xs = np.nonzero(top.any(0))[0]; axis = (xs.min() + xs.max()) / 2
+    source = np.arange(solid.shape[1]); target = np.round(2 * axis - source).astype(int); inside = (target >= 0) & (target < solid.shape[1])
+    mirrored = np.zeros_like(solid); mirrored[:, target[inside]] = solid[:, source[inside]]
+    lone = (solid & (cv2.dilate(mirrored, np.ones((9, 9), np.uint8)) == 0)).astype(np.uint8)
+    count, labels, stats, _ = cv2.connectedComponentsWithStats(lone)
+    pieces = [i for i in range(1, count) if stats[i, 2] >= 12 and stats[i, 4] >= 300 and stats[i, 4] >= .25 * stats[i, 2] * stats[i, 3]]
+    return cv2.dilate(np.isin(labels, pieces).astype(np.uint8), np.ones((5, 5), np.uint8)) > 0
+
+
 def import_white_pro(pair_path, report):
     """The white X20 Pro is one picture holding the front (left half) and the rear (right half). Each half is lifted off
     its backdrop and fitted onto the black X20 Pro by their shared details. Its caps and triggers are cut along the black
@@ -224,24 +267,31 @@ def import_white_pro(pair_path, report):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("packs", type=Path)
+    parser.add_argument("packs", type=Path, nargs="?")
     parser.add_argument("--x20pro-white", type=Path)
     parser.add_argument("--report", type=Path)
+    parser.add_argument("--tidy-only", action="store_true", help="only tidy the colours already imported and retrace their rims")
     args = parser.parse_args()
     global TARGETS, LAYOUT
     LAYOUT = json.loads((CONTROLLERS / "native-layers.json").read_text(encoding="utf-8"))["models"]
     models = sorted({p[1] for p in PACKS} | set(KEEP))
     TARGETS = {m: {"front": rgba(CONTROLLERS / m / "native" / "front-full.png")[:, :, 3], "rear": rgba(CONTROLLERS / m / "native" / "rear-full.png")[:, :, 3]} for m in models}
     report = {}
-    for pack, model, finish, _, _ in PACKS:
+    # with --tidy-only the colours already on disk are kept, the white X20 Pro among them
+    white = bool(args.x20pro_white) or (args.tidy_only and (CONTROLLERS / WHITE_PRO[0] / "finishes" / WHITE_PRO[1]).is_dir())
+    for pack, model, finish, _, _ in ([] if args.tidy_only else PACKS):
         print(pack, "->", model, finish, flush=True); import_pack(args.packs / pack, model, finish, report)
     # the rims, clips and 3D walls follow the new originals (the old Dune silhouette still held its charging dock)
-    for model in sorted({p[1] for p in PACKS}): roster.silhouette(model)
-    if args.x20pro_white:
-        print("x20pro white", flush=True); import_white_pro(args.x20pro_white, report)
+    if not args.tidy_only:
+        for model in sorted({p[1] for p in PACKS}): roster.silhouette(model)
+        if args.x20pro_white:
+            print("x20pro white", flush=True); import_white_pro(args.x20pro_white, report)
+    extra = [(m, f) for _, m, f, _, _ in PACKS if f != "original"] + ([WHITE_PRO[:2]] if white else [])
+    for model, finish in extra:
+        removed = tidy(model, finish)
+        if removed: print("tidied", f"{model}/{finish}", removed, flush=True); report.setdefault(f"{model}/{finish}", {})["tidied"] = removed
     # a colour's shell can be cut a little differently from its original: each gets its own rim, keyed "model/colour"
     outlines_file = CONTROLLERS / "outlines.json"; data = json.loads(outlines_file.read_text(encoding="utf-8"))
-    extra = [(m, f) for _, m, f, _, _ in PACKS if f != "original"] + ([WHITE_PRO[:2]] if args.x20pro_white else [])
     for model, finish in extra:
         folder = CONTROLLERS / model / "finishes" / finish
         data["models"][f"{model}/{finish}"] = {"front": roster.outlines.trace(folder / "front-full.png"), "back": roster.outlines.trace(folder / "rear-full.png")}
@@ -251,11 +301,12 @@ def main():
     for model in models:
         rows = [{"id": f, "name": n, "swatch": s} for _, m, f, n, s in PACKS if m == model]
         if model in KEEP: rows.insert(0, dict(zip(("id", "name", "swatch"), KEEP[model])))
-        if model == WHITE_PRO[0] and args.x20pro_white: rows.append(dict(zip(("id", "name", "swatch"), WHITE_PRO[1:])))
+        if model == WHITE_PRO[0] and white: rows.append(dict(zip(("id", "name", "swatch"), WHITE_PRO[1:])))
         finishes[model] = rows
-    (CONTROLLERS / "finishes.json").write_text(json.dumps({"models": finishes}, indent=1) + "\n", encoding="utf-8")
+    (CONTROLLERS / "finishes.json").write_text(json.dumps({"models": finishes, "default": DEFAULT}, indent=1) + "\n", encoding="utf-8")
     if args.report: args.report.write_text(json.dumps(report, indent=1), encoding="utf-8")
-    for key, entry in report.items(): print(key, entry["front"]["iou"], entry["rear"]["iou"], entry.get("pivotError", ""))
+    for key, entry in report.items():
+        if "front" in entry: print(key, entry["front"]["iou"], entry["rear"]["iou"], entry.get("pivotError", ""))
 
 
 TARGETS, LAYOUT = {}, {}

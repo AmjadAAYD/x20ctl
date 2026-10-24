@@ -31,8 +31,10 @@ public sealed class VibrationVisual : Grid
         animations = animate; IsHitTestVisible = false; Width = 1536; Height = 1024;
         var tracks = Flow.Load(model);
         var rim = Flow.LoadRim(model);
-        var islands = Flow.Islands(model);
-        behind = new Flow(tracks, false) { Rim = rim }; over = new Flow(tracks, true) { Rim = rim, Parts = islands, Palette = [Color.FromRgb(246,191,105),Color.FromRgb(255,229,187)], Body = Flow.Silhouette(model) };
+        // the strokes follow the edge of the colour the pad is shown in (each colour's shell is traced on its own)
+        string finish = PadColours.Active(model);
+        var islands = Flow.Islands(model, finish);
+        behind = new Flow(tracks, false) { Rim = rim }; over = new Flow(tracks, true) { Rim = rim, Parts = islands, Palette = [Color.FromRgb(246,191,105),Color.FromRgb(255,229,187)], Body = Flow.Silhouette(model, finish) };
         Children.Add(behind); Children.Add(new PhotoController(model)); Children.Add(over);
         RenderTransform = shake;
         Loaded += (_, _) => UpdateClock(); Unloaded += (_, _) => Stop(); IsVisibleChanged += (_, _) => UpdateClock();
@@ -93,12 +95,15 @@ public sealed class VibrationVisual : Grid
         /// <summary>The controller's exact outline from its photo. The light is clipped to it, so it lives on the controller's
         /// edge like an edge-lit bevel and never bleeds out into the background.</summary>
         public Geometry? Body { get; init; }
-        public static Geometry? Silhouette(string model)
+        /// <summary>A colour's own entry ("model/colour") when it has one, else the model's.</summary>
+        private static bool Entry(System.Text.Json.JsonElement section, string model, string finish, out System.Text.Json.JsonElement entry) =>
+            section.TryGetProperty(model + "/" + finish, out entry) || section.TryGetProperty(model, out entry);
+        public static Geometry? Silhouette(string model, string finish = X20Ctl.Zone.FinishCatalog.Original)
         {
             try
             {
                 using var doc = System.Text.Json.JsonDocument.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(AppContext.BaseDirectory, "Data", "vibration-outlines.json")));
-                if (!doc.RootElement.TryGetProperty("silhouettes", out var all) || !all.TryGetProperty(model, out var pts)) return null;
+                if (!doc.RootElement.TryGetProperty("silhouettes", out var all) || !Entry(all, model, finish, out var pts)) return null;
                 var a = pts.EnumerateArray().Select(q => new Point(q[0].GetDouble() * 1536, q[1].GetDouble() * 1024)).ToList();
                 var g = new StreamGeometry();
                 using (var ctx = g.Open()) { ctx.BeginFigure(a[0], true, true); ctx.PolyLineTo(a.Skip(1).ToList(), false, true); }
@@ -106,13 +111,13 @@ public sealed class VibrationVisual : Grid
             }
             catch (Exception e) when (e is System.IO.IOException or System.Text.Json.JsonException or InvalidOperationException) { return null; }
         }
-        public static List<Island> Islands(string model)
+        public static List<Island> Islands(string model, string finish = X20Ctl.Zone.FinishCatalog.Original)
         {
             var list = new List<Island>();
             try
             {
                 using var doc = System.Text.Json.JsonDocument.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(AppContext.BaseDirectory, "Data", "vibration-outlines.json")));
-                if (!doc.RootElement.GetProperty("models").TryGetProperty(model, out var shapes)) return list;
+                if (!Entry(doc.RootElement.GetProperty("models"), model, finish, out var shapes)) return list;
                 foreach (var shape in shapes.EnumerateArray())
                 {
                     var pts = shape.GetProperty("points").EnumerateArray().Select(q => new Point(q[0].GetDouble() * 1536, q[1].GetDouble() * 1024)).ToList();
@@ -268,7 +273,6 @@ public sealed class VibrationVisual : Grid
         {
             "x20" => [Color.FromRgb(255, 150, 45), Color.FromRgb(255, 60, 200), Color.FromRgb(80, 90, 255)],
             "x20_pro" => [Color.FromRgb(255, 90, 220), Color.FromRgb(160, 110, 255), Color.FromRgb(90, 230, 255)],
-            "x05" => [Color.FromRgb(80, 225, 255), Color.FromRgb(100, 120, 255), Color.FromRgb(255, 80, 220)],
             "x05_pro" => [Color.FromRgb(255, 70, 200), Color.FromRgb(255, 215, 60), Color.FromRgb(80, 230, 255)],
             "x10" => [Color.FromRgb(110, 160, 255), Color.FromRgb(175, 210, 255)],
             "d10" => [Color.FromRgb(255, 190, 240), Color.FromRgb(255, 80, 210), Color.FromRgb(160, 90, 255)],
