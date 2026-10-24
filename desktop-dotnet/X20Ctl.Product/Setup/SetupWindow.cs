@@ -105,7 +105,7 @@ internal sealed class SetupWindow : Window
     }
 
     // the welcome page's controllers: the X20 Pro, then the X20, then the rest, sliding on by themselves
-    static readonly (string Id, string Name)[] Lineup = [("x20_pro", "X20 Pro"), ("x20", "X20"), ("x15", "X15"), ("x10", "X10"), ("x05_pro", "X05 Pro"), ("x05", "X05"), ("d10", "D10"), ("dune", "Dune")];
+    static readonly (string Id, string Name)[] Lineup = [("x20_pro", "X20 Pro"), ("x20", "X20"), ("x15", "X15"), ("x10", "X10"), ("x05_pro", "X05 Pro"), ("d10", "D10"), ("dune", "Dune")];
     int artIndex; System.Windows.Threading.DispatcherTimer? rotate;
 
     FrameworkElement Carousel()

@@ -100,11 +100,11 @@ public partial class DockView : UserControl
     {
         Player = player;
         AddControllerButton.Visibility=player.Model==null?Visibility.Visible:Visibility.Collapsed;
-        Halo.Visibility=player.ModelId is "x20" or "x20_pro" or "x05" or "x05_pro" or "d10" or "x15" or "dune"?Visibility.Visible:Visibility.Collapsed;
+        Halo.Visibility=player.ModelId is "x20" or "x20_pro" or "x05_pro" or "d10" or "x15" or "dune"?Visibility.Visible:Visibility.Collapsed;
         Halo.Fill=new LinearGradientBrush(Color.FromArgb(20,215,69,160),Color.FromArgb(20,54,187,230),0);Halo.OpacityMask=new RadialGradientBrush(Colors.White,Colors.Transparent);
         RemoveControllerButton.Visibility=player.Model==null?Visibility.Collapsed:Visibility.Visible;
         System.Windows.Automation.AutomationProperties.SetName(FocusButton, $"Player {player.Number}, {player.Model ?? "empty"}, focus controller dock");
-        if (player.Model != null && (new[] { "x20", "x20_pro", "x15", "x05", "x05_pro", "x10", "d10", "dune" }.Contains(player.ModelId) || player.IsMockConnected))
+        if (player.Model != null && (new[] { "x20", "x20_pro", "x15", "x05_pro", "x10", "d10", "dune" }.Contains(player.ModelId) || player.IsMockConnected))
         {
             string outlineModel = player.ModelId ?? (player.Model switch { "EasySMX X15" => "x15", "EasySMX X05 Pro" => "x05_pro", _ => "x20" });
             ControllerImage.Source = ControllerArt.Front(outlineModel);

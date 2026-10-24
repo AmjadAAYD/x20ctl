@@ -222,18 +222,18 @@ public sealed class PadProcessorTests
         {
             var store = new PcModeStore(path); store.Load();
             var profile = new PcModeProfile { Remap = { ["A"] = "B" }, Turbo = { ["X"] = 12 }, Curves = { ["LeftStick"] = Curve(inner: 10) }, Macros = { ["RB"] = [new SetupMacro(Guid.NewGuid(), ["A", "B"], StickHeading.Left, StickHeading.Neutral, 40, 20)] } };
-            store.Save("x05", profile);
+            store.Save("x05_pro", profile);
             var again = new PcModeStore(path); again.Load();
-            var loaded = again.Get("x05");
+            var loaded = again.Get("x05_pro");
             Assert.Equal("B", loaded.Remap["A"]); Assert.Equal(12, loaded.Turbo["X"]); Assert.Equal(10, loaded.Curves["LeftStick"].Inner);
             Assert.Equal(StickHeading.Left, loaded.Macros["RB"][0].Left);
-            again.Save("x05", new PcModeProfile { Sticks = { ["LeftStick"] = new() { Inner = 3.7, SquareGate = true, AxisRatio = 80 } } });
+            again.Save("x05_pro", new PcModeProfile { Sticks = { ["LeftStick"] = new() { Inner = 3.7, SquareGate = true, AxisRatio = 80 } } });
             var tuned = new PcModeStore(path); tuned.Load();
-            Assert.Equal((3.7, true, 80), (tuned.Get("x05").Sticks["LeftStick"].Inner, tuned.Get("x05").Sticks["LeftStick"].SquareGate, tuned.Get("x05").Sticks["LeftStick"].AxisRatio));
+            Assert.Equal((3.7, true, 80), (tuned.Get("x05_pro").Sticks["LeftStick"].Inner, tuned.Get("x05_pro").Sticks["LeftStick"].SquareGate, tuned.Get("x05_pro").Sticks["LeftStick"].AxisRatio));
             Assert.True(again.Get("dune").IsNeutral);
-            again.Save("x05", new());
+            again.Save("x05_pro", new());
             var cleared = new PcModeStore(path); cleared.Load();
-            Assert.True(cleared.Get("x05").IsNeutral);
+            Assert.True(cleared.Get("x05_pro").IsNeutral);
         }
         finally { foreach (var f in new[] { path, path + ".bak" }) if (File.Exists(f)) File.Delete(f); }
     }
@@ -247,7 +247,7 @@ public sealed class PadProcessorTests
             File.WriteAllText(path, "{ not json");
             var store = new PcModeStore(path); store.Load();
             Assert.False(store.Healthy);
-            Assert.Throws<IOException>(() => store.Save("x05", new PcModeProfile { Remap = { ["A"] = "B" } }));
+            Assert.Throws<IOException>(() => store.Save("x05_pro", new PcModeProfile { Remap = { ["A"] = "B" } }));
             Assert.Equal("{ not json", File.ReadAllText(path));
         }
         finally { if (File.Exists(path)) File.Delete(path); }

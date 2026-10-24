@@ -12,7 +12,7 @@ public enum AgentCommand { None, AboutController, Battery, ChangeController, Sta
 /// </summary>
 public static class AgentCommands
 {
-    static readonly string[] Models = ["x20 pro", "x20pro", "x20", "x05 pro", "x05", "dune", "x15", "easysmx"];
+    static readonly string[] Models = ["x20 pro", "x20pro", "x20", "x05 pro", "dune", "x15", "easysmx"];
 
     public static AgentCommand Parse(string sentence)
     {

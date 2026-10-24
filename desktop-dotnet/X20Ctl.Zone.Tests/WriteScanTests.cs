@@ -114,7 +114,7 @@ public sealed class WriteScanTests
         var other = new List<(bool, byte[])> { (true, Acl(0x40, 0, L2cap(Att(0x12, 0x20, Hex("0102030405060708"))))) };
         var kl = KeyLinkerAnalysis.From(AttTrace.From(BtSnoop.Parse(Log(other))));
         Assert.Empty(kl.Frames); Assert.Equal(1, kl.Other);
-        var report = WriteScanReport.Build(new("X05", "Some app", "Vibration", "1", "2"), [], BtSnoop.Parse(Log(other)), "snoop log");
+        var report = WriteScanReport.Build(new("X05 Pro", "Some app", "Vibration", "1", "2"), [], BtSnoop.Parse(Log(other)), "snoop log");
         Assert.False(report.IsKeyLinker);
         Assert.Contains("inconclusive", report.Summary());
         Assert.DoesNotContain("speaks something else", report.Summary());

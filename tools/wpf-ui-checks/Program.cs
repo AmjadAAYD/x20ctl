@@ -72,7 +72,7 @@ Console.WriteLine("PASS: manual Dashboard flip switches rear and back to front; 
 Console.WriteLine("PASS: artwork copied, stable after rename, failed replacement preserves image.");
  string? loadedId=null;
  var saved=new X20Ctl.Zone.SavedSetup{Id="compatible",Name="Test setup",ModelId="x20_pro",Snapshot=System.Text.Json.JsonDocument.Parse("{}").RootElement.Clone()};
- var setupPage=new DashboardConsolePage(model,0,0,1,true,new[]{saved,new X20Ctl.Zone.SavedSetup{Id="wrong",Name="Wrong model",ModelId="x05",Snapshot=saved.Snapshot}},id=>loadedId=id);
+ var setupPage=new DashboardConsolePage(model,0,0,1,true,new[]{saved,new X20Ctl.Zone.SavedSetup{Id="wrong",Name="Wrong model",ModelId="x05_pro",Snapshot=saved.Snapshot}},id=>loadedId=id);
  setupPage.Measure(new Size(1500,740));setupPage.Arrange(new Rect(0,0,1500,740));setupPage.UpdateLayout();
  IEnumerable<DependencyObject> Descend(DependencyObject node){yield return node;for(int i=0;i<VisualTreeHelper.GetChildrenCount(node);i++)foreach(var child in Descend(VisualTreeHelper.GetChild(node,i)))yield return child;}
  var chooser=Descend(setupPage).OfType<System.Windows.Controls.ComboBox>().Single();
