@@ -34,7 +34,7 @@ public sealed class FinishCatalog
     public IReadOnlyList<Finish> For(string model) => models.TryGetValue(model, out var list) ? list : [new(Original, "Original", "#808080")];
     public bool Has(string model, string finish) => For(model).Any(f => f.Id == finish);
     /// <summary>The colour a model is shown in until its player picks one: the original, unless finishes.json names another
-    /// (owner, 24 Oct 2026: the Dune shows black).</summary>
+    /// (owner, 24 Oct 2026: the X20 Pro shows white, the Dune black).</summary>
     public string Default(string model) => defaults.TryGetValue(model, out var id) ? id : Original;
     /// <summary>The colour after this one, wrapping round; an unknown colour starts again from the original.</summary>
     public Finish Next(string model, string? current)

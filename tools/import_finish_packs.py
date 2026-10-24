@@ -50,8 +50,8 @@ PACKS = [
 ]
 # X20 Pro keeps its current art as the original finish; white comes from a front + rear product pair, not a pack.
 KEEP = {"x20_pro": ("original", "Grey", "#4a4d54")}
-# the colour a model is shown in until its player picks one (owner, 24 Oct 2026: the Dune shows black)
-DEFAULT = {"dune": "black"}
+# the colour a model is shown in until its player picks one (owner, 24 Oct 2026: the X20 Pro in white, the Dune in black)
+DEFAULT = {"x20_pro": "white", "dune": "black"}
 WHITE_PRO = ("x20_pro", "white", "White", "#e4e6ea")
 LAYERS = {"front": [("front-full", "front-full"), ("front-no-sticks", "front-body"), ("stick-l", "stick-l"), ("stick-r", "stick-r")],
           "rear": [("rear-full", "rear-full"), ("rear-no-triggers", "rear-body"), ("trigger-rt", "trigger-r"), ("trigger-lt", "trigger-l")]}
@@ -126,6 +126,25 @@ def save(array, folder, name):
     folder.mkdir(parents=True, exist_ok=True); write(Image.fromarray(array, "RGBA"), folder / f"{name}.png")
 
 
+def mend_cut(folder, view, cut_x, ramp=24):
+    """Rebuilds a grip the source picture cut off at its canvas edge (the black Dune's right grip runs off its pack's
+    canvas). The shell is mirror-symmetric about the middle of its top third, so everything from just inside the cut
+    outwards is taken from the mirrored picture, blended in over a short ramp. Only the full picture and the body change;
+    the sticks and triggers sit well inside."""
+    full = rgba(folder / f"{view}-full.png"); solid = full[:, :, 3] > 40
+    rows = np.nonzero(solid.any(1))[0]; top = solid[rows.min():rows.min() + (rows.max() - rows.min()) // 3]
+    xs = np.nonzero(top.any(0))[0]; axis = (xs.min() + xs.max()) / 2
+    edge = int(cut_x) - 40 if cut_x > axis else int(cut_x) + 40
+    k = np.clip((np.arange(W) - edge) / ramp, 0, 1) if cut_x > axis else np.clip((edge - np.arange(W)) / ramp, 0, 1)
+    k = k[None, :, None]
+    for name in (f"{view}-full", f"{view}-body"):
+        layer = rgba(folder / f"{name}.png")
+        mirrored = np.roll(layer[:, ::-1], int(round(2 * axis - (W - 1))), axis=1)
+        out = (layer * (1 - k) + mirrored * k).astype(np.uint8); out[out[:, :, 3] == 0] = 0
+        save(out, folder, name)
+    return {"axis": round(float(axis), 1), "from": edge}
+
+
 def import_pack(pack_dir, model, finish, report):
     """Every finish's front is pinned by its stick pivots to the model's measured ones, so each control shape stays on its
     control. Its rear is fitted to the rear silhouette: the app's for an original, the new original's for any other."""
@@ -142,6 +161,11 @@ def import_pack(pack_dir, model, finish, report):
         for source, name in LAYERS[view]: save(place(rgba(pack_dir / f"{source}.png"), m), folder, name)
         entry[view] = {"iou": round(iou(front_alpha if view == "front" else rear_alpha, TARGETS[model][view], m), 4),
                        "matrix": [[round(float(v), 4) for v in row] for row in m]}
+    # a view whose art runs off its own canvas had that grip cut off in the source: rebuild it from the other side
+    for view, m, alpha in (("front", front, front_alpha), ("rear", rear, rear_alpha)):
+        for band, side in ((alpha[:, -3:], alpha.shape[1]), (alpha[:, :3], 0)):
+            if (band > 40).any(1).sum() > 50:
+                entry.setdefault("mended", {})[view] = mend_cut(folder, view, point(m, (side, alpha.shape[0] / 2))[0])
     entry["pivots"] = {k: [round(v, 1) for v in point(front, p)] for k, p in sticks.items()}
     entry["pivotError"] = round(max(float(np.hypot(*(np.array(point(front, sticks[k])) - centres[side]["center"])))
                                     for k, side in (("stick-l", "left"), ("stick-r", "right"))), 1)
