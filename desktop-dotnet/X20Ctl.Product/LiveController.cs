@@ -22,6 +22,7 @@ public sealed class LiveController : Grid
 
     private readonly Image body = Layer(), capLeft = Layer(), capRight = Layer(), triggerLeft = Layer(), triggerRight = Layer();
     private readonly ControllerOutline outline = new();
+    private readonly Canvas paddles = new() { Width = 1536, Height = 1024, IsHitTestVisible = false };
     private readonly TranslateTransform leftMove = new(), rightMove = new();
     private readonly SkewTransform leftTilt = new(), rightTilt = new();
     private readonly DropShadowEffect leftShadow = CapShadow(), rightShadow = CapShadow();
@@ -40,7 +41,7 @@ public sealed class LiveController : Grid
     {
         Width = 1536; Height = 1024; IsHitTestVisible = false;
         foreach (var image in new[] { body, triggerLeft, triggerRight, capLeft, capRight }) Children.Add(image);
-        Children.Add(outline);
+        Children.Add(outline); Children.Add(paddles);
         capLeft.RenderTransform = new TransformGroup { Children = { leftTilt, leftMove } };
         capRight.RenderTransform = new TransformGroup { Children = { rightTilt, rightMove } };
         capLeft.Effect = leftShadow; capRight.Effect = rightShadow; capLeft.CacheMode = new BitmapCache(1); capRight.CacheMode = new BitmapCache(1);
@@ -71,7 +72,48 @@ public sealed class LiveController : Grid
         body.Source = Bitmap(dir + (rear ? "rear-body.png" : "front-body.png"));
         capLeft.Source = rear ? null : Bitmap(dir + "stick-l.png"); capRight.Source = rear ? null : Bitmap(dir + "stick-r.png");
         triggerLeft.Source = rear ? Bitmap(dir + "trigger-l.png") : null; triggerRight.Source = rear ? Bitmap(dir + "trigger-r.png") : null;
+        LabelPaddles();
         Apply();
+    }
+
+    /// <summary>The back shows each macro paddle's name on it, only the ones this model has (catalog macroSlots):
+    /// M1 to M6 on the X20 Pro, M1 to M4 on the X20 and Dune, M1 and M2 on the two-paddle pads, none on the X05.</summary>
+    private void LabelPaddles()
+    {
+        paddles.Children.Clear();
+        if (!rear) return;
+        foreach (var (slot, centre) in Paddles(ModelId))
+        {
+            var label = new Border
+            {
+                CornerRadius = new(17), Padding = new(12, 2, 12, 3), BorderThickness = new(2),
+                Background = new SolidColorBrush(Color.FromArgb(225, 14, 18, 26)), BorderBrush = new SolidColorBrush(Color.FromArgb(230, Kit.Blue.R, Kit.Blue.G, Kit.Blue.B)),
+                Child = new TextBlock { Text = slot, FontSize = 28, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(240, 244, 250)) }
+            };
+            label.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            Canvas.SetLeft(label, centre.X - label.DesiredSize.Width / 2); Canvas.SetTop(label, centre.Y - label.DesiredSize.Height / 2);
+            paddles.Children.Add(label);
+        }
+    }
+    private static readonly Dictionary<string, List<(string, Point)>> paddleCentres = new();
+    /// <summary>Each paddle the model has, with the centre of its shape in control-shapes.json (macros), in M order.</summary>
+    public static IReadOnlyList<(string Slot, Point Centre)> Paddles(string model)
+    {
+        if (paddleCentres.TryGetValue(model, out var known)) return known;
+        var list = new List<(string, Point)>();
+        try
+        {
+            using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Data", "control-shapes.json")));
+            if (doc.RootElement.GetProperty("models").TryGetProperty(model, out var m) && m.TryGetProperty("macros", out var shapes))
+                foreach (string slot in X20Ctl.Zone.MacroDraft.PhysicalSlotsFor(model))
+                    if (shapes.TryGetProperty(slot, out var shape) && shape.GetProperty("path").GetString() is { } path)
+                    {
+                        var bounds = Geometry.Parse(path).Bounds;
+                        list.Add((slot, new Point(bounds.X + bounds.Width / 2, bounds.Y + bounds.Height / 2)));
+                    }
+        }
+        catch (Exception e) when (e is IOException or JsonException or KeyNotFoundException or InvalidOperationException or FormatException) { }
+        return paddleCentres[model] = list;
     }
 
     /// <summary>Sticks are -1..1 with +Y up; triggers 0..1.</summary>

@@ -24,7 +24,14 @@ public sealed class FinishMorph : Grid
     private readonly WriteableBitmap mask = new(FW, FH, 96, 96, PixelFormats.Pbgra32, null), gloss = new(FW, FH, 96, 96, PixelFormats.Pbgra32, null);
     private readonly byte[] maskPixels = new byte[FW * FH * 4], glossPixels = new byte[FW * FH * 4];
     private float[] field = [], body = [];
-    private DateTime began;
+    private void Load(string model)
+    {
+        (field, body) = Field(model);
+        inside = Enumerable.Range(0, body.Length).Where(i => body[i] > 0).ToArray();
+        // pixels off the shell stay clear for good
+        Array.Clear(maskPixels); Array.Clear(glossPixels);
+    }
+    private DateTime began, painted;
     private Action? ending;
     public bool IsChanging => ending != null;
     public string ModelId { get; private set; } = "";
@@ -53,7 +60,7 @@ public sealed class FinishMorph : Grid
         if (ModelId == "" || finish == Finish) return Task.CompletedTask;
         var target = ControllerArt.Front(ModelId, finish); Finish = finish;
         if (!animate || !DS.Motion) { picture.Source = target; ControllerOutline.Trim(picture, ModelId, false, finish); return Task.CompletedTask; }
-        (field, body) = Field(ModelId);
+        Load(ModelId);
         incoming.Source = target; ControllerOutline.Trim(incoming, ModelId, false, finish); Paint(0); Visibility = Visibility.Visible;
         var done = new TaskCompletionSource();
         began = DateTime.UtcNow;
@@ -64,14 +71,27 @@ public sealed class FinishMorph : Grid
     }
 
     /// <summary>Review hook: the change frozen at a given progress, 0..1.</summary>
+    /// <summary>Review hook: how long one frame of the change takes to work out.</summary>
+    internal static double PaintCost(FinishMorph morph, int frames)
+    {
+        morph.Load(morph.ModelId);
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        for (int i = 0; i < frames; i++) morph.Paint(i / (double)frames);
+        return watch.Elapsed.TotalMilliseconds / frames;
+    }
+
     internal void Preview(string finish, double progress)
     {
-        Complete(); (field, body) = Field(ModelId); incoming.Source = ControllerArt.Front(ModelId, finish); ControllerOutline.Trim(incoming, ModelId, false, finish); Visibility = Visibility.Visible; Paint(progress);
+        Complete(); Load(ModelId); incoming.Source = ControllerArt.Front(ModelId, finish); ControllerOutline.Trim(incoming, ModelId, false, finish); Visibility = Visibility.Visible; Paint(progress);
     }
 
     private void Frame(object? sender, EventArgs e)
     {
-        double p = Math.Clamp((DateTime.UtcNow - began).TotalMilliseconds / Milliseconds, 0, 1);
+        var now = DateTime.UtcNow;
+        double p = Math.Clamp((now - began).TotalMilliseconds / Milliseconds, 0, 1);
+        // the edge moves slowly, so about 40 frames a second is smooth and leaves room for every card changing at once
+        if (p < 1 && (now - painted).TotalMilliseconds < 24) return;
+        painted = now;
         // eases in and out, unhurried
         Paint(p < .5 ? 2 * p * p : 1 - Math.Pow(-2 * p + 2, 2) / 2);
         if (p >= 1) Complete();
@@ -84,22 +104,46 @@ public sealed class FinishMorph : Grid
     }
 
     /// <summary>The new colour where the edge has passed, feathered; a thin cool-white line on the edge itself, strongest
-    /// mid-change and gone at both ends so nothing pops.</summary>
+    /// mid-change and gone at both ends so nothing pops. Both curves are read from small tables, so a frame is only
+    /// lookups and multiplies (owner, 24 Oct 2026: several cards changing at once must not lag).</summary>
+    private const int Steps = 2048;
+    private static readonly byte[] RevealTable = new byte[Steps];
+    private static readonly float[] LineTable = new float[Steps];
+    static FinishMorph()
+    {
+        // index i covers "how far the edge has passed this pixel" from -2 to +2 in field units
+        for (int i = 0; i < Steps; i++)
+        {
+            double behind = i * 4.0 / (Steps - 1) - 2;
+            double t = Math.Clamp(behind / Feather * .5 + .5, 0, 1); t = t * t * (3 - 2 * t);
+            RevealTable[i] = (byte)(t * 255); RevealPacked[i] = RevealTable[i] * 0x01010101u;
+            LineTable[i] = (float)Math.Exp(-Math.Pow(behind / (Feather * .45), 2));
+        }
+    }
     private void Paint(double progress)
     {
-        double front = progress * (1 + 2 * Feather) - Feather, glow = Math.Sin(Math.PI * progress) * .55;
-        for (int i = 0, o = 0; i < field.Length; i++, o += 4)
+        double front = progress * (1 + 2 * Feather) - Feather;
+        float glow = (float)(Math.Sin(Math.PI * progress) * .55);
+        // this frame's light line, packed once per table step; only the soft rim (body under 1) works a pixel out alone
+        for (int k = 0; k < Steps; k++) lineNow[k] = Pack(LineTable[k] * glow);
+        float scale = (Steps - 1) / 4f, offset = (float)((front + 2) * scale);
+        var reveal = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, uint>(maskPixels.AsSpan());
+        var line = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, uint>(glossPixels.AsSpan());
+        foreach (int i in inside)
         {
-            double behind = front - field[i];
-            double t = Math.Clamp(behind / Feather * .5 + .5, 0, 1); t = t * t * (3 - 2 * t);
-            byte shown = (byte)(t * 255);
-            maskPixels[o] = maskPixels[o + 1] = maskPixels[o + 2] = maskPixels[o + 3] = shown;
-            double a = Math.Exp(-Math.Pow(behind / (Feather * .45), 2)) * glow * body[i];
-            glossPixels[o] = (byte)(255 * a); glossPixels[o + 1] = (byte)(236 * a); glossPixels[o + 2] = (byte)(214 * a); glossPixels[o + 3] = (byte)(255 * a);
+            int k = (int)(offset - field[i] * scale); // field and front are both in 0..1, so k stays inside the table
+            reveal[i] = RevealPacked[k];
+            float b = body[i];
+            line[i] = b >= 1 ? lineNow[k] : Pack(LineTable[k] * glow * b);
         }
         mask.WritePixels(new Int32Rect(0, 0, FW, FH), maskPixels, FW * 4, 0);
         gloss.WritePixels(new Int32Rect(0, 0, FW, FH), glossPixels, FW * 4, 0);
     }
+    private readonly uint[] lineNow = new uint[Steps];
+    private int[] inside = [];
+    private static readonly uint[] RevealPacked = new uint[Steps];
+    /// <summary>A cool white at this strength, premultiplied BGRA.</summary>
+    private static uint Pack(float a) => (uint)(255 * a) | (uint)(236 * a) << 8 | (uint)(214 * a) << 16 | (uint)(255 * a) << 24;
 
     // ----- the spread field -----
     private static (float[], float[]) Field(string model)

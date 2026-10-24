@@ -95,12 +95,11 @@ public sealed class ModelSelectorView : Grid
         };
     }
 
-    // each model that comes in more than one colour slowly turns through them, one card after another (owner direction
-    // 24 Oct 2026); only one card changes at a time and nothing runs between changes, so the screen stays cheap when idle
+    // every model that comes in more than one colour turns to its next colour at the same moment, then holds it (owner
+    // direction 24 Oct 2026: all together, not one card after another); nothing runs between changes, so idle stays cheap
     private readonly List<FinishMorph> morphs = new();
     public IReadOnlyList<FinishMorph> Morphs => morphs;
-    private readonly System.Windows.Threading.DispatcherTimer turn = new() { Interval = TimeSpan.FromMilliseconds(2900) };
-    private int turnAt;
+    private readonly System.Windows.Threading.DispatcherTimer turn = new() { Interval = TimeSpan.FromMilliseconds(3800) };
     private void StartTurning()
     {
         if (!DS.Motion || morphs.All(m => PadColours.Catalog.For(m.ModelId).Count < 2)) return;
@@ -108,12 +107,8 @@ public sealed class ModelSelectorView : Grid
     }
     private void Turn(object? sender, EventArgs e)
     {
-        for (int tries = 0; tries < morphs.Count; tries++)
-        {
-            var morph = morphs[turnAt++ % morphs.Count];
-            if (PadColours.Catalog.For(morph.ModelId).Count < 2) continue;
-            _ = morph.ChangeTo(PadColours.Catalog.Next(morph.ModelId, morph.Finish).Id); return;
-        }
+        foreach (var morph in morphs.Where(m => PadColours.Catalog.For(m.ModelId).Count > 1))
+            _ = morph.ChangeTo(PadColours.Catalog.Next(morph.ModelId, morph.Finish).Id);
     }
 
     public void FocusFirst() { if (cards.Count > 0) cards[0].Focus(); }

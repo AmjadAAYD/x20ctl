@@ -16,7 +16,14 @@ renders, not photographs of the hardware. `tools/import_finish_packs.py` places 
 - the black X20 Pro art is unchanged; its white finish is cut from the white backdrop and fitted onto the black one by
   matching details (SIFT), with the black finish's cap and trigger shapes reused. In the source picture the front's
   right grip runs into the rear view, so that strip is rebuilt by mirroring the white's own left grip;
-- every other colour has its own traced rim in `outlines.json`, keyed `model/colour`.
+- every other colour has its own traced rim in `outlines.json`, keyed `model/colour`;
+- a tidy step drops what a neighbouring picture left glued to a shell: the white X20 Pro is held inside the black's
+  outline, and any rear loses a solid piece with no mirror twin (the white Pro's own front grip, a tab beside the X05
+  Pro purple rear) or a long thin strip; `--tidy-only` reruns it on the colours on disk.
+
+`tools/build_vibration_outlines.py` then retraces `vibration-outlines.json` from each colour's own front: every
+vibration stroke is cut again from that picture's inset edge between the ends of the stroke already in the file, and a
+colour gets its own strokes and silhouette keyed `model/colour`, so the Vibration page follows the pad's colour.
 
 A pad's colour can't be read from its USB or Bluetooth identity, so the player picks it with Change color in the Zone.
 It is remembered per player and model. The hologram layers (`holo-*.png`) are drawn from the model's shape and are

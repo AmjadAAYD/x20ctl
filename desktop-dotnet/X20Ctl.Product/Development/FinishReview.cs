@@ -37,6 +37,19 @@ internal static class FinishReview
                 report.Add($"{model}/{finish.Id} {finish.Name}");
             }
 
+        // the vibration outline of every colour, as the Vibration page draws it for a pad shown in that colour
+        PadColours.ActivePlayer = 0;
+        foreach (string model in new[] { "x20", "x20_pro", "x05", "x05_pro", "x10", "d10", "x15", "dune" })
+            foreach (var finish in PadColours.Catalog.For(model))
+            {
+                PadColours.Set(0, model, finish.Id);
+                var visual = new VibrationVisual(Geometry.Empty, false, model); visual.SetStrength(75);
+                Save(new Grid { Width = 1536, Height = 1024, Background = new SolidColorBrush(Color.FromRgb(23, 26, 33)), Children = { visual } }, $"vibration-{model}-{finish.Id}.png", .5);
+            }
+        foreach (string model in new[] { "x20", "x20_pro", "x05", "x05_pro", "x10", "d10", "x15", "dune" }) PadColours.Set(0, model, X20Ctl.Zone.FinishCatalog.Original);
+        PadColours.ActivePlayer = null;
+        report.Add("paddles labelled: " + string.Join(", ", new[] { "x20", "x20_pro", "x05", "x05_pro", "x10", "d10", "x15", "dune" }.Select(m => $"{m} {string.Join("/", LiveController.Paddles(m).Select(p => p.Slot))}")));
+
         // the change, frozen part-way, for a light-to-dark and a dark-to-light pair
         foreach (var (model, from, to) in new[] { ("x20_pro", "original", "white"), ("x20", "original", "black"), ("x15", "original", "wukong") })
         {
@@ -68,6 +81,8 @@ internal static class FinishReview
         Save(selectorStage, "selector.png", .75);
         var turning = selector.Morphs.First(m => m.ModelId == "x20_pro"); turning.Preview("white", .5);
         Save(selectorStage, "selector-x20_pro-turning.png", .75);
+        double cost = selector.Morphs.Sum(m => FinishMorph.PaintCost(m, 120));
+        report.Add($"one frame of every card changing at once: {cost:0.00} ms of work ({selector.Morphs.Count} cards)");
 
         File.WriteAllLines(System.IO.Path.Combine(directory, "finishes.txt"), report);
     }
