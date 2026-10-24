@@ -10,6 +10,10 @@ public class PadColourTests
         foreach (var model in new[] { "x20", "x20_pro", "x05_pro", "x10", "d10", "x15", "dune" })
             Assert.Equal(FinishCatalog.Original, catalog.For(model)[0].Id);
         Assert.Equal(["original", "white"], catalog.For("x20_pro").Select(f => f.Id));
+        // shown until a player picks: the X20 Pro in its grey, the Dune in black (owner, 24 Oct 2026)
+        Assert.Equal(("original", "Grey"), (catalog.Default("x20_pro"), catalog.For("x20_pro")[0].Name));
+        Assert.Equal("black", catalog.Default("dune")); Assert.Equal(FinishCatalog.Original, catalog.Default("d10"));
+        Assert.Throws<InvalidDataException>(() => new FinishCatalog("{\"models\":{\"dune\":[{\"id\":\"original\",\"name\":\"Gold\",\"swatch\":\"#e0aa18\"}]},\"default\":{\"dune\":\"black\"}}"));
         Assert.Equal(17, new[] { "x20", "x20_pro", "x05_pro", "x10", "d10", "x15", "dune" }.Sum(m => catalog.For(m).Count));
     }
 

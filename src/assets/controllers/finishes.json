@@ -90,8 +90,8 @@
   "x20_pro": [
    {
     "id": "original",
-    "name": "Black",
-    "swatch": "#2a2b30"
+    "name": "Grey",
+    "swatch": "#4a4d54"
    },
    {
     "id": "white",
@@ -99,5 +99,8 @@
     "swatch": "#e4e6ea"
    }
   ]
+ },
+ "default": {
+  "dune": "black"
  }
 }

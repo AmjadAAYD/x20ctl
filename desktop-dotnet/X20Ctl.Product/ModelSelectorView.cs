@@ -100,15 +100,33 @@ public sealed class ModelSelectorView : Grid
     private readonly List<FinishMorph> morphs = new();
     public IReadOnlyList<FinishMorph> Morphs => morphs;
     private readonly System.Windows.Threading.DispatcherTimer turn = new() { Interval = TimeSpan.FromMilliseconds(3800) };
+    /// <summary>Cards that keep one colour (owner, 24 Oct 2026): the X20 Pro always shows grey and the Dune black; the
+    /// others, the D10 and X15 among them, alternate through their colours.</summary>
+    private static readonly HashSet<string> Still = ["x20_pro", "dune"];
+    private static bool Turns(FinishMorph m) => !Still.Contains(m.ModelId) && PadColours.Catalog.For(m.ModelId).Count > 1;
     private void StartTurning()
     {
-        if (!DS.Motion || morphs.All(m => PadColours.Catalog.For(m.ModelId).Count < 2)) return;
+        if (!DS.Motion || !morphs.Any(Turns)) return;
         turn.Tick -= Turn; turn.Tick += Turn; turn.Start();
     }
     private void Turn(object? sender, EventArgs e)
     {
-        foreach (var morph in morphs.Where(m => PadColours.Catalog.For(m.ModelId).Count > 1))
+        foreach (var morph in morphs.Where(Turns))
             _ = morph.ChangeTo(PadColours.Catalog.Next(morph.ModelId, morph.Finish).Id);
+    }
+
+    /// <summary>Every card shows its controller at the same size (owner, 24 Oct 2026: the X20 Pro and Dune looked far away,
+    /// since each picture fills a different share of its canvas). The view is set round the controller's traced outline,
+    /// with a little room, in one shape for every card; nothing is clipped, so the lift and glow still spill over.</summary>
+    private static FrameworkElement Framed(FrameworkElement art, string model, string finish)
+    {
+        if (ControllerOutline.For(model, false, finish)?.Bounds is not { IsEmpty: false } b) return art;
+        const double Aspect = 1.5, Room = 1.05;
+        double width = Math.Max(b.Width, b.Height * Aspect) * Room, height = width / Aspect;
+        var frame = new Canvas { Width = width, Height = height };
+        Canvas.SetLeft(art, width / 2 - (b.X + b.Width / 2)); Canvas.SetTop(art, height / 2 - (b.Y + b.Height / 2));
+        frame.Children.Add(art);
+        return frame;
     }
 
     public void FocusFirst() { if (cards.Count > 0) cards[0].Focus(); }
@@ -121,10 +139,11 @@ public sealed class ModelSelectorView : Grid
         var edge = new Border { CornerRadius = new(16), BorderThickness = new(1), BorderBrush = DS.Brush("Zone.BorderDefault"), Background = DS.Brush("Zone.ContentSurface"), Padding = new(20, 18, 20, 18) };
         var stack = new Grid();
         stack.RowDefinitions.Add(new() { Height = new(1, GridUnitType.Star) }); stack.RowDefinitions.Add(new() { Height = GridLength.Auto }); stack.RowDefinitions.Add(new() { Height = GridLength.Auto }); stack.RowDefinitions.Add(new() { Height = GridLength.Auto });
-        var picture = new Image { Source = ControllerArt.Front(model.Id), Stretch = Stretch.Fill };
+        string shown = PadColours.Catalog.Default(model.Id);
+        var picture = new Image { Source = ControllerArt.Front(model.Id, shown), Stretch = Stretch.Fill };
         RenderOptions.SetBitmapScalingMode(picture, BitmapScalingMode.HighQuality);
-        var morph = new FinishMorph(picture); morph.Show(model.Id, X20Ctl.Zone.FinishCatalog.Original); morphs.Add(morph);
-        var art = new Viewbox { Stretch = Stretch.Uniform, Margin = new(0, 0, 0, 12), Child = new Grid { Width = 1536, Height = 1024, Children = { picture, morph } } };
+        var morph = new FinishMorph(picture); morph.Show(model.Id, shown); morphs.Add(morph);
+        var art = new Viewbox { Stretch = Stretch.Uniform, Margin = new(0, 0, 0, 12), Child = Framed(new Grid { Width = 1536, Height = 1024, Children = { picture, morph } }, model.Id, shown) };
         stack.Children.Add(art);
         var name = new TextBlock { Text = model.Name, FontFamily = DS.Display, FontSize = 19, FontWeight = FontWeights.SemiBold, Foreground = DS.Brush("DS.Text"), TextTrimming = TextTrimming.CharacterEllipsis }; Grid.SetRow(name, 1); stack.Children.Add(name);
         var about = new TextBlock { Text = facts?.Description ?? "", FontFamily = DS.Body, FontSize = 12.5, Foreground = DS.Brush("Zone.TextSecondary"), TextWrapping = TextWrapping.Wrap, Margin = new(0, 5, 0, 10), MaxHeight = 36 }; Grid.SetRow(about, 2); stack.Children.Add(about);

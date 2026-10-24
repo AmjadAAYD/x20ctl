@@ -49,7 +49,9 @@ PACKS = [
     ("dune-black", "dune", "black", "Black", "#1c1c20"),
 ]
 # X20 Pro keeps its current art as the original finish; white comes from a front + rear product pair, not a pack.
-KEEP = {"x20_pro": ("original", "Black", "#2a2b30")}
+KEEP = {"x20_pro": ("original", "Grey", "#4a4d54")}
+# the colour a model is shown in until its player picks one (owner, 24 Oct 2026: the Dune shows black)
+DEFAULT = {"dune": "black"}
 WHITE_PRO = ("x20_pro", "white", "White", "#e4e6ea")
 LAYERS = {"front": [("front-full", "front-full"), ("front-no-sticks", "front-body"), ("stick-l", "stick-l"), ("stick-r", "stick-r")],
           "rear": [("rear-full", "rear-full"), ("rear-no-triggers", "rear-body"), ("trigger-rt", "trigger-r"), ("trigger-lt", "trigger-l")]}
@@ -301,7 +303,7 @@ def main():
         if model in KEEP: rows.insert(0, dict(zip(("id", "name", "swatch"), KEEP[model])))
         if model == WHITE_PRO[0] and white: rows.append(dict(zip(("id", "name", "swatch"), WHITE_PRO[1:])))
         finishes[model] = rows
-    (CONTROLLERS / "finishes.json").write_text(json.dumps({"models": finishes}, indent=1) + "\n", encoding="utf-8")
+    (CONTROLLERS / "finishes.json").write_text(json.dumps({"models": finishes, "default": DEFAULT}, indent=1) + "\n", encoding="utf-8")
     if args.report: args.report.write_text(json.dumps(report, indent=1), encoding="utf-8")
     for key, entry in report.items():
         if "front" in entry: print(key, entry["front"]["iou"], entry["rear"]["iou"], entry.get("pivotError", ""))

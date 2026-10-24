@@ -110,7 +110,7 @@ internal sealed class SetupWindow : Window
 
     FrameworkElement Carousel()
     {
-        Image Slide(int i) => new() { Source = ControllerArt.Front(Lineup[i].Id), Height = 270, Stretch = Stretch.Uniform, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, RenderTransform = new TranslateTransform(),
+        Image Slide(int i) => new() { Source = ControllerArt.Front(Lineup[i].Id, PadColours.Catalog.Default(Lineup[i].Id)), Height = 270, Stretch = Stretch.Uniform, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, RenderTransform = new TranslateTransform(),
             Effect = new DropShadowEffect { Color = Color.FromRgb(52, 126, 241), BlurRadius = 60, ShadowDepth = 0, Opacity = .45 } };
         Image shown = Slide(artIndex), next = Slide((artIndex + 1) % Lineup.Length); next.Opacity = 0;
         var stage = new Grid { Height = 280, ClipToBounds = false }; stage.Children.Add(shown); stage.Children.Add(next);
@@ -121,7 +121,7 @@ internal sealed class SetupWindow : Window
         void Advance()
         {
             int to = (artIndex + 1) % Lineup.Length; var leaving = shown; var arriving = next;
-            arriving.Source = ControllerArt.Front(Lineup[to].Id); artIndex = to; Dots();
+            arriving.Source = ControllerArt.Front(Lineup[to].Id, PadColours.Catalog.Default(Lineup[to].Id)); artIndex = to; Dots();
             if (DS.Motion)
             {
                 ((TranslateTransform)arriving.RenderTransform).X = 110; arriving.Opacity = 0;
