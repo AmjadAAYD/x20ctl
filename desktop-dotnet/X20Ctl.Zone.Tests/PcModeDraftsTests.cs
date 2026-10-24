@@ -35,7 +35,7 @@ public sealed class PcModeDraftsTests
         Assert.Equal(["L3"], p.Macros.Keys);
         Assert.Equal(["X", "Y"], p.Macros["L3"][0].Buttons); Assert.Equal(55, p.Macros["L3"][0].HoldMs);
 
-        var (b2, c2, m2) = Drafts("x05");
+        var (b2, c2, m2) = Drafts("generic");
         PcModeDrafts.Load(p, b2, c2, m2);
         Assert.Equal("B", b2.Target("A")); Assert.Equal("quick", c2[CurveChannel.LeftStick].Preset);
         Assert.Equal("L3", m2.Trigger("M1")); Assert.Single(m2["M1"]); Assert.Empty(m2["M2"]);

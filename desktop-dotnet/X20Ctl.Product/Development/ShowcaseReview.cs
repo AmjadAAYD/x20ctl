@@ -17,7 +17,7 @@ internal static class ShowcaseReview
         try
         {
             window.Show(); await Task.Delay(300);
-            foreach (string model in new[] { "x20", "x20_pro", "x15", "x10", "x05", "x05_pro", "d10", "dune" })
+            foreach (string model in new[] { "x20", "x20_pro", "x15", "x10", "x05_pro", "d10", "dune" })
             {
                 show.Show(model);
                 foreach (double angle in new[] { -24.0, 0, 24 }) { show.SetYaw(angle); await Capture($"{model}-yaw{angle:+0;-0;0}.png"); }

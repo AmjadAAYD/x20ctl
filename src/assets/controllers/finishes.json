@@ -29,23 +29,6 @@
     "swatch": "#1c1c20"
    }
   ],
-  "x05": [
-   {
-    "id": "original",
-    "name": "Oyster White",
-    "swatch": "#eeeeec"
-   },
-   {
-    "id": "black",
-    "name": "Black and pink",
-    "swatch": "#1e1e22"
-   },
-   {
-    "id": "lime",
-    "name": "Lime",
-    "swatch": "#c8ef1e"
-   }
-  ],
   "x05_pro": [
    {
     "id": "original",

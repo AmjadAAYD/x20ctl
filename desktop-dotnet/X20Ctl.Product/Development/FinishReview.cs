@@ -21,7 +21,7 @@ internal static class FinishReview
         PadColours.Use(System.IO.Path.Combine(directory, "pad-colours-fixture.json"));
         using var shapes = JsonDocument.Parse(File.ReadAllText(System.IO.Path.Combine(AppContext.BaseDirectory, "Data/control-shapes.json")));
         var report = new List<string>();
-        foreach (string model in new[] { "x20", "x20_pro", "x05", "x05_pro", "x10", "d10", "x15", "dune" })
+        foreach (string model in new[] { "x20", "x20_pro", "x05_pro", "x10", "d10", "x15", "dune" })
             foreach (var finish in PadColours.Catalog.For(model))
             {
                 foreach (bool rear in new[] { false, true })
@@ -39,16 +39,16 @@ internal static class FinishReview
 
         // the vibration outline of every colour, as the Vibration page draws it for a pad shown in that colour
         PadColours.ActivePlayer = 0;
-        foreach (string model in new[] { "x20", "x20_pro", "x05", "x05_pro", "x10", "d10", "x15", "dune" })
+        foreach (string model in new[] { "x20", "x20_pro", "x05_pro", "x10", "d10", "x15", "dune" })
             foreach (var finish in PadColours.Catalog.For(model))
             {
                 PadColours.Set(0, model, finish.Id);
                 var visual = new VibrationVisual(Geometry.Empty, false, model); visual.SetStrength(75);
                 Save(new Grid { Width = 1536, Height = 1024, Background = new SolidColorBrush(Color.FromRgb(23, 26, 33)), Children = { visual } }, $"vibration-{model}-{finish.Id}.png", .5);
             }
-        foreach (string model in new[] { "x20", "x20_pro", "x05", "x05_pro", "x10", "d10", "x15", "dune" }) PadColours.Set(0, model, X20Ctl.Zone.FinishCatalog.Original);
+        foreach (string model in new[] { "x20", "x20_pro", "x05_pro", "x10", "d10", "x15", "dune" }) PadColours.Set(0, model, X20Ctl.Zone.FinishCatalog.Original);
         PadColours.ActivePlayer = null;
-        report.Add("paddles labelled: " + string.Join(", ", new[] { "x20", "x20_pro", "x05", "x05_pro", "x10", "d10", "x15", "dune" }.Select(m => $"{m} {string.Join("/", LiveController.Paddles(m).Select(p => p.Slot))}")));
+        report.Add("paddles labelled: " + string.Join(", ", new[] { "x20", "x20_pro", "x05_pro", "x10", "d10", "x15", "dune" }.Select(m => $"{m} {string.Join("/", LiveController.Paddles(m).Select(p => p.Slot))}")));
 
         // the change, frozen part-way, for a light-to-dark and a dark-to-light pair
         foreach (var (model, from, to) in new[] { ("x20_pro", "original", "white"), ("x20", "original", "black"), ("x15", "original", "wukong") })

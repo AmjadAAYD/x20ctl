@@ -7,10 +7,10 @@ public class PadColourTests
     [Fact] public void EveryModelStartsOnItsOriginalAndTheX20ProComesInWhite()
     {
         var catalog = Shipped();
-        foreach (var model in new[] { "x20", "x20_pro", "x05", "x05_pro", "x10", "d10", "x15", "dune" })
+        foreach (var model in new[] { "x20", "x20_pro", "x05_pro", "x10", "d10", "x15", "dune" })
             Assert.Equal(FinishCatalog.Original, catalog.For(model)[0].Id);
         Assert.Equal(["original", "white"], catalog.For("x20_pro").Select(f => f.Id));
-        Assert.Equal(20, new[] { "x20", "x20_pro", "x05", "x05_pro", "x10", "d10", "x15", "dune" }.Sum(m => catalog.For(m).Count));
+        Assert.Equal(17, new[] { "x20", "x20_pro", "x05_pro", "x10", "d10", "x15", "dune" }.Sum(m => catalog.For(m).Count));
     }
 
     [Fact] public void ChangeColourWalksEveryFinishAndWrapsRound()
@@ -38,11 +38,11 @@ public class PadColourTests
         InTemporaryDirectory(path =>
         {
             var first = new PadColourStore(path); first.Load(); var second = new PadColourStore(path); second.Load();
-            first.Set(2, "x05", "lime");
-            Assert.Throws<IOException>(() => second.Set(2, "x05", "black"));
-            File.WriteAllText(path, "{\"version\":1,\"colours\":{\"9:x05\":\"lime\"}}");
+            first.Set(2, "x10", "silver");
+            Assert.Throws<IOException>(() => second.Set(2, "x10", "original"));
+            File.WriteAllText(path, "{\"version\":1,\"colours\":{\"9:x10\":\"silver\"}}");
             Assert.Throws<InvalidDataException>(() => new PadColourStore(path).Load());
-            Assert.Equal("{\"version\":1,\"colours\":{\"9:x05\":\"lime\"}}", File.ReadAllText(path));
+            Assert.Equal("{\"version\":1,\"colours\":{\"9:x10\":\"silver\"}}", File.ReadAllText(path));
         });
     }
 

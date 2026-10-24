@@ -34,9 +34,6 @@ W, H = 1536, 1024
 PACKS = [
     ("x20-original", "x20", "original", "White", "#e9eaee"),
     ("x20-black", "x20", "black", "Black", "#202228"),
-    ("x05-original", "x05", "original", "Oyster White", "#eeeeec"),
-    ("x05-black", "x05", "black", "Black and pink", "#1e1e22"),
-    ("x05-lime", "x05", "lime", "Lime", "#c8ef1e"),
     ("x05_pro-original", "x05_pro", "original", "Black", "#1f2024"),
     ("x05pro-white", "x05_pro", "white", "White", "#e6e8ee"),
     ("x05pro-purple", "x05_pro", "purple", "Aurora Purple", "#4a3fa0"),

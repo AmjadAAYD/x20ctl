@@ -4,7 +4,9 @@
 
 The owner supplied new artwork for X20, X05, X05 Pro, X10, D10, X15 and Dune in their original colours and eleven
 other colours (`controller-animation-layers.zip`), plus a white X20 Pro front and rear pair. These are edited design
-renders, not photographs of the hardware. `tools/import_finish_packs.py` places them on this 1536x1024 canvas:
+renders, not photographs of the hardware. The X05 (not the X05 Pro) was removed from the app the same day at the
+owner's request; its art, data and catalog entry are gone. `tools/import_finish_packs.py` places them on this
+1536x1024 canvas:
 
 - each front is pinned by its two stick pivots onto the ones in `native-layers.json` (scale and offset only, no
   stretch), so the control shapes, stick travel and hotspots measured for the model stay on their controls;
@@ -46,7 +48,7 @@ single contained image plane with normalized physical-button polygons; this
 keeps the HTML hover/click overlays aligned through resizing. The shared
 `ControllerView` offers Front View / Back View on Buttons and opens the selected
 macro slot. Macros is fixed to the rear view with no view-switch buttons.
-X05 has no macro buttons; X05 Pro has a slight rear tilt to show its top controls.
+X05 Pro has a slight rear tilt to show its top controls.
 All existing front images, empty-well bases and front geometry were preserved.
 
 See [rear verification and source notes](../../../docs/rear-controller-views-validation.md)

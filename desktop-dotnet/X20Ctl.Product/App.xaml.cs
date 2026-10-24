@@ -33,7 +33,7 @@ public partial class App : Application
                 void Note(string step) => log.Add($"{step}: {service.State} | {service.Detail}");
                 log.Add("bus installed " + PcModeSetup.BusInstalled + ", hider installed " + HidHide.Installed);
                 // HidHideCLI --dev-gaming's exact shape (HidHideCLI/src/Commands.cpp): one present Xbox-style pad, one unplugged
-                string sample = " [ { \"friendlyName\" : \"X05\" , \"devices\" : [\n{ \"present\" : true ,\n\"gamingDevice\" : true ,\n\"deviceInstancePath\" : \"HID\\\\VID_045E&PID_028E&IG_00\\\\7&1\" ,\n\"xusbDeviceInstancePath\" : \"USB\\\\VID_045E&PID_028E\\\\ABC\" ,\n\"baseContainerDeviceCount\" : 2 } ] } ,\n{ \"friendlyName\" : \"Old\" , \"devices\" : [\n{ \"present\" : false ,\n\"deviceInstancePath\" : \"HID\\OLD\" ,\n\"xusbDeviceInstancePath\" : \"\" ,\n\"baseContainerDeviceCount\" : 1 } ] } ] ";
+                string sample = " [ { \"friendlyName\" : \"Pad\" , \"devices\" : [\n{ \"present\" : true ,\n\"gamingDevice\" : true ,\n\"deviceInstancePath\" : \"HID\\\\VID_045E&PID_028E&IG_00\\\\7&1\" ,\n\"xusbDeviceInstancePath\" : \"USB\\\\VID_045E&PID_028E\\\\ABC\" ,\n\"baseContainerDeviceCount\" : 2 } ] } ,\n{ \"friendlyName\" : \"Old\" , \"devices\" : [\n{ \"present\" : false ,\n\"deviceInstancePath\" : \"HID\\OLD\" ,\n\"xusbDeviceInstancePath\" : \"\" ,\n\"baseContainerDeviceCount\" : 1 } ] } ] ";
                 log.Add("parsed: " + string.Join(" | ", HidHide.ParseGamingDevices(sample)));
                 service.Enabled = true; await Task.Delay(600); Note("enabled, neutral profile");
                 store.Save("default", new X20Ctl.Zone.PcMode.PcModeProfile { Remap = { ["A"] = "B" } }); service.Reload(); await Task.Delay(800); Note("A to B saved");

@@ -202,7 +202,6 @@ Without a phone log, the command line can compare the controller's own settings 
 | EasySMX Dune | Read-only preview: TMR sticks, M1–M4, four motors including the triggers |
 | EasySMX X15 | Read-only preview |
 | EasySMX X10 | Read-only preview |
-| EasySMX X05 | Read-only preview |
 | EasySMX X05 Pro | Read-only preview |
 | EasySMX D10 | Read-only preview |
 

@@ -22,7 +22,6 @@ public static class ModelProfiles
     {
         ["x20"] = new("x20", "Hall", "Hall", ["M1", "M2", "M3", "M4"], "2 grip motors", "Not published", "6-axis gyro", "4-level report", 4, "RGB stick rings · KeyLinker app"),
         ["x20_pro"] = new("x20_pro", "TMR, adjustable tension", "Hall / microswitch", ["M1", "M2", "M3", "M4", "M5", "M6"], "4 motors (grips + triggers), instant brake", "Not published", "Gyro", "1000–1200 mAh (sources disagree)", 0, "Smart display · RGB"),
-        ["x05"] = new("x05", "Hall", "Hall", [], "2 grip motors", "1000 / 250 / 125 Hz", "None", "Unknown", 0, "No back paddles (confirmed by an owner, 10 Oct 2026)"),
         ["x05_pro"] = new("x05_pro", "Hall", "Dual-stage Hall / microswitch", ["M1", "M2"], "2 grip motors", "1000 Hz wired and 2.4G", "Unconfirmed", "Unknown", 0, "RGB"),
         ["x10"] = new("x10", "Hall", "Hall", ["M1", "M2"], "2 grip motors", "Not published", "6-axis (Switch mode)", "Unknown", 0, "Mechanical ABXY · QMacro"),
         ["d10"] = new("d10", "TMR", "Hall / microswitch", ["M1", "M2"], "2 grip motors, 4 strength levels", "1000 Hz wired and 2.4G", "Gyro", "Unknown", 0, "Charging dock · no KeyLinker · receiver 2345:E062"),

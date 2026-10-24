@@ -77,7 +77,7 @@ public sealed class LiveController : Grid
     }
 
     /// <summary>The back shows each macro paddle's name on it, only the ones this model has (catalog macroSlots):
-    /// M1 to M6 on the X20 Pro, M1 to M4 on the X20 and Dune, M1 and M2 on the two-paddle pads, none on the X05.</summary>
+    /// M1 to M6 on the X20 Pro, M1 to M4 on the X20 and Dune, M1 and M2 on the two-paddle pads.</summary>
     private void LabelPaddles()
     {
         paddles.Children.Clear();
