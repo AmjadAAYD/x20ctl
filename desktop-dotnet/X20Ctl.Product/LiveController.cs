@@ -76,31 +76,59 @@ public sealed class LiveController : Grid
         Apply();
     }
 
+    /// <summary>Whether the back carries its paddle names; a page that makes them clickable draws its own, above its controls.</summary>
+    public bool ShowLabels { get => showLabels; set { showLabels = value; LabelPaddles(); } }
+    private bool showLabels = true;
+
     /// <summary>The back shows each macro paddle's name on it, only the ones this model has (catalog macroSlots):
     /// M1 to M6 on the X20 Pro, M1 to M4 on the X20 and Dune, M1 and M2 on the two-paddle pads.</summary>
     private void LabelPaddles()
     {
         paddles.Children.Clear();
-        if (!rear) return;
-        foreach (var (slot, centre) in Paddles(ModelId))
+        if (!rear || !showLabels) return;
+        foreach (var label in Pills(ModelId, null)) paddles.Children.Add(label);
+    }
+
+    /// <summary>A layer of paddle names for a model's back, in the 1536x1024 art space; with <paramref name="chosen"/> each is
+    /// a button that opens its slot (owner, 25 Oct 2026: clicking M3 goes to Macros).</summary>
+    public static Canvas PaddleLabels(string model, Action<string>? chosen)
+    {
+        var layer = new Canvas { Width = 1536, Height = 1024 };
+        foreach (var label in Pills(model, chosen)) layer.Children.Add(label);
+        return layer;
+    }
+
+    /// <summary>One name per paddle, sized to its own shape so it never spills past a slim paddle, in the app's display type.</summary>
+    private static IEnumerable<Border> Pills(string model, Action<string>? chosen)
+    {
+        foreach (var (slot, centre, size) in Paddles(model))
         {
+            double fontSize = Math.Clamp(Math.Min(size.Width * .4, size.Height * .46), 17, 25);
+            var text = new TextBlock { Text = slot, FontFamily = DS.Display, FontSize = fontSize, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush(Color.FromRgb(242, 246, 252)), VerticalAlignment = VerticalAlignment.Center };
+            var idle = new SolidColorBrush(Color.FromArgb(228, 12, 18, 30)); var edge = new SolidColorBrush(Color.FromArgb(235, Kit.Blue.R, Kit.Blue.G, Kit.Blue.B));
             var label = new Border
             {
-                CornerRadius = new(17), Padding = new(12, 2, 12, 3), BorderThickness = new(2),
-                Background = new SolidColorBrush(Color.FromArgb(225, 14, 18, 26)), BorderBrush = new SolidColorBrush(Color.FromArgb(230, Kit.Blue.R, Kit.Blue.G, Kit.Blue.B)),
-                Child = new TextBlock { Text = slot, FontSize = 28, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(240, 244, 250)) }
+                CornerRadius = new(fontSize), Padding = new(fontSize * .5, fontSize * .08, fontSize * .5, fontSize * .16), BorderThickness = new(Math.Max(1.5, fontSize * .08)),
+                Background = idle, BorderBrush = edge, Child = text, IsHitTestVisible = chosen != null
             };
+            if (chosen != null)
+            {
+                label.Cursor = System.Windows.Input.Cursors.Hand; label.ToolTip = $"Open {slot} in Macros";
+                label.MouseEnter += (_, _) => { label.Background = new SolidColorBrush(Color.FromArgb(245, 28, 54, 96)); label.BorderBrush = new SolidColorBrush(Color.FromRgb(214, 232, 255)); };
+                label.MouseLeave += (_, _) => { label.Background = idle; label.BorderBrush = edge; };
+                label.MouseLeftButtonUp += (_, e) => { chosen(slot); e.Handled = true; };
+            }
             label.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
             Canvas.SetLeft(label, centre.X - label.DesiredSize.Width / 2); Canvas.SetTop(label, centre.Y - label.DesiredSize.Height / 2);
-            paddles.Children.Add(label);
+            yield return label;
         }
     }
-    private static readonly Dictionary<string, List<(string, Point)>> paddleCentres = new();
+    private static readonly Dictionary<string, List<(string, Point, Size)>> paddleCentres = new();
     /// <summary>Each paddle the model has, with the centre of its shape in control-shapes.json (macros), in M order.</summary>
-    public static IReadOnlyList<(string Slot, Point Centre)> Paddles(string model)
+    public static IReadOnlyList<(string Slot, Point Centre, Size Size)> Paddles(string model)
     {
         if (paddleCentres.TryGetValue(model, out var known)) return known;
-        var list = new List<(string, Point)>();
+        var list = new List<(string, Point, Size)>();
         try
         {
             using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Data", "control-shapes.json")));
@@ -109,7 +137,7 @@ public sealed class LiveController : Grid
                     if (shapes.TryGetProperty(slot, out var shape) && shape.GetProperty("path").GetString() is { } path)
                     {
                         var bounds = Geometry.Parse(path).Bounds;
-                        list.Add((slot, new Point(bounds.X + bounds.Width / 2, bounds.Y + bounds.Height / 2)));
+                        list.Add((slot, new Point(bounds.X + bounds.Width / 2, bounds.Y + bounds.Height / 2), new Size(bounds.Width, bounds.Height)));
                     }
         }
         catch (Exception e) when (e is IOException or JsonException or KeyNotFoundException or InvalidOperationException or FormatException) { }

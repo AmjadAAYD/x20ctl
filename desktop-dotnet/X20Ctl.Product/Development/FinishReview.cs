@@ -87,6 +87,23 @@ internal static class FinishReview
         double cost = selector.Blends.Sum(m => FinishBlend.PaintCost(m, 120));
         report.Add($"one frame of every card changing at once: {cost:0.00} ms of work ({selector.Blends.Count} cards)");
 
+        // the Studio's Dashboard laid out off screen: no window is shown
+        try
+        {
+            var window = new ProductWindow(true, System.IO.Path.Combine(directory, "assignments-fixture.json"));
+            window.Scene.AssignController(0, window.Host.Catalog.Get("x20_pro")); window.Host.EnterStudio(0);
+            window.Host.Studio!.ShowManagement("Dashboard");
+            var root = (FrameworkElement)window.Content; root.Measure(new Size(1920, 1150)); root.Arrange(new Rect(0, 0, 1920, 1150)); root.UpdateLayout();
+            await Task.Delay(1200); root.UpdateLayout();
+            foreach (var (name, raise) in new[] { ("dashboard.png", false), ("dashboard-hover.png", true) })
+            {
+                if (raise) { window.Host.Studio!.Dashboard!.ReviewRaise(1); await Task.Delay(900); root.UpdateLayout(); }
+                var shot = new RenderTargetBitmap(1920, 1150, 96, 96, PixelFormats.Pbgra32); shot.Render(root);
+                var png = new PngBitmapEncoder(); png.Frames.Add(BitmapFrame.Create(shot));
+                using var file = File.Create(System.IO.Path.Combine(directory, name)); png.Save(file);
+            }
+        }
+        catch (Exception failure) { File.WriteAllText(System.IO.Path.Combine(directory, "dashboard.failure.txt"), failure.ToString()); }
         File.WriteAllLines(System.IO.Path.Combine(directory, "finishes.txt"), report);
     }
 

@@ -97,7 +97,7 @@ public sealed class DashboardConsolePage : Grid
     /// <summary>What A does on the highlighted item, for the live footer.</summary>
     public string FocusAction => heroFocus?.IsKeyboardFocused == true ? "Configure" : play.IsKeyboardFocused ? "Play" : "Select";
     /// <summary>Y: scan the launchers again.</summary>
-    public async void Rescan() { scanGeneration++; scan = null; cards.Clear(); covers.Clear(); shelf.Children.Clear(); Feature(null); gamesCount.Text = "…"; await Populate(); }
+    public async void Rescan() { DropAll(); scanGeneration++; scan = null; cards.Clear(); covers.Clear(); shelf.Children.Clear(); Feature(null); gamesCount.Text = "…"; await Populate(); }
     /// <summary>LT/RT: jump a page (five covers) along the shelf.</summary>
     public void PageShelf(int step) { if (cards.Count == 0) return; int i = Math.Max(0, cards.FindIndex(c => c.Card.IsKeyboardFocusWithin)); cards[Math.Clamp(i + step * 5, 0, cards.Count - 1)].Card.Focus(); }
     public ControllerShowcase Showcase { get; } = new() { Tilt = 0 };
@@ -118,15 +118,14 @@ public sealed class DashboardConsolePage : Grid
 
         var top = new Grid(); top.ColumnDefinitions.Add(new() { Width = new(1, GridUnitType.Star) }); top.ColumnDefinitions.Add(new() { Width = new(1, GridUnitType.Star) }); Children.Add(top);
         preview = new DashboardControllerPreview(model.Id, animate);
-        ControllerArtwork = new Viewbox { Child = preview, Margin = new(0, 30, 0, 24), RenderTransformOrigin=new(.5,.5), RenderTransform=new ScaleTransform(1.18,1.18) };
+        ControllerArtwork = new Viewbox { Child = preview, Margin = new(0, 8, 0, 8), RenderTransformOrigin=new(.5,.5), RenderTransform=new ScaleTransform(1.18,1.18) };
         var heroButton = new Button { Content = ControllerArtwork, Template = Bare(), Cursor = Cursors.Hand, FocusVisualStyle = null, ToolTip = "Configure controller buttons", HorizontalContentAlignment = HorizontalAlignment.Stretch, VerticalContentAlignment = VerticalAlignment.Stretch };
         heroButton.Click += (_, _) => ConfigureRequested?.Invoke(); heroFocus = heroButton;
         var stage = new Grid();
         stage.Children.Add(heroButton);
-        var flip=new Button{Content="Flip controller",Style=DS.Style("ActionButton"),Height=42,MinHeight=42,Padding=new(22,0,22,0),FontSize=14,HorizontalAlignment=HorizontalAlignment.Right,VerticalAlignment=VerticalAlignment.Top,ToolTip="Show the back of this controller"};
-        System.Windows.Automation.AutomationProperties.SetName(flip,"Flip controller");
-        flip.Click+=(_,_)=>{preview.Flip();flip.ToolTip=preview.IsRear?"Show the front of this controller":"Show the back of this controller";};stage.Children.Add(flip);
-        var controllerPanel=Kit.Panel(null,null,null,stage);controllerPanel.Margin=new(0,0,12,0);top.Children.Add(controllerPanel);
+        // the controller stands on the page with no card behind it, on the right (owner, 25 Oct 2026); Flip controller sits
+        // at the end of the Studio's tab row
+        Grid.SetColumn(stage, 1); stage.Margin = new(12, 0, 0, 0); top.Children.Add(stage);
         var status = new StackPanel();
         deviceState.Text="Offline";deviceState.FontSize=18;deviceState.FontWeight=FontWeights.SemiBold;status.Children.Add(deviceState);
         status.Children.Add(Kit.Text("Current setup",12,"DS.TextMuted",FontWeights.SemiBold).Also(t=>t.Margin=new(0,10,0,4)));status.Children.Add(workingSetup);profileState.Margin=new(0,6,0,0);status.Children.Add(profileState);
@@ -163,14 +162,15 @@ public sealed class DashboardConsolePage : Grid
         }status.Children.Add(stateGrid);status.Children.Add(stateDetail);
         gamesCount=new TextBlock();SetWorkingState(draftChanges,null,false);
         var statusBox = new ScrollViewer {Content=status,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled};
-        statusBox.Margin=new(0);var statusPanel=Kit.Panel(null,null,null,statusBox);Grid.SetColumn(statusPanel,1);top.Children.Add(statusPanel);
+        statusBox.Margin=new(0);var statusPanel=Kit.Panel(null,null,null,statusBox);statusPanel.Margin=new(0,0,12,0);top.Children.Add(statusPanel);
 
         var lower = new Grid();lower.RowDefinitions.Add(new() { Height = GridLength.Auto });lower.RowDefinitions.Add(new() { Height = new(1,GridUnitType.Star) });Grid.SetRow(lower,2);Children.Add(lower);
         var header = new DockPanel { Margin = new(0,0,0,12) };
         header.Children.Add(AddButton("Add a folder",AddFolderClick));header.Children.Add(AddButton("Add a game",AddGameClick));header.Children.Add(AddButton("Rescan",Rescan));
         header.Children.Add(Kit.Text("Games & profiles",18,"DS.Text",FontWeights.SemiBold));lower.Children.Add(header);
-        shelfScroll = new ScrollViewer { Content = shelf, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollBarVisibility = ScrollBarVisibility.Disabled, Focusable = false, Padding = new(0,4,0,8) };
+        shelfScroll = new ScrollViewer { Content = shelf, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollBarVisibility = ScrollBarVisibility.Disabled, Focusable = false, Padding = new(14,20,14,12) };
         Grid.SetRow(shelfScroll,1);lower.Children.Add(shelfScroll);
+        shelfScroll.ScrollChanged += (_, _) => FollowShelf();
 
         // A single selected-game context replaces the separate Play and Game setup cards.
         var context = new Grid { Margin = new(0,12,0,0) };context.ColumnDefinitions.Add(new(){Width=new(1,GridUnitType.Star)});context.ColumnDefinitions.Add(new(){Width=GridLength.Auto});
@@ -197,7 +197,8 @@ public sealed class DashboardConsolePage : Grid
         Loaded += async (_, _) => { if (!EntryTransitionPending) { preview.Start(); await Populate(); } };
         Unloaded += (_, _) => preview.Stop();
 
-        PreviewKeyDown += OnKey;
+        PreviewKeyDown += OnKey; PreviewKeyDown += (_, _) => SetPad(true); PreviewMouseMove += (_, _) => SetPad(false);
+        Grid.SetRowSpan(raiseLayer, 4); Children.Add(raiseLayer); // last, so a raised tile is above everything on the page
     }
 
     protected override Size MeasureOverride(Size availableSize)
@@ -215,7 +216,7 @@ public sealed class DashboardConsolePage : Grid
         if (height <= 0) return;
         RowDefinitions[0].MinHeight = 0;
         double cover = Math.Clamp(height * .25, 110, 190);
-        RowDefinitions[2].Height = new(cover + 130);
+        RowDefinitions[2].Height = new(cover + 150);
         if (Math.Abs(cover - coverHeight) > .5) { coverHeight = cover; foreach (var (art, title) in covers) SizeCover(art, title); }
     }
     private void SizeCover(Border art, TextBlock title)
@@ -223,10 +224,13 @@ public sealed class DashboardConsolePage : Grid
         double w = Math.Round(coverHeight), h = Math.Round(coverHeight); // every cover shares the Genshin square frame
         if(art.Child is Image cover)cover.Stretch=Stretch.UniformToFill;
         art.Width = w; art.Height = h; art.Clip = new RectangleGeometry(new Rect(0, 0, w, h), 14, 14); title.Width = Math.Max(130,w); title.TextTrimming = TextTrimming.CharacterEllipsis; title.TextWrapping = TextWrapping.NoWrap;
-        if (art.Parent is Grid frame) { frame.Width = w; frame.Height = h; }
+        if (art.Parent is Grid frame) { frame.Width = w + 10; frame.Height = h + 10; }
     }
 
     /// <summary>Moves keyboard/gamepad focus to the hero so the page is immediately navigable.</summary>
+    public bool IsRear => preview.IsRear;
+    /// <summary>Turns the controller over; the button for it is in the Studio's tab row.</summary>
+    public void FlipController() => preview.Flip();
     public void FocusHero() => Dispatcher.BeginInvoke(() => (cards.FirstOrDefault().Card ?? (UIElement)play).Focus(), System.Windows.Threading.DispatcherPriority.Input);
 
     internal bool EntryTransitionPending { get; set; }
@@ -255,10 +259,42 @@ public sealed class DashboardConsolePage : Grid
     private static void ShowRing(Border art, double strength)
     {
         if (art.Tag is not Border ring) return;
-        if (DS.Motion) ring.BeginAnimation(OpacityProperty, DS.To(strength, 140)); else { ring.BeginAnimation(OpacityProperty, null); ring.Opacity = strength; }
+        if (ring.RenderTransform is not ScaleTransform settle) { settle = new ScaleTransform(1, 1); ring.RenderTransformOrigin = new(.5, .5); ring.RenderTransform = settle; }
+        bool arriving = strength >= .9 && ring.Opacity < .5;
+        if (DS.Motion) ring.BeginAnimation(OpacityProperty, DS.To(strength, 180)); else { ring.BeginAnimation(OpacityProperty, null); ring.Opacity = strength; }
+        // arriving, the frame closes in from slightly outside and settles on the cover
+        if (DS.Motion && arriving)
+        {
+            DoubleAnimation Close() => new(1.07, 1, TimeSpan.FromMilliseconds(280)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
+            settle.BeginAnimation(ScaleTransform.ScaleXProperty, Close()); settle.BeginAnimation(ScaleTransform.ScaleYProperty, Close());
+        }
     }
 
-    private Button Card(GameEntry g)
+    // One frame follows the pointer (owner, 25 Oct 2026): the tile under it is framed exactly as a chosen game is, and the
+    // chosen game's frame steps aside while the pointer is on another tile, then returns when it leaves.
+    private Button? hovered;
+    // The page puts keyboard focus on the first game when it opens; that must not raise or frame it (owner, 25 Oct 2026).
+    // Only the pointer does, and a key or pad press shows where focus is until the pointer moves again.
+    private bool padActive;
+    private void SetPad(bool active)
+    {
+        if (padActive == active) return;
+        padActive = active; RefreshRings();
+        foreach (var (card, game) in cards) Settle(card, game);
+    }
+    private void RefreshRings()
+    {
+        foreach (var (card, game) in cards)
+        {
+            double want = hovered != null ? (ReferenceEquals(card, hovered) ? 1 : 0) : (padActive && card.IsKeyboardFocused ? 1 : 0);
+            if (card.Tag is not Border art) continue;
+            ShowRing(art, want);
+            if (raised.TryGetValue(card, out var r) && r.Clone.Tag is Border copy) ShowRing(copy, want);
+        }
+    }
+
+    /// <param name="pop">a copy for the raised layer: no handlers, no registration, never hit</param>
+    private Button Card(GameEntry g, bool pop = false)
     {
         UIElement face;
         var cover = Bitmap(GameArtwork.PathFor(g));
@@ -273,23 +309,27 @@ public sealed class DashboardConsolePage : Grid
         var art = new Border { CornerRadius = new(12), Background=new SolidColorBrush(Color.FromRgb(17,26,41)),ClipToBounds = true, Child = face };
         // The selection frame: a slim blue edge with a dark line inside it (so it never fights the artwork) and a soft glow.
         // It fades in and out; it replaces the old flat 2 px border, which read as a white box on bright covers.
-        var ring = new Border { CornerRadius = new(12), BorderThickness = new(2.5), IsHitTestVisible = false, Opacity = 0,
+        // a bigger frame, set outside the cover, so a neighbouring tile rising never covers it (owner, 25 Oct 2026)
+        var ring = new Border { CornerRadius = new(17), BorderThickness = new(3.5), IsHitTestVisible = false, Opacity = 0,
             BorderBrush = new LinearGradientBrush(Color.FromRgb(168, 214, 255), Color.FromRgb(58, 138, 255), 45),
-            Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = Color.FromRgb(58, 138, 255), BlurRadius = 16, ShadowDepth = 0, Opacity = .55 },
-            Child = new Border { CornerRadius = new(10), BorderThickness = new(1), BorderBrush = new SolidColorBrush(Color.FromArgb(120, 4, 8, 20)) } };
-        art.Tag = ring;
-        var store = new Border { CornerRadius = new(9), Padding = new(8, 2, 8, 3), Background = new SolidColorBrush(Color.FromArgb(200, 6, 10, 22)), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom, Margin = new(0, 0, 10, 10), Child = Kit.Text(g.Store, 11.5, "DS.TextSoft", FontWeights.SemiBold) };
-        var title = Kit.Text(g.Name, 14, "DS.TextSoft"); title.Margin = new(2, 6, 0, 0);
-        covers.Add((art, title)); SizeCover(art, title);
-        var stack = new StackPanel { Children = { new Grid { HorizontalAlignment=HorizontalAlignment.Left, Children = { art, ring, store } }, title }, RenderTransformOrigin = new(.5, .4), RenderTransform = new ScaleTransform(1, 1) };
+            Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = Color.FromRgb(58, 138, 255), BlurRadius = 22, ShadowDepth = 0, Opacity = .7 },
+            Child = new Border { CornerRadius = new(13.5), BorderThickness = new(1), BorderBrush = new SolidColorBrush(Color.FromArgb(120, 4, 8, 20)) } };
+        art.Tag = ring; art.Margin = new(5); // the frame is the tile's own 5 px edge, so it rises and grows with the cover
+        var store = new Border { CornerRadius = new(9), Padding = new(8, 2, 8, 3), Background = new SolidColorBrush(Color.FromArgb(200, 6, 10, 22)), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom, Margin = new(0, 0, 15, 15), Child = Kit.Text(g.Store, 11.5, "DS.TextSoft", FontWeights.SemiBold) };
+        var title = Kit.Text(g.Name, 14, "DS.TextSoft"); title.Margin = new(7, 1, 0, 0);
+        if (!pop) covers.Add((art, title));
+        SizeCover(art, title);
+        var stack = new StackPanel { Children = { new Grid { HorizontalAlignment=HorizontalAlignment.Left, Children = { art, ring, store } }, title }, RenderTransformOrigin = new(.5, .4), RenderTransform = new TransformGroup { Children = { new ScaleTransform(1, 1), new TranslateTransform() } } };
         SizeCover(art,title);
-        var b = new Button { Content = stack, Template = Bare(), Margin = new(0, 0, 12, 12), Cursor = Cursors.Hand, FocusVisualStyle = null, ToolTip = $"{g.Name} · {g.Store}" };
-        b.GotKeyboardFocus += (_, _) => { Feature(g); ShowRing(art, 1); Lift(stack, 1.01); title.Foreground = DS.Brush("DS.Text"); b.BringIntoView(new Rect(-12,0,coverHeight+12,coverHeight+34)); };
-        b.LostKeyboardFocus += (_, _) => { ShowRing(art, current?.Id==g.Id ? 1 : 0);Lift(stack,1); };
-        b.MouseEnter+=(_,_)=>{ Lift(stack,1.01); if (current?.Id != g.Id) ShowRing(art, .4); };
-        b.MouseLeave+=(_,_)=>{ Lift(stack,1); if (!b.IsKeyboardFocused) ShowRing(art, current?.Id==g.Id ? 1 : 0); };
+        var b = new Button { Content = stack, Template = Bare(), Margin = new(0, 0, 18, 2), Cursor = Cursors.Hand, FocusVisualStyle = null, ToolTip = $"{g.Name} · {g.Store}" };
+        b.Tag = art;
+        if (pop) { b.IsHitTestVisible = false; b.Focusable = false; return b; }
+        b.GotKeyboardFocus += (_, _) => { Feature(g); RefreshRings(); title.Foreground = DS.Brush("DS.Text"); Settle(b, g); b.BringIntoView(new Rect(-12,0,coverHeight+12,coverHeight+34)); };
+        b.LostKeyboardFocus += (_, _) => { RefreshRings(); Settle(b, g); };
+        b.MouseEnter+=(_,_)=>{ hovered = b; Settle(b, g); RefreshRings(); };
+        b.MouseLeave+=(_,_)=>{ if (ReferenceEquals(hovered, b)) hovered = null; RefreshRings(); Settle(b, g); };
 
-        b.Click += (_, _) => Feature(g);
+        b.Click += (_, _) => { Feature(g); RefreshRings(); };
         return b;
     }
 
@@ -379,8 +419,8 @@ public sealed class DashboardConsolePage : Grid
 
     private void Feature(GameEntry? g)
     {
-        if (g != null && ReferenceEquals(g, current)) return; current = g;
-        for(int i=0;i<Math.Min(cards.Count,covers.Count);i++){bool selected=cards[i].Game.Id==g?.Id;ShowRing(covers[i].art,selected?1:0);covers[i].title.Foreground=DS.Brush(selected?"DS.Text":"DS.TextSoft");}
+        if (g != null && ReferenceEquals(g, current)) return; current = g; RefreshRings();
+        for(int i=0;i<Math.Min(cards.Count,covers.Count);i++){bool selected=cards[i].Game.Id==g?.Id;covers[i].title.Foreground=DS.Brush(selected?"DS.Text":"DS.TextSoft");}
         var hero = g == null ? null : Bitmap(GameArtwork.PathFor(g)) ?? Bitmap(g.Hero); var mark = Bitmap(g?.Logo);
         if (animate && heroArt.Source != hero) { heroArt.BeginAnimation(OpacityProperty, null); heroArt.Opacity = 0; }
         heroArt.Source = hero; if (hero != null) { if (animate) heroArt.BeginAnimation(OpacityProperty, DS.To(1, 320)); else heroArt.Opacity = 1; }
@@ -403,12 +443,43 @@ public sealed class DashboardConsolePage : Grid
         else if (e.Key is Key.Enter or Key.A && Keyboard.FocusedElement is Button focused && !e.IsRepeat) { focused.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); e.Handled = true; }
     }
 
-    private void Lift(FrameworkElement e, double to)
+    // A hovered or focused tile rises like a hero card on a layer above the whole page, so no panel or scroll area can cut it
+    // (owner, 25 Oct 2026): its copy grows and lifts there while the tile itself waits, unseen, in its place.
+    private readonly Canvas raiseLayer = new() { IsHitTestVisible = false };
+    private readonly Dictionary<Button, (Button Clone, ScaleTransform Scale, TranslateTransform Move)> raised = new();
+    /// <summary>Review hook: raises a tile as if hovered.</summary>
+    internal void ReviewRaise(int index) { var (card, game) = cards[index]; hovered = card; Settle(card, game, 1.07); RefreshRings(); }
+    private void Settle(Button b, GameEntry g, double? force = null)
     {
-        // a transform shared from a style is frozen; give the element its own before animating it
-        if(e.RenderTransform is not TranslateTransform s){s=new TranslateTransform();e.RenderTransform=s;}
-        double y=to>1?-2:0;if(!animate){s.Y=y;return;}s.BeginAnimation(TranslateTransform.YProperty,DS.To(y,160));
+        double want = force ?? (b.IsMouseOver ? 1.07 : padActive && b.IsKeyboardFocused ? 1.03 : 1), y = want > 1 ? -(want - 1) * 60 : 0;
+        if (!raised.TryGetValue(b, out var r))
+        {
+            if (want <= 1 || b.Content is not FrameworkElement stack || b.Tag is not Border art) return;
+            var clone = Card(g, true); var scale = new ScaleTransform(1, 1); var move = new TranslateTransform();
+            clone.Margin = new(0); clone.RenderTransformOrigin = new(.5, .4); clone.RenderTransform = new TransformGroup { Children = { scale, move } };
+            if (clone.Tag is Border copy && copy.Tag is Border copyRing && art.Tag is Border ring) { copyRing.Opacity = ring.Opacity; }
+            if (clone.Content is StackPanel panel && panel.Children.Count > 1 && stack is StackPanel own && own.Children.Count > 1 && panel.Children[1] is TextBlock t && own.Children[1] is TextBlock ot) t.Foreground = ot.Foreground;
+            var at = b.TransformToAncestor(this).Transform(new Point(0, 0)); Canvas.SetLeft(clone, at.X); Canvas.SetTop(clone, at.Y);
+            raiseLayer.Children.Add(clone); stack.Opacity = 0;
+            r = raised[b] = (clone, scale, move);
+        }
+        if (!animate) { r.Scale.ScaleX = r.Scale.ScaleY = want; r.Move.Y = y; if (want <= 1) Drop(b); return; }
+        DoubleAnimation Go(double v) => new(v, TimeSpan.FromMilliseconds(200)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
+        var grow = Go(want);
+        if (want <= 1) grow.Completed += (_, _) => { if (!b.IsMouseOver && !b.IsKeyboardFocused) Drop(b); };
+        r.Scale.BeginAnimation(ScaleTransform.ScaleXProperty, grow); r.Scale.BeginAnimation(ScaleTransform.ScaleYProperty, Go(want)); r.Move.BeginAnimation(TranslateTransform.YProperty, Go(y));
     }
+    private void Drop(Button b)
+    {
+        if (!raised.Remove(b, out var r)) return;
+        raiseLayer.Children.Remove(r.Clone); if (b.Content is UIElement stack) stack.Opacity = 1;
+    }
+    /// <summary>A raised copy follows its tile when the shelf scrolls.</summary>
+    private void FollowShelf()
+    {
+        foreach (var (b, r) in raised) { var at = b.TransformToAncestor(this).Transform(new Point(0, 0)); Canvas.SetLeft(r.Clone, at.X); Canvas.SetTop(r.Clone, at.Y); }
+    }
+    private void DropAll() { foreach (var b in raised.Keys.ToArray()) Drop(b); }
     private static void Enter(FrameworkElement e, int delay)
     {
         e.Opacity = 0; var t = new TranslateTransform(0, 18); e.RenderTransform = t;
