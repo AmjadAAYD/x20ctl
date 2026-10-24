@@ -197,7 +197,7 @@ public sealed class DashboardConsolePage : Grid
         Loaded += async (_, _) => { if (!EntryTransitionPending) { preview.Start(); await Populate(); } };
         Unloaded += (_, _) => preview.Stop();
 
-        PreviewKeyDown += OnKey;
+        PreviewKeyDown += OnKey; PreviewKeyDown += (_, _) => SetPad(true); PreviewMouseMove += (_, _) => SetPad(false);
         Grid.SetRowSpan(raiseLayer, 4); Children.Add(raiseLayer); // last, so a raised tile is above everything on the page
     }
 
@@ -273,11 +273,20 @@ public sealed class DashboardConsolePage : Grid
     // One frame follows the pointer (owner, 25 Oct 2026): the tile under it is framed exactly as a chosen game is, and the
     // chosen game's frame steps aside while the pointer is on another tile, then returns when it leaves.
     private Button? hovered;
+    // The page puts keyboard focus on the first game when it opens; that must not raise or frame it (owner, 25 Oct 2026).
+    // Only the pointer does, and a key or pad press shows where focus is until the pointer moves again.
+    private bool padActive;
+    private void SetPad(bool active)
+    {
+        if (padActive == active) return;
+        padActive = active; RefreshRings();
+        foreach (var (card, game) in cards) Settle(card, game);
+    }
     private void RefreshRings()
     {
         foreach (var (card, game) in cards)
         {
-            double want = hovered != null ? (ReferenceEquals(card, hovered) ? 1 : 0) : (current?.Id == game.Id || card.IsKeyboardFocused ? 1 : 0);
+            double want = hovered != null ? (ReferenceEquals(card, hovered) ? 1 : 0) : (padActive && card.IsKeyboardFocused ? 1 : 0);
             if (card.Tag is not Border art) continue;
             ShowRing(art, want);
             if (raised.TryGetValue(card, out var r) && r.Clone.Tag is Border copy) ShowRing(copy, want);
@@ -442,7 +451,7 @@ public sealed class DashboardConsolePage : Grid
     internal void ReviewRaise(int index) { var (card, game) = cards[index]; hovered = card; Settle(card, game, 1.07); RefreshRings(); }
     private void Settle(Button b, GameEntry g, double? force = null)
     {
-        double want = force ?? (b.IsMouseOver ? 1.07 : b.IsKeyboardFocused ? 1.03 : 1), y = want > 1 ? -(want - 1) * 60 : 0;
+        double want = force ?? (b.IsMouseOver ? 1.07 : padActive && b.IsKeyboardFocused ? 1.03 : 1), y = want > 1 ? -(want - 1) * 60 : 0;
         if (!raised.TryGetValue(b, out var r))
         {
             if (want <= 1 || b.Content is not FrameworkElement stack || b.Tag is not Border art) return;
