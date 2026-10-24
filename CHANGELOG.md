@@ -4,7 +4,7 @@
 
 ### Added
 
-- **Each Tools card tells its own little story** when you hover it or tab to it: the wrench fixing, feedback travelling to its inbox, pause turning into play, a link between phone and controller, a beating heart, and the star shining and filling. They stop when you move away, and stay still with reduced motion.
+- **Each Tools card tells its own little story** on its own while the page is open: the wrench fixing, feedback travelling to its inbox, pause turning into play, a link between phone and controller, a beating heart, and the star shining and filling. They stop when you leave the page, and stay still with reduced motion.
 - **A Controller diagnostic in the agent.** The controller icon on the rail asks what is wrong, points to the Read scan or the Write scan, and can open Feedback with your issue filled in once you say yes.
 
 ### Changed

@@ -5,7 +5,7 @@ using System.Windows.Media;
 
 namespace X20Ctl.Product;
 
-/// <summary>Small vector stories for Tools cards. Only the hovered/focused, visible card owns a frame callback.</summary>
+/// <summary>Small vector stories for Tools cards. They play on their own while visible; a hidden icon owns no frame callback.</summary>
 internal sealed class ToolTileIcon : FrameworkElement
 {
     readonly string title;
@@ -40,7 +40,13 @@ internal sealed class ToolTileIcon : FrameworkElement
     void Frame(object? sender, EventArgs e)
     {
         if (!DS.Motion || !IsVisible || !IsLoaded) { StopClock(); time = 0; }
-        else time = clock.Elapsed.TotalSeconds;
+        else
+        {
+            // 30 frames a second is plenty for a 36 px icon, and keeps eight of them cheap
+            double now = clock.Elapsed.TotalSeconds;
+            if (now - time < 1.0 / 30) return;
+            time = now;
+        }
         InvalidateVisual();
     }
     static double Step(double t, double start, double duration) => Math.Clamp((t - start) / duration, 0, 1);

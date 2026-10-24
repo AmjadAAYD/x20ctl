@@ -299,7 +299,9 @@ public sealed class ProductSettings : Grid
             art.Children.Add(new Viewbox { Child = computer, Width = 470, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new(0, 6, 0, 0), IsHitTestVisible = false, Opacity = .95 });
         }
         double chipSize = hero ? 60 : 48;
+        // the stories play on their own while the card is on screen (they stop when it is hidden or motion is reduced)
         var motionIcon = new ToolTileIcon(title) { Width = hero ? 42 : 36, Height = hero ? 42 : 36, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+        motionIcon.SetActive(true);
         var chip = new Border { Width = chipSize, Height = chipSize, CornerRadius = new(hero ? 18 : 14), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = hero ? VerticalAlignment.Top : VerticalAlignment.Center,
             Background = new LinearGradientBrush(Color.FromArgb(175, accent.R, accent.G, accent.B), Color.FromArgb(70, accent.R, accent.G, accent.B), 90), BorderBrush = new SolidColorBrush(Color.FromArgb(200, accent.R, accent.G, accent.B)), BorderThickness = new(1),
             Child = motionIcon };
@@ -322,7 +324,6 @@ public sealed class ProductSettings : Grid
         System.Windows.Automation.AutomationProperties.SetName(button, title);
         void Light(bool on)
         {
-            motionIcon.SetActive(on);
             face.BorderBrush = new SolidColorBrush(on ? lineOn : line);
             face.Background = new LinearGradientBrush(on ? Color.FromArgb(240, 22, 36, 74) : Color.FromArgb(230, 17, 28, 58), on ? Color.FromArgb(235, 14, 24, 52) : Color.FromArgb(225, 11, 19, 42), 90);
             arrow.Foreground = DS.Brush(on ? "DS.Text" : "DS.TextMuted");
