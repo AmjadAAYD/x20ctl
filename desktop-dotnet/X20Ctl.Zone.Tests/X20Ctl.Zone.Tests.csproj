@@ -13,6 +13,6 @@
     <ProjectReference Include="../X20Ctl.Zone/X20Ctl.Zone.csproj" />
   </ItemGroup>
   <ItemGroup><None Include="../../x20ctl/controllers/catalog.json" Link="Data/catalog.json" CopyToOutputDirectory="PreserveNewest" /><None Include="../../src/assets/controllers/x20/rear-geometry.json" Link="Data/x20-rear.json" CopyToOutputDirectory="PreserveNewest" /></ItemGroup>
-  <ItemGroup><Compile Include="../X20Ctl.Linux/PadLayout.cs" Link="Linux/PadLayout.cs" /><Compile Include="../X20Ctl.Linux/FfWire.cs" Link="Linux/FfWire.cs" /><Compile Include="../X20Ctl.Linux/UpdateWire.cs" Link="Linux/UpdateWire.cs" /><Compile Include="../X20Ctl.Product/PadBridge.cs" Link="Product/PadBridge.cs" /><Compile Include="../X20Ctl.Product/X20Codec.cs" Link="Product/X20Codec.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../X20Ctl.Linux/PadLayout.cs" Link="Linux/PadLayout.cs" /><Compile Include="../X20Ctl.Linux/FfWire.cs" Link="Linux/FfWire.cs" /><Compile Include="../X20Ctl.Linux/UpdateWire.cs" Link="Linux/UpdateWire.cs" /><Compile Include="../X20Ctl.Product/PadBridge.cs" Link="Product/PadBridge.cs" /><Compile Include="../X20Ctl.Product/X20Codec.cs" Link="Product/X20Codec.cs" /><Compile Include="../X20Ctl.Product/PadCheck.cs" Link="Product/PadCheck.cs" /><Compile Include="../X20Ctl.Product/VibrationTest.cs" Link="Product/VibrationTest.cs" /></ItemGroup>
   <ItemGroup><None Include="../../src/assets/controllers/control-shapes.json" Link="Data/control-shapes.json" CopyToOutputDirectory="PreserveNewest" /></ItemGroup>
 </Project>

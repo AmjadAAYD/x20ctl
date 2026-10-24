@@ -11,7 +11,7 @@ namespace X20Ctl.Product;
 /// <summary>
 /// Native Windows Runtime (WinRT) Bluetooth Low Energy telemetry client for KeyLinker controllers.
 /// Pure C# WinRT calling Windows.Devices.Bluetooth directly (no Python, no external libraries).
-/// Strictly read-only: reads device info and battery status. Does not write or modify controller settings.
+/// Reads device info and battery status. The one write is VibrationTestAsync, which the owner starts by hand on a proven pad.
 /// </summary>
 public static class NativeBleClient
 {
@@ -22,7 +22,7 @@ public static class NativeBleClient
     private static string CachePath =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "x20ctl", "native", "bt_cache.txt");
 
-    public static async Task<PadBridge.Result> QueryAsync(string targetModel = "x20_pro", int timeoutSeconds = 6)
+    public static async Task<PadBridge.Result> QueryAsync(string targetModel = "x20_pro", int timeoutSeconds = 6, bool check = false)
     {
         try
         {
@@ -33,7 +33,7 @@ public static class NativeBleClient
             }
 
             string addressStr = FormatMac(address.Value);
-            return await QueryGattAsync(address.Value, addressStr, targetModel);
+            return await QueryGattAsync(address.Value, addressStr, targetModel, check);
         }
         catch (Exception ex)
         {
@@ -143,7 +143,27 @@ public static class NativeBleClient
         return (null, "Controller not found over Bluetooth. Make sure Bluetooth is enabled and the controller is awake.");
     }
 
-    private static async Task<PadBridge.Result> QueryGattAsync(ulong bluetoothAddress, string addressStr, string targetModel)
+    /// <summary>The Part B write test: vibration only, on a proven pad, put back and read back afterwards (see VibrationTest).</summary>
+    public static async Task<PadBridge.Result> VibrationTestAsync(string targetModel, int percent, int timeoutSeconds = 6)
+    {
+        try
+        {
+            var (address, error) = await FindDeviceAddressAsync(targetModel, timeoutSeconds);
+            if (address == null) return new(true, false, error ?? "Controller not found over Bluetooth. Make sure Bluetooth is enabled and the controller is awake.");
+            return await QueryGattAsync(address.Value, FormatMac(address.Value), targetModel, false, percent);
+        }
+        catch (Exception ex)
+        {
+            return new(true, false, $"Bluetooth write test failed: {ex.Message}");
+        }
+    }
+
+    private sealed class Link(Func<byte[], byte, Task<byte[]?>> send) : IPadLink
+    {
+        public Task<byte[]?> SendAsync(byte[] packet, byte serial) => send(packet, serial);
+    }
+
+    private static async Task<PadBridge.Result> QueryGattAsync(ulong bluetoothAddress, string addressStr, string targetModel, bool check, int? vibrate = null)
     {
         using var device = await BluetoothLEDevice.FromBluetoothAddressAsync(bluetoothAddress);
         if (device == null)
@@ -205,11 +225,18 @@ public static class NativeBleClient
 
         notifyChar.ValueChanged += handler;
 
-        async Task<byte[]?> SendQueryAsync(byte opcode, byte length, byte serial, byte[] payload, int timeoutMs = 2500)
+        Task<byte[]?> SendQueryAsync(byte opcode, byte length, byte serial, byte[] payload) =>
+            SendPacketAsync(X20Codec.Frame(opcode, length, serial, 0, payload), serial);
+
+        async Task<byte[]?> SendPacketAsync(byte[] packet, byte serial)
         {
+            const int timeoutMs = 2500;
+            byte opcode = X20Codec.Unscramble(packet)[0];
+            // The controller check asks three read-only questions and nothing else; the write test touches only the motor record.
+            if (check && !PadCheck.IsQuery(opcode)) throw new InvalidOperationException($"The controller check may not send opcode 0x{opcode:X2}.");
+            if (vibrate != null && Array.IndexOf(VibrationTest.SessionOpcodes, opcode) < 0) throw new InvalidOperationException($"The write test may not send opcode 0x{opcode:X2}.");
             expectedSerial = serial;
             pendingReply = new TaskCompletionSource<byte[]>(TaskCreationOptions.RunContinuationsAsynchronously);
-            byte[] packet = X20Codec.Frame(opcode, length, serial, 0, payload);
 
             var writer = new DataWriter();
             writer.WriteBytes(packet);
@@ -227,12 +254,35 @@ public static class NativeBleClient
         string? battery = null;
         bool charging = false;
         bool enteredMode = false;
+        PadCheck.Raw? checkRaw = null;
+        PadCheck.Identity? testedId = null;
+        VibrationTest.Result? vibration = null;
 
         try
         {
+            if (vibrate is { } percent)
+            {
+                // Write test: identify and read the capability menu in this session, then let the engine decide whether to write.
+                var session = new VibrationTest.Session();
+                var link = new Link(SendPacketAsync);
+                testedId = PadCheck.ParseIdentity(await VibrationTest.QueryAsync(link, session, 0x91, []));
+                var caps = PadCheck.ParseCapabilities(await VibrationTest.QueryAsync(link, session, 0xB0, [0, 1]));
+                vibration = await VibrationTest.RunAsync(link, testedId, caps, percent, session);
+                string who = testedId is { } t ? $"  identity        vendor {t.Vid}, product {t.Pid}, firmware {t.Firmware}" + (t.Mode is { } m ? $", mode {m}" : "") : "  identity        not answered";
+                return new PadBridge.Result(true, vibration.Passed, who + Environment.NewLine + VibrationTest.Describe(vibration));
+            }
+
             // 1. Query Device Info (Op 0x91: READ_VID_PID_VERSION)
             var payInfo = await SendQueryAsync(0x91, 5, 1, []);
-            if (payInfo != null && payInfo.Length >= 7)
+            if (check)
+            {
+                // Controller check: updater id (two chunks at most), then the capability menu. No battery query, so no mode is entered.
+                byte[]? guid0 = await SendQueryAsync(0x93, 6, 2, [0]);
+                byte[]? guid1 = guid0 is { Length: > 1 } && guid0[0] == 18 && guid0.Length - 1 < 18 ? await SendQueryAsync(0x93, 6, 3, [1]) : null;
+                byte[]? menu = await SendQueryAsync(0xB0, 7, 4, [0, 1]);
+                checkRaw = new PadCheck.Raw(payInfo, menu, guid0, guid1);
+            }
+            else if (payInfo != null && payInfo.Length >= 7)
             {
                 string vid = $"{payInfo[1]:x2}{payInfo[2]:x2}";
                 string pid = $"{payInfo[3]:x2}{payInfo[4]:x2}";
@@ -298,6 +348,12 @@ public static class NativeBleClient
             File.WriteAllText(CachePath, bluetoothAddress.ToString("X"));
         }
         catch { }
+
+        if (check)
+        {
+            var report = PadCheck.Build(checkRaw ?? new PadCheck.Raw(null, null, null, null));
+            return new PadBridge.Result(true, report.Identity != null, PadCheck.Describe(report), null, checkRaw);
+        }
 
         var sb = new StringBuilder();
         sb.AppendLine("Controller (Bluetooth Telemetry · Read-Only)");
