@@ -1,4 +1,4 @@
-# Linux Studio
+﻿# Linux Studio
 
 The Windows app is WPF, which is Windows-only. The Linux Studio is a separate Avalonia front end that reuses the shared, UI-free libraries.
 
@@ -10,7 +10,6 @@ For installing and using it, see [linux-user-guide.md](linux-user-guide.md).
 |---|---|---|
 | X20Ctl.Zone | 5,428 | net10.0, no Windows dependencies: reused as-is |
 | X20Ctl.Product | 17,087 | WPF, 88 of 98 files use `System.Windows`: the part to port |
-| X20Ctl.Desktop | 685 | host glue |
 
 ## Status
 
