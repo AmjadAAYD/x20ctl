@@ -54,6 +54,7 @@ from .client import CURVE_KINDS, X20, ControllerError, NotSupported, find_contro
 from .diagnose import diagnose
 from .config import load_address, save_address
 from .profiles import MacroSpec, Profile, ProfileStore, SLOTS
+from .controllers import get_profile
 from . import state
 
 
@@ -569,7 +570,8 @@ def print_profile(profile: Profile) -> None:
     if profile.vibration is not None:
         print(f"  {ui.label('vibration'.ljust(10))}{ui.bar(profile.vibration)}")
         print()
-    for slot in SLOTS:
+    slots = get_profile(profile.controller_id).macro_slots if hasattr(profile, "controller_id") else SLOTS
+    for slot in slots:
         spec = profile.macros.get(slot)
         print(ui.slot_line(slot, spec.describe() if spec else None))
     print()
@@ -603,9 +605,10 @@ async def cmd_profile_set(args) -> None:
     except FileNotFoundError:
         profile = Profile(name=args.name)
 
+    valid_slots = get_profile(profile.controller_id).macro_slots if hasattr(profile, "controller_id") else SLOTS
     slot_name = args.slot.upper()
-    if slot_name not in SLOTS:
-        raise SystemExit(ui.bad(f"slot must be one of {', '.join(SLOTS)}"))
+    if slot_name not in valid_slots:
+        raise SystemExit(ui.bad(f"slot must be one of {', '.join(valid_slots)}"))
 
     if args.clear:
         profile.macros[slot_name] = None

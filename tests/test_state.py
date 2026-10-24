@@ -67,7 +67,8 @@ def _records() -> dict:
     out = {int(p.Op.HOST_STICK): STICK, int(p.Op.HOST_TRIGGER): STICK, int(p.Op.HOST_MOTOR): MOTOR,
            int(p.Op.HOST_CHANGEKEY): CHANGEKEY,
            (int(p.Op.HOST_MACRO), 0): b"", (int(p.Op.HOST_MACRO), 1): bytes(range(1, 33)),
-           (int(p.Op.HOST_MACRO), 2): b"", (int(p.Op.HOST_MACRO), 3): b""}
+           (int(p.Op.HOST_MACRO), 2): b"", (int(p.Op.HOST_MACRO), 3): b"",
+           (int(p.Op.HOST_MACRO), 4): b"", (int(p.Op.HOST_MACRO), 5): b""}
     return out
 
 
@@ -109,6 +110,14 @@ def test_only_the_macro_slots_the_descriptor_offers_are_read():
     assert saved.records["macro2"].status == "read"
     assert saved.records["macro3"].status == "not offered" and saved.records["macro4"].status == "not offered"
     assert not any(op == p.Op.HOST_MACRO and payload[1] >= 2 for op, payload in pad.asked if len(payload) == 2)
+
+
+def test_six_macro_slots_read_when_offered_by_descriptor():
+    # macro byte 0x3F: M1 to M6 (e.g. X20 Pro)
+    pad = Pad(_records(), descriptor=bytes.fromhex("030303013f030002c000"))
+    saved = _capture(pad)
+    assert saved.records["macro5"].status == "read"
+    assert saved.records["macro6"].status == "read"
 
 
 def test_an_unproven_controller_gets_identification_only():
