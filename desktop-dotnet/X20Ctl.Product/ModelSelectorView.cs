@@ -100,10 +100,8 @@ public sealed class ModelSelectorView : Grid
     private readonly List<FinishMorph> morphs = new();
     public IReadOnlyList<FinishMorph> Morphs => morphs;
     private readonly System.Windows.Threading.DispatcherTimer turn = new() { Interval = TimeSpan.FromMilliseconds(3800) };
-    /// <summary>Cards that keep one colour (owner, 24 Oct 2026): the X20 Pro always shows grey and the Dune black; the
-    /// others, the D10 and X15 among them, alternate through their colours.</summary>
-    private static readonly HashSet<string> Still = ["x20_pro", "dune"];
-    private static bool Turns(FinishMorph m) => !Still.Contains(m.ModelId) && PadColours.Catalog.For(m.ModelId).Count > 1;
+    /// <summary>Every card starts in its model's default colour and then cycles like the rest (owner, 24 Oct 2026).</summary>
+    private static bool Turns(FinishMorph m) => PadColours.Catalog.For(m.ModelId).Count > 1;
     private void StartTurning()
     {
         if (!DS.Motion || !morphs.Any(Turns)) return;

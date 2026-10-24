@@ -101,6 +101,9 @@
   ]
  },
  "default": {
-  "dune": "black"
+  "x20_pro": "white",
+  "dune": "black",
+  "d10": "purple",
+  "x15": "wukong"
  }
 }
