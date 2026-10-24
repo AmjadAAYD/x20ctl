@@ -244,6 +244,8 @@ The controller art is generated from the source pictures by `tools/build_native_
 
 **Special thanks to Kiin from Team EasySMX** for supplying a free X20 Pro controller. Real hardware is what turns a protocol guess into a verified setting.
 
+**Thanks to [Monratis](https://github.com/Monratis)** for fixing the mouse and the controller fighting over focus when you use both at once.
+
 The console-style look was inspired by [ApexSenseBridge by Kayn arts (ReynArts)](https://github.com/ReynArts/ApexSenseBridge). The credit is for design inspiration only; no code was taken from it. X20CTL has its own branding, artwork and implementation.
 
 If X20CTL helps you, you can [support it on Ko-fi](https://ko-fi.com/x20ctl), or simply star the repo.
