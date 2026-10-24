@@ -37,7 +37,7 @@ public partial class StudioScene : UserControl
     public MouseWorkbench? Mouse { get; private set; }
     public string NativeEngineStatus {get;set;}="Native core not connected";
     public event Action? InputContextChanged;
-    public void EnableNativeNavigation(){if(!navigationMode)SetNavigationPreview(true);StatusNote.Text="Controller navigation";}
+    public void EnableNativeNavigation(){if(!navigationMode)SetNavigationPreview(true, preserveExistingFocus: true);StatusNote.Text="Controller navigation";}
     public event Action<string?>? ActiveSetupChanged;
     private readonly SetupStore setupStore;private readonly IReadOnlyList<string> legacySources;private string? activeSetup;
     private readonly VibrationDraft vibrationDraft;
@@ -440,9 +440,23 @@ public partial class StudioScene : UserControl
     }
     public void FocusSelectedControl()
     {
-        if(ManagementPage=="Tester"){Tester?.Exit.Focus();return;}if(ManagementPage=="Device"){Device?.OpenTester.Focus();return;}if(ManagementPage=="Setups"){Setups?.NewButton.Focus();return;}
+        if(ManagementPage=="Tester"){Tester?.Exit.Focus();return;}
+        if(ManagementPage=="Device"){Device?.OpenTester.Focus();return;}
+        if(ManagementPage=="Setups"){Setups?.NewButton.Focus();return;}
+        if(ManagementPage=="Dashboard"){Dashboard?.FocusHero();return;}
+        if(ManagementPage=="Mouse"){Mouse?.Switch.Focus();return;}
+        if(ManagementPage=="Diagnostics"){Diagnostics?.Reset.Focus();return;}
+        if(ManagementPage=="PcMode")
+        {
+            var btn = ManagementBodyHost.Children.OfType<FrameworkElement>()
+                .SelectMany(f => f is ScrollViewer sv && sv.Content is Panel p ? p.Children.OfType<Button>() : (f as Panel)?.Children.OfType<Button>() ?? Enumerable.Empty<Button>())
+                .FirstOrDefault();
+            btn?.Focus();
+            return;
+        }
         if(IsVibration){Vibration?.FocusPreset();return;}
         if(IsMacros) {Macros?.FocusSelection();return;}
+        if(IsCurves && Curves != null) { Curves.Buttons.FirstOrDefault()?.Focus(); return; }
         if (SelectedControl.Length == 0) SelectControl("A");
         string key = SelectedControl is "LSTICK_ANALOG" ? "L3" : SelectedControl is "RSTICK_ANALOG" ? "R3" : SelectedControl;
         if (OnButtonsPage && buttonsPage?.Hotspot(key) is { } pageSpot) pageSpot.Focus(); else if (controls.TryGetValue(key, out var button)) button.Focus();
@@ -526,11 +540,17 @@ public partial class StudioScene : UserControl
         if (focusTarget != null && focusAdorner != null) AdornerLayer.GetAdornerLayer(focusTarget)?.Remove(focusAdorner);
         focusTarget = null; focusAdorner = null;
     }
-    private void SetNavigationPreview(bool value)
+    private void SetNavigationPreview(bool value) => SetNavigationPreview(value, false);
+    private void SetNavigationPreview(bool value, bool preserveExistingFocus)
     {
-        navigationMode = value; StatusNote.Text = value ? "Navigation preview" : "Controller offline";
+        navigationMode = value;
+        StatusNote.Text = value ? "Navigation preview" : (gameplayConnected == true ? "Connected" : "Controller offline");
         if (!value && Keyboard.FocusedElement is Button focused) Lift(focused, false);
-        if (!value) { HideDetachedFocus(); lastFocusCenter = null; } else FocusSelectedControl();
+        if (!value) { HideDetachedFocus(); lastFocusCenter = null; }
+        else if (!preserveExistingFocus || Keyboard.FocusedElement == null || !IsKeyboardFocusWithin)
+        {
+            FocusSelectedControl();
+        }
         foreach (var (key, button) in controls) button.Illuminate(key == SelectedControl, value);
     }
     private void MouseMode(object sender, MouseButtonEventArgs e) { SetNavigationPreview(false); }
@@ -828,7 +848,7 @@ public partial class StudioScene : UserControl
                 var names = CurveDraft.Presets.Keys.ToList(); int at = names.IndexOf(Curves.Draft[Curves.Channel].Preset);
                 Curves.SetPreset(names[(at + 1) % names.Count]); return true;
             case "Macros": Macros?.Preview(); return Macros != null;
-            case "Device": return false;
+            case "Device": ShowManagement("Setups"); return true;
             default: return false;
         }
     }
@@ -919,16 +939,44 @@ public partial class StudioScene : UserControl
             if(next==0)ShowManagement("Dashboard");else if(next>=5)ShowManagement(next switch {5=>"PcMode",6=>"Device",7=>"Mouse",_=>"Setups"});else if(next==4)ShowVibration(true);else if(next==3)ShowMacros(true);else if(next==2)ShowCurves(true);else ShowButtons();e.Handled=true;return;
         }
         if (e.Key == Key.F6) { if (!e.IsRepeat) SetNavigationPreview(!navigationMode); e.Handled = true; return; }
-        if (e.Key == Key.B && sender is ProductHost && !navigationMode && OnButtonsPage && buttonsPage != null && SelectedControl.Length > 0 && !AssignmentsVisible) { ClearSelection(); e.Handled = true; return; }
-        if (e.Key == Key.Escape || navigationMode && e.Key == Key.B) { if (AssignmentsVisible) ShowAssignments(false);
+        if (e.Key is Key.Escape or Key.B)
+        {
+            if (!navigationMode && e.Key == Key.B) SetNavigationPreview(true, preserveExistingFocus: true);
+            if (AssignmentsVisible) ShowAssignments(false);
             // B on Buttons with a control picked puts the card back to "Select a control" (owner request 17 Oct 2026); a second B leaves
             else if (OnButtonsPage && buttonsPage != null && SelectedControl.Length > 0) { string was = SelectedControl; ClearSelection(); if (navigationMode) buttonsPage.Hotspot(was)?.Focus(); }
-            else if(IsVibration && ReferenceEquals(Vibration?.Strength,Keyboard.FocusedElement))FocusSelectedControl(); else if (IsCurves && (Curves.PointHandles.Any(p=>ReferenceEquals(p,Keyboard.FocusedElement)) || ReferenceEquals(Curves.Inner,Keyboard.FocusedElement) || ReferenceEquals(Curves.Outer,Keyboard.FocusedElement))) FocusSelectedControl(); else if (navigationMode && Keyboard.FocusedElement is Button && Keyboard.FocusedElement is not PhysicalHotspot) FocusSelectedControl(); else BackRequested?.Invoke(); e.Handled = true; return; }
-        if (navigationMode && e.Key == Key.Y) { if(ManagementPage=="Device")return;else if(ManagementPage=="Setups")Setups?.NewButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));else if(IsVibration)Vibration?.Reset();else if(IsMacros)Macros?.Add();else if(IsCurves) Curves.Reset();else ShowAssignments(!AssignmentsVisible); e.Handled = true; return; }
+            else if(IsVibration && ReferenceEquals(Vibration?.Strength,Keyboard.FocusedElement))FocusSelectedControl();
+            else if (IsCurves && (Curves.PointHandles.Any(p=>ReferenceEquals(p,Keyboard.FocusedElement)) || ReferenceEquals(Curves.Inner,Keyboard.FocusedElement) || ReferenceEquals(Curves.Outer,Keyboard.FocusedElement))) FocusSelectedControl();
+            else if (Keyboard.FocusedElement is Button && Keyboard.FocusedElement is not PhysicalHotspot) FocusSelectedControl();
+            else BackRequested?.Invoke();
+            e.Handled = true;
+            return;
+        }
+        if (e.Key == Key.Y)
+        {
+            if (!navigationMode) SetNavigationPreview(true, preserveExistingFocus: true);
+            if(ManagementPage=="Device"){ShowManagement("Setups");e.Handled=true;return;}
+            else if(ManagementPage=="Setups")Setups?.NewButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            else if(IsVibration)Vibration?.Reset();
+            else if(IsMacros)Macros?.Add();
+            else if(IsCurves) Curves.Reset();
+            else ShowAssignments(!AssignmentsVisible);
+            e.Handled = true;
+            return;
+        }
         FocusNavigationDirection? direction = e.Key switch { Key.Up => FocusNavigationDirection.Up, Key.Down => FocusNavigationDirection.Down, Key.Left => FocusNavigationDirection.Left, Key.Right => FocusNavigationDirection.Right, _ => null };
         if (direction.HasValue)
         {
-            navigationMode = true;
+            if (!navigationMode) SetNavigationPreview(true, preserveExistingFocus: true);
+            if (Keyboard.FocusedElement is RadioButton)
+            {
+                if (direction == FocusNavigationDirection.Down)
+                {
+                    FocusSelectedControl();
+                    e.Handled = true;
+                    return;
+                }
+            }
             if (Keyboard.FocusedElement is PhysicalHotspot current)
             {
                 var p = current.Region.Bounds; double x = p.X + p.Width / 2, y = p.Y + p.Height / 2;
@@ -937,18 +985,30 @@ public partial class StudioScene : UserControl
                 var next = candidates.OrderBy(c => direction.Value is FocusNavigationDirection.Left or FocusNavigationDirection.Right ? Math.Abs(c.Dx) + Math.Abs(c.Dy) * 1.8 : Math.Abs(c.Dy) + Math.Abs(c.Dx) * 1.8).FirstOrDefault();
                 if (next != null) { next.Button.Focus(); SelectControl(next.Button.Region.Key); }
                 else if (direction == FocusNavigationDirection.Down) FocusCurrentTarget();
+                else if (direction == FocusNavigationDirection.Up) GetActiveTab()?.Focus();
             }
-            else if (Keyboard.FocusedElement is UIElement element) element.MoveFocus(new(direction.Value));
+            else if (Keyboard.FocusedElement is UIElement element)
+            {
+                bool moved = element.MoveFocus(new(direction.Value));
+                if (!moved && direction == FocusNavigationDirection.Up && element is not RadioButton)
+                {
+                    GetActiveTab()?.Focus();
+                }
+            }
+            else FocusSelectedControl();
             e.Handled = true; return;
         }
-        if (navigationMode && e.Key is Key.Enter or Key.A)
+        if (e.Key is Key.Enter or Key.A)
         {
+            if (!navigationMode) SetNavigationPreview(true, preserveExistingFocus: true);
+            if (Keyboard.FocusedElement == null || !IsKeyboardFocusWithin) FocusSelectedControl();
             if (!e.IsRepeat && Keyboard.FocusedElement is PhysicalHotspot && IsCurves) Curves.Buttons.FirstOrDefault()?.Focus();
             else if (!e.IsRepeat && Keyboard.FocusedElement is PhysicalHotspot && Draft.CanEdit(SelectedControl)) FocusCurrentTarget();
             else if (!e.IsRepeat && Keyboard.FocusedElement is Button button && button.IsEnabled) button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             e.Handled = true;
         }
     }
+    private RadioButton? GetActiveTab() => new[] { DashboardNav, ButtonsNav, CurvesNav, MacrosNav, VibrationNav, PcModeNav, DeviceNav, DiagnosticsNav, MouseNav, TesterNav, SetupsNav }.FirstOrDefault(t => t?.IsChecked == true);
     private void FocusCurrentTarget() { if (OnButtonsPage && buttonsPage != null) { buttonsPage.FocusOutput(Draft.Target(SelectedControl)); return; } targetButtons.FirstOrDefault(b => b.IsEnabled && (string)b.Tag == Draft.Target(SelectedControl))?.Focus(); }
     private static string TargetGlyph(string key) => key switch { "DPAD_UP" => "↑", "DPAD_DOWN" => "↓", "DPAD_LEFT" => "←", "DPAD_RIGHT" => "→", _ => Glyph(key) };
     private static string Glyph(string key) => key switch { "DPAD_UP" => "D↑", "DPAD_DOWN" => "D↓", "DPAD_LEFT" => "D←", "DPAD_RIGHT" => "D→", "SELECT" => "View", "START" => "Menu", "HOME" => "Guide", "CAPTURE" => "C", "TURBO" => "T", _ => key };

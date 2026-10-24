@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **The mouse and the controller work together.** Using the mouse while a controller is connected no longer steals focus or stops the controller from navigating. (fixed by [Monratis](https://github.com/Monratis))
+
 ## [V0.018] - 2026-10-20
 
 Tagged `v0.018`. Everything in V0.017.1 is included.

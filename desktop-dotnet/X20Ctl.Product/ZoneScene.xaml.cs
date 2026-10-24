@@ -184,28 +184,37 @@ public partial class ZoneScene : UserControl
         FocusBloom.BeginAnimation(OpacityProperty, new DoubleAnimation(1, TimeSpan.FromMilliseconds(milliseconds)));
     }
     public void FocusDock(int index) => docks[index].FocusButton.Focus();
-    public void SetSimulationNavigation(bool enabled)
+    public void SetSimulationNavigation(bool enabled) => SetSimulationNavigation(enabled, false);
+    public void SetSimulationNavigation(bool enabled, bool preserveExistingFocus)
     {
         SimulationNavigation = enabled;
         navigation.Read(Frame(Buttons.None), false, InputOwner.UiNavigation);
         navigation.Read(Frame(Buttons.None), true, InputOwner.UiNavigation);
         NavigationHint.Text = enabled ? "SIMULATED GAMEPAD · Arrows Navigate · A / Enter Focus · B / Esc Back" : "Tab / Arrows Navigate · Enter Focus · Esc Back · F6 Gamepad";
-        if (enabled) { pointerMode.EnterDemo(pointer.X, pointer.Y); FocusDock(State.FocusedPlayer ?? 0); }
+        if (enabled)
+        {
+            pointerMode.EnterDemo(pointer.X, pointer.Y);
+            bool hasValidFocus = Array.FindIndex(docks, d => d.IsKeyboardFocusWithin) >= 0 || ReferenceEquals(Keyboard.FocusedElement, SupportButton) || ReferenceEquals(Keyboard.FocusedElement, ToolsButton);
+            if (!preserveExistingFocus || !hasValidFocus)
+            {
+                FocusDock(State.FocusedPlayer ?? 0);
+            }
+        }
     }
-    public void EnableNativeNavigation(){if(!SimulationNavigation)SetSimulationNavigation(true);NavigationHint.Text="Controller navigation · A Select · B Back · D-pad Navigate";}
+    public void EnableNativeNavigation(){if(!SimulationNavigation)SetSimulationNavigation(true, true);NavigationHint.Text="Controller navigation · A Select · B Back · D-pad Navigate";}
     public void SuspendNavigation() => navigation.Read(Frame(Buttons.None), false, InputOwner.UiNavigation);
     private InputFrame Frame(Buttons buttons) => new(0, true, "simulation:zone-keys", clock.Elapsed.TotalMilliseconds, buttons);
     public async void OnKeyDown(object sender, KeyEventArgs e)
     {
         if(Keyboard.FocusedElement is System.Windows.Controls.Button shell && (ReferenceEquals(shell,SupportButton)||ReferenceEquals(shell,ToolsButton)))
         {
-            if(e.Key==Key.Enter || SimulationNavigation&&e.Key==Key.A){if(!e.IsRepeat)shell.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));e.Handled=true;return;}
+            if(e.Key==Key.Enter || e.Key==Key.A){if(!e.IsRepeat)shell.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));e.Handled=true;return;}
             if(e.Key==Key.Down){FocusDock(State.FocusedPlayer??0);e.Handled=true;return;}
             if(e.Key is Key.Left or Key.Right){shell.MoveFocus(new(e.Key==Key.Left?FocusNavigationDirection.Left:FocusNavigationDirection.Right));e.Handled=true;return;}
         }
         if (e.Key == Key.F6) { if (!e.IsRepeat) SetSimulationNavigation(!SimulationNavigation); e.Handled = true; return; }
         if (e.Key == Key.F8) { if (!e.IsRepeat) LoadScenario((ZoneScenario)(((int)scenario + 1) % 3)); e.Handled = true; return; }
-        if (e.Key == Key.Escape || SimulationNavigation && e.Key == Key.B)
+        if (e.Key == Key.Escape || e.Key == Key.B)
         {
             e.Handled = true;
             if (State.FocusedPlayer.HasValue) await FocusPlayerAsync(null);
@@ -216,21 +225,36 @@ public partial class ZoneScene : UserControl
         if(selected>=0 && e.Key==Key.Up && !State.FocusedPlayer.HasValue){ToolsButton.Focus();e.Handled=true;return;}
         if (selected < 0) selected = State.FocusedPlayer ?? 0;
         var direction = e.Key switch { Key.Up => NavigationAction.Up, Key.Down => NavigationAction.Down, Key.Left => NavigationAction.Left, Key.Right => NavigationAction.Right, _ => NavigationAction.None };
-        bool activate = e.Key == Key.Enter || SimulationNavigation && e.Key == Key.A;
-        if (SimulationNavigation)
+        bool activate = e.Key == Key.Enter || e.Key == Key.A;
+        if (e.Key == Key.X && State.FocusedPlayer.HasValue)
         {
-            Buttons input = e.Key switch { Key.Up => Buttons.Up, Key.Down => Buttons.Down, Key.Left => Buttons.Left, Key.Right => Buttons.Right, Key.Enter or Key.A => Buttons.A, _ => Buttons.None };
-            if (input == Buttons.None) return;
             e.Handled = true;
-            var action = navigation.Read(Frame(input), Window.GetWindow(this)?.IsActive == true, InputOwner.UiNavigation);
-            if (action == NavigationAction.Activate) await FocusPlayerAsync(selected);
-            else if (action != NavigationAction.None) MoveFocusToDock(selected, action);
+            if (!e.IsRepeat) ControllerActionRequested?.Invoke(State.FocusedPlayer.Value, true);
+            return;
         }
-        else if (direction != NavigationAction.None) { MoveFocusToDock(selected, direction); e.Handled = true; }
-        else if (activate && docks[selected].FocusButton.IsKeyboardFocused)
+        if (direction != NavigationAction.None)
         {
+            if (!SimulationNavigation) EnableNativeNavigation();
+            MoveFocusToDock(selected, direction);
             e.Handled = true;
-            if (!e.IsRepeat) await FocusPlayerAsync(selected);
+            return;
+        }
+        if (activate)
+        {
+            if (!SimulationNavigation) EnableNativeNavigation();
+            e.Handled = true;
+            if (!e.IsRepeat)
+            {
+                if (State.FocusedPlayer.HasValue && State.FocusedPlayer.Value == selected)
+                {
+                    ControllerActionRequested?.Invoke(selected, false);
+                }
+                else
+                {
+                    await FocusPlayerAsync(selected);
+                }
+            }
+            return;
         }
     }
     private void MoveFocusToDock(int selected, NavigationAction action)
@@ -261,7 +285,7 @@ public partial class ZoneScene : UserControl
     {
         if (!SimulationNavigation) return;
         navigation.Read(Frame(Buttons.None), Window.GetWindow(this)?.IsActive == true, InputOwner.UiNavigation);
-        if (e.Key is Key.Up or Key.Down or Key.Left or Key.Right or Key.Enter or Key.A) e.Handled = true;
+        if (e.Key is Key.Up or Key.Down or Key.Left or Key.Right or Key.Enter or Key.A or Key.B or Key.X) e.Handled = true;
     }
     private void OnMouseMove(object sender, MouseEventArgs e)
     {

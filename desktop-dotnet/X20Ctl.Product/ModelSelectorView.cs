@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
@@ -92,6 +92,9 @@ public sealed class ModelSelectorView : Grid
             }
         };
     }
+
+    public void FocusFirst() { if (cards.Count > 0) cards[0].Focus(); }
+    public IReadOnlyList<Button> Cards => cards;
 
     /// <summary>One controller card: art, name, a short description and the support line.</summary>
     private Button Card(ControllerModel model, Facts? facts)
