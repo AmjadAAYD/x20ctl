@@ -70,7 +70,8 @@ public sealed class ModelSelectorView : Grid
         foreach (var model in catalog.Models)
         {
             var card = Card(model, facts.TryGetValue(model.Id, out var f) ? f : null);
-            card.Click += (_, _) => Chosen?.Invoke(model);
+            // the pad takes the colour its card is showing (owner, 25 Oct 2026), not the model's default
+            card.Click += (_, _) => { PadColours.Set(Player, model.Id, blends.First(b => b.ModelId == model.Id).Finish); Chosen?.Invoke(model); };
             choices[model.Id] = card; cards.Add(card);
             rows[n < 4 ? 0 : 1].Add(card); n++;
         }
@@ -81,7 +82,7 @@ public sealed class ModelSelectorView : Grid
         Loaded += (_, _) =>
         {
             if (cards.Count > 0) cards[0].Focus();
-            StartTurning();
+            Warm(); StartTurning();
             if(!DS.Motion)return;
             // the cards rise in one after another
             for (int i = 0; i < cards.Count; i++)
@@ -97,34 +98,29 @@ public sealed class ModelSelectorView : Grid
 
     // every model that comes in more than one colour turns to its next colour at the same moment, then holds it (owner
     // direction 24 Oct 2026: all together, not one card after another); nothing runs between changes, so idle stays cheap
-    private readonly List<FinishMorph> morphs = new();
-    public IReadOnlyList<FinishMorph> Morphs => morphs;
+    private readonly List<FinishBlend> blends = new();
+    public IReadOnlyList<FinishBlend> Blends => blends;
     private readonly System.Windows.Threading.DispatcherTimer turn = new() { Interval = TimeSpan.FromMilliseconds(3800) };
     /// <summary>Every card starts in its model's default colour and then cycles like the rest (owner, 24 Oct 2026).</summary>
-    private static bool Turns(FinishMorph m) => PadColours.Catalog.For(m.ModelId).Count > 1;
+    private static bool Turns(FinishBlend m) => PadColours.Catalog.For(m.ModelId).Count > 1;
+    // the pictures and the spread of every colour are made a little at a time while the screen is idle, so the first change
+    // does not stall (owner, 25 Oct 2026: a flicker when the cycle began)
+    private readonly Queue<string> warming = new();
+    private void Warm()
+    {
+        if (warming.Count == 0) return;
+        if (!FinishBlend.PrepareStep(warming.Peek())) warming.Dequeue();
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, Warm);
+    }
     private void StartTurning()
     {
-        if (!DS.Motion || !morphs.Any(Turns)) return;
+        if (!DS.Motion || !blends.Any(Turns)) return;
         turn.Tick -= Turn; turn.Tick += Turn; turn.Start();
     }
     private void Turn(object? sender, EventArgs e)
     {
-        foreach (var morph in morphs.Where(Turns))
-            _ = morph.ChangeTo(PadColours.Catalog.Next(morph.ModelId, morph.Finish).Id);
-    }
-
-    /// <summary>Every card shows its controller at the same size (owner, 24 Oct 2026: the X20 Pro and Dune looked far away,
-    /// since each picture fills a different share of its canvas). The view is set round the controller's traced outline,
-    /// with a little room, in one shape for every card; nothing is clipped, so the lift and glow still spill over.</summary>
-    private static FrameworkElement Framed(FrameworkElement art, string model, string finish)
-    {
-        if (ControllerOutline.For(model, false, finish)?.Bounds is not { IsEmpty: false } b) return art;
-        const double Aspect = 1.5, Room = 1.05;
-        double width = Math.Max(b.Width, b.Height * Aspect) * Room, height = width / Aspect;
-        var frame = new Canvas { Width = width, Height = height };
-        Canvas.SetLeft(art, width / 2 - (b.X + b.Width / 2)); Canvas.SetTop(art, height / 2 - (b.Y + b.Height / 2));
-        frame.Children.Add(art);
-        return frame;
+        foreach (var card in blends.Where(Turns))
+            _ = card.ChangeTo(PadColours.Catalog.Next(card.ModelId, card.Finish).Id);
     }
 
     public void FocusFirst() { if (cards.Count > 0) cards[0].Focus(); }
@@ -138,10 +134,8 @@ public sealed class ModelSelectorView : Grid
         var stack = new Grid();
         stack.RowDefinitions.Add(new() { Height = new(1, GridUnitType.Star) }); stack.RowDefinitions.Add(new() { Height = GridLength.Auto }); stack.RowDefinitions.Add(new() { Height = GridLength.Auto }); stack.RowDefinitions.Add(new() { Height = GridLength.Auto });
         string shown = PadColours.Catalog.Default(model.Id);
-        var picture = new Image { Source = ControllerArt.Front(model.Id, shown), Stretch = Stretch.Fill };
-        RenderOptions.SetBitmapScalingMode(picture, BitmapScalingMode.HighQuality);
-        var morph = new FinishMorph(picture); morph.Show(model.Id, shown); morphs.Add(morph);
-        var art = new Viewbox { Stretch = Stretch.Uniform, Margin = new(0, 0, 0, 12), Child = Framed(new Grid { Width = 1536, Height = 1024, Children = { picture, morph } }, model.Id, shown) };
+        var blend = new FinishBlend(model.Id, shown); blends.Add(blend); warming.Enqueue(blend.ModelId);
+        var art = new Viewbox { Stretch = Stretch.Uniform, Margin = new(0, 0, 0, 12), Child = blend };
         stack.Children.Add(art);
         var name = new TextBlock { Text = model.Name, FontFamily = DS.Display, FontSize = 19, FontWeight = FontWeights.SemiBold, Foreground = DS.Brush("DS.Text"), TextTrimming = TextTrimming.CharacterEllipsis }; Grid.SetRow(name, 1); stack.Children.Add(name);
         var about = new TextBlock { Text = facts?.Description ?? "", FontFamily = DS.Body, FontSize = 12.5, Foreground = DS.Brush("Zone.TextSecondary"), TextWrapping = TextWrapping.Wrap, Margin = new(0, 5, 0, 10), MaxHeight = 36 }; Grid.SetRow(about, 2); stack.Children.Add(about);

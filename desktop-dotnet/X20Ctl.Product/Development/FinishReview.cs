@@ -51,12 +51,12 @@ internal static class FinishReview
         report.Add("paddles labelled: " + string.Join(", ", new[] { "x20", "x20_pro", "x05_pro", "x10", "d10", "x15", "dune" }.Select(m => $"{m} {string.Join("/", LiveController.Paddles(m).Select(p => p.Slot))}")));
 
         // the change, frozen part-way, for a light-to-dark and a dark-to-light pair
-        foreach (var (model, from, to) in new[] { ("x20_pro", "original", "white"), ("x20", "original", "black"), ("x15", "original", "wukong") })
+        foreach (var (model, from, to) in new[] { ("x20_pro", "original", "white"), ("x20", "original", "black"), ("x15", "original", "wukong"), ("d10", "purple", "green") })
         {
             var picture = new Image { Width = 1536, Height = 1024, Stretch = Stretch.Fill };
             var morph = new FinishMorph(picture); morph.Show(model, from);
             var stage = new Grid { Width = 1536, Height = 1024, Background = new SolidColorBrush(Color.FromRgb(23, 26, 33)), Children = { picture, morph } };
-            foreach (double v in new[] { .12, .3, .5, .7, .9 }) { morph.Preview(to, v); Save(stage, $"morph-{model}-{to}-{v * 100:00}.png", .5); }
+            foreach (double v in new[] { .12, .3, .5, .7, .9, 1 }) { morph.Preview(to, v); Save(stage, $"morph-{model}-{to}-{v * 100:00}.png", .5); }
         }
 
         // the Zone's hero card: Change color beside Switch Controller; a second player keeps its own colour
@@ -79,10 +79,13 @@ internal static class FinishReview
         var selector = new ModelSelectorView(catalog, 0);
         var selectorStage = new Grid { Width = 1600, Height = 1000, Children = { selector } };
         Save(selectorStage, "selector.png", .75);
-        var turning = selector.Morphs.First(m => m.ModelId == "x20_pro"); turning.Preview("white", .5);
+        var turning = selector.Blends.First(m => m.ModelId == "x20_pro"); turning.Preview("original", .5);
         Save(selectorStage, "selector-x20_pro-turning.png", .75);
-        double cost = selector.Morphs.Sum(m => FinishMorph.PaintCost(m, 120));
-        report.Add($"one frame of every card changing at once: {cost:0.00} ms of work ({selector.Morphs.Count} cards)");
+        // the wave takes the new colour's tone: dark into black, light into white (owner, 25 Oct 2026)
+        selector.Blends.First(m => m.ModelId == "x20").Preview("black", .5); selector.Blends.First(m => m.ModelId == "x15").Preview("starfield", .5);
+        Save(selectorStage, "selector-tones.png", .75);
+        double cost = selector.Blends.Sum(m => FinishBlend.PaintCost(m, 120));
+        report.Add($"one frame of every card changing at once: {cost:0.00} ms of work ({selector.Blends.Count} cards)");
 
         File.WriteAllLines(System.IO.Path.Combine(directory, "finishes.txt"), report);
     }
