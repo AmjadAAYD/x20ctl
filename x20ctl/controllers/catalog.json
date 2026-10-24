@@ -151,9 +151,9 @@
       "M5",
       "M6"
     ],
-    "backend": null,
+    "backend": "x20_keylinker",
     "visible": true,
-    "placeholder": true,
+    "placeholder": false,
     "hardware": {
       "rgb": true,
       "vibration": true,
@@ -299,8 +299,8 @@
       },
       "baseAsset": "x20_pro/controller-base.png"
     },
-    "availability": "preview",
-    "inputBackend": null
+    "availability": "configuration",
+    "inputBackend": "xinput"
   },
   {
     "id": "x05",

@@ -38,6 +38,7 @@ class Link(Enum):
 
 # The identities this pad is known to clone.
 WIRED_ID = re.compile(r"USB\\VID_045E&PID_028E", re.I)
+X20_PRO_RECEIVER_ID = re.compile(r"USB\\VID_413D&PID_2131", re.I)
 BLUETOOTH_ID = re.compile(r"BTHENUM\\.*VID&0002045E.*PID&02FD", re.I)
 BLUETOOTH_ANY = re.compile(r"BTHENUM\\DEV_(98B6E[0-9A-F]{7})", re.I)
 XINPUT_ANY = re.compile(r"USB\\VID_([0-9A-F]{4})&PID_([0-9A-F]{4})", re.I)
@@ -90,6 +91,11 @@ def detect(ids: list[str] | None = None) -> Connection:
     ids = _enumerate() if ids is None else ids
     if not ids:
         return Connection(Link.UNKNOWN, "could not enumerate devices")
+
+    # 0. EasySMX 2.4 GHz receiver (X20 Pro or Dune).
+    for entry in ids:
+        if X20_PRO_RECEIVER_ID.search(entry):
+            return Connection(Link.DONGLE, "EasySMX receiver (X20 Pro or Dune)", entry)
 
     # 1. The pad's USB identity. Can't tell a cable from the receiver here.
     for entry in ids:

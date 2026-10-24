@@ -24,7 +24,7 @@ public sealed class ControllerCatalog
             { var stick = sticks.GetProperty(side); var center = stick.TryGetProperty("cap", out var cap) && cap.ValueKind == JsonValueKind.Object ? cap : stick; points[name] = new(center.GetProperty("x").GetDouble(), center.GetProperty("y").GetDouble()); }
             points["LSTICK_ANALOG"] = points["L3"]; points["RSTICK_ANALOG"] = points["R3"];
             if (id == "x20") { points["HOME"] = new(.5, .301); points["CAPTURE"] = new(646d / 1536, 262d / 1024); points["TURBO"] = new(879d / 1536, 264d / 1024); }
-            bool supported = id == "x20" && item.GetProperty("backend").GetString() == "x20_keylinker";
+            bool supported = (id == "x20" || id == "x20_pro") && item.GetProperty("backend").GetString() == "x20_keylinker";
             string support = supported ? "SUPPORTED" : item.GetProperty("availability").GetString() == "preview" ? "PREVIEW" : "RESEARCH";
             string summary = supported ? "Verified legacy configuration. Native connection pending." : "Configuration unverified. Model preview available.";
             models.Add(new(id, "EasySMX " + item.GetProperty("name").GetString(), support, summary, visual.GetProperty("asset").GetString()!, points));
