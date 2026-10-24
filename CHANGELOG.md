@@ -4,6 +4,7 @@
 
 ### Added
 
+- **Check over Bluetooth, no phone.** The Write scan's first screen can now ask an X20 or X20 Pro what it is, its firmware and which settings it exposes, over Bluetooth. Three read-only questions: nothing is written and no mode is entered. The phone recording is still there for anything the check can't answer.
 - **EasySMX X20 Pro in the command line and library.** The X20 Pro (firmware 1.44) is recognised, its 2.4 GHz receiver is identified, and its six macro slots (M1 to M6) are read and saved. Settings are changed over Bluetooth only, each one read back and restored in the logs: remaps, stick and trigger curves, vibration, idle timeout, macros and turbo. Calibrate and factory reset stay locked. (added by [Monratis](https://github.com/Monratis), tested on an X20 Pro)
 - **Each Tools card tells its own little story** on its own while the page is open: the wrench fixing, feedback travelling to its inbox, pause turning into play, a link between phone and controller, a beating heart, and the star shining and filling. They are bolder and in colour, they spring as they move. They stop when you leave the page, and stay still with reduced motion.
 - **A Controller check-up page in the agent.** The controller icon on the rail opens a page of common problems (a stick drifts, a button doesn't register, it won't connect and more), plus the Read scan, the Write scan and "Describe it yourself". Picking a problem gets a recommendation in the chat, and it can open Feedback with your issue filled in once you say yes.

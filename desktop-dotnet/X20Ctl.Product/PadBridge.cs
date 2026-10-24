@@ -12,7 +12,7 @@ public sealed record TelemetryData(string? Controller, string? Firmware, string?
 /// </summary>
 public static class PadBridge
 {
-    public sealed record Result(bool Ran, bool Ok, string Text, TelemetryData? Telemetry = null);
+    public sealed record Result(bool Ran, bool Ok, string Text, TelemetryData? Telemetry = null, PadCheck.Raw? Check = null);
 
     public static async Task<Result> Status(string targetModel = "x20_pro")
     {
@@ -24,6 +24,20 @@ public static class PadBridge
         return new(true, false, "Bluetooth LE requires Windows 10 build 15063 or newer.");
 #else
         return await Task.FromResult(new Result(false, false, "Bluetooth LE telemetry requires Windows."));
+#endif
+    }
+
+    /// <summary>The read-only controller check: identity, updater id and capability menu, nothing written and no mode entered.</summary>
+    public static async Task<Result> Check(string targetModel = "x20_pro")
+    {
+#if WINDOWS
+        if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 15063))
+        {
+            return await NativeBleClient.QueryAsync(targetModel, check: true);
+        }
+        return new(true, false, "Bluetooth LE requires Windows 10 build 15063 or newer.");
+#else
+        return await Task.FromResult(new Result(false, false, "The controller check requires Windows."));
 #endif
     }
 

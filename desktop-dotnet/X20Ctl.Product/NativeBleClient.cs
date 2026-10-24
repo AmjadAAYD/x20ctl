@@ -22,7 +22,7 @@ public static class NativeBleClient
     private static string CachePath =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "x20ctl", "native", "bt_cache.txt");
 
-    public static async Task<PadBridge.Result> QueryAsync(string targetModel = "x20_pro", int timeoutSeconds = 6)
+    public static async Task<PadBridge.Result> QueryAsync(string targetModel = "x20_pro", int timeoutSeconds = 6, bool check = false)
     {
         try
         {
@@ -33,7 +33,7 @@ public static class NativeBleClient
             }
 
             string addressStr = FormatMac(address.Value);
-            return await QueryGattAsync(address.Value, addressStr, targetModel);
+            return await QueryGattAsync(address.Value, addressStr, targetModel, check);
         }
         catch (Exception ex)
         {
@@ -143,7 +143,7 @@ public static class NativeBleClient
         return (null, "Controller not found over Bluetooth. Make sure Bluetooth is enabled and the controller is awake.");
     }
 
-    private static async Task<PadBridge.Result> QueryGattAsync(ulong bluetoothAddress, string addressStr, string targetModel)
+    private static async Task<PadBridge.Result> QueryGattAsync(ulong bluetoothAddress, string addressStr, string targetModel, bool check)
     {
         using var device = await BluetoothLEDevice.FromBluetoothAddressAsync(bluetoothAddress);
         if (device == null)
@@ -207,6 +207,8 @@ public static class NativeBleClient
 
         async Task<byte[]?> SendQueryAsync(byte opcode, byte length, byte serial, byte[] payload, int timeoutMs = 2500)
         {
+            // The controller check asks three read-only questions and nothing else.
+            if (check && !PadCheck.IsQuery(opcode)) throw new InvalidOperationException($"The controller check may not send opcode 0x{opcode:X2}.");
             expectedSerial = serial;
             pendingReply = new TaskCompletionSource<byte[]>(TaskCreationOptions.RunContinuationsAsynchronously);
             byte[] packet = X20Codec.Frame(opcode, length, serial, 0, payload);
@@ -227,12 +229,21 @@ public static class NativeBleClient
         string? battery = null;
         bool charging = false;
         bool enteredMode = false;
+        PadCheck.Raw? checkRaw = null;
 
         try
         {
             // 1. Query Device Info (Op 0x91: READ_VID_PID_VERSION)
             var payInfo = await SendQueryAsync(0x91, 5, 1, []);
-            if (payInfo != null && payInfo.Length >= 7)
+            if (check)
+            {
+                // Controller check: updater id (two chunks at most), then the capability menu. No battery query, so no mode is entered.
+                byte[]? guid0 = await SendQueryAsync(0x93, 6, 2, [0]);
+                byte[]? guid1 = guid0 is { Length: > 1 } && guid0[0] == 18 && guid0.Length - 1 < 18 ? await SendQueryAsync(0x93, 6, 3, [1]) : null;
+                byte[]? menu = await SendQueryAsync(0xB0, 7, 4, [0, 1]);
+                checkRaw = new PadCheck.Raw(payInfo, menu, guid0, guid1);
+            }
+            else if (payInfo != null && payInfo.Length >= 7)
             {
                 string vid = $"{payInfo[1]:x2}{payInfo[2]:x2}";
                 string pid = $"{payInfo[3]:x2}{payInfo[4]:x2}";
@@ -298,6 +309,12 @@ public static class NativeBleClient
             File.WriteAllText(CachePath, bluetoothAddress.ToString("X"));
         }
         catch { }
+
+        if (check)
+        {
+            var report = PadCheck.Build(checkRaw ?? new PadCheck.Raw(null, null, null, null));
+            return new PadBridge.Result(true, report.Identity != null, PadCheck.Describe(report), null, checkRaw);
+        }
 
         var sb = new StringBuilder();
         sb.AppendLine("Controller (Bluetooth Telemetry · Read-Only)");
