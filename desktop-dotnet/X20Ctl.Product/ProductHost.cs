@@ -158,6 +158,19 @@ public sealed class ProductHost : Grid
         if(pc)PcModeSync.Prepare(pcModeStore!,draft,curveDraft,macroDraft);
         Studio = new(player, model, draft, Zone.ReducedMotion, curveDraft,macroDraft,vibrationDraft,setupStore,legacySources,activeSetup); if(PcMode!=null&&pcModeStore!=null)Studio.PcMode=new(pcModeStore,PcMode,preferencesHealthy?preferences:null);Studio.MouseService=MouseMode;Studio.PcModeSwitched+=()=>Dispatcher.BeginInvoke(()=>{EnterStudio(player);Studio?.ShowManagement("PcMode");});Studio.BackRequested += ReturnToZone;Studio.SupportRequested+=OpenSupport;Studio.ActiveSetupChanged+=id=>activeSetups[key]=id;
         Studio.SetBatteryLevel(batteryLevels[player]);
+        Studio.AgentScanRequested += page => { if (page == "ReadScan") OpenCheck(); else OpenWriteScan(); };
+        Studio.AgentFeedbackRequested += draft =>
+        {
+            ShowSettings();
+            var form = Settings!.FeedbackForm;
+            string previous = form.Message.Text;
+            // the new draft is kept whole; it is the earlier text that gives way when the message is full
+            string head = string.IsNullOrWhiteSpace(previous) ? "" : previous[..Math.Min(previous.Length, Math.Max(0, 4000 - draft.Length - 2))] + "\n\n";
+            string combined = head + draft;
+            form.Message.Text = combined[..Math.Min(4000, combined.Length)];
+            Settings.ShowFeedback(true);
+        };
+
         if (currentTransport != null) Studio.SetTransport(currentTransport);
         Studio.NativeEngineStatus=NativeEngineStatus;
         Studio.InputContextChanged+=()=>_=UpdateNativeContext();

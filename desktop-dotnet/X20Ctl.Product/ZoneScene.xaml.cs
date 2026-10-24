@@ -94,7 +94,15 @@ public partial class ZoneScene : UserControl
     }
     private void SnapLayout()
     {
-        if (DockStage.ActualWidth <= 48 || DockStage.ActualHeight <= 48) return;
+        // Assignment/resize snaps also invalidate an awaiting transition's old destination.
+        transition?.Cancel(); CompositionTarget.Rendering -= MoveFrame; moveClock.Stop();
+        if (DockStage.ActualWidth <= 48 || DockStage.ActualHeight <= 48)
+        {
+            // the cancelled move must not leave the cards' words hidden until the next resize
+            IsTransitioning = false;
+            foreach (var dock in docks) { dock.SetMoving(false); dock.FadeHeroDetails(1, 0); }
+            return;
+        }
         PlaceViews(0); displayedHero = State.FocusedPlayer; IsTransitioning = false;
         FocusBloom.BeginAnimation(OpacityProperty, null);
         FocusBloom.Opacity = State.FocusedPlayer.HasValue ? 1 : 0;
@@ -103,34 +111,40 @@ public partial class ZoneScene : UserControl
     private DockBounds[] moveFrom = [], moveTo = [];
     private readonly Stopwatch moveClock = new();
     private int moveMs;
+    private int? moveHero;
     /// <summary>Move every card to its place for the current focus. With a duration, the cards glide there frame by frame
     /// (the "fwoosh": fast through the middle, soft at both ends), each one's content reflowing at its in-between size.</summary>
     private void PlaceViews(int duration)
     {
         var bounds = ZoneLayout.Calculate(DockStage.ActualWidth, DockStage.ActualHeight, State.FocusedPlayer);
         CompositionTarget.Rendering -= MoveFrame;
-        if (duration <= 0) { for (int i = 0; i < 4; i++) { docks[i].SetBounds(bounds[i], Role(i).hero, Role(i).secondary); docks[i].SetMoving(false); } return; }
+        if (duration <= 0) { for (int i = 0; i < 4; i++) { docks[i].SetMoving(false); docks[i].SetBounds(bounds[i], Role(i).hero, Role(i).secondary); } return; }
         moveFrom = docks.Select(d => d.RenderedBounds.Width > 0 ? d.RenderedBounds : bounds[d.Index]).ToArray(); moveTo = bounds; moveMs = duration;
-        foreach (var dock in docks) dock.SetMoving(true);
+        moveHero = State.FocusedPlayer;
+        for (int i = 0; i < 4; i++) docks[i].PrepareMove(bounds[i], Role(i).hero, Role(i).secondary);
         moveClock.Restart(); CompositionTarget.Rendering += MoveFrame;
     }
     private (bool hero, bool secondary) Role(int i) => (State.FocusedPlayer == i, State.FocusedPlayer.HasValue && State.FocusedPlayer != i);
     private void MoveFrame(object? sender, EventArgs e)
     {
         double t = Math.Clamp(moveClock.Elapsed.TotalMilliseconds / moveMs, 0, 1);
-        double k = t < .5 ? 16 * Math.Pow(t, 5) : 1 - Math.Pow(-2 * t + 2, 5) / 2; // ease in-out quint
+        double k = t * t * t * (t * (t * 6 - 15) + 10); // soft start/end without the old fivefold middle-speed spike
         for (int i = 0; i < 4; i++)
         {
             var a = moveFrom[i]; var b = moveTo[i];
-            docks[i].SetBounds(new(a.X + (b.X - a.X) * k, a.Y + (b.Y - a.Y) * k, a.Width + (b.Width - a.Width) * k, a.Height + (b.Height - a.Height) * k), Role(i).hero, Role(i).secondary);
+            docks[i].SetBounds(new(a.X + (b.X - a.X) * k, a.Y + (b.Y - a.Y) * k, a.Width + (b.Width - a.Width) * k, a.Height + (b.Height - a.Height) * k), moveHero == i, moveHero.HasValue && moveHero != i);
+            docks[i].SetMoveProgress(k);
         }
         if (t >= 1) { CompositionTarget.Rendering -= MoveFrame; foreach (var dock in docks) dock.SetMoving(false, 220); }
     }
-    private void FinishMove() { if (moveTo.Length == 4) { CompositionTarget.Rendering -= MoveFrame; for (int i = 0; i < 4; i++) { docks[i].SetBounds(moveTo[i], Role(i).hero, Role(i).secondary); docks[i].SetMoving(false, 220); } } }
+    private void FinishMove() { if (moveTo.Length == 4) { CompositionTarget.Rendering -= MoveFrame; for (int i = 0; i < 4; i++) { docks[i].SetBounds(moveTo[i], moveHero == i, moveHero.HasValue && moveHero != i); docks[i].SetMoveProgress(1); docks[i].SetMoving(false, 220); } } }
     public async Task FocusPlayerAsync(int? index)
     {
         if (index == State.FocusedPlayer) return;
         transition?.Cancel();
+        // Freeze the displayed rectangles before retracting for a new selection.
+        CompositionTarget.Rendering -= MoveFrame; moveClock.Stop();
+        foreach (var dock in docks) dock.SetMoving(false);
         var operation = new CancellationTokenSource(); transition = operation;
         if (index.HasValue) State.Activate(index.Value); else State.Collapse();
         FeedbackText.Text = State.Feedback; UpdateOverviewPill();
@@ -160,7 +174,7 @@ public partial class ZoneScene : UserControl
             if (!ReducedMotion) await Task.Delay(MoveMs, operation.Token);
             operation.Token.ThrowIfCancellationRequested();
             FinishMove();
-            foreach (var dock in docks) { dock.FadeHeroDetails(1, ReducedMotion ? 0 : SettleMs); dock.SettleArtwork(.97, ReducedMotion ? 0 : SettleMs); }
+            foreach (var dock in docks) { dock.FadeHeroDetails(1, ReducedMotion ? 0 : SettleMs); dock.SettleArtwork(1, 0); }
             if (!ReducedMotion) await Task.Delay(SettleMs, operation.Token);
         }
         catch (OperationCanceledException) { }

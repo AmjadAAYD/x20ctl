@@ -13,23 +13,34 @@ public partial class DockView : UserControl
     public PlayerDock Player { get; private set; }
     private bool isHero, isSecondary;
     private readonly bool reducedMotion;
-    // The controller art glides to where its role puts it (owner report 10 Oct 2026: during a swap the art "tweaked",
-    // jumping between the side tile's right-aligned spot and the hero's centred one). Each frame of a move gives a new
-    // target; the shown rectangle follows it with a short, time-based ease, so a role change is a glide, never a jump.
+    // The card and its artwork share the Zone's transition progress, including interrupted moves.
     private Rect artShown = Rect.Empty, artTarget = Rect.Empty;
-    private TimeSpan artLast; private bool artGliding;
+    private Rect artMoveFrom = Rect.Empty, artMoveTo = Rect.Empty;
     private void GlideArt(double x, double y, double w)
     {
         artTarget = new(x, y, w, w / 1.5);
-        if (artShown.IsEmpty || reducedMotion) { artShown = artTarget; PlaceArt(artShown); return; }
-        if (!artGliding) { artGliding = true; artLast = TimeSpan.Zero; CompositionTarget.Rendering += ArtFrame; }
+        if (!moving) { artShown = artTarget; PlaceArt(artShown); }
     }
-    private void ArtFrame(object? sender, EventArgs e)
+    public void PrepareMove(DockBounds target, bool hero, bool secondary)
     {
-        var now = ((RenderingEventArgs)e).RenderingTime; double dt = artLast == TimeSpan.Zero ? 1 / 60.0 : Math.Min(.05, (now - artLast).TotalSeconds); artLast = now;
-        double k = 1 - Math.Exp(-dt * 16);
-        artShown = new(artShown.X + (artTarget.X - artShown.X) * k, artShown.Y + (artTarget.Y - artShown.Y) * k, artShown.Width + (artTarget.Width - artShown.Width) * k, artShown.Height + (artTarget.Height - artShown.Height) * k);
-        if (Math.Abs(artShown.X - artTarget.X) + Math.Abs(artShown.Y - artTarget.Y) + Math.Abs(artShown.Width - artTarget.Width) < .6) { artShown = artTarget; CompositionTarget.Rendering -= ArtFrame; artGliding = false; }
+        var from = RenderedBounds;
+        artMoveFrom = artShown;
+        SettleArtwork(1, 0);
+        SetMoving(true);
+        // Compute the destination once, then restore the displayed outer bounds before the next render.
+        SetBounds(target, hero, secondary); artMoveTo = artTarget;
+        Canvas.SetLeft(this, from.X); Canvas.SetTop(this, from.Y); Width = from.Width; Height = from.Height;
+        if (artMoveFrom.IsEmpty) artMoveFrom = artMoveTo;
+        SetMoveProgress(0);
+    }
+    public void SetMoveProgress(double progress)
+    {
+        if (artMoveFrom.IsEmpty || artMoveTo.IsEmpty) return;
+        double p = Math.Clamp(progress, 0, 1);
+        artShown = new(artMoveFrom.X + (artMoveTo.X - artMoveFrom.X) * p,
+            artMoveFrom.Y + (artMoveTo.Y - artMoveFrom.Y) * p,
+            artMoveFrom.Width + (artMoveTo.Width - artMoveFrom.Width) * p,
+            artMoveFrom.Height + (artMoveTo.Height - artMoveFrom.Height) * p);
         PlaceArt(artShown);
     }
     private void PlaceArt(Rect r)
@@ -38,7 +49,10 @@ public partial class DockView : UserControl
         Art.Width = artWidth; Art.Height = artWidth / 1.5; Canvas.SetLeft(Art, artX); Canvas.SetTop(Art, artY);
         Halo.Width = artWidth * 1.25; Halo.Height = artWidth / 1.5 * 1.05; Canvas.SetLeft(Halo, artX - artWidth * .125); Canvas.SetTop(Halo, artY - artWidth / 1.5 * .02);
         ArtShadow.Width = artWidth * .72; ArtShadow.Height = Math.Max(8, artWidth * .075); Canvas.SetLeft(ArtShadow, artX + artWidth * .14); Canvas.SetTop(ArtShadow, artY + artWidth / 1.5 * .9);
+        PlaceAddButton(r);
     }
+    private void PlaceAddButton(Rect art) => AddControllerButton.Margin = new(Math.Max(12, art.X + art.Width / 2 - 73),
+        Math.Max(0, Math.Min(Height - Inset - AddButton, art.Y + art.Height * .96 + 8)), 0, 0);
     /// <summary>The one accent: Steam's blue, for the chosen controller and its bloom.</summary>
     public static readonly Color Accent = Color.FromRgb(26, 159, 255);
     // the card's own 6 px margin plus breathing room; the heights of the status pill and the small buttons
@@ -70,8 +84,9 @@ public partial class DockView : UserControl
         }
         Silhouette.IsVisibleChanged += (_, _) => Dots(Silhouette.IsVisible);
         Loaded += (_, _) => Dots(Silhouette.IsVisible); Unloaded += (_, _) => Dots(false);
-        var plusScale = new ScaleTransform(1, 1); PlusBadge.RenderTransform = plusScale;
-        void Grow(double to) { plusScale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(to, TimeSpan.FromMilliseconds(140)) { EasingFunction = new CubicEase() }); plusScale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(to, TimeSpan.FromMilliseconds(140)) { EasingFunction = new CubicEase() }); }
+        var plusScale = new ScaleTransform(1, 1);
+        var plusContent = (FrameworkElement)PlusBadge.Child; plusContent.RenderTransform = plusScale; plusContent.RenderTransformOrigin = new(.5, .5);
+        void Grow(double to) { if (this.reducedMotion) return; plusScale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(to, TimeSpan.FromMilliseconds(140)) { EasingFunction = new CubicEase() }); plusScale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(to, TimeSpan.FromMilliseconds(140)) { EasingFunction = new CubicEase() }); }
         PlusBadge.MouseEnter += (_, _) => Grow(1.015); PlusBadge.MouseLeave += (_, _) => Grow(1);
         PlusBadge.PreviewMouseLeftButtonDown += (_, e) => { e.Handled = true; Grow(.92); };
         PlusBadge.PreviewMouseLeftButtonUp += (_, e) => { e.Handled = true; Grow(1.015); ActionRequested?.Invoke(Index, false); };
@@ -172,7 +187,7 @@ public partial class DockView : UserControl
         GlideArt(artX, artY, artWidth);
         // the buttons' real heights (the shared style's 42 px minimum would otherwise win) and a clear gap above the card's edge
         AddControllerButton.MinHeight=0;AddControllerButton.Height=AddButton;
-        AddControllerButton.Margin=new(Math.Max(12,artX+artWidth/2-73),Math.Min(h-Inset-AddButton,artY+artWidth/1.5*.96+8),0,0);
+        if (!artShown.IsEmpty) PlaceAddButton(artShown);
         RemoveControllerButton.HorizontalAlignment=HorizontalAlignment.Left;
         RemoveControllerButton.MinHeight=0;RemoveControllerButton.Width=hero?112:96;RemoveControllerButton.Height=hero?38:SideButton;
         RemoveControllerButton.Margin=hero?new(w-130-30-112-12,h-66,0,0):new(detailsX,Math.Min(h-Inset-SideButton,detailsY+ModelName.FontSize*1.34+2+StatusHeight+ActionGap),0,0);
@@ -218,9 +233,9 @@ public partial class DockView : UserControl
     }
     public void FadeHeroDetails(double value, int duration)
     {
-        Animate(Details, OpacityProperty, 1, 1, 0);
-        Animate(ActionCanvas, OpacityProperty, 1, 1, 0);
-        Animate(PlayerPill, OpacityProperty, 1, 1, 0);
+        foreach (var element in new UIElement[] { Details, ActionCanvas, PlayerPill, AddControllerButton, RemoveControllerButton })
+            Animate(element, OpacityProperty, element.Opacity, value, reducedMotion ? 0 : duration);
+        ActionCanvas.IsHitTestVisible = AddControllerButton.IsHitTestVisible = RemoveControllerButton.IsHitTestVisible = value > 0;
     }
     public void SettleArtwork(double from, int duration)
     {

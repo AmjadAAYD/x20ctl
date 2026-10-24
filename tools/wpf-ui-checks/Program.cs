@@ -13,6 +13,9 @@ class FakeLanding:IIntroHandoff {
 class Program{
  [STAThread]static void Main(string[] args){
  var app=new Application();foreach(var t in new[]{"Colors","Typography","Controls","Design","ZoneSurfaces"})app.Resources.MergedDictionaries.Add(new ResourceDictionary{Source=new Uri($"pack://application:,,,/X20Ctl;component/Themes/{t}.xaml")});
+if(args.Contains("--agent-navigation")){var check=AgentNavigationChecks.Run();check.ContinueWith(_=>app.Dispatcher.BeginInvoke(()=>app.Shutdown()));app.Run();check.GetAwaiter().GetResult();return;}
+if(args.Contains("--dock-motion")){var check=DockMotionChecks.Run();check.ContinueWith(_=>app.Dispatcher.BeginInvoke(()=>app.Shutdown()));app.Run();check.GetAwaiter().GetResult();return;}
+if(args.Contains("--tool-icons")){ToolIconChecks.Run();app.Shutdown();return;}
 if(args.Contains("--followup")){FollowupChecks.Run();app.Shutdown();return;}
 if(args.Contains("--mouse-refinement")){MouseRefinementChecks.Run();app.Shutdown();return;}
 if(args.Contains("--setup-isolation")){SetupIsolationChecks.Run();app.Shutdown();return;}

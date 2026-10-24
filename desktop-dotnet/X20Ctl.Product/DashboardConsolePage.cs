@@ -213,6 +213,13 @@ public sealed class DashboardConsolePage : Grid
         Feature(list[0]);
     }
 
+    /// <summary>Fades a cover's selection frame to the given strength (1 chosen, about .4 hovered, 0 none).</summary>
+    private static void ShowRing(Border art, double strength)
+    {
+        if (art.Tag is not Border ring) return;
+        if (DS.Motion) ring.BeginAnimation(OpacityProperty, DS.To(strength, 140)); else { ring.BeginAnimation(OpacityProperty, null); ring.Opacity = strength; }
+    }
+
     private Button Card(GameEntry g)
     {
         UIElement face;
@@ -225,16 +232,24 @@ public sealed class DashboardConsolePage : Grid
             face = new Grid { Background = new LinearGradientBrush(c, Hsl(hue, .5, .16), 90), Children = { Kit.Text(initials, 40, "DS.Text").Also(t => { t.HorizontalAlignment = HorizontalAlignment.Center; t.Opacity = .85; }) } };
         }
         if(face is Image image)RenderOptions.SetBitmapScalingMode(image,BitmapScalingMode.HighQuality);
-        var art = new Border { CornerRadius = new(12), Background=new SolidColorBrush(Color.FromRgb(17,26,41)),ClipToBounds = true, Child = face, BorderThickness = new(2), BorderBrush = Brushes.Transparent };
+        var art = new Border { CornerRadius = new(12), Background=new SolidColorBrush(Color.FromRgb(17,26,41)),ClipToBounds = true, Child = face };
+        // The selection frame: a slim blue edge with a dark line inside it (so it never fights the artwork) and a soft glow.
+        // It fades in and out; it replaces the old flat 2 px border, which read as a white box on bright covers.
+        var ring = new Border { CornerRadius = new(12), BorderThickness = new(2.5), IsHitTestVisible = false, Opacity = 0,
+            BorderBrush = new LinearGradientBrush(Color.FromRgb(168, 214, 255), Color.FromRgb(58, 138, 255), 45),
+            Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = Color.FromRgb(58, 138, 255), BlurRadius = 16, ShadowDepth = 0, Opacity = .55 },
+            Child = new Border { CornerRadius = new(10), BorderThickness = new(1), BorderBrush = new SolidColorBrush(Color.FromArgb(120, 4, 8, 20)) } };
+        art.Tag = ring;
         var store = new Border { CornerRadius = new(9), Padding = new(8, 2, 8, 3), Background = new SolidColorBrush(Color.FromArgb(200, 6, 10, 22)), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom, Margin = new(0, 0, 10, 10), Child = Kit.Text(g.Store, 11.5, "DS.TextSoft", FontWeights.SemiBold) };
         var title = Kit.Text(g.Name, 14, "DS.TextSoft"); title.Margin = new(2, 6, 0, 0);
         covers.Add((art, title)); SizeCover(art, title);
-        var stack = new StackPanel { Children = { new Grid { HorizontalAlignment=HorizontalAlignment.Left, Children = { art, store } }, title }, RenderTransformOrigin = new(.5, .4), RenderTransform = new ScaleTransform(1, 1) };
+        var stack = new StackPanel { Children = { new Grid { HorizontalAlignment=HorizontalAlignment.Left, Children = { art, ring, store } }, title }, RenderTransformOrigin = new(.5, .4), RenderTransform = new ScaleTransform(1, 1) };
         SizeCover(art,title);
         var b = new Button { Content = stack, Template = Bare(), Margin = new(0, 0, 12, 12), Cursor = Cursors.Hand, FocusVisualStyle = null, ToolTip = $"{g.Name} · {g.Store}" };
-        b.GotKeyboardFocus += (_, _) => { Feature(g); art.BorderBrush = Brushes.White; Lift(stack, 1.01); title.Foreground = DS.Brush("DS.Text"); b.BringIntoView(new Rect(-12,0,coverHeight+12,coverHeight+34)); };
-        b.LostKeyboardFocus += (_, _) => { art.BorderBrush = current?.Id==g.Id?DS.Brush("DS.AccentHi"):Brushes.Transparent;Lift(stack,1); };
-        b.MouseEnter+=(_,_)=>Lift(stack,1.01);b.MouseLeave+=(_,_)=>Lift(stack,1);
+        b.GotKeyboardFocus += (_, _) => { Feature(g); ShowRing(art, 1); Lift(stack, 1.01); title.Foreground = DS.Brush("DS.Text"); b.BringIntoView(new Rect(-12,0,coverHeight+12,coverHeight+34)); };
+        b.LostKeyboardFocus += (_, _) => { ShowRing(art, current?.Id==g.Id ? 1 : 0);Lift(stack,1); };
+        b.MouseEnter+=(_,_)=>{ Lift(stack,1.01); if (current?.Id != g.Id) ShowRing(art, .4); };
+        b.MouseLeave+=(_,_)=>{ Lift(stack,1); if (!b.IsKeyboardFocused) ShowRing(art, current?.Id==g.Id ? 1 : 0); };
 
         b.Click += (_, _) => Feature(g);
         return b;
@@ -327,7 +342,7 @@ public sealed class DashboardConsolePage : Grid
     private void Feature(GameEntry? g)
     {
         if (g != null && ReferenceEquals(g, current)) return; current = g;
-        for(int i=0;i<Math.Min(cards.Count,covers.Count);i++){bool selected=cards[i].Game.Id==g?.Id;covers[i].art.BorderBrush=selected?DS.Brush("DS.AccentHi"):Brushes.Transparent;covers[i].title.Foreground=DS.Brush(selected?"DS.Text":"DS.TextSoft");}
+        for(int i=0;i<Math.Min(cards.Count,covers.Count);i++){bool selected=cards[i].Game.Id==g?.Id;ShowRing(covers[i].art,selected?1:0);covers[i].title.Foreground=DS.Brush(selected?"DS.Text":"DS.TextSoft");}
         var hero = g == null ? null : Bitmap(GameArtwork.PathFor(g)) ?? Bitmap(g.Hero); var mark = Bitmap(g?.Logo);
         if (animate && heroArt.Source != hero) { heroArt.BeginAnimation(OpacityProperty, null); heroArt.Opacity = 0; }
         heroArt.Source = hero; if (hero != null) { if (animate) heroArt.BeginAnimation(OpacityProperty, DS.To(1, 320)); else heroArt.Opacity = 1; }
