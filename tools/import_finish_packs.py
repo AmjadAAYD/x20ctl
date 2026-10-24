@@ -50,8 +50,9 @@ PACKS = [
 ]
 # X20 Pro keeps its current art as the original finish; white comes from a front + rear product pair, not a pack.
 KEEP = {"x20_pro": ("original", "Grey", "#4a4d54")}
-# the colour a model is shown in until its player picks one (owner, 24 Oct 2026: the X20 Pro in white, the Dune in black)
-DEFAULT = {"x20_pro": "white", "dune": "black"}
+# the colour a model is shown in until its player picks one (owner, 24 Oct 2026: the X20 Pro in white, the Dune in
+# black, the D10 in Farout Purple, the X15 in Wukong)
+DEFAULT = {"x20_pro": "white", "dune": "black", "d10": "purple", "x15": "wukong"}
 WHITE_PRO = ("x20_pro", "white", "White", "#e4e6ea")
 LAYERS = {"front": [("front-full", "front-full"), ("front-no-sticks", "front-body"), ("stick-l", "stick-l"), ("stick-r", "stick-r")],
           "rear": [("rear-full", "rear-full"), ("rear-no-triggers", "rear-body"), ("trigger-rt", "trigger-r"), ("trigger-lt", "trigger-l")]}
