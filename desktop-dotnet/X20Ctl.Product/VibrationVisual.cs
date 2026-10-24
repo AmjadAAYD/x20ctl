@@ -268,7 +268,6 @@ public sealed class VibrationVisual : Grid
         {
             "x20" => [Color.FromRgb(255, 150, 45), Color.FromRgb(255, 60, 200), Color.FromRgb(80, 90, 255)],
             "x20_pro" => [Color.FromRgb(255, 90, 220), Color.FromRgb(160, 110, 255), Color.FromRgb(90, 230, 255)],
-            "x05" => [Color.FromRgb(80, 225, 255), Color.FromRgb(100, 120, 255), Color.FromRgb(255, 80, 220)],
             "x05_pro" => [Color.FromRgb(255, 70, 200), Color.FromRgb(255, 215, 60), Color.FromRgb(80, 230, 255)],
             "x10" => [Color.FromRgb(110, 160, 255), Color.FromRgb(175, 210, 255)],
             "d10" => [Color.FromRgb(255, 190, 240), Color.FromRgb(255, 80, 210), Color.FromRgb(160, 90, 255)],

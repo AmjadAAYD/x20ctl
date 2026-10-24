@@ -5,7 +5,7 @@ public class MacroModelSlotsTests
 {
     [Theory]
     [InlineData("x20_pro",6)] [InlineData("x20",4)] [InlineData("dune",4)]
-    [InlineData("x05_pro",2)] [InlineData("x10",2)] [InlineData("d10",2)] [InlineData("x15",2)] [InlineData("x05",0)]
+    [InlineData("x05_pro",2)] [InlineData("x10",2)] [InlineData("d10",2)] [InlineData("x15",2)]
     public void Physical_buttons_match_model_and_agent(string model,int count)
     {
         var draft=new MacroDraft(model);
@@ -30,9 +30,5 @@ public class MacroModelSlotsTests
     [Fact] public void Two_button_pad_does_not_create_M3_or_M4()
     {
         var draft=new MacroDraft("x10"){PcMode=true};Assert.DoesNotContain("M3",draft.SlotNames);Assert.Throws<ArgumentException>(()=>draft.SetTrigger("M3","A"));
-    }
-    [Fact] public void Non_paddle_pad_keeps_pc_macros_separate_from_physical_buttons()
-    {
-        var draft=new MacroDraft("x05"){PcMode=true};Assert.Empty(draft.PhysicalSlots);draft.Add(draft.SlotNames[0]);Assert.Single(draft[draft.SlotNames[0]]);
     }
 }

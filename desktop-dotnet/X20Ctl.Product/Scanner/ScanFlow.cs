@@ -56,7 +56,7 @@ public static class ScanFlow
             {
                 if (string.IsNullOrWhiteSpace(text) || !text.Contains("EasySMX", StringComparison.OrdinalIgnoreCase)) continue;
                 string t = text.ToUpperInvariant();
-                string? model = t.Contains("DUNE") || t.Contains("D15") ? "Dune / D15" : t.Contains("X20 PRO") ? "X20 Pro" : t.Contains("X20") ? "X20" : t.Contains("X15") ? "X15" : t.Contains("X10") ? "X10" : t.Contains("X05 PRO") ? "X05 Pro" : t.Contains("X05") ? "X05" : t.Contains("D10") ? "D10" : null;
+                string? model = t.Contains("DUNE") || t.Contains("D15") ? "Dune / D15" : t.Contains("X20 PRO") ? "X20 Pro" : t.Contains("X20") ? "X20" : t.Contains("X15") ? "X15" : t.Contains("X10") ? "X10" : t.Contains("X05 PRO") ? "X05 Pro" : t.Contains("D10") ? "D10" : null;
                 if (model != null) return (text.Trim(), model);
             }
         if (inventory.interfaces.Any(i => i.vid == 0x413D && i.pid == 0x2131)) return ("EasySMX receiver (X20 Pro or Dune)", "X20 Pro / Dune");

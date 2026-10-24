@@ -46,7 +46,7 @@ def wizard(output, backend=None, ask=input, say=print, beginner=False, guided=Fa
     if not yes("Ready to start? Type y for yes" if friendly else "Start voluntary local collection?", ask): return None
     model = choose("1. What model is written on your controller or its box?" if friendly else
                    "What model is printed on your controller? (a claim, not automatic detection)",
-                   ["X20", "X20 Pro", "Other model (X05, X05 Pro, X10, D10, etc.)"], str, ask, say)
+                   ["X20", "X20 Pro", "Other model (X05 Pro, X10, D10, etc.)"], str, ask, say)
     if model is None: return None
     if model.startswith("Other"): model = clean_text(ask("Exact printed model: ").strip()) or "Unknown"
     report = Report(output, model)

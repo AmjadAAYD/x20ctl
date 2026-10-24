@@ -16,6 +16,10 @@
 - **A new outline for the selected game.** The white box is gone. The chosen game's cover now has a slim blue frame with a thin dark line inside it and a soft glow that fades in, and hovering a cover shows a faint version of it.
 - **Controller cards glide together.** The picture and the card move as one when you swap the big card, even if you swap again halfway.
 
+### Removed
+
+- **The EasySMX X05 is no longer listed.** It is a standard controller with nothing X20CTL can configure, so it is out of the picker, the setup tour, the vibration and layout art, and the check-up lists. The X05 Pro stays.
+
 ### Fixed
 
 - **The mouse and the controller work together.** Using the mouse while a controller is connected no longer steals focus or stops the controller from navigating. (fixed by [Monratis](https://github.com/Monratis))

@@ -17,7 +17,7 @@ single contained image plane with normalized physical-button polygons; this
 keeps the HTML hover/click overlays aligned through resizing. The shared
 `ControllerView` offers Front View / Back View on Buttons and opens the selected
 macro slot. Macros is fixed to the rear view with no view-switch buttons.
-X05 has no macro buttons; X05 Pro has a slight rear tilt to show its top controls.
+X05 Pro has a slight rear tilt to show its top controls.
 All existing front images, empty-well bases and front geometry were preserved.
 
 See [rear verification and source notes](../../../docs/rear-controller-views-validation.md)

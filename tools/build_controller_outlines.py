@@ -13,7 +13,7 @@ import cv2
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1] / "src" / "assets" / "controllers"
-MODELS = ["x20", "x20_pro", "x05", "x05_pro", "x10", "d10", "x15", "dune"]
+MODELS = ["x20", "x20_pro", "x05_pro", "x10", "d10", "x15", "dune"]
 SIZE = (1536, 1024)
 
 
