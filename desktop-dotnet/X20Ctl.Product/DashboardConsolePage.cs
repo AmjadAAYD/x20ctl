@@ -97,7 +97,7 @@ public sealed class DashboardConsolePage : Grid
     /// <summary>What A does on the highlighted item, for the live footer.</summary>
     public string FocusAction => heroFocus?.IsKeyboardFocused == true ? "Configure" : play.IsKeyboardFocused ? "Play" : "Select";
     /// <summary>Y: scan the launchers again.</summary>
-    public async void Rescan() { scanGeneration++; scan = null; cards.Clear(); covers.Clear(); shelf.Children.Clear(); Feature(null); gamesCount.Text = "…"; await Populate(); }
+    public async void Rescan() { DropAll(); scanGeneration++; scan = null; cards.Clear(); covers.Clear(); shelf.Children.Clear(); Feature(null); gamesCount.Text = "…"; await Populate(); }
     /// <summary>LT/RT: jump a page (five covers) along the shelf.</summary>
     public void PageShelf(int step) { if (cards.Count == 0) return; int i = Math.Max(0, cards.FindIndex(c => c.Card.IsKeyboardFocusWithin)); cards[Math.Clamp(i + step * 5, 0, cards.Count - 1)].Card.Focus(); }
     public ControllerShowcase Showcase { get; } = new() { Tilt = 0 };
@@ -170,6 +170,7 @@ public sealed class DashboardConsolePage : Grid
         header.Children.Add(Kit.Text("Games & profiles",18,"DS.Text",FontWeights.SemiBold));lower.Children.Add(header);
         shelfScroll = new ScrollViewer { Content = shelf, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollBarVisibility = ScrollBarVisibility.Disabled, Focusable = false, Padding = new(14,20,14,12) };
         Grid.SetRow(shelfScroll,1);lower.Children.Add(shelfScroll);
+        shelfScroll.ScrollChanged += (_, _) => FollowShelf();
 
         // A single selected-game context replaces the separate Play and Game setup cards.
         var context = new Grid { Margin = new(0,12,0,0) };context.ColumnDefinitions.Add(new(){Width=new(1,GridUnitType.Star)});context.ColumnDefinitions.Add(new(){Width=GridLength.Auto});
@@ -197,6 +198,7 @@ public sealed class DashboardConsolePage : Grid
         Unloaded += (_, _) => preview.Stop();
 
         PreviewKeyDown += OnKey;
+        Grid.SetRowSpan(raiseLayer, 4); Children.Add(raiseLayer); // last, so a raised tile is above everything on the page
     }
 
     protected override Size MeasureOverride(Size availableSize)
@@ -260,7 +262,8 @@ public sealed class DashboardConsolePage : Grid
         if (DS.Motion) ring.BeginAnimation(OpacityProperty, DS.To(strength, 140)); else { ring.BeginAnimation(OpacityProperty, null); ring.Opacity = strength; }
     }
 
-    private Button Card(GameEntry g)
+    /// <param name="pop">a copy for the raised layer: no handlers, no registration, never hit</param>
+    private Button Card(GameEntry g, bool pop = false)
     {
         UIElement face;
         var cover = Bitmap(GameArtwork.PathFor(g));
@@ -283,14 +286,19 @@ public sealed class DashboardConsolePage : Grid
         art.Tag = ring; art.Margin = new(5); // the frame is the tile's own 5 px edge, so it rises and grows with the cover
         var store = new Border { CornerRadius = new(9), Padding = new(8, 2, 8, 3), Background = new SolidColorBrush(Color.FromArgb(200, 6, 10, 22)), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom, Margin = new(0, 0, 15, 15), Child = Kit.Text(g.Store, 11.5, "DS.TextSoft", FontWeights.SemiBold) };
         var title = Kit.Text(g.Name, 14, "DS.TextSoft"); title.Margin = new(7, 1, 0, 0);
-        covers.Add((art, title)); SizeCover(art, title);
+        if (!pop) covers.Add((art, title));
+        SizeCover(art, title);
         var stack = new StackPanel { Children = { new Grid { HorizontalAlignment=HorizontalAlignment.Left, Children = { art, ring, store } }, title }, RenderTransformOrigin = new(.5, .4), RenderTransform = new TransformGroup { Children = { new ScaleTransform(1, 1), new TranslateTransform() } } };
         SizeCover(art,title);
         var b = new Button { Content = stack, Template = Bare(), Margin = new(0, 0, 2, 2), Cursor = Cursors.Hand, FocusVisualStyle = null, ToolTip = $"{g.Name} · {g.Store}" };
-        b.GotKeyboardFocus += (_, _) => { Feature(g); ShowRing(art, 1); Lift(stack, 1.03); title.Foreground = DS.Brush("DS.Text"); b.BringIntoView(new Rect(-12,0,coverHeight+12,coverHeight+34)); };
-        b.LostKeyboardFocus += (_, _) => { ShowRing(art, current?.Id==g.Id ? 1 : 0);Lift(stack,1); };
-        b.MouseEnter+=(_,_)=>{ Lift(stack,1.07); if (current?.Id != g.Id) ShowRing(art, .55); };
-        b.MouseLeave+=(_,_)=>{ Lift(stack,1); if (!b.IsKeyboardFocused) ShowRing(art, current?.Id==g.Id ? 1 : 0); };
+        b.Tag = art;
+        if (pop) { b.IsHitTestVisible = false; b.Focusable = false; return b; }
+        // the frame is shown on the tile and on its raised copy together
+        void Frame(double strength) { ShowRing(art, strength); if (raised.TryGetValue(b, out var r) && r.Clone.Tag is Border copy) ShowRing(copy, strength); }
+        b.GotKeyboardFocus += (_, _) => { Feature(g); Frame(1); title.Foreground = DS.Brush("DS.Text"); Settle(b, g); b.BringIntoView(new Rect(-12,0,coverHeight+12,coverHeight+34)); };
+        b.LostKeyboardFocus += (_, _) => { Frame(current?.Id==g.Id ? 1 : 0); Settle(b, g); };
+        b.MouseEnter+=(_,_)=>{ if (current?.Id != g.Id) Frame(.55); Settle(b, g); };
+        b.MouseLeave+=(_,_)=>{ if (!b.IsKeyboardFocused) Frame(current?.Id==g.Id ? 1 : 0); Settle(b, g); };
 
         b.Click += (_, _) => Feature(g);
         return b;
@@ -406,20 +414,43 @@ public sealed class DashboardConsolePage : Grid
         else if (e.Key is Key.Enter or Key.A && Keyboard.FocusedElement is Button focused && !e.IsRepeat) { focused.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); e.Handled = true; }
     }
 
-    /// <summary>A tile rises like a hero card, above its neighbours, and settles back when it is let go.</summary>
-    private void Lift(FrameworkElement e, double to)
+    // A hovered or focused tile rises like a hero card on a layer above the whole page, so no panel or scroll area can cut it
+    // (owner, 25 Oct 2026): its copy grows and lifts there while the tile itself waits, unseen, in its place.
+    private readonly Canvas raiseLayer = new() { IsHitTestVisible = false };
+    private readonly Dictionary<Button, (Button Clone, ScaleTransform Scale, TranslateTransform Move)> raised = new();
+    /// <summary>Review hook: raises a tile as if hovered.</summary>
+    internal void ReviewRaise(int index) { var (card, game) = cards[index]; Settle(card, game, 1.07); }
+    private void Settle(Button b, GameEntry g, double? force = null)
     {
-        if (e.RenderTransform is not TransformGroup g) { g = new TransformGroup { Children = { new ScaleTransform(1, 1), new TranslateTransform() } }; e.RenderTransform = g; }
-        var scale = (ScaleTransform)g.Children[0]; var move = (TranslateTransform)g.Children[1];
-        double y = to > 1 ? -(to - 1) * 60 : 0;
-        var holder = e.Parent as Button;
-        if (to > 1 && holder != null) Panel.SetZIndex(holder, 10);
-        if (!animate) { scale.ScaleX = scale.ScaleY = to; move.Y = y; if (to <= 1 && holder != null) Panel.SetZIndex(holder, 0); return; }
+        double want = force ?? (b.IsMouseOver ? 1.07 : b.IsKeyboardFocused ? 1.03 : 1), y = want > 1 ? -(want - 1) * 60 : 0;
+        if (!raised.TryGetValue(b, out var r))
+        {
+            if (want <= 1 || b.Content is not FrameworkElement stack || b.Tag is not Border art) return;
+            var clone = Card(g, true); var scale = new ScaleTransform(1, 1); var move = new TranslateTransform();
+            clone.Margin = new(0); clone.RenderTransformOrigin = new(.5, .4); clone.RenderTransform = new TransformGroup { Children = { scale, move } };
+            if (clone.Tag is Border copy && copy.Tag is Border copyRing && art.Tag is Border ring) { copyRing.Opacity = ring.Opacity; }
+            if (clone.Content is StackPanel panel && panel.Children.Count > 1 && stack is StackPanel own && own.Children.Count > 1 && panel.Children[1] is TextBlock t && own.Children[1] is TextBlock ot) t.Foreground = ot.Foreground;
+            var at = b.TransformToAncestor(this).Transform(new Point(0, 0)); Canvas.SetLeft(clone, at.X); Canvas.SetTop(clone, at.Y);
+            raiseLayer.Children.Add(clone); stack.Opacity = 0;
+            r = raised[b] = (clone, scale, move);
+        }
+        if (!animate) { r.Scale.ScaleX = r.Scale.ScaleY = want; r.Move.Y = y; if (want <= 1) Drop(b); return; }
         DoubleAnimation Go(double v) => new(v, TimeSpan.FromMilliseconds(200)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
-        var grow = Go(to);
-        if (to <= 1 && holder != null) grow.Completed += (_, _) => { if (scale.ScaleX <= 1.001) Panel.SetZIndex(holder, 0); };
-        scale.BeginAnimation(ScaleTransform.ScaleXProperty, grow); scale.BeginAnimation(ScaleTransform.ScaleYProperty, Go(to)); move.BeginAnimation(TranslateTransform.YProperty, Go(y));
+        var grow = Go(want);
+        if (want <= 1) grow.Completed += (_, _) => { if (!b.IsMouseOver && !b.IsKeyboardFocused) Drop(b); };
+        r.Scale.BeginAnimation(ScaleTransform.ScaleXProperty, grow); r.Scale.BeginAnimation(ScaleTransform.ScaleYProperty, Go(want)); r.Move.BeginAnimation(TranslateTransform.YProperty, Go(y));
     }
+    private void Drop(Button b)
+    {
+        if (!raised.Remove(b, out var r)) return;
+        raiseLayer.Children.Remove(r.Clone); if (b.Content is UIElement stack) stack.Opacity = 1;
+    }
+    /// <summary>A raised copy follows its tile when the shelf scrolls.</summary>
+    private void FollowShelf()
+    {
+        foreach (var (b, r) in raised) { var at = b.TransformToAncestor(this).Transform(new Point(0, 0)); Canvas.SetLeft(r.Clone, at.X); Canvas.SetTop(r.Clone, at.Y); }
+    }
+    private void DropAll() { foreach (var b in raised.Keys.ToArray()) Drop(b); }
     private static void Enter(FrameworkElement e, int delay)
     {
         e.Opacity = 0; var t = new TranslateTransform(0, 18); e.RenderTransform = t;

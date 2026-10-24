@@ -95,9 +95,13 @@ internal static class FinishReview
             window.Host.Studio!.ShowManagement("Dashboard");
             var root = (FrameworkElement)window.Content; root.Measure(new Size(1920, 1150)); root.Arrange(new Rect(0, 0, 1920, 1150)); root.UpdateLayout();
             await Task.Delay(1200); root.UpdateLayout();
-            var shot = new RenderTargetBitmap(1920, 1150, 96, 96, PixelFormats.Pbgra32); shot.Render(root);
-            var png = new PngBitmapEncoder(); png.Frames.Add(BitmapFrame.Create(shot));
-            using (var file = File.Create(System.IO.Path.Combine(directory, "dashboard.png"))) png.Save(file);
+            foreach (var (name, raise) in new[] { ("dashboard.png", false), ("dashboard-hover.png", true) })
+            {
+                if (raise) { window.Host.Studio!.Dashboard!.ReviewRaise(0); root.UpdateLayout(); }
+                var shot = new RenderTargetBitmap(1920, 1150, 96, 96, PixelFormats.Pbgra32); shot.Render(root);
+                var png = new PngBitmapEncoder(); png.Frames.Add(BitmapFrame.Create(shot));
+                using var file = File.Create(System.IO.Path.Combine(directory, name)); png.Save(file);
+            }
         }
         catch (Exception failure) { File.WriteAllText(System.IO.Path.Combine(directory, "dashboard.failure.txt"), failure.ToString()); }
         File.WriteAllLines(System.IO.Path.Combine(directory, "finishes.txt"), report);
