@@ -16,7 +16,8 @@ namespace X20Ctl.Product;
 /// </summary>
 public sealed class FinishMorph : Grid
 {
-    private const double Feather = .035, Milliseconds = 1800;
+    internal const double Feather = .035;
+    private const double Milliseconds = 1800;
     private readonly int FW, FH;
     private static readonly Dictionary<string, (float[] Field, float[] Body, Dictionary<string, float[]> Alpha)> fields = new();
     private readonly Image picture;
@@ -117,9 +118,9 @@ public sealed class FinishMorph : Grid
     /// <summary>The new colour where the edge has passed, feathered; a thin cool-white line on the edge itself, strongest
     /// mid-change and gone at both ends so nothing pops. Both curves are read from small tables, so a frame is only
     /// lookups and multiplies (owner, 24 Oct 2026: several cards changing at once must not lag).</summary>
-    private const int Steps = 2048;
-    private static readonly byte[] RevealTable = new byte[Steps];
-    private static readonly float[] LineTable = new float[Steps];
+    internal const int Steps = 2048;
+    internal static readonly byte[] RevealTable = new byte[Steps];
+    internal static readonly float[] LineTable = new float[Steps];
     static FinishMorph()
     {
         // index i covers "how far the edge has passed this pixel" from -2 to +2 in field units
@@ -175,7 +176,13 @@ public sealed class FinishMorph : Grid
             var own = new float[FW * FH]; for (int i = 0; i < body.Length; i++) body[i] = Math.Max(body[i], own[i] = pixels[i * 4 + 3] / 255f);
             alphas[finish.Id] = own;
         }
-        int seed = model.Aggregate(17, (h, c) => h * 31 + c);
+        var result = Spread(body, FW, FH, model.Aggregate(17, (h, c) => h * 31 + c));
+        return fields[key] = (result, body, alphas);
+    }
+    /// <summary>The spread field: each cell's travel time, 0..1, from the two grips through the shell (cells over .5), the cost
+    /// of each step varying by one broad smooth noise so the edge flows in lobes.</summary>
+    internal static float[] Spread(float[] body, int FW, int FH, int seed)
+    {
         var cost = new float[FW * FH];
         for (int y = 0; y < FH; y++) for (int x = 0; x < FW; x++)
         {
@@ -204,7 +211,7 @@ public sealed class FinishMorph : Grid
         }
         float max = 1; for (int i = 0; i < dist.Length; i++) if (body[i] > .5f && dist[i] < float.MaxValue) max = Math.Max(max, dist[i]);
         var result = new float[FW * FH]; for (int i = 0; i < dist.Length; i++) result[i] = Math.Min(1f, dist[i] / max);
-        return fields[key] = (result, body, alphas);
+        return result;
     }
     private static double Noise(double x, double y, int seed)
     {

@@ -79,10 +79,13 @@ internal static class FinishReview
         var selector = new ModelSelectorView(catalog, 0);
         var selectorStage = new Grid { Width = 1600, Height = 1000, Children = { selector } };
         Save(selectorStage, "selector.png", .75);
-        var turning = selector.Morphs.First(m => m.ModelId == "x20_pro"); turning.Preview("white", .5);
+        var turning = selector.Blends.First(m => m.ModelId == "x20_pro"); turning.Preview("original", .5);
         Save(selectorStage, "selector-x20_pro-turning.png", .75);
-        double cost = selector.Morphs.Sum(m => FinishMorph.PaintCost(m, 120));
-        report.Add($"one frame of every card changing at once: {cost:0.00} ms of work ({selector.Morphs.Count} cards)");
+        // the wave takes the new colour's tone: dark into black, light into white (owner, 25 Oct 2026)
+        selector.Blends.First(m => m.ModelId == "x20").Preview("black", .5); selector.Blends.First(m => m.ModelId == "x15").Preview("starfield", .5);
+        Save(selectorStage, "selector-tones.png", .75);
+        double cost = selector.Blends.Sum(m => FinishBlend.PaintCost(m, 120));
+        report.Add($"one frame of every card changing at once: {cost:0.00} ms of work ({selector.Blends.Count} cards)");
 
         File.WriteAllLines(System.IO.Path.Combine(directory, "finishes.txt"), report);
     }
