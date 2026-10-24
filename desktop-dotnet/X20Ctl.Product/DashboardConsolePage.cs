@@ -28,7 +28,27 @@ public sealed class DashboardConsolePage : Grid
     private readonly TextBlock changesCount = Kit.Text("0",18,"DS.Text",FontWeights.SemiBold);
     private readonly TextBlock connectionValue=Kit.Text("Not detected",17,"DS.TextSoft"), batteryValue=Kit.Text("Not reported",17,"DS.TextSoft"), firmwareValue=Kit.Text("Not reported",17,"DS.TextSoft");
     private readonly TextBlock profileState=Kit.Text("No game-specific setup linked",13,"DS.TextSoft");
-    public void SetBatteryLevel(string? level)=>batteryValue.Text=level switch {"full"=>"Full","medium"=>"Medium","low"=>"Low","empty"=>"Empty","wired"=>"Wired",_=>"Not reported"};
+    private string? currentTransport;
+    public void SetTransport(string? transport)
+    {
+        currentTransport = transport;
+        if (inputConnected == true)
+            connectionValue.Text = transport != null ? $"Detected · {transport}" : "Detected · Transport not reported";
+        if (currentTransport == "2.4 GHz receiver")
+            firmwareValue.Text = "Not readable over XInput";
+    }
+    public void SetBatteryLevel(string? level, string? transport = null)
+    {
+        if (transport != null) currentTransport = transport;
+        if (currentTransport == "2.4 GHz receiver" && (level is "wired" or "receiver" or null))
+        {
+            batteryValue.Text = "Not reported (receiver)";
+            return;
+        }
+        batteryValue.Text = level switch {"full"=>"Full","medium"=>"Medium","low"=>"Low","empty"=>"Empty","wired"=>"Wired",_=>"Not reported"};
+    }
+    public void SetBatteryLevel(string? level) => SetBatteryLevel(level, null);
+    public void SetFirmware(string? firmware) => firmwareValue.Text = firmware ?? "Not reported";
     private readonly TextBlock gamesCount; private readonly Button play;
     private readonly List<(Button Card, GameEntry Game)> cards = new();
     private readonly bool animate;
@@ -52,7 +72,9 @@ public sealed class DashboardConsolePage : Grid
         if (inputConnected == connected) return;
         inputConnected = connected;
         deviceState.Text = connected?"Connected":"Offline";
-        connectionValue.Text=connected?"Detected · Transport not reported":"Not detected";
+        connectionValue.Text=connected?(currentTransport!=null?$"Detected · {currentTransport}":"Detected · Transport not reported"):"Not detected";
+        if (connected && currentTransport == "2.4 GHz receiver")
+            firmwareValue.Text = "Not readable over XInput";
         deviceState.Foreground=DS.Brush(connected?"DS.Success":"DS.TextSoft");
     }
     private GameEntry? current;

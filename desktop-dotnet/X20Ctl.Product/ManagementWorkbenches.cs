@@ -21,7 +21,27 @@ public sealed class DeviceWorkbench
     public Grid Body {get;}=new();public Grid Shelf {get;}=new();public DeviceOverview State {get;}
     public Button OpenTester {get;}public Button OpenSetups {get;}
     readonly TextBlock battery=ManagementVisuals.Copy("Not reported",24,true),connection=ManagementVisuals.Copy("Not detected",20,true);
-    public void SetBatteryLevel(string? level)=>battery.Text=level??"Not reported";
+    readonly TextBlock firmware=ManagementVisuals.Copy("Not reported",20,true);
+    readonly TextBlock hardwareRevision=ManagementVisuals.Copy("Not reported",20,true);
+    readonly TextBlock transport=ManagementVisuals.Copy("Not reported",20,true);
+    private string? currentTransport;
+    public void SetTransport(string? value)
+    {
+        currentTransport = value;
+        transport.Text = value ?? "Not reported";
+        if (currentTransport == "2.4 GHz receiver")
+            firmware.Text = "Not readable over XInput";
+    }
+    public void SetFirmware(string? value) => firmware.Text = value ?? "Not reported";
+    public void SetBatteryLevel(string? level, string? transport = null)
+    {
+        if (transport != null) currentTransport = transport;
+        if (currentTransport == "2.4 GHz receiver" && (level is "wired" or "receiver" or null))
+            battery.Text = "Not reported over receiver";
+        else
+            battery.Text = level switch {"full"=>"Full","medium"=>"Medium","low"=>"Low","empty"=>"Empty","wired"=>"Wired",_=>level??"Not reported"};
+    }
+    public void SetBatteryLevel(string? level) => SetBatteryLevel(level, null);
     public void SetConnection(bool connected)=>connection.Text=connected?"Gameplay input detected":"Not detected";
     public void UpdateEngineStatus(string status) { /* Process availability does not establish hardware configuration support. */ }
     public DeviceWorkbench(ControllerModel model,int player,FrameworkElement resources,Action<Button> register,Action tester,Action setups)
@@ -38,7 +58,7 @@ public sealed class DeviceWorkbench
         OpenTester=ManagementVisuals.Action(resources,"Open Diagnostics",tester,register);OpenTester.HorizontalAlignment=HorizontalAlignment.Left;status.Children.Add(OpenTester);
         overview.Children.Add(Kit.Panel("Connection",null,null,status));
         var values=new System.Windows.Controls.Primitives.UniformGrid{Columns=2,Margin=new(-5,12,-5,0)};
-        foreach(var (label,value) in new[]{("Battery",battery),("Firmware",ManagementVisuals.Copy("Not reported",20,true)),("Hardware revision",ManagementVisuals.Copy("Not reported",20,true)),("Transport",ManagementVisuals.Copy("Not reported",20,true))})
+        foreach(var (label,value) in new[]{("Battery",battery),("Firmware",firmware),("Hardware revision",hardwareRevision),("Transport",transport)})
         {var metric=new StackPanel{Children={ManagementVisuals.Copy(label,13),value}};value.Margin=new(0,8,0,0);var tile=Kit.Panel(null,null,null,metric,new Thickness(16));tile.Margin=new(5,0,5,10);values.Children.Add(tile);}
         overview.Children.Add(values);
         var profile=ModelProfiles.For(model.Id);var support=new StackPanel();

@@ -463,11 +463,10 @@ class X20:
     async def host_guid(self) -> p.HostGuid | None:
         """The updater hardware id and firmware version, or None if the pad is silent.
 
-        A read, like every query here. The record is 18 bytes and only 14 fit
-        in the first packet, so this relies on read_body's continuation; that
-        continuation has not been observed to work for this record on a pad.
+        A read, like every query here. Passes [0] for chunk 0 and follows
+        continuation chunks to reassemble the full 18-byte record.
         """
-        body = await self.read_body(p.Op.HOST_GUID)
+        body = await self.read_body(p.Op.HOST_GUID, bytes([0]))
         if body is None or not body.complete:
             return None
         return p.parse_host_guid(body)
@@ -737,11 +736,12 @@ class X20:
         `keys` uses ',' to separate steps in time and '+' to join keys within a
         step: "A,B" is A then B, "A+B" is both at once.
         """
-        if not 1 <= slot <= 4:
-            raise ValueError("slot must be 1-4")
         caps = await self.capabilities()
         if not caps.macros:
             raise NotSupported("this pad does not expose macros")
+        max_slots = len(caps.macro_slots) if caps.macro_slots else 4
+        if not 1 <= slot <= max_slots:
+            raise ValueError(f"slot must be 1-{max_slots}")
 
         await self.macro_layout()
         steps = p.parse_sequence(keys, hold_ms, gap_ms)
@@ -755,11 +755,12 @@ class X20:
         parsing that back would be a lossy detour. `set_macro` is now this plus
         a parser.
         """
-        if not 1 <= slot <= 4:
-            raise ValueError("slot must be 1-4")
         caps = await self.capabilities()
         if not caps.macros:
             raise NotSupported("this pad does not expose macros")
+        max_slots = len(caps.macro_slots) if caps.macro_slots else 4
+        if not 1 <= slot <= max_slots:
+            raise ValueError(f"slot must be 1-{max_slots}")
 
         payload = p.build_macro_payload(steps, loop_interval_ms=loop_ms)
         for packet in p.build_macro_writes(
@@ -835,8 +836,10 @@ class X20:
         the real record when queried as `[position, slot]`. Returns None for an
         empty slot, or when the pad does not answer.
         """
-        if not 1 <= slot <= 4:
-            raise ValueError("slot must be 1-4")
+        caps = await self.capabilities()
+        max_slots = len(caps.macro_slots) if caps.macro_slots else 4
+        if not 1 <= slot <= max_slots:
+            raise ValueError(f"slot must be 1-{max_slots}")
         index = slot - 1
 
         first = await self.query(p.Op.HOST_MACRO, bytes([0, index]))
@@ -862,9 +865,11 @@ class X20:
         return p.parse_macro_payload(bytes([declared]) + bytes(data))
 
     async def macros(self) -> dict[int, p.MacroProgram]:
-        """Read all four macro slots, keyed by slot number 1-4."""
+        """Read all macro slots (up to 6), keyed by slot number."""
         out: dict[int, p.MacroProgram] = {}
-        for slot in range(1, 5):
+        caps = await self.capabilities()
+        count = len(caps.macro_slots) if caps.macro_slots else 4
+        for slot in range(1, count + 1):
             program = await self.read_macro(slot)
             if program is not None:
                 out[slot] = program
@@ -876,8 +881,12 @@ class X20:
         Sends a bare [0], which is what the app emits for an empty step list.
         An empty header is a different thing and doesn't clear.
         """
-        if not 1 <= slot <= 4:
-            raise ValueError("slot must be 1-4")
+        caps = await self.capabilities()
+        if not caps.macros:
+            raise NotSupported("this pad does not expose macros")
+        max_slots = len(caps.macro_slots) if caps.macro_slots else 4
+        if not 1 <= slot <= max_slots:
+            raise ValueError(f"slot must be 1-{max_slots}")
         packet = p.build_macro_write(
             p.MACRO_CLEAR, slot=slot - 1, chunk=0, counter=self._next_save_counter()
         )

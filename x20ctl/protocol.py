@@ -780,6 +780,7 @@ UPDATER_MODELS = {
     "2093": "EasySMX S15",
     "2350": "EasySMX S10",
     "2371": "EasySMX S10 Lite",
+    "2395": "EasySMX X20 Pro",
 }
 
 
@@ -1631,11 +1632,13 @@ def parse_battery(body: "Body") -> Battery:
 # vendor catalogue, so any other model keeps the name it reports.
 PRODUCT_NAMES = {
     ("1013", "2009"): "EasySMX X20",
+    ("1020", "2006"): "EasySMX X20 Pro",
 }
 
 # Fallback by reported name, for units whose ids we have not seen.
 NAME_ALIASES = {
     "xpert2": "EasySMX X20",
+    "easysmx x20pro": "EasySMX X20 Pro",
 }
 
 

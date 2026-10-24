@@ -100,6 +100,21 @@ KNOWN = (
             # Turbo and lighting: the X20 reports neither, and neither write is proven.
         },
     ),
+    KnownController(
+        product="EasySMX X20 Pro",
+        vid="1020", pid="2006", modes=frozenset({6}), firmware=frozenset({"1.44"}),
+        features={
+            "remaps": _X20_SETTING,
+            "stick_curves": _X20_SETTING,
+            "trigger_curves": _X20_SETTING,
+            "vibration": _X20_SETTING,
+            "idle_timeout": _X20_SETTING,
+            "macros": Proof(read=True, write=True, readback=True,
+                            note="M1-M6 round trip with chords and per-step timings."),
+            "battery": Proof(read=True, note="Power query; the pad is returned to normal mode after."),
+            "turbo": Proof(read=True, write=True, readback=True, note="Turbo supported on X20 Pro."),
+        },
+    ),
 )
 
 
