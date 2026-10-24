@@ -16,33 +16,44 @@ namespace X20Ctl.Product;
 /// </summary>
 public sealed class FinishMorph : Grid
 {
-    private const int FW = 384, FH = 256;
     private const double Feather = .035, Milliseconds = 1800;
-    private static readonly Dictionary<string, (float[] Field, float[] Body)> fields = new();
+    private readonly int FW, FH;
+    private static readonly Dictionary<string, (float[] Field, float[] Body, Dictionary<string, float[]> Alpha)> fields = new();
     private readonly Image picture;
     private readonly Image incoming = Layer(), film = Layer();
-    private readonly WriteableBitmap mask = new(FW, FH, 96, 96, PixelFormats.Pbgra32, null), gloss = new(FW, FH, 96, 96, PixelFormats.Pbgra32, null), keep = new(FW, FH, 96, 96, PixelFormats.Pbgra32, null);
-    private readonly byte[] maskPixels = new byte[FW * FH * 4], glossPixels = new byte[FW * FH * 4], keepPixels = new byte[FW * FH * 4];
+    private readonly WriteableBitmap mask, gloss, keep;
+    private readonly byte[] maskPixels, glossPixels, keepPixels;
+    private bool needKeep;
     private float[] field = [], body = [];
-    private void Load(string model)
+    private void Load(string model, string from, string to)
     {
-        (field, body) = Field(model);
+        Dictionary<string, float[]> alpha;
+        (field, body, alpha) = Field(model, FW, FH);
+        // the old picture only needs to fade where the new colour is missing a part of it (a bumper cut differently)
+        int missing = 0; float[] was = alpha[from], now = alpha[to];
+        for (int i = 0; i < was.Length; i++) if (was[i] > .5f && now[i] < .15f) missing++;
+        needKeep = missing >= Math.Max(3, FW / 64);
         inside = Enumerable.Range(0, body.Length).Where(i => body[i] > 0).ToArray();
         // pixels off the shell stay clear for good
         Array.Clear(maskPixels); Array.Clear(glossPixels); Array.Fill(keepPixels, (byte)255);
         // the picture being replaced fades out under the new colour, so a part of it that the new colour does not have (a
         // bumper cut differently) is gone once the edge has passed instead of lingering until the swap
-        picture.OpacityMask = new ImageBrush(keep);
+        picture.OpacityMask = needKeep ? new ImageBrush(keep) : null;
     }
-    private DateTime began, painted;
+    private DateTime began;
     private Action? ending;
     public bool IsChanging => ending != null;
     public string ModelId { get; private set; } = "";
     public string Finish { get; private set; } = X20Ctl.Zone.FinishCatalog.Original;
 
     /// <param name="picture">the picture in the current colour; it receives the new colour when the change ends</param>
-    public FinishMorph(Image picture)
+    /// <param name="width">the width of the spread field; a small card needs far fewer cells than a hero picture, and
+    /// every cell is written to the screen each frame</param>
+    public FinishMorph(Image picture, int width = 384)
     {
+        FW = width; FH = width * 2 / 3;
+        mask = new(FW, FH, 96, 96, PixelFormats.Pbgra32, null); gloss = new(FW, FH, 96, 96, PixelFormats.Pbgra32, null); keep = new(FW, FH, 96, 96, PixelFormats.Pbgra32, null);
+        maskPixels = new byte[FW * FH * 4]; glossPixels = new byte[FW * FH * 4]; keepPixels = new byte[FW * FH * 4];
         this.picture = picture; Width = 1536; Height = 1024; IsHitTestVisible = false; Visibility = Visibility.Collapsed;
         incoming.OpacityMask = new ImageBrush(mask); film.Source = gloss;
         Children.Add(incoming); Children.Add(film);
@@ -61,9 +72,9 @@ public sealed class FinishMorph : Grid
     {
         Complete();
         if (ModelId == "" || finish == Finish) return Task.CompletedTask;
-        var target = ControllerArt.Front(ModelId, finish); Finish = finish;
+        var target = ControllerArt.Front(ModelId, finish); string from = Finish; Finish = finish;
         if (!animate || !DS.Motion) { picture.Source = target; ControllerOutline.Trim(picture, ModelId, false, finish); return Task.CompletedTask; }
-        Load(ModelId);
+        Load(ModelId, from, finish);
         incoming.Source = target; ControllerOutline.Trim(incoming, ModelId, false, finish); Paint(0); Visibility = Visibility.Visible;
         var done = new TaskCompletionSource();
         began = DateTime.UtcNow;
@@ -77,7 +88,7 @@ public sealed class FinishMorph : Grid
     /// <summary>Review hook: how long one frame of the change takes to work out.</summary>
     internal static double PaintCost(FinishMorph morph, int frames)
     {
-        morph.Load(morph.ModelId);
+        morph.Load(morph.ModelId, morph.Finish, morph.Finish);
         var watch = System.Diagnostics.Stopwatch.StartNew();
         for (int i = 0; i < frames; i++) morph.Paint(i / (double)frames);
         return watch.Elapsed.TotalMilliseconds / frames;
@@ -85,16 +96,13 @@ public sealed class FinishMorph : Grid
 
     internal void Preview(string finish, double progress)
     {
-        Complete(); Load(ModelId); incoming.Source = ControllerArt.Front(ModelId, finish); ControllerOutline.Trim(incoming, ModelId, false, finish); Visibility = Visibility.Visible; Paint(progress);
+        Complete(); Load(ModelId, Finish, finish); incoming.Source = ControllerArt.Front(ModelId, finish); ControllerOutline.Trim(incoming, ModelId, false, finish); Visibility = Visibility.Visible; Paint(progress);
     }
 
     private void Frame(object? sender, EventArgs e)
     {
         var now = DateTime.UtcNow;
         double p = Math.Clamp((now - began).TotalMilliseconds / Milliseconds, 0, 1);
-        // the edge moves slowly, so about 40 frames a second is smooth and leaves room for every card changing at once
-        if (p < 1 && (now - painted).TotalMilliseconds < 24) return;
-        painted = now;
         // eases in and out, unhurried
         Paint(p < .5 ? 2 * p * p : 1 - Math.Pow(-2 * p + 2, 2) / 2);
         if (p >= 1) Complete();
@@ -138,13 +146,13 @@ public sealed class FinishMorph : Grid
         foreach (int i in inside)
         {
             int k = (int)(offset - field[i] * scale); // field and front are both in 0..1, so k stays inside the table
-            reveal[i] = RevealPacked[k]; old[i] = KeepPacked[k];
+            reveal[i] = RevealPacked[k]; if (needKeep) old[i] = KeepPacked[k];
             float b = body[i];
             line[i] = b >= 1 ? lineNow[k] : Pack(LineTable[k] * glow * b);
         }
         mask.WritePixels(new Int32Rect(0, 0, FW, FH), maskPixels, FW * 4, 0);
         gloss.WritePixels(new Int32Rect(0, 0, FW, FH), glossPixels, FW * 4, 0);
-        keep.WritePixels(new Int32Rect(0, 0, FW, FH), keepPixels, FW * 4, 0);
+        if (needKeep) keep.WritePixels(new Int32Rect(0, 0, FW, FH), keepPixels, FW * 4, 0);
     }
     private readonly uint[] lineNow = new uint[Steps];
     private int[] inside = [];
@@ -153,23 +161,25 @@ public sealed class FinishMorph : Grid
     private static uint Pack(float a) => (uint)(255 * a) | (uint)(236 * a) << 8 | (uint)(214 * a) << 16 | (uint)(255 * a) << 24;
 
     // ----- the spread field -----
-    private static (float[], float[]) Field(string model)
+    private static (float[], float[], Dictionary<string, float[]>) Field(string model, int FW, int FH)
     {
-        if (fields.TryGetValue(model, out var cached)) return cached;
+        string key = model + "/" + FW;
+        if (fields.TryGetValue(key, out var cached)) return cached;
         // the body is every colour's silhouette together: a colour cut a little differently (a bumper, a grip rim) must still
         // be reached, or the old colour would stay there until the end
-        var body = new float[FW * FH];
+        var body = new float[FW * FH]; var alphas = new Dictionary<string, float[]>();
         foreach (var finish in PadColours.Catalog.For(model))
         {
             var small = new FormatConvertedBitmap(new TransformedBitmap(ControllerArt.Front(model, finish.Id), new ScaleTransform(FW / 1536.0, FH / 1024.0)), PixelFormats.Pbgra32, null, 0);
             var pixels = new byte[FW * FH * 4]; small.CopyPixels(pixels, FW * 4, 0);
-            for (int i = 0; i < body.Length; i++) body[i] = Math.Max(body[i], pixels[i * 4 + 3] / 255f);
+            var own = new float[FW * FH]; for (int i = 0; i < body.Length; i++) body[i] = Math.Max(body[i], own[i] = pixels[i * 4 + 3] / 255f);
+            alphas[finish.Id] = own;
         }
         int seed = model.Aggregate(17, (h, c) => h * 31 + c);
         var cost = new float[FW * FH];
         for (int y = 0; y < FH; y++) for (int x = 0; x < FW; x++)
         {
-            double n = Noise(x / 46.0, y / 46.0, seed);
+            double n = Noise(x / (46.0 * FW / 384), y / (46.0 * FW / 384), seed);
             cost[y * FW + x] = body[y * FW + x] > .5f ? (float)(1 + 1.1 * n) : 1f;
         }
         // it starts where the hands hold: the lowest point of each grip, the right one a moment later
@@ -194,7 +204,7 @@ public sealed class FinishMorph : Grid
         }
         float max = 1; for (int i = 0; i < dist.Length; i++) if (body[i] > .5f && dist[i] < float.MaxValue) max = Math.Max(max, dist[i]);
         var result = new float[FW * FH]; for (int i = 0; i < dist.Length; i++) result[i] = Math.Min(1f, dist[i] / max);
-        return fields[model] = (result, body);
+        return fields[key] = (result, body, alphas);
     }
     private static double Noise(double x, double y, int seed)
     {

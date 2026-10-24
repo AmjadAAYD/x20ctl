@@ -140,7 +140,7 @@ public sealed class ModelSelectorView : Grid
         string shown = PadColours.Catalog.Default(model.Id);
         var picture = new Image { Source = ControllerArt.Front(model.Id, shown), Stretch = Stretch.Fill };
         RenderOptions.SetBitmapScalingMode(picture, BitmapScalingMode.HighQuality);
-        var morph = new FinishMorph(picture); morph.Show(model.Id, shown); morphs.Add(morph);
+        var morph = new FinishMorph(picture, 192); morph.Show(model.Id, shown); morphs.Add(morph);
         var art = new Viewbox { Stretch = Stretch.Uniform, Margin = new(0, 0, 0, 12), Child = Framed(new Grid { Width = 1536, Height = 1024, Children = { picture, morph } }, model.Id, shown) };
         stack.Children.Add(art);
         var name = new TextBlock { Text = model.Name, FontFamily = DS.Display, FontSize = 19, FontWeight = FontWeights.SemiBold, Foreground = DS.Brush("DS.Text"), TextTrimming = TextTrimming.CharacterEllipsis }; Grid.SetRow(name, 1); stack.Children.Add(name);
