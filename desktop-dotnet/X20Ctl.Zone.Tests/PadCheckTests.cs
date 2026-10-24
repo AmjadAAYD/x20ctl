@@ -35,7 +35,7 @@ public class PadCheckTests
     public void Recorded_x20_replies_match_the_recorded_x20()
     {
         var report = PadCheck.Build(new(X20Identity, X20Menu, GuidFirst, X20GuidRest));
-        Assert.Equal(new PadCheck.Identity("1013", "2009", "1.23"), report.Identity);
+        Assert.Equal(new PadCheck.Identity("1013", "2009", "1.23", 2), report.Identity);
         Assert.Equal("EasySMX X20", report.Matches);
         Assert.Equal(["M1", "M2", "M3", "M4"], report.Caps!.MacroSlots);
         Assert.Equal(2, report.Caps.MotorCount);
@@ -51,7 +51,9 @@ public class PadCheckTests
     public void Pro_guid_and_its_six_slots_decode()
     {
         byte[] syntheticProMenu = Convert.FromHexString("0a030303003f010002c000"); // synthetic: X20 record with M5/M6 bits set
-        var report = PadCheck.Build(new(Convert.FromHexString("0710202006014452"), syntheticProMenu, GuidFirst, ProGuidRest));
+        // synthetic identity: vid 1020, pid 2006, firmware 1.44, flags 0x56 (mode 6, the proven Pro mode)
+        var report = PadCheck.Build(new(Convert.FromHexString("0710202006014456"), syntheticProMenu, GuidFirst, ProGuidRest));
+        Assert.Equal(6, report.Identity!.Mode);
         Assert.Equal("EasySMX X20 Pro", report.Matches);
         Assert.Equal("EasySMX X20 Pro", report.Guid!.Model);
         Assert.Equal("1.44", report.Guid.Version);

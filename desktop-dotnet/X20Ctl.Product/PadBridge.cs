@@ -41,6 +41,20 @@ public static class PadBridge
 #endif
     }
 
+    /// <summary>The write test: both motors to one value, read back, put back, read back again. Proven pads only.</summary>
+    public static async Task<Result> TestVibration(string targetModel, int percent)
+    {
+#if WINDOWS
+        if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 15063))
+        {
+            return await NativeBleClient.VibrationTestAsync(targetModel, percent);
+        }
+        return new(true, false, "Bluetooth LE requires Windows 10 build 15063 or newer.");
+#else
+        return await Task.FromResult(new Result(false, false, "The write test requires Windows."));
+#endif
+    }
+
     public static TelemetryData ParseTelemetry(string text)
     {
         string? firmware = null;

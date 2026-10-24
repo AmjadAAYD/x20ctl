@@ -18,7 +18,8 @@ public static class PadCheck
     /// <summary>Reply payloads exactly as they arrived (byte 0 is the length prefix); null when the pad stayed silent.</summary>
     public sealed record Raw(byte[]? Identity, byte[]? Menu, byte[]? Guid0, byte[]? Guid1);
 
-    public sealed record Identity(string Vid, string Pid, string Firmware);
+    /// <summary>Mode is the low nibble of the flags byte, decoded only when the record is the full seven bytes (parse_device_info).</summary>
+    public sealed record Identity(string Vid, string Pid, string Firmware, int? Mode = null);
 
     public sealed record Capabilities(int Sticks, int Triggers, int Motors, int Turbo, int Macros, int ChangeKey, int Lighting, int Engine, int Nfc, int Sensor, string RawHex)
     {
@@ -51,7 +52,8 @@ public static class PadCheck
     public static Identity? ParseIdentity(byte[]? payload)
     {
         if (payload is null || payload.Length < 7) return null;
-        return new($"{payload[1]:x2}{payload[2]:x2}", $"{payload[3]:x2}{payload[4]:x2}", $"{payload[5]:x}.{payload[6]:x2}");
+        int? mode = payload[0] == 7 && payload.Length >= 8 ? payload[7] & 0x0F : null;
+        return new($"{payload[1]:x2}{payload[2]:x2}", $"{payload[3]:x2}{payload[4]:x2}", $"{payload[5]:x}.{payload[6]:x2}", mode);
     }
 
     /// <summary>The capability record: byte 0 is the length prefix, then ten decoded bytes. Anything shorter is not a record.</summary>
@@ -104,7 +106,7 @@ public static class PadCheck
         var s = new StringBuilder();
         s.AppendLine("Controller check · Bluetooth · three read-only questions");
         s.AppendLine(new string('─', 62));
-        if (r.Identity is { } i) s.AppendLine($"  identity        vendor {i.Vid}, product {i.Pid}, firmware {i.Firmware}" + (r.Matches is null ? "" : $"  ·  matches the recorded {r.Matches}"));
+        if (r.Identity is { } i) s.AppendLine($"  identity        vendor {i.Vid}, product {i.Pid}, firmware {i.Firmware}" + (i.Mode is { } m ? $", mode {m}" : "") + (r.Matches is null ? "" : $"  ·  matches the recorded {r.Matches}"));
         if (r.Guid is { } g) s.AppendLine($"  updater id      model code {g.ModelCode}" + (g.Model is null ? " (not in the known list)" : $" ({g.Model})") + $", version {g.Version}");
         if (r.Caps is { } c)
         {

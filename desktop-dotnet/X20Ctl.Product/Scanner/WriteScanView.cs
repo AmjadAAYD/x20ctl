@@ -61,6 +61,11 @@ public sealed class WriteScanView : Grid
     private readonly TextBlock checkStatus = Wrap("", 14.5, "DS.TextSoft");
     private readonly Button checkSave = Action("\uE74E", "Save", "ActionButton").Also(b => b.Visibility = Visibility.Collapsed);
     private bool checking;
+    private string? checkedModel; // the write test is offered only for the model that just passed the check
+    private readonly StackPanel testPanel = new() { Visibility = Visibility.Collapsed, Margin = new(0, 26, 0, 0) };
+    private readonly TextBox testPercent = Field("80");
+    private readonly CheckBox testAgree = new() { Style = DS.Style("DS.Toggle"), VerticalAlignment = VerticalAlignment.Center };
+    private readonly Button testGo = Action("", "Run the write test", "PrimaryButton").Also(b => b.IsEnabled = false);
     private readonly ReadReport? read; // the Read scan that came just before, when the player went on from it
 
     public WriteScanView(Action close, ReadReport? read = null)
@@ -130,13 +135,22 @@ public sealed class WriteScanView : Grid
         checkSave.Click += (_, _) => SaveCheck();
         var phoneRoute = Action("\uE8EA", "Use the phone recording instead", "ActionButton"); phoneRoute.Click += (_, _) => { checkView.Visibility = Visibility.Collapsed; Show(0); };
         var leave = Action("\uE72B", "Back to Tools", "ActionButton"); leave.Click += (_, _) => close();
+        testAgree.Checked += (_, _) => testGo.IsEnabled = !checking; testAgree.Unchecked += (_, _) => testGo.IsEnabled = false;
+        testGo.Click += async (_, _) => await RunWriteTest();
+        testPercent.Width = 90;
+        testPanel.Children.Add(Kit.Text("Write test: vibration", 24, "DS.Text", FontWeights.Bold));
+        testPanel.Children.Add(Wrap("Sets both motors to one value, reads it back, then puts the old value back and reads again. Nothing else is changed.", 15.5, "DS.TextSoft").Also(t => t.Margin = new(0, 6, 0, 12)));
+        testPanel.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = { Kit.Text("Vibration %", 15, "DS.Text").Also(t => { t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new(0, 0, 12, 0); }), testPercent } });
+        testPanel.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Margin = new(0, 12, 0, 0), Children = { testAgree, Wrap("Change vibration on my controller, then put it back", 15, "DS.Text").Also(t => { t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new(10, 0, 0, 0); }) } });
+        testPanel.Children.Add(new WrapPanel { Margin = new(0, 14, 0, 0), Children = { testGo } });
         var panel = new StackPanel { MaxWidth = 1180, HorizontalAlignment = HorizontalAlignment.Center, Margin = new(40, 36, 40, 30), Children = {
             Kit.Text("Check over Bluetooth", 40, "DS.Text", FontWeights.Bold),
             Wrap("Three read-only questions: what the controller is, its firmware, and which settings it exposes. Nothing is written.", 17, "DS.TextSoft").Also(t => t.Margin = new(0, 8, 0, 0)),
-            Note("Turn the controller on with Bluetooth. Disconnect it from KeyLinker on any phone first."),
+            Note("Turn the controller on with Bluetooth. Disconnect it from KeyLinker on any phone first. On a recorded X20 or X20 Pro, a vibration write test is offered afterwards."),
             new WrapPanel { Margin = new(0, 22, 0, 0), Children = { askPro, askX20.Also(b => b.Margin = new(12, 0, 0, 0)) } },
             checkStatus.Also(t => t.Margin = new(0, 18, 0, 10)),
             checkText,
+            testPanel,
             new WrapPanel { Margin = new(0, 18, 0, 0), Children = { checkSave, phoneRoute.Also(b => b.Margin = new(12, 0, 0, 0)), leave.Also(b => b.Margin = new(12, 0, 0, 0)) } } } };
         checkView.Child = new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
     }
@@ -144,7 +158,7 @@ public sealed class WriteScanView : Grid
     private async Task RunCheck(string modelId)
     {
         if (checking) return;
-        checking = true; checkSave.Visibility = Visibility.Collapsed;
+        checking = true; checkSave.Visibility = Visibility.Collapsed; testPanel.Visibility = Visibility.Collapsed; testAgree.IsChecked = false; checkedModel = null;
         checkStatus.Text = "Asking the controller. Keep it awake and near this PC.";
         try
         {
@@ -152,8 +166,29 @@ public sealed class WriteScanView : Grid
             checkText.Text = result.Text; checkText.Visibility = Visibility.Visible;
             checkStatus.Text = result.Ok ? "Done. Nothing was changed on the controller." : "The check couldn't finish. Try again, or use the phone recording.";
             if (result.Ok) checkSave.Visibility = Visibility.Visible;
+            // the write test only for an exactly proven controller, mode and firmware with motors (VibrationTest.MayRun)
+            if (result is { Ok: true, Check: { } raw } && VibrationTest.MayRun(PadCheck.ParseIdentity(raw.Identity), PadCheck.ParseCapabilities(raw.Menu)))
+            {
+                checkedModel = modelId; testPanel.Visibility = Visibility.Visible;
+            }
         }
         finally { checking = false; }
+    }
+
+    private async Task RunWriteTest()
+    {
+        if (checking || checkedModel is null || testAgree.IsChecked != true) return;
+        if (!int.TryParse(testPercent.Text.Trim().TrimEnd('%'), out int percent) || percent is < 0 or > 100) { checkStatus.Text = "Pick a value from 0 to 100."; return; }
+        checking = true; testGo.IsEnabled = false;
+        checkStatus.Text = "Running the write test. Keep the controller awake and near this PC.";
+        try
+        {
+            var result = await PadBridge.TestVibration(checkedModel, percent);
+            checkText.Text += Environment.NewLine + result.Text;
+            checkStatus.Text = result.Ok ? "Passed. Vibration is back as it was." : "Not passed. The last lines say whether vibration is back as it was.";
+            checkSave.Visibility = Visibility.Visible;
+        }
+        finally { checking = false; testAgree.IsChecked = false; }
     }
 
     private void SaveCheck()
