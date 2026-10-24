@@ -21,15 +21,18 @@ public sealed class FinishMorph : Grid
     private static readonly Dictionary<string, (float[] Field, float[] Body)> fields = new();
     private readonly Image picture;
     private readonly Image incoming = Layer(), film = Layer();
-    private readonly WriteableBitmap mask = new(FW, FH, 96, 96, PixelFormats.Pbgra32, null), gloss = new(FW, FH, 96, 96, PixelFormats.Pbgra32, null);
-    private readonly byte[] maskPixels = new byte[FW * FH * 4], glossPixels = new byte[FW * FH * 4];
+    private readonly WriteableBitmap mask = new(FW, FH, 96, 96, PixelFormats.Pbgra32, null), gloss = new(FW, FH, 96, 96, PixelFormats.Pbgra32, null), keep = new(FW, FH, 96, 96, PixelFormats.Pbgra32, null);
+    private readonly byte[] maskPixels = new byte[FW * FH * 4], glossPixels = new byte[FW * FH * 4], keepPixels = new byte[FW * FH * 4];
     private float[] field = [], body = [];
     private void Load(string model)
     {
         (field, body) = Field(model);
         inside = Enumerable.Range(0, body.Length).Where(i => body[i] > 0).ToArray();
         // pixels off the shell stay clear for good
-        Array.Clear(maskPixels); Array.Clear(glossPixels);
+        Array.Clear(maskPixels); Array.Clear(glossPixels); Array.Fill(keepPixels, (byte)255);
+        // the picture being replaced fades out under the new colour, so a part of it that the new colour does not have (a
+        // bumper cut differently) is gone once the edge has passed instead of lingering until the swap
+        picture.OpacityMask = new ImageBrush(keep);
     }
     private DateTime began, painted;
     private Action? ending;
@@ -65,7 +68,7 @@ public sealed class FinishMorph : Grid
         var done = new TaskCompletionSource();
         began = DateTime.UtcNow;
         string model = ModelId;
-        ending = () => { picture.Source = target; ControllerOutline.Trim(picture, model, false, finish); incoming.Source = null; Visibility = Visibility.Collapsed; done.TrySetResult(); };
+        ending = () => { picture.OpacityMask = null; picture.Source = target; ControllerOutline.Trim(picture, model, false, finish); incoming.Source = null; Visibility = Visibility.Collapsed; done.TrySetResult(); };
         CompositionTarget.Rendering += Frame;
         return done.Task;
     }
@@ -117,6 +120,8 @@ public sealed class FinishMorph : Grid
             double behind = i * 4.0 / (Steps - 1) - 2;
             double t = Math.Clamp(behind / Feather * .5 + .5, 0, 1); t = t * t * (3 - 2 * t);
             RevealTable[i] = (byte)(t * 255); RevealPacked[i] = RevealTable[i] * 0x01010101u;
+            // the old picture stays whole until the new colour has nearly covered a pixel, then goes
+            KeepPacked[i] = (uint)Math.Round(255 * (1 - Math.Clamp((RevealTable[i] / 255.0 - .75) / .25, 0, 1))) * 0x01010101u;
             LineTable[i] = (float)Math.Exp(-Math.Pow(behind / (Feather * .45), 2));
         }
     }
@@ -129,19 +134,21 @@ public sealed class FinishMorph : Grid
         float scale = (Steps - 1) / 4f, offset = (float)((front + 2) * scale);
         var reveal = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, uint>(maskPixels.AsSpan());
         var line = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, uint>(glossPixels.AsSpan());
+        var old = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, uint>(keepPixels.AsSpan());
         foreach (int i in inside)
         {
             int k = (int)(offset - field[i] * scale); // field and front are both in 0..1, so k stays inside the table
-            reveal[i] = RevealPacked[k];
+            reveal[i] = RevealPacked[k]; old[i] = KeepPacked[k];
             float b = body[i];
             line[i] = b >= 1 ? lineNow[k] : Pack(LineTable[k] * glow * b);
         }
         mask.WritePixels(new Int32Rect(0, 0, FW, FH), maskPixels, FW * 4, 0);
         gloss.WritePixels(new Int32Rect(0, 0, FW, FH), glossPixels, FW * 4, 0);
+        keep.WritePixels(new Int32Rect(0, 0, FW, FH), keepPixels, FW * 4, 0);
     }
     private readonly uint[] lineNow = new uint[Steps];
     private int[] inside = [];
-    private static readonly uint[] RevealPacked = new uint[Steps];
+    private static readonly uint[] RevealPacked = new uint[Steps], KeepPacked = new uint[Steps];
     /// <summary>A cool white at this strength, premultiplied BGRA.</summary>
     private static uint Pack(float a) => (uint)(255 * a) | (uint)(236 * a) << 8 | (uint)(214 * a) << 16 | (uint)(255 * a) << 24;
 
@@ -149,9 +156,15 @@ public sealed class FinishMorph : Grid
     private static (float[], float[]) Field(string model)
     {
         if (fields.TryGetValue(model, out var cached)) return cached;
-        var small = new FormatConvertedBitmap(new TransformedBitmap(ControllerArt.Front(model), new ScaleTransform(FW / 1536.0, FH / 1024.0)), PixelFormats.Pbgra32, null, 0);
-        var pixels = new byte[FW * FH * 4]; small.CopyPixels(pixels, FW * 4, 0);
-        var body = new float[FW * FH]; for (int i = 0; i < body.Length; i++) body[i] = pixels[i * 4 + 3] / 255f;
+        // the body is every colour's silhouette together: a colour cut a little differently (a bumper, a grip rim) must still
+        // be reached, or the old colour would stay there until the end
+        var body = new float[FW * FH];
+        foreach (var finish in PadColours.Catalog.For(model))
+        {
+            var small = new FormatConvertedBitmap(new TransformedBitmap(ControllerArt.Front(model, finish.Id), new ScaleTransform(FW / 1536.0, FH / 1024.0)), PixelFormats.Pbgra32, null, 0);
+            var pixels = new byte[FW * FH * 4]; small.CopyPixels(pixels, FW * 4, 0);
+            for (int i = 0; i < body.Length; i++) body[i] = Math.Max(body[i], pixels[i * 4 + 3] / 255f);
+        }
         int seed = model.Aggregate(17, (h, c) => h * 31 + c);
         var cost = new float[FW * FH];
         for (int y = 0; y < FH; y++) for (int x = 0; x < FW; x++)

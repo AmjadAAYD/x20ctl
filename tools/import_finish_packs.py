@@ -146,6 +146,18 @@ def mend_cut(folder, view, cut_x, ramp=24):
     return {"axis": round(float(axis), 1), "from": edge}
 
 
+def flat_cut(folder, view, run=150):
+    """The x of a grip sliced straight off inside the canvas (the X05 Pro and black X20 fronts): one side's outermost
+    edge stays within a pixel of its extreme for over `run` rows while the other side's does not. None when whole."""
+    solid = rgba(folder / f"{view}-full.png")[:, :, 3] > 40
+    rows = [y for y in range(solid.shape[0]) if solid[y].any()]
+    right = np.array([np.nonzero(solid[y])[0].max() for y in rows]); left = np.array([np.nonzero(solid[y])[0].min() for y in rows])
+    flat_r, flat_l = (abs(right - right.max()) <= 1).sum(), (abs(left - left.min()) <= 1).sum()
+    if flat_r >= run > flat_l: return int(right.max())
+    if flat_l >= run > flat_r: return int(left.min())
+    return None
+
+
 def import_pack(pack_dir, model, finish, report):
     """Every finish's front is pinned by its stick pivots to the model's measured ones, so each control shape stays on its
     control. Its rear is fitted to the rear silhouette: the app's for an original, the new original's for any other."""
@@ -167,6 +179,8 @@ def import_pack(pack_dir, model, finish, report):
         for band, side in ((alpha[:, -3:], alpha.shape[1]), (alpha[:, :3], 0)):
             if (band > 40).any(1).sum() > 50:
                 entry.setdefault("mended", {})[view] = mend_cut(folder, view, point(m, (side, alpha.shape[0] / 2))[0])
+    if "front" not in entry.get("mended", {}) and (cut := flat_cut(folder, "front")) is not None:
+        entry.setdefault("mended", {})["front"] = mend_cut(folder, "front", cut)
     entry["pivots"] = {k: [round(v, 1) for v in point(front, p)] for k, p in sticks.items()}
     entry["pivotError"] = round(max(float(np.hypot(*(np.array(point(front, sticks[k])) - centres[side]["center"])))
                                     for k, side in (("stick-l", "left"), ("stick-r", "right"))), 1)
