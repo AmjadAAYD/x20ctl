@@ -63,8 +63,9 @@ public sealed class AgentPanel
     readonly Action<Button> register;
     readonly StackPanel ideasList = new();
     // the screen's own pieces (owner's design, 19 Oct 2026): the chat or the ideas, picked from the rail or a topic pill
-    enum View { Chat, Ideas }
+    enum View { Chat, Ideas, Checkup }
     readonly DockPanel ideasView;
+    readonly ScrollViewer checkupView;
     readonly Button sendRound;
     readonly TextBlock padChip = Kit.Text("", 13, "DS.TextSoft", FontWeights.SemiBold);
     readonly List<(string Query, Border Look, TextBlock Text, TextBlock Icon)> topics = [];
@@ -178,6 +179,7 @@ public sealed class AgentPanel
         var ideasHead = new StackPanel { Margin = new(0, 0, 0, 10), Children = { searchBar, ideasFor.Also(t => t.Margin = new(2, 6, 0, 0)) } };
         ideasView = new DockPanel { Visibility = Visibility.Collapsed }; DockPanel.SetDock(ideasHead, Dock.Top); ideasView.Children.Add(ideasHead);
         ideasView.Children.Add(new ScrollViewer { Content = ideasList, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Padding = new(0, 0, 8, 0) });
+        checkupView = BuildCheckup();
 
         // topic pills: each narrows the ideas to it
         var pills = new StackPanel { Orientation = Orientation.Horizontal, Margin = new(0, 0, 0, 10) };
@@ -217,15 +219,13 @@ public sealed class AgentPanel
         }
         rail[View.Chat] = RailItem("\uE8BD", "Conversation", () => ShowView(View.Chat), railItems);
         rail[View.Ideas] = RailItem("\uE82F", "Ideas", () => { ShowView(View.Ideas); Search.Focus(); }, railItems);
-        RailItem("\uE7FC", "Controller diagnostic", StartDiagnostic, railItems);
+        rail[View.Checkup] = RailItem("\uE7FC", "Controller check-up", () => ShowView(View.Checkup), railItems);
         RailItem("\uE9E9", "Settings now", () => ShowSettingsPage(!SettingsOpen), railItems);
-        var railFoot = new StackPanel();
-        railFoot.Children.Add(new Border { Height = 1, Margin = new(8, 6, 8, 8), Background = new SolidColorBrush(Line) });
-        RailItem("\uE713", "Agent settings", () => ShowSettingsPage(!SettingsOpen), railFoot);
-        var railDock = new DockPanel(); DockPanel.SetDock(railFoot, Dock.Bottom); railDock.Children.Add(railFoot); railDock.Children.Add(railItems);
+        // (the gear that sat below the divider opened the same page as the sliders, so it is gone)
+        var railDock = new DockPanel(); railDock.Children.Add(railItems);
         var railBox = new Border { Width = 58, Padding = new(5, 8, 5, 6), Margin = new(0, 0, 14, 0), CornerRadius = new(16), BorderThickness = new(1), BorderBrush = new SolidColorBrush(Line), Background = new SolidColorBrush(Card), Child = railDock };
 
-        var views = new Grid { Children = { scroller, ideasView } };
+        var views = new Grid { Children = { scroller, ideasView, checkupView } };
         var content = new DockPanel();
         DockPanel.SetDock(heading, Dock.Top); content.Children.Add(heading);
         DockPanel.SetDock(pills, Dock.Top); content.Children.Add(pills);
@@ -252,10 +252,15 @@ public sealed class AgentPanel
             var metal = new ImageBrush(art.Source) { ViewboxUnits = BrushMappingMode.Absolute, Viewbox = cleanMetal, Stretch = Stretch.Fill }; metal.Freeze();
             var mask = new DrawingBrush(new GeometryDrawing(Brushes.White, null, AgentBrandArtwork.Shape)) { Stretch = Stretch.Uniform }; mask.Freeze();
             Brush Feather(double angle) => new LinearGradientBrush(new GradientStopCollection { new(Colors.Transparent, 0), new(Colors.White, .12), new(Colors.White, .88), new(Colors.Transparent, 1) }, angle);
+            // A printed mark sits in the metal, not on it: a faint light lip below, a dark lip above, a softened edge,
+            // and ink that lets the brushed grain show through instead of a flat pasted fill.
+            Border Layer(Color color, double dy) => new() { Margin = new(3), OpacityMask = mask, Background = new SolidColorBrush(color), RenderTransform = new TranslateTransform(0, dy) };
+            var ink = Layer(Color.FromRgb(196, 195, 188), 0); ink.Opacity = .8;
+            var print = new Grid { Effect = new BlurEffect { Radius = .6 }, Children = { Layer(Color.FromArgb(70, 255, 255, 255), size * .028), Layer(Color.FromArgb(120, 0, 0, 0), -size * .022), ink } };
             var mark = new Grid { Width = size, Height = size, ToolTip = "X20CTL", Children =
             {
                 new Border { OpacityMask = Feather(90), Child = new Border { Background = metal, OpacityMask = Feather(0) } },
-                new Border { Margin = new(3), OpacityMask = mask, Background = new SolidColorBrush(Color.FromRgb(207, 206, 198)) },
+                print,
             } };
             Canvas.SetLeft(mark, x); Canvas.SetTop(mark, y); pad.Children.Add(mark); Drag(mark);
         }
@@ -271,15 +276,19 @@ public sealed class AgentPanel
         screen.Clip = Geometry.Parse("M 37,2 L 938,2 L 984,49 L 984,558 L 915,631 L 66,631 L 0,563 L 0,54 Z");
         Canvas.SetLeft(screen, ScreenX); Canvas.SetTop(screen, ScreenY); pad.Children.Add(screen);
 
-        // the bumpers, as drawn: LB the ideas, RB the settings
-        var ideasBumper = ContourHit(237, 12, "M 0,61 Q 9,35 30,19 Q 56,1 102,3 L 210,0 Q 224,0 230,15 L 251,47 Q 126,43 0,61 Z", "LB · Ideas", () => { ShowView(View.Ideas); Search.Focus(); Look(Gaze.Ideas); });
-        var settingsButton = ContourHit(1257, 10, "M 0,49 L 25,12 Q 31,0 46,0 L 164,4 Q 210,7 236,28 Q 250,42 257,65 Q 130,45 0,49 Z", "RB · Settings", () => ShowSettingsPage(!SettingsOpen));
-        pad.Children.Add(ideasBumper); pad.Children.Add(settingsButton);
+        // the bumpers: LB steps through the idea topics (the rail's bulb opens the list; this flips through it), RB leaves the
+        // agent (the rail's sliders already open the settings). The plates were printed ideas / settings, so their words are
+        // repainted to match what they now do.
+        Relabel(pad, new Rect(328, 25, 112, 25), -2, "LB", "TOPICS", Amber);
+        Relabel(pad, new Rect(1308, 27, 144, 28), 6, "RB", "EXIT", Color.FromRgb(200, 202, 209));
+        var topicBumper = ContourHit(237, 12, "M 0,61 Q 9,35 30,19 Q 56,1 102,3 L 210,0 Q 224,0 230,15 L 251,47 Q 126,43 0,61 Z", "LB · Next topic", CycleTopic);
+        var exitBumper = ContourHit(1257, 10, "M 0,49 L 25,12 Q 31,0 46,0 L 164,4 Q 210,7 236,28 Q 250,42 257,65 Q 130,45 0,49 Z", "RB · Put the agent away", LeaveAgent);
+        pad.Children.Add(topicBumper); pad.Children.Add(exitBumper);
         // the bar under the screen, as drawn: its LB and RB do what the bumpers do; FRONT / BACK puts the agent away on the
         // back of this controller, where its paddles are
-        pad.Children.Add(Hit(640, 708, 112, 40, 14, "LB · Ideas", () => { ShowView(View.Ideas); Search.Focus(); Look(Gaze.Ideas); }));
+        pad.Children.Add(Hit(640, 708, 112, 40, 14, "LB · Next topic", CycleTopic));
         pad.Children.Add(Hit(788, 708, 170, 40, 14, "Back of the controller", () => PageRequested?.Invoke("Back")));
-        pad.Children.Add(Hit(994, 708, 112, 40, 14, "RB · Settings", () => ShowSettingsPage(!SettingsOpen)));
+        pad.Children.Add(Hit(994, 708, 112, 40, 14, "RB · Put the agent away", LeaveAgent));
 
         // the sticks are its eyes
         // each eye at the centre of its stick's dish, measured on the art
@@ -332,7 +341,7 @@ public sealed class AgentPanel
             Template = new ControlTemplate(typeof(Button)) { VisualTree = new FrameworkElementFactory(typeof(ContentPresenter)) } };
         System.Windows.Automation.AutomationProperties.SetName(button, tip);
         var rest = look.BorderBrush;
-        void Lit(bool on) => look.BorderBrush = on ? DS.Brush("DS.AccentHi") : rest;
+        void Lit(bool on) => look.BorderBrush = on ? ShellHighlight : rest;
         button.MouseEnter += (_, _) => Lit(true); button.MouseLeave += (_, _) => Lit(button.IsKeyboardFocused);
         button.GotKeyboardFocus += (_, _) => Lit(true); button.LostKeyboardFocus += (_, _) => Lit(button.IsMouseOver);
         if (act != null) button.Click += (_, _) => act();
@@ -374,6 +383,7 @@ public sealed class AgentPanel
     {
         scroller.Visibility = view == View.Chat ? Visibility.Visible : Visibility.Collapsed;
         ideasView.Visibility = view == View.Ideas ? Visibility.Visible : Visibility.Collapsed;
+        checkupView.Visibility = view == View.Checkup ? Visibility.Visible : Visibility.Collapsed;
         foreach (var (v, look) in rail)
         {
             bool on = v == view;
@@ -436,12 +446,15 @@ public sealed class AgentPanel
         return button;
     }
 
+    /// <summary>The hover and focus outline on the drawn controller: the pale silver of its X20CTL print, since blue on the dark shell looked pasted on.</summary>
+    static readonly Brush ShellHighlight = new SolidColorBrush(Color.FromRgb(214, 216, 222)).Also(b => b.Freeze());
+
     Button ContourHit(double x, double y, string shape, string tip, Action act)
     {
         var contour = new System.Windows.Shapes.Path { Data = Geometry.Parse(shape), Fill = Brushes.Transparent, Stroke = Brushes.Transparent, StrokeThickness = 2, StrokeLineJoin = PenLineJoin.Round };
         var button = new Button { Content = contour, ToolTip = tip, Cursor = Cursors.Hand, FocusVisualStyle = null,
             Template = new ControlTemplate(typeof(Button)) { VisualTree = new FrameworkElementFactory(typeof(ContentPresenter)) } };
-        void Highlight() => contour.Stroke = button.IsMouseOver || button.IsKeyboardFocusWithin ? DS.Brush("DS.AccentHi") : Brushes.Transparent;
+        void Highlight() => contour.Stroke = button.IsMouseOver || button.IsKeyboardFocusWithin ? ShellHighlight : Brushes.Transparent;
         button.MouseEnter += (_, _) => Highlight(); button.MouseLeave += (_, _) => Highlight();
         button.GotKeyboardFocus += (_, _) => Highlight(); button.LostKeyboardFocus += (_, _) => Highlight();
         button.Click += (_, _) => act();
@@ -597,6 +610,70 @@ public sealed class AgentPanel
         if (ReviewSandbox.Active) return;
         try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true })?.Dispose(); }
         catch (Exception error) when (error is System.ComponentModel.Win32Exception or InvalidOperationException) { }
+    }
+
+    /// <summary>LB: the next topic's ideas (Aim &amp; sticks, Triggers, Buttons, PC mode, then round again).</summary>
+    void CycleTopic()
+    {
+        if (topics.Count == 0) return;
+        string now = ideasView.Visibility == Visibility.Visible ? Search.Text.Trim() : "";
+        int at = topics.FindIndex(t => string.Equals(t.Query, now, StringComparison.OrdinalIgnoreCase));
+        Search.Text = topics[(at + 1) % topics.Count].Query;
+        ShowView(View.Ideas); Look(Gaze.Ideas);
+    }
+
+    /// <summary>RB: put the agent away, or close the settings page first when it is open.</summary>
+    void LeaveAgent() { if (SettingsOpen) ShowSettingsPage(false); else CloseRequested?.Invoke(); }
+
+    /// <summary>Repaints a bumper plate's words: the plate's own glass is redrawn, then the new tag and word are set on it.</summary>
+    void Relabel(Canvas pad, Rect plate, double angle, string tag, string word, Color wordColor)
+    {
+        static string Spaced(string s) => string.Join(" ", s.ToCharArray());
+        var glass = new LinearGradientBrush(Color.FromRgb(36, 39, 44), Color.FromRgb(27, 29, 34), 90);
+        var words = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center, Children =
+        {
+            Kit.Text(Spaced(tag), 15, "DS.TextMuted").Also(t => { t.Foreground = new SolidColorBrush(Color.FromRgb(168, 171, 178)); t.Margin = new(0, 0, 14, 0); }),
+            Kit.Text(Spaced(word), 17, "DS.Text", FontWeights.SemiBold).Also(t => t.Foreground = new SolidColorBrush(wordColor)),
+        } };
+        var cover = new Grid { Width = plate.Width, Height = plate.Height, IsHitTestVisible = false, RenderTransformOrigin = new(.5, .5), RenderTransform = new RotateTransform(angle),
+            Children = { new Border { Background = glass, CornerRadius = new(4) }, words } };
+        Canvas.SetLeft(cover, plate.X); Canvas.SetTop(cover, plate.Y); pad.Children.Add(cover);
+    }
+
+    ScrollViewer BuildCheckup()
+    {
+        var page = new StackPanel { Margin = new(0, 0, 8, 0) };
+        page.Children.Add(Wrap("Controller check-up", 20, "DS.Text", 0).Also(t => t.FontWeight = FontWeights.SemiBold));
+        page.Children.Add(Wrap("Pick what is happening and I will point you to the right scan. Nothing is written to your controller.", 13.5, "DS.TextMuted", 4));
+        var symptoms = new WrapPanel { Margin = new(0, 14, 0, 4) };
+        foreach (var (glyph, label) in new[] { ("", "A stick drifts"), ("", "A button doesn't register"), ("", "It won't connect"), ("", "Triggers feel off"), ("", "Lag or stutter"), ("", "Settings won't save") })
+        {
+            var look = new Border { CornerRadius = new(17), Height = 34, Padding = new(12, 0, 14, 0), Margin = new(0, 0, 8, 8), BorderThickness = new(1), BorderBrush = new SolidColorBrush(Line), Background = new SolidColorBrush(Card),
+                Child = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Children = { Kit.Icon(glyph, 13, "DS.TextSoft").Also(i => i.Margin = new(0, 0, 8, 0)), Kit.Text(label, 13.5, "DS.TextSoft", FontWeights.SemiBold) } } };
+            var chip = PadKey(look, label, () => Symptom(label)); register(chip); symptoms.Children.Add(chip);
+        }
+        page.Children.Add(symptoms);
+        Button CheckCard(string glyph, string title, string sub, Action act)
+        {
+            var card = PadKey(new Border { CornerRadius = new(12), Padding = new(14, 11, 14, 12), Margin = new(0, 0, 0, 8), BorderThickness = new(1), BorderBrush = new SolidColorBrush(Line), Background = new SolidColorBrush(Card),
+                Child = new DockPanel { Children = { Kit.Icon(glyph, 20, "DS.TextSoft").Also(i => { i.Margin = new(0, 0, 14, 0); i.VerticalAlignment = VerticalAlignment.Center; }),
+                    new StackPanel { Children = { Kit.Text(title, 15, "DS.Text", FontWeights.SemiBold), Wrap(sub, 12.5, "DS.TextMuted", 2) } } } } }, title, act);
+            register(card); return card;
+        }
+        page.Children.Add(CheckCard("", "Read scan", "Checks sticks, triggers and buttons, then makes a report. It only reads.", () => PageRequested?.Invoke("ReadScan")));
+        page.Children.Add(CheckCard("", "Write scan", "Learns what a setting writes when you change it in KeyLinker.", () => PageRequested?.Invoke("WriteScan")));
+        page.Children.Add(CheckCard("", "Describe it yourself", "Tell me in your own words and I will talk it through.", StartDiagnostic));
+        return new ScrollViewer { Content = page, Visibility = Visibility.Collapsed, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+    }
+
+    /// <summary>A symptom chip is a sentence the owner said: the agent answers it as a diagnosis, in the chat.</summary>
+    void Symptom(string text)
+    {
+        if (busy) return;
+        ShowSettingsPage(false); ShowView(View.Chat);
+        NextDiagnosticStep(); diagnosing = true; feedbackPending = false;
+        session.CancelClarification();
+        Mine(text, null); RecommendScan(text); _ = Lights(AgentMood.Good);
     }
 
     void StartDiagnostic()

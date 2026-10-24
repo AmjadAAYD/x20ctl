@@ -4,13 +4,15 @@
 
 ### Added
 
-- **Each Tools card tells its own little story** on its own while the page is open: the wrench fixing, feedback travelling to its inbox, pause turning into play, a link between phone and controller, a beating heart, and the star shining and filling. They stop when you leave the page, and stay still with reduced motion.
-- **A Controller diagnostic in the agent.** The controller icon on the rail asks what is wrong, points to the Read scan or the Write scan, and can open Feedback with your issue filled in once you say yes.
+- **Each Tools card tells its own little story** on its own while the page is open: the wrench fixing, feedback travelling to its inbox, pause turning into play, a link between phone and controller, a beating heart, and the star shining and filling. They are bolder and in colour, they spring as they move, and hovering a card plays its story faster with a soft halo. They stop when you leave the page, and stay still with reduced motion.
+- **A Controller check-up page in the agent.** The controller icon on the rail opens a page of common problems (a stick drifts, a button doesn't register, it won't connect and more), plus the Read scan, the Write scan and "Describe it yourself". Picking a problem gets a recommendation in the chat, and it can open Feedback with your issue filled in once you say yes.
 
 ### Changed
 
 - **The agent is steadier.** Browsing the topic pills no longer makes it talk, dragging it is lighter and the eyes wobble as it moves, and its lights and eyes share one colour: green when ready, purple when thinking, blue when it answers, red when unsure.
-- **The agent's controller has the X20CTL mark** on both sides in a pale-silver print, and the bumpers follow the controller's own outline.
+- **The agent's controller has the X20CTL mark** on both sides, printed into the metal in pale silver, and the bumpers follow the controller's own outline, lit in silver instead of blue.
+- **The agent's buttons each do their own thing.** LB steps through the idea topics, RB puts the agent away, and the bulb on the rail opens the ideas. The gear that opened the same settings page as the sliders is gone.
+- **Selecting a game no longer draws a white box** around its cover; it gets the same blue outline as the selected game.
 - **Controller cards glide together.** The picture and the card move as one when you swap the big card, even if you swap again halfway.
 
 ### Fixed

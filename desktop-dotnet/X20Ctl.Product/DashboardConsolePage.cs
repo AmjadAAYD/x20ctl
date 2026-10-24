@@ -210,7 +210,7 @@ public sealed class DashboardConsolePage : Grid
         var stack = new StackPanel { Children = { new Grid { HorizontalAlignment=HorizontalAlignment.Left, Children = { art, store } }, title }, RenderTransformOrigin = new(.5, .4), RenderTransform = new ScaleTransform(1, 1) };
         SizeCover(art,title);
         var b = new Button { Content = stack, Template = Bare(), Margin = new(0, 0, 12, 12), Cursor = Cursors.Hand, FocusVisualStyle = null, ToolTip = $"{g.Name} · {g.Store}" };
-        b.GotKeyboardFocus += (_, _) => { Feature(g); art.BorderBrush = Brushes.White; Lift(stack, 1.01); title.Foreground = DS.Brush("DS.Text"); b.BringIntoView(new Rect(-12,0,coverHeight+12,coverHeight+34)); };
+        b.GotKeyboardFocus += (_, _) => { Feature(g); art.BorderBrush = DS.Brush("DS.AccentHi"); Lift(stack, 1.01); title.Foreground = DS.Brush("DS.Text"); b.BringIntoView(new Rect(-12,0,coverHeight+12,coverHeight+34)); };
         b.LostKeyboardFocus += (_, _) => { art.BorderBrush = current?.Id==g.Id?DS.Brush("DS.AccentHi"):Brushes.Transparent;Lift(stack,1); };
         b.MouseEnter+=(_,_)=>Lift(stack,1.01);b.MouseLeave+=(_,_)=>Lift(stack,1);
 
