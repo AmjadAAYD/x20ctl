@@ -44,7 +44,8 @@ static class MouseRefinementChecks
  if(page=="Diagnostics"){if(scene.InputContext!=InputOwner.TesterCapture)throw new Exception("Diagnostics input ownership missing");scene.Diagnostics!.Stop();}
  }
  scene.ShowCurves(true);Render(scene,"curves-studio");if(((Grid)scene.FindName("StudioBody")).ColumnDefinitions[2].Width.Value<=1)throw new Exception("Curves graph not primary");
- scene.ShowVibration(true);int before=scene.Vibration!.Draft.Strength;scene.Vibration.Set(25);if(scene.Vibration.Draft.Strength!=before)throw new Exception("Preview mutated unverified native model");Render(scene,"vibration-studio");
+ // the X20 Pro now has hardware logs and its draft is editable, so the unverified case is a pad that has none
+ var unverified=catalog.Find("x15")!;var unverifiedScene=new StudioScene(0,unverified,new ButtonDraft(unverified.Id),true);unverifiedScene.ShowVibration(true);int before=unverifiedScene.Vibration!.Draft.Strength;unverifiedScene.Vibration.Set(25);if(unverifiedScene.Vibration.Draft.Strength!=before)throw new Exception("Preview mutated unverified native model");Render(unverifiedScene,"vibration-studio");
  scene.ShowManagement("Dashboard");Render(scene,"dashboard-studio");
  typeof(StudioScene).GetMethod("UpdateNavigation",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(scene,null);scene.UpdateLayout();
  var rb=(FrameworkElement)scene.FindName("NextTab");var tab=(FrameworkElement)scene.FindName("SetupsNav");if(tab.Visibility==Visibility.Visible && rb.TranslatePoint(new Point(),scene).X-tab.TranslatePoint(new Point(tab.ActualWidth,0),scene).X>60)throw new Exception("RB detached from final tab");
