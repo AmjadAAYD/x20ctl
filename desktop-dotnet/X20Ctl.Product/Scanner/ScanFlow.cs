@@ -29,7 +29,7 @@ public static class ScanFlow
         (0x1D57, 0xFA60, "A Xenta wireless keyboard and mouse receiver. It is not an EasySMX receiver; the X20's own dongle shows the pad's identity instead."),
         (0x1A34, 0xF517, "Reported for the EasySMX X15's 2.4 GHz receiver. The vendor's X20 receiver tool also opens this id (found in its code, not yet seen here)."),
         (0x2345, 0xE062, "Reported for the EasySMX D10's receiver, a vendor-defined HID device (research notes, not yet seen here)."),
-        (0x413D, 0x2131, "Seen with EasySMX 2.4 GHz wireless receivers (X20 Pro / Dune 8K) in XInput mode: vendor channel 0xFF10."),
+        (0x413D, 0x2131, "Seen with the EasySMX Dune 8K (D15) in XInput mode: two Controller Check scans by an owner, 10 Oct 2026. Also confirmed with the EasySMX X20 Pro retail unit, Oct 2026. It shows two vendor channels, 0xFF70 and 0xFF10."),
     ];
 
     public const string Discord = "mistermajid";
@@ -59,7 +59,7 @@ public static class ScanFlow
                 string? model = t.Contains("DUNE") || t.Contains("D15") ? "Dune / D15" : t.Contains("X20 PRO") ? "X20 Pro" : t.Contains("X20") ? "X20" : t.Contains("X15") ? "X15" : t.Contains("X10") ? "X10" : t.Contains("X05 PRO") ? "X05 Pro" : t.Contains("X05") ? "X05" : t.Contains("D10") ? "D10" : null;
                 if (model != null) return (text.Trim(), model);
             }
-        if (inventory.interfaces.Any(i => i.vid == 0x413D && i.pid == 0x2131)) return ("EasySMX 2.4 GHz receiver (by ID 413D:2131)", "Receiver");
+        if (inventory.interfaces.Any(i => i.vid == 0x413D && i.pid == 0x2131)) return ("EasySMX receiver (X20 Pro or Dune)", "X20 Pro / Dune");
         return null;
     }
     /// <summary>Bluetooth when Windows enumerated the gamepad through its Bluetooth HID service; Receiver when the 2.4 GHz receiver is present; otherwise unknown (a cable and a generic receiver look alike).</summary>

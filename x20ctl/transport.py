@@ -92,10 +92,10 @@ def detect(ids: list[str] | None = None) -> Connection:
     if not ids:
         return Connection(Link.UNKNOWN, "could not enumerate devices")
 
-    # 0. EasySMX X20 Pro 2.4 GHz receiver.
+    # 0. EasySMX 2.4 GHz receiver (X20 Pro or Dune).
     for entry in ids:
         if X20_PRO_RECEIVER_ID.search(entry):
-            return Connection(Link.DONGLE, "EasySMX X20 Pro receiver", entry)
+            return Connection(Link.DONGLE, "EasySMX receiver (X20 Pro or Dune)", entry)
 
     # 1. The pad's USB identity. Can't tell a cable from the receiver here.
     for entry in ids:

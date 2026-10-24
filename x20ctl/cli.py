@@ -322,16 +322,19 @@ async def cmd_macro(args) -> None:
     if args.read:
         await _cmd_macro_read(args)
         return
-    if not args.slot:
-        raise SystemExit(ui.bad(f"which slot? one of {', '.join(SLOTS)}"))
-
-    slot_name = args.slot.upper()
-    if slot_name not in SLOTS:
-        raise SystemExit(ui.bad(f"slot must be one of {', '.join(SLOTS)}"))
-    index = SLOTS.index(slot_name) + 1
 
     address = await resolve(args.address)
     async with X20(address) as pad:
+        caps = await pad.capabilities()
+        slots = caps.macro_slots if caps.macro_slots else SLOTS
+        if not args.slot:
+            raise SystemExit(ui.bad(f"which slot? one of {', '.join(slots)}"))
+
+        slot_name = args.slot.upper()
+        if slot_name not in slots:
+            raise SystemExit(ui.bad(f"slot must be one of {', '.join(slots)}"))
+        index = slots.index(slot_name) + 1
+
         if args.clear:
             await pad.clear_macro(index)
             print(ui.ok(f"\n  {slot_name} cleared\n"))
@@ -355,10 +358,12 @@ async def _cmd_macro_read(args) -> None:
     address = await resolve(args.address)
     async with X20(address) as pad:
         macros = await pad.macros()
+        caps = await pad.capabilities()
 
+    slots = caps.macro_slots if caps.macro_slots else SLOTS
     print(ui.header("Macros on the controller"))
-    for slot in SLOTS:
-        program = macros.get(SLOTS.index(slot) + 1)
+    for slot in slots:
+        program = macros.get(slots.index(slot) + 1)
         print(ui.slot_line(slot, program.as_sequence() if program else None))
     print()
 

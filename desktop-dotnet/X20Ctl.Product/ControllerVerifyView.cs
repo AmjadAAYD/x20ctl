@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -39,8 +39,8 @@ public static class ControllerVerify
         else foreach (var i in inventory.interfaces) if (ById.TryGetValue((i.vid, i.pid), out var byId)) { id = byId; name = $"{i.vid:X4}:{i.pid:X4}"; break; }
         if (id == null && inventory.interfaces.Any(i => i.vid == 0x413D && i.pid == 0x2131))
         {
-            if (modelId is "x20_pro" or "dune") { id = modelId; name = "EasySMX 2.4 GHz receiver"; }
-            else { id = "x20_pro"; name = "EasySMX 2.4 GHz receiver (X20 Pro / Dune)"; }
+            if (modelId is "x20_pro" or "dune") { id = modelId; name = "EasySMX receiver (X20 Pro or Dune)"; }
+            else { id = null; name = "EasySMX receiver (X20 Pro or Dune)"; }
         }
         if (id == modelId) return Result(VerifyOutcome.Match, id, name, name ?? "");
         if (id != null) return Result(VerifyOutcome.Mismatch, id, name, name ?? "");
@@ -61,8 +61,8 @@ public static class ControllerVerify
             bool isReceiver = group.Any(i => i.vid == 0x413D && i.pid == 0x2131);
             if (pad == null && known == null && named == null && !isReceiver) continue;
             var device = pad ?? known ?? group[0];
-            string? id = named is { } n && ByName.TryGetValue(n.Model, out var mapped) ? mapped : known != null ? ById[(known.vid, known.pid)] : isReceiver ? "x20_pro" : null;
-            string name = named?.Name ?? (isReceiver ? "EasySMX 2.4 GHz receiver" : !string.IsNullOrWhiteSpace(device.product) ? device.product : "Windows gamepad");
+            string? id = named is { } n && ByName.TryGetValue(n.Model, out var mapped) ? mapped : known != null ? ById[(known.vid, known.pid)] : null;
+            string name = named?.Name ?? (isReceiver ? "EasySMX receiver (X20 Pro or Dune)" : !string.IsNullOrWhiteSpace(device.product) ? device.product : "Windows gamepad");
             found.Add(new(name, id, $"{device.kind} · {device.vid:X4}:{device.pid:X4}" + (isReceiver ? " · 2.4 GHz receiver" : id == null ? " · model unconfirmed" : " · reported identity")));
         }
         return found;

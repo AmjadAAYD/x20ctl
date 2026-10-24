@@ -112,8 +112,6 @@ KNOWN = (
             "macros": Proof(read=True, write=True, readback=True,
                             note="M1-M6 round trip with chords and per-step timings."),
             "battery": Proof(read=True, note="Power query; the pad is returned to normal mode after."),
-            "calibrate": Proof(write=True, note="Accepted; leaves the sticks alone. Effect on the gyro unverified."),
-            "factory_reset": Proof(write=True, note="Generation 2 payload; settings returned to defaults."),
             "turbo": Proof(read=True, write=True, readback=True, note="Turbo supported on X20 Pro."),
         },
     ),
