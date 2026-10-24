@@ -77,9 +77,11 @@ public sealed class ModelSelectorView : Grid
         var footer = GlyphHint.Footer(("A", "Choose"), ("B", "Back"), ("✥", "Move"));
         footer.Margin = new(9, 0, 0, 0); Grid.SetRow(footer, 2); body.Children.Add(footer);
 
+        Unloaded += (_, _) => turn.Stop();
         Loaded += (_, _) =>
         {
             if (cards.Count > 0) cards[0].Focus();
+            StartTurning();
             if(!DS.Motion)return;
             // the cards rise in one after another
             for (int i = 0; i < cards.Count; i++)
@@ -91,6 +93,27 @@ public sealed class ModelSelectorView : Grid
                 shift.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(18, 0, TimeSpan.FromMilliseconds(320)) { BeginTime = at, EasingFunction = ease });
             }
         };
+    }
+
+    // each model that comes in more than one colour slowly turns through them, one card after another (owner direction
+    // 24 Oct 2026); only one card changes at a time and nothing runs between changes, so the screen stays cheap when idle
+    private readonly List<FinishMorph> morphs = new();
+    public IReadOnlyList<FinishMorph> Morphs => morphs;
+    private readonly System.Windows.Threading.DispatcherTimer turn = new() { Interval = TimeSpan.FromMilliseconds(2900) };
+    private int turnAt;
+    private void StartTurning()
+    {
+        if (!DS.Motion || morphs.All(m => PadColours.Catalog.For(m.ModelId).Count < 2)) return;
+        turn.Tick -= Turn; turn.Tick += Turn; turn.Start();
+    }
+    private void Turn(object? sender, EventArgs e)
+    {
+        for (int tries = 0; tries < morphs.Count; tries++)
+        {
+            var morph = morphs[turnAt++ % morphs.Count];
+            if (PadColours.Catalog.For(morph.ModelId).Count < 2) continue;
+            _ = morph.ChangeTo(PadColours.Catalog.Next(morph.ModelId, morph.Finish).Id); return;
+        }
     }
 
     public void FocusFirst() { if (cards.Count > 0) cards[0].Focus(); }
@@ -105,8 +128,8 @@ public sealed class ModelSelectorView : Grid
         stack.RowDefinitions.Add(new() { Height = new(1, GridUnitType.Star) }); stack.RowDefinitions.Add(new() { Height = GridLength.Auto }); stack.RowDefinitions.Add(new() { Height = GridLength.Auto }); stack.RowDefinitions.Add(new() { Height = GridLength.Auto });
         var picture = new Image { Source = ControllerArt.Front(model.Id), Stretch = Stretch.Fill };
         RenderOptions.SetBitmapScalingMode(picture, BitmapScalingMode.HighQuality);
-        var rim = new ControllerOutline(); rim.Show(model.Id, false); ControllerOutline.Trim(picture, model.Id, false);
-        var art = new Viewbox { Stretch = Stretch.Uniform, Margin = new(0, 0, 0, 12), Child = new Grid { Width = 1536, Height = 1024, Children = { picture } } };
+        var morph = new FinishMorph(picture); morph.Show(model.Id, X20Ctl.Zone.FinishCatalog.Original); morphs.Add(morph);
+        var art = new Viewbox { Stretch = Stretch.Uniform, Margin = new(0, 0, 0, 12), Child = new Grid { Width = 1536, Height = 1024, Children = { picture, morph } } };
         stack.Children.Add(art);
         var name = new TextBlock { Text = model.Name, FontFamily = DS.Display, FontSize = 19, FontWeight = FontWeights.SemiBold, Foreground = DS.Brush("DS.Text"), TextTrimming = TextTrimming.CharacterEllipsis }; Grid.SetRow(name, 1); stack.Children.Add(name);
         var about = new TextBlock { Text = facts?.Description ?? "", FontFamily = DS.Body, FontSize = 12.5, Foreground = DS.Brush("Zone.TextSecondary"), TextWrapping = TextWrapping.Wrap, Margin = new(0, 5, 0, 10), MaxHeight = 36 }; Grid.SetRow(about, 2); stack.Children.Add(about);
