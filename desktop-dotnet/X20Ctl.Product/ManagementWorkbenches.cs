@@ -79,7 +79,7 @@ public sealed class DeviceWorkbench
                 tile.MouseLeftButtonUp += async (_, _) =>
                 {
                     battery.Text = "Reading…";
-                    var r = await PadBridge.Status();
+                    var r = await PadBridge.Status(model.Id);
                     if (r.Ok && r.Telemetry != null)
                     {
                         if (r.Telemetry.Firmware != null) SetFirmware(r.Telemetry.Firmware);

@@ -16,6 +16,13 @@ public sealed class ProductHost : Grid
     private string? currentFirmware;
     private TelemetryData? latestTelemetry;
 
+    public void RecordTelemetry(TelemetryData telemetry, int player = 0)
+    {
+        latestTelemetry = telemetry;
+        if (telemetry.Firmware != null) currentFirmware = telemetry.Firmware;
+        if (telemetry.Battery != null && player < batteryLevels.Length) batteryLevels[player] = telemetry.Battery;
+    }
+
     public async Task RefreshBleTelemetryAsync()
     {
         string? modelId = Studio?.Model.Id ?? (Zone.State.Players.Count > 0 ? Zone.State.Players[0].ModelId ?? Catalog.Models.FirstOrDefault(m => m.Name == Zone.State.Players[0].Model)?.Id : null);
@@ -198,7 +205,7 @@ public sealed class ProductHost : Grid
         draft.PcMode=curveDraft.PcMode=macroDraft.PcMode=pc;
         if(pcModeStore!=null)PcModePage.UsePlayer(player,pcModeStore); // each controller has its own PC mode settings
         if(pc)PcModeSync.Prepare(pcModeStore!,draft,curveDraft,macroDraft);
-        Studio = new(player, model, draft, Zone.ReducedMotion, curveDraft,macroDraft,vibrationDraft,setupStore,legacySources,activeSetup); if(PcMode!=null&&pcModeStore!=null)Studio.PcMode=new(pcModeStore,PcMode,preferencesHealthy?preferences:null);Studio.MouseService=MouseMode;Studio.PcModeSwitched+=()=>Dispatcher.BeginInvoke(()=>{EnterStudio(player);Studio?.ShowManagement("PcMode");});Studio.BackRequested += ReturnToZone;Studio.SupportRequested+=OpenSupport;Studio.ActiveSetupChanged+=id=>activeSetups[key]=id;
+        Studio = new(player, model, draft, Zone.ReducedMotion, curveDraft,macroDraft,vibrationDraft,setupStore,legacySources,activeSetup); if(PcMode!=null&&pcModeStore!=null)Studio.PcMode=new(pcModeStore,PcMode,preferencesHealthy?preferences:null);Studio.MouseService=MouseMode;Studio.PcModeSwitched+=()=>Dispatcher.BeginInvoke(()=>{EnterStudio(player);Studio?.ShowManagement("PcMode");});Studio.BackRequested += ReturnToZone;Studio.SupportRequested+=OpenSupport;Studio.ActiveSetupChanged+=id=>activeSetups[key]=id;Studio.TelemetryUpdated+=data=>RecordTelemetry(data,player);
         Studio.SetBatteryLevel(batteryLevels[player]);
         Studio.AgentScanRequested += page => { if (page == "ReadScan") OpenCheck(); else OpenWriteScan(); };
         Studio.AgentFeedbackRequested += draft =>

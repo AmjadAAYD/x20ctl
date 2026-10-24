@@ -3,6 +3,7 @@ using System.Text;
 using Windows.Devices.Bluetooth;
 using Windows.Devices.Bluetooth.Advertisement;
 using Windows.Devices.Bluetooth.GenericAttributeProfile;
+using Windows.Foundation;
 using Windows.Storage.Streams;
 
 namespace X20Ctl.Product;
@@ -64,13 +65,30 @@ public static class NativeBleClient
             ScanningMode = BluetoothLEScanningMode.Active
         };
 
-        // Narrow filter: match specifically expected models rather than broad substrings
+        var seenServices = new HashSet<ulong>();
+        var seenNames = new Dictionary<ulong, string>();
+
+        // Narrow filter: match specifically expected models and require the KeyLinker configuration service
         watcher.Received += (w, args) =>
         {
             ulong addr = args.BluetoothAddress;
-            string name = (args.Advertisement.LocalName ?? "").Trim();
-            bool serviceMatch = args.Advertisement.ServiceUuids.Contains(ServiceUuid);
+            string rawName = (args.Advertisement.LocalName ?? "").Trim();
+            if (!string.IsNullOrEmpty(rawName))
+            {
+                seenNames[addr] = rawName;
+            }
+            if (args.Advertisement.ServiceUuids.Contains(ServiceUuid))
+            {
+                seenServices.Add(addr);
+            }
 
+            // Connecting requires the KeyLinker service every time, not the name alone
+            if (!seenServices.Contains(addr))
+            {
+                return;
+            }
+
+            string name = seenNames.TryGetValue(addr, out var n) ? n : rawName;
             bool nameMatch = targetModel switch
             {
                 "x20_pro" => name.Equals("EasySMX X20Pro", StringComparison.OrdinalIgnoreCase) ||
@@ -80,13 +98,7 @@ public static class NativeBleClient
                 _         => name.StartsWith("EasySMX X20", StringComparison.OrdinalIgnoreCase)
             };
 
-            // Only connect if it offers the KeyLinker configuration service and matches the specific target model name
-            if ((serviceMatch && nameMatch) || (serviceMatch && string.IsNullOrEmpty(name) && cachedAddress == addr))
-            {
-                try { w.Stop(); } catch { }
-                tcs.TrySetResult(addr);
-            }
-            else if (nameMatch)
+            if (nameMatch || (string.IsNullOrEmpty(name) && cachedAddress == addr))
             {
                 try { w.Stop(); } catch { }
                 tcs.TrySetResult(addr);
@@ -126,12 +138,6 @@ public static class NativeBleClient
         if (scanError != null)
         {
             return (null, scanError);
-        }
-
-        // If scanning timed out but we have a valid cached address, try connecting to it as fallback
-        if (cachedAddress.HasValue)
-        {
-            return (cachedAddress.Value, null);
         }
 
         return (null, "Controller not found over Bluetooth. Make sure Bluetooth is enabled and the controller is awake.");
@@ -220,6 +226,7 @@ public static class NativeBleClient
         string? controller = null;
         string? battery = null;
         bool charging = false;
+        bool enteredMode = false;
 
         try
         {
@@ -238,6 +245,7 @@ public static class NativeBleClient
                 if (isAuthorized)
                 {
                     // 2. Query Battery (Op 0x1D: SET_MODE with [0x02, 0xDF, 0xAB])
+                    enteredMode = true;
                     var payBat = await SendQueryAsync(0x1D, 8, 2, [0x02, 0xDF, 0xAB]);
                     if (payBat != null && payBat.Length >= 5)
                     {
@@ -248,12 +256,6 @@ public static class NativeBleClient
                                     (status >> 5 & 1) != 0 ? 2 : 1;
                         battery = $"{level}/4" + (charging ? " (Charging)" : "");
                     }
-
-                    // 3. Return to normal mode (Op 0x1E: NORMAL_MODE)
-                    byte[] normalPkt = X20Codec.Frame(0x1E, 8, 3, 0, [0x02, 0xDF, 0xAB]);
-                    var normalWriter = new DataWriter();
-                    normalWriter.WriteBytes(normalPkt);
-                    _ = writeChar.WriteValueAsync(normalWriter.DetachBuffer(), GattWriteOption.WriteWithoutResponse);
                 }
                 else
                 {
@@ -263,13 +265,30 @@ public static class NativeBleClient
         }
         finally
         {
-            notifyChar.ValueChanged -= handler;
-            try
+            if (enteredMode && writeChar != null)
             {
-                await notifyChar.WriteClientCharacteristicConfigurationDescriptorAsync(
-                    GattClientCharacteristicConfigurationDescriptorValue.None);
+                try
+                {
+                    // 3. Return to normal mode (Op 0x1E: NORMAL_MODE)
+                    // Wait for the write to finish with response, exactly like Python client
+                    byte[] normalPkt = X20Codec.Frame(0x1E, 8, 3, 0, [0x02, 0xDF, 0xAB]);
+                    var normalWriter = new DataWriter();
+                    normalWriter.WriteBytes(normalPkt);
+                    await writeChar.WriteValueWithResultAsync(normalWriter.DetachBuffer(), GattWriteOption.WriteWithResponse);
+                }
+                catch { }
             }
-            catch { }
+
+            if (notifyChar != null)
+            {
+                notifyChar.ValueChanged -= handler;
+                try
+                {
+                    await notifyChar.WriteClientCharacteristicConfigurationDescriptorAsync(
+                        GattClientCharacteristicConfigurationDescriptorValue.None);
+                }
+                catch { }
+            }
         }
 
         // Cache the verified working address
