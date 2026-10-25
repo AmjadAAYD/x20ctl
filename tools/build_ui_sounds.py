@@ -6,13 +6,9 @@ voices tuned 5 cents apart (a slow, soft shimmer), faded in with a smooth-step s
 250 Hz, so there is no thump. One small shared room gives every sound the same space. The notes come from E major, the key of the
 opening film's sound.
 
-  tab.wav               the tab switch: two soft notes stepping down (B4 then E4) and settling
-  click.wav             a click on a game or a tool: a soft E5 over B4
-  button.wav            any other button: B4 with E5 just behind
-  hover-game.wav        pointer over a game tile: one very quiet low E4
-  hover-controller.wav  pointer over a controller in the Controller Zone: a slow E4 B4 E5 swell
-  hover-tool.wav        pointer over a tool: B4 and E5, very quiet
-  pick.wav              choosing a controller: a rising E3 B3 E4 G#4 roll over a very soft B2 bed (about 2 s)
+  tab.wav   the tab switch ("Settle"): two soft notes stepping down (B4 then E4). The app plays it for tabs, clicks, buttons and hovers
+            (hovers at half volume)
+  pick.wav  choosing a controller: a rising E3 B3 E4 G#4 roll over a very soft B2 bed (about 2 s)
 
     python tools/build_ui_sounds.py [output folder]     default: desktop-dotnet/X20Ctl.Product/Brand/ui
 """
@@ -85,35 +81,13 @@ def tab():
     s = Snd(.9); s.add(soft("B4", .5, .15, .04, 1600), 0, .5, pan=.2, wet=.5); s.add(soft("E4", .7, .24, .045, 1500), .12, .65, pan=-.2, wet=.55); return s.done(-22)
 
 
-def click():
-    s = Snd(.5); s.add(mild("E5", .3, .09, .015, 2400), 0, .7, wet=.4); s.add(mild("B4", .3, .08, .015, 2400), .012, .4, wet=.4); return s.done(-14)
-
-
-def button():
-    s = Snd(.5); s.add(mild("B4", .3, .08, .01, 2200), 0, .7, wet=.3); s.add(mild("E5", .3, .07, .012, 2400, .08), .02, .4, wet=.4); return s.done(-14)
-
-
-def hover_game():
-    s = Snd(.4); s.add(soft("E4", .3, .07, .03, 1400), 0, 1, wet=.5); return s.done(-29)
-
-
-def hover_controller():
-    s = Snd(.9)
-    for i, nm in enumerate(["E4", "B4", "E5"]): s.add(swell(hz(nm), .7, att=.14, bright=1800, h=(1, .08)), .02 * i, .6 - .08 * i, pan=-.25 + .25 * i, wet=.55)
-    return s.done(-20)
-
-
-def hover_tool():
-    s = Snd(.4); s.add(mild("B4", .25, .06, .018, 2400, .08), 0, .7, wet=.45); s.add(mild("E5", .25, .06, .018, 2400, .08), .05, .5, pan=.2, wet=.45); return s.done(-22)
-
-
 def pick():
     s = Snd(2.0)
     for i, nm in enumerate(["E3", "B3", "E4", "G#4"]): s.add(soft(nm, 1.6, .55, .05, 1500), .1 * i, .5 - .05 * i, pan=-.3 + .2 * i, wet=.6)
     s.add(swell(hz("B2"), 1.6, att=.2, bright=900, h=(1, .05)), 0, .4, wet=.5); return s.done(-16)
 
 
-SOUNDS = {"tab": tab, "click": click, "button": button, "hover-game": hover_game, "hover-controller": hover_controller, "hover-tool": hover_tool, "pick": pick}
+SOUNDS = {"tab": tab, "pick": pick}
 
 
 if __name__ == "__main__":

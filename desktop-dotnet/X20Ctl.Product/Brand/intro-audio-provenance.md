@@ -1,5 +1,11 @@
 # Intro audio
 
+## The opening film's new sound - 25 October 2026
+
+The film's sound track was replaced; its picture is the same Draft 7 video stream, copied bit for bit. The new sound is `tools/build_intro_sound_strings.py` (run it again and it rebuilds the same samples): strings in E that swell with the animation and a low piano chord on the strike at 4.03 s. It is made from sine and saw partials with one shared room, so it uses no samples, recordings, kits or third-party material. The film carries it as AAC 192 kbps; decoded it measures -19.2 LUFS integrated and -4.3 dBFS sample peak (the 16 October film measured -16.3 LUFS, with a silent gap before the strike and a 2.3 kHz screech). The Linux `intro-film.wav` is that film's decoded sound.
+
+The owner chose it from prototypes by description and measurement. Nobody has yet reported hearing it in the app, and the loudness and spectrum above are measurements of the file, not a listening verdict. The sections below describe the earlier tracks and are kept as history.
+
 ## The opening film - 19 October 2026
 
 `intro.mp4` is the Windows app's opening: 1920x1080, 60 fps, 7.1 s, with AAC stereo sound at 48 kHz. Its picture is rendered from code in the intro project (`logo-preview/intro-remotion`, not part of this repository). The logo it ends on is the same art as `x20ctl-logo.png`.
