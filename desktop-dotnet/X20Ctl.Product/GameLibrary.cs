@@ -117,7 +117,10 @@ public static class GameLibrary
             var m = Regex.Match(File.ReadAllText(yaml), "product_install_full_path:\\s*\"?([^\"\\r\\n]+)\"?"); if (!m.Success || !Directory.Exists(m.Groups[1].Value.Trim())) continue;
             string where = m.Groups[1].Value.Trim(), product = Path.GetFileName(dir), id = product.Split('.')[0], patch = product.Contains('.') ? product[(product.IndexOf('.') + 1)..] : "live";
             string name = id switch { "valorant" => "VALORANT", "league_of_legends" => "League of Legends", "bacon" or "lor" => "Legends of Runeterra", "tft" => "Teamfight Tactics", _ => string.Join(' ', id.Split('_').Select(w => char.ToUpper(w[0]) + w[1..])) };
-            string? exe = BestExe(where, 2);
+            // VALORANT keeps its real program four folders down and a small VALORANT.exe at the top, so look in the
+            // product folder first, then deep, and last use the Riot Client's own icon rather than a letter tile
+            string? exe = Directory.EnumerateFiles(where, "*.exe").FirstOrDefault(f => Path.GetFileNameWithoutExtension(f).Replace(" ", "").Replace("_", "").StartsWith(id.Replace("_", ""), StringComparison.OrdinalIgnoreCase))
+                ?? BestExe(where, 5) ?? client;
             yield return new GameEntry("riot:" + product, name, "Riot", exe != null ? ExeIcon(exe, "riot-" + id) : null, null, null, File.GetLastWriteTime(yaml), client, where, $"--launch-product={id} --launch-patchline={patch}");
         }
     }
