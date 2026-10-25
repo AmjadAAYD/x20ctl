@@ -4,8 +4,8 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 namespace X20Ctl.Product;
 
-/// <summary>The interface sounds (Brand/ui/*.wav, made by tools/build_ui_sounds.py): a soft cue for tab switches, clicks, buttons,
-/// hovering a game, a controller or a tool, and choosing a controller. Every ButtonBase plays "Button" unless it names its own
+/// <summary>The interface sounds (Brand/ui/tab.wav and pick.wav, made by tools/build_ui_sounds.py): the tab-switch sound for tab
+/// switches, clicks, buttons and hovering a game, a controller or a tool, and its own sound for choosing a controller. Every ButtonBase plays "Button" unless it names its own
 /// cue, so new buttons are covered without wiring. Quiet by design, off with the intro's Sound switch, never in review runs, never
 /// while the app is in the background, and a hover cannot repeat faster than the ear can take it.</summary>
 internal static class UiSound
@@ -15,11 +15,10 @@ internal static class UiSound
     public static Func<bool> Allowed { get; set; } = () => true;
     public static readonly DependencyProperty CueProperty = DependencyProperty.RegisterAttached("Cue", typeof(Cue), typeof(UiSound), new PropertyMetadata(Cue.Button));
     public static void SetCue(DependencyObject element, Cue cue) => element.SetValue(CueProperty, cue);
-    private static readonly Dictionary<Cue, string> Files = new()
-    {
-        [Cue.Button] = "button", [Cue.Tab] = "tab", [Cue.Click] = "click", [Cue.HoverGame] = "hover-game",
-        [Cue.HoverController] = "hover-controller", [Cue.HoverTool] = "hover-tool", [Cue.Pick] = "pick",
-    };
+    // Owner, 25 Oct 2026: the tab switch is the sound for everything, except choosing a controller. The cues stay separate so each
+    // can be tuned: hovers play the same sound at half volume, so moving over many tiles stays calm.
+    private static string FileFor(Cue cue) => cue == Cue.Pick ? "pick" : "tab";
+    private static double VolumeFor(Cue cue) => cue is Cue.HoverGame or Cue.HoverController or Cue.HoverTool ? .5 : 1;
     private static readonly Dictionary<Cue, MediaPlayer> players = [];
     private static readonly Dictionary<Cue, long> lastPlayed = [];
     private static long lastHover;
@@ -36,7 +35,7 @@ internal static class UiSound
 
     public static void Play(Cue cue)
     {
-        if (cue == Cue.None || !Files.TryGetValue(cue, out string? name)) return;
+        if (cue == Cue.None) return; string name = FileFor(cue);
         if (!IntroView.SoundEnabled || ReviewSandbox.Active || !Allowed() || !AppIsActive()) return;
         long now = Environment.TickCount64; bool hover = cue is Cue.HoverGame or Cue.HoverController or Cue.HoverTool;
         if (hover && (now - lastHover < 70 || lastPlayed.TryGetValue(cue, out long before) && now - before < 250)) return;
@@ -45,7 +44,7 @@ internal static class UiSound
             if (!players.TryGetValue(cue, out var player))
             {
                 string path = Path.Combine(AppContext.BaseDirectory, "Brand", "ui", name + ".wav"); if (!File.Exists(path)) return;
-                player = new MediaPlayer { Volume = 1 }; player.Open(new Uri(path)); players[cue] = player;
+                player = new MediaPlayer { Volume = VolumeFor(cue) }; player.Open(new Uri(path)); players[cue] = player;
             }
             player.Position = TimeSpan.Zero; player.Play();
             lastPlayed[cue] = now; if (hover) lastHover = now;

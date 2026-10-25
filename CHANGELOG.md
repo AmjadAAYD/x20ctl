@@ -4,12 +4,14 @@
 
 ### Added
 
+- **Soft interface sounds.** Switching tabs, clicking, hovering a game, a tool or a controller, and choosing a controller each make a quiet, smooth sound. The tab-switch sound serves every click, button and hover (hovers at half volume); choosing a controller has its own. They follow the Sound switch under Tools, Opening intro.
 - **EasySMX X20 Pro in the command line and library.** The X20 Pro (firmware 1.44) is recognised, its 2.4 GHz receiver is identified, and its six macro slots (M1 to M6) are read and saved. Settings are changed over Bluetooth only, each one read back and restored in the logs: remaps, stick and trigger curves, vibration, idle timeout, macros and turbo. Calibrate and factory reset stay locked. (added by [Monratis](https://github.com/Monratis), tested on an X20 Pro)
 - **Each Tools card tells its own little story** on its own while the page is open: the wrench fixing, feedback travelling to its inbox, pause turning into play, a link between phone and controller, a beating heart, and the star shining and filling. They are bolder and in colour, they spring as they move. They stop when you leave the page, and stay still with reduced motion.
 - **A Controller check-up page in the agent.** The controller icon on the rail opens a page of common problems (a stick drifts, a button doesn't register, it won't connect and more), plus the Read scan, the Write scan and "Describe it yourself". Picking a problem gets a recommendation in the chat, and it can open Feedback with your issue filled in once you say yes.
 
 ### Changed
 
+- **A new sound for the opening film.** The old one was loud, went silent before the strike and had a harsh high note. The new one is strings in E that build with the animation and a low piano chord on the strike, much quieter (-19 instead of -16 LUFS). The picture is unchanged.
 - **The agent is steadier.** Browsing the topic pills no longer makes it talk, dragging it is lighter and the eyes wobble as it moves, and its lights and eyes share one colour: green when ready, purple when thinking, blue when it answers, red when unsure.
 - **The agent's controller has the X20CTL mark** on both sides, printed into the metal in pale silver, and the bumpers follow the controller's own outline, lit in silver instead of blue.
 - **The agent's buttons each do their own thing.** LB undoes the agent's last change, RB puts the agent away, and the bulb on the rail opens the ideas. The gear that opened the same settings page as the sliders is gone.
