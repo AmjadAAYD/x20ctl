@@ -18,7 +18,7 @@ public partial class StudioScene
     private void BuildNavigation()
     {
         navigation=[DashboardNav,ButtonsNav,CurvesNav,MacrosNav,VibrationNav,PcModeNav,DeviceNav,MouseNav,SetupsNav];
-        string group="studio-tabs-"+Guid.NewGuid().ToString("N");DiagnosticsNav.GroupName=group;DiagnosticsNav.Checked+=(_,_)=>QueueNavigation();foreach(var tab in navigation){tab.GroupName=group;tab.Checked+=(_,_)=>QueueNavigation();}
+        string group="studio-tabs-"+Guid.NewGuid().ToString("N");DiagnosticsNav.GroupName=group;DiagnosticsNav.Checked+=(_,_)=>QueueNavigation();UiSound.SetCue(DiagnosticsNav,UiSound.Cue.Tab);foreach(var tab in navigation){UiSound.SetCue(tab,UiSound.Cue.Tab);tab.GroupName=group;tab.Checked+=(_,_)=>QueueNavigation();}
         NavigationIndicator.RenderTransform=new TransformGroup{Children={navigationLensScale,navigationSlide}};
         NavigationIndicator.RenderTransformOrigin=new(.5,.5);
         NavigationIndicator.Effect=null;

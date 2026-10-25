@@ -330,6 +330,7 @@ public sealed class ProductSettings : Grid
             if (DS.Motion) { lift.BeginAnimation(TranslateTransform.YProperty, DS.To(on ? -2 : 0, 150)); arrowMove.BeginAnimation(TranslateTransform.XProperty, DS.To(on ? 4 : 0, 150)); }
             else { lift.Y = on ? -2 : 0; arrowMove.X = on ? 4 : 0; }
         }
+        UiSound.SetCue(button, UiSound.Cue.Click); UiSound.Hover(button, UiSound.Cue.HoverTool);
         button.MouseEnter += (_, _) => Light(true); button.MouseLeave += (_, _) => Light(button.IsKeyboardFocused);
         button.GotKeyboardFocus += (_, _) => Light(true); button.LostKeyboardFocus += (_, _) => Light(button.IsMouseOver);
         return button;

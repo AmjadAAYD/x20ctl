@@ -156,6 +156,7 @@ public sealed class ModelSelectorView : Grid
             lift.BeginAnimation(ScaleTransform.ScaleXProperty,null);lift.BeginAnimation(ScaleTransform.ScaleYProperty,null);lift.ScaleX=lift.ScaleY=1;
 
         }
+        UiSound.SetCue(button, UiSound.Cue.Pick); UiSound.Hover(button, UiSound.Cue.HoverController);
         button.GotKeyboardFocus += (_, _) => Light(); button.LostKeyboardFocus += (_, _) => Light(); button.MouseEnter += (_, _) => Light(); button.MouseLeave += (_, _) => Light();
         return button;
     }

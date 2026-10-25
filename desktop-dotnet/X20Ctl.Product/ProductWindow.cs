@@ -25,7 +25,7 @@ public sealed class ProductWindow : Window
         StartsMaximized=startMaximized;Fullscreen=fullscreen;Title="X20CTL · Controller Studio";
         // a fixed design (1600 x 900, scaled to the window) and a fixed window: it cannot be resized, only made fullscreen
         Width=1440;Height=810;WindowStyle=WindowStyle.None;ResizeMode=ResizeMode.CanMinimize;WindowStartupLocation=WindowStartupLocation.Manual;
-        Fx.RegisterPressFeedback();Background=(System.Windows.Media.Brush)Application.Current.FindResource("Ink");Scene=new ZoneScene(reducedMotion);Host=new ProductHost(Scene,assignmentPath,openSupport);
+        Fx.RegisterPressFeedback();UiSound.Register();Background=(System.Windows.Media.Brush)Application.Current.FindResource("Ink");Scene=new ZoneScene(reducedMotion);Host=new ProductHost(Scene,assignmentPath,openSupport);
         Stage.Child=Host;Content=Stage;Stage.ScaleChanged+=scale=>chrome.CaptionHeight=58*scale; // the title bar drag area scales with the design
         if(firstRun)Host.Startup(); // before the window ever shows: starting on Loaded (after the first render) flashed the zone
         WindowChrome.SetWindowChrome(this,chrome);

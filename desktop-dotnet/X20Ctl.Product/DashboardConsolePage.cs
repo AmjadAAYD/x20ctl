@@ -329,6 +329,7 @@ public sealed class DashboardConsolePage : Grid
         b.MouseEnter+=(_,_)=>{ hovered = b; Settle(b, g); RefreshRings(); };
         b.MouseLeave+=(_,_)=>{ if (ReferenceEquals(hovered, b)) hovered = null; RefreshRings(); Settle(b, g); };
 
+        UiSound.SetCue(b, UiSound.Cue.Click); UiSound.Hover(b, UiSound.Cue.HoverGame);
         b.Click += (_, _) => { Feature(g); RefreshRings(); };
         return b;
     }
