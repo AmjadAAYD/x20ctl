@@ -16,7 +16,7 @@ internal static class UiSound
     public enum Cue { Button, Tab, Click, Pick, Back, None }
     /// <summary>Asked before every sound; ProductHost points it at the player's Sound preference.</summary>
     public static Func<bool> Allowed { get; set; } = () => true;
-    /// <summary>The active theme's sound family; a theme without a folder falls back to "default". The theme switch sets this.</summary>
+    /// <summary>The active theme's sound family; a theme without a folder falls back to "default". ThemeSelection drives it.</summary>
     public static string Theme { get => theme; set { theme = string.IsNullOrWhiteSpace(value) ? "default" : value; } }
     public static readonly DependencyProperty CueProperty = DependencyProperty.RegisterAttached("Cue", typeof(Cue), typeof(UiSound), new PropertyMetadata(Cue.Button));
     public static void SetCue(DependencyObject element, Cue cue) => element.SetValue(CueProperty, cue);
@@ -40,6 +40,7 @@ internal static class UiSound
     public static void Register()
     {
         if (registered) return; registered = true;
+        Theme = ThemeSelection.Current; ThemeSelection.Changed += name => Theme = name;
         EventManager.RegisterClassHandler(typeof(ButtonBase), ButtonBase.ClickEvent, new RoutedEventHandler((s, _) => Play(((DependencyObject)s).GetValue(CueProperty) is Cue cue ? cue : Cue.Button)), true);
         EventManager.RegisterClassHandler(typeof(TextBoxBase), UIElement.PreviewTextInputEvent, new TextCompositionEventHandler((_, _) => PlayKey(KeyPool)), true);
         EventManager.RegisterClassHandler(typeof(TextBoxBase), UIElement.PreviewKeyDownEvent, new KeyEventHandler((_, e) => { if (e.Key is Key.Back or Key.Delete) PlayKey(["key-delete"]); }), true);
