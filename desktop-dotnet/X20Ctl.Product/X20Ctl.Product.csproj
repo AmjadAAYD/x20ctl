@@ -46,8 +46,8 @@
     <Content Include="../../src/assets/controllers/native-layers.json" Link="Data/native-layers.json" CopyToOutputDirectory="PreserveNewest" />
     <!-- the opening film with its sound (logo-preview/intro-remotion); see Brand/intro-audio-provenance.md -->
     <Content Include="Brand/intro.mp4;Brand/intro-audio-provenance.md" CopyToOutputDirectory="PreserveNewest" />
-    <!-- the interface sounds (tools/build_ui_sounds.py); see Brand/ui-audio-provenance.md -->
-    <Content Include="Brand/ui/*.wav;Brand/ui-audio-provenance.md" CopyToOutputDirectory="PreserveNewest" />
+    <!-- the interface sounds (tools/ui_sound_themes/build.py); see Brand/ui-audio-provenance.md -->
+    <Content Include="Brand/ui/**/*.wav;Brand/ui-audio-provenance.md" CopyToOutputDirectory="PreserveNewest" />
     <!-- the guides Agent XCTL answers app questions from (M5) -->
     <Content Include="../../README.md;../../README.plain.md;../../IF-YOUR-CONTROLLER-ISNT-WORKING.md;../../PRIVACY.md" Link="Help/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <!-- PC mode's two installers (ViGEmBus, HidHide; see vendor/drivers/README.md), carried inside the exe when present -->
