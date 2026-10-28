@@ -202,7 +202,7 @@ public sealed class PhoneGuide : Grid
         for (int i = 0; i < steps.Length; i++)
         {
             int n = i; bool done = i < index, current = i == index;
-            var c = current ? Kit.Blue : done ? Color.FromRgb(150, 175, 215) : Color.FromRgb(90, 104, 130);
+            var c = current ? Kit.Blue : done ? ThemeCatalog.R(Color.FromRgb(150, 175, 215)) : ThemeCatalog.R(Color.FromRgb(90, 104, 130));
             var chip = new Button
             {
                 Cursor = System.Windows.Input.Cursors.Hand, Margin = new(0, 0, 8, 8), Padding = new(0), BorderThickness = new(0), Background = Brushes.Transparent, Focusable = true,
@@ -238,7 +238,7 @@ public sealed class PhoneGuide : Grid
         return new Border
         {
             CornerRadius = new(14), Margin = new(0, 18, 0, 0), Padding = new(18, 16, 18, 14), BorderThickness = new(1),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(110, 61, 139, 255)), Background = new SolidColorBrush(Color.FromArgb(40, 61, 139, 255)),
+            BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(110, 61, 139, 255))), Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(40, 61, 139, 255))),
             Child = new StackPanel { Children = { Kit.Text("IF IT DIDN'T GO LIKE THAT", 12, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(0, 0, 0, 10)), list } },
         };
     }
@@ -267,8 +267,8 @@ public static class Phone
         if (s.Kind == ScreenKind.Computer) return Computer(s);
         var canvas = new Canvas { Width = W + 40, Height = H };
         // the body, and for the button step its physical buttons
-        var body = new Border { Width = W, Height = H, CornerRadius = new(40), BorderThickness = new(3), BorderBrush = new SolidColorBrush(Color.FromRgb(70, 82, 108)),
-            Background = new SolidColorBrush(Color.FromRgb(10, 14, 26)) };
+        var body = new Border { Width = W, Height = H, CornerRadius = new(40), BorderThickness = new(3), BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(70, 82, 108))),
+            Background = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(10, 14, 26))) };
         Canvas.SetLeft(body, 20); canvas.Children.Add(body);
         if (s.Kind == ScreenKind.Buttons)
         {
@@ -276,7 +276,7 @@ public static class Phone
             canvas.Children.Add(SideButton(W + 20, 190, 100, true));
         }
         var screen = new Grid { Margin = new(14) };
-        body.Child = new Border { CornerRadius = new(30), ClipToBounds = true, Background = new LinearGradientBrush(Color.FromRgb(16, 22, 40), Color.FromRgb(9, 12, 24), 90), Child = screen };
+        body.Child = new Border { CornerRadius = new(30), ClipToBounds = true, Background = new LinearGradientBrush(ThemeCatalog.R(Color.FromRgb(16, 22, 40)), ThemeCatalog.R(Color.FromRgb(9, 12, 24)), 90), Child = screen };
         screen.RowDefinitions.Add(new() { Height = new(34) }); screen.RowDefinitions.Add(new() { Height = GridLength.Auto }); screen.RowDefinitions.Add(new());
         // status bar
         var status = new DockPanel { Margin = new(18, 8, 18, 0) };
@@ -307,7 +307,7 @@ public static class Phone
             if (on && s.Switch) row.Children.Add(Switch().Also(x => DockPanel.SetDock(x, Dock.Right)));
             row.Children.Add(Text(s.Rows[i], 14.5, (byte)(on ? 255 : 170), on ? FontWeights.SemiBold : FontWeights.Normal).Also(t => { t.TextWrapping = TextWrapping.Wrap; t.VerticalAlignment = VerticalAlignment.Center; }));
             var cell = new Border { Padding = new(14, 13, 14, 13), Margin = new(0, 0, 0, 4), CornerRadius = new(14), Child = row,
-                Background = new SolidColorBrush(on ? Color.FromArgb(70, Accent.R, Accent.G, Accent.B) : Color.FromArgb(14, 255, 255, 255)) };
+                Background = new SolidColorBrush(on ? Color.FromArgb(70, Accent.R, Accent.G, Accent.B) : ThemeCatalog.R(Color.FromArgb(14, 255, 255, 255))) };
             panel.Children.Add(on ? Marked(cell, s.Badge) : cell);
         }
         return panel;
@@ -320,7 +320,7 @@ public static class Phone
         {
             bool on = i == s.Highlight;
             var tile = new Border { Height = 86, Margin = new(5), CornerRadius = new(22),
-                Background = new SolidColorBrush(on ? Color.FromArgb(200, Accent.R, Accent.G, Accent.B) : Color.FromArgb(26, 255, 255, 255)),
+                Background = new SolidColorBrush(on ? Color.FromArgb(200, Accent.R, Accent.G, Accent.B) : ThemeCatalog.R(Color.FromArgb(26, 255, 255, 255))),
                 Child = Text(s.Rows[i], 12.5, (byte)(on ? 255 : 180), on ? FontWeights.SemiBold : FontWeights.Normal).Also(t => { t.HorizontalAlignment = HorizontalAlignment.Center; t.VerticalAlignment = VerticalAlignment.Center; t.TextAlignment = TextAlignment.Center; t.TextWrapping = TextWrapping.Wrap; }) };
             grid.Children.Add(on ? Marked(tile, s.Badge, centre: true) : tile);
         }
@@ -344,7 +344,7 @@ public static class Phone
             Child = new StackPanel { Children = { Text(s.Banner ?? "", 15, 255, FontWeights.SemiBold), Text("Tap to share your bug report", 12.5, 200).Also(t => t.Margin = new(0, 3, 0, 0)) } } };
         panel.Children.Add(Marked(banner, s.Badge));
         foreach (var r in s.Rows)
-            panel.Children.Add(new Border { Padding = new(14, 12, 14, 12), Margin = new(0, 6, 0, 0), CornerRadius = new(18), Background = new SolidColorBrush(Color.FromArgb(14, 255, 255, 255)), Child = Text(r, 14, 130) });
+            panel.Children.Add(new Border { Padding = new(14, 12, 14, 12), Margin = new(0, 6, 0, 0), CornerRadius = new(18), Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(14, 255, 255, 255))), Child = Text(r, 14, 130) });
         return panel;
     }
 
@@ -359,18 +359,18 @@ public static class Phone
             Child = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Children = {
                 Text("⬇", 40, 255).Also(t => t.HorizontalAlignment = HorizontalAlignment.Center),
                 Text(s.Rows.FirstOrDefault() ?? "", 15, 255, FontWeights.SemiBold).Also(t => { t.HorizontalAlignment = HorizontalAlignment.Center; t.Margin = new(0, 8, 0, 0); }) } } };
-        var monitor = new Border { Width = 440, Height = 290, CornerRadius = new(16), BorderThickness = new(3), BorderBrush = new SolidColorBrush(Color.FromRgb(70, 82, 108)),
-            Background = new LinearGradientBrush(Color.FromRgb(16, 22, 40), Color.FromRgb(9, 12, 24), 90), Child = Marked(drop, s.Badge) };
+        var monitor = new Border { Width = 440, Height = 290, CornerRadius = new(16), BorderThickness = new(3), BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(70, 82, 108))),
+            Background = new LinearGradientBrush(ThemeCatalog.R(Color.FromRgb(16, 22, 40)), ThemeCatalog.R(Color.FromRgb(9, 12, 24)), 90), Child = Marked(drop, s.Badge) };
         return new StackPanel { Children = { monitor,
-            new Border { Width = 26, Height = 40, Background = new SolidColorBrush(Color.FromRgb(50, 60, 82)) },
-            new Border { Width = 170, Height = 10, CornerRadius = new(5), Background = new SolidColorBrush(Color.FromRgb(50, 60, 82)) } } };
+            new Border { Width = 26, Height = 40, Background = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(50, 60, 82))) },
+            new Border { Width = 170, Height = 10, CornerRadius = new(5), Background = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(50, 60, 82))) } } };
     }
 
     /// <summary>The element to touch: a ring around it that pulses a few times (then rests, so an open page costs nothing), and a badge saying what to do.</summary>
     static FrameworkElement Marked(FrameworkElement target, string? badge, bool centre = false)
     {
         var ring = new Border { CornerRadius = new(18), BorderThickness = new(2.5), Margin = new(-4), IsHitTestVisible = false,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(125, 182, 255)) };
+            BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(125, 182, 255))) };
         if (DS.Motion)
             ring.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(1, .25, TimeSpan.FromMilliseconds(650)) { AutoReverse = true, RepeatBehavior = new RepeatBehavior(4), FillBehavior = FillBehavior.Stop });
         var g = new Grid { Margin = new(0, 0, 0, 4) };
@@ -381,8 +381,8 @@ public static class Phone
 
     static Border Badge(string text) => new()
     {
-        CornerRadius = new(12), Padding = new(10, 4, 10, 5), Background = new SolidColorBrush(Color.FromRgb(125, 182, 255)), IsHitTestVisible = false,
-        Child = new TextBlock { Text = text, FontFamily = DS.Body, FontSize = 12.5, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush(Color.FromRgb(6, 12, 28)) },
+        CornerRadius = new(12), Padding = new(10, 4, 10, 5), Background = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(125, 182, 255))), IsHitTestVisible = false,
+        Child = new TextBlock { Text = text, FontFamily = DS.Body, FontSize = 12.5, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(6, 12, 28))) },
     };
 
     static FrameworkElement Switch() => new Border { Width = 46, Height = 26, CornerRadius = new(13), Margin = new(10, 0, 0, 0), Background = new SolidColorBrush(Accent), VerticalAlignment = VerticalAlignment.Center,
@@ -390,7 +390,7 @@ public static class Phone
 
     static FrameworkElement SideButton(double x, double y, double height, bool lit)
     {
-        var b = new Border { Width = 9, Height = height, CornerRadius = new(4), Background = new SolidColorBrush(lit ? Color.FromRgb(125, 182, 255) : Color.FromRgb(70, 82, 108)) };
+        var b = new Border { Width = 9, Height = height, CornerRadius = new(4), Background = new SolidColorBrush(lit ? ThemeCatalog.R(Color.FromRgb(125, 182, 255)) : ThemeCatalog.R(Color.FromRgb(70, 82, 108))) };
         if (lit && DS.Motion) b.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(1, .3, TimeSpan.FromMilliseconds(650)) { AutoReverse = true, RepeatBehavior = new RepeatBehavior(4), FillBehavior = FillBehavior.Stop });
         Canvas.SetLeft(b, x); Canvas.SetTop(b, y);
         return b;

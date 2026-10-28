@@ -24,28 +24,28 @@ public sealed class PcScanArt : Canvas
         SetLeft(glow, 20); SetTop(glow, 0); Children.Add(glow);
 
         // stand and base
-        var neck = new Polygon { Points = [new(238, 270), new(282, 270), new(296, 326), new(224, 326)], Fill = new LinearGradientBrush(Color.FromRgb(46, 58, 92), Color.FromRgb(22, 30, 54), 90) };
-        var foot = new Border { Width = 170, Height = 14, CornerRadius = new(7), Background = new LinearGradientBrush(Color.FromRgb(70, 86, 128), Color.FromRgb(30, 40, 70), 90) };
+        var neck = new Polygon { Points = [new(238, 270), new(282, 270), new(296, 326), new(224, 326)], Fill = new LinearGradientBrush(ThemeCatalog.R(Color.FromRgb(46, 58, 92)), ThemeCatalog.R(Color.FromRgb(22, 30, 54)), 90) };
+        var foot = new Border { Width = 170, Height = 14, CornerRadius = new(7), Background = new LinearGradientBrush(ThemeCatalog.R(Color.FromRgb(70, 86, 128)), ThemeCatalog.R(Color.FromRgb(30, 40, 70)), 90) };
         SetLeft(foot, 175); SetTop(foot, 322); Children.Add(neck); Children.Add(foot);
 
         // monitor
         var body = new Border
         {
             Width = 400, Height = 262, CornerRadius = new(20), BorderThickness = new(1.4),
-            Background = new LinearGradientBrush(Color.FromRgb(52, 66, 108), Color.FromRgb(18, 26, 50), 90),
-            BorderBrush = new LinearGradientBrush(Color.FromArgb(190, 170, 205, 255), Color.FromArgb(50, 170, 205, 255), 90),
+            Background = new LinearGradientBrush(ThemeCatalog.R(Color.FromRgb(52, 66, 108)), ThemeCatalog.R(Color.FromRgb(18, 26, 50)), 90),
+            BorderBrush = new LinearGradientBrush(ThemeCatalog.R(Color.FromArgb(190, 170, 205, 255)), ThemeCatalog.R(Color.FromArgb(50, 170, 205, 255)), 90),
             Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = Blue, BlurRadius = 30, ShadowDepth = 0, Opacity = .35 },
         };
         SetLeft(body, 60); SetTop(body, 20); Children.Add(body);
-        var screen = new Border { Width = 368, Height = 226, CornerRadius = new(11), ClipToBounds = true, Background = new LinearGradientBrush(Color.FromRgb(10, 18, 40), Color.FromRgb(5, 9, 22), 90), Child = Screen() };
+        var screen = new Border { Width = 368, Height = 226, CornerRadius = new(11), ClipToBounds = true, Background = new LinearGradientBrush(ThemeCatalog.R(Color.FromRgb(10, 18, 40)), ThemeCatalog.R(Color.FromRgb(5, 9, 22)), 90), Child = Screen() };
         SetLeft(screen, 76); SetTop(screen, 36); Children.Add(screen);
         // glass reflection
-        var glass = new Polygon { Points = [new(80, 40), new(250, 40), new(170, 258), new(80, 258)], Fill = new LinearGradientBrush(Color.FromArgb(26, 255, 255, 255), Color.FromArgb(0, 255, 255, 255), 0), IsHitTestVisible = false };
+        var glass = new Polygon { Points = [new(80, 40), new(250, 40), new(170, 258), new(80, 258)], Fill = new LinearGradientBrush(ThemeCatalog.R(Color.FromArgb(26, 255, 255, 255)), ThemeCatalog.R(Color.FromArgb(0, 255, 255, 255)), 0), IsHitTestVisible = false };
         Children.Add(glass);
 
         // keyboard
         var keys = new Border { Width = 330, Height = 50, CornerRadius = new(12), BorderThickness = new(1), BorderBrush = Brush(70, 150, 190, 255),
-            Background = new LinearGradientBrush(Color.FromRgb(34, 46, 80), Color.FromRgb(16, 24, 46), 90) };
+            Background = new LinearGradientBrush(ThemeCatalog.R(Color.FromRgb(34, 46, 80)), ThemeCatalog.R(Color.FromRgb(16, 24, 46)), 90) };
         SetLeft(keys, 95); SetTop(keys, 352); Children.Add(keys);
         for (int row = 0; row < 3; row++)
             for (int col = 0; col < 14; col++)
@@ -63,9 +63,9 @@ public sealed class PcScanArt : Canvas
         // a few keys light now and then, each on its own beat
         if (DS.Motion && random.NextDouble() < .22)
         {
-            var light = new ColorAnimation(Color.FromArgb(70, 150, 190, 255), Color.FromArgb(230, Ice.R, Ice.G, Ice.B), TimeSpan.FromMilliseconds(220 + random.Next(300)))
+            var light = new ColorAnimation(ThemeCatalog.R(Color.FromArgb(70, 150, 190, 255)), Color.FromArgb(230, Ice.R, Ice.G, Ice.B), TimeSpan.FromMilliseconds(220 + random.Next(300)))
             { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, BeginTime = TimeSpan.FromMilliseconds(random.Next(2400)) };
-            var brush = new SolidColorBrush(Color.FromArgb(70, 150, 190, 255)); key.Fill = brush;
+            var brush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(70, 150, 190, 255))); key.Fill = brush;
             brush.BeginAnimation(SolidColorBrush.ColorProperty, Ambient.Rate(light, 24));
         }
     }
@@ -140,7 +140,7 @@ public sealed class PcScanArt : Canvas
 
         // the sweep
         var sweep = new Rectangle { Width = 368, Height = 60, IsHitTestVisible = false, Fill = new LinearGradientBrush(new GradientStopCollection {
-            new(Color.FromArgb(0, 125, 182, 255), 0), new(Color.FromArgb(110, 125, 182, 255), .85), new(Color.FromArgb(200, 190, 225, 255), .97), new(Color.FromArgb(0, 125, 182, 255), 1) }, 90) };
+            new(ThemeCatalog.R(Color.FromArgb(0, 125, 182, 255)), 0), new(ThemeCatalog.R(Color.FromArgb(110, 125, 182, 255)), .85), new(ThemeCatalog.R(Color.FromArgb(200, 190, 225, 255)), .97), new(ThemeCatalog.R(Color.FromArgb(0, 125, 182, 255)), 1) }, 90) };
         var sweepMove = new TranslateTransform(0, -70); sweep.RenderTransform = sweepMove; s.Children.Add(sweep);
         if (DS.Motion) sweepMove.BeginAnimation(TranslateTransform.YProperty, Ambient.Rate(new DoubleAnimation(-70, 240, TimeSpan.FromSeconds(2.8)) { RepeatBehavior = RepeatBehavior.Forever }, 24));
         return s;

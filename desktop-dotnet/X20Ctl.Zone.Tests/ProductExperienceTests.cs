@@ -26,4 +26,13 @@ public class ProductExperienceTests
         string directory=Path.Combine(AppContext.BaseDirectory,"experience-fixtures",Guid.NewGuid().ToString("N"));Directory.CreateDirectory(directory);string path=Path.Combine(directory,"preferences.json");var store=new ProductPreferences(path);store.Load();Assert.False(store.IntroSeen);store.MarkIntroSeen();var second=new ProductPreferences(path);second.Load();Assert.True(second.IntroSeen);
         File.WriteAllText(path,"{\"version\":99,\"keep\":true}");var future=new ProductPreferences(path);Assert.Throws<InvalidDataException>(future.Load);Assert.Throws<InvalidOperationException>(future.MarkIntroSeen);Assert.Contains("keep",File.ReadAllText(path));
     }
+    [Fact]public void TheThemeIsRememberedAlongsideTheOtherSettingsAndStartsAsDefault()
+    {
+        string directory=Path.Combine(AppContext.BaseDirectory,"experience-fixtures",Guid.NewGuid().ToString("N"));Directory.CreateDirectory(directory);string path=Path.Combine(directory,"preferences.json");
+        var store=new ProductPreferences(path);store.Load();Assert.Null(store.Theme);
+        store.SetIntroSound(false);store.SetTheme("rebel");
+        var second=new ProductPreferences(path);second.Load();Assert.Equal("rebel",second.Theme);Assert.False(second.IntroSound);
+        second.SetTheme("default");var third=new ProductPreferences(path);third.Load();Assert.Equal("default",third.Theme);
+        File.WriteAllText(path,"{\"version\":1,\"theme\":7}");var odd=new ProductPreferences(path);odd.Load();Assert.Null(odd.Theme);
+    }
 }

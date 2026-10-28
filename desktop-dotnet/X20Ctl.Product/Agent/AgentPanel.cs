@@ -18,7 +18,7 @@ namespace X20Ctl.Product.Agent;
 /// and its own buttons work it: LB start over, RB the settings, A send, B away, X start over, Y HELP, the D-pad scrolls and
 /// flips through ideas. A change it applies makes the real controller rumble.
 /// </summary>
-public sealed class AgentPanel
+public sealed partial class AgentPanel
 {
     // the agent that answers: a phrasebook that runs on this PC, with nothing to install
     static readonly OfflineAgent offlineAgent = new();
@@ -71,8 +71,8 @@ public sealed class AgentPanel
     readonly List<(string Query, Border Look, TextBlock Text, TextBlock Icon)> topics = [];
     readonly Dictionary<View, Border> rail = [];
     // the screen's colours: charcoal, a hairline, and one amber accent for what the agent proposes
-    static readonly Color Amber = Color.FromRgb(245, 184, 61), Card = Color.FromRgb(21, 25, 31), Line = Color.FromRgb(42, 47, 55),
-        ScreenTop = Color.FromRgb(16, 19, 24), ScreenBottom = Color.FromRgb(10, 12, 16);
+    static readonly Color Amber = ThemeCatalog.R(Color.FromRgb(245, 184, 61)), Card = ThemeCatalog.R(Color.FromRgb(21, 25, 31)), Line = ThemeCatalog.R(Color.FromRgb(42, 47, 55)),
+        ScreenTop = ThemeCatalog.R(Color.FromRgb(16, 19, 24)), ScreenBottom = ThemeCatalog.R(Color.FromRgb(10, 12, 16));
     // every change made here, to go back through (owner's idea, 19 Oct 2026), and each answer's own Undo
     readonly AgentHistory history = new();
     readonly Dictionary<int, (Button Undo, TextBlock Verdict)> undoButtons = [];
@@ -197,7 +197,7 @@ public sealed class AgentPanel
         Input.KeyDown += (_, e) => { if (e.Key == Key.Enter && Keyboard.Modifiers == ModifierKeys.None) { e.Handled = true; Send(); } };
         var hint = Kit.Text("Tell me what feels off…", 14.5, "DS.TextMuted").Also(h => { h.IsHitTestVisible = false; h.Margin = new(6, 0, 0, 0); h.VerticalAlignment = VerticalAlignment.Center; });
         Input.TextChanged += (_, _) => { hint.Visibility = Input.Text.Length > 0 ? Visibility.Collapsed : Visibility.Visible; if (!busy) { Look(Input.Text.Length > 0 ? Gaze.Typing : Gaze.Idle); Typing(Input.Text.Length > 0); } };
-        var sendGlyph = Kit.Icon("\uE724", 16, "DS.Text").Also(i => { i.Foreground = new SolidColorBrush(Color.FromRgb(24, 20, 8)); i.HorizontalAlignment = HorizontalAlignment.Center; });
+        var sendGlyph = Kit.Icon("\uE724", 16, "DS.Text").Also(i => { i.Foreground = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(24, 20, 8))); i.HorizontalAlignment = HorizontalAlignment.Center; });
         sendRound = PadKey(new Border { Width = 40, Height = 40, CornerRadius = new(20), Background = new SolidColorBrush(Amber), BorderThickness = new(1), BorderBrush = new SolidColorBrush(Amber), Child = sendGlyph }, "Send", Send);
         register(sendRound);
         var field = new Grid { ColumnDefinitions = { new() { Width = GridLength.Auto }, new() { Width = GridLength.Auto }, new(), new() { Width = GridLength.Auto } } };
@@ -255,8 +255,8 @@ public sealed class AgentPanel
             // A printed mark sits in the metal, not on it: a faint light lip below, a dark lip above, a softened edge,
             // and ink that lets the brushed grain show through instead of a flat pasted fill.
             Border Layer(Color color, double dy) => new() { Margin = new(3), OpacityMask = mask, Background = new SolidColorBrush(color), RenderTransform = new TranslateTransform(0, dy) };
-            var ink = Layer(Color.FromRgb(196, 195, 188), 0); ink.Opacity = .8;
-            var print = new Grid { Effect = new BlurEffect { Radius = .6 }, Children = { Layer(Color.FromArgb(70, 255, 255, 255), size * .028), Layer(Color.FromArgb(120, 0, 0, 0), -size * .022), ink } };
+            var ink = Layer(ThemeCatalog.R(Color.FromRgb(196, 195, 188)), 0); ink.Opacity = .8;
+            var print = new Grid { Effect = new BlurEffect { Radius = .6 }, Children = { Layer(ThemeCatalog.R(Color.FromArgb(70, 255, 255, 255)), size * .028), Layer(ThemeCatalog.R(Color.FromArgb(120, 0, 0, 0)), -size * .022), ink } };
             var mark = new Grid { Width = size, Height = size, ToolTip = "X20CTL", Children =
             {
                 new Border { OpacityMask = Feather(90), Child = new Border { Background = metal, OpacityMask = Feather(0) } },
@@ -280,7 +280,7 @@ public sealed class AgentPanel
         // agent (the rail's sliders already open the settings). The plates were printed ideas / settings, so their words are
         // repainted to match what they now do.
         Relabel(pad, new Rect(328, 25, 112, 25), -2, "LB", "UNDO", Amber);
-        Relabel(pad, new Rect(1308, 27, 144, 28), 6, "RB", "EXIT", Color.FromRgb(200, 202, 209));
+        Relabel(pad, new Rect(1308, 27, 144, 28), 6, "RB", "EXIT", ThemeCatalog.R(Color.FromRgb(200, 202, 209)));
         var undoBumper = ContourHit(237, 12, "M 0,61 Q 9,35 30,19 Q 56,1 102,3 L 210,0 Q 224,0 230,15 L 251,47 Q 126,43 0,61 Z", "LB · Undo the last change", UndoLast);
         var exitBumper = ContourHit(1257, 10, "M 0,49 L 25,12 Q 31,0 46,0 L 164,4 Q 210,7 236,28 Q 250,42 257,65 Q 130,45 0,49 Z", "RB · Put the agent away", LeaveAgent);
         pad.Children.Add(undoBumper); pad.Children.Add(exitBumper);
@@ -328,6 +328,10 @@ public sealed class AgentPanel
             RenderTransform = new TransformGroup { Children = { pop, offset } }, RenderTransformOrigin = new(1, 1),
         };
         blink.Tick += (_, _) => Blink();
+        if (ThemeCatalog.Current.Id == "pulse") BuildPulseAgent();
+        if (ThemeCatalog.Current.Id == "spotlight") BuildSpotlightAgent();
+        if (ThemeCatalog.Current.Id == "nexus") BuildNexusAgent();
+        if (ThemeCatalog.Current.Id == "tide") BuildTideAgent();
         Say(greeting, null);
         ShowSettings(new HashSet<string>());
         Body.Unloaded += (_, _) => StopCharacterMotion();
@@ -387,7 +391,7 @@ public sealed class AgentPanel
         foreach (var (v, look) in rail)
         {
             bool on = v == view;
-            look.Background = on ? new SolidColorBrush(Color.FromRgb(34, 39, 47)) : Brushes.Transparent;
+            look.Background = on ? new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(34, 39, 47))) : Brushes.Transparent;
             if (look.Child is Grid { Children: [Border stripe, TextBlock icon] }) { stripe.Background = on ? new SolidColorBrush(Amber) : Brushes.Transparent; icon.Foreground = on ? DS.Brush("DS.Text") : DS.Brush("DS.TextSoft"); }
         }
         if (view == View.Chat) scroller.ScrollToEnd();
@@ -403,7 +407,7 @@ public sealed class AgentPanel
             bool on = string.Equals(q, query, StringComparison.OrdinalIgnoreCase);
             look.Background = new SolidColorBrush(on ? Amber : Card);
             look.BorderBrush = new SolidColorBrush(on ? Amber : Line);
-            var ink = on ? new SolidColorBrush(Color.FromRgb(24, 20, 8)) : DS.Brush("DS.TextSoft");
+            var ink = on ? new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(24, 20, 8))) : DS.Brush("DS.TextSoft");
             text.Foreground = ink; icon.Foreground = ink;
         }
     }
@@ -447,7 +451,7 @@ public sealed class AgentPanel
     }
 
     /// <summary>The hover and focus outline on the drawn controller: the pale silver of its X20CTL print, since blue on the dark shell looked pasted on.</summary>
-    static readonly Brush ShellHighlight = new SolidColorBrush(Color.FromRgb(214, 216, 222)).Also(b => b.Freeze());
+    static readonly Brush ShellHighlight = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(214, 216, 222))).Also(b => b.Freeze());
 
     Button ContourHit(double x, double y, string shape, string tip, Action act)
     {
@@ -628,10 +632,10 @@ public sealed class AgentPanel
     void Relabel(Canvas pad, Rect plate, double angle, string tag, string word, Color wordColor)
     {
         static string Spaced(string s) => string.Join(" ", s.ToCharArray());
-        var glass = new LinearGradientBrush(Color.FromRgb(36, 39, 44), Color.FromRgb(27, 29, 34), 90);
+        var glass = new LinearGradientBrush(ThemeCatalog.R(Color.FromRgb(36, 39, 44)), ThemeCatalog.R(Color.FromRgb(27, 29, 34)), 90);
         var words = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center, Children =
         {
-            Kit.Text(Spaced(tag), 15, "DS.TextMuted").Also(t => { t.Foreground = new SolidColorBrush(Color.FromRgb(168, 171, 178)); t.Margin = new(0, 0, 14, 0); }),
+            Kit.Text(Spaced(tag), 15, "DS.TextMuted").Also(t => { t.Foreground = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(168, 171, 178))); t.Margin = new(0, 0, 14, 0); }),
             Kit.Text(Spaced(word), 17, "DS.Text", FontWeights.SemiBold).Also(t => t.Foreground = new SolidColorBrush(wordColor)),
         } };
         var cover = new Grid { Width = plate.Width, Height = plate.Height, IsHitTestVisible = false, RenderTransformOrigin = new(.5, .5), RenderTransform = new RotateTransform(angle),
@@ -735,7 +739,7 @@ public sealed class AgentPanel
 
     // ---- the player lights (owner request, 13 Oct 2026): blinking blue while it searches or thinks, then green for a good
     // result, violet when it isn't sure, red when it failed; afterwards the steady light of this player ----
-    static readonly Color Blue = Color.FromRgb(70, 150, 255), Green = Color.FromRgb(61, 214, 140), Violet = Color.FromRgb(168, 110, 255);
+    static readonly Color Blue = ThemeCatalog.R(Color.FromRgb(70, 150, 255)), Green = ThemeCatalog.R(Color.FromRgb(61, 214, 140)), Violet = ThemeCatalog.R(Color.FromRgb(168, 110, 255));
     void Blink(Color color, int ms, bool wave)
     {
         for (int i = 0; i < 4; i++)
@@ -968,10 +972,11 @@ public sealed class AgentPanel
         {
             CornerRadius = new(16), Padding = new(14, 10, 14, 10), Margin = mine ? new(50, 5, 0, 5) : new(0, 5, 24, 5),
             HorizontalAlignment = mine ? HorizontalAlignment.Right : HorizontalAlignment.Left, BorderThickness = new(1),
-            Background = new SolidColorBrush(mine ? Color.FromRgb(34, 39, 47) : Card),
-            BorderBrush = new SolidColorBrush(mine ? Color.FromRgb(58, 64, 74) : Line),
+            Background = new SolidColorBrush(mine ? ThemeCatalog.R(Color.FromRgb(34, 39, 47)) : Card),
+            BorderBrush = new SolidColorBrush(mine ? ThemeCatalog.R(Color.FromRgb(58, 64, 74)) : Line),
             Child = Wrap(text, 14, "DS.Text"),
         };
+        if (ThemeCatalog.Current.Id == "pulse") bubble = PulseBubble(text, mine);
         transcript.Children.Add(bubble); Fx.Appear(bubble, .97, 200); scroller.ScrollToEnd(); return bubble;
     }
 
@@ -1013,7 +1018,7 @@ public sealed class AgentPanel
                 foreach (var shown in asked.Shown) transcript.Children.Remove(shown);
                 lastMine = null;
                 stack.Children.Add(new Border { CornerRadius = new(10), Padding = new(16, 7, 16, 8), Margin = new(0, 10, 0, 2), HorizontalAlignment = HorizontalAlignment.Center, BorderThickness = new(1),
-                    BorderBrush = new SolidColorBrush(Color.FromRgb(58, 64, 74)), Background = new SolidColorBrush(Color.FromRgb(34, 39, 47)), Child = Wrap(asked.Said, 14, "DS.Text") });
+                    BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(58, 64, 74))), Background = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(34, 39, 47))), Child = Wrap(asked.Said, 14, "DS.Text") });
             }
         }
         else stack.Children.Add(Wrap(spoken, 17, "DS.Text").Also(t => t.FontWeight = FontWeights.SemiBold));
@@ -1055,7 +1060,7 @@ public sealed class AgentPanel
             stack.Children.Add(Wrap(mouse.Length == 0 ? $"Mouse mode   {(mo ? "on" : "off")}" : "Mouse mode · " + mouse, 14, mouse.Length == 0 ? "DS.AccentHi" : "DS.Warn", 6));
         // what it asks back: the missing detail, or whether the change feels right
         if (v.Proposal?.Question is { Length: > 0 } question)
-            stack.Children.Add(new Border { CornerRadius = new(10), Background = new SolidColorBrush(Color.FromArgb(60, 70, 150, 255)), Padding = new(12, 8, 12, 8), Margin = new(0, 10, 0, 0), Child = Wrap(question, 14, "DS.Text").Also(t => t.FontWeight = FontWeights.SemiBold) });
+            stack.Children.Add(new Border { CornerRadius = new(10), Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(60, 70, 150, 255))), Padding = new(12, 8, 12, 8), Margin = new(0, 10, 0, 0), Child = Wrap(question, 14, "DS.Text").Also(t => t.FontWeight = FontWeights.SemiBold) });
         // where the answer came from: the doc passages it cites, each opening to its full text
         foreach (var skipped in v.Checks.Where(c => c.State == CheckState.Unavailable))
             stack.Children.Add(Wrap($"{skipped.Action.Target}: {skipped.Message}", 14, "DS.Warn", 6));
@@ -1069,7 +1074,8 @@ public sealed class AgentPanel
         var verdictText = Wrap(verdict, 14, failure != null || !v.Valid || turn.Outcome.Error != null ? "DS.Danger" : turn.Outcome.Changes.Count > 0 ? "DS.Success" : "DS.TextMuted").Also(t => { t.FontWeight = FontWeights.SemiBold; t.VerticalAlignment = VerticalAlignment.Center; });
         stack.Children.Add(Footer(verdictText, failure == null && turn.Outcome.Next != null && turn.Outcome.Changes.Count > 0 ? step : null));
 
-        var bubble = Bubble("", false); bubble.Child = stack; bubble.HorizontalAlignment = HorizontalAlignment.Stretch;
+        var bubble = Bubble("", false); bubble.Child = stack; bubble.HorizontalAlignment = ThemeCatalog.Current.Id == "pulse" ? HorizontalAlignment.Left : HorizontalAlignment.Stretch;
+        if (ThemeCatalog.Current.Id == "pulse" && verdictText.Text == "No changes") PulseNoChangesFooter(stack);
         if (hero) { bubble.Background = Brushes.Transparent; bubble.BorderBrush = Brushes.Transparent; bubble.Margin = new(0, 10, 12, 6); }
         scroller.ScrollToEnd();
     }
@@ -1204,7 +1210,8 @@ public sealed class AgentPanel
         foreach (var c in changes) stack.Children.Add(Wrap($"{c.What}   {c.Before} → {c.After}", 14, "DS.AccentHi", 6));
         var verdictText = Wrap($"Applied · {changes.Count} change{(changes.Count == 1 ? "" : "s")}{(link == null ? " · preview only" : "")}", 14, "DS.Success").Also(t => { t.FontWeight = FontWeights.SemiBold; t.VerticalAlignment = VerticalAlignment.Center; });
         stack.Children.Add(Footer(verdictText, step));
-        var bubble = Bubble("", false); bubble.Child = stack; bubble.HorizontalAlignment = HorizontalAlignment.Stretch;
+        var bubble = Bubble("", false); bubble.Child = stack; bubble.HorizontalAlignment = ThemeCatalog.Current.Id == "pulse" ? HorizontalAlignment.Left : HorizontalAlignment.Stretch;
+        if (ThemeCatalog.Current.Id == "pulse" && verdictText.Text == "No changes") PulseNoChangesFooter(stack);
         ShowSettings(changes.Select(c => c.What).ToHashSet()); scroller.ScrollToEnd(); _ = Lights(AgentMood.Good);
     }
 
@@ -1262,12 +1269,12 @@ public sealed class AgentPanel
     static Border CurveCard(string title, string stick, IReadOnlyList<(double Input, double Output)> points, bool proposed, out FrameworkElement live)
     {
         const double W = CurveW, H = CurveH;
-        var accent = proposed ? Amber : Color.FromRgb(150, 158, 170);
+        var accent = proposed ? Amber : ThemeCatalog.R(Color.FromRgb(150, 158, 170));
         var plot = new Canvas { Width = W, Height = H, ClipToBounds = true, Margin = new(0, 8, 0, 0) };
         for (int i = 1; i < 4; i++)
         {
-            plot.Children.Add(new System.Windows.Shapes.Line { X1 = W * i / 4, X2 = W * i / 4, Y1 = 0, Y2 = H, Stroke = new SolidColorBrush(Color.FromArgb(22, 255, 255, 255)), StrokeThickness = 1 });
-            plot.Children.Add(new System.Windows.Shapes.Line { X1 = 0, X2 = W, Y1 = H * i / 4, Y2 = H * i / 4, Stroke = new SolidColorBrush(Color.FromArgb(22, 255, 255, 255)), StrokeThickness = 1 });
+            plot.Children.Add(new System.Windows.Shapes.Line { X1 = W * i / 4, X2 = W * i / 4, Y1 = 0, Y2 = H, Stroke = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(22, 255, 255, 255))), StrokeThickness = 1 });
+            plot.Children.Add(new System.Windows.Shapes.Line { X1 = 0, X2 = W, Y1 = H * i / 4, Y2 = H * i / 4, Stroke = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(22, 255, 255, 255))), StrokeThickness = 1 });
         }
         var line = new PointCollection(points.Select(p => new Point(W * p.Input / 100, H - H * Math.Clamp(p.Output, 0, 100) / 100)));
         if (proposed)
@@ -1293,7 +1300,7 @@ public sealed class AgentPanel
         return new Border
         {
             CornerRadius = new(12), Padding = new(14, 10, 14, 10), Margin = proposed ? new(6, 0, 0, 0) : new(0, 0, 6, 0), BorderThickness = new(1),
-            BorderBrush = new SolidColorBrush(proposed ? Color.FromArgb(150, Amber.R, Amber.G, Amber.B) : Line), Background = new SolidColorBrush(Color.FromRgb(15, 18, 23)),
+            BorderBrush = new SolidColorBrush(proposed ? Color.FromArgb(150, Amber.R, Amber.G, Amber.B) : Line), Background = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(15, 18, 23))),
             Child = new StackPanel { Children = { head, Axes(new Viewbox { Stretch = Stretch.Fill, Height = H, Child = plot }) } },
         };
     }
@@ -1357,6 +1364,7 @@ public sealed class AgentPanel
             settings.Children.Add(Row(load, setup.Name, $"{ModelName(setup.Model)} · saved {setup.Saved.ToLocalTime():d MMM, HH:mm}"));
         }
         if (!setups.Healthy) settings.Children.Add(Wrap("The setups file couldn't be read, so nothing is saved over it.", 12.5, "DS.Warn", 6));
+        if (ThemeCatalog.Current.Id == "pulse") StylePulseAgentSettings(settingsBox);
 
         void Section(string title) => settings.Children.Add(Kit.Text(title, 12, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(0, 18, 0, 8)));
         static DockPanel Row(Button action, string title, string detail)

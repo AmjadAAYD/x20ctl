@@ -17,7 +17,7 @@ public sealed class VibrationWorkbench
  public event Action? Changed;
  readonly List<Button> presets=new();readonly Dictionary<string,Button> regionsByName=new();
  public string PreviewRegion {get;private set;}="All";
- public void SelectRegion(string region){PreviewRegion=region;Visualizer.SetRegion(region);foreach(var pair in regionsByName)pair.Value.Foreground=pair.Key==region?new SolidColorBrush(Color.FromRgb(17,24,39)):Brushes.LightSteelBlue;foreach(var pair in regionsByName)pair.Value.Background=pair.Key==region?Brushes.White:DS.Brush("Control.ButtonFill");} readonly TextBlock value=new(){FontSize=54,FontWeight=FontWeights.SemiBold};
+ public void SelectRegion(string region){PreviewRegion=region;Visualizer.SetRegion(region);foreach(var pair in regionsByName)pair.Value.Foreground=pair.Key==region?new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(17,24,39))):Brushes.LightSteelBlue;foreach(var pair in regionsByName)pair.Value.Background=pair.Key==region?Brushes.White:DS.Brush("Control.ButtonFill");} readonly TextBlock value=new(){FontSize=54,FontWeight=FontWeights.SemiBold};
  bool updating;int previewStrength;
  public VibrationWorkbench(X20Ctl.Zone.VibrationDraft draft,FrameworkElement resources,Action<Button> register,bool animations,string model="x20")
  {
@@ -43,7 +43,7 @@ public sealed class VibrationWorkbench
  static TextBlock Copy(string text,double size)=>new(){Text=text,FontSize=size,Foreground=Brushes.LightSteelBlue,TextWrapping=TextWrapping.Wrap,Margin=new(0,8,0,8)};
  public void Set(int percent){previewStrength=Math.Clamp(percent,0,100);if(Draft.CanEdit)Draft.Set(previewStrength);Refresh();Changed?.Invoke();}
  public void Reset(){if(Draft.CanEdit)Draft.Reset();previewStrength=Draft.Strength;Refresh();Changed?.Invoke();}
- public void Refresh(){updating=true;if(Draft.CanEdit)previewStrength=Draft.Strength;value.Text=previewStrength+"%";Strength.Value=previewStrength;Visualizer.SetStrength(previewStrength);foreach(var b in presets)b.Foreground=(int)b.Tag==previewStrength?new SolidColorBrush(Color.FromRgb(17,24,39)):Brushes.LightSteelBlue;foreach(var b in presets)b.Background=(int)b.Tag==previewStrength?Brushes.White:DS.Brush("Control.ButtonFill");updating=false;}
+ public void Refresh(){updating=true;if(Draft.CanEdit)previewStrength=Draft.Strength;value.Text=previewStrength+"%";Strength.Value=previewStrength;Visualizer.SetStrength(previewStrength);foreach(var b in presets)b.Foreground=(int)b.Tag==previewStrength?new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(17,24,39))):Brushes.LightSteelBlue;foreach(var b in presets)b.Background=(int)b.Tag==previewStrength?Brushes.White:DS.Brush("Control.ButtonFill");updating=false;}
  public void FocusPreset()=>presets.OrderBy(b=>Math.Abs((int)b.Tag-previewStrength)).First().Focus();
  public bool HandleKey(KeyEventArgs e){if(Keyboard.FocusedElement!=Strength || e.Key is not(Key.Left or Key.Right))return false;Set(previewStrength+(e.Key==Key.Right?1:-1)*((Keyboard.Modifiers&ModifierKeys.Shift)!=0?5:1));e.Handled=true;return true;}
 }

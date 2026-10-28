@@ -14,8 +14,8 @@ public sealed class ZoneBackdrop : FrameworkElement
     private double time,last=-1;
     private Window? owner;
     private readonly Brush backdrop=(Brush)Application.Current.FindResource("Zone.Backdrop");
-    private readonly Brush cool=Pool(Color.FromRgb(36,83,194),150);
-    private readonly Brush warm=Pool(Color.FromRgb(20,53,135),100);
+    private readonly Brush cool=Pool(ThemeCatalog.Tone(ThemeCatalog.R(Color.FromRgb(36,83,194)),t=>t.PoolA),150);
+    private readonly Brush warm=Pool(ThemeCatalog.Tone(ThemeCatalog.R(Color.FromRgb(20,53,135)),t=>t.PoolB),100);
     public ZoneBackdrop():this(false,false){}
     public ZoneBackdrop(bool reducedMotion,bool manual=false)
     {

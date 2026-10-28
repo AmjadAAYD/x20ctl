@@ -66,7 +66,7 @@ public sealed class ButtonsConsolePage : Grid
         foreach (var r in new[] { front, back }) { r.Style = DS.Style("DS.Segment"); r.GroupName = g; r.Width = 86; r.Height = 32; }
         front.IsChecked = true; back.IsEnabled = layout.Controls.Any(c => c.View is "back" or "shoulder");
         front.Checked += (_, _) => ShowView(false); back.Checked += (_, _) => ShowView(true);
-        var viewSwitch = new Border { CornerRadius = new(11), Background = new SolidColorBrush(Color.FromRgb(29,44,67)), BorderBrush = new SolidColorBrush(Color.FromArgb(34, 255, 255, 255)), BorderThickness = new(1), Padding = new(1), Child = new StackPanel { Orientation = Orientation.Horizontal, Children = { front, back } }, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new(0, -60, 0, 0) };
+        var viewSwitch = new Border { CornerRadius = new(11), Background = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(29,44,67))), BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(34, 255, 255, 255))), BorderThickness = new(1), Padding = new(1), Child = new StackPanel { Orientation = Orientation.Horizontal, Children = { front, back } }, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new(0, -60, 0, 0) };
         var visual = new Grid { Children = { new Viewbox { Child = stage }, viewSwitch } };
         top.Children.Add(Kit.Panel("Button Visualizer", "Select a control on the controller to remap it.", null, visual));
 
@@ -82,7 +82,7 @@ public sealed class ButtonsConsolePage : Grid
         workspace.Children.Add(BuildMappingCard());
         workspace.Children.Add(Kit.Text(draft.PcMode?"PC MODE · Processed by X20CTL on this PC. Controller memory is unchanged.":"LOCAL DRAFT · Not written to controller memory.",13,"DS.TextSoft").Also(t=>{t.TextWrapping=TextWrapping.Wrap;t.Margin=new(0,10,0,12);}));
         outputPicker.Children.Add(outputsHint);
-        outputPicker.Children.Add(new Border{CornerRadius=new(12),Background=new SolidColorBrush(Color.FromArgb(20,255,255,255)),Padding=new(2),Child=seg,Margin=new(0,8,0,10)});
+        outputPicker.Children.Add(new Border{CornerRadius=new(12),Background=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(20,255,255,255))),Padding=new(2),Child=seg,Margin=new(0,8,0,10)});
         workspace.Children.Add(outputPicker);
         tryButton = ActionButton("", "Test mapping", "ActionButton"); tryButton.Click += (_, _) => this.toggleTry();
         allButton = ActionButton("", "All assignments", "ActionButton"); allButton.Click += (_, _) => ShowOverview(overview.Visibility != Visibility.Visible);
@@ -187,7 +187,7 @@ public sealed class ButtonsConsolePage : Grid
         restore.Visibility = changed ? Visibility.Visible : Visibility.Collapsed;restore.Content=$"Restore {Short(Source)} → {Short(Source)}";
         outputPicker.Visibility=editable?Visibility.Visible:Visibility.Collapsed;tryButton.Visibility=changed?Visibility.Visible:Visibility.Collapsed;
         stepTwoHint.Text = waitTarget ? "Waiting for a press" : editable ? "Click GAME GETS, then press a button" : has ? "Not available for this button" : "Pick a button first";
-        mappingCard.BorderBrush = new SolidColorBrush(waitSource || waitTarget ? Color.FromArgb(200, 125, 182, 255) : changed ? Color.FromArgb(120, 125, 182, 255) : Color.FromArgb(38, 255, 255, 255));
+        mappingCard.BorderBrush = new SolidColorBrush(waitSource || waitTarget ? ThemeCatalog.R(Color.FromArgb(200, 125, 182, 255)) : changed ? ThemeCatalog.R(Color.FromArgb(120, 125, 182, 255)) : ThemeCatalog.R(Color.FromArgb(38, 255, 255, 255)));
         foreach (var pair in groups)pair.Value.IsChecked=pair.Key==outputGroup;showcaseHint.Text=editable?$"Assign {Short(Source)} to any output":has?"This control can't be reassigned":"Pick a control first";
         foreach (var (k,b) in outputs){Paint(b,k,editable&&k==target,editable||!has);b.Opacity=outputGroup=="All"||k=="NONE"||Groups.First(g=>g.Name==outputGroup).Keys.Contains(k)?1:.3;}
         RefreshMarkers();
@@ -209,7 +209,7 @@ public sealed class ButtonsConsolePage : Grid
         return row;
     }
     private readonly System.Windows.Shapes.Ellipse pressedRing = Ring(), sendsRing = Ring();
-    private static System.Windows.Shapes.Ellipse Ring() => new() { Width = 84, Height = 84, Stroke = new SolidColorBrush(Color.FromRgb(125, 182, 255)), StrokeThickness = 2, Opacity = 0, IsHitTestVisible = false, RenderTransformOrigin = new(.5, .5), RenderTransform = new ScaleTransform(1, 1) };
+    private static System.Windows.Shapes.Ellipse Ring() => new() { Width = 84, Height = 84, Stroke = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(125, 182, 255))), StrokeThickness = 2, Opacity = 0, IsHitTestVisible = false, RenderTransformOrigin = new(.5, .5), RenderTransform = new ScaleTransform(1, 1) };
     private void Pulse(System.Windows.Shapes.Ellipse ring, bool on)
     {
         var s = (ScaleTransform)ring.RenderTransform;
@@ -245,17 +245,17 @@ public sealed class ButtonsConsolePage : Grid
         foot.Children.Add(new StackPanel { VerticalAlignment = VerticalAlignment.Center, Children = { sentence, readOnly } });
         Grid.SetRow(foot, 1); Grid.SetColumnSpan(foot, 3); g.Children.Add(foot);
         mappingCard.CornerRadius = new(14); mappingCard.BorderThickness = new(1); mappingCard.Padding = new(16, 10, 16, 12); mappingCard.Margin = new(0, 12, 0, 0);
-        mappingCard.Background = new SolidColorBrush(Color.FromArgb(18, 255, 255, 255)); mappingCard.Child = g;
+        mappingCard.Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(18, 255, 255, 255))); mappingCard.Child = g;
         return mappingCard;
     }
     private static void FillFace(Border face, string text, string? key, bool on, bool waiting = false)
     {
-        var color = key switch { "Y" => Color.FromRgb(245, 205, 80), "X" => Color.FromRgb(70, 170, 255), "B" => Color.FromRgb(255, 100, 125), "A" => Color.FromRgb(70, 220, 150), _ => (Color?)null };
+        var color = key switch { "Y" => ThemeCatalog.R(Color.FromRgb(245, 205, 80)), "X" => ThemeCatalog.R(Color.FromRgb(70, 170, 255)), "B" => ThemeCatalog.R(Color.FromRgb(255, 100, 125)), "A" => ThemeCatalog.R(Color.FromRgb(70, 220, 150)), _ => (Color?)null };
         bool empty = key == null && !waiting && text == "+";
         var t = Kit.Text(text, text.Length > 2 ? 17 : empty ? 30 : 26, empty ? "DS.TextMuted" : "DS.Text", FontWeights.SemiBold); t.HorizontalAlignment = HorizontalAlignment.Center;
         if (!on && color != null) t.Foreground = new SolidColorBrush(color.Value);
         face.Child = t;
-        face.Background = on ? new SolidColorBrush(Color.FromRgb(43,115,222)) : waiting ? new SolidColorBrush(Color.FromArgb(60, 61, 139, 255)) : new SolidColorBrush(Color.FromArgb(empty ? (byte)14 : (byte)30, 255, 255, 255));
+        face.Background = on ? new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(43,115,222))) : waiting ? new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(60, 61, 139, 255))) : new SolidColorBrush(Color.FromArgb(empty ? (byte)14 : (byte)30, 255, 255, 255));
         face.BorderBrush = on || waiting ? Brushes.White : color != null ? new SolidColorBrush(Color.FromArgb(150, color.Value.R, color.Value.G, color.Value.B)) : new SolidColorBrush(Color.FromArgb(empty ? (byte)90 : (byte)46, 255, 255, 255));
         face.Effect = on || waiting ? new DropShadowEffect { Color = Kit.Blue, BlurRadius = 22, ShadowDepth = 0, Opacity = .9 } : null;
     }
@@ -279,13 +279,13 @@ public sealed class ButtonsConsolePage : Grid
             grid.ColumnDefinitions.Add(new() { Width = new(families[i].Weight, GridUnitType.Star) });
             var stage = new Grid { Height = 132, VerticalAlignment = VerticalAlignment.Center };
             var heading = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new(0, 0, 0, 8), Children = {
-                new Border { Width = 5, Height = 5, CornerRadius = new(2.5), Background = new SolidColorBrush(Color.FromRgb(125, 182, 255)), VerticalAlignment = VerticalAlignment.Center, Margin = new(0, 0, 8, 0) },
+                new Border { Width = 5, Height = 5, CornerRadius = new(2.5), Background = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(125, 182, 255))), VerticalAlignment = VerticalAlignment.Center, Margin = new(0, 0, 8, 0) },
                 Kit.Text(Spaced(families[i].Name), 11.5, "DS.TextSoft", FontWeights.SemiBold) } };
             var family = new Border
             {
                 CornerRadius = new(14), BorderThickness = new(1), Margin = new(6, 0, 6, 0), Padding = new(10, 12, 10, 12),
-                BorderBrush = new LinearGradientBrush(Color.FromArgb(70, 140, 180, 240), Color.FromArgb(22, 140, 180, 240), 90),
-                Background = new LinearGradientBrush(Color.FromArgb(150, 24, 39, 64), Color.FromArgb(150, 13, 23, 41), 90),
+                BorderBrush = new LinearGradientBrush(ThemeCatalog.R(Color.FromArgb(70, 140, 180, 240)), ThemeCatalog.R(Color.FromArgb(22, 140, 180, 240)), 90),
+                Background = new LinearGradientBrush(ThemeCatalog.R(Color.FromArgb(150, 24, 39, 64)), ThemeCatalog.R(Color.FromArgb(150, 13, 23, 41)), 90),
                 Child = new DockPanel { Children = { heading.Also(h => DockPanel.SetDock(h, Dock.Top)), stage } }
             };
             Grid.SetColumn(family, i); grid.Children.Add(family);
@@ -298,10 +298,10 @@ public sealed class ButtonsConsolePage : Grid
             {
                 var special = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Width = 168 };
                 var defaults = new Button { Template = Bare(), Cursor = System.Windows.Input.Cursors.Hand, FocusVisualStyle = null, Height = 40, Margin = new(0, 0, 0, 10), ToolTip = "Make the picked control send itself again",
-                    Content = new Border { CornerRadius = new(20), BorderThickness = new(1.2), BorderBrush = new SolidColorBrush(Color.FromArgb(60, 255, 255, 255)), Background = new LinearGradientBrush(Color.FromRgb(40, 58, 86), Color.FromRgb(26, 39, 60), 90),
+                    Content = new Border { CornerRadius = new(20), BorderThickness = new(1.2), BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(60, 255, 255, 255))), Background = new LinearGradientBrush(ThemeCatalog.R(Color.FromRgb(40, 58, 86)), ThemeCatalog.R(Color.FromRgb(26, 39, 60)), 90),
                         Child = IconLabel("", "Default") } };
-                defaults.MouseEnter += (_, _) => ((Border)defaults.Content).BorderBrush = new SolidColorBrush(Color.FromArgb(200, 125, 182, 255));
-                defaults.MouseLeave += (_, _) => ((Border)defaults.Content).BorderBrush = new SolidColorBrush(Color.FromArgb(60, 255, 255, 255));
+                defaults.MouseEnter += (_, _) => ((Border)defaults.Content).BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(200, 125, 182, 255)));
+                defaults.MouseLeave += (_, _) => ((Border)defaults.Content).BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(60, 255, 255, 255)));
                 defaults.Click += (_, _) => { if (Source.Length > 0 && draft.CanEdit(Source)) { draft.Reset(Source); Changed?.Invoke(); RefreshMapping(); } };
                 special.Children.Add(defaults);
                 if (draft.PcMode) { var disabled = Output("NONE", "Disabled", 168, 40); special.Children.Add(disabled); }
@@ -314,7 +314,7 @@ public sealed class ButtonsConsolePage : Grid
         var body = new StackPanel { Children = { header, fit } };
         // fill the width; below 1180 px the whole shelf scales down instead of squeezing the parts
         body.SizeChanged += (_, e) => grid.Width = Math.Max(1180, e.NewSize.Width);
-        return new Border { CornerRadius = new(16), Padding = new(12, 14, 12, 14), BorderThickness = new(1), BorderBrush = new SolidColorBrush(Color.FromArgb(60, 125, 170, 230)), Background = new SolidColorBrush(Color.FromArgb(80, 8, 17, 38)), Child = body };
+        return new Border { CornerRadius = new(16), Padding = new(12, 14, 12, 14), BorderThickness = new(1), BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(60, 125, 170, 230))), Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(80, 8, 17, 38))), Child = body };
     }
     private static string Spaced(string text) => string.Join(" ", text.ToCharArray());
     private static StackPanel IconLabel(string icon, string text) => new()
@@ -336,7 +336,7 @@ public sealed class ButtonsConsolePage : Grid
         }
         if(regions.TryGetValue(Source,out var active)&&draft.CanEdit(Source))
         {
-            mappingLabel.Text=$"{Short(Source)} → {Short(draft.Target(Source))}";mappingLabel.Background=new SolidColorBrush(Color.FromArgb(210,9,22,45));mappingLabel.Padding=new(12,5,12,5);
+            mappingLabel.Text=$"{Short(Source)} → {Short(draft.Target(Source))}";mappingLabel.Background=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(210,9,22,45)));mappingLabel.Padding=new(12,5,12,5);
             Canvas.SetLeft(mappingLabel,Math.Clamp(Canvas.GetLeft(active)+active.Width+16,12,1280));Canvas.SetTop(mappingLabel,Math.Max(12,Canvas.GetTop(active)-20));markers.Children.Add(mappingLabel);
         }
     }
@@ -351,8 +351,8 @@ public sealed class ButtonsConsolePage : Grid
     private Canvas DpadCross()
     {
         double s = 42, gap = 2, w = 3 * s + 2 * gap, h = w; var c = new Canvas { Width = w, Height = h, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-        var hub = new Border { Width = s, Height = s, CornerRadius = new(4), Background = new SolidColorBrush(Color.FromRgb(22, 33, 52)), BorderBrush = new SolidColorBrush(Color.FromArgb(30, 255, 255, 255)), BorderThickness = new(1),
-            Child = new System.Windows.Shapes.Ellipse { Width = 16, Height = 16, Fill = new RadialGradientBrush(Color.FromArgb(0, 0, 0, 0), Color.FromArgb(90, 0, 0, 0)), Stroke = new SolidColorBrush(Color.FromArgb(24, 255, 255, 255)) } };
+        var hub = new Border { Width = s, Height = s, CornerRadius = new(4), Background = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(22, 33, 52))), BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(30, 255, 255, 255))), BorderThickness = new(1),
+            Child = new System.Windows.Shapes.Ellipse { Width = 16, Height = 16, Fill = new RadialGradientBrush(ThemeCatalog.R(Color.FromArgb(0, 0, 0, 0)), ThemeCatalog.R(Color.FromArgb(90, 0, 0, 0))), Stroke = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(24, 255, 255, 255))) } };
         Canvas.SetLeft(hub, s + gap); Canvas.SetTop(hub, s + gap); c.Children.Add(hub);
         void Put(string key, string text, double x, double y) { var o = Output(key, text, s, s); Canvas.SetLeft(o, x); Canvas.SetTop(o, y); c.Children.Add(o); }
         Put("DPAD_UP", "↑", s + gap, 0); Put("DPAD_LEFT", "←", 0, s + gap); Put("DPAD_RIGHT", "→", 2 * (s + gap), s + gap); Put("DPAD_DOWN", "↓", s + gap, 2 * (s + gap));
@@ -400,7 +400,7 @@ public sealed class ButtonsConsolePage : Grid
         if (TargetAllowed(key)) { b.Click += (_, _) => SetTarget(key); outputs[key] = b; }
         else b.IsEnabled = false;
         void Lift(bool on) { if (!b.IsEnabled) return; var to = on ? 1.06 : 1; var t = (ScaleTransform)b.RenderTransform; t.BeginAnimation(ScaleTransform.ScaleXProperty, animate ? DS.To(to, 120) : null); t.BeginAnimation(ScaleTransform.ScaleYProperty, animate ? DS.To(to, 120) : null); if (!animate) t.ScaleX = t.ScaleY = to; }
-        b.MouseEnter += (_, _) => { if (b.DataContext is not true) border.BorderBrush = new SolidColorBrush(Color.FromArgb(220, 160, 205, 255)); Lift(true); };
+        b.MouseEnter += (_, _) => { if (b.DataContext is not true) border.BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(220, 160, 205, 255))); Lift(true); };
         b.MouseLeave += (_, _) => { Paint(b, key, b.DataContext is true, b.IsEnabled); Lift(false); };
         b.GotKeyboardFocus += (_, _) => border.BorderBrush = Brushes.White; b.LostKeyboardFocus += (_, _) => Paint(b, key, b.DataContext is true, b.IsEnabled);
         Paint(b, key, false, b.IsEnabled);
@@ -410,14 +410,14 @@ public sealed class ButtonsConsolePage : Grid
     private static void Paint(Button b, string key, bool on, bool enabled)
     {
         var border = (Border)b.Content; var face = (TextBlock)border.Child; b.DataContext = on;
-        var color = key switch { "Y" => Color.FromRgb(245, 205, 80), "X" => Color.FromRgb(70, 170, 255), "B" => Color.FromRgb(255, 100, 125), "A" => Color.FromRgb(70, 220, 150), _ => (Color?)null };
+        var color = key switch { "Y" => ThemeCatalog.R(Color.FromRgb(245, 205, 80)), "X" => ThemeCatalog.R(Color.FromRgb(70, 170, 255)), "B" => ThemeCatalog.R(Color.FromRgb(255, 100, 125)), "A" => ThemeCatalog.R(Color.FromRgb(70, 220, 150)), _ => (Color?)null };
         bool stick = Shape(key) == "stick";
         b.IsEnabled = enabled;
         border.Opacity = enabled ? 1 : .45;
         border.BorderThickness = new(on ? 2 : stick ? 2.4 : 1.2);
-        border.Background = on ? new LinearGradientBrush(Color.FromRgb(70, 150, 250), Color.FromRgb(36, 100, 206), 90)
-            : stick ? new RadialGradientBrush(Color.FromRgb(22, 33, 52), Color.FromRgb(44, 62, 92)) { GradientOrigin = new(.5, .38), Center = new(.5, .45) }
-            : new LinearGradientBrush(Color.FromRgb(42, 60, 89), Color.FromRgb(25, 37, 58), 90);
+        border.Background = on ? new LinearGradientBrush(ThemeCatalog.R(Color.FromRgb(70, 150, 250)), ThemeCatalog.R(Color.FromRgb(36, 100, 206)), 90)
+            : stick ? new RadialGradientBrush(ThemeCatalog.R(Color.FromRgb(22, 33, 52)), ThemeCatalog.R(Color.FromRgb(44, 62, 92))) { GradientOrigin = new(.5, .38), Center = new(.5, .45) }
+            : new LinearGradientBrush(ThemeCatalog.R(Color.FromRgb(42, 60, 89)), ThemeCatalog.R(Color.FromRgb(25, 37, 58)), 90);
         border.BorderBrush = on ? Brushes.White : color != null ? new SolidColorBrush(Color.FromArgb(170, color.Value.R, color.Value.G, color.Value.B)) : new SolidColorBrush(Color.FromArgb(stick ? (byte)70 : (byte)52, 255, 255, 255));
         face.Foreground = on || color == null ? DS.Brush("DS.Text") : new SolidColorBrush(color.Value);
         border.Effect = on ? new DropShadowEffect { Color = Kit.Blue, BlurRadius = 20, ShadowDepth = 0, Opacity = .85 } : new DropShadowEffect { Color = Colors.Black, BlurRadius = 8, ShadowDepth = 2, Direction = 270, Opacity = .35 };

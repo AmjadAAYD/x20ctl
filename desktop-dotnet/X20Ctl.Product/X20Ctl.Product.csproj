@@ -32,6 +32,8 @@
     <EmbeddedResource Include="../../LICENSE" LogicalName="LICENSE.txt" />
     <EmbeddedResource Include="../../NOTICE" LogicalName="NOTICE.txt" />
     <!-- the X20CTL logo (tools/build_brand_mark.py, from Brand/x20ctl-logo.png); the intro film ends on the same art -->
+    <!-- the shared dictionaries again as text, so a theme can recolour them before they are read (ThemeCatalog.Load) -->
+    <EmbeddedResource Include="Themes/Colors.xaml;Themes/Typography.xaml;Themes/Controls.xaml;Themes/Design.xaml;Themes/ZoneSurfaces.xaml" LogicalName="ThemeSource/%(Filename)%(Extension)" />
     <Resource Include="Brand/x20ctl-mark.png" Link="Assets/brand.png" />
     <Resource Include="Agent/agent-shell.png" />
     <!-- the app icon (the logo on its white tile) as an image, for the setup -->
@@ -46,6 +48,8 @@
     <Content Include="../../src/assets/controllers/native-layers.json" Link="Data/native-layers.json" CopyToOutputDirectory="PreserveNewest" />
     <!-- the opening film with its sound (logo-preview/intro-remotion); see Brand/intro-audio-provenance.md -->
     <Content Include="Brand/intro.mp4;Brand/intro-audio-provenance.md" CopyToOutputDirectory="PreserveNewest" />
+    <!-- each theme's opening film and the logo laid over its last frame (previews/console-concepts/themes/app_films.py) -->
+    <Content Include="Brand/themes/**/intro.mp4;Brand/themes/**/logo.png;Brand/themes/**/ransom.json" CopyToOutputDirectory="PreserveNewest" />
     <!-- the interface sounds (tools/build_ui_sounds.py); see Brand/ui-audio-provenance.md -->
     <Content Include="Brand/ui/*.wav;Brand/ui-audio-provenance.md" CopyToOutputDirectory="PreserveNewest" />
     <!-- the guides Agent XCTL answers app questions from (M5) -->

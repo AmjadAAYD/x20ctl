@@ -68,6 +68,7 @@ public sealed class DashboardConsolePage : Grid
     private readonly TextBlock workingSetup = Kit.Text("Current working settings", 20, "DS.Text", FontWeights.SemiBold);
     private readonly TextBlock changesLabel = Kit.Text("", 14, "DS.TextSoft");
     private readonly Button setupAction = new() { Style=DS.Style("ActionButton"),HorizontalAlignment=HorizontalAlignment.Left,Margin=new(0,12,0,0) };
+    internal TextBlock RebelSetup => workingSetup; internal TextBlock RebelConnection => connectionValue; internal TextBlock RebelBattery => batteryValue; internal TextBlock RebelChanges => changesLabel;
     public void SetWorkingState(int changes, string? setup, bool pcMode)
     {
         changesCount.Text = changes==0?"0":$"{changes} unsaved";
@@ -136,7 +137,7 @@ public sealed class DashboardConsolePage : Grid
             text.Children.Add(Kit.Text(cells[i].Item1,12,"DS.TextMuted").Also(t=>t.Margin=new(0,0,0,6)));
             cells[i].Item2.TextWrapping=TextWrapping.Wrap;
             text.Children.Add(cells[i].Item2);
-            var cell=new Border{CornerRadius=new(12),Padding=new(8),Margin=new(0,0,8,8),Background=new SolidColorBrush(Color.FromArgb(16,180,205,240)),Child=text};
+            var cell=new Border{CornerRadius=new(12),Padding=new(8),Margin=new(0,0,8,8),Background=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(16,180,205,240))),Child=text};
             if (cells[i].Item1 == "Battery" && model.Id is "x20" or "x20_pro")
             {
                 cell.Cursor = Cursors.Hand;
@@ -306,16 +307,16 @@ public sealed class DashboardConsolePage : Grid
             face = new Grid { Background = new LinearGradientBrush(c, Hsl(hue, .5, .16), 90), Children = { Kit.Text(initials, 40, "DS.Text").Also(t => { t.HorizontalAlignment = HorizontalAlignment.Center; t.Opacity = .85; }) } };
         }
         if(face is Image image)RenderOptions.SetBitmapScalingMode(image,BitmapScalingMode.HighQuality);
-        var art = new Border { CornerRadius = new(12), Background=new SolidColorBrush(Color.FromRgb(17,26,41)),ClipToBounds = true, Child = face };
+        var art = new Border { CornerRadius = new(12), Background=new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(17,26,41))),ClipToBounds = true, Child = face };
         // The selection frame: a slim blue edge with a dark line inside it (so it never fights the artwork) and a soft glow.
         // It fades in and out; it replaces the old flat 2 px border, which read as a white box on bright covers.
         // a bigger frame, set outside the cover, so a neighbouring tile rising never covers it (owner, 25 Oct 2026)
         var ring = new Border { CornerRadius = new(17), BorderThickness = new(3.5), IsHitTestVisible = false, Opacity = 0,
-            BorderBrush = new LinearGradientBrush(Color.FromRgb(168, 214, 255), Color.FromRgb(58, 138, 255), 45),
-            Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = Color.FromRgb(58, 138, 255), BlurRadius = 22, ShadowDepth = 0, Opacity = .7 },
-            Child = new Border { CornerRadius = new(13.5), BorderThickness = new(1), BorderBrush = new SolidColorBrush(Color.FromArgb(120, 4, 8, 20)) } };
+            BorderBrush = new LinearGradientBrush(ThemeCatalog.R(Color.FromRgb(168, 214, 255)), ThemeCatalog.R(Color.FromRgb(58, 138, 255)), 45),
+            Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = ThemeCatalog.R(Color.FromRgb(58, 138, 255)), BlurRadius = 22, ShadowDepth = 0, Opacity = .7 },
+            Child = new Border { CornerRadius = new(13.5), BorderThickness = new(1), BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(120, 4, 8, 20))) } };
         art.Tag = ring; art.Margin = new(5); // the frame is the tile's own 5 px edge, so it rises and grows with the cover
-        var store = new Border { CornerRadius = new(9), Padding = new(8, 2, 8, 3), Background = new SolidColorBrush(Color.FromArgb(200, 6, 10, 22)), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom, Margin = new(0, 0, 15, 15), Child = Kit.Text(g.Store, 11.5, "DS.TextSoft", FontWeights.SemiBold) };
+        var store = new Border { CornerRadius = new(9), Padding = new(8, 2, 8, 3), Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(200, 6, 10, 22))), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom, Margin = new(0, 0, 15, 15), Child = Kit.Text(g.Store, 11.5, "DS.TextSoft", FontWeights.SemiBold) };
         var title = Kit.Text(g.Name, 14, "DS.TextSoft"); title.Margin = new(7, 1, 0, 0);
         if (!pop) covers.Add((art, title));
         SizeCover(art, title);
@@ -379,9 +380,9 @@ public sealed class DashboardConsolePage : Grid
             var image = Bitmap(GameArtwork.PathFor(game)) ?? Bitmap(game.Hero);
             var at = source.TranslatePoint(new Point(0, 0), overlay);
             double w = Math.Max(1, source.ActualWidth), h = Math.Max(1, source.ActualHeight), pageW = overlay.ActualWidth, pageH = overlay.ActualHeight;
-            Brush fill = image != null ? new ImageBrush(image) { Stretch = Stretch.Uniform } : new LinearGradientBrush(Color.FromRgb(28, 52, 110), Color.FromRgb(10, 18, 44), 90);
+            Brush fill = image != null ? new ImageBrush(image) { Stretch = Stretch.Uniform } : new LinearGradientBrush(ThemeCatalog.R(Color.FromRgb(28, 52, 110)), ThemeCatalog.R(Color.FromRgb(10, 18, 44)), 90);
             zoom = new Border { Background = fill, CornerRadius = new(14), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new(at.X, at.Y, 0, 0), Width = w, Height = h, ClipToBounds = true };
-            var dim = new Border { Background = new SolidColorBrush(Color.FromArgb(150, 2, 6, 18)) };
+            var dim = new Border { Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(150, 2, 6, 18))) };
             var label = Kit.Text("Starting " + game.Name, 30, "DS.Text", FontWeights.SemiBold); label.HorizontalAlignment = HorizontalAlignment.Center; label.VerticalAlignment = VerticalAlignment.Center; label.Opacity = 0;
             zoom.Child = new Grid { Children = { dim, label } };
             // Letterbox the complete artwork rather than cropping it to the screen ratio.

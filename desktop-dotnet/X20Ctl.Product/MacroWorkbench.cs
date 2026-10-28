@@ -62,7 +62,7 @@ public sealed class MacroWorkbench
     private readonly Button add,remove,earlier,later,clear,preview;
     private Button duplicate=null!;
     public Button Record { get; }
-    private readonly Line playhead = new() { Stroke=Brushes.White,StrokeThickness=2,IsHitTestVisible=false,Effect=new DropShadowEffect {Color=Color.FromRgb(129,213,255),BlurRadius=10,ShadowDepth=0,Opacity=.8} };
+    private readonly Line playhead = new() { Stroke=Brushes.White,StrokeThickness=2,IsHitTestVisible=false,Effect=new DropShadowEffect {Color=ThemeCatalog.R(Color.FromRgb(129,213,255)),BlurRadius=10,ShadowDepth=0,Opacity=.8} };
     private readonly Stopwatch clock = new();
     private readonly DispatcherTimer timer = new() { Interval=TimeSpan.FromMilliseconds(16) };
     private double scale=1;
@@ -71,7 +71,7 @@ public sealed class MacroWorkbench
     private readonly TextBlock zoomLabel=new(){Text="100%",FontSize=13.5,FontWeight=FontWeights.SemiBold,Width=48,TextAlignment=TextAlignment.Center,VerticalAlignment=VerticalAlignment.Center};
     private bool updating;
     private Window? previewWindow;
-    private static readonly Color PauseTone=Color.FromRgb(150,165,192);
+    private static readonly Color PauseTone=ThemeCatalog.R(Color.FromRgb(150,165,192));
     private sealed record TriggerPick(string Key,string Value){public override string ToString()=>Value;}
     private readonly ComboBox trigger=new(){MinHeight=36,FontSize=14,SelectedValuePath="Key",ToolTip="PC mode can't see a back paddle. Pick the button that plays this slot; it plays the macro instead of its usual job."};
     private static string TriggerShort(string b)=>b switch{"DPAD_UP"=>"D↑","DPAD_DOWN"=>"D↓","DPAD_LEFT"=>"D←","DPAD_RIGHT"=>"D→","SELECT"=>"View","START"=>"Menu","HOME"=>"Home",_=>b};
@@ -114,7 +114,7 @@ public sealed class MacroWorkbench
         var more=new Button{Content="",Style=DS.Style("DS.ActionRound"),Width=44,Height=44,MinHeight=0,ToolTip="More macro actions"};focusRegistration(more);var menu=new ContextMenu();
         var clearMenu=new MenuItem {Header="Clear this slot"};clearMenu.Click+=(_,_)=>Guard(Clear);menu.Items.Add(clearMenu);menu.Items.Add(new MenuItem {Header="Recording unavailable",IsEnabled=false});more.ContextMenu=menu;more.Click+=(_,_)=>{clearMenu.IsEnabled=Draft[Slot].Count>0;menu.PlacementTarget=more;menu.Placement=PlacementMode.Bottom;menu.IsOpen=true;};
                 Record=new Button{Style=DS.Style("ActionButton"),Height=44,MinHeight=0,Padding=new(18,0,20,0),Margin=new(0,0,10,0),ToolTip="Play the sequence on your controller and it becomes this slot's events (read-only input; nothing is sent)",
-            Content=new StackPanel{Orientation=Orientation.Horizontal,Children={new Ellipse{Width=11,Height=11,Fill=new SolidColorBrush(Color.FromRgb(255,72,96)),Margin=new(0,0,10,0),VerticalAlignment=VerticalAlignment.Center,Effect=new DropShadowEffect{Color=Color.FromRgb(255,72,96),BlurRadius=10,ShadowDepth=0,Opacity=.9}},new TextBlock{Text="Record",FontFamily=DS.Display,FontSize=15,FontWeight=FontWeights.SemiBold,Foreground=DS.Brush("DS.Text"),VerticalAlignment=VerticalAlignment.Center}}}};
+            Content=new StackPanel{Orientation=Orientation.Horizontal,Children={new Ellipse{Width=11,Height=11,Fill=new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(255,72,96))),Margin=new(0,0,10,0),VerticalAlignment=VerticalAlignment.Center,Effect=new DropShadowEffect{Color=ThemeCatalog.R(Color.FromRgb(255,72,96)),BlurRadius=10,ShadowDepth=0,Opacity=.9}},new TextBlock{Text="Record",FontFamily=DS.Display,FontSize=15,FontWeight=FontWeights.SemiBold,Foreground=DS.Brush("DS.Text"),VerticalAlignment=VerticalAlignment.Center}}}};
         Record.Click+=(_,_)=>ToggleRecording();focusRegistration(Record);Record.IsEnabled=Draft.CanEdit;
         var read=new Button{Style=DS.Style("ActionButton"),Height=44,MinHeight=0,Padding=new(18,0,20,0),Margin=new(0,0,10,0),ToolTip="Read the macro stored on the controller into this slot",
             Content=new StackPanel{Orientation=Orientation.Horizontal,Children={Kit.Icon("\uE896",14,"DS.Text").Also(i=>i.Margin=new(0,0,10,0)),new TextBlock{Text="Read controller",FontFamily=DS.Display,FontSize=15,FontWeight=FontWeights.SemiBold,Foreground=DS.Brush("DS.Text"),VerticalAlignment=VerticalAlignment.Center}}}};
@@ -127,12 +127,12 @@ public sealed class MacroWorkbench
         timeline.Content=timelineCanvas;
         // the lane names sit on their own rounded chips in a column that fades into the timeline behind it
         var laneColumn=new Border {Width=124,HorizontalAlignment=HorizontalAlignment.Left,IsHitTestVisible=false,CornerRadius=new(12,0,0,12),Child=laneLabels,
-            Background=new LinearGradientBrush(new GradientStopCollection{new GradientStop(Color.FromArgb(250,11,19,42),0),new GradientStop(Color.FromArgb(250,11,19,42),.86),new GradientStop(Color.FromArgb(0,11,19,42),1)},new Point(0,0),new Point(1,0))};
+            Background=new LinearGradientBrush(new GradientStopCollection{new GradientStop(ThemeCatalog.R(Color.FromArgb(250,11,19,42)),0),new GradientStop(ThemeCatalog.R(Color.FromArgb(250,11,19,42)),.86),new GradientStop(ThemeCatalog.R(Color.FromArgb(0,11,19,42)),1)},new Point(0,0),new Point(1,0))};
         var addFirst=Button("+ Add first event",Add,"PrimaryButton");addFirst.Height=46;addFirst.MinHeight=0;addFirst.Padding=new(26,0,26,0);addFirst.FontSize=15;addFirst.HorizontalAlignment=HorizontalAlignment.Center;addFirst.IsEnabled=Draft.CanEdit;addFirst.Margin=new(0,16,0,0);
-        var ring=new Grid {Width=58,Height=58,HorizontalAlignment=HorizontalAlignment.Center,Margin=new(0,0,0,12),Children={new Ellipse {Fill=new RadialGradientBrush(Color.FromArgb(70,61,139,255),Color.FromArgb(0,61,139,255)),Margin=new(-16)},new Ellipse {Stroke=new SolidColorBrush(Color.FromArgb(150,125,182,255)),StrokeThickness=1.5,Fill=new SolidColorBrush(Color.FromArgb(40,30,60,130))},Kit.Icon("",22,"DS.AccentHi").Also(i=>i.HorizontalAlignment=HorizontalAlignment.Center)}};
+        var ring=new Grid {Width=58,Height=58,HorizontalAlignment=HorizontalAlignment.Center,Margin=new(0,0,0,12),Children={new Ellipse {Fill=new RadialGradientBrush(ThemeCatalog.R(Color.FromArgb(70,61,139,255)),ThemeCatalog.R(Color.FromArgb(0,61,139,255))),Margin=new(-16)},new Ellipse {Stroke=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(150,125,182,255))),StrokeThickness=1.5,Fill=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(40,30,60,130)))},Kit.Icon("",22,"DS.AccentHi").Also(i=>i.HorizontalAlignment=HorizontalAlignment.Center)}};
         empty.Children.Add(ring);empty.Children.Add(Kit.Text("No events in this sequence yet",20,"DS.Text",FontWeights.SemiBold).Also(t=>t.HorizontalAlignment=HorizontalAlignment.Center));
         empty.Children.Add(Kit.Text("An event is what the paddle presses, and for how long. Add one, then pick its buttons below.",14,"DS.TextSoft").Also(t=>{t.HorizontalAlignment=HorizontalAlignment.Center;t.Margin=new(0,4,0,0);}));empty.Children.Add(addFirst);
-        var timelineFrame=new Border {CornerRadius=new(12),Margin=new(0,12,0,0),BorderThickness=new(1),BorderBrush=new SolidColorBrush(Color.FromArgb(30,255,255,255)),Background=new SolidColorBrush(Color.FromArgb(14,255,255,255)),Padding=new(0,6,0,0),
+        var timelineFrame=new Border {CornerRadius=new(12),Margin=new(0,12,0,0),BorderThickness=new(1),BorderBrush=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(30,255,255,255))),Background=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(14,255,255,255))),Padding=new(0,6,0,0),
             Child=new Grid {Children={timeline,laneColumn,empty}}};Grid.SetRow(timelineFrame,2);page.Children.Add(timelineFrame);
         var timeFooter=new DockPanel {Margin=new(2,10,0,0)};var zoomTools=new StackPanel{Orientation=Orientation.Horizontal,VerticalAlignment=VerticalAlignment.Center};DockPanel.SetDock(zoomTools,System.Windows.Controls.Dock.Right);timeFooter.Children.Add(zoomTools);
         zoomTools.Children.Add(Kit.Text("Timeline zoom",13.5,"DS.TextSoft").Also(t=>t.Margin=new(0,0,10,0)));
@@ -166,8 +166,8 @@ public sealed class MacroWorkbench
         {
             bool on=slot==Slot;int events=Draft[slot].Count;
             count.Text=(events==0?"Empty":$"{events} event{(events==1?"":"s")}")+(Draft.PcMode&&Draft.Trigger(slot) is {} by?" · "+TriggerShort(by):"");
-            card.Background=on?new LinearGradientBrush(Color.FromRgb(58,138,255),Color.FromRgb(30,98,232),90):new SolidColorBrush(Color.FromArgb(24,255,255,255));
-            card.BorderBrush=on?new SolidColorBrush(Color.FromArgb(200,220,235,255)):new SolidColorBrush(Color.FromArgb(40,255,255,255));
+            card.Background=on?new LinearGradientBrush(ThemeCatalog.R(Color.FromRgb(58,138,255)),ThemeCatalog.R(Color.FromRgb(30,98,232)),90):new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(24,255,255,255)));
+            card.BorderBrush=on?new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(200,220,235,255))):new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(40,255,255,255)));
             card.Effect=on?new DropShadowEffect {Color=Kit.Blue,BlurRadius=20,ShadowDepth=0,Opacity=.7}:null;
             count.Foreground=on?DS.Brush("DS.Text"):DS.Brush("DS.TextSoft");
         }
@@ -182,7 +182,7 @@ public sealed class MacroWorkbench
             var tab=new RadioButton {Content=name,Style=DS.Style("DS.Segment"),GroupName=group,Tag=(mode,sticks)};
             tab.Click+=(_,_)=>{if(mode=="Inputs")ShowInputKind(sticks);ShowEditor(mode);};editorTabs.Add(tab);tabs.Children.Add(tab);
         }
-        var track=new Border {CornerRadius=new(12),Background=new SolidColorBrush(Color.FromArgb(30,255,255,255)),BorderBrush=new SolidColorBrush(Color.FromArgb(34,255,255,255)),BorderThickness=new(1),Padding=new(1),Child=tabs,VerticalAlignment=VerticalAlignment.Center};
+        var track=new Border {CornerRadius=new(12),Background=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(30,255,255,255))),BorderBrush=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(34,255,255,255))),BorderThickness=new(1),Padding=new(1),Child=tabs,VerticalAlignment=VerticalAlignment.Center};
         DockPanel.SetDock(track,System.Windows.Controls.Dock.Right);headingRow.Children.Add(track);
         var context=new StackPanel {VerticalAlignment=VerticalAlignment.Center,Margin=new(0,0,16,0)};context.Children.Add(eventTitle);context.Children.Add(selectedInputs);headingRow.Children.Add(context);
         foreach(var page in new[]{inputsPage,timingPage,actionsPage}){Grid.SetRow(page,1);Dock.Children.Add(page);}
@@ -196,7 +196,7 @@ public sealed class MacroWorkbench
         {
             var column=new DockPanel {Margin=new(0,6,0,0)};Grid.SetColumn(column,i);buttonsPage.Children.Add(column);
             var label=Kit.Text(columns[i].Name,12.5,"DS.TextSoft",FontWeights.SemiBold);label.HorizontalAlignment=HorizontalAlignment.Center;label.Margin=new(0,0,0,8);DockPanel.SetDock(label,System.Windows.Controls.Dock.Top);column.Children.Add(label);
-            if(i<columns.Length-1){var rule=new Border {Width=1,HorizontalAlignment=HorizontalAlignment.Right,Background=new SolidColorBrush(Color.FromArgb(26,255,255,255)),Margin=new(0,10,0,6)};Grid.SetColumn(rule,i);buttonsPage.Children.Add(rule);}
+            if(i<columns.Length-1){var rule=new Border {Width=1,HorizontalAlignment=HorizontalAlignment.Right,Background=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(26,255,255,255))),Margin=new(0,10,0,6)};Grid.SetColumn(rule,i);buttonsPage.Children.Add(rule);}
             column.Children.Add(i switch
             {
                 0=>Diamond(true,("Y","Y"),("X","X"),("B","B"),("A","A")),
@@ -238,7 +238,7 @@ public sealed class MacroWorkbench
     }
     private static FrameworkElement Guide()
     {
-        var face=new Border {Width=92,Height=46,CornerRadius=new(12),BorderThickness=new(1.2),BorderBrush=new SolidColorBrush(Color.FromArgb(46,255,255,255)),Background=new SolidColorBrush(Color.FromArgb(30,255,255,255)),Opacity=.45,
+        var face=new Border {Width=92,Height=46,CornerRadius=new(12),BorderThickness=new(1.2),BorderBrush=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(46,255,255,255))),Background=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(30,255,255,255))),Opacity=.45,
             Child=Kit.Text("Guide",17,"DS.Text",FontWeights.SemiBold).Also(t=>t.HorizontalAlignment=HorizontalAlignment.Center)};
         var holder=new Border {Child=face,Background=Brushes.Transparent,VerticalAlignment=VerticalAlignment.Center,HorizontalAlignment=HorizontalAlignment.Center,ToolTip="Guide can't be part of a sequence."};
         ToolTipService.SetShowOnDisabled(holder,true);return holder;
@@ -257,10 +257,10 @@ public sealed class MacroWorkbench
     {
         string key=(string)button.Tag;var border=(Border)button.Content;var face=(TextBlock)border.Child;
         bool selected=SelectedIndex>=0 && SelectedIndex<Draft[Slot].Count,on=selected && Draft[Slot][SelectedIndex].Buttons.Contains(key);
-        var color=key switch {"Y"=>Color.FromRgb(245,205,80),"X"=>Color.FromRgb(70,170,255),"B"=>Color.FromRgb(255,100,125),"A"=>Color.FromRgb(70,220,150),_=>(Color?)null};
+        var color=key switch {"Y"=>ThemeCatalog.R(Color.FromRgb(245,205,80)),"X"=>ThemeCatalog.R(Color.FromRgb(70,170,255)),"B"=>ThemeCatalog.R(Color.FromRgb(255,100,125)),"A"=>ThemeCatalog.R(Color.FromRgb(70,220,150)),_=>(Color?)null};
         button.IsEnabled=selected;border.Opacity=selected?1:.45;border.BorderThickness=new(on?2:1.2);
-        border.Background=on?new LinearGradientBrush(Color.FromRgb(70,150,255),Color.FromRgb(31,104,240),90):new SolidColorBrush(Color.FromArgb(30,255,255,255));
-        border.BorderBrush=button.IsKeyboardFocused?Brushes.White:on?Brushes.White:color!=null?new SolidColorBrush(Color.FromArgb(150,color.Value.R,color.Value.G,color.Value.B)):new SolidColorBrush(Color.FromArgb(46,255,255,255));
+        border.Background=on?new LinearGradientBrush(ThemeCatalog.R(Color.FromRgb(70,150,255)),ThemeCatalog.R(Color.FromRgb(31,104,240)),90):new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(30,255,255,255)));
+        border.BorderBrush=button.IsKeyboardFocused?Brushes.White:on?Brushes.White:color!=null?new SolidColorBrush(Color.FromArgb(150,color.Value.R,color.Value.G,color.Value.B)):new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(46,255,255,255)));
         face.Foreground=on||color==null?DS.Brush("DS.Text"):new SolidColorBrush(color.Value);
         border.Effect=on?new DropShadowEffect {Color=Kit.Blue,BlurRadius=22,ShadowDepth=0,Opacity=.9}:null;
     }
@@ -277,7 +277,7 @@ public sealed class MacroWorkbench
         foreach(var tab in editorTabs){var (m,s)=((string,bool))tab.Tag;tab.IsChecked=m==EditorMode && (m!="Inputs" || s==sticks);}
     }
     private void AdjustTime(bool isPause,int delta){if(SelectedIndex<0)return;var step=Draft[Slot][SelectedIndex];Update(isPause?step with {PauseMs=Math.Clamp(step.PauseMs+delta,0,327675)}:step with {HoldMs=Math.Clamp(step.HoldMs+delta,0,327675)});}
-    private void UpdateEventSelection(){for(int i=0;i<steps.Count;i++){bool selected=i==SelectedIndex,active=IsPreviewing && i==PreviewIndex;steps[i].Background=active?new SolidColorBrush(Color.FromRgb(51,127,190)):Fill(selected);steps[i].BorderBrush=active?Brushes.White:selected?Brushes.LightSkyBlue:new SolidColorBrush(Color.FromArgb(30,255,255,255));steps[i].BorderThickness=new(selected||active?1.5:1);if(!steps[i].IsKeyboardFocused)steps[i].Effect=selected||active?new DropShadowEffect {Color=Color.FromRgb(46,119,217),BlurRadius=18,ShadowDepth=3,Opacity=.45}:null;}}
+    private void UpdateEventSelection(){for(int i=0;i<steps.Count;i++){bool selected=i==SelectedIndex,active=IsPreviewing && i==PreviewIndex;steps[i].Background=active?new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(51,127,190))):Fill(selected);steps[i].BorderBrush=active?Brushes.White:selected?Brushes.LightSkyBlue:new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(30,255,255,255)));steps[i].BorderThickness=new(selected||active?1.5:1);if(!steps[i].IsKeyboardFocused)steps[i].Effect=selected||active?new DropShadowEffect {Color=ThemeCatalog.R(Color.FromRgb(46,119,217)),BlurRadius=18,ShadowDepth=3,Opacity=.45}:null;}}
     private Button Button(string text,Action action,string style="ConsoleAction") {var button=new Button {Content=text,Style=(Style)resources.FindResource(style)};button.Click+=(_,_)=>Guard(action);focusRegistration(button);return button;}
     private void Guard(Action action) {try {action();}catch(Exception e) when(e is ArgumentException or InvalidOperationException){notice.Text=e.Message;}}
     public void SelectSlot(string slot) {if(!Draft.SlotNames.Contains(slot))throw new ArgumentException("This model has no such macro slot.",nameof(slot));StopPreview();Slot=slot;SelectedIndex=Draft[slot].Count==0?-1:0;Refresh();Changed?.Invoke();}
@@ -378,20 +378,20 @@ public sealed class MacroWorkbench
         foreach(var (label,row,tone) in new[]{("Buttons",0,Kit.Blue),("Left stick",1,Kit.Ice),("Right stick",2,Kit.Ice),("Pause",3,PauseTone)})
         {
             double chip=Math.Min(32,Math.Max(22,lane-10));
-            var name=new Border {Width=110,Height=chip,CornerRadius=new(chip/2),Padding=new(12,0,10,0),BorderThickness=new(1),BorderBrush=new SolidColorBrush(Color.FromArgb(36,255,255,255)),Background=new SolidColorBrush(Color.FromArgb(24,255,255,255)),
+            var name=new Border {Width=110,Height=chip,CornerRadius=new(chip/2),Padding=new(12,0,10,0),BorderThickness=new(1),BorderBrush=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(36,255,255,255))),Background=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(24,255,255,255))),
                 Child=new StackPanel {Orientation=Orientation.Horizontal,VerticalAlignment=VerticalAlignment.Center,Children={new Ellipse {Width=7,Height=7,Fill=new SolidColorBrush(tone),Margin=new(0,0,9,0),VerticalAlignment=VerticalAlignment.Center},new TextBlock {Text=label,FontSize=13,FontWeight=FontWeights.SemiBold,Foreground=DS.Brush("DS.Text"),VerticalAlignment=VerticalAlignment.Center}}}};
             Canvas.SetLeft(name,8);Canvas.SetTop(name,24+row*lane+(lane-chip)/2);laneLabels.Children.Add(name);
-            timelineCanvas.Children.Add(new Line {X1=124,X2=width+132,Y1=24+row*lane,Y2=24+row*lane,Stroke=new SolidColorBrush(Color.FromArgb(40,119,151,202))});
+            timelineCanvas.Children.Add(new Line {X1=124,X2=width+132,Y1=24+row*lane,Y2=24+row*lane,Stroke=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(40,119,151,202)))});
         }
-        double range=Math.Max(250,Draft.Duration(Slot)),interval=Math.Max(5,Math.Ceiling(viewport/scale/4/5)*5);for(double time=0;time<=range;time+=interval){double x=132+time*scale;timelineCanvas.Children.Add(new Line {X1=x,X2=x,Y1=20,Y2=height,Stroke=new SolidColorBrush(Color.FromArgb(30,119,151,202))});var tick=new TextBlock {Text=$"{time:0} ms",FontSize=12,Foreground=DS.Brush("DS.TextSoft")};Canvas.SetLeft(tick,time==0?x+4:Math.Min(x-12,width+132-65));Canvas.SetTop(tick,0);timelineCanvas.Children.Add(tick);}
+        double range=Math.Max(250,Draft.Duration(Slot)),interval=Math.Max(5,Math.Ceiling(viewport/scale/4/5)*5);for(double time=0;time<=range;time+=interval){double x=132+time*scale;timelineCanvas.Children.Add(new Line {X1=x,X2=x,Y1=20,Y2=height,Stroke=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(30,119,151,202)))});var tick=new TextBlock {Text=$"{time:0} ms",FontSize=12,Foreground=DS.Brush("DS.TextSoft")};Canvas.SetLeft(tick,time==0?x+4:Math.Min(x-12,width+132-65));Canvas.SetTop(tick,0);timelineCanvas.Children.Add(tick);}
         int start=0;for(int i=0;i<Draft[Slot].Count;i++)
         {
             var item=Draft[Slot][i];for(int row=0;row<4;row++)
             {
                 bool neutral=item.Buttons.Count==0 && item.Left==StickHeading.Neutral && item.Right==StickHeading.Neutral;
                 bool present=row==0?item.Buttons.Count>0 || neutral:row==1?item.Left!=StickHeading.Neutral:row==2?item.Right!=StickHeading.Neutral:item.PauseMs>0;if(!present)continue;
-                int offset=row==3?item.HoldMs:0,duration=row==3?item.PauseMs:item.HoldMs;var rectangle=new Rectangle {Width=Math.Max(1,duration*scale),Height=Math.Max(12,lane-10),RadiusX=7,RadiusY=7,Fill=new SolidColorBrush(row==3?Color.FromArgb(96,PauseTone.R,PauseTone.G,PauseTone.B):Color.FromArgb(190,39,104,190)),Stroke=i==SelectedIndex?Brushes.LightSkyBlue:Brushes.Transparent,StrokeThickness=1.5,Tag=i,ToolTip=$"Event {i+1}, {duration} ms"};Canvas.SetLeft(rectangle,132+(start+offset)*scale);Canvas.SetTop(rectangle,29+row*lane);int index=i;rectangle.MouseLeftButtonDown+=(_,_)=>Select(index);timelineCanvas.Children.Add(rectangle);
-                if(row==0 && neutral){rectangle.Fill=new SolidColorBrush(Color.FromArgb(25,164,194,231));rectangle.Stroke=Brushes.SlateGray;rectangle.StrokeDashArray=new(){3,3};}
+                int offset=row==3?item.HoldMs:0,duration=row==3?item.PauseMs:item.HoldMs;var rectangle=new Rectangle {Width=Math.Max(1,duration*scale),Height=Math.Max(12,lane-10),RadiusX=7,RadiusY=7,Fill=new SolidColorBrush(row==3?Color.FromArgb(96,PauseTone.R,PauseTone.G,PauseTone.B):ThemeCatalog.R(Color.FromArgb(190,39,104,190))),Stroke=i==SelectedIndex?Brushes.LightSkyBlue:Brushes.Transparent,StrokeThickness=1.5,Tag=i,ToolTip=$"Event {i+1}, {duration} ms"};Canvas.SetLeft(rectangle,132+(start+offset)*scale);Canvas.SetTop(rectangle,29+row*lane);int index=i;rectangle.MouseLeftButtonDown+=(_,_)=>Select(index);timelineCanvas.Children.Add(rectangle);
+                if(row==0 && neutral){rectangle.Fill=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(25,164,194,231)));rectangle.Stroke=Brushes.SlateGray;rectangle.StrokeDashArray=new(){3,3};}
                 laneBlocks.Add((rectangle,i,row,rectangle.Fill));
                 if(rectangle.Width>72)
                 {
@@ -411,14 +411,14 @@ public sealed class MacroWorkbench
         notice.Text=$"Local preview · Event {index+1:00} · {(pausePhase?"Pause":"Hold")} · {elapsed} ms · No input emitted";
         UpdateEventSelection();UpdateLaneHighlight();if(changed && index>=0)SnapTo(index);double x=playhead.X1;if(x<timeline.HorizontalOffset+212 || x>timeline.HorizontalOffset+timeline.ViewportWidth-80)timeline.ScrollToHorizontalOffset(Math.Max(0,x-timeline.ViewportWidth*.55));
     }
-    private void UpdateLaneHighlight(){foreach(var block in laneBlocks){bool eventActive=IsPreviewing && block.Event==PreviewIndex,phaseActive=eventActive && (PreviewIsPause?block.Lane==3:block.Lane!=3);block.Shape.Fill=phaseActive?new SolidColorBrush(PreviewIsPause?Color.FromRgb(176,190,214):Color.FromRgb(68,142,211)):eventActive?new SolidColorBrush(block.Lane==3?Color.FromRgb(118,132,160):Color.FromRgb(47,112,174)):block.Normal;}}
+    private void UpdateLaneHighlight(){foreach(var block in laneBlocks){bool eventActive=IsPreviewing && block.Event==PreviewIndex,phaseActive=eventActive && (PreviewIsPause?block.Lane==3:block.Lane!=3);block.Shape.Fill=phaseActive?new SolidColorBrush(PreviewIsPause?ThemeCatalog.R(Color.FromRgb(176,190,214)):ThemeCatalog.R(Color.FromRgb(68,142,211))):eventActive?new SolidColorBrush(block.Lane==3?ThemeCatalog.R(Color.FromRgb(118,132,160)):ThemeCatalog.R(Color.FromRgb(47,112,174))):block.Normal;}}
     public void SetZoom(double value){zoom=Math.Clamp(value,.5,4);zoomLabel.Text=$"{zoom*100:0}%";RenderTimeline();SnapTimeline(SelectedIndex);}
     private void SnapTimeline(int index){if(index<0)return;double time=Draft[Slot].Take(index).Sum(s=>s.HoldMs+s.PauseMs);Body.Dispatcher.BeginInvoke(new Action(()=>timeline.ScrollToHorizontalOffset(Math.Max(0,132+time*scale-timeline.ViewportWidth*.45))));}
     private void UpdateCardMetrics(){double size=sequenceViewport.ActualWidth>1000?210:190;cardWidth=size;cardHeight=58;foreach(var button in steps){button.MaxWidth=double.PositiveInfinity;button.MinWidth=button.Width=size;button.MaxWidth=size;button.Height=cardHeight;}int visible=Math.Max(1,(int)Math.Floor((sequenceViewport.ViewportWidth+10)/Stride));double slack=Math.Max(0,sequenceViewport.ViewportWidth-(visible*Stride-10));sequence.Margin=new(0,8,slack,8);if(SelectedIndex>=0)SnapTo(SelectedIndex);}
     private void SnapTo(int index){if(index<0||index>=steps.Count||index>=Draft[Slot].Count)return;string slot=Slot;Guid id=Draft[slot][index].Id;Body.Dispatcher.BeginInvoke(DispatcherPriority.Loaded,new Action(()=>{if(Slot!=slot || index>=steps.Count || index>=Draft[Slot].Count || Draft[Slot][index].Id!=id)return;int count=Math.Max(1,(int)Math.Floor((sequenceViewport.ViewportWidth+10)/Stride));int first=Math.Clamp(index-count/2,0,Math.Max(0,steps.Count-count));sequenceViewport.ScrollToHorizontalOffset(first*Stride);MaskPartialCards();}));}
     private void MaskPartialCards(){foreach(var button in steps){if(!button.IsVisible||!sequenceViewport.IsAncestorOf(button))continue;var bounds=button.TransformToAncestor(sequenceViewport).TransformBounds(new Rect(button.RenderSize));bool visible=bounds.Left>=-.5 && bounds.Right<=sequenceViewport.ActualWidth+.5;button.Opacity=visible?1:0;button.IsHitTestVisible=visible;}}
     private bool CardInView(int index){if(index<0||index>=steps.Count||!sequenceViewport.IsAncestorOf(steps[index]))return false;var bounds=steps[index].TransformToAncestor(sequenceViewport).TransformBounds(new Rect(steps[index].RenderSize));return bounds.Left>=-.5 && bounds.Right<=sequenceViewport.ActualWidth+.5 && bounds.Top>=-.5 && bounds.Bottom<=sequenceViewport.ActualHeight+.5;}
-    private static Brush Fill(bool selected)=>new SolidColorBrush(selected?Color.FromArgb(200,37,86,147):Color.FromArgb(70,24,35,55));
+    private static Brush Fill(bool selected)=>new SolidColorBrush(selected?ThemeCatalog.R(Color.FromArgb(200,37,86,147)):ThemeCatalog.R(Color.FromArgb(70,24,35,55)));
     private static ControlTemplate Bare(){var t=new ControlTemplate(typeof(Button)){VisualTree=new FrameworkElementFactory(typeof(ContentPresenter))};t.Seal();return t;}
     private static string Glyph(string key)=>key switch {"DPAD_UP"=>"↑","DPAD_DOWN"=>"↓","DPAD_LEFT"=>"←","DPAD_RIGHT"=>"→","SELECT"=>"View","START"=>"Menu",_=>key};
     private static string Friendly(string key)=>key switch {"DPAD_UP"=>"D-pad up","DPAD_DOWN"=>"D-pad down","DPAD_LEFT"=>"D-pad left","DPAD_RIGHT"=>"D-pad right","SELECT"=>"View","START"=>"Menu","L3"=>"the left stick click","R3"=>"the right stick click","LT"=>"the left trigger","RT"=>"the right trigger","LB"=>"the left bumper","RB"=>"the right bumper",_=>key};

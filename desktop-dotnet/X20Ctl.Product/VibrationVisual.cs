@@ -34,7 +34,7 @@ public sealed class VibrationVisual : Grid
         // the strokes follow the edge of the colour the pad is shown in (each colour's shell is traced on its own)
         string finish = PadColours.Active(model);
         var islands = Flow.Islands(model, finish);
-        behind = new Flow(tracks, false) { Rim = rim }; over = new Flow(tracks, true) { Rim = rim, Parts = islands, Palette = [Color.FromRgb(246,191,105),Color.FromRgb(255,229,187)], Body = Flow.Silhouette(model, finish) };
+        behind = new Flow(tracks, false) { Rim = rim }; over = new Flow(tracks, true) { Rim = rim, Parts = islands, Palette = [ThemeCatalog.R(Color.FromRgb(246,191,105)),ThemeCatalog.R(Color.FromRgb(255,229,187))], Body = Flow.Silhouette(model, finish) };
         Children.Add(behind); Children.Add(new PhotoController(model)); Children.Add(over);
         RenderTransform = shake;
         Loaded += (_, _) => UpdateClock(); Unloaded += (_, _) => Stop(); IsVisibleChanged += (_, _) => UpdateClock();
@@ -81,7 +81,7 @@ public sealed class VibrationVisual : Grid
         private readonly List<Track> tracks; private readonly bool front;
         public string Region {get;set;}="Both grips";
         private int strength; private double time; private bool moving;
-        private static readonly Color Deep = Color.FromRgb(56, 132, 255), Ice = Color.FromRgb(170, 214, 255), White = Color.FromRgb(240, 247, 255);
+        private static readonly Color Deep = ThemeCatalog.R(Color.FromRgb(56, 132, 255)), Ice = ThemeCatalog.R(Color.FromRgb(170, 214, 255)), White = ThemeCatalog.R(Color.FromRgb(240, 247, 255));
         public Track? Rim { get; init; }
         public List<Island> Parts { get; init; } = [];
 
@@ -165,7 +165,7 @@ public sealed class VibrationVisual : Grid
         private static Color Hue(double t)
         {
             t -= Math.Floor(t);
-            Color[] stops = { Color.FromRgb(70, 225, 255), Color.FromRgb(70, 120, 255), Color.FromRgb(255, 90, 215), Color.FromRgb(255, 160, 60), Color.FromRgb(70, 225, 255) };
+            Color[] stops = { ThemeCatalog.R(Color.FromRgb(70, 225, 255)), ThemeCatalog.R(Color.FromRgb(70, 120, 255)), ThemeCatalog.R(Color.FromRgb(255, 90, 215)), ThemeCatalog.R(Color.FromRgb(255, 160, 60)), ThemeCatalog.R(Color.FromRgb(70, 225, 255)) };
             double x = t * 4; int i = (int)x; return Mix(stops[i], stops[Math.Min(i + 1, 4)], x - i);
         }
         public Flow(List<Track> tracks, bool front) { this.tracks = tracks; this.front = front; Width = 1536; Height = 1024; IsHitTestVisible = false; }
@@ -266,19 +266,19 @@ public sealed class VibrationVisual : Grid
             }
             if (Body != null) dc.Pop();
         }
-        public Color[] Palette { get; init; } = [Color.FromRgb(80, 225, 255)];
+        public Color[] Palette { get; init; } = [ThemeCatalog.R(Color.FromRgb(80, 225, 255))];
         /// <summary>The colours of each model's own LEDs, read off its photo: strips, stick rings, the D-pad ring. The X10 and
         /// X15 show no lit LEDs, so they take the colour of their shell accents.</summary>
         public static Color[] LedColors(string model) => model switch
         {
-            "x20" => [Color.FromRgb(255, 150, 45), Color.FromRgb(255, 60, 200), Color.FromRgb(80, 90, 255)],
-            "x20_pro" => [Color.FromRgb(255, 90, 220), Color.FromRgb(160, 110, 255), Color.FromRgb(90, 230, 255)],
-            "x05_pro" => [Color.FromRgb(255, 70, 200), Color.FromRgb(255, 215, 60), Color.FromRgb(80, 230, 255)],
-            "x10" => [Color.FromRgb(110, 160, 255), Color.FromRgb(175, 210, 255)],
-            "d10" => [Color.FromRgb(255, 190, 240), Color.FromRgb(255, 80, 210), Color.FromRgb(160, 90, 255)],
-            "x15" => [Color.FromRgb(210, 175, 255), Color.FromRgb(150, 110, 255)],
-            "dune" => [Color.FromRgb(170, 90, 255), Color.FromRgb(80, 140, 255), Color.FromRgb(90, 230, 255), Color.FromRgb(255, 100, 220)],
-            _ => [Color.FromRgb(80, 225, 255)],
+            "x20" => [ThemeCatalog.R(Color.FromRgb(255, 150, 45)), ThemeCatalog.R(Color.FromRgb(255, 60, 200)), ThemeCatalog.R(Color.FromRgb(80, 90, 255))],
+            "x20_pro" => [ThemeCatalog.R(Color.FromRgb(255, 90, 220)), ThemeCatalog.R(Color.FromRgb(160, 110, 255)), ThemeCatalog.R(Color.FromRgb(90, 230, 255))],
+            "x05_pro" => [ThemeCatalog.R(Color.FromRgb(255, 70, 200)), ThemeCatalog.R(Color.FromRgb(255, 215, 60)), ThemeCatalog.R(Color.FromRgb(80, 230, 255))],
+            "x10" => [ThemeCatalog.R(Color.FromRgb(110, 160, 255)), ThemeCatalog.R(Color.FromRgb(175, 210, 255))],
+            "d10" => [ThemeCatalog.R(Color.FromRgb(255, 190, 240)), ThemeCatalog.R(Color.FromRgb(255, 80, 210)), ThemeCatalog.R(Color.FromRgb(160, 90, 255))],
+            "x15" => [ThemeCatalog.R(Color.FromRgb(210, 175, 255)), ThemeCatalog.R(Color.FromRgb(150, 110, 255))],
+            "dune" => [ThemeCatalog.R(Color.FromRgb(170, 90, 255)), ThemeCatalog.R(Color.FromRgb(80, 140, 255)), ThemeCatalog.R(Color.FromRgb(90, 230, 255)), ThemeCatalog.R(Color.FromRgb(255, 100, 220))],
+            _ => [ThemeCatalog.R(Color.FromRgb(80, 225, 255))],
         };
         private static Color Rgb(Color[] stops, double t)
         {

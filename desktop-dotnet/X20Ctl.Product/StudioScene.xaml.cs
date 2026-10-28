@@ -65,7 +65,7 @@ public partial class StudioScene : UserControl
     private Point? lastFocusCenter;
     public StudioScene(int player, ControllerModel model, ButtonDraft draft, bool reducedMotion = false, CurveDraft? curveDraft = null,MacroDraft? macros = null,VibrationDraft? vibration = null,SetupStore? setups=null,IReadOnlyList<string>? legacy=null,string? activeId=null)
     {
-        InitializeComponent(); Player = player; Model = model; Draft = draft; PadColours.ActivePlayer = player;
+        InitializeComponent(); Player = player; Model = model; Draft = draft; PadColours.ActivePlayer = player; Loaded += (_, _) => { if (!IsRebel) BuildRebelStudio(); if (ThemeCatalog.Current.Id == "pulse") BuildPulseStudio(); if (ThemeCatalog.Current.Id == "spotlight") BuildSpotlightStudio(); if (ThemeCatalog.Current.Id == "nexus") BuildNexusStudio(); if (ThemeCatalog.Current.Id == "tide") BuildTideStudio(); if (ThemeCatalog.Current.Id == "hybrid") BuildHybridStudio(); if (ThemeCatalog.Current.Id == "dusk") BuildDuskStudio(); if (ThemeCatalog.Current.Id == "volt") BuildVoltStudio(); if (ThemeCatalog.Current.Id == "blossom") BuildBlossomStudio(); };
         setupStore=setups??new(Path.Combine(Path.GetTempPath(),"x20ctl-render-setup-"+Guid.NewGuid().ToString("N")+".json"));legacySources=legacy??Array.Empty<string>();activeSetup=activeId;
         Unloaded+=(_,_)=>{StopTry();Tester?.ExitCapture();Diagnostics?.Stop();};
         macroDraft=macros ?? new MacroDraft(model.Id);vibrationDraft=vibration??new(model.Id);
@@ -121,6 +121,13 @@ public partial class StudioScene : UserControl
         };
         ShowController(false); ClearSelection(); UpdateButtonsPage(); ShowManagement("Dashboard");
         BuildAgent();
+        if (ThemeCatalog.Current.Id == "pulse") BuildPulseStudio();
+        if (ThemeCatalog.Current.Id == "spotlight") BuildSpotlightStudio();
+        if (ThemeCatalog.Current.Id == "nexus") BuildNexusStudio();
+        if (ThemeCatalog.Current.Id == "tide") BuildTideStudio();
+        if (ThemeCatalog.Current.Id == "hybrid") BuildHybridStudio();
+        if (ThemeCatalog.Current.Id == "dusk") BuildDuskStudio();
+        if (ThemeCatalog.Current.Id == "volt") BuildVoltStudio();
     }
 
     // ---- the agent (12 Oct 2026): the title-bar pill, and the window it opens (the round button went, 14 Oct) ----
@@ -148,7 +155,7 @@ public partial class StudioScene : UserControl
         // across the Studio, nearly all of it (owner's concept, 19 Oct: the screen as big as it can be), keeping a controller's
         // shape: as large as the room allows, centred
         SizeAgentController();
-        agentPanel.Body.HorizontalAlignment=HorizontalAlignment.Right;agentPanel.Body.VerticalAlignment=VerticalAlignment.Bottom;
+        if (!IsPulse && !IsSpotlight && !IsNexus && !IsTide) { agentPanel.Body.HorizontalAlignment=HorizontalAlignment.Right;agentPanel.Body.VerticalAlignment=VerticalAlignment.Bottom; }
         agentPanel.Show();InputContextChanged?.Invoke(); if (agentPill != null) agentPill.ToolTip = "Put Agent XCTL away";
         Dispatcher.BeginInvoke(() => agentPanel?.Input.Focus(), System.Windows.Threading.DispatcherPriority.Input);
     }
@@ -156,6 +163,7 @@ public partial class StudioScene : UserControl
     private void SizeAgentController()
     {
         if (agentPanel == null) return;
+        if (IsPulse || IsSpotlight || IsNexus || IsTide) { agentPanel.Body.Width = 1600; agentPanel.Body.Height = 900; agentPanel.Body.Margin = new(0); agentPanel.Body.HorizontalAlignment = HorizontalAlignment.Stretch; agentPanel.Body.VerticalAlignment = VerticalAlignment.Stretch; return; }
         double room=Math.Max(180,StudioShell.ActualHeight-70), wide=Math.Max(280,StudioShell.ActualWidth-40);
         double high=Math.Min(room,wide*Agent.AgentPanel.DesignHeight/Agent.AgentPanel.DesignWidth);
         double across=high*Agent.AgentPanel.DesignWidth/Agent.AgentPanel.DesignHeight;
@@ -302,23 +310,23 @@ public partial class StudioScene : UserControl
         var heart = new TextBlock { Text = "", FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"), FontSize = 15, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new(0, 0, 9, 0) };
         var support = new Button { Cursor = Cursors.Hand, ToolTip = "Support X20CTL on Ko-fi (opens your browser)", FocusVisualStyle = null, Margin = new(0, 0, 12, 0),
             Template = new ControlTemplate(typeof(Button)) { VisualTree = new FrameworkElementFactory(typeof(ContentPresenter)) },
-            Content = new Border { CornerRadius = new(10), Height = 36, Padding = new(14, 0, 18, 0), BorderThickness = new(1), BorderBrush = new SolidColorBrush(Color.FromArgb(160, 255, 150, 170)),
-                Background = new LinearGradientBrush(Color.FromRgb(232, 54, 96), Color.FromRgb(196, 30, 78), 0), Effect = new DropShadowEffect { Color = Color.FromRgb(232, 54, 96), BlurRadius = 18, ShadowDepth = 0, Opacity = .5 },
+            Content = new Border { CornerRadius = new(10), Height = 36, Padding = new(14, 0, 18, 0), BorderThickness = new(1), BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(160, 255, 150, 170))),
+                Background = new LinearGradientBrush(ThemeCatalog.R(Color.FromRgb(232, 54, 96)), ThemeCatalog.R(Color.FromRgb(196, 30, 78)), 0), Effect = new DropShadowEffect { Color = ThemeCatalog.R(Color.FromRgb(232, 54, 96)), BlurRadius = 18, ShadowDepth = 0, Opacity = .5 },
                 Child = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Children = { heart, new TextBlock { Text = "Support", FontFamily = DS.Display, FontSize = 15, FontWeight = FontWeights.SemiBold, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center } } } } };
         support.Click += (_, _) => SupportRequested?.Invoke();
-        var pill = (Border)support.Content; support.MouseEnter += (_, _) => pill.BorderBrush = new SolidColorBrush(Color.FromArgb(200, 255, 255, 255)); support.MouseLeave += (_, _) => pill.BorderBrush = new SolidColorBrush(Color.FromArgb(160, 255, 150, 170));
-        var name = new Border { CornerRadius = new(18), Height = 36, Padding = new(14, 0, 16, 0), BorderThickness = new(1), BorderBrush = new SolidColorBrush(Color.FromArgb(80, 125, 182, 255)), Background = new SolidColorBrush(Color.FromArgb(60, 30, 60, 130)),
+        var pill = (Border)support.Content; support.MouseEnter += (_, _) => pill.BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(200, 255, 255, 255))); support.MouseLeave += (_, _) => pill.BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(160, 255, 150, 170)));
+        var name = new Border { CornerRadius = new(18), Height = 36, Padding = new(14, 0, 16, 0), BorderThickness = new(1), BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(80, 125, 182, 255))), Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(60, 30, 60, 130))),
             Child = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Children = { new TextBlock { Text = "", FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"), FontSize = 16, Foreground = DS.Brush("DS.AccentHi"), VerticalAlignment = VerticalAlignment.Center, Margin = new(0, 0, 10, 0) }, new TextBlock { Text = Model.Name.Replace("EasySMX ", ""), FontFamily = DS.Display, FontSize = 15, FontWeight = FontWeights.SemiBold, Foreground = DS.Brush("DS.Text"), VerticalAlignment = VerticalAlignment.Center } } } };
         // Agent XCTL in the title bar, in the gap left of Support: opens (or puts away) the agent
         var agentPill = this.agentPill = new Button { Cursor = Cursors.Hand, ToolTip = "Agent XCTL", FocusVisualStyle = null, Margin = new(0, 0, 12, 0),
             Template = new ControlTemplate(typeof(Button)) { VisualTree = new FrameworkElementFactory(typeof(ContentPresenter)) },
-            Content = new Border { CornerRadius = new(18), Height = 36, Padding = new(14, 0, 16, 0), BorderThickness = new(1), BorderBrush = new SolidColorBrush(Color.FromArgb(150, 125, 182, 255)),
-                Background = new SolidColorBrush(Color.FromRgb(38,91,184)),
+            Content = new Border { CornerRadius = new(18), Height = 36, Padding = new(14, 0, 16, 0), BorderThickness = new(1), BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(150, 125, 182, 255))),
+                Background = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(38,91,184))),
                 Child = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Children = {
                     new TextBlock { Text = "", FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"), FontSize = 15, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new(0, 0, 9, 0) },
                     new TextBlock { Text = "Agent XCTL", FontFamily = DS.Display, FontSize = 15, FontWeight = FontWeights.SemiBold, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center } } } } };
         agentPill.Click += (_, _) => { if (AgentOpen) CloseAgent(); else OpenAgent(); };
-        var agentBorder = (Border)agentPill.Content; agentPill.MouseEnter += (_, _) => agentBorder.BorderBrush = Brushes.White; agentPill.MouseLeave += (_, _) => agentBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(150, 125, 182, 255));
+        var agentBorder = (Border)agentPill.Content; agentPill.MouseEnter += (_, _) => agentBorder.BorderBrush = Brushes.White; agentPill.MouseLeave += (_, _) => agentBorder.BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(150, 125, 182, 255)));
         var more = new Button { Content="⋯",Style=DS.Style("Zone.Utility"),Width=38,Height=36,MinHeight=36,Padding=new(0),Margin=new(8,0,0,0),ToolTip="Help and utilities" };
         more.ContextMenu=new ContextMenu();
         var supportItem=new MenuItem {Header="Support X20CTL"};supportItem.Click+=(_,_)=>SupportRequested?.Invoke();more.ContextMenu.Items.Add(supportItem);
@@ -521,6 +529,7 @@ public partial class StudioScene : UserControl
     }
     private void RefreshEditor()
     {
+        RebelLater(); PulseLater(); SpotlightLater(); NexusLater(); TideLater(); HybridLater(); DuskLater(); VoltLater(); BlossomLater();
         updating = true; var region = layout.Controls.FirstOrDefault(r => r.Key == SelectedControl);
         bool macro = region?.Role == "macro", editable = region != null && Draft.CanEdit(SelectedControl);
         SelectedName.Text = region == null ? "Choose a control" : Label(SelectedControl);
@@ -540,10 +549,10 @@ public partial class StudioScene : UserControl
         foreach (Button choice in targetButtons)
         {
             bool active = editable && (string)choice.Tag == Draft.Target(SelectedControl);
-            choice.IsEnabled = editable; choice.Background = active ? (Brush)FindResource("Blue") : new SolidColorBrush(Color.FromArgb(117, 24, 35, 55));
-            choice.BorderBrush = active ? (Brush)FindResource("Ice") : new SolidColorBrush(Color.FromArgb(54, 88, 121, 163));
+            choice.IsEnabled = editable; choice.Background = active ? (Brush)FindResource("Blue") : new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(117, 24, 35, 55)));
+            choice.BorderBrush = active ? (Brush)FindResource("Ice") : new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(54, 88, 121, 163)));
         }
-        foreach (Button choice in RearControls.Children) choice.Background = (string)choice.Tag == SelectedControl ? (Brush)FindResource("Blue") : new SolidColorBrush(Color.FromArgb(24, 255, 255, 255));
+        foreach (Button choice in RearControls.Children) choice.Background = (string)choice.Tag == SelectedControl ? (Brush)FindResource("Blue") : new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(24, 255, 255, 255)));
         FeatureNote.Text = Draft.PcMode ? (region == null ? "PC mode: pick a button, then what it should do. It applies on this PC, to games." : macro ? $"PC mode can't see {SelectedControl} itself: in Macros, pick the button that plays its sequence." : !editable ? "PC mode can't change this control." : "PC mode: this applies on this PC, to games, right away. Nothing is written to the controller.") : Model.Id != "x20" ? "Configuration is unverified for this model. You can still inspect its controls." : region == null ? "Select a button on the controller. Inspect shoulders and paddles on the back." : macro ? $"{SelectedControl} is a controller-side macro slot. Editing is unavailable; hardware state is unknown." : region.Role == "axis" ? "Movement and click share this stick cap. Analog settings and live input are unavailable here." : !editable ? "This control is present. Remapping is unverified and no write is available." : "Choose an output on the shelf. This draft stays local; hardware settings are unknown.";
         ChangeCount.Text = Draft.UnsentChanges == 0 ? "No unsent changes" : $"{Draft.UnsentChanges} unsent change{(Draft.UnsentChanges == 1 ? "" : "s")}";
         DraftChip.Text = Draft.UnsentChanges == 0 ? "No local changes" : $"{Draft.UnsentChanges} local change{(Draft.UnsentChanges == 1 ? "" : "s")}";
@@ -585,7 +594,7 @@ public partial class StudioScene : UserControl
         double end = active ? Equals(button.Tag,"SetupLibraryCard") ? 1.02 : 1.08 : 1;
         if (animate) { transform.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(end, TimeSpan.FromMilliseconds(140))); transform.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(end, TimeSpan.FromMilliseconds(140))); }
         else { transform.ScaleX = end; transform.ScaleY = end; }
-        button.Effect = active ? new DropShadowEffect { Color = Color.FromRgb(78, 147, 255), BlurRadius = 22, ShadowDepth = 5, Opacity = .75 } : null;
+        button.Effect = active ? new DropShadowEffect { Color = ThemeCatalog.R(Color.FromRgb(78, 147, 255)), BlurRadius = 22, ShadowDepth = 5, Opacity = .75 } : null;
     }
     private void ShowDetachedFocus(FrameworkElement target)
     {
@@ -629,6 +638,7 @@ public partial class StudioScene : UserControl
     }
     public void ShowCurves(bool value)
     {
+        RebelLater(); PulseLater(); SpotlightLater(); NexusLater(); TideLater(); HybridLater(); DuskLater(); VoltLater(); BlossomLater();
         // a page this model cannot use is refused before anything changes (it used to drop a Device or Setups
         // page onto Buttons with no tab lit, found by the stress run on 10 Oct 2026)
         HideManagement();
@@ -718,24 +728,32 @@ public partial class StudioScene : UserControl
     /// <summary>Curves → Advanced: the fine stick tools, over the Studio until Done (or B / Esc).</summary>
     public void OpenStickTools()
     {
+        if (IsSpotlight) { SpotlightShowAdvanced(); return; }
+        if (IsNexus) { NexusShowAdvanced(); return; }
+        if (IsTide) { TideShowAdvanced(); return; }
         if(PcMode==null||stickToolsLayer!=null)return;
         StickTools=new StickToolsPanel(PcMode,CloseStickTools);
-        stickToolsLayer=new Grid{Background=new SolidColorBrush(Color.FromArgb(200,3,6,16)),Children={StickTools}};
+        StickTools.PulseNavigate = target => { CloseStickTools(); PulseSelectPage(target); };
+        stickToolsLayer=new Grid{Background=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(200,3,6,16))),Children={StickTools}};
         Grid.SetZIndex(stickToolsLayer,50);StudioShell.Children.Add(stickToolsLayer);Fx.Appear(stickToolsLayer,1.03,240);StickTools.Done.Focus();
     }
     public void CloseStickTools()
     {
+        if (IsSpotlight) { SpotlightShowCurves(); return; }
+        if (IsNexus) { NexusShowCurves(); return; }
+        if (IsTide) { tideAdvanced = false; TideShowCurves(); return; }
         if(stickToolsLayer==null)return;var leaving=stickToolsLayer;stickToolsLayer=null;StickTools=null;
         Fx.Leave(leaving,()=>StudioShell.Children.Remove(leaving),1.02,200);if(IsCurves)StickToolsChoice.Focus();
     }
     private void ButtonsTab(object sender,RoutedEventArgs e) => ShowButtons();
     /// <summary>Open the Buttons page from anywhere (tab, Dashboard hero, review harnesses).</summary>
-    public void ShowButtons() { ShowCurves(false);if(IsMacros)ShowMacros(false);if(IsVibration)ShowVibration(false);HideManagement();ButtonsNav.IsChecked=true;FrontChoice.IsEnabled=true;RearChoice.IsEnabled=Model.Id=="x20";UpdateButtonsPage(); }
+    public void ShowButtons() { RebelLater(); PulseLater(); SpotlightLater(); NexusLater(); TideLater(); HybridLater(); DuskLater(); VoltLater(); BlossomLater(); ShowCurves(false);if(IsMacros)ShowMacros(false);if(IsVibration)ShowVibration(false);HideManagement();ButtonsNav.IsChecked=true;FrontChoice.IsEnabled=true;RearChoice.IsEnabled=Model.Id=="x20";UpdateButtonsPage(); }
     public DashboardConsolePage? Dashboard {get;private set;}
     private DashboardConsolePage CreateDashboard(){var page=new DashboardConsolePage(Model,Player,Draft.UnsentChanges,setupStore.Items.Count(s=>s.ModelId==Model.Id),!animate,setupStore.Items.Where(s=>s.ModelId==Model.Id).ToArray(),id=>LoadSetup(setupStore.NativeSnapshot(id)));if(currentTransport!=null)page.SetTransport(currentTransport);if(currentFirmware!=null)page.SetFirmware(currentFirmware);page.SetBatteryLevel(currentBatteryLevel,currentTransport);if(gameplayConnected is bool connected)page.SetInputConnected(connected);page.TelemetryUpdated+=ApplyTelemetry;page.ConfigureRequested+=ShowButtons;page.PageRequested+=target=>{if(target=="Buttons")ShowButtons();else if(target=="Curves")ShowCurves(true);else if(target=="Macros")ShowMacros(true);else ShowManagement(target);};return page;}
     private void DashboardTab(object sender,RoutedEventArgs e)=>ShowManagement("Dashboard");
     public void ShowMacros(bool value)
     {
+        RebelLater(); PulseLater(); SpotlightLater(); NexusLater(); TideLater(); HybridLater(); DuskLater(); VoltLater(); BlossomLater();
         HideManagement();
         if(IsVibration)ShowVibration(false);
         if(value==IsMacros)return;
@@ -760,6 +778,7 @@ public partial class StudioScene : UserControl
     private void MacrosTab(object sender,RoutedEventArgs e)=>ShowMacros(true);
     public void ShowVibration(bool value)
     {
+        RebelLater(); PulseLater(); SpotlightLater(); NexusLater(); TideLater(); HybridLater(); DuskLater(); VoltLater(); BlossomLater();
         HideManagement();
         if(value==IsVibration)return;
         if(value && IsCurves)ShowCurves(false);if(value && IsMacros)ShowMacros(false);
@@ -776,6 +795,7 @@ public partial class StudioScene : UserControl
     private void ResetVibration(object sender,RoutedEventArgs e)=>Vibration?.Reset();
     public void ShowManagement(string page)
     {
+        RebelLater(); PulseLater(); SpotlightLater(); NexusLater(); TideLater(); HybridLater(); DuskLater(); VoltLater(); BlossomLater();
         DraftBar.Visibility=page=="Dashboard"?Visibility.Collapsed:Visibility.Visible;RootLayout.RowDefinitions[2].Height=new(page=="Dashboard"?0:40);
         Apply.Visibility=StatusNote.Visibility=page=="Dashboard"?Visibility.Collapsed:Visibility.Visible;ChangeCount.Visibility=page=="Dashboard"?Visibility.Collapsed:Visibility.Visible;
         if(page is not ("Dashboard" or "PcMode" or "Device" or "Diagnostics" or "Mouse" or "Tester" or "Setups"))throw new ArgumentException("Unknown Studio page.");
@@ -827,7 +847,7 @@ public partial class StudioScene : UserControl
         var heading = new DockPanel(); DockPanel.SetDock(close, Dock.Right); heading.Children.Add(close);
         heading.Children.Add(new StackPanel { Margin = new(24,16,0,8), Children = { Kit.Text("Try your controller", 24, "DS.Text", FontWeights.SemiBold), Kit.Text("Roll both sticks around their edge · error measures deviation from a circle, not measurement uncertainty", 13, "DS.TextSoft") } });
         content.Children.Add(heading); Grid.SetRow(tryDiagnostics.Body, 1); content.Children.Add(tryDiagnostics.Body);
-        tryLayer = new Grid { Background = new SolidColorBrush(Color.FromArgb(210, 3, 6, 16)), Children = { new Border { Background = new SolidColorBrush(Color.FromRgb(10,18,38)), BorderBrush = DS.Brush("DS.AccentHi"), BorderThickness = new(1), CornerRadius = new(22), Margin = new(40,100,40,110), Child = content } } };
+        tryLayer = new Grid { Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(210, 3, 6, 16))), Children = { new Border { Background = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(10,18,38))), BorderBrush = DS.Brush("DS.AccentHi"), BorderThickness = new(1), CornerRadius = new(22), Margin = new(40,100,40,110), Child = content } } };
         StudioShell.Children.Add(tryLayer); Panel.SetZIndex(tryLayer, 48); tryDiagnostics.Start(); InputContextChanged?.Invoke();
         trial = new KeyboardSimulation(Model.Id); trial.Enable(); PushTrialFrame(); buttonsPage?.SetTrying(true); UpdateHints();
         TryChoice.Content = "Stop"; TryChoice.Background = (Brush)FindResource("Blue");
@@ -967,6 +987,7 @@ public partial class StudioScene : UserControl
     public bool CapturingRemap => OnButtonsPage && buttonsPage != null && buttonsPage.Listening != ButtonsConsolePage.Listen.None;
     public void OnKeyDown(object sender, KeyEventArgs e)
     {
+        if (RebelKey(e) || PulseKey(e)) return;
         // the Advanced stick tools own the keyboard while open (arrows nudge their sliders); Esc closes them
         if (stickToolsLayer != null) { if (e.Key == Key.Escape) { CloseStickTools(); e.Handled = true; } return; }
         // the agent window: Esc puts it away, and while typing to it every key is the text box's

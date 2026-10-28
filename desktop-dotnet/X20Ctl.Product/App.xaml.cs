@@ -47,6 +47,13 @@ public partial class App : Application
                 ShutdownMode = ShutdownMode.OnExplicitShutdown; IntroView.SoundEnabled = false;
                 await Development.TimingReview.Run(e.Args[1]); Shutdown(0); return;
             }
+            if (e.Args.Length == 3 && e.Args[0] == "--review-themes")
+            {
+                // windowless: the pages are hosted in a hidden HwndSource and rendered off screen
+                ShutdownMode = ShutdownMode.OnExplicitShutdown; IntroView.SoundEnabled = false;
+                try { await Development.ThemeReview.Run(e.Args[1], e.Args[2]); } catch (Exception failure) { Directory.CreateDirectory(e.Args[1]); File.WriteAllText(Path.Combine(e.Args[1], "failure.txt"), failure.ToString()); }
+                Shutdown(0); return;
+            }
             if (e.Args.Length == 2 && e.Args[0] == "--review-finishes")
             {
                 // windowless: every picture is rendered off screen
@@ -97,6 +104,8 @@ public partial class App : Application
             {   // the setup, the uninstaller and their silent forms are this same exe
                 Setup.SetupApp.Run(this, setup, e.Args); return;
             }
+            // the saved theme goes into the shared resources before anything is drawn from them (Tools → Themes)
+            ThemeCatalog.Apply(ThemeCatalog.Saved(ProductHost.PreferencesPath));
             // the intro film starts opening now, while the window is built, so it plays from the first frame
             if (ProductHost.IntroAtLaunch(e.Args.Contains("--reduced-motion"))) IntroView.PreloadFilm();
             Setup.Installer.RefreshIfInstalled();

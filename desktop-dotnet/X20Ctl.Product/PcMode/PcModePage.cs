@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -59,8 +59,9 @@ public static class PcModeSetup
 
     /// <summary>Says what is about to be installed and why, and waits for a yes. The installers run quietly, so without this
     /// the only sign would be Windows' permission box and a window that flashes by.</summary>
-    static bool Consent(List<string> names)
+    internal static bool Consent(List<string> names)
     {
+        if (ThemeCatalog.Current.Id == "pulse" && Application.Current?.MainWindow is ProductWindow window) return window.Host.ConfirmPulseDrivers(names);
         string list = string.Join("\n", names.Select(n => n == "virtual controller driver"
             ? "•  ViGEmBus: the virtual Xbox controller that games see"
             : "•  HidHide: hides the physical pad so games don't see it twice"));
@@ -102,7 +103,7 @@ public static class PcModeSetup
 /// with PC mode on, a controller's Buttons, Curves and Macros tabs apply on this PC, for any model. Everything saves as
 /// it changes; nothing is written to the controller.
 /// </summary>
-public sealed class PcModePage : Border
+public sealed partial class PcModePage : Border
 {
     static readonly (string Id, string Label)[] Buttons =
     [
@@ -169,8 +170,8 @@ public sealed class PcModePage : Border
     {
         this.service = service; this.store = store; this.preferences = preferences; Back = back;
         CornerRadius = new(22); BorderThickness = new(1); Padding = new(28, 22, 28, 22); HorizontalAlignment = HorizontalAlignment.Stretch; VerticalAlignment = VerticalAlignment.Top;
-        Background = new LinearGradientBrush(Color.FromArgb(215, 14, 24, 52), Color.FromArgb(200, 8, 14, 34), 90);
-        BorderBrush = new LinearGradientBrush(Color.FromArgb(110, 120, 170, 255), Color.FromArgb(30, 120, 170, 255), 90);
+        Background = new LinearGradientBrush(ThemeCatalog.R(Color.FromArgb(215, 14, 24, 52)), ThemeCatalog.R(Color.FromArgb(200, 8, 14, 34)), 90);
+        BorderBrush = new LinearGradientBrush(ThemeCatalog.R(Color.FromArgb(110, 120, 170, 255)), ThemeCatalog.R(Color.FromArgb(30, 120, 170, 255)), 90);
         var stack = new StackPanel(); Child = stack;
 
         stack.Children.Add(Kit.Text("PC mode", 36, "DS.Text", FontWeights.Bold));
@@ -178,7 +179,7 @@ public sealed class PcModePage : Border
 
         // status
         statusLabel = Kit.Text("", 20, "DS.Text", FontWeights.SemiBold); statusDetail = Wrap("", 15, "DS.TextSoft", 4);
-        var statusCard = new Border { CornerRadius = new(16), Padding = new(22, 16, 22, 16), Margin = new(0, 24, 0, 0), BorderThickness = new(1), Background = new SolidColorBrush(Color.FromArgb(120, 4, 10, 26)), BorderBrush = new SolidColorBrush(Color.FromArgb(60, 120, 170, 255)),
+        var statusCard = new Border { CornerRadius = new(16), Padding = new(22, 16, 22, 16), Margin = new(0, 24, 0, 0), BorderThickness = new(1), Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(120, 4, 10, 26))), BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(60, 120, 170, 255))),
             Child = new StackPanel { Children = { new StackPanel { Orientation = Orientation.Horizontal, Children = { dot, statusLabel.Also(l => l.Margin = new(12, 0, 0, 0)) } }, statusDetail } } };
         stack.Children.Add(statusCard);stack.Children.Add(pipeline);
 
@@ -208,7 +209,7 @@ public sealed class PcModePage : Border
 
         // the one-time notice
         notice = new Border { CornerRadius = new(16), Padding = new(22, 18, 22, 18), Margin = new(0, 24, 0, 0), BorderThickness = new(1), Visibility = Visibility.Collapsed,
-            Background = new SolidColorBrush(Color.FromArgb(70, 120, 80, 10)), BorderBrush = new SolidColorBrush(Color.FromArgb(160, 245, 200, 80)) };
+            Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(70, 120, 80, 10))), BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(160, 245, 200, 80))) };
         var accept = Pill("I understand"); accept.Margin = new(0, 14, 0, 0); accept.HorizontalAlignment = HorizontalAlignment.Left;
         accept.Click += (_, _) => AcceptNotice();
         notice.Child = new StackPanel { Children = {
@@ -313,10 +314,10 @@ public sealed class PcModePage : Border
     {
         var (label, color) = service.State switch
         {
-            PcModeState.Active => ("Active", Color.FromRgb(52, 211, 153)),
-            PcModeState.Ready => ("Ready", Color.FromRgb(125, 182, 255)),
-            PcModeState.NeedsAttention => ("Needs attention", Color.FromRgb(245, 200, 80)),
-            _ => ("Off", Color.FromRgb(140, 150, 175)),
+            PcModeState.Active => ("Active", ThemeCatalog.R(Color.FromRgb(52, 211, 153))),
+            PcModeState.Ready => ("Ready", ThemeCatalog.R(Color.FromRgb(125, 182, 255))),
+            PcModeState.NeedsAttention => ("Needs attention", ThemeCatalog.R(Color.FromRgb(245, 200, 80))),
+            _ => ("Off", ThemeCatalog.R(Color.FromRgb(140, 150, 175))),
         };
         if(!PcModeSetup.Ready && service.State!=PcModeState.Active)label="Not set up";
         syncing=true;enable.IsChecked=service.State==PcModeState.Active && !service.Suspended;syncing=false;

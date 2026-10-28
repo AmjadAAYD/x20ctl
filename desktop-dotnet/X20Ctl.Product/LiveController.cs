@@ -104,8 +104,8 @@ public sealed class LiveController : Grid
         foreach (var (slot, centre, size) in Paddles(model))
         {
             double fontSize = Math.Clamp(Math.Min(size.Width * .4, size.Height * .46), 17, 25);
-            var text = new TextBlock { Text = slot, FontFamily = DS.Display, FontSize = fontSize, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush(Color.FromRgb(242, 246, 252)), VerticalAlignment = VerticalAlignment.Center };
-            var idle = new SolidColorBrush(Color.FromArgb(228, 12, 18, 30)); var edge = new SolidColorBrush(Color.FromArgb(235, Kit.Blue.R, Kit.Blue.G, Kit.Blue.B));
+            var text = new TextBlock { Text = slot, FontFamily = DS.Display, FontSize = fontSize, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(242, 246, 252))), VerticalAlignment = VerticalAlignment.Center };
+            var idle = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(228, 12, 18, 30))); var edge = new SolidColorBrush(Color.FromArgb(235, Kit.Blue.R, Kit.Blue.G, Kit.Blue.B));
             var label = new Border
             {
                 CornerRadius = new(fontSize), Padding = new(fontSize * .5, fontSize * .08, fontSize * .5, fontSize * .16), BorderThickness = new(Math.Max(1.5, fontSize * .08)),
@@ -114,7 +114,7 @@ public sealed class LiveController : Grid
             if (chosen != null)
             {
                 label.Cursor = System.Windows.Input.Cursors.Hand; label.ToolTip = $"Open {slot} in Macros";
-                label.MouseEnter += (_, _) => { label.Background = new SolidColorBrush(Color.FromArgb(245, 28, 54, 96)); label.BorderBrush = new SolidColorBrush(Color.FromRgb(214, 232, 255)); };
+                label.MouseEnter += (_, _) => { label.Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(245, 28, 54, 96))); label.BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(214, 232, 255))); };
                 label.MouseLeave += (_, _) => { label.Background = idle; label.BorderBrush = edge; };
                 label.MouseLeftButtonUp += (_, e) => { chosen(slot); e.Handled = true; };
             }
@@ -220,6 +220,6 @@ public sealed class LiveController : Grid
     }
     private static Image Layer() { var image = new Image { Width = 1536, Height = 1024, Stretch = Stretch.Fill }; RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.HighQuality); return image; }
     private static DropShadowEffect CapShadow() => new() { Color = Colors.Black, BlurRadius = 18, ShadowDepth = 4, Direction = 270, Opacity = .55, RenderingBias = RenderingBias.Performance };
-    private static DropShadowEffect TriggerGlow() => new() { Color = Color.FromRgb(96, 170, 255), BlurRadius = 10, ShadowDepth = 0, Opacity = 0, RenderingBias = RenderingBias.Performance };
+    private static DropShadowEffect TriggerGlow() => new() { Color = ThemeCatalog.R(Color.FromRgb(96, 170, 255)), BlurRadius = 10, ShadowDepth = 0, Opacity = 0, RenderingBias = RenderingBias.Performance };
     private static double Clamp(double v, double lo, double hi) => double.IsNaN(v) ? 0 : Math.Clamp(v, lo, hi);
 }

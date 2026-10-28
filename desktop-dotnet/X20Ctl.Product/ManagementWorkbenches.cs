@@ -16,7 +16,7 @@ internal static class ManagementVisuals
     public static TextBlock Copy(string text,double size=16,bool strong=false)=>new(){Text=text,FontSize=size,FontWeight=strong?FontWeights.SemiBold:FontWeights.Normal,TextWrapping=TextWrapping.Wrap,Foreground=strong?Brushes.White:Brushes.LightSteelBlue};
     public static Button Action(FrameworkElement resources,string text,Action action,Action<Button> register){var button=new Button {Content=text,Style=(Style)resources.FindResource("ConsoleAction"),Margin=new(0,0,12,0)};button.Click+=(_,_)=>action();register(button);return button;}
 }
-public sealed class DeviceWorkbench
+public sealed partial class DeviceWorkbench
 {
     public Grid Body {get;}=new();public Grid Shelf {get;}=new();public DeviceOverview State {get;}
     public Button OpenTester {get;}public Button OpenSetups {get;}
@@ -92,6 +92,7 @@ public sealed class DeviceWorkbench
                     }
                 };
             }
+            if (label == "Battery") batteryTile = tile;
             values.Children.Add(tile);
         }
         overview.Children.Add(values);
@@ -105,7 +106,7 @@ public sealed class DeviceWorkbench
         OpenSetups=ManagementVisuals.Action(resources,"My setups",setups,register);OpenSetups.Visibility=Visibility.Collapsed;
     }
 }
-public sealed class TesterWorkbench
+public sealed partial class TesterWorkbench
 {
     public Grid Body {get;}=new();public Grid Shelf {get;}=new();public TesterState State {get;}
     public Button Exit {get;}public TextBlock SourceLabel {get;}=ManagementVisuals.Copy("Gameplay input unavailable",20,true);
@@ -121,7 +122,7 @@ public sealed class TesterWorkbench
         this.model=model;layout=geometry;resources=owner;animate=animations;State=new(model.Id);KeyboardTest=new(model.Id);
         Body.ColumnDefinitions.Add(new(){Width=new GridLength(1.5,GridUnitType.Star)});Body.ColumnDefinitions.Add(new());var stage=new Grid();stage.RowDefinitions.Add(new(){Height=new GridLength(42)});stage.RowDefinitions.Add(new());Body.Children.Add(stage);
         var views=new StackPanel {Orientation=Orientation.Horizontal};views.Children.Add(ManagementVisuals.Action(resources,"Front",()=>ShowRear(false),register));var back=ManagementVisuals.Action(resources,"Back",()=>ShowRear(true),register);back.IsEnabled=true;views.Children.Add(back);stage.Children.Add(views);
-        var map=new Grid {Width=1536,Height=1024,Children={artwork,controls,positions}};var view=new Viewbox {Child=map,Stretch=Stretch.Uniform};Grid.SetRow(view,1);stage.Children.Add(view);
+        var map=new Grid {Width=1536,Height=1024,Children={artwork,controls,positions}};stageMap=map;var view=new Viewbox {Child=map,Stretch=Stretch.Uniform};Grid.SetRow(view,1);stage.Children.Add(view);
         var status=new StackPanel {VerticalAlignment=VerticalAlignment.Center,Margin=new(28,0,20,0)};Grid.SetColumn(status,1);Body.Children.Add(status);status.Children.Add(ManagementVisuals.Copy("GAMEPLAY SOURCE",14));status.Children.Add(SourceLabel);status.Children.Add(ownership);pressed.Margin=new(0,26,0,0);status.Children.Add(pressed);status.Children.Add(ManagementVisuals.Copy("Hardware configuration remains separate. Independent paddle input is shown only when exposed by the input source.",15));Exit=ManagementVisuals.Action(resources,"Exit Tester",exit,register);Exit.Width=190;Exit.HorizontalAlignment=HorizontalAlignment.Left;Exit.Margin=new(0,22,0,0);status.Children.Add(Exit);
         KeyboardMode=ManagementVisuals.Action(resources,"Keyboard Test",()=>SetKeyboardSimulation(!KeyboardTest.Enabled),register);KeyboardMode.HorizontalAlignment=HorizontalAlignment.Left;KeyboardMode.Margin=new(0,10,0,0);status.Children.Add(KeyboardMode);status.Children.Add(ManagementVisuals.Copy("WASD · Left stick    Arrows · Right stick\nQ · Hold LT    E · Hold RT",14));
         Shelf.ColumnDefinitions.Add(new(){Width=new GridLength(1,GridUnitType.Star)});Shelf.ColumnDefinitions.Add(new(){Width=new GridLength(1,GridUnitType.Star)});Shelf.ColumnDefinitions.Add(new(){Width=new GridLength(.65,GridUnitType.Star)});Shelf.ColumnDefinitions.Add(new(){Width=new GridLength(.65,GridUnitType.Star)});
@@ -148,7 +149,8 @@ public sealed class TesterWorkbench
         foreach(var region in layout.Controls.Where(r=>r.Role!="axis" && (r.View==(rear?"back":"front") || rear&&r.View=="shoulder")))
         {var light=new PhysicalHotspot(region,animate){IsHitTestVisible=false,Focusable=false};Canvas.SetLeft(light,region.Bounds.X*1536);Canvas.SetTop(light,region.Bounds.Y*1024);controls.Children.Add(light);lights.Add(region.Key,light);}Update();
     }
-    private void Update()
+    private void Update(){UpdateCore();Updated?.Invoke();}
+    private void UpdateCore()
     {
         var frame=State.Frame;SourceLabel.Text=KeyboardTest.Enabled?"KEYBOARD SIMULATION":frame==null?"Gameplay input unavailable":frame.IsSimulation?"SIMULATION · "+frame.Source:frame.Source;SourceLabel.Foreground=frame==null?Brushes.White:frame.IsSimulation?Brushes.SandyBrown:Brushes.LightSkyBlue;pressed.Text=KeyboardTest.Enabled?(KeyboardTest.Held.Count==0?"Neutral · No keys held":"Held: "+string.Join(" + ",KeyboardTest.Held)):frame==null?"Waiting for native gameplay input":string.Join(" + ",frame.ButtonsDown.Where(State.Pressed).Select(k=>k switch {"DPAD_UP"=>"D-pad ↑","DPAD_DOWN"=>"D-pad ↓","DPAD_LEFT"=>"D-pad ←","DPAD_RIGHT"=>"D-pad →",_=>k}));if(frame!=null&&pressed.Text.Length==0)pressed.Text="No buttons held";
         foreach(var (key,light) in lights){bool active=State.Pressed(key) || frame!=null && (key=="LT"&&frame.LT>0 || key=="RT"&&frame.RT>0 || key=="L3"&&(frame.LeftX!=0||frame.LeftY!=0) || key=="R3"&&(frame.RightX!=0||frame.RightY!=0));light.Illuminate(active,false);}
@@ -163,8 +165,8 @@ public sealed class TesterWorkbench
         protected override void OnRender(DrawingContext dc)
         {
             double width=ActualWidth,height=ActualHeight;var text=new FormattedText(label,System.Globalization.CultureInfo.CurrentCulture,FlowDirection.LeftToRight,new Typeface("Segoe UI"),17,Brushes.White,VisualTreeHelper.GetDpi(this).PixelsPerDip);dc.DrawText(text,new(12,4));double size=Math.Min(height-50,width*.55),cx=12+size/2,cy=30+size/2;
-            if(stick){dc.DrawEllipse(new SolidColorBrush(Color.FromRgb(13,26,44)),new Pen(Brushes.SlateGray,1),new(cx,cy),size/2,size/2);dc.DrawLine(new Pen(Brushes.SlateGray,1),new(cx-size/2,cy),new(cx+size/2,cy));dc.DrawLine(new Pen(Brushes.SlateGray,1),new(cx,cy-size/2),new(cx,cy+size/2));if(x.HasValue)dc.DrawEllipse(Brushes.LightSkyBlue,new Pen(Brushes.White,1.5),new(cx+x.Value*size*.4,cy-(y??0)*size*.4),6,6);}
-            else {dc.DrawRoundedRectangle(new SolidColorBrush(Color.FromRgb(16,30,48)),null,new Rect(12,40,width-28,28),14,14);if(x.HasValue)dc.DrawRoundedRectangle(Brushes.LightSkyBlue,null,new Rect(12,40,(width-28)*x.Value,28),14,14);}
+            if(stick){dc.DrawEllipse(new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(13,26,44))),new Pen(Brushes.SlateGray,1),new(cx,cy),size/2,size/2);dc.DrawLine(new Pen(Brushes.SlateGray,1),new(cx-size/2,cy),new(cx+size/2,cy));dc.DrawLine(new Pen(Brushes.SlateGray,1),new(cx,cy-size/2),new(cx,cy+size/2));if(x.HasValue)dc.DrawEllipse(Brushes.LightSkyBlue,new Pen(Brushes.White,1.5),new(cx+x.Value*size*.4,cy-(y??0)*size*.4),6,6);}
+            else {dc.DrawRoundedRectangle(new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(16,30,48))),null,new Rect(12,40,width-28,28),14,14);if(x.HasValue)dc.DrawRoundedRectangle(Brushes.LightSkyBlue,null,new Rect(12,40,(width-28)*x.Value,28),14,14);}
             string value=stick?(x.HasValue?$"X {x:0.00}   Y {y:0.00}":"X —   Y —"):(x.HasValue?$"{x*100:0}%":"Unavailable");var values=new FormattedText(value,System.Globalization.CultureInfo.CurrentCulture,FlowDirection.LeftToRight,new Typeface("Segoe UI"),14,Brushes.LightSteelBlue,VisualTreeHelper.GetDpi(this).PixelsPerDip);dc.DrawText(values,stick?new(Math.Min(width-150,size+28),48):new(12,82));
         }
     }

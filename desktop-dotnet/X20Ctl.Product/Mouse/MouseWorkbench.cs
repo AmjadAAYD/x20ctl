@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -11,7 +11,7 @@ using X20Ctl.Zone.PcMode;
 namespace X20Ctl.Product;
 
 /// <summary>Player/model scoped desktop controls. Only independently reported inputs can be assigned.</summary>
-public sealed class MouseWorkbench
+public sealed partial class MouseWorkbench
 {
     public Grid Body { get; } = new();
     public CheckBox Switch { get; } = new() { Style=DS.Style("DS.Toggle") };
@@ -26,7 +26,7 @@ public sealed class MouseWorkbench
     readonly StackPanel actionChoices=new();
     readonly CheckBox scrolls=Toggle(),combo=Toggle(),horizontal=Toggle(),invertV=Toggle(),invertH=Toggle();
     readonly Slider speed=Slider(200,5000,100),curve=Slider(1,3,.1),deadzone=Slider(0,40,1),precision=Slider(10,90,5),scroll=Slider(1,60,1);
-    readonly Canvas preview=new(){Width=420,Height=145,ClipToBounds=true,Visibility=Visibility.Collapsed,Background=new SolidColorBrush(Color.FromArgb(95,5,12,30))};
+    readonly Canvas preview=new(){Width=420,Height=145,ClipToBounds=true,Visibility=Visibility.Collapsed,Background=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(95,5,12,30)))};
     readonly Ellipse dot=new(){Width=10,Height=10,Fill=Brushes.LightSkyBlue};
     readonly DispatcherTimer timer=new(){Interval=TimeSpan.FromMilliseconds(16)};
     readonly Button test;
@@ -164,7 +164,7 @@ public sealed class MouseWorkbench
     static ComboBox Choice(string[] labels)=>new(){ItemsSource=labels,MinWidth=118,MaxWidth=190,MinHeight=34,Margin=new(0,2,6,2)};
     static Slider Slider(double min,double max,double step)=>new(){Style=DS.Style("DS.Slider"),Minimum=min,Maximum=max,TickFrequency=step,IsSnapToTickEnabled=true,SmallChange=step,LargeChange=step*5,MinWidth=90,VerticalAlignment=VerticalAlignment.Center};
     static CheckBox Toggle()=>new(){Style=DS.Style("DS.Toggle"),VerticalAlignment=VerticalAlignment.Center};
-    static Border Card(string title,UIElement content)=>new(){Margin=new(0,0,12,0),Padding=new(18),CornerRadius=new(18),BorderThickness=new(1),BorderBrush=new SolidColorBrush(Color.FromArgb(50,155,194,240)),Background=new SolidColorBrush(Color.FromArgb(95,8,17,38)),Child=new StackPanel{Children={Copy(title,13,true),content}}};
+    static Border Card(string title,UIElement content)=>new(){Margin=new(0,0,12,0),Padding=new(18),CornerRadius=new(18),BorderThickness=new(1),BorderBrush=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(50,155,194,240))),Background=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(95,8,17,38))),Child=new StackPanel{Children={Copy(title,13,true),content}}};
     static Grid Row(string label,FrameworkElement control){var row=new Grid{Margin=new(0,5,0,5)};row.ColumnDefinitions.Add(new(){Width=new(132)});row.ColumnDefinitions.Add(new());row.Children.Add(Copy(label,14));Grid.SetColumn(control,1);row.Children.Add(control);return row;}
     static Grid Row(string label,Slider slider,Func<double,string> format){var panel=new Grid();panel.ColumnDefinitions.Add(new());panel.ColumnDefinitions.Add(new(){Width=new(132)});panel.Children.Add(slider);var value=Copy(format(slider.Value),13);Grid.SetColumn(value,1);panel.Children.Add(value);slider.ValueChanged+=(_,_)=>value.Text=format(slider.Value);return Row(label,panel);}
 }
