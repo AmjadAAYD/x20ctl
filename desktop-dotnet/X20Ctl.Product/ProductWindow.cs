@@ -96,7 +96,7 @@ public sealed class ProductWindow : Window
             tray?.SetBattery(text);
             if(low&&!batteryWarned){batteryWarned=true;tray?.Notify("Controller battery low","Charge it soon. Windows reports the level as "+text[8..]+".");}else if(!low)batteryWarned=false;
         }
-        batteryTimer=new(System.Windows.Threading.DispatcherPriority.Background){Interval=TimeSpan.FromMinutes(1)};batteryTimer.Tick+=(_,_)=>Read();batteryTimer.Start();Read();
+        batteryTimer=new(System.Windows.Threading.DispatcherPriority.Background){Interval=TimeSpan.FromMinutes(2)};batteryTimer.Tick+=(_,_)=>Read();batteryTimer.Start();Read();
     }
     /// <summary>Home / Guide: show X20CTL fullscreen in front of everything (from the tray too), then go to the Dashboard.</summary>
     public void BringHome()
