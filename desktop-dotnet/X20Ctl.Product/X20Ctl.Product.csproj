@@ -39,6 +39,7 @@
     <Resource Include="Assets/art/*.png" Exclude="Assets/art/*-line.png;Assets/art/*-rim.png;Assets/art/*-sil.png" />
     <!-- the app icon (the logo on its white tile) as an image, for the setup -->
     <Resource Include="Brand/x20ctl-icon.png" Link="Assets/icon.png" />
+    <Content Include="Languages/*.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../x20ctl/controllers/catalog.json" Link="Data/catalog.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../src/assets/controllers/x20/rear-geometry.json" Link="Data/x20-rear.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../src/assets/controllers/control-shapes.json" Link="Data/control-shapes.json" CopyToOutputDirectory="PreserveNewest" />

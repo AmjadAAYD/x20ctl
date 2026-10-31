@@ -346,16 +346,42 @@ public sealed partial class ProductSettings : Grid
     // ---- Themes: every theme as a card drawn in its own colours, type and logo; the choice is saved and starts with the next launch
     private readonly List<Button> themeCards = new();
     private string ChosenTheme => preferences?.Theme is { } id && ThemeCatalog.Find(id).Id == id ? id : ThemeCatalog.Current.Id;
+    // ---- Language: the saved choice starts with the next launch, like the theme
+    private UIElement BuildLanguages()
+    {
+        var chips = new WrapPanel { Margin = new(0, 0, 0, 20) };
+        var status = Kit.Text("", 13.5, "DS.TextSoft");
+        string Chosen() => preferences?.Language is { } code ? Loc.Find(code).Code : Loc.Current.Code;
+        var chipButtons = new List<(Button Button, AppLanguage Language)>();
+        void Show()
+        {
+            foreach (var (button, language) in chipButtons) button.Opacity = language.Code == Chosen() ? 1 : .62;
+            status.Text = Chosen() == Loc.Current.Code ? "" : Loc.Find(Chosen()).Name + " · starts the next time X20CTL opens.";
+        }
+        foreach (var language in Loc.All)
+        {
+            var chip = Pill("", language.Name); chip.Margin = new(0, 0, 10, 8); chip.IsEnabled = preferences != null; chipButtons.Add((chip, language));
+            chip.Click += (_, _) =>
+            {
+                try { preferences?.SetLanguage(language.Code); Show(); }
+                catch (Exception error) when (error is System.IO.IOException or InvalidOperationException or UnauthorizedAccessException) { status.Text = "Couldn't save this setting: " + error.Message; }
+            };
+            chips.Children.Add(chip);
+        }
+        Show();
+        return new StackPanel { Children = { Kit.Text("Language", 18, "DS.Text", FontWeights.SemiBold).Also(t => t.Margin = new(0, 0, 0, 8)), chips, status } };
+    }
     private UIElement BuildThemes()
     {
-        var root = new Grid(); root.RowDefinitions.Add(new() { Height = GridLength.Auto }); root.RowDefinitions.Add(new());
+        var root = new Grid(); root.RowDefinitions.Add(new() { Height = GridLength.Auto }); root.RowDefinitions.Add(new() { Height = GridLength.Auto }); root.RowDefinitions.Add(new());
         var status = Kit.Text("", 15, "DS.TextSoft");
         var back = Pill("", "Back to Tools"); back.Click += (_, _) => ShowThemes(false);
         var restart = Pill("", "Restart now"); restart.Margin = new(0, 0, 12, 0); restart.Click += (_, _) => RequestThemeRestart();
         var actions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Children = { restart, back } };
         DockPanel.SetDock(actions, Dock.Right);
         root.Children.Add(new DockPanel { Margin = new(0, 0, 0, 22), Children = { actions, new StackPanel { VerticalAlignment = VerticalAlignment.Center, Children = { Kit.Text("Themes", 26, "DS.Text", FontWeights.SemiBold), status } } } });
-        var grid = new System.Windows.Controls.Primitives.UniformGrid { Columns = 5, Rows = 2 }; Grid.SetRow(grid, 1); root.Children.Add(grid);
+        var languageRow = BuildLanguages(); Grid.SetRow(languageRow, 1); root.Children.Add(languageRow);
+        var grid = new System.Windows.Controls.Primitives.UniformGrid { Columns = 5, Rows = 2 }; Grid.SetRow(grid, 2); root.Children.Add(grid);
         void Show()
         {
             string chosen = ChosenTheme; var next = ThemeCatalog.Find(chosen);

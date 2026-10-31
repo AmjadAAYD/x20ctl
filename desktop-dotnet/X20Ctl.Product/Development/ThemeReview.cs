@@ -19,6 +19,7 @@ internal static class ThemeReview
         ReviewSandbox.Active = true; ReviewSandbox.HideLibrary = true;
         var theme = ThemeCatalog.Find(id); if (theme.Id != id) throw new ArgumentException("Unknown theme " + id);
         ThemeCatalog.Apply(theme);
+        if (Environment.GetEnvironmentVariable("X20CTL_REVIEW_LANG") is { Length: > 0 } language) { Loc.Apply(Loc.Find(language)); File.WriteAllText(Path.Combine(directory, "language.txt"), Loc.Current.Code + " " + Loc.T("Dashboard")); }
         var bindings = new StringWriter(); using var listener = new TextWriterTraceListener(bindings);
         PresentationTraceSources.DataBindingSource.Listeners.Add(listener); PresentationTraceSources.DataBindingSource.Switch.Level = SourceLevels.Error;
         var shots = new List<string>();

@@ -126,6 +126,7 @@ public partial class App : Application
             }
             // the saved theme goes into the shared resources before anything is drawn from them (Tools → Themes)
             ThemeCatalog.Apply(ThemeCatalog.Saved(ProductHost.PreferencesPath));
+            Loc.Apply(Loc.Saved(ProductHost.PreferencesPath));
             // the intro film starts opening now, while the window is built, so it plays from the first frame
             if (ProductHost.IntroAtLaunch(e.Args.Contains("--reduced-motion"))) IntroView.PreloadFilm();
             Setup.Installer.RefreshIfInstalled();
