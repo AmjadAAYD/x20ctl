@@ -56,6 +56,7 @@ public sealed partial class FeedbackPage
         });
 
         // Embed the actual kinds radio buttons panel
+        if (kinds is System.Windows.Controls.Primitives.UniformGrid kindGrid) { kindGrid.Rows = 2; kindGrid.Columns = 2; }
         kinds.Margin = new Thickness(0, 0, 0, 16);
         formStack.Children.Add(kinds);
 
