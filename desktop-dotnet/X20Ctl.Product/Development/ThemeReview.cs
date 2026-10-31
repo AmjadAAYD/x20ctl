@@ -29,6 +29,16 @@ internal static class ThemeReview
         try
         {
             await Shot("1-zone");
+            if (host.Children.OfType<LanguageMenu>().FirstOrDefault() is { } languageMenu)
+            {   // the language menu's open content, drawn on its own: a popup would need a screen
+                var content = languageMenu.ReviewContent(); content.Measure(new Size(400, 700)); content.Arrange(new Rect(content.DesiredSize));
+                var back = new RenderTargetBitmap((int)Math.Ceiling(content.DesiredSize.Width) + 40, (int)Math.Ceiling(content.DesiredSize.Height) + 40, 96, 96, PixelFormats.Pbgra32);
+                var holder = new System.Windows.Controls.Border { Background = new SolidColorBrush(Color.FromRgb(12, 22, 52)), Padding = new Thickness(20), Child = content };
+                holder.Measure(new Size(back.Width, back.Height)); holder.Arrange(new Rect(0, 0, back.Width, back.Height)); back.Render(holder);
+                var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(back));
+                using (var file = File.Create(Path.Combine(directory, "language-menu.png"))) encoder.Save(file);
+                holder.Child = null;
+            }
             host.Zone.AssignController(0, host.Catalog.Get("x20")); host.Zone.AssignController(1, host.Catalog.Get("x15")); await host.Zone.FocusPlayerAsync(null); await Shot("2-zone-player");
             await host.Zone.FocusPlayerAsync(0); await Shot("2b-hero"); await host.Zone.FocusPlayerAsync(null);
             host.EnterStudio(0); await Shot("3-dashboard", 1400);

@@ -21,6 +21,7 @@ public sealed class LanguageMenu : Grid
     private readonly TextBlock note = new() { FontSize = 12.5, TextWrapping = TextWrapping.Wrap, Margin = new(6, 8, 6, 2), Foreground = new SolidColorBrush(Color.FromRgb(160, 176, 205)), MaxWidth = 210 };
     private readonly Button restart = new() { Content = "Restart now", Visibility = Visibility.Collapsed, Margin = new(4, 6, 4, 2), Padding = new(12, 6, 12, 6), HorizontalAlignment = HorizontalAlignment.Left };
     private readonly Action restartApp;
+    private readonly Border panel;
 
     public LanguageMenu(X20Ctl.Zone.ProductPreferences? preferences, UIElement showWith, Action? restartApp = null)
     {
@@ -39,7 +40,7 @@ public sealed class LanguageMenu : Grid
         Children.Add(button);
 
         popup.PlacementTarget = button; popup.VerticalOffset = -10; popup.HorizontalOffset = 0; popup.Placement = PlacementMode.Top;
-        var panel = new Border
+        panel = new Border
         {
             CornerRadius = new(14), Padding = new(8), BorderThickness = new(1), MinWidth = 220,
             Background = new SolidColorBrush(Color.FromArgb(244, 11, 17, 34)), BorderBrush = new SolidColorBrush(Color.FromArgb(120, 130, 165, 235)),
@@ -53,7 +54,12 @@ public sealed class LanguageMenu : Grid
 
     private string Chosen => preferences?.Language is { } code ? Loc.Find(code).Code : Loc.Current.Code;
 
-    private void Open()
+    private void Open() { Fill(); popup.IsOpen = true; }
+
+    /// <summary>The open menu's content, for review pictures; nothing is shown.</summary>
+    internal FrameworkElement ReviewContent() { popup.Child = null; Fill(); return panel; }
+
+    private void Fill()
     {
         list.Children.Clear();
         foreach (var language in Loc.All)
@@ -70,7 +76,6 @@ public sealed class LanguageMenu : Grid
             list.Children.Add(row);
         }
         ShowNote();
-        popup.IsOpen = true;
     }
 
     private void Choose(AppLanguage language)
