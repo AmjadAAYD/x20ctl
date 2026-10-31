@@ -337,5 +337,7 @@
  "Calibrate physical stick range and diagonal acceleration.": "校准摇杆物理行程和对角加速。",
  "Anti-dead zone": "反死区",
  "Dead zone ignores small physical movements near center.": "死区会忽略中心附近的微小物理移动。",
- "Circular": "圆形"
+ "Circular": "圆形",
+ "Reset options ⌄": "重置选项 ⌄",
+ "▶  Play": "▶  开始"
 }

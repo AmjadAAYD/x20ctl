@@ -53,8 +53,8 @@
  "Low": "Niedrig",
  "Left": "Links",
  "Right": "Rechts",
- "Left stick": "Linker Stick",
- "Right stick": "Rechter Stick",
+ "Left stick": "Stick links",
+ "Right stick": "Stick rechts",
  "Left trigger": "Linker Trigger",
  "Right trigger": "Rechter Trigger",
  "Left bumper": "Linker Bumper",
@@ -66,7 +66,7 @@
  "Guide": "Guide",
  "Sticks": "Sticks",
  "Shoulders": "Schultertasten",
- "Face": "Fronttasten",
+ "Face": "Front",
  "In use": "In Benutzung",
  "Next": "Nächstes",
  "Installed": "Installiert",
@@ -259,7 +259,7 @@
  "Right click": "Rechtsklick",
  "Left click": "Linksklick",
  "Choose its desktop action": "Desktop-Aktion wählen",
- "Choose input source": "Eingabequelle wählen",
+ "Choose input source": "Eingabequelle",
  "Controller as mouse": "Controller als Maus",
  "My setups": "Meine Setups",
  "New setup": "Neues Setup",
@@ -337,5 +337,7 @@
  "Calibrate physical stick range and diagonal acceleration.": "Physischen Stick-Weg und diagonale Beschleunigung kalibrieren.",
  "Anti-dead zone": "Anti-Totzone",
  "Dead zone ignores small physical movements near center.": "Die Totzone ignoriert kleine physische Bewegungen nahe der Mitte.",
- "Circular": "Kreisförmig"
+ "Circular": "Kreisförmig",
+ "Reset options ⌄": "Zurücksetzen ⌄",
+ "▶  Play": "▶  Spielen"
 }

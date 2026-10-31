@@ -337,5 +337,7 @@
  "Calibrate physical stick range and diagonal acceleration.": "スティックの物理的な可動域と斜め方向の加速を調整します。",
  "Anti-dead zone": "アンチデッドゾーン",
  "Dead zone ignores small physical movements near center.": "デッドゾーンは中心付近のわずかな動きを無視します。",
- "Circular": "円形"
+ "Circular": "円形",
+ "Reset options ⌄": "リセット ⌄",
+ "▶  Play": "▶  プレイ"
 }

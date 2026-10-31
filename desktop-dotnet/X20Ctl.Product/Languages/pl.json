@@ -66,7 +66,7 @@
  "Guide": "Guide",
  "Sticks": "Drążki",
  "Shoulders": "Ramiona",
- "Face": "Przyciski główne",
+ "Face": "Główne",
  "In use": "W użyciu",
  "Next": "Następny",
  "Installed": "Zainstalowano",
@@ -259,7 +259,7 @@
  "Right click": "Prawy przycisk",
  "Left click": "Lewy przycisk",
  "Choose its desktop action": "Wybierz jego akcję na pulpicie",
- "Choose input source": "Wybierz źródło wejścia",
+ "Choose input source": "Źródło wejścia",
  "Controller as mouse": "Kontroler jako mysz",
  "My setups": "Moje konfiguracje",
  "New setup": "Nowa konfiguracja",
@@ -337,5 +337,7 @@
  "Calibrate physical stick range and diagonal acceleration.": "Skalibruj fizyczny zakres drążków i przyspieszenie po przekątnej.",
  "Anti-dead zone": "Anty-martwa strefa",
  "Dead zone ignores small physical movements near center.": "Martwa strefa ignoruje drobne ruchy fizyczne blisko środka.",
- "Circular": "Okrągły"
+ "Circular": "Okrągły",
+ "Reset options ⌄": "Resetowanie ⌄",
+ "▶  Play": "▶  Graj"
 }

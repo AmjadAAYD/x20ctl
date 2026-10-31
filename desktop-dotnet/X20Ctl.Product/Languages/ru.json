@@ -178,7 +178,7 @@
  "Next preset": "Следующий пресет",
  "Reset curve": "Сбросить кривую",
  "Adjust": "Настроить",
- "Connect a controller or use Keyboard test": "Подключите геймпад или используйте тест клавиатурой",
+ "Connect a controller or use Keyboard test": "Подключите геймпад или тест клавиатуры",
  "Output %": "Выход %",
  "Input %": "Вход %",
  "Fine": "Точно",
@@ -259,7 +259,7 @@
  "Right click": "Правый клик",
  "Left click": "Левый клик",
  "Choose its desktop action": "Выберите действие на рабочем столе",
- "Choose input source": "Выберите источник ввода",
+ "Choose input source": "Источник ввода",
  "Controller as mouse": "Геймпад как мышь",
  "My setups": "Мои профили",
  "New setup": "Новый профиль",
@@ -337,5 +337,7 @@
  "Calibrate physical stick range and diagonal acceleration.": "Калибровка физического хода стиков и диагонального ускорения.",
  "Anti-dead zone": "Анти-мёртвая зона",
  "Dead zone ignores small physical movements near center.": "Мёртвая зона игнорирует небольшие движения возле центра.",
- "Circular": "Круговая"
+ "Circular": "Круговая",
+ "Reset options ⌄": "Сброс ⌄",
+ "▶  Play": "▶  Играть"
 }

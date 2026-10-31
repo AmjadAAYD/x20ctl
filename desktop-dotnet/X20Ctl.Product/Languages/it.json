@@ -66,7 +66,7 @@
  "Guide": "Guida",
  "Sticks": "Stick",
  "Shoulders": "Dorsali",
- "Face": "Pulsanti frontali",
+ "Face": "Frontali",
  "In use": "In uso",
  "Next": "Prossimo",
  "Installed": "Installato",
@@ -159,7 +159,7 @@
  "Reset options": "Opzioni di ripristino",
  "All assignments": "Tutte le assegnazioni",
  "System": "Sistema",
- "D-pad": "Croce direzionale",
+ "D-pad": "Croce",
  "All": "Tutti",
  "Assign A to:": "Assegna A a:",
  "A button": "Pulsante A",
@@ -259,7 +259,7 @@
  "Right click": "Clic destro",
  "Left click": "Clic sinistro",
  "Choose its desktop action": "Scegli la sua azione sul desktop",
- "Choose input source": "Scegli la sorgente di input",
+ "Choose input source": "Sorgente input",
  "Controller as mouse": "Controller come mouse",
  "My setups": "Le mie configurazioni",
  "New setup": "Nuova configurazione",
@@ -337,5 +337,7 @@
  "Calibrate physical stick range and diagonal acceleration.": "Calibra la corsa fisica degli stick e l'accelerazione diagonale.",
  "Anti-dead zone": "Anti-zona morta",
  "Dead zone ignores small physical movements near center.": "La zona morta ignora i piccoli movimenti fisici vicino al centro.",
- "Circular": "Circolare"
+ "Circular": "Circolare",
+ "Reset options ⌄": "Ripristina ⌄",
+ "▶  Play": "▶  Gioca"
 }

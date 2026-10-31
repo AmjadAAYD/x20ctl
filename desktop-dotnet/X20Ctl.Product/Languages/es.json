@@ -53,8 +53,8 @@
  "Low": "Baja",
  "Left": "Izquierda",
  "Right": "Derecha",
- "Left stick": "Palanca izquierda",
- "Right stick": "Palanca derecha",
+ "Left stick": "Palanca izq.",
+ "Right stick": "Palanca der.",
  "Left trigger": "Gatillo izquierdo",
  "Right trigger": "Gatillo derecho",
  "Left bumper": "Bumper izquierdo",
@@ -66,7 +66,7 @@
  "Guide": "Guía",
  "Sticks": "Palancas",
  "Shoulders": "Hombros",
- "Face": "Botones frontales",
+ "Face": "Frontales",
  "In use": "En uso",
  "Next": "Siguiente",
  "Installed": "Instalado",
@@ -259,7 +259,7 @@
  "Right click": "Clic derecho",
  "Left click": "Clic izquierdo",
  "Choose its desktop action": "Elige su acción de escritorio",
- "Choose input source": "Elegir origen de entrada",
+ "Choose input source": "Origen de entrada",
  "Controller as mouse": "Mando como ratón",
  "My setups": "Mis configuraciones",
  "New setup": "Nueva configuración",
@@ -337,5 +337,7 @@
  "Calibrate physical stick range and diagonal acceleration.": "Calibra el recorrido físico de las palancas y la aceleración diagonal.",
  "Anti-dead zone": "Anti-zona muerta",
  "Dead zone ignores small physical movements near center.": "La zona muerta ignora los pequeños movimientos físicos cerca del centro.",
- "Circular": "Circular"
+ "Circular": "Circular",
+ "Reset options ⌄": "Restablecer ⌄",
+ "▶  Play": "▶  Jugar"
 }

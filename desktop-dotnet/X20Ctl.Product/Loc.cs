@@ -85,13 +85,25 @@ public static class Loc
         foreach (var routed in new[] { FrameworkElement.SizeChangedEvent, FrameworkElement.LoadedEvent })
         {
             EventManager.RegisterClassHandler(typeof(TextBlock), routed, new RoutedEventHandler((s, _) => WatchText((TextBlock)s)));
-            EventManager.RegisterClassHandler(typeof(ContentControl), routed, new RoutedEventHandler((s, _) =>
-            {
-                var control = (ContentControl)s;
-                if (control.Content is string label && !System.Windows.Data.BindingOperations.IsDataBound(control, ContentControl.ContentProperty)) { var next = T(label); if (next != label) control.Content = next; }
-                if (control.ToolTip is string tip) { var next = T(tip); if (next != tip) control.ToolTip = next; }
-            }));
+            EventManager.RegisterClassHandler(typeof(ContentControl), routed, new RoutedEventHandler((s, _) => WatchContent((ContentControl)s)));
         }
+    }
+
+    private static readonly ConditionalWeakTable<ContentControl, object> watchedContent = new();
+
+    private static void WatchContent(ContentControl control)
+    {
+        TranslateContent(control);
+        if (watchedContent.TryGetValue(control, out _)) return;
+        watchedContent.Add(control, true);
+        // a label set after the control is on screen is swapped as it arrives
+        DependencyPropertyDescriptor.FromProperty(ContentControl.ContentProperty, typeof(ContentControl)).AddValueChanged(control, (_, _) => TranslateContent(control));
+    }
+
+    private static void TranslateContent(ContentControl control)
+    {
+        if (control.Content is string label && !System.Windows.Data.BindingOperations.IsDataBound(control, ContentControl.ContentProperty)) { var next = T(label); if (next != label) control.Content = next; }
+        if (control.ToolTip is string tip) { var next = T(tip); if (next != tip) control.ToolTip = next; }
     }
 
     private static void WatchText(TextBlock block)
