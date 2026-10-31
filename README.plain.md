@@ -2,7 +2,7 @@
 
 **A controller studio for EasySMX pads.** Remap, shape curves, build macros, diagnose, and use PC mode, on your own PC.
 
-[Download V0.017](https://github.com/AmjadAAYD/x20ctl/releases/tag/v0.017) · [Changelog](CHANGELOG.md) · [Controller not working?](IF-YOUR-CONTROLLER-ISNT-WORKING.md) · [Issues](https://github.com/AmjadAAYD/x20ctl/issues)
+[Download V0.018](https://github.com/AmjadAAYD/x20ctl/releases/tag/v0.018) · [Changelog](CHANGELOG.md) · [Controller not working?](IF-YOUR-CONTROLLER-ISNT-WORKING.md) · [Issues](https://github.com/AmjadAAYD/x20ctl/issues)
 
 **Thank you EasySMX Kiin & Team EasySMX for supplying an EasySMX X20 Pro to build and test X20CTL.**
 
@@ -211,13 +211,13 @@ For a preview model, nothing is written to the controller and nothing is stored 
 
 ## Download
 
-**Windows:** download **[X20CTL-V0.017-windows-x64-setup.exe](https://github.com/AmjadAAYD/x20ctl/releases/download/v0.017/X20CTL-V0.017-windows-x64-setup.exe)** and run it. It installs X20CTL with a Start menu entry and an uninstaller in Windows Apps. To skip installing, take **[X20CTL-V0.017-windows-x64.exe](https://github.com/AmjadAAYD/x20ctl/releases/download/v0.017/X20CTL-V0.017-windows-x64.exe)** instead and run it from anywhere. The first launch unpacks the engine and data into your temp folder, so it takes a moment longer than later launches.
+**Windows:** download **[X20CTL-V0.018-windows-x64-setup.exe](https://github.com/AmjadAAYD/x20ctl/releases/download/v0.018/X20CTL-V0.018-windows-x64-setup.exe)** and run it. It installs X20CTL with a Start menu entry and an uninstaller in Windows Apps. To skip installing, take **[X20CTL-V0.018-windows-x64.exe](https://github.com/AmjadAAYD/x20ctl/releases/download/v0.018/X20CTL-V0.018-windows-x64.exe)** instead and run it from anywhere. The first launch unpacks the engine and data into your temp folder, so it takes a moment longer than later launches.
 
 You need Windows 10 or 11 (x64). Everything is bundled: you don't need to install .NET, Python, a browser runtime or an account.
 
 **Code signing:** releases are built on GitHub Actions straight from this repository, and X20CTL has applied for free code signing for open-source projects from the [SignPath Foundation](https://signpath.org). Until that is approved, the exe is **unsigned**, so Windows SmartScreen may warn you. Check the download against the release's `SHA256SUMS.txt`. Never turn off your antivirus to run it.
 
-**Linux:** [X20CTL-V0.017-linux-check.zip](https://github.com/AmjadAAYD/x20ctl/releases/download/v0.017/X20CTL-V0.017-linux-check.zip). The Studio is Windows-only for now; this ZIP contains the Controller Check (`x20ctl-check.py`) and PC mode (`x20ctl-pcmode.py`) as standalone Python 3 scripts. The `x20` command line (`uv run x20 scan`) runs from this repository. A native Linux build of the full Studio is planned.
+**Linux:** [X20CTL-V0.018-linux-check.zip](https://github.com/AmjadAAYD/x20ctl/releases/download/v0.018/X20CTL-V0.018-linux-check.zip). The Studio is Windows-only for now; this ZIP contains the Controller Check (`x20ctl-check.py`) and PC mode (`x20ctl-pcmode.py`) as standalone Python 3 scripts. The `x20` command line (`uv run x20 scan`) runs from this repository. A native Linux build of the full Studio is planned.
 
 Every earlier release is on the [releases page](https://github.com/AmjadAAYD/x20ctl/releases). How the version names work: [docs/versions.md](docs/versions.md).
 
