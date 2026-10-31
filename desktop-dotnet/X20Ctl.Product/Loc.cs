@@ -49,7 +49,7 @@ public static class Loc
             string path = Path.Combine(AppContext.BaseDirectory, "Languages", language.Code + ".json");
             if (!File.Exists(path)) return;
             foreach (var (english, text) in JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllBytes(path)) ?? new())
-                if (!string.IsNullOrWhiteSpace(text)) { table[english] = text; folded[english] = text; }
+                if (!string.IsNullOrWhiteSpace(text)) { table[english] = text; folded[english] = text; shown.Add(text); }
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException) { table.Clear(); folded.Clear(); return; }
         Install();
@@ -62,7 +62,18 @@ public static class Loc
         if (table.TryGetValue(text, out var exact)) return exact;
         // the code writes some labels in capitals (ToUpper), and some with a trailing mark
         if (folded.TryGetValue(text, out var other)) return IsShouting(text) ? other.ToUpper(System.Globalization.CultureInfo.CurrentUICulture) : other;
+        Missing(text);
         return text;
+    }
+
+    // review aid: X20CTL_LOC_LOG names a file that collects every text shown without a translation
+    private static readonly string? missingLog = Environment.GetEnvironmentVariable("X20CTL_LOC_LOG");
+    private static readonly HashSet<string> missingSeen = new();
+    private static HashSet<string> shown = new(StringComparer.OrdinalIgnoreCase);
+    private static void Missing(string text)
+    {
+        if (missingLog == null || text.Trim().Length < 2 || !text.Any(char.IsLetter) || shown.Contains(text) || !missingSeen.Add(text)) return;
+        try { File.AppendAllText(missingLog, text.Replace((char)13, (char)32).Replace((char)10, (char)32) + (char)10); } catch (IOException) { }
     }
 
     private static bool IsShouting(string text) { bool letter = false; foreach (char c in text) { if (char.IsLower(c)) return false; if (char.IsUpper(c)) letter = true; } return letter; }
