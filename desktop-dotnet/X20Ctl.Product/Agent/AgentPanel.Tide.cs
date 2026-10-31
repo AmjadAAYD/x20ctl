@@ -21,7 +21,7 @@ public partial class AgentPanel
         board.Children.Add(TideKit.Character("x15-starfield", 1120, 440, 420, 14));
 
         // 3. Status Box
-        board.Children.Add(TideKit.StatusBox("19:24", isBack: true, onBack: () => CloseRequested?.Invoke()));
+        board.Children.Add(TideKit.StatusBox(ThemeClock.Now, isBack: true, onBack: () => CloseRequested?.Invoke()));
 
         // 4. Tabs at (220, 104)
         var tabsRow = new StackPanel { Orientation = Orientation.Horizontal };

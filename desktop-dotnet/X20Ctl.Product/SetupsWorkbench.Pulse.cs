@@ -27,7 +27,7 @@ public sealed partial class SetupsWorkbench
     {
         "new" => NewButton, "save" => SaveButton, "open" => OpenButton, "duplicate" => duplicate, "rename" => RenameButton, "export" => export, "saveName" => SaveNameButton, "more" => MoreButton,
         "import" => headerActions.Children.OfType<Button>().FirstOrDefault(b => b.Content as string == "Import Setup"), "legacy" => headerActions.Children.OfType<Button>().FirstOrDefault(b => b.Content as string == "Copy legacy setups"),
-        "keep" => keepSetup, "remove" => confirmRemoval, _ => null
+        "keep" => keepSetup, "remove" => confirmRemoval, "cancelRename" => renameEditor.Children.OfType<Button>().FirstOrDefault(b => b.Content as string == "Cancel"), _ => null
     };
     internal bool Can(string which) => which == "delete" ? deleteAction.IsEnabled : Named(which)?.IsEnabled == true;
     internal void Click(string which)

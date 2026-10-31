@@ -452,21 +452,9 @@ public partial class DockView
         }
         block.Children.Add(modelLine);
 
-        if (!empty)
-        {
-            var subLine = PulseInk.MonoText("1000 Hz POLLING  ·  HALL-EFFECT SENSORS  ·  DUAL HAPTIC RESONANCE", 11.5, PulseInk.B(PulseInk.Sec));
-            subLine.Margin = new(8, 8, 0, 0);
-            block.Children.Add(subLine);
-        }
         PulseKit.At(pulseFace!, block, 58, 98);
 
         // 3. Tethered Hardware Callout HUD Badges around the Hero Controller
-        if (!empty)
-        {
-            AddHeroCallout(pulseFace!, 848, 275, 555, 94, "HALL-EFFECT STICKS", "ZERO-DRIFT MAGNETIC // 1000 Hz");
-            AddHeroCallout(pulseFace!, 1236, 250, 1285, 94, "KAILH MECH ABXY", "TACTILE MICRO-SWITCH // 0.3 mm");
-            AddHeroCallout(pulseFace!, 1320, 520, 1285, 676, "DUAL RESONANCE MOTORS", "ASYMMETRIC HAPTIC FIELD // SYNC");
-        }
 
         // Update primary CTA and action orbs visibility
         pulsePrimaryLabel!.Text = empty ? "Add controller" : "Open Studio";

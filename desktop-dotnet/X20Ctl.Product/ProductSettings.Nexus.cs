@@ -88,8 +88,8 @@ public sealed partial class ProductSettings
             player: 0,
             model: "EasySMX X20 Pro",
             status: "Offline",
-            onZone: () => StepBack(),
-            onSetups: () => StepBack(),
+            onZone: () => NexusNavigate?.Invoke("Zone"),
+            onSetups: () => NexusNavigate?.Invoke("Setups"),
             onPcMode: () => ShowPcMode(true),
             onTools: null
         );
@@ -276,7 +276,7 @@ public sealed partial class ProductSettings
         var upBtn = NexusKit.TheatricalButton("Check now", primary: false, height: 44, fontSize: 14);
         var rUpdate = NexusKit.RowButton(
             "Keep X20CTL up to date",
-            "On: each launch checks GitHub for a newer version and installs it. You have V0.016.",
+            $"On: each launch checks GitHub for a newer version and installs it. You have {Scanner.ScanFlow.AppVersion}.",
             upBtn,
             focused: false,
             width: 1464
@@ -329,8 +329,8 @@ public sealed partial class ProductSettings
             player: 0,
             model: "EasySMX X20 Pro",
             status: "Offline",
-            onZone: () => StepBack(),
-            onSetups: () => StepBack(),
+            onZone: () => NexusNavigate?.Invoke("Zone"),
+            onSetups: () => NexusNavigate?.Invoke("Setups"),
             onPcMode: () => ShowPcMode(true),
             onTools: () => ShowThemes(false)
         );
@@ -475,8 +475,8 @@ public sealed partial class ProductSettings
             player: 0,
             model: "EasySMX X20 Pro",
             status: "Offline",
-            onZone: () => StepBack(),
-            onSetups: () => StepBack(),
+            onZone: () => NexusNavigate?.Invoke("Zone"),
+            onSetups: () => NexusNavigate?.Invoke("Setups"),
             onPcMode: () => ShowPcMode(true),
             onTools: () => ShowAbout(false)
         );
@@ -499,7 +499,7 @@ public sealed partial class ProductSettings
 
         var lead = new TextBlock
         {
-            Text = "Native Controller Studio · V0.016",
+            Text = $"Native Controller Studio · {Scanner.ScanFlow.AppVersion}",
             FontFamily = NexusKit.Body,
             FontSize = 17,
             Foreground = NexusKit.SubBrush
@@ -551,7 +551,7 @@ public sealed partial class ProductSettings
         });
         cardStack.Children.Add(new TextBlock
         {
-            Text = "Native Controller Studio · V0.016",
+            Text = $"Native Controller Studio · {Scanner.ScanFlow.AppVersion}",
             FontFamily = NexusKit.Body,
             FontSize = 15,
             Foreground = NexusKit.SubBrush,
@@ -609,8 +609,8 @@ public sealed partial class ProductSettings
             player: 0,
             model: "EasySMX X20 Pro",
             status: "Offline",
-            onZone: () => StepBack(),
-            onSetups: () => StepBack(),
+            onZone: () => NexusNavigate?.Invoke("Zone"),
+            onSetups: () => NexusNavigate?.Invoke("Setups"),
             onPcMode: () => ShowPcMode(true),
             onTools: () => ShowFeedback(false)
         );

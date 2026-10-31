@@ -25,7 +25,7 @@ public sealed partial class ProductHost
             numberedSteps: new[]
             {
                 $"X20CTL will reopen using the {chosen} presentation.",
-                "Your working drafts, saved setups and controller mappings stay as they are."
+                "Unsaved controller drafts will be lost. Saved setups and PC mode settings stay on this PC."
             },
             actionNote: "Closing the app now will apply the new presentation.",
             callout: "RESTART X20CTL NOW?",
@@ -90,7 +90,7 @@ public sealed partial class ProductHost
     private void ShowSpotlightNotice(Grid notice)
     {
         ActiveSpotlightNotice = notice;
-        Children.Add(notice);
+        Children.Add(notice); ArmThemeNotice(notice);
         Panel.SetZIndex(notice, 60);
         _ = UpdateNativeContext();
     }
@@ -100,14 +100,14 @@ public sealed partial class ProductHost
         if (ActiveSpotlightNotice == null) return;
         var current = ActiveSpotlightNotice;
         ActiveSpotlightNotice = null;
-        Children.Remove(current);
+        ReleaseThemeNotice(current); Children.Remove(current);
         _ = UpdateNativeContext();
     }
 
     internal void NavigateSpotlightPage(string target)
     {
-        if (Check != null) CloseCheck();
-        if (WriteScan != null) CloseWriteScan();
+        if (Check != null) { CloseCheck(); if (Check != null) return; }
+        if (WriteScan != null) { CloseWriteScan(); if (WriteScan != null) return; }
         if (target == "Zone")
         {
             CloseSettings();
@@ -142,7 +142,7 @@ public sealed partial class ProductHost
         int player = studioPlayer ?? Zone.State.FocusedPlayer ?? 0;
         var assigned = Zone.State.Players[player];
         if (assigned.Model == null)
-            Zone.AssignController(player, Catalog.Find("x20"));
+            { OpenSelector(player); return; }
         EnterStudio(player);
     }
 }

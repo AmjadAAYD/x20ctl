@@ -1,6 +1,9 @@
 using System;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
+using System.Linq;
+using X20Ctl.Zone;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
 using System.Windows.Shapes;
@@ -10,226 +13,24 @@ namespace X20Ctl.Product;
 
 public partial class StudioScene
 {
+    private bool spotlightMacrosWired;
+
     private void SpotlightShowMacros()
     {
         spotlightPageHost!.Children.Clear();
         var canvas = new Canvas { Width = 1600, Height = 900, ClipToBounds = true };
 
-        // Slot chips at (1150, 146)
-        var slots = new StackPanel { Orientation = Orientation.Horizontal };
-        for (int i = 1; i <= 4; i++)
+        if (Macros is not { } macro)
         {
-            var slotBox = new StackPanel { Margin = new Thickness(0, 0, 10, 0) };
-            var chip = SpotlightKit.Chip($"Slot {i}", i == 1);
-            chip.Width = 66;
-            slotBox.Children.Add(chip);
-            slotBox.Children.Add(new TextBlock
-            {
-                Text = i == 1 ? "Assigned" : "Empty",
-                FontFamily = SpotlightKit.Body,
-                FontSize = 12.5,
-                Foreground = SpotlightKit.MuteBrush,
-                TextAlignment = TextAlignment.Center,
-                Margin = new Thickness(0, 4, 0, 0)
-            });
-            slots.Children.Add(slotBox);
+            var none = new TextBlock { Text = "Select a supported controller to edit macros.", FontFamily = SpotlightKit.Body, FontSize = 18, Foreground = SpotlightKit.MuteBrush };
+            Canvas.SetLeft(none, 302); Canvas.SetTop(none, 276);
+            canvas.Children.Add(none);
         }
-        Canvas.SetLeft(slots, 1150);
-        Canvas.SetTop(slots, 146);
-        canvas.Children.Add(slots);
-
-        // Heading: Macro sequence
-        var headStack = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        headStack.Children.Add(new TextBlock
+        else
         {
-            Text = "Macro sequence",
-            FontFamily = SpotlightKit.Body,
-            FontSize = 21,
-            Foreground = SpotlightKit.ChalkBrush
-        });
-        headStack.Children.Add(new TextBlock
-        {
-            Text = "3 events · 140 ms total duration",
-            FontFamily = SpotlightKit.Body,
-            FontStyle = FontStyles.Italic,
-            FontSize = 14,
-            Foreground = SpotlightKit.MuteBrush,
-            Margin = new Thickness(14, 0, 0, 0),
-            VerticalAlignment = VerticalAlignment.Center
-        });
-        Canvas.SetLeft(headStack, 302);
-        Canvas.SetTop(headStack, 232);
-        canvas.Children.Add(headStack);
-
-        // Sequence Cue list at (292, 276, w = 620)
-        var sheet = new StackPanel { Width = 620 };
-        string[] cues = { "01", "02", "03" };
-        string[] btns = { "A", "B", "X" };
-
-        for (int i = 0; i < 3; i++)
-        {
-            bool on = (i == 1); // Cue 02 selected
-            var r = new Border
-            {
-                Height = 60,
-                BorderBrush = on ? Brushes.Transparent : SpotlightKit.B(SpotlightKit.A(SpotlightKit.Gold, 0.12)),
-                BorderThickness = new Thickness(0, 0, 0, 1),
-                Background = on
-                    ? new RadialGradientBrush
-                    {
-                        Center = new(0.3, 0.5), RadiusX = 0.7, RadiusY = 1.6,
-                        GradientStops = { new(SpotlightKit.A(SpotlightKit.C("#ffdcaf"), 0.22), 0.0), new(SpotlightKit.A(SpotlightKit.C("#ffdcaf"), 0.05), 0.7), new(Colors.Transparent, 1.0) }
-                    }
-                    : Brushes.Transparent
-            };
-            if (on)
-            {
-                r.BorderThickness = new Thickness(3, 0, 0, 0);
-                r.BorderBrush = SpotlightKit.GoldBrush;
-            }
-
-            var g = new Grid { Margin = new Thickness(20, 0, 20, 0) };
-            var leftStack = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            leftStack.Children.Add(new TextBlock
-            {
-                Text = $"CUE {cues[i]}",
-                FontFamily = SpotlightKit.Display,
-                FontSize = 12,
-                FontWeight = FontWeights.Light,
-                Width = 70,
-                Foreground = on ? SpotlightKit.GoldHiBrush : SpotlightKit.GoldBrush,
-                VerticalAlignment = VerticalAlignment.Center
-            });
-            leftStack.Children.Add(SpotlightKit.BrassKey(btns[i], on, 26));
-            leftStack.Children.Add(new TextBlock
-            {
-                Text = "Press and release · 40 ms",
-                FontFamily = SpotlightKit.Body,
-                FontStyle = FontStyles.Italic,
-                FontSize = 16,
-                Foreground = SpotlightKit.B("#b3a48e"),
-                Margin = new Thickness(14, 0, 0, 0),
-                VerticalAlignment = VerticalAlignment.Center
-            });
-            g.Children.Add(leftStack);
-
-            if (on)
-            {
-                var lamp = new Path
-                {
-                    Data = Geometry.Parse("M3 4L13 4L11 11L5 11Z M5 11L1 18H15L11 11"),
-                    Fill = SpotlightKit.GoldBrush,
-                    HorizontalAlignment = HorizontalAlignment.Right,
-                    VerticalAlignment = VerticalAlignment.Center
-                };
-                g.Children.Add(lamp);
-            }
-
-            r.Child = g;
-            sheet.Children.Add(r);
+            if (!spotlightMacrosWired) { spotlightMacrosWired = true; macro.Changed += () => SpotlightLater(); }
+            BuildSpotlightMacros(canvas, macro);
         }
-
-        // Add step row
-        var addRow = new Border
-        {
-            Height = 52,
-            Padding = new Thickness(20, 0, 20, 0),
-            BorderBrush = SpotlightKit.B(SpotlightKit.A(SpotlightKit.Gold, 0.12)),
-            BorderThickness = new Thickness(0, 0, 0, 1),
-            Cursor = System.Windows.Input.Cursors.Hand
-        };
-        var addStack = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        addStack.Children.Add(new TextBlock { Text = "\uE710", FontFamily = SpotlightKit.Icons, FontSize = 13, Foreground = SpotlightKit.GoldBrush, Margin = new Thickness(0, 0, 14, 0) });
-        addStack.Children.Add(new TextBlock { Text = "Add event to sequence", FontFamily = SpotlightKit.Body, FontSize = 17, Foreground = SpotlightKit.MuteBrush });
-        addRow.Child = addStack;
-        sheet.Children.Add(addRow);
-
-        Canvas.SetLeft(sheet, 292);
-        Canvas.SetTop(sheet, 276);
-        canvas.Children.Add(sheet);
-
-        // Timeline visualization at (960, 270, w = 590, h = 150)
-        var tlBorder = new Border
-        {
-            Width = 590, Height = 150,
-            Background = new LinearGradientBrush
-            {
-                StartPoint = new(0, 0), EndPoint = new(0, 1),
-                GradientStops = { new(SpotlightKit.C("#1b120e"), 0.0), new(SpotlightKit.C("#120b09"), 1.0) }
-            },
-            BorderBrush = SpotlightKit.B(SpotlightKit.A(SpotlightKit.Gold, 0.25)),
-            BorderThickness = new Thickness(1)
-        };
-        var tlCanvas = new Canvas { Width = 590, Height = 150 };
-
-        // Timeline tick bars
-        for (int i = 0; i < 3; i++)
-        {
-            double bx = 60 + i * 160;
-            var bar = new Border
-            {
-                Width = 90, Height = 36,
-                Background = (i == 1) ? SpotlightKit.GoldBrush : SpotlightKit.B(SpotlightKit.A(SpotlightKit.Gold, 0.20)),
-                BorderBrush = SpotlightKit.GoldHiBrush,
-                BorderThickness = new Thickness(i == 1 ? 1.5 : 1),
-                Child = new TextBlock
-                {
-                    Text = $"Cue {cues[i]} · {btns[i]}",
-                    FontFamily = SpotlightKit.Body,
-                    FontSize = 14,
-                    Foreground = (i == 1) ? SpotlightKit.B("#1a0c08") : SpotlightKit.ChalkDimBrush,
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    VerticalAlignment = VerticalAlignment.Center
-                }
-            };
-            Canvas.SetLeft(bar, bx);
-            Canvas.SetTop(bar, 56);
-            tlCanvas.Children.Add(bar);
-        }
-        tlBorder.Child = tlCanvas;
-        Canvas.SetLeft(tlBorder, 960);
-        Canvas.SetTop(tlBorder, 270);
-        canvas.Children.Add(tlBorder);
-
-        // Macro playback controls at (950, 470, w = 610)
-        var playStack = new StackPanel { Width = 610 };
-        playStack.Children.Add(SpotlightKit.Row("Played by", "Trigger activation mode", "Hold paddle while active", false, null, 48));
-
-        var toolBtns = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(6, 18, 0, 0) };
-        toolBtns.Children.Add(SpotlightKit.TheatricalButton("Record sequence", false, null, height: 40, fontSize: 11));
-        var clearBtn = SpotlightKit.TheatricalButton("Clear slot", false, null, height: 40, fontSize: 11);
-        clearBtn.Margin = new Thickness(10, 0, 0, 0);
-        toolBtns.Children.Add(clearBtn);
-        var playBtn = SpotlightKit.TheatricalButton("Test playback", false, null, height: 40, fontSize: 11);
-        playBtn.Margin = new Thickness(10, 0, 0, 0);
-        toolBtns.Children.Add(playBtn);
-        playStack.Children.Add(toolBtns);
-
-        Canvas.SetLeft(playStack, 950);
-        Canvas.SetTop(playStack, 470);
-        canvas.Children.Add(playStack);
-
-        // Cue card at bottom at (292, 620, w = 1260, label = "Cue 02")
-        var cardInner = new StackPanel { Orientation = Orientation.Horizontal };
-        cardInner.Children.Add(SpotlightKit.BrassKey("B", true, 42));
-
-        var cueDetail = new StackPanel { Margin = new Thickness(24, 0, 0, 0), Width = 680, VerticalAlignment = VerticalAlignment.Center };
-        cueDetail.Children.Add(new TextBlock { Text = "Cue 02 · Press B", FontFamily = SpotlightKit.Body, FontSize = 21, Foreground = SpotlightKit.ChalkBrush });
-        cueDetail.Children.Add(new TextBlock { Text = "Button press event · Duration 40 ms", FontFamily = SpotlightKit.Body, FontStyle = FontStyles.Italic, FontSize = 14, Foreground = SpotlightKit.MuteBrush, Margin = new Thickness(0, 2, 0, 0) });
-        cardInner.Children.Add(cueDetail);
-
-        var segChips = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        segChips.Children.Add(SpotlightKit.Chip("Press", true));
-        segChips.Children.Add(new Border { Width = 8 });
-        segChips.Children.Add(SpotlightKit.Chip("Release", false));
-        segChips.Children.Add(new Border { Width = 8 });
-        segChips.Children.Add(SpotlightKit.Chip("Delay 20ms", false));
-        cardInner.Children.Add(segChips);
-
-        var cueCard = SpotlightKit.CueCard(cardInner, 1260, label: "Cue 02", padding: new Thickness(28, 20, 28, 20));
-        Canvas.SetLeft(cueCard, 292);
-        Canvas.SetTop(cueCard, 620);
-        canvas.Children.Add(cueCard);
 
         var frame = SpotlightToolFrame.WrapWithProgramme(
             currentKey: "macros",
@@ -245,6 +46,222 @@ public partial class StudioScene
         spotlightPageHost.Children.Add(frame);
     }
 
+    private void BuildSpotlightMacros(Canvas canvas, MacroWorkbench macro)
+    {
+        var draft = macro.Draft;
+        bool canEdit = draft.CanEdit;
+        var events = draft[macro.Slot];
+        int selected = macro.SelectedIndex >= 0 && macro.SelectedIndex < events.Count ? macro.SelectedIndex : -1;
+
+        // Slot chips at (1150, 146), from the real draft
+        var slots = new StackPanel { Orientation = Orientation.Horizontal };
+        foreach (string slot in draft.SlotNames)
+        {
+            string s = slot;
+            var slotBox = new StackPanel { Margin = new Thickness(0, 0, 10, 0) };
+            var chip = SpotlightKit.Chip(s, s == macro.Slot);
+            chip.Width = 66;
+            slotBox.Children.Add(ThemeAction(chip, "theme:macro:slot:" + s, () => macro.SelectSlot(s)));
+            slotBox.Children.Add(new TextBlock
+            {
+                Text = draft[s].Count > 0 ? "Assigned" : "Empty",
+                FontFamily = SpotlightKit.Body,
+                FontSize = 12.5,
+                Foreground = SpotlightKit.MuteBrush,
+                TextAlignment = TextAlignment.Center,
+                Margin = new Thickness(0, 4, 0, 0)
+            });
+            slots.Children.Add(slotBox);
+        }
+        Canvas.SetLeft(slots, 1150);
+        Canvas.SetTop(slots, 146);
+        canvas.Children.Add(slots);
+
+        var headStack = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        headStack.Children.Add(new TextBlock { Text = "Macro sequence", FontFamily = SpotlightKit.Body, FontSize = 21, Foreground = SpotlightKit.ChalkBrush });
+        headStack.Children.Add(new TextBlock
+        {
+            Text = $"{events.Count} event{(events.Count == 1 ? "" : "s")} · {draft.Duration(macro.Slot)} ms total duration",
+            FontFamily = SpotlightKit.Body,
+            FontStyle = FontStyles.Italic,
+            FontSize = 14,
+            Foreground = SpotlightKit.MuteBrush,
+            Margin = new Thickness(14, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        Canvas.SetLeft(headStack, 302);
+        Canvas.SetTop(headStack, 232);
+        canvas.Children.Add(headStack);
+
+        // Sequence cue list at (292, 276, w = 620)
+        var sheet = new StackPanel { Width = 620 };
+        for (int i = 0; i < events.Count; i++)
+        {
+            int idx = i;
+            var ev = events[i];
+            bool on = i == selected;
+            var r = new Border
+            {
+                Height = 60,
+                BorderBrush = on ? Brushes.Transparent : SpotlightKit.B(SpotlightKit.A(SpotlightKit.Gold, 0.12)),
+                BorderThickness = new Thickness(0, 0, 0, 1),
+                Background = on
+                    ? new RadialGradientBrush
+                    {
+                        Center = new(0.3, 0.5), RadiusX = 0.7, RadiusY = 1.6,
+                        GradientStops = { new(SpotlightKit.A(SpotlightKit.C("#ffdcaf"), 0.22), 0.0), new(SpotlightKit.A(SpotlightKit.C("#ffdcaf"), 0.05), 0.7), new(Colors.Transparent, 1.0) }
+                    }
+                    : Brushes.Transparent
+            };
+            if (on) { r.BorderThickness = new Thickness(3, 0, 0, 0); r.BorderBrush = SpotlightKit.GoldBrush; }
+
+            var g = new Grid { Margin = new Thickness(20, 0, 20, 0) };
+            var leftStack = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            leftStack.Children.Add(new TextBlock
+            {
+                Text = $"CUE {i + 1:00}",
+                FontFamily = SpotlightKit.Display,
+                FontSize = 12,
+                FontWeight = FontWeights.Light,
+                Width = 70,
+                Foreground = on ? SpotlightKit.GoldHiBrush : SpotlightKit.GoldBrush,
+                VerticalAlignment = VerticalAlignment.Center
+            });
+            leftStack.Children.Add(SpotlightKit.BrassKey(ev.Buttons.Count > 0 ? ev.Buttons[0] : "·", on, 26));
+            leftStack.Children.Add(new TextBlock
+            {
+                Text = (ev.Buttons.Count > 1 ? string.Join(" + ", ev.Buttons) + " · " : "") + $"{ev.HoldMs} ms hold · {ev.PauseMs} ms delay",
+                FontFamily = SpotlightKit.Body,
+                FontStyle = FontStyles.Italic,
+                FontSize = 16,
+                Foreground = SpotlightKit.B("#b3a48e"),
+                Margin = new Thickness(14, 0, 0, 0),
+                VerticalAlignment = VerticalAlignment.Center
+            });
+            g.Children.Add(leftStack);
+            if (on)
+                g.Children.Add(new Path
+                {
+                    Data = Geometry.Parse("M3 4L13 4L11 11L5 11Z M5 11L1 18H15L11 11"),
+                    Fill = SpotlightKit.GoldBrush,
+                    HorizontalAlignment = HorizontalAlignment.Right,
+                    VerticalAlignment = VerticalAlignment.Center
+                });
+            r.Child = g;
+            sheet.Children.Add(ThemeAction(r, "theme:macro:event:" + i, () => macro.Select(idx)));
+        }
+
+        var addRow = new Border { Height = 52, Padding = new Thickness(20, 0, 20, 0), BorderBrush = SpotlightKit.B(SpotlightKit.A(SpotlightKit.Gold, 0.12)), BorderThickness = new Thickness(0, 0, 0, 1) };
+        var addStack = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        addStack.Children.Add(new TextBlock { Text = "", FontFamily = SpotlightKit.Icons, FontSize = 13, Foreground = SpotlightKit.GoldBrush, Margin = new Thickness(0, 0, 14, 0) });
+        addStack.Children.Add(new TextBlock { Text = "Add event to sequence", FontFamily = SpotlightKit.Body, FontSize = 17, Foreground = SpotlightKit.MuteBrush });
+        addRow.Child = addStack;
+        sheet.Children.Add(ThemeAction(addRow, "theme:macro:add", macro.Add, canEdit && draft.EntryCount(macro.Slot) < 47));
+
+        Canvas.SetLeft(sheet, 292);
+        Canvas.SetTop(sheet, 276);
+        canvas.Children.Add(sheet);
+
+        // Timeline of the real events at (960, 270, w = 590, h = 150)
+        var tlBorder = new Border
+        {
+            Width = 590, Height = 150,
+            Background = new LinearGradientBrush { StartPoint = new(0, 0), EndPoint = new(0, 1), GradientStops = { new(SpotlightKit.C("#1b120e"), 0.0), new(SpotlightKit.C("#120b09"), 1.0) } },
+            BorderBrush = SpotlightKit.B(SpotlightKit.A(SpotlightKit.Gold, 0.25)),
+            BorderThickness = new Thickness(1)
+        };
+        var tlCanvas = new Canvas { Width = 590, Height = 150 };
+        int total = Math.Max(1, draft.Duration(macro.Slot));
+        double cursor = 0;
+        for (int i = 0; i < events.Count; i++)
+        {
+            var ev = events[i];
+            double bx = 20 + cursor / total * 550;
+            double bw = Math.Max(6, ev.HoldMs / (double)total * 550);
+            bool on = i == selected;
+            var bar = new Border
+            {
+                Width = bw, Height = 36,
+                Background = on ? SpotlightKit.GoldBrush : SpotlightKit.B(SpotlightKit.A(SpotlightKit.Gold, 0.20)),
+                BorderBrush = SpotlightKit.GoldHiBrush,
+                BorderThickness = new Thickness(on ? 1.5 : 1),
+                ClipToBounds = true,
+                Child = new TextBlock
+                {
+                    Text = ev.Buttons.Count > 0 ? ev.Buttons[0] : "·",
+                    FontFamily = SpotlightKit.Body,
+                    FontSize = 14,
+                    Foreground = on ? SpotlightKit.B("#1a0c08") : SpotlightKit.ChalkDimBrush,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center
+                }
+            };
+            Canvas.SetLeft(bar, bx);
+            Canvas.SetTop(bar, 56);
+            tlCanvas.Children.Add(bar);
+            cursor += ev.HoldMs + ev.PauseMs;
+        }
+        if (events.Count == 0)
+        {
+            var empty = new TextBlock { Text = "No events yet", FontFamily = SpotlightKit.Body, FontStyle = FontStyles.Italic, FontSize = 15, Foreground = SpotlightKit.MuteBrush };
+            Canvas.SetLeft(empty, 24); Canvas.SetTop(empty, 62);
+            tlCanvas.Children.Add(empty);
+        }
+        tlBorder.Child = tlCanvas;
+        Canvas.SetLeft(tlBorder, 960);
+        Canvas.SetTop(tlBorder, 270);
+        canvas.Children.Add(tlBorder);
+
+        // Slot actions at (950, 470)
+        var toolBtns = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(6, 0, 0, 0) };
+        var recordBtn = SpotlightKit.TheatricalButton(macro.IsRecording ? "Stop recording" : "Record sequence", false, null, onClick: macro.ToggleRecording, height: 40, fontSize: 11);
+        toolBtns.Children.Add(recordBtn);
+        var clearBtn = SpotlightKit.TheatricalButton("Clear slot", false, null, onClick: macro.Clear, height: 40, fontSize: 11);
+        clearBtn.IsEnabled = canEdit && events.Count > 0;
+        clearBtn.Margin = new Thickness(10, 0, 0, 0);
+        toolBtns.Children.Add(clearBtn);
+        var playBtn = SpotlightKit.TheatricalButton(macro.IsPreviewing ? "Stop preview" : "Preview timeline", false, null, onClick: macro.Preview, height: 40, fontSize: 11);
+        playBtn.IsEnabled = events.Count > 0;
+        playBtn.Margin = new Thickness(10, 0, 0, 0);
+        toolBtns.Children.Add(playBtn);
+        Canvas.SetLeft(toolBtns, 950);
+        Canvas.SetTop(toolBtns, 470);
+        canvas.Children.Add(toolBtns);
+
+        // Selected cue card at (292, 620)
+        if (selected >= 0)
+        {
+            var cur = events[selected];
+            var cardInner = new StackPanel { Orientation = Orientation.Horizontal };
+            cardInner.Children.Add(SpotlightKit.BrassKey(cur.Buttons.Count > 0 ? cur.Buttons[0] : "·", true, 42));
+            var cueDetail = new StackPanel { Margin = new Thickness(24, 0, 0, 0), Width = 560, VerticalAlignment = VerticalAlignment.Center };
+            cueDetail.Children.Add(new TextBlock { Text = $"Cue {selected + 1:00} · " + (cur.Buttons.Count > 0 ? string.Join(" + ", cur.Buttons.Select(Label)) : "Stick move"), FontFamily = SpotlightKit.Body, FontSize = 21, Foreground = SpotlightKit.ChalkBrush });
+            cueDetail.Children.Add(new TextBlock { Text = $"Hold {cur.HoldMs} ms · delay {cur.PauseMs} ms", FontFamily = SpotlightKit.Body, FontStyle = FontStyles.Italic, FontSize = 14, Foreground = SpotlightKit.MuteBrush, Margin = new Thickness(0, 2, 0, 0) });
+            cardInner.Children.Add(cueDetail);
+
+            var segChips = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            void Step(string label, string tag, Func<MacroEvent> make)
+            {
+                var chip = SpotlightKit.Chip(label, false);
+                segChips.Children.Add(ThemeAction(chip, tag, () => macro.Update(make()), canEdit));
+                segChips.Children.Add(new Border { Width = 8 });
+            }
+            Step("Hold −5", "theme:macro:hold-dec", () => cur with { HoldMs = Math.Max(5, cur.HoldMs - 5) });
+            Step("Hold +5", "theme:macro:hold-inc", () => cur with { HoldMs = Math.Min(10000, cur.HoldMs + 5) });
+            Step("Delay −5", "theme:macro:pause-dec", () => cur with { PauseMs = Math.Max(0, cur.PauseMs - 5) });
+            Step("Delay +5", "theme:macro:pause-inc", () => cur with { PauseMs = Math.Min(10000, cur.PauseMs + 5) });
+            segChips.Children.Add(ThemeAction(SpotlightKit.Chip("Remove", false), "theme:macro:remove", macro.Remove, canEdit));
+            cardInner.Children.Add(segChips);
+
+            var cueCard = SpotlightKit.CueCard(cardInner, 1260, label: $"Cue {selected + 1:00}", padding: new Thickness(28, 20, 28, 20));
+            Canvas.SetLeft(cueCard, 292);
+            Canvas.SetTop(cueCard, 620);
+            canvas.Children.Add(cueCard);
+        }
+    }
+
+    private int spotlightVibrationPreview = VibrationDraft.DefaultStrength;
+
     private void SpotlightShowVibration()
     {
         spotlightPageHost!.Children.Clear();
@@ -258,7 +275,7 @@ public partial class StudioScene
 
         var noteText = new TextBlock
         {
-            Text = "Synchronized motor output · Balanced tactile response",
+            Text = "Linked grip strength · Not written to controller memory.",
             FontFamily = SpotlightKit.Body,
             FontStyle = FontStyles.Italic,
             FontSize = 17,
@@ -385,7 +402,7 @@ public partial class StudioScene
         var leftMotorBadge = new StackPanel { Width = 230 };
         leftMotorBadge.Children.Add(new TextBlock
         {
-            Text = "HEAVY RUMBLE MOTOR",
+            Text = "LEFT GRIP",
             FontFamily = SpotlightKit.Display,
             FontSize = 11,
             FontWeight = FontWeights.Light,
@@ -393,7 +410,7 @@ public partial class StudioScene
         });
         leftMotorBadge.Children.Add(new TextBlock
         {
-            Text = "30–80 Hz Sub-Bass Resonance",
+            Text = "Left grip motor",
             FontFamily = SpotlightKit.Body,
             FontStyle = FontStyles.Italic,
             FontSize = 14,
@@ -402,7 +419,7 @@ public partial class StudioScene
         });
         leftMotorBadge.Children.Add(new TextBlock
         {
-            Text = "Eccentric mass · Impact shocks & explosions",
+            Text = "Linked strength",
             FontFamily = SpotlightKit.Body,
             FontSize = 12.5,
             Foreground = SpotlightKit.MuteBrush,
@@ -415,7 +432,7 @@ public partial class StudioScene
         var rightMotorBadge = new StackPanel { Width = 230 };
         rightMotorBadge.Children.Add(new TextBlock
         {
-            Text = "LIGHT HAPTIC MOTOR",
+            Text = "RIGHT GRIP",
             FontFamily = SpotlightKit.Display,
             FontSize = 11,
             FontWeight = FontWeights.Light,
@@ -423,7 +440,7 @@ public partial class StudioScene
         });
         rightMotorBadge.Children.Add(new TextBlock
         {
-            Text = "120–250 Hz Tactile Click & Texture",
+            Text = "Right grip motor",
             FontFamily = SpotlightKit.Body,
             FontStyle = FontStyles.Italic,
             FontSize = 14,
@@ -432,7 +449,7 @@ public partial class StudioScene
         });
         rightMotorBadge.Children.Add(new TextBlock
         {
-            Text = "Precision counterweight · Fine surface telemetry",
+            Text = "Linked strength",
             FontFamily = SpotlightKit.Body,
             FontSize = 12.5,
             Foreground = SpotlightKit.MuteBrush,
@@ -443,39 +460,66 @@ public partial class StudioScene
         canvas.Children.Add(rightMotorBadge);
 
         // Master lighting desk fader at x = 1080, y = 220, h = 300, pct = 70
-        var fader = SpotlightKit.Fader(1080, 220, 300, 70, true, "Master level", "70%");
-        canvas.Children.Add(fader);
-
-        // Monumental percentage readout in Bodoni MT at (1170, 195)
+        int shownStrength = vibrationDraft.CanEdit ? vibrationDraft.Strength : spotlightVibrationPreview;
+        void SetStrength(int percent)
+        {
+            percent = Math.Clamp(percent, 0, 100);
+            if (vibrationDraft.CanEdit) vibrationDraft.Set(percent); else spotlightVibrationPreview = percent;
+            shownStrength = percent;
+        }
+        var fader = SpotlightKit.Fader(1080, 220, 300, shownStrength, true, "Strength", shownStrength + "%");
+        fader.Cursor = System.Windows.Input.Cursors.Hand;
+        fader.Focusable = true;
+        fader.FocusVisualStyle = null;
+        fader.Tag = "theme:vibration:strength";
         var pctLarge = new TextBlock
         {
-            Text = "70%",
+            Text = shownStrength + "%",
             FontFamily = SpotlightKit.Bodoni,
             FontSize = 120,
             Foreground = SpotlightKit.GildBrush
         };
+        void RedrawFader()
+        {
+            var fresh = SpotlightKit.Fader(1080, 220, 300, shownStrength, true, "Strength", shownStrength + "%");
+            var moved = fresh.Children.Cast<UIElement>().ToList();
+            fresh.Children.Clear();
+            fader.Children.Clear();
+            foreach (var child in moved) fader.Children.Add(child);
+            pctLarge.Text = shownStrength + "%";
+        }
+        bool draggingStrength = false;
+        fader.MouseLeftButtonDown += (_, e) => { draggingStrength = true; fader.CaptureMouse(); fader.Focus(); SetStrength((int)Math.Round(Math.Clamp(300 - e.GetPosition(fader).Y, 0, 300) / 3.0)); RedrawFader(); };
+        fader.MouseMove += (_, e) => { if (draggingStrength && fader.IsMouseCaptured) { SetStrength((int)Math.Round(Math.Clamp(300 - e.GetPosition(fader).Y, 0, 300) / 3.0)); RedrawFader(); } };
+        fader.MouseLeftButtonUp += (_, _) => { if (!draggingStrength) return; draggingStrength = false; fader.ReleaseMouseCapture(); SpotlightShowVibration(); Dispatcher.BeginInvoke(new Action(() => { foreach (var el in spotlightPageHost!.Children.OfType<Canvas>().SelectMany(c => c.Children.OfType<FrameworkElement>())) if (Equals(el.Tag, "theme:vibration:strength")) { el.Focus(); break; } }), System.Windows.Threading.DispatcherPriority.Input); };
+        fader.KeyDown += (_, e) =>
+        {
+            int step = e.Key is Key.Up or Key.Right ? 1 : e.Key is Key.Down or Key.Left ? -1 : 0;
+            if (step == 0) return;
+            SetStrength(shownStrength + step * 5); RedrawFader(); e.Handled = true;
+        };
+        canvas.Children.Add(fader);
+
+        // Monumental percentage readout in Bodoni MT at (1170, 195)
         Canvas.SetLeft(pctLarge, 1170);
         Canvas.SetTop(pctLarge, 195);
         canvas.Children.Add(pctLarge);
 
         // Preset chips: Off · Soft · Medium · Performance · Full Stage
         var presets = new StackPanel { Orientation = Orientation.Horizontal };
-        presets.Children.Add(SpotlightKit.Chip("Off", false));
-        presets.Children.Add(new Border { Width = 8 });
-        presets.Children.Add(SpotlightKit.Chip("Soft", false));
-        presets.Children.Add(new Border { Width = 8 });
-        presets.Children.Add(SpotlightKit.Chip("Medium", false));
-        presets.Children.Add(new Border { Width = 8 });
-        presets.Children.Add(SpotlightKit.Chip("Performance", true));
-        presets.Children.Add(new Border { Width = 8 });
-        presets.Children.Add(SpotlightKit.Chip("Full Stage", false));
+        foreach (int level in new[] { 0, 25, 50, 75, 100 })
+        {
+            int chosen = level;
+            if (presets.Children.Count > 0) presets.Children.Add(new Border { Width = 8 });
+            presets.Children.Add(SpotlightKit.Chip(level == 0 ? "Off" : level + "%", shownStrength == level, () => { SetStrength(chosen); SpotlightShowVibration(); }));
+        }
         Canvas.SetLeft(presets, 1170);
         Canvas.SetTop(presets, 370);
         canvas.Children.Add(presets);
 
         var animNote = new TextBlock
         {
-            Text = "Dynamic harmonic modulation with matched phase coupling across both controller grips.",
+            Text = vibrationDraft.CanEdit ? "Linked grip strength · Local draft. Not sent to the controller." : "Preview only · Native settings unavailable for this model.",
             FontFamily = SpotlightKit.Body,
             FontStyle = FontStyles.Italic,
             FontSize = 14,
@@ -495,7 +539,7 @@ public partial class StudioScene
 
         var leftRows = new StackPanel();
         leftRows.Children.Add(SpotlightKit.Row("Link motor levels", "Keep left and right equal", "Linked", true, null, 44));
-        leftRows.Children.Add(SpotlightKit.Row("Test vibration", "Send haptic pulse to active motors", "Ready", false, SpotlightKit.TheatricalButton("Test Pulse", false, null, height: 32, fontSize: 11), 44));
+        leftRows.Children.Add(SpotlightKit.Row("Test vibration", "Needs a verified connection", "Unavailable", false, null, 44));
         Grid.SetColumn(leftRows, 0);
         cardInner.Children.Add(leftRows);
 
@@ -511,15 +555,11 @@ public partial class StudioScene
 
         var regionChips = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
         regionChips.Children.Add(SpotlightKit.Chip("Both grips", true));
-        regionChips.Children.Add(new Border { Width = 8 });
-        regionChips.Children.Add(SpotlightKit.Chip("Left grip", false));
-        regionChips.Children.Add(new Border { Width = 8 });
-        regionChips.Children.Add(SpotlightKit.Chip("Right grip", false));
         rightCol.Children.Add(regionChips);
 
         rightCol.Children.Add(new TextBlock
         {
-            Text = "Motors share a unified hardware PWM line on this controller model. Tactile modulation is linked.",
+            Text = "Left and right grip strength are linked.",
             FontFamily = SpotlightKit.Body,
             FontStyle = FontStyles.Italic,
             FontSize = 13.5,

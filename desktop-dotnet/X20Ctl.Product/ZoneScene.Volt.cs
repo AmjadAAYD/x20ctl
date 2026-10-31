@@ -114,7 +114,6 @@ public partial class ZoneScene
                 Foreground = VoltKit.AmberHotBrush
             }
         };
-        navStack.Children.Add(statPill);
 
         Canvas.SetLeft(navStack, 540);
         Canvas.SetTop(navStack, 84);
@@ -444,8 +443,8 @@ public partial class ZoneScene
         voltHeroTelemetryRow.Children.Clear();
         var stats = new (string Lab, string Val)[]
         {
-            ("CURRENT SETUP", index == 1 ? "FPS COMPETITIVE" : "DEFAULT BALANCED"),
-            ("CONNECTION", "2.4G WIRELESS DONGLE")
+            ("CURRENT SETUP", "LOCAL DRAFT"),
+            ("CONNECTION", "NOT REPORTED")
         };
 
         foreach (var (lab, val) in stats)

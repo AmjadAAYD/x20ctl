@@ -63,7 +63,7 @@ public partial class StudioScene
                     FontFamily = PulseParts.BodyFont,
                     FontSize = 15,
                     FontWeight = active ? FontWeights.SemiBold : FontWeights.Normal,
-                    Foreground = active ? PulseInk.B(PulseParts.PearlInk) : PulseInk.B(PulseInk.C("#dfe5ee")),
+                    Foreground = active ? PulseInk.B(PulseInk.C("#0b162c")) : PulseInk.B(PulseInk.C("#dfe5ee")),
                     HorizontalAlignment = HorizontalAlignment.Center,
                     VerticalAlignment = VerticalAlignment.Center
                 }
@@ -80,7 +80,7 @@ public partial class StudioScene
             string sCopy = sName;
             slotBtn.Click += (_, _) => { m.SelectSlot(sCopy); PulseLater(); };
             Canvas.SetLeft(slotBtn, ox + 18);
-            Canvas.SetTop(slotBtn, 44);
+            Canvas.SetTop(slotBtn, 78);
             host.Children.Add(slotBtn);
 
             var slotSub = new TextBlock
@@ -93,7 +93,7 @@ public partial class StudioScene
                 Width = 100
             };
             Canvas.SetLeft(slotSub, ox - 10);
-            Canvas.SetTop(slotSub, 94);
+            Canvas.SetTop(slotSub, 128);
             host.Children.Add(slotSub);
         }
 
@@ -180,7 +180,7 @@ public partial class StudioScene
                     FontFamily = PulseParts.BodyFont,
                     FontSize = isFocused ? 20 : 17,
                     FontWeight = FontWeights.Bold,
-                    Foreground = isFocused ? PulseInk.B(PulseParts.PearlInk) : Brushes.White,
+                    Foreground = isFocused ? PulseInk.B(PulseInk.C("#0b162c")) : Brushes.White,
                     HorizontalAlignment = HorizontalAlignment.Center,
                     VerticalAlignment = VerticalAlignment.Center
                 }
@@ -280,7 +280,7 @@ public partial class StudioScene
 
         var playbackBtns = new StackPanel { Orientation = Orientation.Horizontal, Margin = new(6, 16, 0, 0) };
         playbackBtns.Children.Add(PulseParts.PillButton(m.IsRecording ? "Stop record" : "Record", primary: m.IsRecording, small: true, onClick: () => { m.ToggleRecording(); PulseLater(); }).Also(b => b.Margin = new(0, 0, 12, 0)));
-        playbackBtns.Children.Add(PulseParts.PillButton("Read controller", primary: false, small: true, onClick: () => PulseLater()).Also(b => b.Margin = new(0, 0, 12, 0)));
+        playbackBtns.Children.Add(PulseParts.PillButton("Read controller", primary: false, small: true, onClick: () => { pulseMacroNote = "Reading the stored macro needs the controller's configuration link, which X20CTL can't open yet. Use Record to capture a sequence now."; PulseLater(); }).Also(b => b.Margin = new(0, 0, 12, 0)));
         playbackBtns.Children.Add(PulseParts.PillButton(m.IsPreviewing ? "Stop" : "Preview timeline", primary: m.IsPreviewing, small: true, onClick: () => { if (m.IsPreviewing) m.StopPreview(); else m.Preview(); PulseLater(); }));
         rightTools.Children.Add(playbackBtns);
         host.Children.Add(rightTools);
@@ -309,7 +309,7 @@ public partial class StudioScene
 
         // Center of pearl: Event Title and description
         var centerTitles = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new(24, 0, 24, 0) };
-        centerTitles.Children.Add(PulseParts.Disp($"Event {(sel >= 0 ? sel + 1 : 1):02} · what it presses", 22, PulseParts.PearlInk, FontWeights.SemiBold));
+        centerTitles.Children.Add(PulseParts.Disp($"Event {(sel >= 0 ? sel + 1 : 1)} · what it presses", 22, PulseParts.PearlInk, FontWeights.SemiBold));
         centerTitles.Children.Add(PulseParts.Body($"{evBtn} · held {evHold} ms · then {evPause} ms pause · Pick the button that plays this slot (left), or PC mode won't play it.", 14.5, PulseParts.PearlSoft).Also(t => t.Margin = new(0, 4, 0, 0)));
         pearlContent.Children.Add(centerTitles);
 
@@ -320,11 +320,13 @@ public partial class StudioScene
         host.Children.Add(pearlCard);
 
         // 8. Note at bottom (x=272, y=852)
-        var noteBlock = PulseParts.Body("PC mode · No changes yet: the controller goes straight to games", 13, PulseInk.C("#7f8aa0"));
+        var noteBlock = PulseParts.Body(pulseMacroNote ?? "Local draft · Nothing is written to the controller.", 13, PulseInk.C("#7f8aa0"));
         Canvas.SetLeft(noteBlock, 272);
-        Canvas.SetTop(noteBlock, 852);
+        Canvas.SetTop(noteBlock, 792);
         host.Children.Add(noteBlock);
     }
+
+    private string? pulseMacroNote;
 
     private static FrameworkElement BuildPulseMacroTimeline(MacroWorkbench m, System.Collections.Generic.IReadOnlyList<MacroEvent> events, int sel)
     {
@@ -368,7 +370,7 @@ public partial class StudioScene
                     Text = ev.Buttons.Count > 0 ? ev.Buttons[0] : "A",
                     FontSize = 10,
                     FontWeight = FontWeights.Bold,
-                    Foreground = isFocused ? PulseInk.B(PulseParts.PearlInk) : Brushes.White,
+                    Foreground = isFocused ? PulseInk.B(PulseInk.C("#0b162c")) : Brushes.White,
                     HorizontalAlignment = HorizontalAlignment.Center,
                     VerticalAlignment = VerticalAlignment.Center
                 }

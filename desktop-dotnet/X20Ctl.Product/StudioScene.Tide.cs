@@ -1,3 +1,4 @@
+using System.Windows.Input;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -114,11 +115,7 @@ public partial class StudioScene
     private void TideShow()
     {
         if (!IsTide || tidePageHost == null) return;
-        if (tideAdvanced)
-        {
-            TideShowAdvanced();
-            return;
-        }
+        // Tide direct navigation
 
         string activePage = CurrentPage;
         currentTidePage = activePage;
@@ -162,240 +159,313 @@ public partial class StudioScene
         }
     }
 
+    private string lastUsedTideSection = "Buttons";
+
     private void TideShowDashboard()
     {
         if (tidePageHost == null) return;
         tidePageHost.Children.Clear();
         var board = new Canvas { Width = 1600, Height = 900, ClipToBounds = true };
 
-        // 1. Sea Background with "DASHBOARD"
-        board.Children.Add(TideKit.SeaBackground(1, "DASHBOARD"));
+        // 1. Cinematic Night Sky & Breaking Wave Swell Background (Single Source of Truth)
+        board.Children.Add(TideKit.SeaBackground(1));
 
-        // 2. Character: x15-starfield at (-10, 430, w=600)
-        board.Children.Add(TideKit.Character("x15-starfield", -10, 430, 600, -22));
+        // 2. Top Navigation & Controller Telemetry Bar
+        var topBar = new Canvas { Width = 1504, Height = 64 };
+        Canvas.SetLeft(topBar, 48);
+        Canvas.SetTop(topBar, 20);
 
-        // 3. Status Box
-        board.Children.Add(TideKit.StatusBox("19:24", isBack: true, onBack: () => BackRequested?.Invoke()));
-
-        // 4. Top Row of tiles: Band + Round Badge + 4 tiles + Arrow
-        board.Children.Add(TideKit.TopBand(34));
-
-        // Round badge for Featured Pad
-        var badgeTile = TideKit.RoundBadge("x15-starfield", 250);
-        Canvas.SetLeft(badgeTile, 200);
-        Canvas.SetTop(badgeTile, 110);
-        Panel.SetZIndex(badgeTile, 2);
-        board.Children.Add(badgeTile);
-
-        // 4 feature tiles: (FEAT, "macros"), (SECOND, "vibration"), ("x20", "pcmode"), ("dune", "device")
-        var tiles = new (string Key, string Page, Action Action)[]
+        // Theme Emblem & Title
+        var titleStack = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        var moonIcon = new Border
         {
-            ("x15-starfield", "macros", () => ShowMacros(true)),
-            ("x10", "vibration", () => ShowVibration(true)),
-            ("x20", "pcmode", () => ShowManagement("PcMode")),
-            ("dune", "device", () => ShowManagement("Device"))
+            Width = 28,
+            Height = 28,
+            CornerRadius = new CornerRadius(14),
+            Background = new RadialGradientBrush
+            {
+                Center = new Point(0.4, 0.4),
+                GradientStops =
+                {
+                    new(Colors.White, 0.0),
+                    new(TideKit.CyanFoam, 0.7),
+                    new(TideKit.CyanWave, 1.0)
+                }
+            },
+            Margin = new Thickness(0, 0, 12, 0),
+            Effect = new DropShadowEffect { Color = Color.FromRgb(0x9f, 0xe0, 0xff), BlurRadius = 14, ShadowDepth = 0, Opacity = 0.9 }
         };
-
-        for (int i = 0; i < tiles.Length; i++)
+        titleStack.Children.Add(moonIcon);
+        titleStack.Children.Add(new TextBlock
         {
-            var t = tiles[i];
-            var tileBorder = TideKit.CoverTile(t.Key, 250, 250, t.Page);
-            tileBorder.Cursor = System.Windows.Input.Cursors.Hand;
-            tileBorder.MouseLeftButtonUp += (_, _) => t.Action();
-            Canvas.SetLeft(tileBorder, 490 + i * 268);
-            Canvas.SetTop(tileBorder, 52);
-            board.Children.Add(tileBorder);
-        }
-
-        // Chevron arrow
-        var arrow = new Border
-        {
-            Width = 58,
-            Height = 58,
-            CornerRadius = new CornerRadius(29),
-            Background = TideKit.InkBrush,
-            BorderBrush = TideKit.WhiteBrush,
-            BorderThickness = new Thickness(3)
-        };
-        arrow.Child = new TextBlock
-        {
-            Text = "\uE76C",
-            FontFamily = TideKit.Icons,
-            FontSize = 28,
+            Text = "TIDE // CENTRAL COMMAND",
+            FontFamily = TideKit.Display,
+            FontWeight = FontWeights.Black,
+            FontStyle = FontStyles.Italic,
+            FontSize = 20,
             Foreground = TideKit.WhiteBrush,
-            HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center
+        });
+        topBar.Children.Add(titleStack);
+        Canvas.SetLeft(titleStack, 0);
+        Canvas.SetTop(titleStack, 14);
+
+        // Honest Active Controller Telemetry Plaque (Rule 6.0.C: No invented 1000 HZ / 100% battery)
+        var statusCard = TideKit.OceanGlassCard(radius: new CornerRadius(16));
+        statusCard.Padding = new Thickness(18, 6, 18, 6);
+        var spStack = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        spStack.Children.Add(new TextBlock
+        {
+            Text = $"PLAYER {Player + 1} · {Model.Name.ToUpperInvariant()}",
+            FontFamily = TideKit.Display,
+            FontWeight = FontWeights.Black,
+            FontStyle = FontStyles.Italic,
+            FontSize = 13,
+            Foreground = TideKit.CyanFoamBrush
+        });
+        spStack.Children.Add(new TextBlock
+        {
+            Text = " · LOCAL DRAFT READY",
+            FontFamily = TideKit.Body,
+            FontWeight = FontWeights.Bold,
+            FontSize = 12,
+            Foreground = new SolidColorBrush(Color.FromArgb(0xaa, 0xc0, 0xdc, 0xf8)),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(6, 0, 0, 0)
+        });
+        statusCard.Child = spStack;
+        topBar.Children.Add(statusCard);
+        Canvas.SetLeft(statusCard, 500);
+        Canvas.SetTop(statusCard, 8);
+
+        // Top-Right Quick Actions
+        var rightStack = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        var zoneBtn = TideKit.OceanButton("CONTROLLER ZONE", icon: "\uE701", onClick: () => BackRequested?.Invoke());
+        zoneBtn.Margin = new Thickness(0, 0, 10, 0);
+        rightStack.Children.Add(zoneBtn);
+
+        var toolsBtn = TideKit.OceanButton("TOOLS HUB", icon: "\uE713", onClick: () => ToolsRequested?.Invoke());
+        rightStack.Children.Add(toolsBtn);
+
+        topBar.Children.Add(rightStack);
+        Canvas.SetRight(rightStack, 0);
+        Canvas.SetTop(rightStack, 10);
+
+        board.Children.Add(topBar);
+
+        // 3. Left Section — Controller Spotlight Hero Stage
+        var heroStage = new Canvas { Width = 560, Height = 700 };
+        Canvas.SetLeft(heroStage, 48);
+        Canvas.SetTop(heroStage, 95);
+
+        // Pedestal Ripples beneath controller
+        var ripples = TideKit.PedestalRipples(480, 120);
+        Canvas.SetLeft(ripples, 40);
+        Canvas.SetTop(ripples, 380);
+        heroStage.Children.Add(ripples);
+
+        // Active Controller Art
+        var controllerArt = TideKit.ControllerArt(Model.Id, 480);
+        Canvas.SetLeft(controllerArt, 40);
+        Canvas.SetTop(controllerArt, 90);
+        heroStage.Children.Add(controllerArt);
+        TideKit.AnimateFloat(controllerArt, 0, 6, 4.5);
+
+        // Telemetry Badges below Controller (Section 5.1: keep only real values; drop Hall sensors chip)
+        var badgeStack = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
+        string[] badges =
+        {
+            "PROFILE: DEFAULT DRAFT",
+            $"REMAPS: {Draft.Changes.Count} CUSTOM"
         };
-        Canvas.SetRight(arrow, 22);
-        Canvas.SetTop(arrow, 160);
-        board.Children.Add(arrow);
 
-        // 5. Slanted Menu Words at (660, 712): BUTTONS, CURVES, SETUPS, TOOLS
-        var menuItems = new (string Word, Action Action)[]
+        foreach (var bText in badges)
         {
-            ("BUTTONS", () => ShowButtons()),
-            ("CURVES", () => ShowCurves(true)),
-            ("SETUPS", () => ShowManagement("Setups")),
-            ("TOOLS", () => ShowManagement("Device"))
-        };
-
-        for (int i = 0; i < menuItems.Length; i++)
-        {
-            var item = menuItems[i];
-            var word = TideKit.SlantedWord(item.Word, focused: (i == 0), fs: 76, onClick: item.Action);
-            Canvas.SetLeft(word, 660 + i * 128);
-            Canvas.SetTop(word, 712 - 76);
-            board.Children.Add(word);
-        }
-
-        // 6. Tilted Keys at (600, 772): zone, test, settings, E7E8
-        string[] glyphs = ["\uE7FC", "\uE768", "\uE713", "\uE7E8"];
-        for (int i = 0; i < glyphs.Length; i++)
-        {
-            int kIndex = i;
-            var keyBtn = TideKit.KeyButton(glyphs[i], focused: (i == 0), rot: -12, onClick: () =>
+            var badgePill = new Border
             {
-                if (kIndex == 0) BackRequested?.Invoke();
-                else if (kIndex == 1) ShowManagement("Tester");
-                else if (kIndex == 2) ShowManagement("Device");
-            });
-            Canvas.SetLeft(keyBtn, 600 + i * 132);
-            Canvas.SetTop(keyBtn, 772 - i * 12);
-            board.Children.Add(keyBtn);
-        }
-
-        // 7. Avatar Grid bottom right
-        board.Children.Add(TideKit.AvatarGrid(["x15-starfield", "x10", "x20", "dune", "d10-purple", "x20pro"], 1250, 650));
-
-        // 8. Hints
-        var hintsBar = TideKit.HintsBar(new[] { "\u2295 Options", "\u24B6 Start" });
-        Canvas.SetRight(hintsBar, 40);
-        Canvas.SetBottom(hintsBar, 26);
-        board.Children.Add(hintsBar);
-
-        tidePageHost.Children.Add(board);
-    }
-
-    private void TideShowButtons()
-    {
-        if (tidePageHost == null) return;
-        tidePageHost.Children.Clear();
-        var board = new Canvas { Width = 1600, Height = 900, ClipToBounds = true };
-
-        // 1. Sea Background with "BUTTONS"
-        board.Children.Add(TideKit.SeaBackground(7, "BUTTONS"));
-
-        // 2. Character: x15-starfield at (40, 330, w=700) rotated 0deg
-        board.Children.Add(TideKit.Character("x15-starfield", 40, 330, 700, 0));
-
-        // Glowing A-button at pad focal point (525, 490)
-        var glowingA = new Border
-        {
-            Width = 72,
-            Height = 72,
-            CornerRadius = new CornerRadius(36),
-            BorderBrush = TideKit.SpikeRedBrush,
-            BorderThickness = new Thickness(7),
-            Effect = new DropShadowEffect { BlurRadius = 0, ShadowDepth = 0, Color = TideKit.Ink }
-        };
-        Canvas.SetLeft(glowingA, 525);
-        Canvas.SetTop(glowingA, 490);
-        board.Children.Add(glowingA);
-
-        // 3. Status Box
-        board.Children.Add(TideKit.StatusBox("19:24", isBack: true, onBack: () => TideShowDashboard()));
-
-        // 4. Top Row: Groups (Face, D-pad, Bumpers, Triggers, Rear, Sticks, System)
-        board.Children.Add(TideKit.TopBand(86));
-
-        string[] groups = ["Face", "D-pad", "Bumpers", "Triggers", "Rear", "Sticks", "System"];
-        for (int i = 0; i < 4; i++)
-        {
-            string g = groups[i];
-            bool on = (i == 0);
-            var tile = new Border
-            {
-                Width = 250,
-                Height = 250,
-                Background = on ? TideKit.WhiteBrush : TideKit.Sea0Brush,
-                BorderBrush = TideKit.WhiteBrush,
-                BorderThickness = new Thickness(4),
-                CornerRadius = new CornerRadius(6),
-                Effect = new DropShadowEffect { BlurRadius = 18, ShadowDepth = 6, Direction = 270, Opacity = 0.45, Color = Color.FromArgb(255, 0, 0, 40) }
+                CornerRadius = new CornerRadius(12),
+                Background = new SolidColorBrush(Color.FromArgb(0x80, 0x06, 0x16, 0x40)),
+                BorderBrush = new SolidColorBrush(Color.FromArgb(0x60, 0x9f, 0xf6, 0xff)),
+                BorderThickness = new Thickness(1),
+                Padding = new Thickness(14, 5, 14, 5),
+                Margin = new Thickness(5, 0, 5, 0)
             };
-
-            tile.Child = new TextBlock
+            badgePill.Child = new TextBlock
             {
-                Text = g.ToUpperInvariant(),
+                Text = bText,
+                FontFamily = TideKit.Body,
+                FontWeight = FontWeights.Bold,
+                FontSize = 11,
+                Foreground = TideKit.CyanFoamBrush
+            };
+            badgeStack.Children.Add(badgePill);
+        }
+        Canvas.SetLeft(badgeStack, 120);
+        Canvas.SetTop(badgeStack, 480);
+        heroStage.Children.Add(badgeStack);
+
+        board.Children.Add(heroStage);
+
+        // 4. Right Section — 6 Interactive Workbench Feature Decks (2x3 Grid)
+        var gridCanvas = new Canvas { Width = 920, Height = 700 };
+        Canvas.SetLeft(gridCanvas, 630);
+        Canvas.SetTop(gridCanvas, 95);
+
+        var decks = new (string Key, string Icon, string Title, string Status, string Sub, string BtnText, Action Action, string Tag)[]
+        {
+            (
+                "Buttons",
+                "\uE765",
+                "BUTTON REMAPPING",
+                $"{Draft.Changes.Count} CUSTOM ASSIGNMENTS",
+                "Independent digital mappings, turbo fire and macro hotkeys for all physical inputs.",
+                "OPEN REMAP STUDIO ➔",
+                () => { lastUsedTideSection = "Buttons"; ShowButtons(); },
+                "theme:tide:dash:buttons"
+            ),
+            (
+                "Curves",
+                "\uE9D9",
+                "RESPONSE CURVES",
+                "STICK & TRIGGER CURVES",
+                "Dual hall-effect stick tuning, trigger throw thresholds and dynamic deadzone contours.",
+                "TUNE CURVES ➔",
+                () => { lastUsedTideSection = "Curves"; ShowCurves(true); },
+                "theme:tide:dash:curves"
+            ),
+            (
+                "Macros",
+                "\uE7C3",
+                "MACRO SEQUENCES",
+                "4 PADDLE SLOTS READY",
+                "Record complex combo chains, rapid-fire trigger loops and millisecond timed actions.",
+                "MACRO STUDIO ➔",
+                () => { lastUsedTideSection = "Macros"; ShowMacros(true); },
+                "theme:tide:dash:macros"
+            ),
+            (
+                "Vibration",
+                "\uEC42",
+                "HAPTIC VIBRATION",
+                "GRIP MOTOR STRENGTH",
+                "Independent asymmetric grip motor tuning and hall trigger impulse rumble mixer.",
+                "HAPTIC MIXER ➔",
+                () => { lastUsedTideSection = "Vibration"; ShowVibration(true); },
+                "theme:tide:dash:vibration"
+            ),
+            (
+                "PcMode",
+                "\uE7F8",
+                "PC MODE & ROUTING",
+                "VIRTUAL XINPUT ROUTING",
+                "Virtual Xbox device emulation for full game compatibility without hardware writes.",
+                "MANAGE ROUTING ➔",
+                () => { lastUsedTideSection = "PcMode"; ShowManagement("PcMode"); },
+                "theme:tide:dash:pcmode"
+            ),
+            (
+                "Tester",
+                "\uE768",
+                "HARDWARE TESTER",
+                "LIVE OSCILLOSCOPE RADAR",
+                "Interactive visualizer for stick centering, circularity benchmarks and latency.",
+                "LAUNCH TESTER ➔",
+                () => { lastUsedTideSection = "Tester"; ShowManagement("Tester"); },
+                "theme:tide:dash:tester"
+            )
+        };
+
+        for (int i = 0; i < decks.Length; i++)
+        {
+            var d = decks[i];
+            double col = (i % 2) * 455;
+            double row = (i / 2) * 228;
+            bool isPrimary = string.Equals(d.Key, lastUsedTideSection, StringComparison.OrdinalIgnoreCase);
+
+            var card = TideKit.OceanGlassCard(w: 435, h: 215);
+
+            var cardStack = new StackPanel();
+
+            // Header Row: 28px Icon + Title
+            var hStack = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
+            hStack.Children.Add(new TextBlock
+            {
+                Text = d.Icon,
+                FontFamily = TideKit.Icons,
+                FontSize = 20,
+                Foreground = isPrimary ? TideKit.CyanFoamBrush : new SolidColorBrush(Color.FromArgb(0xaa, 0x9f, 0xf6, 0xff)),
+                Margin = new Thickness(0, 0, 10, 0),
+                VerticalAlignment = VerticalAlignment.Center
+            });
+            hStack.Children.Add(new TextBlock
+            {
+                Text = d.Title,
                 FontFamily = TideKit.Display,
                 FontWeight = FontWeights.Black,
                 FontStyle = FontStyles.Italic,
-                FontSize = 34,
-                Foreground = on ? TideKit.Sea0Brush : TideKit.WhiteBrush,
-                HorizontalAlignment = HorizontalAlignment.Center,
+                FontSize = 14,
+                Foreground = TideKit.WhiteBrush,
                 VerticalAlignment = VerticalAlignment.Center
+            });
+            cardStack.Children.Add(hStack);
+
+            // Status Pill
+            var statusPill = new Border
+            {
+                HorizontalAlignment = HorizontalAlignment.Left,
+                CornerRadius = new CornerRadius(10),
+                Background = new SolidColorBrush(Color.FromArgb(0x40, 0x18, 0x5a, 0xe0)),
+                BorderBrush = new SolidColorBrush(Color.FromArgb(0x50, 0x9f, 0xf6, 0xff)),
+                BorderThickness = new Thickness(1),
+                Padding = new Thickness(10, 3, 10, 3),
+                Margin = new Thickness(0, 0, 0, 8)
             };
+            statusPill.Child = new TextBlock
+            {
+                Text = d.Status,
+                FontFamily = TideKit.Body,
+                FontWeight = FontWeights.Bold,
+                FontSize = 11,
+                Foreground = TideKit.CyanFoamBrush
+            };
+            cardStack.Children.Add(statusPill);
 
-            Canvas.SetLeft(tile, 210 + i * 268);
-            Canvas.SetTop(tile, 104);
-            board.Children.Add(tile);
+            // Subtitle Description
+            cardStack.Children.Add(new TextBlock
+            {
+                Text = d.Sub,
+                FontFamily = TideKit.Body,
+                FontSize = 12,
+                Foreground = new SolidColorBrush(Color.FromArgb(0xbb, 0xc0, 0xdc, 0xf8)),
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 0, 0, 12),
+                Height = 34
+            });
+
+            // Action Button
+            FrameworkElement actionBtn = isPrimary
+                ? TideKit.SparkButton(d.BtnText, onClick: d.Action)
+                : TideKit.OceanButton(d.BtnText, primary: false, onClick: d.Action);
+            actionBtn.HorizontalAlignment = HorizontalAlignment.Right;
+            cardStack.Children.Add(actionBtn);
+
+            card.Child = cardStack;
+            Canvas.SetLeft(card, col);
+            Canvas.SetTop(card, row);
+
+            Action act = d.Action;
+            gridCanvas.Children.Add(ThemeAction(card, d.Tag, act));
         }
 
-        // Chevron arrow
-        var arrow = new Border
-        {
-            Width = 58,
-            Height = 58,
-            CornerRadius = new CornerRadius(29),
-            Background = TideKit.InkBrush,
-            BorderBrush = TideKit.WhiteBrush,
-            BorderThickness = new Thickness(3)
-        };
-        arrow.Child = new TextBlock
-        {
-            Text = "\uE76C",
-            FontFamily = TideKit.Icons,
-            FontSize = 28,
-            Foreground = TideKit.WhiteBrush,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        Canvas.SetRight(arrow, 22);
-        Canvas.SetTop(arrow, 160);
-        board.Children.Add(arrow);
+        board.Children.Add(gridCanvas);
 
-        // 5. Note Sticker: LOCAL DRAFT at (1230, 420)
-        var note = TideKit.NoteSticker("LOCAL DRAFT\nNOT WRITTEN TO CONTROLLER MEMORY", -3);
-        Canvas.SetLeft(note, 1230);
-        Canvas.SetTop(note, 420);
-        board.Children.Add(note);
-
-        // 6. Slanted Menu Words at (840, 760): A ▸ B, B ▸ B, X ▸ X, Y ▸ Y
-        string[] mapWords = ["A \u25B8 B", "B \u25B8 B", "X \u25B8 X", "Y \u25B8 Y"];
-        for (int i = 0; i < mapWords.Length; i++)
-        {
-            var word = TideKit.SlantedWord(mapWords[i], focused: (i == 0), fs: 88);
-            Canvas.SetLeft(word, 840 + i * 160);
-            Canvas.SetTop(word, 760 - 88);
-            board.Children.Add(word);
-        }
-
-        // 7. Tilted Keys at (820, 800): reset, test, buttons
-        string[] btnKeys = ["\uE777", "\uE768", "\uE7FC"];
-        for (int i = 0; i < btnKeys.Length; i++)
-        {
-            var kBtn = TideKit.KeyButton(btnKeys[i], focused: (i == 0), rot: -12);
-            Canvas.SetLeft(kBtn, 820 + i * 132);
-            Canvas.SetTop(kBtn, 800 - i * 12);
-            board.Children.Add(kBtn);
-        }
-
-        // 8. Hints
-        var hintsBar = TideKit.HintsBar(new[] { "\u24BE All", "\u24B6 Assign" });
-        Canvas.SetRight(hintsBar, 40);
-        Canvas.SetBottom(hintsBar, 26);
-        board.Children.Add(hintsBar);
+        // 5. Bottom Navigation Dock
+        var navDock = TideKit.OceanDock("Dashboard", TideSelectPage);
+        Canvas.SetLeft(navDock, 230);
+        Canvas.SetTop(navDock, 820);
+        board.Children.Add(navDock);
 
         tidePageHost.Children.Add(board);
     }
+
 }

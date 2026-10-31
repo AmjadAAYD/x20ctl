@@ -1,4 +1,5 @@
-using System;
+﻿using System;
+using System.Windows.Data;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -66,7 +67,7 @@ public partial class StudioScene
             Effect = new DropShadowEffect { Color = Color.FromRgb(0xff, 0x96, 0x5a), BlurRadius = 14, ShadowDepth = 0, Opacity = 0.5 },
             Child = new TextBlock
             {
-                Text = "DUAL-MOTOR HAPTICS",
+                Text = "LOCAL DRAFT",
                 FontFamily = BlossomKit.Small,
                 FontSize = 12,
                 FontWeight = FontWeights.Bold,
@@ -76,7 +77,7 @@ public partial class StudioScene
         leadStack.Children.Add(vibTag);
         leadStack.Children.Add(new TextBlock
         {
-            Text = "Asymmetric grip rumble with impulse trigger motors.",
+            Text = "Linked grip strength · not written to the controller.",
             FontFamily = BlossomKit.Body,
             FontSize = 16,
             Foreground = BlossomKit.TextMuteBrush,
@@ -167,7 +168,7 @@ public partial class StudioScene
         // Footnote under pad
         var padNoteTb = new TextBlock
         {
-            Text = "Both motors respond together; trigger rumble fires on brake and throttle thresholds.",
+            Text = "Visual preview only. Physical vibration testing remains locked.",
             FontFamily = BlossomKit.Body,
             FontSize = 14,
             Foreground = BlossomKit.TextMuteBrush,
@@ -193,7 +194,7 @@ public partial class StudioScene
 
         var bigValTb = new TextBlock
         {
-            Text = "70%",
+
             FontFamily = BlossomKit.Display,
             FontSize = 132,
             Foreground = BlossomKit.B("#ffd3a8"),
@@ -207,10 +208,11 @@ public partial class StudioScene
                 Opacity = 0.5
             }
         };
+        bigValTb.SetBinding(TextBlock.TextProperty,new Binding("Value"){Source=Vibration!.Strength,StringFormat="{0:0}%"});
         rightStack.Children.Add(bigValTb);
 
         // Master Lit Silk Cord Slider
-        var masterSlider = BlossomKit.LitCordSlider(70, 520, "70%");
+        var masterSlider = ThemeSlider(Vibration!.Strength,"theme:vibration:strength",520,true);
         masterSlider.Margin = new Thickness(0, 16, 0, 0);
         rightStack.Children.Add(masterSlider);
 
@@ -241,69 +243,17 @@ public partial class StudioScene
             {
                 chipBorder.Effect = new DropShadowEffect { Color = Color.FromRgb(0xff, 0x96, 0x5a), BlurRadius = 16, ShadowDepth = 0, Opacity = 0.45 };
             }
-            chipStack.Children.Add(chipBorder);
+            int percent = c == "Gentle" ? 25 : c == "Balanced" ? 50 : 100;
+            chipStack.Children.Add(ThemeAction(chipBorder,"theme:vibration:preset:"+percent,()=>Vibration!.Set(percent)));
         }
         rightStack.Children.Add(chipStack);
 
-        // Per-Motor Slider Rows
-        var motors = new (string Name, double Pct, string Val, bool Active)[]
+        foreach(string region in new[]{"All","Both grips","Left grip","Right grip"})
         {
-            ("Left grip motor", 70, "70%", true),
-            ("Right grip motor", 70, "70%", false),
-            ("Left trigger impulse", 50, "50%", false),
-            ("Right trigger impulse", 50, "50%", false)
-        };
-
-        foreach (var m in motors)
-        {
-            var rowBorder = new Border
-            {
-                Height = 56,
-                CornerRadius = new CornerRadius(4),
-                Background = m.Active
-                    ? new LinearGradientBrush
-                    {
-                        StartPoint = new Point(0, 0.5),
-                        EndPoint = new Point(1, 0.5),
-                        GradientStops = new GradientStopCollection
-                        {
-                            new GradientStop(Color.FromArgb(80, 255, 176, 110), 0.0),
-                            new GradientStop(Color.FromArgb(28, 255, 120, 140), 0.6),
-                            new GradientStop(Colors.Transparent, 1.0)
-                        }
-                    }
-                    : BlossomKit.B("transparent"),
-                BorderBrush = m.Active ? BlossomKit.B("#ffb56b") : BlossomKit.B("rgba(255,220,230,0.08)"),
-                BorderThickness = m.Active ? new Thickness(3, 0, 0, 0) : new Thickness(0, 0, 0, 1),
-                Padding = new Thickness(16, 0, 16, 0)
-            };
-
-            var grid_ = new Grid();
-            grid_.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            grid_.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-            var labelTb = new TextBlock
-            {
-                Text = m.Name,
-                FontFamily = BlossomKit.Body,
-                FontSize = 18,
-                Foreground = m.Active ? BlossomKit.B("#ffe6cc") : BlossomKit.TextWhiteBrush,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            Grid.SetColumn(labelTb, 0);
-            grid_.Children.Add(labelTb);
-
-            var sliderElem = BlossomKit.LitCordSlider(m.Pct, 200, m.Val);
-            Grid.SetColumn(sliderElem, 1);
-            grid_.Children.Add(sliderElem);
-
-            rowBorder.Child = grid_;
-            rightStack.Children.Add(rowBorder);
+            var face = new Border { Height=46,Padding=new Thickness(14,0,14,0),Margin=new Thickness(0,0,0,6),Background=BlossomKit.B("rgba(34,14,30,0.82)"),Child=new TextBlock{Text="Preview · "+region,Foreground=BlossomKit.TextWhiteBrush,VerticalAlignment=VerticalAlignment.Center}};
+            rightStack.Children.Add(ThemeAction(face,"theme:vibration:region:"+region,()=>Vibration!.SelectRegion(region)));
         }
-
-        Canvas.SetLeft(rightStack, 960);
-        Canvas.SetTop(rightStack, 200);
-        host.Children.Add(rightStack);
+        Canvas.SetLeft(rightStack,960); Canvas.SetTop(rightStack,220); host.Children.Add(rightStack);
 
         // Hints: [A] Test vibration  [X] Mute all  [B] Back
         var hintsStack = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };

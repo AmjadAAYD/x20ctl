@@ -1,3 +1,4 @@
+using System.Windows.Data;
 using System;
 using System.Windows;
 using System.Windows.Controls;
@@ -11,9 +12,12 @@ namespace X20Ctl.Product;
 
 public partial class StudioScene
 {
+    private FrameworkElement? duskTesterView;
     private void DuskShowTester()
     {
+        if (Tester is not {} tester) return;
         duskPageHost!.Children.Clear();
+        if (duskTesterView != null) { duskPageHost.Children.Add(duskTesterView); return; }
 
         var hints = new[]
         {
@@ -32,16 +36,7 @@ public partial class StudioScene
         Canvas.SetTop(pedestal, 240);
         padCanvas.Children.Add(pedestal);
 
-        string padKey = Model?.Id?.ToLowerInvariant() ?? "x05pro";
-        if (padKey.Contains("05")) padKey = "x05pro";
-        var padArt = DuskKit.ControllerArt(padKey, 520);
-        if (padArt != null)
-        {
-            padArt.Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 30, ShadowDepth = 15, Opacity = 0.6 };
-            Canvas.SetLeft(padArt, 50);
-            Canvas.SetTop(padArt, 0);
-            padCanvas.Children.Add(padArt);
-        }
+        var livePad = new Viewbox { Width = 520, Height = 350, Stretch = Stretch.Uniform, Child = tester.TakeStage() }; Canvas.SetLeft(livePad, 50); Canvas.SetTop(livePad, 0); padCanvas.Children.Add(livePad);
         centerStack.Children.Add(padCanvas);
 
         // View toggle tabs (FRONT / BACK)
@@ -61,7 +56,7 @@ public partial class StudioScene
             FontWeight = FontWeights.Bold,
             Foreground = DuskKit.WhiteBrush
         };
-        tabStack.Children.Add(frontTab);
+        tabStack.Children.Add(ThemeAction(frontTab, "theme:tester:front", () => tester.ShowRear(false)));
 
         var backTab = new Border
         {
@@ -78,7 +73,7 @@ public partial class StudioScene
             FontWeight = FontWeights.Bold,
             Foreground = DuskKit.LightBrush
         };
-        tabStack.Children.Add(backTab);
+        tabStack.Children.Add(ThemeAction(backTab, "theme:tester:rear", () => tester.ShowRear(true), HasRearArtwork));
         centerStack.Children.Add(tabStack);
 
         // Gauges shelf along bottom with specular cyan edge
@@ -98,11 +93,11 @@ public partial class StudioScene
         gGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         gGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var gItems = new (string Lab, string Val, Color Col)[]
+        var gItems = new (string Lab, TextBlock Val, Color Col)[]
         {
-            ("POLLING LATENCY", "0.98 ms", DuskKit.GreenOnline),
-            ("INPUT JITTER", "0.04 ms", DuskKit.C("#1a9fff")),
-            ("PACKET RATE", "1002 Hz", DuskKit.TextWhite)
+            ("SOURCE", tester.SourceLabel, DuskKit.GreenOnline),
+            ("PRESSED", tester.PressedBlock, DuskKit.CyanNeon),
+            ("INPUT OWNERSHIP", tester.OwnershipBlock, DuskKit.TextWhite)
         };
 
         for (int i = 0; i < gItems.Length; i++)
@@ -120,12 +115,13 @@ public partial class StudioScene
             });
             colStack.Children.Add(new TextBlock
             {
-                Text = val,
+                Text = val.Text,
                 FontFamily = DuskKit.Display,
                 FontSize = 17,
                 FontWeight = FontWeights.Bold,
                 Foreground = DuskKit.B(col)
             });
+            ((TextBlock)colStack.Children[1]).SetBinding(TextBlock.TextProperty, new Binding("Text") { Source = val });
             Grid.SetColumn(colStack, i);
             gGrid.Children.Add(colStack);
         }
@@ -161,7 +157,7 @@ public partial class StudioScene
             Margin = new Thickness(0, 0, 0, 8),
             Child = new TextBlock
             {
-                Text = "HID PACKET INSPECTOR // 1000HZ",
+                Text = "LIVE INPUT · SELECTED SOURCE",
                 FontFamily = DuskKit.Display,
                 FontSize = 10,
                 FontWeight = FontWeights.Bold,
@@ -181,7 +177,7 @@ public partial class StudioScene
         });
         tStack.Children.Add(new TextBlock
         {
-            Text = "Direct HID Descriptor",
+            Text = tester.SourceText,
             FontFamily = DuskKit.Display,
             FontSize = 20,
             FontWeight = FontWeights.Bold,
@@ -190,7 +186,7 @@ public partial class StudioScene
         });
         tStack.Children.Add(new TextBlock
         {
-            Text = "Direct raw packet stream captures low-level button actuation before OS driver translation.",
+            Text = "Use real controller input or an explicitly labelled keyboard simulation.",
             FontFamily = DuskKit.Body,
             FontSize = 14,
             Foreground = DuskKit.LightBrush,
@@ -198,6 +194,7 @@ public partial class StudioScene
             Margin = new Thickness(0, 0, 0, 16)
         });
 
+        ((TextBlock)tStack.Children[2]).SetBinding(TextBlock.TextProperty, new Binding("Text") { Source = tester.SourceLabel });
         var btnStack = new StackPanel { Orientation = Orientation.Horizontal };
         var pBtn = new Border
         {
@@ -222,7 +219,7 @@ public partial class StudioScene
             Foreground = DuskKit.WhiteBrush,
             VerticalAlignment = VerticalAlignment.Center
         };
-        btnStack.Children.Add(pBtn);
+        ((TextBlock)pBtn.Child).SetBinding(TextBlock.TextProperty, new Binding("Content") { Source = tester.KeyboardMode }); btnStack.Children.Add(ThemeAction(pBtn, "theme:tester:keyboard", tester.ClickKeyboard));
 
         var rBtn = new Border
         {
@@ -234,14 +231,14 @@ public partial class StudioScene
         };
         rBtn.Child = new TextBlock
         {
-            Text = "Clear History",
+            Text = "Leave Tester",
             FontFamily = DuskKit.Display,
             FontSize = 15,
             FontWeight = FontWeights.Bold,
             Foreground = DuskKit.LightBrush,
             VerticalAlignment = VerticalAlignment.Center
         };
-        btnStack.Children.Add(rBtn);
+        btnStack.Children.Add(ThemeAction(rBtn, "theme:tester:exit", tester.ClickExit));
         tStack.Children.Add(btnStack);
 
         testCard.Child = tStack;
@@ -254,12 +251,12 @@ public partial class StudioScene
         var shell = DuskKit.SettingsShell(
             activeKey: "tester",
             title: "Input Tester",
-            lead: "Real-time hardware inspection with raw HID packet verification and latency gauges.",
+            lead: "Live input from the selected source. Keyboard simulation is labelled separately.",
             content: contentCanvas,
             hints: hints,
             onNav: key => DuskSelectPage(key)
         );
 
-        duskPageHost.Children.Add(shell);
+        duskTesterView = shell; duskPageHost.Children.Add(shell);
     }
 }

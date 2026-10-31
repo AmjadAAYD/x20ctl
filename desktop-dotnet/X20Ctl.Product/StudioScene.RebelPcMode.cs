@@ -12,7 +12,7 @@ namespace X20Ctl.Product;
 /// and lit red once it runs; the settings as a cascade of rows, and the chosen row's detail on pinned paper. Everything is PcModePage's own.</summary>
 public partial class StudioScene
 {
-    private Grid? rebelPc; private ContentControl? rebelPcPaper; private PcModePage? rebelPcPage; private string rebelPcRow = "";
+    private Grid? rebelPc; private RebelPcPresenter? rebelPcPresenter;
     private PcModePage? RebelPcSource => ManagementBodyHost.Children.OfType<ScrollViewer>().FirstOrDefault()?.Content as PcModePage;
 
     private static UIElement RebelMapPin(double x, double y, bool lit)
@@ -32,9 +32,9 @@ public partial class StudioScene
         void Paint() { bool l = lit(); track.Background = Ink.B(on ? Ink.Red : l ? Ink.C("#d9d2d4") : Ink.C("#2a2629")); track.BorderBrush = Ink.B(on ? Ink.White : l ? Ink.Black : Ink.A(Ink.White, .35)); knob.Fill = Ink.B(on ? Ink.White : l ? Ink.Black : Ink.C("#6d6569")); }
         track.Tag = (Action)Paint; Paint(); return track;
     }
-    private static Button RebelPrimary(string text, Action click, string tag, bool paper = true)
+    private static Button RebelPrimary(string text, Action click, string tag, bool paper = true, string keyLetter = "A")
     {
-        var key = new Border { Width = 28, Height = 28, CornerRadius = new(14), Background = Ink.B(Ink.White), Margin = new(0, 0, 10, 0), Child = Ink.Text("A", 14, Ink.B(Ink.Red)).Also(t => { t.RenderTransform = null; t.HorizontalAlignment = HorizontalAlignment.Center; t.VerticalAlignment = VerticalAlignment.Center; }) };
+        var key = new Border { Width = 28, Height = 28, CornerRadius = new(14), Background = Ink.B(Ink.White), Margin = new(0, 0, 10, 0), Child = Ink.Text(keyLetter, 14, Ink.B(Ink.Red)).Also(t => { t.RenderTransform = null; t.HorizontalAlignment = HorizontalAlignment.Center; t.VerticalAlignment = VerticalAlignment.Center; }) };
         var label = Ink.Text(text, 17, Ink.B(Colors.White)); label.RenderTransform = null; label.VerticalAlignment = VerticalAlignment.Center;
         var face = new Border { Height = 46, Padding = new(24, 0, 24, 0), Background = Ink.B(Ink.Red), BorderBrush = Ink.B(paper ? Ink.Black : Ink.White), BorderThickness = new(2), RenderTransformOrigin = new(.5, .5), RenderTransform = new SkewTransform(-12, 0),
             Effect = Ink.Shadow(6, 6, 0, paper ? Ink.Black : Colors.Black, 1), Child = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Children = { key, label } } };
@@ -47,9 +47,33 @@ public partial class StudioScene
 
     private void RebelPcModePage()
     {
-        var pc = RebelPcSource; var g = rebelPc!; g.Children.Clear();
-        if (pc == null) { g.Children.Add(Place(Ink.Text("PC mode isn't available in this window.", 18, Ink.B(Ink.C("#cfc7c9")), false), 268, 200)); return; }
-        if (!ReferenceEquals(pc, rebelPcPage)) { rebelPcPage = pc; pc.Watch(() => { if (rebelPage == "pcmode" && ReferenceEquals(rebelPcPage, RebelPcSource)) RebelLater(); }); rebelPcRow = pc.NoticeShown ? "notice" : "switch"; }
+        var source = RebelPcSource; if (source == null) return;
+        if (rebelPcPresenter?.Source != source) { rebelPc!.Children.Clear(); rebelPcPresenter = new(source, ShowButtons); rebelPc.Children.Add(rebelPcPresenter); }
+        rebelPcPresenter.Rebuild();
+    }
+    private bool RebelPcKey(KeyEventArgs e) => rebelPage == "pcmode" && rebelPcPresenter?.HandleKey(e) == true;
+
+    /// <summary>The same native PC mode page presented from Studio and Tools.</summary>
+    internal sealed class RebelPcPresenter : Grid
+    {
+        internal PcModePage Source { get; }
+        private readonly Action? editButtons;
+        private ContentControl? rebelPcPaper;
+        private string rebelPcRow;
+        private bool queued;
+        internal RebelPcPresenter(PcModePage source, Action? editButtons = null)
+        {
+            Source = source; this.editButtons = editButtons; Width = 1600; Height = 900; rebelPcRow = source.NoticeShown ? "notice" : "switch";
+            source.Watch(Queue); Loaded += (_, _) => Queue(); PreviewKeyDown += (_, e) => HandleKey(e);
+        }
+        private void Queue()
+        {
+            if (queued) return; queued = true;
+            Dispatcher.BeginInvoke(() => { queued = false; if (IsVisible) Rebuild(); }, DispatcherPriority.Loaded);
+        }
+    internal void Rebuild()
+    {
+        var pc = Source; var g = this; g.Children.Clear();
         string? focused = (Keyboard.FocusedElement as FrameworkElement) is { Tag: string t } fe && g.IsAncestorOf(fe) ? t : null;
 
         // the map: streets, the planned route in white, a pin at each stop, the stops on paper
@@ -136,7 +160,7 @@ public partial class StudioScene
                 if (!PcModeSetup.Ready) { Gap(12); body.Children.Add(RebelBt("Set up PC mode", null, async () => await pc.SetUp(), "pcp:setup", 15, 40, true)); }
                 Gap(22); body.Children.Add(Ink.Text("Where you change the settings", 21, Ink.B(Ink.Black)));
                 body.Children.Add(RebelBody("Right here, in this controller's tabs. While PC mode is on, Buttons, Curves (with Advanced) and Macros apply on this PC, for any controller. Turbo is below.").Also(t => t.Margin = new(0, 6, 0, 0)));
-                Gap(12); body.Children.Add(RebelBt("Edit buttons", null, ShowButtons, "pcp:edit", 15, 40, true).Also(b => b.HorizontalAlignment = HorizontalAlignment.Left));
+                if (editButtons != null) { Gap(12); body.Children.Add(RebelBt("Edit buttons", null, editButtons, "pcp:edit", 15, 40, true).Also(b => b.HorizontalAlignment = HorizontalAlignment.Left)); }
                 break;
             case "profile":
                 Title("Settings for");
@@ -197,9 +221,10 @@ public partial class StudioScene
         }
         rebelPcPaper.Content = root;
     }
-    private bool RebelPcKey(KeyEventArgs e)
+    internal bool HandleKey(KeyEventArgs e)
     {
-        if (rebelPage != "pcmode" || rebelPcPage == null || e.Key is not (Key.Left or Key.Right) || Keyboard.FocusedElement is not FrameworkElement { Tag: "pc:profile" }) return false;
-        if (!e.IsRepeat) RebelCycleProfile(rebelPcPage, e.Key == Key.Right ? 1 : -1); e.Handled = true; return true;
+        if (e.Key is not (Key.Left or Key.Right) || Keyboard.FocusedElement is not FrameworkElement { Tag: "pc:profile" }) return false;
+        if (!e.IsRepeat) RebelCycleProfile(Source, e.Key == Key.Right ? 1 : -1); e.Handled = true; return true;
+    }
     }
 }

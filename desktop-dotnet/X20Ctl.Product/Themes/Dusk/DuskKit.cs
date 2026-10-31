@@ -85,26 +85,7 @@ public static class DuskKit
     /// </summary>
     public static Image? ControllerArt(string modelId = "x05pro", double width = 600)
     {
-        string safe = modelId.Replace("_", "-").ToLowerInvariant();
-        if (safe == "x05" || safe == "x05a") safe = "x05pro";
-        else if (safe.Contains("starfield")) safe = "x15-starfield";
-        else if (safe.Contains("wukong")) safe = "x15-wukong";
-        else if (safe.Contains("purple")) safe = "d10-purple";
-
-        string path = System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "art", $"{safe}.png");
-        if (!System.IO.File.Exists(path))
-        {
-            path = System.IO.Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "Assets", "art", $"{safe}.png");
-        }
-        if (!System.IO.File.Exists(path)) return null;
-
-        var img = new Image
-        {
-            Width = width,
-            Source = new System.Windows.Media.Imaging.BitmapImage(new Uri(System.IO.Path.GetFullPath(path))),
-            Stretch = Stretch.Uniform
-        };
-        return img;
+        return ThemeArt.Load(modelId, width);
     }
 
     /// <summary>
@@ -336,7 +317,7 @@ public static class DuskKit
     /// Steam Deck Top Status Row: Square avatar, green online dot, time, battery, wifi, search.
     /// Strictly implements t_dusk.py:50 top().
     /// </summary>
-    public static FrameworkElement TopBar(string username = "Player 1", string time = "19:24", int battery = 100)
+    public static FrameworkElement TopBar(string username = "Player 1", string? time = null, string? battery = null)
     {
         var root = new Canvas { Width = 1600, Height = 64, ClipToBounds = false };
 
@@ -373,27 +354,15 @@ public static class DuskKit
         }
         panel.Children.Add(av);
 
-        // Green online dot (11x11, #59bf40)
-        var dot = new Border
-        {
-            Width = 11,
-            Height = 11,
-            CornerRadius = new CornerRadius(5.5),
-            Background = GreenOnlineBrush,
-            Margin = new Thickness(14, 0, 14, 0),
-            VerticalAlignment = VerticalAlignment.Center,
-            Effect = new DropShadowEffect { Color = GreenOnline, BlurRadius = 6, ShadowDepth = 0, Opacity = 0.8 }
-        };
-        panel.Children.Add(dot);
-
         // Time
         var timeBlock = new TextBlock
         {
-            Text = time,
+            Text = time ?? (ReviewSandbox.Active ? "7:24 PM" : DateTime.Now.ToString("h:mm tt")),
             FontFamily = Display,
             FontSize = 25,
             FontWeight = FontWeights.SemiBold,
             Foreground = WhiteBrush,
+            Margin = new Thickness(16, 0, 0, 0),
             VerticalAlignment = VerticalAlignment.Center
         };
         panel.Children.Add(timeBlock);
@@ -420,36 +389,15 @@ public static class DuskKit
             VerticalAlignment = VerticalAlignment.Center
         });
 
-        // WiFi icon
-        rightStack.Children.Add(new TextBlock
-        {
-            Text = "\uE704",
-            FontFamily = Icons,
-            FontSize = 24,
-            Foreground = WhiteBrush,
-            Margin = new Thickness(0, 0, 20, 0),
-            VerticalAlignment = VerticalAlignment.Center
-        });
-
         // Battery %
         rightStack.Children.Add(new TextBlock
         {
-            Text = $"{battery}%",
+            Text = battery ?? "",
             FontFamily = Display,
             FontSize = 20,
             FontWeight = FontWeights.SemiBold,
             Foreground = WhiteBrush,
             Margin = new Thickness(0, 0, 10, 0),
-            VerticalAlignment = VerticalAlignment.Center
-        });
-
-        // Battery icon
-        rightStack.Children.Add(new TextBlock
-        {
-            Text = "\uE83F",
-            FontFamily = Icons,
-            FontSize = 28,
-            Foreground = GreenOnlineBrush,
             VerticalAlignment = VerticalAlignment.Center
         });
 
@@ -710,7 +658,6 @@ public static class DuskKit
             };
             Canvas.SetRight(proBadge, 24);
             Canvas.SetTop(proBadge, 20);
-            canvas.Children.Add(proBadge);
         }
 
         border.Child = canvas;
@@ -888,172 +835,35 @@ public static class DuskKit
     /// Strictly implements t_dusk.py:settings() and shell().
     /// </summary>
     public static Canvas SettingsShell(
-        string activeKey,
-        string title,
-        string lead,
-        FrameworkElement content,
-        (string Key, string Label)[] hints,
-        Action<string>? onNav)
+        string activeKey, string title, string lead, FrameworkElement content,
+        (string Key, string Label)[] hints, Action<string>? onNav)
     {
-        var root = new Canvas { Width = 1600, Height = 900, ClipToBounds = true };
-        root.Children.Add(Backdrop("x05pro", 0.18));
-
-        // 1. Top status bar
+        // Geometry from the approved t_dusk.py settings() surface, not its home backdrop.
+        var root = new Canvas { Width = 1600, Height = 900, ClipToBounds = true, Background = SlateBgBrush };
         root.Children.Add(TopBar());
-
-        // 2. Left Navigation Sidebar at (32, 100, w: 370)
-        var navPanel = new StackPanel { Width = 370, Orientation = Orientation.Vertical };
+        var nav = new StackPanel { Width = 404 };
         var pages = new (string Name, string Key, string Icon)[]
         {
-            ("Buttons", "buttons", "\uE7FC"),
-            ("Curves", "curves", "\uE9D2"),
-            ("Macros", "macros", "\uE945"),
-            ("Vibration", "vibration", "\uE877"),
-            ("PC mode", "pcmode", "\uE977"),
-            ("Device", "device", "\uE772"),
-            ("Mouse", "mouse", "\uE962"),
-            ("Setups", "setups", "\uE8F1"),
-            ("Tools", "tools", "\uE90F")
+            ("Buttons", "buttons", "\uE7FC"), ("Curves", "curves", "\uE9D2"),
+            ("Macros", "macros", "\uE945"), ("Vibration", "vibration", "\uE877"),
+            ("PC mode", "pcmode", "\uE977"), ("Device", "device", "\uE772"),
+            ("Mouse", "mouse", "\uE962"), ("Setups", "setups", "\uE8F1"), ("Tools", "tools", "\uE90F")
         };
-
         foreach (var (name, key, icon) in pages)
         {
-            bool active = string.Equals(key, activeKey, StringComparison.OrdinalIgnoreCase);
-            var item = new Border
-            {
-                Height = 52,
-                CornerRadius = new CornerRadius(4),
-                Background = active ? SlateTabOnBrush : Brushes.Transparent,
-                Margin = new Thickness(0, 0, 0, 4),
-                Padding = new Thickness(20, 0, 20, 0),
-                Cursor = System.Windows.Input.Cursors.Hand
-            };
-
-            if (active)
-            {
-                item.BorderBrush = CyanNeonBrush;
-                item.BorderThickness = new Thickness(2);
-                item.Effect = new DropShadowEffect { Color = CyanNeon, BlurRadius = 14, ShadowDepth = 0, Opacity = 0.5 };
-            }
-
-            var itemStack = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            itemStack.Children.Add(new TextBlock
-            {
-                Text = icon,
-                FontFamily = Icons,
-                FontSize = 20,
-                Foreground = active ? CyanNeonBrush : MuteBrush,
-                Margin = new Thickness(0, 0, 16, 0),
-                VerticalAlignment = VerticalAlignment.Center
-            });
-
-            itemStack.Children.Add(new TextBlock
-            {
-                Text = name,
-                FontFamily = Display,
-                FontSize = 18,
-                FontWeight = FontWeights.Bold,
-                Foreground = active ? WhiteBrush : LightBrush,
-                VerticalAlignment = VerticalAlignment.Center
-            });
-
-            item.Child = itemStack;
-            item.MouseLeftButtonUp += (_, _) => onNav?.Invoke(key);
-            navPanel.Children.Add(item);
+            bool active = key.Equals(activeKey, StringComparison.OrdinalIgnoreCase);
+            var line = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            line.Children.Add(new TextBlock { Text = icon, FontFamily = Icons, FontSize = 24, Width = 28, Margin = new(0,0,20,0), Foreground = active ? WhiteBrush : LightBrush, VerticalAlignment = VerticalAlignment.Center });
+            line.Children.Add(new TextBlock { Text = name, FontFamily = Display, FontSize = 23, FontWeight = FontWeights.SemiBold, Foreground = active ? WhiteBrush : LightBrush, VerticalAlignment = VerticalAlignment.Center });
+            var face = new Border { Height = 60, CornerRadius = new(4), Background = active ? SlateTabOnBrush : Brushes.Transparent, Padding = new(20,0,20,0), Child = line };
+            nav.Children.Add(StudioScene.ThemeAction(face, "dusk:nav:" + key, () => onNav?.Invoke(key)));
         }
-
-        Canvas.SetLeft(navPanel, 32);
-        Canvas.SetTop(navPanel, 100);
-        root.Children.Add(navPanel);
-
-        // 3. Right Slate Panel at (434, 100, w: 1134, h: 720)
-        var panel = new Border
-        {
-            Width = 1134,
-            Height = 720,
-            CornerRadius = new CornerRadius(8),
-            Background = new LinearGradientBrush
-            {
-                StartPoint = new Point(0, 0),
-                EndPoint = new Point(0, 1),
-                GradientStops =
-                {
-                    new(C("#1d242e"), 0.0),
-                    new(C("#131820"), 1.0)
-                }
-            },
-            BorderBrush = B("rgba(26, 159, 255, 0.25)"),
-            BorderThickness = new Thickness(1),
-            ClipToBounds = true,
-            Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 40, ShadowDepth = 16, Opacity = 0.55 }
-        };
-
-        var panelCanvas = new Canvas { Width = 1134, Height = 720 };
-
-        // Specular cyan top highlight edge
-        var topHighlight = new Border
-        {
-            Width = 1134,
-            Height = 1.5,
-            Background = new LinearGradientBrush
-            {
-                StartPoint = new Point(0, 0.5),
-                EndPoint = new Point(1, 0.5),
-                GradientStops =
-                {
-                    new(C("rgba(26, 159, 255, 0.8)"), 0.0),
-                    new(C("rgba(89, 191, 64, 0.5)"), 0.4),
-                    new(Colors.Transparent, 1.0)
-                }
-            }
-        };
-        Canvas.SetLeft(topHighlight, 0);
-        Canvas.SetTop(topHighlight, 0);
-        panelCanvas.Children.Add(topHighlight);
-
-        // Header block at (46, 30)
-        var header = new StackPanel { Width = 1040, Orientation = Orientation.Vertical };
-        header.Children.Add(new TextBlock
-        {
-            Text = title,
-            FontFamily = Display,
-            FontSize = 34,
-            FontWeight = FontWeights.ExtraBold,
-            Foreground = WhiteBrush
-        });
-
-        if (!string.IsNullOrEmpty(lead))
-        {
-            header.Children.Add(new TextBlock
-            {
-                Text = lead,
-                FontFamily = Body,
-                FontSize = 15,
-                Foreground = MuteBrush,
-                Margin = new Thickness(0, 4, 0, 0),
-                TextWrapping = TextWrapping.Wrap
-            });
-        }
-        Canvas.SetLeft(header, 46);
-        Canvas.SetTop(header, 30);
-        panelCanvas.Children.Add(header);
-
-        // Subpage content placed below header
-        Canvas.SetLeft(content, 46);
-        Canvas.SetTop(content, 114);
-        panelCanvas.Children.Add(content);
-
-        panel.Child = panelCanvas;
-        Canvas.SetLeft(panel, 434);
-        Canvas.SetTop(panel, 100);
-        root.Children.Add(panel);
-
-        // 4. Bottom bar at y = 844
-        var bar = BottomBar(hints);
-        Canvas.SetLeft(bar, 0);
-        Canvas.SetTop(bar, 844);
-        root.Children.Add(bar);
-
+        Canvas.SetLeft(nav,18); Canvas.SetTop(nav,98); root.Children.Add(nav);
+        var body = new Canvas { Width = 1160, Height = 750, ClipToBounds = true };
+        Canvas.SetLeft(content,52); Canvas.SetTop(content,30); body.Children.Add(content);
+        var panel = new Border { Width = 1160, Height = 750, Background = SlatePanelBrush, CornerRadius = new(10,0,0,0), ClipToBounds = true, Child = body };
+        Canvas.SetLeft(panel,440); Canvas.SetTop(panel,94); root.Children.Add(panel);
+        var bar = BottomBar(hints); Canvas.SetTop(bar,844); root.Children.Add(bar);
         return root;
     }
 }

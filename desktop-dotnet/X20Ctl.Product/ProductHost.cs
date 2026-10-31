@@ -85,8 +85,8 @@ public sealed partial class ProductHost : Grid
     private readonly SemaphoreSlim nativeContextLock=new(1,1);
     private readonly object nativeEventLock=new();private JsonElement? latestNativeEvent;private int nativeEventScheduled;
     private HashSet<string> lastNativeButtons=new();private bool nativeArmed;private long lastNativeSequence=-1,lastNavigationUs;
-    private string ExpectedNativeContext=>NativeInputStudio?.InputContext is InputOwner.TesterCapture or InputOwner.RemapCapture?"TESTER_CAPTURE":"UI_NAVIGATION";
-    private StudioScene? NativeInputStudio => Settings != null || Check != null || WriteScan != null || ActivePulseNotice != null ? null : Studio;
+    internal string ExpectedNativeContext=>NativeInputStudio?.InputContext is InputOwner.TesterCapture or InputOwner.RemapCapture?"TESTER_CAPTURE":"UI_NAVIGATION";
+    internal StudioScene? NativeInputStudio => Settings != null || Check != null || WriteScan != null || ActivePulseNotice != null || ActiveRebelNotice != null || ActiveHybridNotice != null || ActiveThemeNotice != null ? null : Studio;
     private int? studioPlayer;
     public bool IntroWasPlayed {get;private set;}
     private readonly ProductPreferences preferences;
@@ -200,7 +200,7 @@ public sealed partial class ProductHost : Grid
         studioPlayer = player;
         var model = assigned.ModelId != null ? Catalog.Find(assigned.ModelId) : Catalog.Models.FirstOrDefault(m => m.Name == assigned.Model);
         if (model == null) { Zone.FeedbackText.Text = "Choose a known controller model before entering Studio."; return; }
-        if (Studio != null) { var old = Studio; Studio = null; Fx.Leave(old, () => Children.Remove(old), 1.02, 160); }
+        if (Studio != null) { var old = Studio; old.SuspendMacroActivity(); Studio = null; Fx.Leave(old, () => Children.Remove(old), 1.02, 160); }
         if (!drafts.TryGetValue((player, model.Id), out var draft)) drafts[(player, model.Id)] = draft = new(model.Id);
         if (!curves.TryGetValue((player, model.Id), out var curveDraft)) curves[(player, model.Id)] = curveDraft = new(model.Id);
         if (!macros.TryGetValue((player, model.Id), out var macroDraft)) macros[(player, model.Id)] = macroDraft = new(model.Id);
@@ -251,7 +251,7 @@ public sealed partial class ProductHost : Grid
     public void ReturnToZone()
     {
         bool back = Studio != null;
-        if (Studio != null) { var leaving = Studio; Studio = null; leaving.Diagnostics?.Stop(); Fx.Leave(leaving, () => Children.Remove(leaving), 1.06, 300); }
+        if (Studio != null) { var leaving = Studio; leaving.SuspendMacroActivity(); Studio = null; leaving.Diagnostics?.Stop(); Fx.Leave(leaving, () => Children.Remove(leaving), 1.06, 300); }
         studioPlayer = null;
         Zone.BeginAnimation(OpacityProperty, null); Zone.Opacity = 1; Zone.IsHitTestVisible = true; Zone.IsEnabled = Selector == null && Settings == null && Intro == null;
         Zone.Visibility = Visibility.Visible;
@@ -305,28 +305,40 @@ public sealed partial class ProductHost : Grid
             if(value.GetProperty("engineEpoch").GetString()!=nativeEpoch||value.GetProperty("subscriptionId").GetString()!=nativeSubscription||value.GetProperty("inputContext").GetString()!=ExpectedNativeContext)return;
             long sequence=value.GetProperty("sequence").GetInt64();if(sequence<=lastNativeSequence)return;lastNativeSequence=sequence;
             var payload=value.GetProperty("payload");bool connected=payload.GetProperty("connected").GetBoolean();Zone.ProvenanceText.Text=connected?"LIVE INPUT":"NO CONTROLLER";Zone.ScenarioHint.Text=connected?"XInput navigation · Model identity unverified · Configuration locked":"No gameplay source connected · Configuration locked";
-            Studio?.SetGameplayConnected(connected);
-            if(connected)Studio?.ObserveLiveInput(payload.GetProperty("leftX").GetDouble(),payload.GetProperty("leftY").GetDouble(),payload.GetProperty("rightX").GetDouble(),payload.GetProperty("rightY").GetDouble(),payload.GetProperty("lt").GetDouble(),payload.GetProperty("rt").GetDouble());
+            NativeInputStudio?.SetGameplayConnected(connected);
+            if(connected)NativeInputStudio?.ObserveLiveInput(payload.GetProperty("leftX").GetDouble(),payload.GetProperty("leftY").GetDouble(),payload.GetProperty("rightX").GetDouble(),payload.GetProperty("rightY").GetDouble(),payload.GetProperty("lt").GetDouble(),payload.GetProperty("rt").GetDouble());
             // virtual buttons: triggers and left stick become digital presses with a threshold
             var now=payload.GetProperty("buttons").EnumerateArray().Select(v=>v.GetString()!).ToHashSet();
             if(connected){if(payload.GetProperty("lt").GetDouble()>.55)now.Add("LT");if(payload.GetProperty("rt").GetDouble()>.55)now.Add("RT");
-                if(Studio?.IsCurves != true)
+                if(NativeInputStudio?.IsCurves != true)
                 {
                     double lx=payload.GetProperty("leftX").GetDouble(),ly=payload.GetProperty("leftY").GetDouble();if(Math.Abs(lx)>.6&&Math.Abs(lx)>=Math.Abs(ly))now.Add(lx>0?"LS_RIGHT":"LS_LEFT");else if(Math.Abs(ly)>.6)now.Add(ly>0?"LS_UP":"LS_DOWN");
                 }}
             var pressed=now.Except(lastNativeButtons).ToArray();lastNativeButtons=now;
+            if (ActiveThemeNotice is {} themedNotice)
+            {
+                if (!connected || Window.GetWindow(this)?.IsActive != true) { nativeArmed = false; return; }
+                if (!nativeArmed) { if (now.Count == 0) nativeArmed = true; return; }
+                if (pressed.Contains("B")) ThemeNoticeButton(themedNotice, "no")?.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                else if (pressed.Contains("A") && Keyboard.FocusedElement is Button action && themedNotice.IsKeyboardFocusWithin) action.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                else if (pressed.Contains("DPAD_LEFT") || pressed.Contains("DPAD_UP")) ThemeNoticeButton(themedNotice, "no")?.Focus();
+                else if (pressed.Contains("DPAD_RIGHT") || pressed.Contains("DPAD_DOWN")) ThemeNoticeButton(themedNotice, "yes")?.Focus();
+                return;
+            }
+            if(ActiveRebelNotice is {} notice){if(!connected||Window.GetWindow(this)?.IsActive!=true){nativeArmed=false;return;}if(!nativeArmed){if(now.Count==0)nativeArmed=true;return;}if(pressed.Contains("B"))notice.Resolve(false);else if(pressed.Contains("A") && Keyboard.FocusedElement is Button action && notice.IsKeyboardFocusWithin)action.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));else foreach(var direction in new[]{("DPAD_LEFT",FocusNavigationDirection.Left),("DPAD_RIGHT",FocusNavigationDirection.Right),("DPAD_UP",FocusNavigationDirection.Up),("DPAD_DOWN",FocusNavigationDirection.Down)})if(pressed.Contains(direction.Item1) && Keyboard.FocusedElement is UIElement focused)focused.MoveFocus(new(direction.Item2));return;}
+            if(ActiveHybridNotice is {} hybridNotice){if(!connected||Window.GetWindow(this)?.IsActive!=true){nativeArmed=false;return;}if(!nativeArmed){if(now.Count==0)nativeArmed=true;return;}if(pressed.Contains("B"))hybridNotice.Resolve(false);else if(pressed.Contains("A") && Keyboard.FocusedElement is Button action && hybridNotice.IsKeyboardFocusWithin)action.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));else foreach(var direction in new[]{("DPAD_LEFT",FocusNavigationDirection.Left),("DPAD_RIGHT",FocusNavigationDirection.Right),("DPAD_UP",FocusNavigationDirection.Up),("DPAD_DOWN",FocusNavigationDirection.Down)})if(pressed.Contains(direction.Item1) && Keyboard.FocusedElement is UIElement focused)focused.MoveFocus(new(direction.Item2));return;}
             long time=value.GetProperty("timestampUs").GetInt64();
-            if(Studio?.CapturingButtonEditor==true){if(connected){foreach(var button in pressed.Where(b=>!b.StartsWith("LS_")))Studio.SelectPhysicalButton(button);}nativeArmed=false;return;}
-            if(connected&&Studio?.IsCurves==true){if(pressed.Contains("L3"))Studio.Curves.SelectChannel(X20Ctl.Zone.CurveChannel.LeftStick);else if(pressed.Contains("R3"))Studio.Curves.SelectChannel(X20Ctl.Zone.CurveChannel.RightStick);}
+            if(NativeInputStudio?.CapturingButtonEditor==true){if(connected){foreach(var button in pressed.Where(b=>!b.StartsWith("LS_")))NativeInputStudio!.SelectPhysicalButton(button);}nativeArmed=false;return;}
+            if(connected&&NativeInputStudio?.IsCurves==true){if(pressed.Contains("L3"))NativeInputStudio!.Curves.SelectChannel(X20Ctl.Zone.CurveChannel.LeftStick);else if(pressed.Contains("R3"))NativeInputStudio!.Curves.SelectChannel(X20Ctl.Zone.CurveChannel.RightStick);}
             // Home / Guide: bring X20CTL forward from anywhere (tray, behind a game); in front it goes home
-            if(connected&&pressed.Contains("HOME")&&Studio?.ManagementPage is not ("Diagnostics" or "Mouse")){HomeRequested?.Invoke();return;}
+            if(connected&&pressed.Contains("HOME")&&NativeInputStudio?.ManagementPage is not ("Diagnostics" or "Mouse")){HomeRequested?.Invoke();return;}
             // the controller is the mouse: its buttons click and type, so they must not also move around X20CTL (Home still comes home)
             if(MouseMode?.Active==true){nativeArmed=false;return;}
-            if(Studio?.ManagementPage is "Tester" or "Diagnostics" or "Mouse")
+            if(NativeInputStudio?.ManagementPage is "Tester" or "Diagnostics" or "Mouse")
             {
                 // the Tester owns every input; only a deliberate one-second hold of B leaves it
-                if(Studio.ManagementPage=="Tester" && now.Contains("B")){if(bHeldSinceUs==0)bHeldSinceUs=time;else if(time-bHeldSinceUs>=1_000_000){bHeldSinceUs=0;Studio.ShowManagement("Device");nativeArmed=false;return;}}else bHeldSinceUs=0;
-                if(Studio.ManagementPage=="Tester")Studio.Tester?.ReceiveNative(value);nativeArmed=false;return;
+                if(NativeInputStudio!.ManagementPage=="Tester" && now.Contains("B")){if(bHeldSinceUs==0)bHeldSinceUs=time;else if(time-bHeldSinceUs>=1_000_000){bHeldSinceUs=0;NativeInputStudio!.ShowManagement("Device");nativeArmed=false;return;}}else bHeldSinceUs=0;
+                if(NativeInputStudio!.ManagementPage=="Tester")NativeInputStudio!.Tester?.ReceiveNative(value);nativeArmed=false;return;
             }
             if(!connected||Window.GetWindow(this)?.IsActive!=true){nativeArmed=false;return;}if(!nativeArmed){if(now.Count==0)nativeArmed=true;return;}
             if(Intro!=null){if(pressed.Contains("B"))Intro.Finish();else if(pressed.Contains("Y"))Intro.ToggleMute();return;}
@@ -370,7 +382,7 @@ public sealed partial class ProductHost : Grid
             if(activeNav.Count > 0)
             {
                 lastNavigationUs=time;
-                if(Studio!=null)Studio.EnableNativeNavigation();else Zone.EnableNativeNavigation();
+                if(NativeInputStudio!=null)NativeInputStudio.EnableNativeNavigation();else Zone.EnableNativeNavigation();
                 var hostWindow=Window.GetWindow(this);
                 if(hostWindow!=null)
                 {
@@ -401,18 +413,34 @@ public sealed partial class ProductHost : Grid
         if(preferencesHealthy)try{preferences.MarkIntroSeen();}catch(Exception error) when(error is IOException or InvalidOperationException){Zone.FeedbackText.Text="Startup preference could not be saved; original file preserved. "+error.Message;}
     }
     private void OpenSupport(){try{support(ProductLinks.Support);}catch(Exception error){Zone.FeedbackText.Text="Could not open your browser. Support X20CTL: "+ProductLinks.Support+" · "+error.Message;}}
-    public void ShowSettings(){if(ThemeCatalog.Current.Id=="pulse"){ShowPulseSettings();return;}ReturnToZone();CloseSettings();Zone.IsEnabled=false;Settings=new(OpenSupport,StartIntro,CloseSettings,OpenCheck,preferencesHealthy?preferences:null,PcMode,pcModeStore,OpenWriteScan);Children.Add(Settings);Panel.SetZIndex(Settings,20);Fx.Appear(Settings,1.04,320);Settings.FocusFirst();}
+    public void ShowSettings()
+    {
+        if (ThemeCatalog.Current.Id == "rebel") { ShowRebelSettings(); return; }
+        if (ThemeCatalog.Current.Id == "hybrid") { ShowHybridSettings(); return; }
+        if (ThemeCatalog.Current.Id == "pulse") { ShowPulseSettings(); return; }
+        if (ThemeCatalog.Current.Id == "default") ReturnToZone();
+        CloseSelector(); CloseSettings(); Zone.IsEnabled = false;
+        if (Studio != null) { Studio.IsEnabled = false; Studio.Visibility = Visibility.Collapsed; }
+        Settings = new(OpenSupport, StartIntro, CloseSettings, OpenCheck, preferencesHealthy ? preferences : null, PcMode, pcModeStore, OpenWriteScan)
+        {
+            ThemeNavigate = NavigateThemePage, SpotlightNavigate = NavigateThemePage, NexusNavigate = NavigateThemePage,
+            RestartRequested = RequestCurrentThemeRestart
+        };
+        Children.Add(Settings); Panel.SetZIndex(Settings, 20); Fx.Appear(Settings, 1.04, 320); Settings.FocusFirst();
+        _ = UpdateNativeContext();
+    }
+
     /// <summary>"Controller not working?": the Controller Check (Scanner 2.0.0 engine) as its own full-window app over Tools.</summary>
     public Scanner.ControllerCheckView? Check {get;private set;}
-    public void OpenCheck(){if(Check!=null)return;if(Studio?.ManagementPage=="Diagnostics")Studio.ShowManagement("Device"); // both use Raw Input, one registration per process
-        if(PcMode!=null)PcMode.Paused=true;Check=new(CloseCheck){ContinueToWrite=read=>{CloseCheck();if(Check==null)OpenWriteScan(read);},PulseNavigate=NavigatePulsePage};Children.Add(Check);Panel.SetZIndex(Check,40);Fx.Appear(Check,1.06,360);_=UpdateNativeContext();}
+    public void OpenCheck(){if(Check!=null)return;Studio?.SuspendMacroActivity();if(Studio?.ManagementPage=="Diagnostics")Studio.ShowManagement("Device"); // both use Raw Input, one registration per process
+        if(PcMode!=null)PcMode.Paused=true;Check=new(CloseCheck){ContinueToWrite=read=>{CloseCheck();if(Check==null)OpenWriteScan(read);},PulseNavigate=NavigatePulsePage};if(ThemeCatalog.Current.Id is "rebel" or "hybrid")Check.RebelNavigate=key=>{CloseCheck();if(Check==null)NavigateRebelPage(key);};Children.Add(Check);Panel.SetZIndex(Check,40);Fx.Appear(Check,1.06,360);_=UpdateNativeContext();}
     /// <summary>A scan screen that lost its place (closed, but still drawn) is removed outright, so Back can never be dead.</summary>
     private bool RemoveOrphans(){var stale=Children.OfType<FrameworkElement>().Where(c=>c is Scanner.ControllerCheckView v&&v!=Check||c is Scanner.WriteScanView w&&w!=WriteScan).ToList();foreach(var c in stale)Children.Remove(c);return stale.Count>0;}
     public void CloseCheck(){if(Check==null){RemoveOrphans();return;}if(!Check.TryClose())return;var closing=Check;Check=null;closing.Shutdown();if(PcMode!=null)PcMode.Paused=false;Fx.Leave(closing,()=>Children.Remove(closing),1.05,240);Settings?.Check.Focus();}
     /// <summary>The Write scan: reads a phone's Bluetooth log of the official app changing one setting. It never talks to the controller.</summary>
     public Scanner.WriteScanView? WriteScan {get;private set;}
     public void OpenWriteScan()=>OpenWriteScan(null);
-    public void OpenWriteScan(Scanner.ReadReport? read){if(WriteScan!=null)return;WriteScan=new(CloseWriteScan,read){PulseNavigate=NavigatePulsePage};Children.Add(WriteScan);Panel.SetZIndex(WriteScan,40);Fx.Appear(WriteScan,1.06,360);_=UpdateNativeContext();}
+    public void OpenWriteScan(Scanner.ReadReport? read){if(WriteScan!=null)return;Studio?.SuspendMacroActivity();WriteScan=new(CloseWriteScan,read){PulseNavigate=NavigatePulsePage};if(ThemeCatalog.Current.Id is "rebel" or "hybrid")WriteScan.RebelNavigate=key=>{CloseWriteScan();if(WriteScan==null)NavigateRebelPage(key);};Children.Add(WriteScan);Panel.SetZIndex(WriteScan,40);Fx.Appear(WriteScan,1.06,360);_=UpdateNativeContext();}
     public void CloseWriteScan(){if(WriteScan==null){RemoveOrphans();return;}if(!WriteScan.TryClose())return;var closing=WriteScan;WriteScan=null;closing.Shutdown();Fx.Leave(closing,()=>Children.Remove(closing),1.05,240);Settings?.WriteScan.Focus();}
     private string? updateText;private bool updateShown;
     private async Task CheckUpdatesAtLaunch(bool install)
@@ -442,14 +470,17 @@ public sealed partial class ProductHost : Grid
             finally { go.IsEnabled=true; }
         };
     }
-    public void CloseSettings(){if(Settings!=null){var leaving=Settings;Settings=null;Fx.Leave(leaving,()=>Children.Remove(leaving),1.03,220);}if(Studio!=null){Studio.IsEnabled=true;Studio.Visibility=Visibility.Visible;Zone.Visibility=Visibility.Collapsed;Zone.IsEnabled=false;}else{Zone.IsEnabled=true;}_=UpdateNativeContext();}
+    public void CloseSettings(){if(Settings!=null){var leaving=Settings;Settings=null;Fx.Leave(leaving,()=>Children.Remove(leaving),1.03,220);}if(Studio!=null){Studio.IsEnabled=true;Studio.Visibility=Visibility.Visible;Zone.Visibility=Visibility.Collapsed;Zone.IsEnabled=false;}else{Zone.IsEnabled=true;Zone.Visibility=Visibility.Visible;}_=UpdateNativeContext();}
     public void ResetTransientInput(){nativeArmed=false;Zone.SuspendNavigation();Studio?.Tester?.ClearKeyboardKeys();Studio?.ReleaseTransientInput();}
     public event Action? HomeRequested;
     private long bHeldSinceUs;
     public void OnKeyDown(object sender, KeyEventArgs e)
     {
         var key=e.Key==Key.System?e.SystemKey:e.Key;
+        if (HandleThemeNoticeKey(e)) return;
         if(ActivePulseNotice!=null){if(HandlePulseNoticeKey(e))return;}
+        if(ActiveRebelNotice is {} notice){if(key is Key.Escape or Key.B)notice.Resolve(false);else if(key is Key.A or Key.Enter && !e.IsRepeat && Keyboard.FocusedElement is Button action && notice.IsKeyboardFocusWithin)action.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));else if(key is Key.Left or Key.Right or Key.Up or Key.Down && Keyboard.FocusedElement is UIElement focused)focused.MoveFocus(new(key is Key.Left ? FocusNavigationDirection.Left : key is Key.Right ? FocusNavigationDirection.Right : key is Key.Up ? FocusNavigationDirection.Up : FocusNavigationDirection.Down));if(key != Key.Tab)e.Handled=true;return;}
+        if(ActiveHybridNotice is {} hybridNotice){if(key is Key.Escape or Key.B)hybridNotice.Resolve(false);else if(key is Key.A or Key.Enter && !e.IsRepeat && Keyboard.FocusedElement is Button action && hybridNotice.IsKeyboardFocusWithin)action.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));else if(key is Key.Left or Key.Right or Key.Up or Key.Down && Keyboard.FocusedElement is UIElement focused)focused.MoveFocus(new(key is Key.Left ? FocusNavigationDirection.Left : key is Key.Right ? FocusNavigationDirection.Right : key is Key.Up ? FocusNavigationDirection.Up : FocusNavigationDirection.Down));if(key != Key.Tab)e.Handled=true;return;}
         // the identity scan popup: Esc / B backs out, A / Enter presses the focused button, nothing behind it moves
         if(verifyLayer!=null)
         {

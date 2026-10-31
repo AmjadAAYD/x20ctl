@@ -1,211 +1,86 @@
-using System;
+﻿using System;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Effects;
-using System.Windows.Shapes;
 using X20Ctl.Product.Volt;
+using X20Ctl.Zone;
 
 namespace X20Ctl.Product;
 
 public partial class StudioScene
 {
+    private bool voltMacroWired;
+    private Button VoltMacroAction(string text, string tag, Action action, bool enabled = true)
+        => ThemeAction(new Border { Padding = new(10,7,10,7), Margin = new(0,0,6,6), Background = VoltKit.B("#262626"), CornerRadius = new(8), Child = new TextBlock { Text = text, Foreground = VoltKit.WhiteBrush, FontFamily = VoltKit.Display, FontSize = 15 } }, "theme:macro:" + tag, action, enabled);
+
     private UIElement BuildVoltMacros()
     {
+        if (Macros is not { } macro) return new Canvas();
+        string? focused = (Keyboard.FocusedElement as FrameworkElement)?.Tag as string;
+        if (!voltMacroWired) { voltMacroWired = true; macro.Changed += VoltLater; }
         var content = new Canvas { Width = 970, Height = 560 };
-
-        // Slots on left (width: 440)
-        var slotStack = new StackPanel { Orientation = Orientation.Vertical, Width = 440 };
-        var slots = new (string Name, string Trig, int Actions, bool Active)[]
+        var slots = new WrapPanel();
+        foreach (string slot in macro.Draft.SlotNames)
         {
-            ("M1 Combo Sequence", "Paddle M1", 4, true),
-            ("M2 Rapid Evade", "Paddle M2", 3, false),
-            ("M3 Reload & Slide", "Unassigned", 2, false),
-            ("M4 Jump Shot", "Unassigned", 2, false)
-        };
-
-        foreach (var (sName, sTrig, actCount, active) in slots)
-        {
-            var card = new Border
-            {
-                Height = 84,
-                Background = active ? VoltKit.B("#2a2a2a") : VoltKit.B("#181818"),
-                BorderBrush = active ? VoltKit.AmberHotBrush : VoltKit.B("#2b2b2b"),
-                BorderThickness = new Thickness(active ? 2 : 1),
-                CornerRadius = new CornerRadius(12),
-                Padding = new Thickness(20, 0, 20, 0),
-                Margin = new Thickness(0, 0, 0, 10),
-                Cursor = Cursors.Hand
-            };
-
-            var rowGrid = new Grid { VerticalAlignment = VerticalAlignment.Center };
-            rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(120) });
-
-            var infoStack = new StackPanel { Orientation = Orientation.Vertical, VerticalAlignment = VerticalAlignment.Center };
-            infoStack.Children.Add(new TextBlock
-            {
-                Text = sName,
-                FontFamily = VoltKit.Display,
-                FontSize = 19,
-                FontWeight = FontWeights.SemiBold,
-                Foreground = VoltKit.WhiteBrush
-            });
-            infoStack.Children.Add(new TextBlock
-            {
-                Text = $"{actCount} actions · Recorded sequence",
-                FontFamily = VoltKit.Body,
-                FontSize = 14,
-                Foreground = VoltKit.MuteBrush,
-                Margin = new Thickness(0, 3, 0, 0)
-            });
-            Grid.SetColumn(infoStack, 0);
-            rowGrid.Children.Add(infoStack);
-
-            var trigPill = new Border
-            {
-                Background = active ? VoltKit.AmberHotBrush : VoltKit.B("#252525"),
-                CornerRadius = new CornerRadius(12),
-                Padding = new Thickness(12, 4, 12, 4),
-                HorizontalAlignment = HorizontalAlignment.Right,
-                VerticalAlignment = VerticalAlignment.Center,
-                Child = new TextBlock
-                {
-                    Text = sTrig,
-                    FontFamily = VoltKit.Display,
-                    FontSize = 13,
-                    FontWeight = FontWeights.Bold,
-                    Foreground = active ? VoltKit.B("#111111") : VoltKit.LightBrush
-                }
-            };
-            Grid.SetColumn(trigPill, 1);
-            rowGrid.Children.Add(trigPill);
-
-            card.Child = rowGrid;
-            slotStack.Children.Add(card);
+            var action = VoltMacroAction(slot + (macro.Draft[slot].Count == 0 ? " · Empty" : " · " + macro.Draft[slot].Count), "slot:" + slot, () => macro.SelectSlot(slot));
+            if (slot == macro.Slot && action.Content is Border face) { face.Background = VoltKit.AmberHotBrush; ((TextBlock)face.Child).Foreground = VoltKit.B("#111111"); }
+            slots.Children.Add(action);
         }
-        Canvas.SetLeft(slotStack, 0);
-        Canvas.SetTop(slotStack, 10);
-        content.Children.Add(slotStack);
-
-        // Sequence Timeline Box on right (width: 480)
-        var timeBox = new Border
+        content.Children.Add(slots);
+        var sequence = new StackPanel { Width = 460 };
+        sequence.Children.Add(new TextBlock { Text = macro.Slot + " · SEQUENCE · " + macro.CapacityDescription, Foreground = VoltKit.MuteBrush, FontSize = 13, Margin = new(0,0,0,12) });
+        var events = macro.Draft[macro.Slot];
+        for (int i=0;i<events.Count;i++)
         {
-            Width = 480,
-            Height = 440,
-            Background = VoltKit.B("#181818"),
-            BorderBrush = VoltKit.B("#2b2b2b"),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(14),
-            Padding = new Thickness(24)
-        };
-        var tStack = new StackPanel { Orientation = Orientation.Vertical };
-        tStack.Children.Add(new TextBlock
-        {
-            Text = "SEQUENCE TIMELINE",
-            FontFamily = VoltKit.Display,
-            FontSize = 15,
-            FontWeight = FontWeights.Bold,
-            Foreground = VoltKit.AmberHotBrush,
-            Margin = new Thickness(0, 0, 0, 16)
-        });
-
-        // Timeline Action Blocks
-        var blockRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 24) };
-        var actBlocks = new[] { ("X", "45ms"), ("▸", "10ms"), ("RB", "60ms"), ("▸", "15ms"), ("A", "30ms") };
-        foreach (var (txt, dur) in actBlocks)
-        {
-            if (txt == "▸")
-            {
-                blockRow.Children.Add(new TextBlock
-                {
-                    Text = "▸",
-                    FontFamily = VoltKit.Display,
-                    FontSize = 18,
-                    Foreground = VoltKit.MuteBrush,
-                    Margin = new Thickness(6, 12, 6, 0)
-                });
-            }
-            else
-            {
-                var blk = new Border
-                {
-                    Background = VoltKit.B("#262626"),
-                    BorderBrush = VoltKit.AmberHotBrush,
-                    BorderThickness = new Thickness(1.5),
-                    CornerRadius = new CornerRadius(8),
-                    Padding = new Thickness(14, 8, 14, 8),
-                    Margin = new Thickness(0, 0, 4, 0)
-                };
-                var bCol = new StackPanel { Orientation = Orientation.Vertical, HorizontalAlignment = HorizontalAlignment.Center };
-                bCol.Children.Add(new TextBlock
-                {
-                    Text = txt,
-                    FontFamily = VoltKit.Display,
-                    FontSize = 18,
-                    FontWeight = FontWeights.Bold,
-                    Foreground = VoltKit.WhiteBrush,
-                    HorizontalAlignment = HorizontalAlignment.Center
-                });
-                bCol.Children.Add(new TextBlock
-                {
-                    Text = dur,
-                    FontFamily = VoltKit.Body,
-                    FontSize = 12,
-                    Foreground = VoltKit.AmberHotBrush,
-                    Margin = new Thickness(0, 2, 0, 0),
-                    HorizontalAlignment = HorizontalAlignment.Center
-                });
-                blk.Child = bCol;
-                blockRow.Children.Add(blk);
-            }
+            int index = i; var entry = events[i];
+            var row = VoltMacroAction($"{i+1:00}  {RebelPresses(entry)}     {entry.HoldMs} ms hold / {entry.PauseMs} ms pause", "event:" + i, () => macro.Select(index));
+            if (i == macro.SelectedIndex && row.Content is Border face) { face.BorderBrush = VoltKit.AmberHotBrush; face.BorderThickness = new(1); }
+            sequence.Children.Add(row);
         }
-        tStack.Children.Add(blockRow);
-
-        // Execution Mode
-        tStack.Children.Add(new TextBlock
+        sequence.Children.Add(VoltMacroAction("+ Add event", "add", macro.Add, macro.Draft.CanEdit && macro.Draft.EntryCount(macro.Slot) < 47));
+        var actions = new WrapPanel { Margin = new(0,12,0,0) };
+        var record = VoltMacroAction("Record", "record", () => { macro.ToggleRecording(); VoltLater(); });
+        record.SetBinding(IsEnabledProperty, new Binding("IsEnabled") { Source = macro.Record });
+        if (macro.Record.Content is StackPanel { Children.Count: 2 } native && native.Children[1] is TextBlock label && record.Content is Border { Child: TextBlock caption }) caption.SetBinding(TextBlock.TextProperty, new Binding("Text") { Source = label });
+        actions.Children.Add(record); actions.Children.Add(VoltMacroAction("Preview timeline", "preview", macro.Preview));
+        actions.Children.Add(VoltMacroAction("Clear", "clear", macro.Clear, macro.Draft.CanEdit)); sequence.Children.Add(actions);
+        if (macro.Draft.PcMode)
         {
-            Text = "EXECUTION MODE",
-            FontFamily = VoltKit.Display,
-            FontSize = 14,
-            FontWeight = FontWeights.Bold,
-            Foreground = VoltKit.MuteBrush,
-            Margin = new Thickness(0, 0, 0, 8)
-        });
-        var modeCard = new Border
+            sequence.Children.Add(new TextBlock { Text = "In PC mode, played by", Foreground = VoltKit.WhiteBrush, Margin = new(0,12,0,8) });
+            var trigger = new ComboBox { ItemsSource = new[] { "Not used" }.Concat(MacroDraft.TriggerInputs), SelectedItem = macro.Draft.Trigger(macro.Slot) ?? "Not used", IsEnabled = macro.Draft.CanEdit, Tag = "theme:macro:trigger", Height = 32 };
+            trigger.SelectionChanged += (_,_) => { if (trigger.SelectedItem is string choice) macro.SetTrigger(choice == "Not used" ? null : choice); }; sequence.Children.Add(trigger);
+        }
+        var status = new TextBlock { Foreground = VoltKit.MuteBrush, TextWrapping = TextWrapping.Wrap, Margin = new(0,12,0,0) }; status.SetBinding(TextBlock.TextProperty,new Binding("Text"){Source=macro.StatusText}); sequence.Children.Add(status);
+        var sequenceScroll = new ScrollViewer { Width=460, Height=480, Content=sequence, VerticalScrollBarVisibility=ScrollBarVisibility.Auto }; Canvas.SetTop(sequenceScroll,60); content.Children.Add(sequenceScroll);
+        var editor = new StackPanel();
+        if (macro.SelectedIndex >= 0 && macro.SelectedIndex < events.Count)
         {
-            Background = VoltKit.B("#222222"),
-            CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(16, 12, 16, 12),
-            Margin = new Thickness(0, 0, 0, 20)
-        };
-        var mCol = new StackPanel { Orientation = Orientation.Vertical };
-        mCol.Children.Add(new TextBlock
-        {
-            Text = "Hold to Loop · 180ms Cycle",
-            FontFamily = VoltKit.Display,
-            FontSize = 17,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = VoltKit.WhiteBrush
-        });
-        mCol.Children.Add(new TextBlock
-        {
-            Text = "Fires sequence continuously while M1 paddle remains held, then releases all inputs cleanly.",
-            FontFamily = VoltKit.Body,
-            FontSize = 13,
-            Foreground = VoltKit.MuteBrush,
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 4, 0, 0)
-        });
-        modeCard.Child = mCol;
-        tStack.Children.Add(modeCard);
-
-        timeBox.Child = tStack;
-        Canvas.SetLeft(timeBox, 480);
-        Canvas.SetTop(timeBox, 10);
-        content.Children.Add(timeBox);
-
-        return VoltKit.TwoPaneShell("macros", "Macros & Sequences", "Sequence timing, delay calibration, and trigger binding combinations.", content, VoltSelectPage);
+            var entry = events[macro.SelectedIndex];
+            editor.Children.Add(new TextBlock { Text=$"Event {macro.SelectedIndex+1:00} · what it presses", FontFamily=VoltKit.Display, FontSize=22, Foreground=VoltKit.WhiteBrush, Margin=new(0,0,0,12) });
+            var inputs = new WrapPanel();
+            foreach(string key in MacroDraft.Inputs) inputs.Children.Add(VoltMacroAction((entry.Buttons.Contains(key)?"● ":"")+key,"input:"+key,()=>macro.Update(entry with {Buttons=entry.Buttons.Contains(key)?entry.Buttons.Where(b=>b!=key).ToArray():entry.Buttons.Append(key).ToArray()}),macro.Draft.CanEdit));
+            editor.Children.Add(inputs);
+            foreach(var (name,left) in new[]{("Left stick",true),("Right stick",false)})
+            {
+                editor.Children.Add(new TextBlock{Text=name,Foreground=VoltKit.MuteBrush,Margin=new(0,8,0,4)});
+                var heading=new ComboBox{ItemsSource=Enum.GetValues<StickHeading>(),SelectedItem=left?entry.Left:entry.Right,IsEnabled=macro.Draft.CanEdit,Tag="theme:macro:stick:"+(left?"left":"right"),Height=32};
+                heading.SelectionChanged+=(_,_)=>{if(heading.SelectedItem is StickHeading value) macro.Update(left?entry with {Left=value}:entry with {Right=value});}; editor.Children.Add(heading);
+            }
+            foreach(var (name,pause) in new[]{("Hold",false),("Pause",true)})
+            {
+                int value=pause?entry.PauseMs:entry.HoldMs; var row=new WrapPanel{Margin=new(0,8,0,0)}; row.Children.Add(new TextBlock{Text=name+" "+value+" ms",Width=150,Foreground=VoltKit.WhiteBrush,VerticalAlignment=VerticalAlignment.Center});
+                foreach(int delta in new[]{-5,5}) row.Children.Add(VoltMacroAction(delta<0?"−5":"+5","time:"+name+":"+delta,()=>macro.Update(pause?entry with {PauseMs=Math.Clamp(value+delta,0,327675)}:entry with {HoldMs=Math.Clamp(value+delta,0,327675)}),macro.Draft.CanEdit)); editor.Children.Add(row);
+            }
+            var edits=new WrapPanel{Margin=new(0,10,0,0)};
+            foreach(var (text,tag,action) in new (string,string,Action)[]{("Earlier","earlier",()=>macro.Move(-1)),("Later","later",()=>macro.Move(1)),("Duplicate","duplicate",macro.Duplicate),("Remove","remove",macro.Remove)}) edits.Children.Add(VoltMacroAction(text,tag,action,macro.Draft.CanEdit&&(tag!="duplicate"||macro.Draft.EntryCount(macro.Slot)<47)));
+            editor.Children.Add(edits);
+        }
+        else editor.Children.Add(new TextBlock{Text="Add an event to begin.",Foreground=VoltKit.MuteBrush});
+        var editCard = new Border { Width=480,Height=480,Padding=new(20),Background=VoltKit.B("#1e1e1e"),CornerRadius=new(12),Child=new ScrollViewer{Content=editor,VerticalScrollBarVisibility=ScrollBarVisibility.Auto} }; Canvas.SetLeft(editCard,490); Canvas.SetTop(editCard,60); content.Children.Add(editCard);
+        var shell=VoltKit.TwoPaneShell("macros","Macros","Local sequence drafts. Preview emits no controller input.",content,VoltSelectPage);
+        if(focused?.StartsWith("theme:macro:")==true) Dispatcher.BeginInvoke(()=>FindTagged(shell,focused)?.Focus(),System.Windows.Threading.DispatcherPriority.Input);
+        return shell;
     }
 }

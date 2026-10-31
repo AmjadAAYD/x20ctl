@@ -106,7 +106,7 @@ public partial class ZoneScene
             BorderBrush = PulseInk.B(PulseInk.A(PulseInk.CyanHot, 0.50)),
             BorderThickness = new(1),
             VerticalAlignment = VerticalAlignment.Center,
-            Child = PulseInk.MonoText("RESONANCE // ACTIVE", 10, PulseInk.B(PulseInk.CyanHot))
+            Child = PulseInk.MonoText("LOCAL DRAFTS", 10, PulseInk.B(PulseInk.CyanHot))
         };
         titleRow.Children.Add(liveBadge);
         headerStack.Children.Add(titleRow);
@@ -411,7 +411,7 @@ public partial class ZoneScene
         }
         else
         {
-            pulseCaptionChannel!.Text = $"CHANNEL 0{on + 1} // ACTIVE RESONANCE LOCK · 432 Hz";
+            pulseCaptionChannel!.Text = $"CHANNEL 0{on + 1}";
             pulseCaptionMain!.Text = $"Player {on + 1} · {p.Model}{(finish.Length > 0 ? " · " + finish : "")}";
             pulseCaptionStatuses!.Visibility = Visibility.Visible;
         }

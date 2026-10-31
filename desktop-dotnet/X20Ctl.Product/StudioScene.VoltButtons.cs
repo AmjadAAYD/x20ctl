@@ -47,9 +47,7 @@ public partial class StudioScene
         Canvas.SetTop(floorGlow, 420);
         root.Children.Add(floorGlow);
 
-        string padKey = Model?.Id?.ToLowerInvariant() ?? "dune";
-        if (padKey != "dune" && padKey != "x20pro" && padKey != "x05pro" && padKey != "x10") padKey = "dune";
-        var padArt = VoltKit.ControllerArt(padKey, 620);
+        var padArt = new Image { Width = 620, Source = ControllerArt.Front(Model.Id, PadColours.For(Player, Model.Id)), Stretch = Stretch.Uniform };
         if (padArt != null)
         {
             padArt.Effect = new DropShadowEffect { Color = VoltKit.C("#3c2800"), BlurRadius = 40, ShadowDepth = 30, Opacity = 0.5 };
@@ -68,9 +66,12 @@ public partial class StudioScene
             BorderThickness = new Thickness(5),
             Effect = new DropShadowEffect { Color = VoltKit.AmberHot, BlurRadius = 20, ShadowDepth = 0, Opacity = 1.0 }
         };
-        Canvas.SetLeft(aRing, 978);
-        Canvas.SetTop(aRing, 428);
-        root.Children.Add(aRing);
+        if (TryControlCenter(SelectedControl, out var ringFx, out var ringFy))
+        {
+            Canvas.SetLeft(aRing, 540 + ringFx * 620 - 32);
+            Canvas.SetTop(aRing, 240 + ringFy * 620 * 2 / 3 - 32);
+            root.Children.Add(aRing);
+        }
 
         // 5. Category Pill top-right at (1200, 118)
         var catPill = new Border
@@ -89,7 +90,7 @@ public partial class StudioScene
         };
         Canvas.SetLeft(catPill, 1200);
         Canvas.SetTop(catPill, 118);
-        root.Children.Add(catPill);
+        var category = ThemeAction(catPill, "theme:all-inputs", () => { }); category.Click += (_, _) => ThemeInputMenu(category); root.Children.Add(category);
 
         // 6. Remap Dialog Box at (1200, 186, w: 340)
         var remapDlg = new Border
@@ -102,15 +103,7 @@ public partial class StudioScene
         };
         var remapStack = new StackPanel { Orientation = Orientation.Vertical };
 
-        var remaps = new[]
-        {
-            ("A", "B", true),
-            ("B", "B", false),
-            ("X", "X", false),
-            ("Y", "Y", false),
-            ("LB", "LB", false),
-            ("RB", "RB", false)
-        };
+        var remaps = ThemeMappingKeys().Select(key => (key, Draft.Target(key), key == SelectedControl)).ToArray();
 
         foreach (var (fromKey, toKey, active) in remaps)
         {
@@ -148,9 +141,9 @@ public partial class StudioScene
                 Foreground = active ? VoltKit.B("#111111") : VoltKit.AmberHotBrush
             });
             row.Child = rowStack;
-            remapStack.Children.Add(row);
+            remapStack.Children.Add(ThemeMappingAction(row, fromKey));
         }
-        remapDlg.Child = remapStack;
+        remapDlg.Child = new ScrollViewer { MaxHeight = 440, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Content = remapStack };
         Canvas.SetLeft(remapDlg, 1200);
         Canvas.SetTop(remapDlg, 186);
         root.Children.Add(remapDlg);

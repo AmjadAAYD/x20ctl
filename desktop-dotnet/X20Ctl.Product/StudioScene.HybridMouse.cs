@@ -1,286 +1,71 @@
-using System;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Data;
 using System.Windows.Media;
-using System.Windows.Media.Effects;
 using System.Windows.Shapes;
-using X20Ctl.Product.Hybrid;
+using X20Ctl.Zone.Mouse;
 
 namespace X20Ctl.Product;
 
 public partial class StudioScene
 {
-    private void HybridShowMouse()
+    private MouseWorkbench? hybridMouseSource;
+    private string hybridMouseTab = "assign", hybridMouseGroup = "";
+    private void HybridMousePage()
     {
-        hybridPageHost!.Children.Clear();
-        hybridPageHost.Children.Add(BuildHybridMouse());
-    }
-
-    private FrameworkElement BuildHybridMouse()
-    {
-        var root = new Canvas { Width = 1600, Height = 900, ClipToBounds = true };
-
-        var hints = new (string Key, string Label)[]
+        var m = Mouse; if (hybridMouse == null || m == null) return;
+        if (ReferenceEquals(hybridMouseSource, m) && hybridMouse.Children.Count > 0) return;
+        hybridMouseSource = m; hybridMouse.Children.Clear();
+        var board = new Canvas { Width = 1600, Height = 848, Background = HBrush("#17151c"), ClipToBounds = true }; hybridMouse.Children.Add(board);
+        HAt(board, new Rectangle { Width = 156, Height = 848, Fill = HBrush("#cbb5e4") }, 0, 0); HAt(board, new Rectangle { Width = 140, Height = 848, Fill = HBrush("#29262f") }, 1460, 0); HAt(board, new Rectangle { Width = 3, Height = 684, Fill = HBrush("#52dcff") }, 846, 94);
+        HAt(board, HText("Controller as mouse", 38, "#f5f1fa", FontWeights.ExtraBold), 216, 14); HAt(board, HText("Saved on this PC · Changes apply immediately.", 14, "#bdb4c8", FontWeights.SemiBold), 218, 64);
+        var pages = new (string label, string key)[] { ("Buttons", "buttons"), ("Curves", "curves"), ("Macros", "macros"), ("Vibration", "vibration"), ("PC mode", "pcmode"), ("Device", "device"), ("Mouse", "mouse"), ("Setups", "setups"), ("Tools", "tools") };
+        for (int i = 0; i < pages.Length; i++) { var (label, key) = pages[i]; var nav = HybridButton(label, "hybrid:nav:" + key, key == "mouse", 120, 50); nav.Click += (_, _) => HybridGo(key); HAt(board, nav, 18, 88 + i * 67); }
+        var enabled = new CheckBox { Content = "Controller as mouse", Foreground = HBrush("#f5f1fa"), FontSize = 17, FontWeight = FontWeights.SemiBold, Tag = "hybrid:mouse:switch" };
+        enabled.SetBinding(ToggleButton.IsCheckedProperty, new Binding("IsChecked") { Source = m.Switch, Mode = BindingMode.TwoWay }); enabled.SetBinding(IsEnabledProperty, new Binding("IsEnabled") { Source = m.Switch }); HAt(board, enabled, 216, 102);
+        HAt(board, HText("Desktop input source", 16, "#f5f1fa", FontWeights.SemiBold), 216, 155); HAt(board, HybridCombo(m.SourceBox, "hybrid:mouse:source", 260), 504, 145);
+        HAt(board, HText("BUTTON MAPPINGS · " + m.MappedText, 13, "#bdb4c8", FontWeights.Bold), 216, 205);
+        var mapping = new WrapPanel { Width = 588, ItemWidth = 294, ItemHeight = 48 };
+        foreach (string key in m.Inputs)
         {
-            ("A", "Remap"),
-            ("X", "Toggle mode"),
-            ("B", "Back")
-        };
-
-        // Handheld rails background
-        root.Children.Add(HybridKit.HandheldRails("mouse", hints, "Mouse Emulation", "Control the Windows desktop cursor and mouse clicks using your controller sticks and triggers.", key =>
+            var row = HybridButton(m.LabelFor(key) + "  ·  " + m.ActionFor(key), "hybrid:mouse:input:" + key, key == m.SelectedKey, 282, 42); row.HorizontalContentAlignment = HorizontalAlignment.Left; row.Padding = new(12, 0, 0, 0);
+            row.Click += (_, _) => { m.Select(key); hybridMouse.Children.Clear(); HybridMousePage(); }; mapping.Children.Add(row);
+        }
+        var mappingScroll = new ScrollViewer { Content = mapping, Width = 588, Height = 520, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }; HAt(board, mappingScroll, 216, 235);
+        var tabs = new StackPanel { Orientation = Orientation.Horizontal };
+        foreach (var (label, key) in new[] { ("Assign", "assign"), ("Pointer", "pointer"), ("Scroll", "scroll") }) { var tab = HybridButton(label, "hybrid:mouse:tab:" + key, hybridMouseTab == key, 120, 38); tab.Margin = new(0, 0, 6, 0); tab.Click += (_, _) => { hybridMouseTab = key; hybridMouse.Children.Clear(); HybridMousePage(); }; tabs.Children.Add(tab); } HAt(board, tabs, 892, 95);
+        var detail = new StackPanel { Width = 492 }; var scroll = new ScrollViewer { Width = 492, Height = 620, Content = detail, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }; HAt(board, scroll, 892, 145);
+        void Caption(string text) { var label = HText(text, 16, "#f5f1fa", FontWeights.SemiBold); label.Margin = new(0, 12, 0, 6); detail.Children.Add(label); }
+        void SliderRow(string name, Slider source) { Caption(name); var slider = new Slider { Minimum = source.Minimum, Maximum = source.Maximum, TickFrequency = source.TickFrequency, IsSnapToTickEnabled = source.IsSnapToTickEnabled, Tag = "hybrid:mouse:slider:" + name }; slider.SetBinding(RangeBase.ValueProperty, new Binding("Value") { Source = source, Mode = BindingMode.TwoWay }); slider.SetBinding(IsEnabledProperty, new Binding("IsEnabled") { Source = source }); detail.Children.Add(slider); }
+        void Check(string name, CheckBox source) { var check = new CheckBox { Content = name, Foreground = HBrush("#f5f1fa"), FontSize = 15, Margin = new(0, 10, 0, 0) }; check.SetBinding(ToggleButton.IsCheckedProperty, new Binding("IsChecked") { Source = source, Mode = BindingMode.TwoWay }); check.SetBinding(IsEnabledProperty, new Binding("IsEnabled") { Source = source }); detail.Children.Add(check); }
+        void Choice(string name, ComboBox source) { Caption(name); detail.Children.Add(HybridCombo(source, "hybrid:mouse:choice:" + name, 360)); }
+        if (hybridMouseTab == "assign")
         {
-            HybridSelectPage(key);
-        }));
-
-        // Left top settings rows at (216, 146, w: 588)
-        var topRows = new StackPanel { Width = 588, Orientation = Orientation.Vertical };
-
-        // Toggle row
-        var toggleBorder = new Border
-        {
-            Height = 52,
-            CornerRadius = new CornerRadius(14),
-            Background = HybridKit.B("#1f1c25"),
-            Margin = new Thickness(0, 0, 0, 8),
-            Padding = new Thickness(18, 0, 18, 0)
-        };
-        var tGrid = new Grid();
-        tGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        tGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-        tGrid.Children.Add(new TextBlock
-        {
-            Text = "Mouse Emulation Mode",
-            FontFamily = HybridKit.Body,
-            FontSize = 15,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = HybridKit.WhiteBrush,
-            VerticalAlignment = VerticalAlignment.Center
-        });
-
-        // Toggle pill
-        var toggleSwitch = new Border
-        {
-            Width = 56,
-            Height = 28,
-            CornerRadius = new CornerRadius(14),
-            Background = HybridKit.B("#34303c"),
-            VerticalAlignment = VerticalAlignment.Center,
-            Child = new Border
+            detail.Children.Add(HText("Assign input · " + m.LabelFor(m.SelectedKey), 23, "#f5f1fa", FontWeights.Bold));
+            if (!m.Groups.Any(g => g.Group == hybridMouseGroup)) hybridMouseGroup = m.Groups.FirstOrDefault(g => g.Actions.Contains(m.CurrentAction)).Group ?? "MOUSE";
+            foreach (var (group, actions) in m.Groups)
             {
-                Width = 22,
-                Height = 22,
-                CornerRadius = new CornerRadius(11),
-                Background = HybridKit.MuteBrush,
-                HorizontalAlignment = HorizontalAlignment.Left,
-                Margin = new Thickness(3, 0, 0, 0)
+                var heading = HybridButton(group, "hybrid:mouse:group:" + group, group == hybridMouseGroup, 450, 35); heading.Margin = new(0, 6, 0, 0); heading.Click += (_, _) => { hybridMouseGroup = group; hybridMouse.Children.Clear(); HybridMousePage(); }; detail.Children.Add(heading);
+                if (group != hybridMouseGroup) continue;
+                foreach (var action in actions) { var choice = HybridButton(MouseWorkbench.Friendly(action), "hybrid:mouse:action:" + (int)action, action == m.CurrentAction, 450, 35); choice.Margin = new(0, 3, 0, 0); choice.Click += (_, _) => { m.Assign(action); hybridMouse.Children.Clear(); HybridMousePage(); }; detail.Children.Add(choice); }
             }
-        };
-        Grid.SetColumn(toggleSwitch, 1);
-        tGrid.Children.Add(toggleSwitch);
-        toggleBorder.Child = tGrid;
-        topRows.Children.Add(toggleBorder);
-
-        // Control Source row
-        var srcBorder = new Border
-        {
-            Height = 52,
-            CornerRadius = new CornerRadius(14),
-            Background = HybridKit.B("#1f1c25"),
-            Padding = new Thickness(18, 0, 18, 0)
-        };
-        var sGrid = new Grid();
-        sGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        sGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-        sGrid.Children.Add(new TextBlock
-        {
-            Text = "Primary Control Stick",
-            FontFamily = HybridKit.Body,
-            FontSize = 15,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = HybridKit.WhiteBrush,
-            VerticalAlignment = VerticalAlignment.Center
-        });
-
-        var srcVal = new TextBlock
-        {
-            Text = "Right Analog Stick \uE70D",
-            FontFamily = HybridKit.Body,
-            FontSize = 14,
-            FontWeight = FontWeights.Bold,
-            Foreground = HybridKit.CyanBrush,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        Grid.SetColumn(srcVal, 1);
-        sGrid.Children.Add(srcVal);
-        srcBorder.Child = sGrid;
-        topRows.Children.Add(srcBorder);
-
-        Canvas.SetLeft(topRows, 216);
-        Canvas.SetTop(topRows, 146);
-        root.Children.Add(topRows);
-
-        // Label for mapping grid at (216, 280)
-        var mapTitle = new TextBlock
-        {
-            Text = "ASSIGNED ACTION MAPPINGS",
-            FontFamily = HybridKit.Display,
-            FontSize = 12,
-            FontWeight = FontWeights.Bold,
-            Foreground = HybridKit.B("#8e809f")
-        };
-        Canvas.SetLeft(mapTitle, 216);
-        Canvas.SetTop(mapTitle, 280);
-        root.Children.Add(mapTitle);
-
-        // 2-column grid of mapping pills at (216, 310, w: 588)
-        var mapGrid = new Grid { Width = 588 };
-        mapGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        mapGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        var mappings = new (string Key, string Action, int Col, int Row)[]
-        {
-            ("RS \u2191", "Cursor Up", 0, 0),
-            ("RT", "Left Mouse Click", 1, 0),
-            ("RS \u2193", "Cursor Down", 0, 1),
-            ("LT", "Right Mouse Click", 1, 1),
-            ("RS \u2190", "Cursor Left", 0, 2),
-            ("RB", "Middle Click (Scroll)", 1, 2),
-            ("RS \u2192", "Cursor Right", 0, 3),
-            ("LB", "Precision Slowdown", 1, 3)
-        };
-
-        for (int r = 0; r < 4; r++) mapGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-
-        foreach (var (k, act, col, row) in mappings)
-        {
-            var cell = new Border
-            {
-                Height = 46,
-                CornerRadius = new CornerRadius(12),
-                Background = HybridKit.B("#1f1c25"),
-                Margin = new Thickness(col == 0 ? 0 : 6, row == 0 ? 0 : 8, col == 1 ? 0 : 6, 0),
-                Padding = new Thickness(12, 0, 12, 0)
-            };
-            var cStack = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-
-            var keyCap = new Border
-            {
-                Width = 44,
-                Height = 28,
-                CornerRadius = new CornerRadius(14),
-                Background = HybridKit.LavenderBrush,
-                Margin = new Thickness(0, 0, 10, 0),
-                Child = new TextBlock
-                {
-                    Text = k,
-                    FontFamily = HybridKit.Display,
-                    FontSize = 12,
-                    FontWeight = FontWeights.Bold,
-                    Foreground = HybridKit.InkBrush,
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    VerticalAlignment = VerticalAlignment.Center
-                }
-            };
-            cStack.Children.Add(keyCap);
-
-            cStack.Children.Add(new TextBlock
-            {
-                Text = act,
-                FontFamily = HybridKit.Body,
-                FontSize = 13,
-                Foreground = HybridKit.WhiteBrush,
-                VerticalAlignment = VerticalAlignment.Center
-            });
-
-            cell.Child = cStack;
-            Grid.SetColumn(cell, col);
-            Grid.SetRow(cell, row);
-            mapGrid.Children.Add(cell);
+            foreach (string name in MouseWorkbench.PresetNames) { var preset = HybridButton(name, "hybrid:mouse:preset:" + name, false, 450, 35); preset.Margin = new(0, 4, 0, 0); preset.Click += (_, _) => { m.ApplyPreset(name); hybridMouse.Children.Clear(); HybridMousePage(); }; detail.Children.Add(preset); }
+            var reset = HybridButton("Reset Mouse Mode", "hybrid:mouse:reset", false, 450, 35); reset.Click += (_, _) => { m.ResetMode(); hybridMouse.Children.Clear(); HybridMousePage(); }; detail.Children.Add(reset);
         }
-
-        Canvas.SetLeft(mapGrid, 216);
-        Canvas.SetTop(mapGrid, 310);
-        root.Children.Add(mapGrid);
-
-        // Seam between mapping and options
-        root.Children.Add(HybridKit.Seam(846, 146, 830, 470, true, 0.8));
-
-        // Right side Detail card at (892, 146, w: 492, h: 540)
-        var optionsCard = new Border
+        else if (hybridMouseTab == "pointer")
         {
-            Width = 492,
-            Height = 540,
-            CornerRadius = new CornerRadius(22),
-            Background = HybridKit.B("#1f1c25"),
-            Padding = new Thickness(26)
-        };
-        var oStack = new StackPanel { Orientation = Orientation.Vertical };
-        oStack.Children.Add(new TextBlock
-        {
-            Text = "Cursor Dynamics & Sensitivity",
-            FontFamily = HybridKit.Display,
-            FontSize = 20,
-            FontWeight = FontWeights.Bold,
-            Foreground = HybridKit.WhiteBrush,
-            Margin = new Thickness(0, 0, 0, 18)
-        });
-
-        var optRows = new (string Label, string Val)[]
-        {
-            ("Base Pointer Speed", "1400 DPI (Balanced)"),
-            ("Stick Acceleration Curve", "Exponential Dynamic"),
-            ("Analog Stick Deadzone", "5% Inner Radius"),
-            ("Vertical Scroll Speed", "Normal (3 lines/notch)"),
-            ("Precision Snapping", "Snap to UI Elements")
-        };
-
-        foreach (var (lbl, val) in optRows)
-        {
-            var opBorder = new Border
-            {
-                Height = 48,
-                CornerRadius = new CornerRadius(12),
-                Background = HybridKit.B("#25212c"),
-                Margin = new Thickness(0, 0, 0, 10),
-                Padding = new Thickness(16, 0, 16, 0)
-            };
-            var oGrid = new Grid();
-            oGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            oGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-            oGrid.Children.Add(new TextBlock
-            {
-                Text = lbl,
-                FontFamily = HybridKit.Body,
-                FontSize = 14,
-                Foreground = HybridKit.WhiteBrush,
-                VerticalAlignment = VerticalAlignment.Center
-            });
-
-            var valBlock = new TextBlock
-            {
-                Text = val,
-                FontFamily = HybridKit.Body,
-                FontSize = 13,
-                FontWeight = FontWeights.Bold,
-                Foreground = HybridKit.CyanBrush,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            Grid.SetColumn(valBlock, 1);
-            oGrid.Children.Add(valBlock);
-
-            opBorder.Child = oGrid;
-            oStack.Children.Add(opBorder);
+            detail.Children.Add(HText("Pointer", 23, "#f5f1fa", FontWeights.Bold)); Choice("Pointer source", m.PointerBox); SliderRow("Speed", m.SpeedSlider); SliderRow("Acceleration", m.CurveSlider); SliderRow("Dead zone", m.DeadzoneSlider);
+            var test = HybridButton(m.Testing ? "Stop pointer test" : "Test pointer", "hybrid:mouse:test", false, 250, 40); test.Click += (_, _) => { m.TestPointer(); test.Content = m.Testing ? "Stop pointer test" : "Test pointer"; }; detail.Children.Add(test);
         }
-
-        optionsCard.Child = oStack;
-        Canvas.SetLeft(optionsCard, 892);
-        Canvas.SetTop(optionsCard, 146);
-        root.Children.Add(optionsCard);
-
-        return root;
+        else
+        {
+            detail.Children.Add(HText("Scroll and precision", 23, "#f5f1fa", FontWeights.Bold)); Check("Scrolling", m.ScrollsBox); SliderRow("Scroll speed", m.ScrollSlider); SliderRow("Precision speed", m.PrecisionSlider); Check("Horizontal scroll", m.HorizontalBox); Check("Invert vertical", m.InvertVBox); Check("Invert horizontal", m.InvertHBox); Check("Quick toggle", m.ComboToggle); Choice("Shortcut first button", m.Chord1Box); Choice("Shortcut second button", m.Chord2Box); Choice("Hold for", m.HoldBox);
+        }
+    }
+    private static ComboBox HybridCombo(ComboBox source, string tag, double width)
+    {
+        var combo = new ComboBox { ItemsSource = source.Items, DisplayMemberPath = source.DisplayMemberPath, SelectedValuePath = source.SelectedValuePath, Width = width, Height = 40, Tag = tag, HorizontalAlignment = HorizontalAlignment.Left };
+        combo.SetBinding(Selector.SelectedIndexProperty, new Binding("SelectedIndex") { Source = source, Mode = BindingMode.TwoWay }); combo.SetBinding(IsEnabledProperty, new Binding("IsEnabled") { Source = source }); return combo;
     }
 }

@@ -79,15 +79,15 @@ public partial class StudioScene
     private string PulseStatusString()
     {
         string conn = currentTransport ?? (gameplayConnected == true ? "2.4 GHz" : "Standby");
-        string batt = currentBatteryLevel switch
+        string? batt = currentBatteryLevel switch
         {
-            "full" => "100%",
-            "medium" => "74%",
-            "low" => "22%",
+            "full" => "Full",
+            "medium" => "Medium",
+            "low" => "Low",
             "wired" => "Wired",
-            _ => "84%"
+            _ => null
         };
-        return $"{Model.Name} · Player {Player + 1} · {conn} · {batt}";
+        return batt == null ? $"{Model.Name} · Player {Player + 1} · {conn}" : $"{Model.Name} · Player {Player + 1} · {conn} · {batt}";
     }
 
     internal void PulseSelectPage(string target)
@@ -273,7 +273,7 @@ public partial class StudioScene
         };
         topStatus.Children.Add(playerDot);
         topStatus.Children.Add(PulseParts.Body($"Player {Player + 1}", 17, Color.FromRgb(223, 229, 238)).Also(t => t.VerticalAlignment = VerticalAlignment.Center));
-        topStatus.Children.Add(PulseParts.Body("19:24", 17, Color.FromRgb(223, 229, 238)).Also(t => { t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new(22, 0, 0, 0); }));
+        topStatus.Children.Add(PulseParts.Body(ThemeClock.Now, 17, Color.FromRgb(223, 229, 238)).Also(t => { t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new(22, 0, 0, 0); }));
         topStatus.Children.Add(PulseParts.Mono("⚡", 18, Color.FromRgb(223, 229, 238)).Also(t => { t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new(18, 0, 0, 0); }));
         Canvas.SetRight(topStatus, 44);
         Canvas.SetTop(topStatus, 36);
@@ -295,7 +295,7 @@ public partial class StudioScene
         {
             ("CURRENT SETUP", "Current working settings", 1.0),
             ("CONNECTION", currentTransport ?? (gameplayConnected == true ? "2.4 GHz receiver" : "Not detected"), gameplayConnected == true ? 1.0 : 0.0),
-            ("BATTERY", currentBatteryLevel switch { "full" => "100%", "medium" => "74%", "low" => "22%", "wired" => "Wired", _ => "84%" }, 0.84),
+            ("BATTERY", currentBatteryLevel switch { "full" => "Full", "medium" => "Medium", "low" => "Low", "wired" => "Wired", _ => "Not reported" }, currentBatteryLevel switch { "full" => 1.0, "medium" => 0.74, "low" => 0.22, _ => 0.0 }),
             ("LOCAL CHANGES", Draft.UnsentChanges > 0 ? $"{Draft.UnsentChanges} unsent remaps" : "No local changes", Draft.UnsentChanges > 0 ? 0.75 : 0.0)
         };
 
@@ -648,6 +648,14 @@ public partial class StudioScene
         else if (sel == "RT") { ax = 1320; ay = 145; }
         else if (sel == "L3") { ax = 1070; ay = 270; }
         else if (sel == "R3") { ax = 1220; ay = 340; }
+
+        // Real control centre: the pad is a 3:2 box inside the pedestal's 90% x 88% viewbox.
+        if (!IsRear && TryControlCenter(sel, out var padFx, out var padFy))
+        {
+            double padW = Math.Min(pw * 0.90, 360 * 0.88 * 1.5), padH = padW / 1.5;
+            ax = px + (pw - padW) / 2 + padFx * padW;
+            ay = py - 10 + (360 - padH) / 2 - 4 + padFy * padH;
+        }
 
         // Orbital ring of candidate outputs around (ax, ay): radius = 150
         double orbRadius = 150;

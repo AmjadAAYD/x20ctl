@@ -1,273 +1,33 @@
-using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
-using System.Windows.Media.Effects;
 using System.Windows.Shapes;
-using X20Ctl.Product.Hybrid;
+using X20Ctl.Product.Rebel;
 
 namespace X20Ctl.Product;
 
 public partial class StudioScene
 {
-    private void HybridShowDevice()
+    private bool hybridDeviceWired;
+    private void HybridDevicePage()
     {
-        hybridPageHost!.Children.Clear();
-        hybridPageHost.Children.Add(BuildHybridDevice());
-    }
-
-    private FrameworkElement BuildHybridDevice()
-    {
-        var root = new Canvas { Width = 1600, Height = 900, ClipToBounds = true };
-
-        var hints = new (string Key, string Label)[]
-        {
-            ("A", "Configure"),
-            ("X", "Calibrate"),
-            ("Y", "Firmware"),
-            ("B", "Back")
-        };
-
-        // Handheld rails background
-        root.Children.Add(HybridKit.HandheldRails("device", hints, "Device Overview", "Hardware specifications, firmware status, and onboard peripheral settings for EasySMX D10.", key =>
-        {
-            HybridSelectPage(key);
-        }));
-
-        // Controller artwork on the left at (230, 160, w: 540)
-        var padArt = HybridKit.ControllerArt("d10-purple", 540);
-        if (padArt != null)
-        {
-            Canvas.SetLeft(padArt, 230);
-            Canvas.SetTop(padArt, 160);
-            root.Children.Add(padArt);
-        }
-
-        // LEDs + Name + Assigned pill at (230, 530)
-        var padStatus = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        for (int i = 0; i < 4; i++)
-        {
-            var dash = new Border
-            {
-                Width = 16,
-                Height = 5,
-                CornerRadius = new CornerRadius(2),
-                Margin = new Thickness(i == 0 ? 0 : 4, 0, 0, 0),
-                Background = i == 0 ? HybridKit.CyanBrush : HybridKit.B("#4d4758")
-            };
-            if (i == 0) dash.Effect = new DropShadowEffect { Color = HybridKit.Cyan, BlurRadius = 8, ShadowDepth = 0 };
-            padStatus.Children.Add(dash);
-        }
-
-        padStatus.Children.Add(new TextBlock
-        {
-            Text = "PLAYER 1 · EASYSMX D10 PURPLE",
-            FontFamily = HybridKit.Display,
-            FontSize = 16,
-            FontWeight = FontWeights.Bold,
-            Foreground = HybridKit.WhiteBrush,
-            Margin = new Thickness(14, 0, 14, 0),
-            VerticalAlignment = VerticalAlignment.Center
-        });
-
-        var assignPill = new Border
-        {
-            Height = 28,
-            Padding = new Thickness(12, 0, 12, 0),
-            CornerRadius = new CornerRadius(14),
-            Background = HybridKit.B("#2f2b37"),
-            Child = new TextBlock
-            {
-                Text = "Connected · 2.4 GHz",
-                FontFamily = HybridKit.Body,
-                FontSize = 12,
-                FontWeight = FontWeights.SemiBold,
-                Foreground = HybridKit.CyanBrush,
-                VerticalAlignment = VerticalAlignment.Center
-            }
-        };
-        padStatus.Children.Add(assignPill);
-
-        Canvas.SetLeft(padStatus, 230);
-        Canvas.SetTop(padStatus, 530);
-        root.Children.Add(padStatus);
-
-        // Hardware specs 2x2 grid at (216, 582, w: 588)
-        var specsGrid = new Grid { Width = 588 };
-        specsGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        specsGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        specsGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        specsGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-
-        var specs = new (string Label, string Value, int Col, int Row)[]
-        {
-            ("Firmware Version", "v1.24 (Latest)", 0, 0),
-            ("Battery Level", "92% · 18h remaining", 1, 0),
-            ("Serial Number", "D10-8842-PUR-REV3", 0, 1),
-            ("Connection Interface", "2.4 GHz Wireless USB", 1, 1)
-        };
-
-        foreach (var (lbl, val, col, row) in specs)
-        {
-            var card = new Border
-            {
-                Height = 60,
-                CornerRadius = new CornerRadius(14),
-                Background = HybridKit.B("#1f1c25"),
-                Margin = new Thickness(col == 0 ? 0 : 5, row == 0 ? 0 : 8, col == 1 ? 0 : 5, 0),
-                Padding = new Thickness(16, 8, 16, 8),
-                Child = new StackPanel
-                {
-                    Orientation = Orientation.Vertical,
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Children =
-                    {
-                        new TextBlock { Text = lbl, FontFamily = HybridKit.Body, FontSize = 12, Foreground = HybridKit.MuteBrush },
-                        new TextBlock { Text = val, FontFamily = HybridKit.Display, FontSize = 15, FontWeight = FontWeights.Bold, Foreground = HybridKit.WhiteBrush }
-                    }
-                }
-            };
-            Grid.SetColumn(card, col);
-            Grid.SetRow(card, row);
-            specsGrid.Children.Add(card);
-        }
-
-        Canvas.SetLeft(specsGrid, 216);
-        Canvas.SetTop(specsGrid, 582);
-        root.Children.Add(specsGrid);
-
-        // Seam between pad area and settings
-        root.Children.Add(HybridKit.Seam(846, 160, 830, 470, false, 0.8));
-
-        // Right side device settings list at (892, 160, w: 492)
-        var settingsPanel = new StackPanel { Width = 492, Orientation = Orientation.Vertical };
-        var devSettings = new (string Label, string Value, bool Active)[]
-        {
-            ("RGB Halo Light Effect", "Breathing (Purple / Cyan)", true),
-            ("RGB Brightness", "75% Moderate", true),
-            ("Auto-Sleep Timeout", "10 minutes of inactivity", true),
-            ("Zero-Latency Hall Sensors", "Active (Calibrated)", true),
-            ("Back Paddle Remapping", "Active profile: Default", false)
-        };
-
-        foreach (var (lbl, val, act) in devSettings)
-        {
-            var sBorder = new Border
-            {
-                Height = 48,
-                CornerRadius = new CornerRadius(12),
-                Background = HybridKit.B("#1f1c25"),
-                Margin = new Thickness(0, 0, 0, 8),
-                Padding = new Thickness(18, 0, 18, 0)
-            };
-            var sGrid = new Grid();
-            sGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            sGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-            var stText = new TextBlock
-            {
-                Text = lbl,
-                FontFamily = HybridKit.Body,
-                FontSize = 14,
-                Foreground = HybridKit.WhiteBrush,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            Grid.SetColumn(stText, 0);
-            sGrid.Children.Add(stText);
-
-            var stVal = new TextBlock
-            {
-                Text = val,
-                FontFamily = HybridKit.Body,
-                FontSize = 14,
-                FontWeight = FontWeights.Bold,
-                Foreground = act ? HybridKit.CyanBrush : HybridKit.MuteBrush,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            Grid.SetColumn(stVal, 1);
-            sGrid.Children.Add(stVal);
-
-            sBorder.Child = sGrid;
-            settingsPanel.Children.Add(sBorder);
-        }
-
-        Canvas.SetLeft(settingsPanel, 892);
-        Canvas.SetTop(settingsPanel, 160);
-        root.Children.Add(settingsPanel);
-
-        // Right side detail card at (892, 450, w: 492, h: 370)
-        var calCard = new Border
-        {
-            Width = 492,
-            Height = 370,
-            CornerRadius = new CornerRadius(22),
-            Background = HybridKit.B("#1f1c25"),
-            Padding = new Thickness(24),
-            Child = new StackPanel
-            {
-                Orientation = Orientation.Vertical,
-                Children =
-                {
-                    new TextBlock
-                    {
-                        Text = "Calibration & Diagnostics",
-                        FontFamily = HybridKit.Display,
-                        FontSize = 20,
-                        FontWeight = FontWeights.Bold,
-                        Foreground = HybridKit.WhiteBrush,
-                        Margin = new Thickness(0, 0, 0, 10)
-                    },
-                    new TextBlock
-                    {
-                        Text = "Recalibrate the Hall-effect analog sticks and trigger sensors if you observe any centering drift or unexpected stick input variance.",
-                        FontFamily = HybridKit.Body,
-                        FontSize = 14,
-                        Foreground = HybridKit.MuteBrush,
-                        TextWrapping = TextWrapping.Wrap,
-                        Margin = new Thickness(0, 0, 0, 20)
-                    },
-                    new Border
-                    {
-                        Height = 44,
-                        CornerRadius = new CornerRadius(22),
-                        Background = HybridKit.LavenderBrush,
-                        Cursor = System.Windows.Input.Cursors.Hand,
-                        Padding = new Thickness(20, 0, 20, 0),
-                        Child = new StackPanel
-                        {
-                            Orientation = Orientation.Horizontal,
-                            HorizontalAlignment = HorizontalAlignment.Center,
-                            VerticalAlignment = VerticalAlignment.Center,
-                            Children =
-                            {
-                                new TextBlock
-                                {
-                                    Text = "\uE90F", // wrench
-                                    FontFamily = HybridKit.Icons,
-                                    FontSize = 14,
-                                    Foreground = HybridKit.InkBrush,
-                                    Margin = new Thickness(0, 0, 8, 0),
-                                    VerticalAlignment = VerticalAlignment.Center
-                                },
-                                new TextBlock
-                                {
-                                    Text = "Run Full Calibration Wizard",
-                                    FontFamily = HybridKit.Body,
-                                    FontSize = 14,
-                                    FontWeight = FontWeights.Bold,
-                                    Foreground = HybridKit.InkBrush,
-                                    VerticalAlignment = VerticalAlignment.Center
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        };
-        Canvas.SetLeft(calCard, 892);
-        Canvas.SetTop(calCard, 450);
-        root.Children.Add(calCard);
-
-        return root;
+        var device = Device; if (hybridDevice == null || device == null) return;
+        if (!hybridDeviceWired) { hybridDeviceWired = true; device.Watch(() => { if (ManagementPage == "Device") HybridLater(); }); }
+        hybridDevice.Children.Clear(); var board = new Canvas { Width = 1600, Height = 848, Background = HBrush("#17151c"), ClipToBounds = true }; hybridDevice.Children.Add(board);
+        HAt(board, new Rectangle { Width = 156, Height = 848, Fill = HBrush("#cbb5e4") }, 0, 0); HAt(board, new Rectangle { Width = 140, Height = 848, Fill = HBrush("#29262f") }, 1460, 0);
+        HAt(board, new Rectangle { Width = 3, Height = 670, Fill = HBrush("#52dcff") }, 846, 108);
+        HAt(board, HText("Device", 38, "#f5f1fa", FontWeights.ExtraBold), 216, 14); HAt(board, HText("Assigned model · Gameplay and configuration remain separate.", 14, "#bdb4c8", FontWeights.SemiBold), 218, 64);
+        var pages = new (string label, string key)[] { ("Buttons", "buttons"), ("Curves", "curves"), ("Macros", "macros"), ("Vibration", "vibration"), ("PC mode", "pcmode"), ("Device", "device"), ("Mouse", "mouse"), ("Setups", "setups"), ("Tools", "tools") };
+        for (int i = 0; i < pages.Length; i++) { var (label, key) = pages[i]; var nav = HybridButton(label, "hybrid:nav:" + key, key == "device", 120, 50); nav.Click += (_, _) => HybridGo(key); HAt(board, nav, 18, 88 + i * 67); }
+        HAt(board, Pieces.Pad(Model.Id, PadColours.For(Player, Model.Id), 540), 230, 108); HAt(board, HText($"PLAYER {Player + 1} · {Model.Name}", 17, "#f5f1fa", FontWeights.Bold), 230, 478);
+        var profile = ModelProfiles.For(Model.Id);
+        var capabilities = new (string label, string value)[] { ("Sticks", profile.Sticks), ("Triggers", profile.Triggers), ("Rear controls", profile.Paddles.Length == 0 ? "None listed" : string.Join(" · ", profile.Paddles)), ("Motors", profile.Motors), ("Motion", profile.Motion) };
+        HAt(board, HText("MODEL CAPABILITIES", 13, "#bdb4c8", FontWeights.Bold), 230, 530);
+        for (int i = 0; i < capabilities.Length; i++) { var (label, value) = capabilities[i]; var tile = new Border { Width = 272, Height = 60, Background = HBrush("#29242f"), CornerRadius = new(12), Padding = new(12, 6, 12, 4), Child = new StackPanel { Children = { HText(label, 12, "#bdb4c8", FontWeights.Normal), HText(value, 15, "#f5f1fa", FontWeights.SemiBold) } } }; HAt(board, tile, 230 + i % 2 * 284, 553 + i / 2 * 68); }
+        var facts = new (string label, string value)[] { ("Connection", device.ConnectionText), ("Battery", device.BatteryText), ("Firmware", device.FirmwareText), ("Hardware revision", device.RevisionText), ("Transport", device.TransportText) };
+        for (int i = 0; i < facts.Length; i++) { var (label, value) = facts[i]; var row = new Grid { Width = 492, Height = 55, Background = HBrush("#29242f"), Margin = new(0) }; var l = HText(label, 16, "#f5f1fa", FontWeights.SemiBold); l.Margin = new(16, 0, 0, 0); l.VerticalAlignment = VerticalAlignment.Center; row.Children.Add(l); var v = HText(value, 14, "#bdb4c8", FontWeights.Normal); v.HorizontalAlignment = HorizontalAlignment.Right; v.VerticalAlignment = VerticalAlignment.Center; v.Margin = new(0, 0, 16, 0); row.Children.Add(v); HAt(board, row, 892, 108 + i * 64); }
+        var diagnostics = HybridButton("Open Diagnostics", "hybrid:device:diagnostics", true, 240, 50); diagnostics.Click += (_, _) => device.OpenDiagnostics(); HAt(board, diagnostics, 892, 485);
+        if (device.CanRefreshBattery) { var refresh = HybridButton("Refresh battery", "hybrid:device:refresh", false, 210, 50); refresh.Click += (_, _) => device.RefreshBattery(); HAt(board, refresh, 1145, 485); }
+        HAt(board, HText("Live input and configuration access are checked separately.", 14, "#bdb4c8", FontWeights.Normal), 892, 560);
     }
 }

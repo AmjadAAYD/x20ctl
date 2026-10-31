@@ -15,7 +15,7 @@ public sealed partial class ControllerCheckView
             "BEFORE YOU SCAN",
             "This is a full controller scan; you'll be guided through every button, stick and trigger, one step at a time, while X20CTL records exactly what the controller reports. Here is what it does and what to expect.",
             onBack: () => close(),
-            hints: new[] { "\u24B7 Back", "\u24B6 Select" },
+            hints: new[] { "\u24B7 Back to Tools", "\u24B6 Start Scan" },
             seed: 21);
 
         // Left List: Staircase rows
@@ -32,6 +32,14 @@ public sealed partial class ControllerCheckView
         listStack.Children.Add(TideKit.PersonaRow("Home, M and turbo", ctl: "chev"));
         listStack.Children.Add(TideKit.PersonaRow("Every step tells you what to do", ctl: "chev"));
 
+        // Add choices bar to the left stack so buttons can be clicked!
+        if (choices.Parent is Panel pChoices) pChoices.Children.Remove(choices);
+        else if (choices.Parent is ContentControl cChoices) cChoices.Content = null;
+        else if (choices.Parent is Border bChoices) bChoices.Child = null;
+        else if (choices.Parent is Decorator dChoices) dChoices.Child = null;
+        choices.Margin = new Thickness(0, 16, 0, 0);
+        listStack.Children.Add(choices);
+
         var listHost = new Canvas
         {
             Width = 640,
@@ -39,7 +47,7 @@ public sealed partial class ControllerCheckView
             RenderTransform = new RotateTransform(-3)
         };
         listHost.Children.Add(listStack);
-        frame.SetLeftList(listHost, 176);
+        frame.SetLeftList(listHost, 160);
 
         // Right side: Visual (Floating Character pad) + Detail Card
         var padVisual = TideKit.CharacterArt("x15-starfield", 420, -8);
@@ -53,9 +61,10 @@ public sealed partial class ControllerCheckView
             rot: 2);
 
         var sideStack = TideKit.SideStack(padVisual, detailCard, 580);
-        frame.SetSideStack(sideStack, 176);
+        frame.SetSideStack(sideStack, 160);
         frame.SetNote("Read-only · nothing is changed or uploaded");
 
+        TideKit.AnimateEntrance(frame);
         warning.Child = new Viewbox { Stretch = Stretch.Uniform, Child = frame };
     }
 }

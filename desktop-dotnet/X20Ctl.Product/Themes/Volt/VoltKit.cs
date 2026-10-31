@@ -134,6 +134,17 @@ public static class VoltKit
                 }
             }
         };
+        var glowScale = new ScaleTransform(1.0, 1.0);
+        ambientGlow.RenderTransformOrigin = new Point(0.5, 0.65);
+        ambientGlow.RenderTransform = glowScale;
+        var glowAnim = new System.Windows.Media.Animation.DoubleAnimation(0.96, 1.04, TimeSpan.FromSeconds(4.5))
+        {
+            AutoReverse = true,
+            RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever,
+            EasingFunction = new System.Windows.Media.Animation.SineEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseInOut }
+        };
+        glowScale.BeginAnimation(ScaleTransform.ScaleXProperty, glowAnim);
+        glowScale.BeginAnimation(ScaleTransform.ScaleYProperty, glowAnim);
         root.Children.Add(ambientGlow);
 
         // 2. Secondary electric amber wave for fluid parallax depth
@@ -161,6 +172,15 @@ public static class VoltKit
             Fill = amberBrush,
             Effect = new BlurEffect { Radius = blur * 1.3, RenderingBias = RenderingBias.Performance }
         };
+        var amberTrans = new TranslateTransform();
+        amberPath.RenderTransform = amberTrans;
+        var amberAnim = new System.Windows.Media.Animation.DoubleAnimation(6, -6, TimeSpan.FromSeconds(5.2))
+        {
+            AutoReverse = true,
+            RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever,
+            EasingFunction = new System.Windows.Media.Animation.SineEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseInOut }
+        };
+        amberTrans.BeginAnimation(TranslateTransform.YProperty, amberAnim);
         root.Children.Add(amberPath);
 
         // 3. Primary Steam Deck Yellow wave
@@ -192,6 +212,14 @@ public static class VoltKit
             Fill = waveBrush,
             Effect = new BlurEffect { Radius = blur, RenderingBias = RenderingBias.Performance }
         };
+        var waveTrans = new TranslateTransform();
+        path.RenderTransform = waveTrans;
+        var waveAnim = new System.Windows.Media.Animation.DoubleAnimation(-6, 6, TimeSpan.FromSeconds(3.8))
+        {
+            AutoReverse = true,
+            RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever
+        };
+        waveTrans.BeginAnimation(TranslateTransform.YProperty, waveAnim);
         root.Children.Add(path);
 
         // 4. Ambient floating golden embers (particles) for life and visual richness
@@ -250,7 +278,7 @@ public static class VoltKit
     /// Top status row for Volt: [?] square key, clock, search, wifi, battery % + icon.
     /// Strictly implements t_volt.py:62 top().
     /// </summary>
-    public static Canvas TopBar(string time = "21:25", int battery = 100, bool right = true)
+    public static Canvas TopBar(string? time = null, int? battery = null, bool right = true)
     {
         var root = new Canvas { Width = 1600, Height = 60 };
 
@@ -284,7 +312,7 @@ public static class VoltKit
         // Time
         var timeBlock = new TextBlock
         {
-            Text = time,
+            Text = time ?? ThemeClock.Now,
             FontFamily = Display,
             FontSize = 27,
             FontWeight = FontWeights.SemiBold,
@@ -313,39 +341,6 @@ public static class VoltKit
                 FontSize = 24,
                 Foreground = WhiteBrush,
                 Margin = new Thickness(0, 0, 28, 0),
-                VerticalAlignment = VerticalAlignment.Center
-            });
-
-            // Signal / WiFi icon
-            rightStack.Children.Add(new TextBlock
-            {
-                Text = "\uE704",
-                FontFamily = Icons,
-                FontSize = 24,
-                Foreground = WhiteBrush,
-                Margin = new Thickness(0, 0, 28, 0),
-                VerticalAlignment = VerticalAlignment.Center
-            });
-
-            // Battery %
-            rightStack.Children.Add(new TextBlock
-            {
-                Text = $"{battery}%",
-                FontFamily = Display,
-                FontSize = 27,
-                FontWeight = FontWeights.SemiBold,
-                Foreground = WhiteBrush,
-                Margin = new Thickness(0, 0, 10, 0),
-                VerticalAlignment = VerticalAlignment.Center
-            });
-
-            // Battery Icon
-            rightStack.Children.Add(new TextBlock
-            {
-                Text = "\uE83F",
-                FontFamily = Icons,
-                FontSize = 30,
-                Foreground = WhiteBrush,
                 VerticalAlignment = VerticalAlignment.Center
             });
 
@@ -589,9 +584,9 @@ public static class VoltKit
         {
             Text = "\uE768",
             FontFamily = Icons,
-            FontSize = 28,
+            FontSize = Math.Round(28 * h / 76),
             Foreground = B("#111111"),
-            Margin = new Thickness(0, 0, 16, 0),
+            Margin = new Thickness(0, 0, Math.Round(16 * h / 76), 0),
             VerticalAlignment = VerticalAlignment.Center
         };
         stack.Children.Add(playIcon);
@@ -600,7 +595,7 @@ public static class VoltKit
         {
             Text = text,
             FontFamily = Display,
-            FontSize = 31,
+            FontSize = Math.Round(31 * h / 76),
             FontWeight = FontWeights.SemiBold,
             Foreground = B("#111111"),
             VerticalAlignment = VerticalAlignment.Center

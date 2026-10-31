@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
@@ -11,9 +11,11 @@ namespace X20Ctl.Product;
 
 public partial class StudioScene
 {
+    private bool nexusDeviceWired;
     private void NexusShowDevice()
     {
         nexusPageHost!.Children.Clear();
+        if (!nexusDeviceWired && Device != null) { nexusDeviceWired = true; Device.Watch(NexusLater); }
 
         // 1. Background gradient
         var bg = new Rectangle
@@ -69,13 +71,13 @@ public partial class StudioScene
         var rowPanel = new StackPanel { Width = 820 };
 
         // Focused: Connection
-        var r1 = NexusKit.RowButton("Connection", "2.4GHz Wireless USB Dongle", null, focused: true, width: 820);
+        var r1 = NexusKit.RowButton("Connection", Device?.ConnectionText ?? "Not detected", null, focused: true, width: 820);
         rowPanel.Children.Add(r1);
 
-        var r2 = NexusKit.RowButton("Firmware version", "V1.04 · Up to date", null, focused: false, width: 820);
+        var r2 = NexusKit.RowButton("Firmware version", Device?.FirmwareText ?? "Not reported", null, focused: false, width: 820);
         rowPanel.Children.Add(r2);
 
-        var r3 = NexusKit.RowButton("Battery level", "84% · Discharging", null, focused: false, width: 820);
+        var r3 = NexusKit.RowButton("Battery level", Device?.BatteryText ?? "Not reported", null, focused: false, width: 820);
         rowPanel.Children.Add(r3);
 
         rowPanel.Children.Add(new TextBlock
@@ -87,13 +89,13 @@ public partial class StudioScene
             Margin = new Thickness(2, 10, 0, 10)
         });
 
-        var r4 = NexusKit.RowButton("Sticks", "TMR, adjustable tension", null, focused: false, width: 820);
+        var r4 = NexusKit.RowButton("Sticks", ModelProfiles.For(Model.Id).Sticks, null, focused: false, width: 820);
         rowPanel.Children.Add(r4);
 
-        var r5 = NexusKit.RowButton("Triggers", "Hall / microswitch dual stage", null, focused: false, width: 820);
+        var r5 = NexusKit.RowButton("Triggers", ModelProfiles.For(Model.Id).Triggers, null, focused: false, width: 820);
         rowPanel.Children.Add(r5);
 
-        var r6 = NexusKit.RowButton("Rear controls", "M1 · M2 · M3 · M4 · M5 · M6", null, focused: false, width: 820);
+        var r6 = NexusKit.RowButton("Rear controls", string.Join(" · ", ModelProfiles.For(Model.Id).Paddles), null, focused: false, width: 820);
         rowPanel.Children.Add(r6);
 
         Canvas.SetLeft(rowPanel, 68);
@@ -143,7 +145,7 @@ public partial class StudioScene
         });
         cardStack.Children.Add(new TextBlock
         {
-            Text = "2.4GHz Wireless",
+            Text = Device?.TransportText ?? "Not reported",
             FontFamily = NexusKit.Display,
             FontSize = 46,
             FontWeight = FontWeights.SemiBold,
@@ -152,7 +154,7 @@ public partial class StudioScene
         });
         cardStack.Children.Add(new TextBlock
         {
-            Text = "Low-latency dongle connection active. Polling rate: 1000 Hz. Verified hardware match.",
+            Text = "Gameplay input does not establish hardware configuration support. Configuration writes remain locked.",
             FontFamily = NexusKit.Body,
             FontSize = 16,
             Foreground = NexusKit.B(NexusKit.A(Colors.White, 0.78)),
@@ -171,7 +173,7 @@ public partial class StudioScene
         nexusPageHost.Children.Add(sideStack);
 
         // 6. Bottom Hints
-        var hints = NexusKit.HintsBar(new[] { ("A", "Details"), ("B", "Back"), ("Y", "Recalibrate") });
+        var hints = NexusKit.HintsBar(new[] { ("A", "Details"), ("B", "Back") });
         Canvas.SetRight(hints, 62);
         Canvas.SetTop(hints, 856);
         nexusPageHost.Children.Add(hints);

@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
@@ -138,7 +138,7 @@ public static class PhoneGuides
 /// One step at a time: what to do in a sentence or two, a drawing of the phone with the place to touch marked, and an
 /// "I'm stuck" panel with the usual problems and their fixes. The steps it walks through come from <see cref="PhoneGuides"/>.
 /// </summary>
-public sealed class PhoneGuide : Grid
+public sealed partial class PhoneGuide : Grid
 {
     private readonly GuideStep[] steps;
     private readonly Action finished;
@@ -189,6 +189,8 @@ public sealed class PhoneGuide : Grid
         body.Children.Add(new WrapPanel { Margin = new(0, 24, 0, 0), Children = { next, back.Also(b => b.Margin = new(12, 0, 0, 0)), help.Also(b => b.Margin = new(12, 0, 0, 0)) } });
         if (stuck) body.Children.Add(HelpPanel(s.Help));
 
+        if (ThemeCatalog.Current.Id == "rebel") { BuildRebelGuide(body, next, back, help, s.Screen); return; }
+        if (ThemeCatalog.Current.Id == "hybrid") { BuildHybridGuide(body, s.Screen); return; }
         var left = Kit.Panel(title, $"Step {index + 1} of {steps.Length}", null, body);
         Children.Add(new ScrollViewer { Content = left, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
         var right = Kit.Panel("Where to tap", null, null, new Viewbox { MaxHeight = 560, Stretch = Stretch.Uniform, Child = Phone.Draw(s.Screen) });
@@ -202,6 +204,16 @@ public sealed class PhoneGuide : Grid
         for (int i = 0; i < steps.Length; i++)
         {
             int n = i; bool done = i < index, current = i == index;
+            if (ThemeCatalog.Current.Id == "rebel")
+            {
+                var card = new Rebel.SlabButton((done ? "✓  " : $"{i + 1}  ") + steps[i].Title, Math.Clamp(steps[i].Title.Length * 8 + 50, 110, 230), 36, 800 + i, i % 2 == 0 ? -1 : 1, 13, Rebel.Ink.White, current) { Margin = new(0, 0, 8, 8) };
+                card.Click += (_, _) => Go(n); row.Children.Add(card); continue;
+            }
+            if (ThemeCatalog.Current.Id == "hybrid")
+            {
+                var card = Hybrid.HybridToolFrame.Button((done ? "✓  " : $"{i + 1}  ") + steps[i].Title, "hybrid:phone:step:" + i, Math.Clamp(steps[i].Title.Length * 8 + 50, 110, 220), 36, current);
+                card.Margin = new(0, 0, 8, 8); card.Click += (_, _) => Go(n); row.Children.Add(card); continue;
+            }
             var c = current ? Kit.Blue : done ? ThemeCatalog.R(Color.FromRgb(150, 175, 215)) : ThemeCatalog.R(Color.FromRgb(90, 104, 130));
             var chip = new Button
             {
@@ -235,12 +247,14 @@ public sealed class PhoneGuide : Grid
         list.Children.Add(new DockPanel { Margin = new(0, 4, 0, 0), Children = {
             copy.Also(b => { DockPanel.SetDock(b, Dock.Right); b.Margin = new(12, 0, 0, 0); }),
             Wrap("Still stuck? Ask @" + ScanFlow.Discord + " on Discord: say which step you're on and what the phone shows.", 14, "DS.TextMuted").Also(t => t.VerticalAlignment = VerticalAlignment.Center) } });
-        return new Border
+        var panel = new Border
         {
             CornerRadius = new(14), Margin = new(0, 18, 0, 0), Padding = new(18, 16, 18, 14), BorderThickness = new(1),
             BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(110, 61, 139, 255))), Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(40, 61, 139, 255))),
             Child = new StackPanel { Children = { Kit.Text("IF IT DIDN'T GO LIKE THAT", 12, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(0, 0, 0, 10)), list } },
         };
+        if (ThemeCatalog.Current.Id == "rebel") { panel.CornerRadius = new(0); panel.Background = Rebel.Ink.B(Rebel.Ink.Panel); panel.BorderBrush = Rebel.Ink.B(Rebel.Ink.Red); Rebel.RebelCommands.Dress(copy); }
+        return panel;
     }
 
     private static void Detach(UIElement e)

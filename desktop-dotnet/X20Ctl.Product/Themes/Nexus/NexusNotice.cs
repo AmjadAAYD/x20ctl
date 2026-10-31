@@ -132,10 +132,12 @@ public static class NexusNotice
 
         // Buttons Stack
         var btnStack = new StackPanel { Width = 320, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 26, 0, 0) };
-        var yesBtn = NexusKit.RowButton(primaryAction, null, null, focused: true, onClick: onPrimary, width: 320);
-        var noBtn = NexusKit.RowButton(cancelAction, null, null, focused: false, onClick: onCancel, width: 320);
-        btnStack.Children.Add(yesBtn);
-        btnStack.Children.Add(noBtn);
+        var yesBtn = NexusKit.RowButton(primaryAction, null, null, focused: true, onClick: null, width: 320);
+        var noBtn = NexusKit.RowButton(cancelAction, null, null, focused: false, onClick: null, width: 320);
+        yesBtn.Tag = "notice:yes";
+        btnStack.Children.Add(StudioScene.ThemeAction(yesBtn, "notice:yes", onPrimary));
+        noBtn.Tag = "notice:no";
+        btnStack.Children.Add(StudioScene.ThemeAction(noBtn, "notice:no", onCancel));
         dialogStack.Children.Add(btnStack);
 
         dialog.Child = dialogStack;

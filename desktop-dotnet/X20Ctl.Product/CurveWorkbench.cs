@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
@@ -18,6 +18,12 @@ namespace X20Ctl.Product;
 /// </summary>
 public sealed class CurveWorkbench
 {
+    internal FrameworkElement TakeThemeGraph()
+    {
+        if (chart.Parent is Viewbox view) view.Child = null;
+        else if (chart.Parent is Panel panel) panel.Children.Remove(chart);
+        return chart;
+    }
     public Grid Inspector { get; } = new();
     public Grid Shelf { get; } = new();
     public WrapPanel Toolbar {get;}=new(){Margin=new(0,0,0,8)};

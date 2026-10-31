@@ -1,11 +1,14 @@
-using System;
+﻿using System;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
 using System.Windows.Shapes;
 using X20Ctl.Product.Blossom;
+using X20Ctl.Zone;
 
 namespace X20Ctl.Product;
 
@@ -17,8 +20,17 @@ namespace X20Ctl.Product;
 /// </summary>
 public partial class StudioScene
 {
+    private bool blossomMacroWired;
+
     private void RenderBlossomMacros(Canvas host)
     {
+        if (Macros is not { } macro) return;
+        if (!blossomMacroWired)
+        {
+            blossomMacroWired = true;
+            macro.Changed += BlossomLater;
+        }
+
         // 1. Sky & Canopy
         var sky = new Rectangle { Width = 1600, Height = 900, Fill = BlossomKit.CreateSkyBackdrop() };
         host.Children.Add(sky);
@@ -43,7 +55,7 @@ public partial class StudioScene
 
         var leadTb = new TextBlock
         {
-            Text = "Combine button presses, stick sweeps, and timed delays into single trigger strokes.",
+            Text = "Combine button presses and timed pauses into a local sequence.",
             FontFamily = BlossomKit.Body,
             FontSize = 16,
             Foreground = BlossomKit.TextMuteBrush
@@ -53,22 +65,24 @@ public partial class StudioScene
         host.Children.Add(leadTb);
 
         // Top-right Macro Slot Lanterns at (1250, 34)
-        var macroSlots = new[] { ("M1", "Rapid Fire", true), ("M2", "Dodge Roll", false), ("M3", "Super Jump", false), ("M4", "Empty", false) };
-        for (int i = 0; i < macroSlots.Length; i++)
+        var slotNames = macro.Draft.SlotNames;
+        for (int i = 0; i < slotNames.Length; i++)
         {
-            var ms = macroSlots[i];
-            double mx = 1250 + i * 80;
-            var slotLantern = BlossomKit.PaperLantern(40, 52, ms.Item3, null, ms.Item1, ms.Item3 ? 0.9 : 0.5, 18, 16);
+            string slot = slotNames[i];
+            bool active = slot == macro.Slot;
+            string sub = macro.Draft[slot].Count == 0 ? "Empty" : $"{macro.Draft[slot].Count} steps";
+            double mx = 1250 - Math.Max(0, slotNames.Length - 4) * 80 + i * 80;
+            var slotLantern = BlossomKit.PaperLantern(40, 52, active, null, slot, active ? 0.9 : 0.5, 18, 16);
             Canvas.SetLeft(slotLantern, mx - slotLantern.Width / 2.0);
             Canvas.SetTop(slotLantern, 34);
-            host.Children.Add(slotLantern);
+            host.Children.Add(ThemeAction(slotLantern, "theme:macro:slot:" + slot, () => { macro.SelectSlot(slot); BlossomLater(); }));
 
             var slotSubTb = new TextBlock
             {
-                Text = ms.Item2,
+                Text = sub,
                 FontFamily = BlossomKit.Body,
                 FontSize = 12,
-                Foreground = ms.Item3 ? BlossomKit.TextAmberBrush : BlossomKit.TextMuteBrush,
+                Foreground = active ? BlossomKit.TextAmberBrush : BlossomKit.TextMuteBrush,
                 TextAlignment = TextAlignment.Center,
                 Width = 80
             };
@@ -103,11 +117,26 @@ public partial class StudioScene
         Canvas.SetTop(riverBack, ry);
         host.Children.Add(riverBack);
 
+        // River sequence header
+        var seqTb = new TextBlock
+        {
+            Text = $"SEQUENCE TIMELINE · {macro.Draft[macro.Slot].Count} STEPS · {macro.Draft.Duration(macro.Slot)}MS TOTAL",
+            FontFamily = BlossomKit.Small,
+            FontSize = 11,
+            FontWeight = FontWeights.Bold,
+            Foreground = BlossomKit.TextSakuraBrush
+        };
+        Canvas.SetLeft(seqTb, 20);
+        Canvas.SetTop(seqTb, 12);
+
+        var events = macro.Draft[macro.Slot];
+        double riverContentW = Math.Max(rw, 180 + (events.Count + 1) * 180);
+        var riverCanvas = new Canvas { Width = riverContentW, Height = rh };
+
         // River water ripples
-        var riverCanvas = new Canvas { Width = rw, Height = rh };
         for (int j = 0; j < 11; j++)
         {
-            double lx = (j * 137) % 1100;
+            double lx = (j * 137) % (riverContentW - 200);
             double ly = 24 + j * 19;
             double len = 60 + (j * 53) % 140;
             riverCanvas.Children.Add(new Line
@@ -122,35 +151,18 @@ public partial class StudioScene
                 StrokeEndLineCap = PenLineCap.Round
             });
         }
-
-        // River sequence header
-        var seqTb = new TextBlock
-        {
-            Text = "SEQUENCE TIMELINE · 3 STEPS · 280MS TOTAL",
-            FontFamily = BlossomKit.Small,
-            FontSize = 11,
-            FontWeight = FontWeights.Bold,
-            Foreground = BlossomKit.TextSakuraBrush
-        };
-        Canvas.SetLeft(seqTb, 20);
-        Canvas.SetTop(seqTb, 12);
         riverCanvas.Children.Add(seqTb);
 
         // Floating Paper Lanterns along the river
-        var events = new (string Name, string Letter, string Sub, bool Active, double X)[]
+        for (int i = 0; i < events.Count; i++)
         {
-            ("Press A", "A", "Duration 80ms", false, 200),
-            ("Wait 45ms", "⏳", "Pre-delay 45ms", true, 500),
-            ("Press B", "B", "Duration 120ms", false, 800)
-        };
-
-        foreach (var ev in events)
-        {
-            double fx = ev.X;
+            var ev = events[i];
+            bool active = i == macro.SelectedIndex;
+            double fx = 120 + i * 180;
             double wy = 128; // water surface line
 
             // Water reflection streaks if lit
-            if (ev.Active)
+            if (active)
             {
                 var reflGlow = new Ellipse
                 {
@@ -195,13 +207,13 @@ public partial class StudioScene
                 Width = 74,
                 Height = 66,
                 CornerRadius = new CornerRadius(3),
-                Background = ev.Active ? BlossomKit.CreateWarmLanternBrush() : BlossomKit.CreateColdLanternBrush(),
-                BorderBrush = ev.Active ? BlossomKit.B("#3a1d14") : BlossomKit.B("rgba(255,200,215,0.2)"),
+                Background = active ? BlossomKit.CreateWarmLanternBrush() : BlossomKit.CreateColdLanternBrush(),
+                BorderBrush = active ? BlossomKit.B("#3a1d14") : BlossomKit.B("rgba(255,200,215,0.2)"),
                 BorderThickness = new Thickness(3),
                 Cursor = Cursors.Hand
             };
 
-            if (ev.Active)
+            if (active)
             {
                 floaterBox.Effect = new DropShadowEffect
                 {
@@ -212,19 +224,21 @@ public partial class StudioScene
                 };
             }
 
+            string letter = ev.Buttons.Count > 0 ? string.Join("+", ev.Buttons.Select(RebelInputGlyph)) : "⏳";
             var fTb = new TextBlock
             {
-                Text = ev.Letter,
+                Text = letter,
                 FontFamily = BlossomKit.Display,
-                FontSize = 30,
-                Foreground = ev.Active ? BlossomKit.B("#6a1f18") : BlossomKit.B("rgba(255,225,232,0.8)"),
+                FontSize = letter.Length > 2 ? 18 : 30,
+                Foreground = active ? BlossomKit.B("#6a1f18") : BlossomKit.B("rgba(255,225,232,0.8)"),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center
             };
             floaterBox.Child = fTb;
             Canvas.SetLeft(floaterBox, fx - 37);
             Canvas.SetTop(floaterBox, wy - 66 - 6);
-            riverCanvas.Children.Add(floaterBox);
+            int eventIndex = i;
+            riverCanvas.Children.Add(ThemeAction(floaterBox, "theme:macro:event:" + i, () => { macro.Select(eventIndex); BlossomLater(); }));
 
             // Floating wooden raft base
             var raft = new Border
@@ -248,21 +262,23 @@ public partial class StudioScene
             riverCanvas.Children.Add(raft);
 
             // Step Label Below
+            string evName = ev.Buttons.Count > 0 ? ("Press " + string.Join("+", ev.Buttons.Select(RebelInputGlyph))) : "Wait";
+            string evSub = ev.HoldMs > 0 ? $"Duration {ev.HoldMs}ms" : $"Pause {ev.PauseMs}ms";
             var stepLabelStack = new StackPanel { Width = 200, HorizontalAlignment = HorizontalAlignment.Center };
             stepLabelStack.Children.Add(new TextBlock
             {
-                Text = ev.Name,
+                Text = evName,
                 FontFamily = BlossomKit.Display,
-                FontSize = 22,
-                Foreground = ev.Active ? BlossomKit.B("#ffe6cc") : BlossomKit.B("#e3cfd6"),
+                FontSize = 20,
+                Foreground = active ? BlossomKit.B("#ffe6cc") : BlossomKit.B("#e3cfd6"),
                 TextAlignment = TextAlignment.Center
             });
             stepLabelStack.Children.Add(new TextBlock
             {
-                Text = ev.Sub,
+                Text = evSub,
                 FontFamily = BlossomKit.Body,
                 FontSize = 13,
-                Foreground = ev.Active ? BlossomKit.TextAmberBrush : BlossomKit.TextMuteBrush,
+                Foreground = active ? BlossomKit.TextAmberBrush : BlossomKit.TextMuteBrush,
                 TextAlignment = TextAlignment.Center,
                 Margin = new Thickness(0, 2, 0, 0)
             });
@@ -271,7 +287,8 @@ public partial class StudioScene
             riverCanvas.Children.Add(stepLabelStack);
         }
 
-        // Add Step Box at x = 1060
+        // Add Step Box at end
+        double addX = 120 + events.Count * 180;
         var addBox = new Border
         {
             Width = 74,
@@ -290,9 +307,9 @@ public partial class StudioScene
                 VerticalAlignment = VerticalAlignment.Center
             }
         };
-        Canvas.SetLeft(addBox, 1060);
+        Canvas.SetLeft(addBox, addX - 37);
         Canvas.SetTop(addBox, 56);
-        riverCanvas.Children.Add(addBox);
+        riverCanvas.Children.Add(ThemeAction(addBox, "theme:macro:add", () => { macro.Add(); BlossomLater(); }, macro.Draft.CanEdit && macro.Draft.EntryCount(macro.Slot) < 47));
 
         var addTb = new TextBlock
         {
@@ -303,11 +320,19 @@ public partial class StudioScene
             TextAlignment = TextAlignment.Center,
             Width = 140
         };
-        Canvas.SetLeft(addTb, 1027);
+        Canvas.SetLeft(addTb, addX - 70);
         Canvas.SetTop(addTb, 142);
         riverCanvas.Children.Add(addTb);
 
-        riverBack.Child = riverCanvas;
+        var riverScroll = new ScrollViewer
+        {
+            Content = riverCanvas,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            Width = rw,
+            Height = rh
+        };
+        riverBack.Child = riverScroll;
 
         // 4. Bottom Left: DAW Timeline Waveform & Trigger Selector at (236, 452, width 640)
         var leftBottomStack = new StackPanel { Width = 640 };
@@ -325,37 +350,38 @@ public partial class StudioScene
         };
         var dawCanvas = new Canvas { Width = 640, Height = 150 };
 
-        // Step timeline bars
-        var dawBlocks = new (double X, double W, string Label, Color Col)[]
+        int totalDur = Math.Max(1, macro.Draft.Duration(macro.Slot));
+        double curDawX = 20;
+        for (int i = 0; i < events.Count; i++)
         {
-            (20, 160, "[A] 80ms", Color.FromRgb(0xff, 0xc2, 0x7a)),
-            (190, 100, "[WAIT] 45ms", Color.FromRgb(0xf2, 0x78, 0x4f)),
-            (300, 240, "[B] 120ms", Color.FromRgb(0xff, 0x5d, 0x8a))
-        };
-        foreach (var blk in dawBlocks)
-        {
+            var entry = events[i];
+            double bWidth = Math.Clamp((entry.HoldMs + entry.PauseMs) * 580.0 / totalDur, 30, 260);
+            Color col = i == macro.SelectedIndex ? Color.FromRgb(0xff, 0xc2, 0x7a) : Color.FromRgb(0xff, 0x5d, 0x8a);
             var b = new Border
             {
-                Width = blk.W,
+                Width = bWidth,
                 Height = 80,
                 CornerRadius = new CornerRadius(3),
-                Background = new SolidColorBrush(Color.FromArgb(140, blk.Col.R, blk.Col.G, blk.Col.B)),
-                BorderBrush = new SolidColorBrush(blk.Col),
+                Background = new SolidColorBrush(Color.FromArgb(140, col.R, col.G, col.B)),
+                BorderBrush = new SolidColorBrush(col),
                 BorderThickness = new Thickness(1.5),
                 Child = new TextBlock
                 {
-                    Text = blk.Label,
+                    Text = $"[{RebelPresses(entry)}] {entry.HoldMs}ms",
                     FontFamily = BlossomKit.Display,
-                    FontSize = 15,
+                    FontSize = 13,
                     FontWeight = FontWeights.Bold,
                     Foreground = BlossomKit.TextWhiteBrush,
                     HorizontalAlignment = HorizontalAlignment.Center,
-                    VerticalAlignment = VerticalAlignment.Center
+                    VerticalAlignment = VerticalAlignment.Center,
+                    TextTrimming = TextTrimming.CharacterEllipsis
                 }
             };
-            Canvas.SetLeft(b, blk.X);
+            Canvas.SetLeft(b, curDawX);
             Canvas.SetTop(b, 35);
             dawCanvas.Children.Add(b);
+            curDawX += bWidth + 8;
+            if (curDawX > 600) break;
         }
         dawBack.Child = dawCanvas;
         leftBottomStack.Children.Add(dawBack);
@@ -373,6 +399,7 @@ public partial class StudioScene
         trigGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         trigGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var trigLab = new TextBlock { Text = "Played by", FontFamily = BlossomKit.Body, FontSize = 17, Foreground = BlossomKit.TextWhiteBrush, VerticalAlignment = VerticalAlignment.Center };
+        string triggerText = macro.Draft.PcMode ? macro.Draft.Trigger(macro.Slot) ?? "Not used" : macro.Draft.PhysicalSlots.Contains(macro.Slot) ? $"Paddle {macro.Slot}" : "Not used";
         var trigPill = new Border
         {
             Padding = new Thickness(14, 6, 14, 6),
@@ -380,18 +407,32 @@ public partial class StudioScene
             Background = BlossomKit.B("rgba(255,220,232,0.06)"),
             BorderBrush = BlossomKit.B("rgba(255,220,232,0.2)"),
             BorderThickness = new Thickness(1),
-            Child = new TextBlock { Text = "Left Stick Click ▾", FontFamily = BlossomKit.Body, FontSize = 15, Foreground = BlossomKit.TextWhiteBrush }
+            Child = new TextBlock { Text = triggerText + " ▾", FontFamily = BlossomKit.Body, FontSize = 15, Foreground = BlossomKit.TextWhiteBrush }
         };
         Grid.SetColumn(trigLab, 0);
         Grid.SetColumn(trigPill, 1);
         trigGrid.Children.Add(trigLab);
-        trigGrid.Children.Add(trigPill);
+        trigGrid.Children.Add(ThemeAction(trigPill, "theme:macro:trigger", () =>
+        {
+            if (macro.Draft.PcMode && macro.Draft.CanEdit)
+            {
+                string?[] all = [null, .. MacroDraft.TriggerInputs];
+                int cur = Array.IndexOf(all, macro.Draft.Trigger(macro.Slot));
+                macro.SetTrigger(all[(cur + 1) % all.Length]);
+                BlossomLater();
+            }
+        }, macro.Draft.PcMode && macro.Draft.CanEdit));
         trigRow.Child = trigGrid;
         leftBottomStack.Children.Add(trigRow);
 
         // Action Tool Buttons: Record, Clear, Test Sequence
         var toolStack = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 16, 0, 0) };
-        foreach (var (ic, txt, prim) in new[] { ("\uE7C8", "Record", false), ("\uE896", "Clear", false), ("\uE768", "Test sequence", true) })
+        foreach (var (ic, txt, tag, act, prim) in new (string, string, string, Action, bool)[]
+        {
+            ("\uE7C8", macro.IsRecording ? "Stop" : "Record", "record", () => { macro.ToggleRecording(); BlossomLater(); }, false),
+            ("\uE896", "Clear", "clear", () => { macro.Clear(); BlossomLater(); }, false),
+            ("\uE768", "Test sequence", "preview", macro.Preview, true)
+        })
         {
             var btnBorder = new Border
             {
@@ -424,77 +465,181 @@ public partial class StudioScene
                 FontSize = 15,
                 Foreground = prim ? BlossomKit.B("#4a140f") : BlossomKit.TextWhiteBrush
             });
+            if (tag == "record" && macro.Record.Content is StackPanel { Children.Count: 2 } nativeRecord && nativeRecord.Children[1] is TextBlock nativeLabel)
+                ((TextBlock)bStack.Children[1]).SetBinding(TextBlock.TextProperty, new Binding("Text") { Source = nativeLabel });
             btnBorder.Child = bStack;
-            toolStack.Children.Add(btnBorder);
+            toolStack.Children.Add(ThemeAction(btnBorder, "theme:macro:" + tag, act, tag == "preview" || macro.Draft.CanEdit));
         }
         leftBottomStack.Children.Add(toolStack);
+        var status = new TextBlock { Foreground = BlossomKit.TextMuteBrush, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 0) };
+        status.SetBinding(TextBlock.TextProperty, new Binding("Text") { Source = macro.StatusText });
+        leftBottomStack.Children.Add(status);
 
         Canvas.SetLeft(leftBottomStack, 236);
         Canvas.SetTop(leftBottomStack, 452);
         host.Children.Add(leftBottomStack);
 
         // 5. Bottom Right: Illuminated Washi Parchment Card at (930, 452, width 614, height 374)
-        var litCard = BlossomKit.LitPaperCard(614, 374, new Thickness(28, 28, 28, 28));
+        var litCard = BlossomKit.LitPaperCard(614, 374, new Thickness(24, 20, 24, 20));
         var cardStack = new StackPanel();
 
-        cardStack.Children.Add(new TextBlock
+        if (macro.SelectedIndex >= 0 && macro.SelectedIndex < events.Count)
         {
-            Text = "Event 2 · Wait",
-            FontFamily = BlossomKit.Display,
-            FontSize = 28,
-            Foreground = BlossomKit.B(BlossomKit.LitPaperInk)
-        });
-        cardStack.Children.Add(new TextBlock
-        {
-            Text = "Holds execution for a precise duration before sending the next command.",
-            FontFamily = BlossomKit.Body,
-            FontSize = 15,
-            Foreground = BlossomKit.B(BlossomKit.LitPaperSub),
-            Margin = new Thickness(0, 4, 0, 14)
-        });
-
-        // Mode chips: Press, Hold, Release, Wait
-        var chipStack = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 16) };
-        foreach (var c in new[] { "Press", "Hold", "Release", "Wait" })
-        {
-            bool on = c == "Wait";
-            var chipBorder = new Border
+            var selectedEvent = events[macro.SelectedIndex];
+            string evTitle = selectedEvent.Buttons.Count > 0 ? string.Join("+", selectedEvent.Buttons.Select(RebelInputGlyph)) : "Wait";
+            cardStack.Children.Add(new TextBlock
             {
-                Height = 34,
-                Padding = new Thickness(15, 0, 15, 0),
-                CornerRadius = new CornerRadius(17),
-                Background = on ? BlossomKit.B(BlossomKit.LitPaperInk) : BlossomKit.B("transparent"),
-                BorderBrush = on ? BlossomKit.B("transparent") : BlossomKit.B("rgba(59,23,18,0.35)"),
-                BorderThickness = new Thickness(1.2),
-                Margin = new Thickness(0, 0, 8, 0),
-                Child = new TextBlock
+                Text = $"Event {macro.SelectedIndex + 1} · {evTitle}",
+                FontFamily = BlossomKit.Display,
+                FontSize = 26,
+                Foreground = BlossomKit.B(BlossomKit.LitPaperInk)
+            });
+            cardStack.Children.Add(new TextBlock
+            {
+                Text = $"{RebelPresses(selectedEvent)} · held {selectedEvent.HoldMs} ms · then {selectedEvent.PauseMs} ms pause",
+                FontFamily = BlossomKit.Body,
+                FontSize = 14,
+                Foreground = BlossomKit.B(BlossomKit.LitPaperSub),
+                Margin = new Thickness(0, 2, 0, 10)
+            });
+
+            // Input Chord Buttons
+            var inputWrap = new WrapPanel { Margin = new Thickness(0, 0, 0, 8) };
+            foreach (string btnKey in MacroDraft.Inputs)
+            {
+                bool on = selectedEvent.Buttons.Contains(btnKey);
+                var chipBorder = new Border
                 {
-                    Text = c,
-                    FontFamily = BlossomKit.Body,
-                    FontSize = 14,
-                    Foreground = on ? BlossomKit.B("#ffe2b8") : BlossomKit.B(BlossomKit.LitPaperSub),
+                    Height = 30,
+                    Padding = new Thickness(10, 0, 10, 0),
+                    CornerRadius = new CornerRadius(15),
+                    Background = on ? BlossomKit.B(BlossomKit.LitPaperInk) : BlossomKit.B("transparent"),
+                    BorderBrush = on ? BlossomKit.B("transparent") : BlossomKit.B("rgba(59,23,18,0.35)"),
+                    BorderThickness = new Thickness(1.2),
+                    Margin = new Thickness(0, 0, 6, 6),
+                    Child = new TextBlock
+                    {
+                        Text = RebelInputGlyph(btnKey),
+                        FontFamily = BlossomKit.Body,
+                        FontSize = 13,
+                        Foreground = on ? BlossomKit.B("#ffe2b8") : BlossomKit.B(BlossomKit.LitPaperSub),
+                        VerticalAlignment = VerticalAlignment.Center
+                    }
+                };
+                string k = btnKey;
+                inputWrap.Children.Add(ThemeAction(chipBorder, "theme:macro:input:" + k, () =>
+                {
+                    macro.Update(selectedEvent with { Buttons = selectedEvent.Buttons.Contains(k) ? selectedEvent.Buttons.Where(b => b != k).ToArray() : selectedEvent.Buttons.Append(k).ToArray() });
+                    BlossomLater();
+                }, macro.Draft.CanEdit));
+            }
+            cardStack.Children.Add(inputWrap);
+
+            var sticks = new WrapPanel { Margin = new Thickness(0, 0, 0, 8) };
+            foreach (bool left in new[] { true, false })
+            {
+                sticks.Children.Add(new TextBlock { Text = left ? "Left stick " : "Right stick ", Foreground = BlossomKit.B(BlossomKit.LitPaperInk), VerticalAlignment = VerticalAlignment.Center });
+                var heading = new ComboBox { ItemsSource = Enum.GetValues<StickHeading>(), SelectedItem = left ? selectedEvent.Left : selectedEvent.Right, IsEnabled = macro.Draft.CanEdit, Tag = "theme:macro:stick:" + (left ? "left" : "right"), Width = 110, Margin = new Thickness(0, 0, 12, 0) };
+                heading.SelectionChanged += (_, _) => { if (heading.SelectedItem is StickHeading value) { macro.Update(left ? selectedEvent with { Left = value } : selectedEvent with { Right = value }); BlossomLater(); } };
+                sticks.Children.Add(heading);
+            }
+            cardStack.Children.Add(sticks);
+
+            // Timing Adjustments: Hold and Pause
+            foreach (var (tLabel, isPause) in new[] { ("Hold", false), ("Pause", true) })
+            {
+                int val = isPause ? selectedEvent.PauseMs : selectedEvent.HoldMs;
+                var timeRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
+                timeRow.Children.Add(new TextBlock
+                {
+                    Text = $"{tLabel} {val}ms",
+                    FontFamily = BlossomKit.Display,
+                    FontSize = 15,
+                    FontWeight = FontWeights.Bold,
+                    Foreground = BlossomKit.B(BlossomKit.LitPaperInk),
+                    Width = 120,
                     VerticalAlignment = VerticalAlignment.Center
+                });
+
+                foreach (int delta in new[] { -5, 5 })
+                {
+                    var dBtn = new Border
+                    {
+                        Height = 26,
+                        Padding = new Thickness(10, 0, 10, 0),
+                        CornerRadius = new CornerRadius(13),
+                        Background = BlossomKit.B("rgba(59,23,18,0.1)"),
+                        BorderBrush = BlossomKit.B("rgba(59,23,18,0.3)"),
+                        BorderThickness = new Thickness(1),
+                        Margin = new Thickness(0, 0, 6, 0),
+                        Child = new TextBlock
+                        {
+                            Text = delta < 0 ? "−5ms" : "+5ms",
+                            FontFamily = BlossomKit.Body,
+                            FontSize = 12,
+                            Foreground = BlossomKit.B(BlossomKit.LitPaperInk),
+                            VerticalAlignment = VerticalAlignment.Center
+                        }
+                    };
+                    int d = delta;
+                    timeRow.Children.Add(ThemeAction(dBtn, $"theme:macro:time:{tLabel}:{d}", () =>
+                    {
+                        macro.Update(isPause ? selectedEvent with { PauseMs = Math.Clamp(val + d, 0, 327675) } : selectedEvent with { HoldMs = Math.Clamp(val + d, 0, 327675) });
+                        BlossomLater();
+                    }, macro.Draft.CanEdit));
                 }
+                cardStack.Children.Add(timeRow);
+            }
+
+            // Actions: Duplicate, Remove
+            var cardActions = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 0) };
+            var dupBtn = new Border
+            {
+                Height = 32,
+                Padding = new Thickness(14, 0, 14, 0),
+                CornerRadius = new CornerRadius(16),
+                Background = BlossomKit.B("rgba(59,23,18,0.12)"),
+                BorderBrush = BlossomKit.B("rgba(59,23,18,0.3)"),
+                BorderThickness = new Thickness(1),
+                Margin = new Thickness(0, 0, 8, 0),
+                Child = new TextBlock { Text = "Duplicate step", FontFamily = BlossomKit.Body, FontSize = 13, Foreground = BlossomKit.B(BlossomKit.LitPaperInk), VerticalAlignment = VerticalAlignment.Center }
             };
-            chipStack.Children.Add(chipBorder);
+            cardActions.Children.Add(ThemeAction(dupBtn, "theme:macro:duplicate", () => { macro.Duplicate(); BlossomLater(); }, macro.Draft.CanEdit && macro.Draft.EntryCount(macro.Slot) < 47));
+
+            var delBtn = new Border
+            {
+                Height = 32,
+                Padding = new Thickness(14, 0, 14, 0),
+                CornerRadius = new CornerRadius(16),
+                Background = BlossomKit.B("rgba(180,40,40,0.15)"),
+                BorderBrush = BlossomKit.B("rgba(180,40,40,0.4)"),
+                BorderThickness = new Thickness(1),
+                Child = new TextBlock { Text = "Delete step", FontFamily = BlossomKit.Body, FontSize = 13, Foreground = BlossomKit.B("#6a1f18"), VerticalAlignment = VerticalAlignment.Center }
+            };
+            cardActions.Children.Add(ThemeAction(delBtn, "theme:macro:remove", () => { macro.Remove(); BlossomLater(); }, macro.Draft.CanEdit));
+            cardStack.Children.Add(cardActions);
         }
-        cardStack.Children.Add(chipStack);
-
-        // Slider for delay duration
-        var delaySlider = BlossomKit.LitCordSlider(45, 340, "45 ms");
-        cardStack.Children.Add(delaySlider);
-
-        var cardFoot = new TextBlock
+        else
         {
-            Text = "Tested safe on 1000Hz XInput channels with zero frame desync.",
-            FontFamily = BlossomKit.Body,
-            FontSize = 13,
-            Foreground = BlossomKit.B(BlossomKit.LitPaperSub),
-            Margin = new Thickness(0, 20, 0, 0)
-        };
-        cardStack.Children.Add(cardFoot);
+            cardStack.Children.Add(new TextBlock
+            {
+                Text = "No step selected",
+                FontFamily = BlossomKit.Display,
+                FontSize = 24,
+                Foreground = BlossomKit.B(BlossomKit.LitPaperInk)
+            });
+            cardStack.Children.Add(new TextBlock
+            {
+                Text = "Select a floating lantern above or click + Add step to begin constructing your macro.",
+                FontFamily = BlossomKit.Body,
+                FontSize = 14,
+                Foreground = BlossomKit.B(BlossomKit.LitPaperSub),
+                Margin = new Thickness(0, 8, 0, 0),
+                TextWrapping = TextWrapping.Wrap
+            });
+        }
 
-        litCard.Child = cardStack;
+        litCard.Child = new ScrollViewer { Content = cardStack, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
         Canvas.SetLeft(litCard, 930);
         Canvas.SetTop(litCard, 452);
         host.Children.Add(litCard);

@@ -584,7 +584,7 @@ internal static class SpotlightParts
     /// <summary>
     /// Top-right status readout: Player 1 · 19:24 · Battery icon.
     /// </summary>
-    public static StackPanel StatusHeader(string player = "Player 1", string time = "19:24", double right = 60, double top = 82)
+    public static StackPanel StatusHeader(string player = "Player 1", string? time = null, double right = 60, double top = 82)
     {
         var stack = new StackPanel { Orientation = Orientation.Horizontal };
 
@@ -604,25 +604,14 @@ internal static class SpotlightParts
         // Time
         var timeText = new TextBlock
         {
-            Text = time,
+            Text = time ?? ThemeClock.Now,
             FontFamily = SpotlightKit.Body,
             FontSize = 17,
             Foreground = SpotlightKit.ChalkDimBrush,
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 16, 0)
+            Margin = new Thickness(0)
         };
         stack.Children.Add(timeText);
-
-        // Battery Icon
-        var batteryIcon = new TextBlock
-        {
-            Text = "\uE83F",
-            FontFamily = SpotlightKit.Icons,
-            FontSize = 19,
-            Foreground = SpotlightKit.ChalkDimBrush,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        stack.Children.Add(batteryIcon);
 
         return stack;
     }

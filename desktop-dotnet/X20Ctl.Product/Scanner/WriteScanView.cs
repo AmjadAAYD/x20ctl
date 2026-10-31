@@ -84,6 +84,8 @@ public sealed partial class WriteScanView : Grid
         BuildWarning(); Children.Add(warning);
         if (ThemeCatalog.Current.Id == "pulse") BuildPulseWriteFlow(page);
         if (ThemeCatalog.Current.Id == "spotlight") BuildSpotlightWriteFlow(page);
+        if (ThemeCatalog.Current.Id == "rebel") BuildRebelWriteFlow(page);
+        else if (ThemeCatalog.Current.Id == "hybrid") BuildHybridWriteFlow(page);
         timer.Tick += (_, _) => Tick();
         Drop += async (_, e) => { if (e.Data.GetData(DataFormats.FileDrop) is string[] { Length: > 0 } files && warning.Visibility != Visibility.Visible) await Read(files[0]); };
         Loaded += (_, _) => { if (DS.Motion) { Opacity = 0; BeginAnimation(OpacityProperty, DS.To(1, 240)); } };
@@ -118,6 +120,8 @@ public sealed partial class WriteScanView : Grid
         if (ThemeCatalog.Current.Id == "spotlight") BuildSpotlightWriteWarning(cards, go, leave);
         if (ThemeCatalog.Current.Id == "nexus") BuildNexusWriteWarning(cards, go, leave);
         if (ThemeCatalog.Current.Id == "tide") BuildTideWriteWarning(cards, go, leave);
+        if (ThemeCatalog.Current.Id == "rebel") BuildRebelWriteWarning(cards, go, leave);
+        else if (ThemeCatalog.Current.Id == "hybrid") BuildHybridWriteWarning(cards, go, leave);
     }
 
     // ================= the five steps =================
@@ -125,7 +129,9 @@ public sealed partial class WriteScanView : Grid
     {
         step = n; timer.Stop(); handsOff.Reset();
         strip.Children.Clear();
-        for (int i = 0; i < StepNames.Length; i++)
+        if (ThemeCatalog.Current.Id == "rebel") BuildRebelWriteSteps();
+        else if (ThemeCatalog.Current.Id == "hybrid") BuildHybridWriteSteps();
+        else for (int i = 0; i < StepNames.Length; i++)
         {
             bool done = i < step, current = i == step;
             var c = current ? Kit.Blue : done ? ThemeCatalog.R(Color.FromRgb(150, 175, 215)) : ThemeCatalog.R(Color.FromRgb(90, 104, 130));
@@ -137,7 +143,8 @@ public sealed partial class WriteScanView : Grid
         }
         stage.Children.Clear();
         if (ThemeCatalog.Current.Id == "pulse") { BuildPulseWriteSteps(); stage.Children.Add(n switch { 0 => PulseWritePlan(), 1 => PhonePage(), 2 => PulseWriteTest(TestPage()), 3 => RecordingPage(), _ => PulseWriteResults(ResultsPage()) }); return; }
-        stage.Children.Add(n switch { 0 => PlanPage(), 1 => PhonePage(), 2 => TestPage(), 3 => RecordingPage(), _ => ResultsPage() });
+        stage.Children.Add(n switch { 0 => ThemeCatalog.Current.Id == "rebel" ? RebelWritePlan() : ThemeCatalog.Current.Id == "hybrid" ? HybridWritePlan() : PlanPage(), 1 => PhonePage(), 2 => TestPage(), 3 => RecordingPage(), _ => ResultsPage() });
+        if (ThemeCatalog.Current.Id == "rebel" && stage.Children[0] is FrameworkElement content) { content.MaxHeight = 560; content.VerticalAlignment = VerticalAlignment.Top; stage.ClipToBounds = true; }
     }
 
     private void Gate() => planNext.IsEnabled = setting.Text.Trim().Length > 0 && undoable.IsChecked == true;
@@ -205,6 +212,8 @@ public sealed partial class WriteScanView : Grid
             ("I pressed the button too early", "Press Start the test again. The pauses keep each action apart, so the result is easier to read.")]);
         help.Visibility = Visibility.Collapsed;
         var stuck = Action("", "I'm stuck", "ActionButton"); stuck.Click += (_, _) => help.Visibility = help.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
+        if (ThemeCatalog.Current.Id == "rebel") { ShowPart(); return RebelWriteTest(restart, stuck, help); }
+        if (ThemeCatalog.Current.Id == "hybrid") { ShowPart(); return HybridWriteTest(restart, stuck, help); }
         var left = Kit.Panel("Do the test", "Follow each step on the phone, then confirm here", null, new StackPanel { Children = {
             Detach(partTitle), Detach(partSay).Also(t => t.Margin = new(0, 8, 0, 0)), Detach(partCount).Also(t => t.Margin = new(0, 14, 0, 0)),
             new WrapPanel { Margin = new(0, 22, 0, 0), Children = { partDone, restart.Also(b => b.Margin = new(12, 0, 0, 0)), stuck.Also(b => b.Margin = new(12, 0, 0, 0)) } }, help } });
@@ -347,6 +356,8 @@ public sealed partial class WriteScanView : Grid
         DockPanel.SetDock(headline, Dock.Top); dock.Children.Add(Detach(headline));
         DockPanel.SetDock(foot, Dock.Bottom); dock.Children.Add(foot);
         dock.Children.Add(new Border { CornerRadius = new(12), ClipToBounds = true, Child = Detach(summary) });
+        if (ThemeCatalog.Current.Id == "rebel") return RebelWriteResults(dock, report.Plan.Setting, report.Source);
+        if (ThemeCatalog.Current.Id == "hybrid") return HybridWriteResults(dock, report.Plan.Setting, report.Source);
         return Kit.Panel("Results", report.Plan.Setting.Length > 0 ? $"{report.Plan.Setting}, in {report.Source}" : report.Source, null, dock);
     }
 
@@ -453,12 +464,16 @@ public sealed partial class WriteScanView : Grid
         if (plan != null) { model.Text = plan.Model; app.Text = plan.App; setting.Text = plan.Setting; original.Text = plan.OriginalValue; test.Text = plan.TestValue; undoable.IsChecked = true; }
         Show(n);
     }
-    internal Task ReviewRead(string path) => Read(path);
-    internal void ReviewPhone(bool onIphone) => phone = onIphone ? PhoneKind.IPhone : PhoneKind.Samsung;
-    internal void ReviewFixtureResults() { if (!ReviewSandbox.Active) throw new InvalidOperationException("Fixture results are only available in the review sandbox."); report = new WriteScanReport { Plan = Plan, Source = "Review fixture" }; unsaved = true; Show(4); }
+    internal void ReviewFixtureResults()
+    {
+        if (!ReviewSandbox.Active) throw new InvalidOperationException("Fixture results are only available in the review sandbox.");
+        report = new WriteScanReport { Plan = Plan, Source = "Review fixture" }; unsaved = true; Show(4);
+    }
     internal bool ReviewConsentOpen => sendPanel.Visibility == Visibility.Visible;
     internal bool ReviewSendEnabled => sendGo?.IsEnabled == true;
     internal bool ReviewSaveFixture() { if (!ReviewSandbox.Active) throw new InvalidOperationException("Review sandbox required."); return Save(); }
+    internal Task ReviewRead(string path) => Read(path);
+    internal void ReviewPhone(bool onIphone) => phone = onIphone ? PhoneKind.IPhone : PhoneKind.Samsung;
     internal void ReviewPhone(PhoneKind kind) { phone = kind; prepareAt = bringAt = 0; }
     internal void ReviewGuide(int prepare, int bring) { prepareAt = prepare; bringAt = bring; }
     internal (string Text, bool Shown, int Guide) ReviewStatus() => (recordingStatus.Text, recordingStatus.IsVisible, stage.Children.Count > 0 && stage.Children[0] is PhoneGuide g ? g.Index : -1);

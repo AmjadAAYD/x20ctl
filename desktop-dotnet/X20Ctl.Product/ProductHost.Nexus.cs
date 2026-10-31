@@ -21,7 +21,7 @@ public sealed partial class ProductHost
             {
                 $"X20CTL needs to restart to apply the {chosen} presentation.",
                 $"App will reopen using {chosen} styles, colors and layouts.",
-                "Your working drafts, saved setups and controller mappings stay as they are.",
+                "Unsaved controller drafts will be lost. Saved setups and PC mode settings stay on this PC.",
                 "Closing the app now will apply the new presentation cleanly.",
                 $"Restart X20CTL now to switch to {chosen}?"
             },
@@ -85,7 +85,7 @@ public sealed partial class ProductHost
     private void ShowNexusNotice(Grid notice)
     {
         ActiveNexusNotice = notice;
-        Children.Add(notice);
+        Children.Add(notice); ArmThemeNotice(notice);
         Panel.SetZIndex(notice, 60);
         _ = UpdateNativeContext();
     }
@@ -95,7 +95,7 @@ public sealed partial class ProductHost
         if (ActiveNexusNotice == null) return;
         var current = ActiveNexusNotice;
         ActiveNexusNotice = null;
-        Children.Remove(current);
+        ReleaseThemeNotice(current); Children.Remove(current);
         _ = UpdateNativeContext();
     }
 }

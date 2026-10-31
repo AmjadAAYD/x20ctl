@@ -31,6 +31,7 @@ public sealed class MacroWorkbench
     public int HighlightedLaneCount=>laneBlocks.Count(b=>!ReferenceEquals(b.Shape.Fill,b.Normal));
     public Button AddEventButton=>add;
     public Button PreviewButton=>preview;
+    internal TextBlock StatusText => notice;
     public IEnumerable<Button> EventButtons=>steps;
     public IEnumerable<Button> InputButtons=>chords;
     public bool IsReducedMotion { get; }
@@ -280,6 +281,7 @@ public sealed class MacroWorkbench
     private void UpdateEventSelection(){for(int i=0;i<steps.Count;i++){bool selected=i==SelectedIndex,active=IsPreviewing && i==PreviewIndex;steps[i].Background=active?new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(51,127,190))):Fill(selected);steps[i].BorderBrush=active?Brushes.White:selected?Brushes.LightSkyBlue:new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(30,255,255,255)));steps[i].BorderThickness=new(selected||active?1.5:1);if(!steps[i].IsKeyboardFocused)steps[i].Effect=selected||active?new DropShadowEffect {Color=ThemeCatalog.R(Color.FromRgb(46,119,217)),BlurRadius=18,ShadowDepth=3,Opacity=.45}:null;}}
     private Button Button(string text,Action action,string style="ConsoleAction") {var button=new Button {Content=text,Style=(Style)resources.FindResource(style)};button.Click+=(_,_)=>Guard(action);focusRegistration(button);return button;}
     private void Guard(Action action) {try {action();}catch(Exception e) when(e is ArgumentException or InvalidOperationException){notice.Text=e.Message;}}
+    internal void SetTrigger(string? button) { if (!Draft.PcMode || !Draft.CanEdit) return; Draft.SetTrigger(Slot, button); Refresh(); Changed?.Invoke(); }
     public void SelectSlot(string slot) {if(!Draft.SlotNames.Contains(slot))throw new ArgumentException("This model has no such macro slot.",nameof(slot));StopPreview();Slot=slot;SelectedIndex=Draft[slot].Count==0?-1:0;Refresh();Changed?.Invoke();}
     public void Select(int index) {SelectedIndex=index>=0 && index<Draft[Slot].Count?index:-1;RefreshEditor();RenderTimeline();UpdateEventSelection();SnapTo(index);SnapTimeline(index);}
     public void Add() {if(!Draft.CanEdit){notice.Text=ReadOnly;return;}if(Draft.EntryCount(Slot)>=47){notice.Text="Maximum sequence capacity reached.";return;}StopPreview();Draft.Add(Slot,Draft.EntryCount(Slot)==46?0:20);SelectedIndex=Draft[Slot].Count-1;Refresh();Changed?.Invoke();}

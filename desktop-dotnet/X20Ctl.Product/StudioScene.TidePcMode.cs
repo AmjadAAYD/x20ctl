@@ -1,112 +1,314 @@
 using System;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Data;
+using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Effects;
 using System.Windows.Shapes;
 using X20Ctl.Product.Tide;
+using X20Ctl.Zone.PcMode;
 
 namespace X20Ctl.Product;
 
 public sealed partial class StudioScene
 {
+    private PcModePage? tidePcSource;
+    private string tidePcSelectedRow = "switch";
+
     private void TideShowPcMode()
     {
-        ConsoleSurface.Children.Clear();
+        if (tidePageHost == null) return;
+        tidePageHost.Children.Clear();
+
+        var original = ManagementBodyHost.Children.OfType<ScrollViewer>().FirstOrDefault();
+        var source = original?.Content as PcModePage ?? tidePcSource;
+        if (source == null)
+        {
+            var emptyFrame = new TideToolFrame(
+                "PC MODE",
+                "Virtual controller routing unavailable.",
+                onBack: () => TideShowDashboard(),
+                hints: new[] { "\u24B7 Back" },
+                seed: 12);
+            ConsoleSurface.Children.Add(emptyFrame);
+            return;
+        }
+
+        if (original?.Content is PcModePage pmp)
+        {
+            tidePcSource = pmp;
+            original.Content = null;
+        }
+
         var frame = new TideToolFrame(
             "PC MODE",
-            "Route gameplay input through your saved PC profile to a virtual Xbox controller. Nothing is written to hardware.",
+            "Route controller input through saved PC profile to virtual Xbox device. Nothing written to hardware.",
             onBack: () => TideShowDashboard(),
-            hints: new[] { "\u24B7 Back", "\u24B6 Select", "LB/RB Tabs" },
+            hints: new[] { "\u24B7 Back", "\u24B6 Select", "\u24BD Toggle PC Mode", "LB/RB Tabs" },
             seed: 12);
 
-        // Left List: Staircase rows
-        var listStack = new StackPanel { Width = 640 };
-        listStack.Children.Add(TideKit.PersonaRow("PC mode", ctl: "toggle", sub: "PC mode is off. Your controller goes straight to the game."));
-        listStack.Children.Add(TideKit.PersonaRow("Settings for", ctl: "dd:Player 1"));
-        listStack.Children.Add(TideKit.PersonaRow("Turbo bindings", value: "No turbo"));
-        listStack.Children.Add(TideKit.PersonaRow("Give a game its own settings", ctl: "chev"));
-        listStack.Children.Add(TideKit.PersonaRow("Import / export PC profile", ctl: "chev"));
-        listStack.Children.Add(TideKit.PersonaRow("Reset Player 1 profile", ctl: "chev"));
-        listStack.Children.Add(TideKit.PersonaRow("Before PC mode starts", ctl: "chev", focused: true));
+        TideKit.AnimateEntrance(frame);
 
-        var listHost = new Canvas
+        // 1. Top Route Flow Bar (230, 116, w=1310, h=52)
+        var routeBorder = new Border
         {
-            Width = 640,
-            RenderTransformOrigin = new Point(0, 0),
-            RenderTransform = new RotateTransform(-3)
+            Width = 1310,
+            Height = 52,
+            Background = TideKit.Sea0Brush,
+            BorderBrush = TideKit.WhiteBrush,
+            BorderThickness = new Thickness(3),
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(16, 6, 16, 6),
+            Effect = new DropShadowEffect { BlurRadius = 0, ShadowDepth = 4, Direction = 315, Color = TideKit.Ink }
         };
-        listHost.Children.Add(listStack);
-        frame.SetLeftList(listHost, 176);
 
-        // Right side: Route Card + Detail Card
-        var routeStack = new StackPanel { Width = 556, Margin = new Thickness(0, 6, 0, 6) };
-        var routeTitle = new TextBlock
+        var routeGrid = new Grid();
+        for (int i = 0; i < 7; i++)
         {
-            Text = "ROUTE",
-            FontFamily = TideKit.Display,
-            FontWeight = FontWeights.Black,
-            FontStyle = FontStyles.Italic,
-            FontSize = 13,
-            Foreground = TideKit.SpikeRedBrush,
-            Margin = new Thickness(4, 0, 0, 8)
-        };
-        routeStack.Children.Add(routeTitle);
+            routeGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = (i % 2 == 0) ? new GridLength(1, GridUnitType.Star) : GridLength.Auto });
+        }
 
-        var pipelineRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Left };
-        string[] steps = ["Physical XInput 1", "PC profile", "Virtual Xbox", "Game"];
-        for (int i = 0; i < steps.Length; i++)
+        string[] steps = [$"Physical XInput {PcModePage.Player + 1}", "PC Profile", "Virtual Xbox", "Game Engine"];
+        for (int i = 0; i < 4; i++)
         {
-            var stepBorder = new Border
+            bool stepActive = source.RouteActive && i > 0;
+            var pill = new Border
             {
-                Background = (i == 0) ? TideKit.SpikeRedBrush : TideKit.Sea0Brush,
-                Padding = new Thickness(14, 8, 14, 8),
-                CornerRadius = new CornerRadius(0)
+                Height = 34,
+                CornerRadius = new CornerRadius(4),
+                Background = stepActive ? TideKit.SpikeRedBrush : (i == 0 ? TideKit.InkBrush : TideKit.Sea0Brush),
+                BorderBrush = TideKit.WhiteBrush,
+                BorderThickness = new Thickness(2),
+                Padding = new Thickness(10, 0, 10, 0),
+                Child = new TextBlock
+                {
+                    Text = steps[i],
+                    FontFamily = TideKit.Display,
+                    FontWeight = FontWeights.Black,
+                    FontStyle = FontStyles.Italic,
+                    FontSize = 13,
+                    Foreground = TideKit.WhiteBrush,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center
+                }
             };
-            stepBorder.Child = new TextBlock
-            {
-                Text = steps[i],
-                FontFamily = TideKit.Display,
-                FontWeight = FontWeights.Black,
-                FontStyle = FontStyles.Italic,
-                FontSize = 14,
-                Foreground = TideKit.WhiteBrush
-            };
-            pipelineRow.Children.Add(stepBorder);
+            Grid.SetColumn(pill, i * 2);
+            routeGrid.Children.Add(pill);
 
             if (i < 3)
             {
-                var arrow = new TextBlock
+                var arr = new TextBlock
                 {
-                    Text = " \u2192 ",
-                    FontFamily = TideKit.Body,
-                    FontWeight = FontWeights.Bold,
-                    FontSize = 22,
-                    Foreground = TideKit.SubBrush,
+                    Text = "▸",
+                    FontFamily = TideKit.Display,
+                    FontSize = 18,
+                    Foreground = source.RouteActive ? TideKit.LightCyanBrush : TideKit.SubBrush,
                     VerticalAlignment = VerticalAlignment.Center,
-                    Margin = new Thickness(8, 0, 8, 0)
+                    Margin = new Thickness(10, 0, 10, 0)
                 };
-                pipelineRow.Children.Add(arrow);
+                Grid.SetColumn(arr, i * 2 + 1);
+                routeGrid.Children.Add(arr);
             }
         }
-        routeStack.Children.Add(pipelineRow);
+        routeBorder.Child = routeGrid;
+        Canvas.SetLeft(routeBorder, 230);
+        Canvas.SetTop(routeBorder, 156);
+        frame.ContentArea.Children.Add(routeBorder);
 
-        var visCard = TideKit.VisualCard(routeStack, 580, -1.5);
+        // 2. Left Staircase List of Sub-views (230, 184, w=580)
+        var listStack = new StackPanel { Width = 580 };
 
-        var detailCard = TideKit.DetailCard(
-            title: "Before PC mode starts",
-            numbered: new[]
+        var rows = new (string Key, string Label, string Sub, string Tag)[]
+        {
+            ("switch", "PC MODE ROUTING", source.RouteActive ? "Routing active to virtual Xbox controller" : "PC mode is off. Controller goes straight to games.", "theme:pcmode:switch"),
+            ("profile", "SETTINGS FOR PLAYER", $"Configuring Player {PcModePage.Player + 1} Profile", "theme:pcmode:profile"),
+            ("turbo", "TURBO BINDINGS", "Rapid fire repeat mappings", "theme:pcmode:turbo"),
+            ("games", "PER-GAME PROFILES", "Automatic profile switching", "theme:pcmode:games"),
+            ("share", "IMPORT / EXPORT", "Share profiles via JSON files", "theme:pcmode:share"),
+            ("reset", "RESET PROFILE", "Restore factory defaults for player", "theme:pcmode:reset"),
+            ("notice", "BEFORE PC MODE STARTS", !source.NoticeShown ? "Driver consent accepted" : "Requires driver authorization", "theme:pcmode:notice")
+        };
+
+        Action? updateDetail = null;
+
+        foreach (var (rKey, rLabel, rSub, rTag) in rows)
+        {
+            string key = rKey;
+            bool isFocused = key == tidePcSelectedRow;
+
+            var row = TideKit.PersonaRow(rLabel, sub: rSub, focused: isFocused, onClick: () =>
             {
-                "Your settings only work while X20CTL is open. Close it, or if it crashes, and your controller goes back to normal.",
-                "Use turbo and macros with care in online games. Some games and anti-cheat systems treat them as cheating and may ban your account. You've been warned: you are responsible for the rules of the games you play, and X20CTL can't be held accountable for a ban.",
-                "The first time you switch it on, it installs two small drivers by itself, so Windows asks for permission once."
-            },
-            buttons: new[] { "I understand" },
-            width: 580,
-            rot: 2);
+                tidePcSelectedRow = key;
+                TideShowPcMode();
+            });
 
-        var sideStack = TideKit.SideStack(visCard, detailCard, 580);
-        frame.SetSideStack(sideStack, 176);
-        frame.SetNote("No active route for this player · Drivers installed · Processing inactive");
+            listStack.Children.Add(ThemeAction(row, rTag, () =>
+            {
+                tidePcSelectedRow = key;
+                TideShowPcMode();
+            }));
+        }
+
+        var listHost = new Canvas
+        {
+            Width = 580,
+            RenderTransformOrigin = new Point(0, 0),
+            RenderTransform = new RotateTransform(-2)
+        };
+        listHost.Children.Add(listStack);
+        frame.SetLeftList(listHost, 222);
+
+        // 3. Right Side: Detail / Action Card (880, 184, w=660, h=520)
+        var detailCard = TideKit.PersonaCard(660, 520, 2);
+        var cardInner = new StackPanel { Margin = new Thickness(22, 18, 22, 18) };
+
+        switch (tidePcSelectedRow)
+        {
+            case "notice":
+                cardInner.Children.Add(new TextBlock
+                {
+                    Text = "BEFORE PC MODE STARTS",
+                    FontFamily = TideKit.Display,
+                    FontWeight = FontWeights.Black,
+                    FontStyle = FontStyles.Italic,
+                    FontSize = 22,
+                    Foreground = TideKit.Sea0Brush,
+                    Margin = new Thickness(0, 0, 0, 10)
+                });
+
+                string[] notices = [
+                    "Your settings only work while X20CTL is running. If it closes, the controller returns to standard XInput.",
+                    "Use turbo and macros responsibly in multiplayer games to avoid anti-cheat infractions.",
+                    "Virtual controller creation utilizes the ViGEmBus driver. Windows will request driver permission once."
+                ];
+
+                foreach (var n in notices)
+                {
+                    var nb = new Border
+                    {
+                        Background = TideKit.Sea0Brush,
+                        Padding = new Thickness(14, 10, 14, 10),
+                        Margin = new Thickness(0, 0, 0, 8),
+                        CornerRadius = new CornerRadius(4)
+                    };
+                    nb.Child = new TextBlock
+                    {
+                        Text = n,
+                        FontFamily = TideKit.Body,
+                        FontWeight = FontWeights.SemiBold,
+                        FontSize = 13,
+                        Foreground = TideKit.WhiteBrush,
+                        TextWrapping = TextWrapping.Wrap
+                    };
+                    cardInner.Children.Add(nb);
+                }
+
+                var acceptBtn = TideKit.PersonaButton(!source.NoticeShown ? "CONSENT ACCEPTED" : "I UNDERSTAND", primary: true, onClick: () =>
+                {
+                    source.Accept();
+                    TideShowPcMode();
+                });
+                acceptBtn.Height = 44;
+                acceptBtn.Margin = new Thickness(0, 12, 0, 0);
+                cardInner.Children.Add(ThemeAction(acceptBtn, "theme:pcmode:consent", () =>
+                {
+                    source.Accept();
+                    TideShowPcMode();
+                }));
+                break;
+
+            case "switch":
+            default:
+                cardInner.Children.Add(new TextBlock
+                {
+                    Text = "VIRTUAL XBOX ROUTING",
+                    FontFamily = TideKit.Display,
+                    FontWeight = FontWeights.Black,
+                    FontStyle = FontStyles.Italic,
+                    FontSize = 22,
+                    Foreground = TideKit.Sea0Brush,
+                    Margin = new Thickness(0, 0, 0, 6)
+                });
+
+                cardInner.Children.Add(new TextBlock
+                {
+                    Text = "Virtual Xbox 360 controller output for full remapping, custom curves, and macros.",
+                    FontFamily = TideKit.Body,
+                    FontSize = 14,
+                    Foreground = TideKit.SubBrush,
+                    TextWrapping = TextWrapping.Wrap,
+                    Margin = new Thickness(0, 0, 0, 16)
+                });
+
+                var switchBox = new Border
+                {
+                    Height = 60,
+                    Background = TideKit.Sea0Brush,
+                    BorderBrush = TideKit.WhiteBrush,
+                    BorderThickness = new Thickness(2),
+                    CornerRadius = new CornerRadius(6),
+                    Padding = new Thickness(16, 0, 16, 0),
+                    Margin = new Thickness(0, 0, 0, 16)
+                };
+                var sbGrid = new Grid { VerticalAlignment = VerticalAlignment.Center };
+                sbGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                sbGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+                sbGrid.Children.Add(new TextBlock
+                {
+                    Text = "ENABLE PC MODE",
+                    FontFamily = TideKit.Display,
+                    FontWeight = FontWeights.Black,
+                    FontStyle = FontStyles.Italic,
+                    FontSize = 16,
+                    Foreground = TideKit.WhiteBrush,
+                    VerticalAlignment = VerticalAlignment.Center
+                });
+
+                var swCheck = new CheckBox
+                {
+                    Content = "ACTIVE",
+                    FontFamily = TideKit.Display,
+                    FontWeight = FontWeights.Black,
+                    FontStyle = FontStyles.Italic,
+                    FontSize = 14,
+                    Foreground = TideKit.LightCyanBrush,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Tag = "theme:pcmode:toggle"
+                };
+                swCheck.SetBinding(ToggleButton.IsCheckedProperty, new Binding("IsChecked") { Source = source.Switch, Mode = BindingMode.TwoWay });
+                Grid.SetColumn(swCheck, 1);
+                sbGrid.Children.Add(swCheck);
+                switchBox.Child = sbGrid;
+                cardInner.Children.Add(switchBox);
+
+                var statusPill = new Border
+                {
+                    Padding = new Thickness(14, 8, 14, 8),
+                    Background = source.RouteActive ? TideKit.SpikeRedBrush : TideKit.InkBrush,
+                    CornerRadius = new CornerRadius(4),
+                    HorizontalAlignment = HorizontalAlignment.Left
+                };
+                statusPill.Child = new TextBlock
+                {
+                    Text = source.RouteActive ? "ROUTING ACTIVE · VIRTUAL CONTROLLER CONNECTED" : "ROUTING INACTIVE · DIRECT INPUT ACTIVE",
+                    FontFamily = TideKit.Display,
+                    FontWeight = FontWeights.Black,
+                    FontStyle = FontStyles.Italic,
+                    FontSize = 13,
+                    Foreground = TideKit.WhiteBrush
+                };
+                cardInner.Children.Add(statusPill);
+                break;
+        }
+
+        detailCard.Child = cardInner;
+        Canvas.SetLeft(detailCard, 880);
+        Canvas.SetTop(detailCard, 222);
+        frame.ContentArea.Children.Add(detailCard);
 
         ConsoleSurface.Children.Add(frame);
     }

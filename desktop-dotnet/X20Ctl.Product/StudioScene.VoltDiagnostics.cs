@@ -1,6 +1,7 @@
 using System;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
@@ -12,19 +13,26 @@ namespace X20Ctl.Product;
 public partial class StudioScene
 {
     /// <summary>
-    /// Diagnostics workbench for Volt: Real-time dual stick reticles, circularity check, and 1000Hz polling rate monitor.
+    /// Diagnostics workbench for Volt: Hall sensor drift testing, stick circularity, and trigger potentiometer verification.
     /// Strictly implements t_volt.py:253 Volt and models.py:diagnostics.
     /// </summary>
     private UIElement BuildVoltDiagnostics()
     {
+        if (Diagnostics is not { } diagnostics)
+        {
+            var empty = new Canvas { Width = 970, Height = 560 };
+            empty.Children.Add(new TextBlock { Text = "Sensor diagnostics unavailable.", Foreground = VoltKit.MuteBrush, FontSize = 18, Margin = new Thickness(40) });
+            return VoltKit.TwoPaneShell("diagnostics", "Diagnostics", "Sensor telemetry, analog stick center offset, and hardware jitter.", empty, VoltSelectPage);
+        }
+
         var content = new Canvas { Width = 970, Height = 560 };
 
-        // 1. Left List: Diagnostics tools & settings (width: 520)
+        // 1. Left List: Live telemetry rows (width: 520)
         var leftStack = new StackPanel { Orientation = Orientation.Vertical, Width = 520 };
 
         leftStack.Children.Add(new TextBlock
         {
-            Text = "LIVE DIAGNOSTICS & TELEMETRY",
+            Text = "LIVE SENSOR TELEMETRY",
             FontFamily = VoltKit.Display,
             FontSize = 14,
             FontWeight = FontWeights.Bold,
@@ -32,292 +40,175 @@ public partial class StudioScene
             Margin = new Thickness(0, 0, 0, 8)
         });
 
-        var diagRows = new (string Label, string? Sub, string CtlType, string CtlVal, bool Active)[]
+        var diagRows = new (string Label, TextBlock StatsBlock)[]
         {
-            ("Player Input Stream", null, "dd", "XInput 1", true),
-            ("Stick Deadzone Visualization", "Real-time circular deflection", "chev", "", false),
-            ("Interleaved Raw Telemetry", "Stream raw sensor packet values", "toggle", "false", false),
-            ("Centering Offset Compensation", "Hardware dynamic auto-zero", "toggle", "true", false),
-            ("Trigger Linearity Calibration", "Hall linear travel verification", "chev", "", false),
-            ("Button Latency Benchmark", "Microsecond contact timing", "chev", "", false)
+            ("Left Analog Stick", diagnostics.LeftView.Stats),
+            ("Right Analog Stick", diagnostics.RightView.Stats),
+            ("Left Trigger (LT)", diagnostics.LtView.Stats),
+            ("Right Trigger (RT)", diagnostics.RtView.Stats),
+            ("State Changes / Polling", diagnostics.RateBlock)
         };
 
-        foreach (var (lbl, sub, ctlType, ctlVal, active) in diagRows)
+        foreach (var (lbl, blk) in diagRows)
         {
             var row = new Border
             {
-                MinHeight = 62,
-                Background = active ? VoltKit.B("#2a2a2a") : Brushes.Transparent,
-                BorderBrush = active ? VoltKit.AmberHotBrush : VoltKit.B("#222222"),
-                BorderThickness = new Thickness(active ? 2 : 0, active ? 2 : 0, active ? 2 : 0, active ? 2 : 1),
-                CornerRadius = active ? new CornerRadius(12) : new CornerRadius(0),
-                Padding = new Thickness(16, 10, 16, 10),
-                Margin = new Thickness(0, 0, 0, 2),
-                Cursor = Cursors.Hand
+                MinHeight = 52,
+                Background = Brushes.Transparent,
+                BorderBrush = VoltKit.B("#222222"),
+                BorderThickness = new Thickness(0, 0, 0, 1),
+                Padding = new Thickness(16, 6, 16, 6)
             };
-
             var grid = new Grid { VerticalAlignment = VerticalAlignment.Center };
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(200) });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-            var lCol = new StackPanel { Orientation = Orientation.Vertical, VerticalAlignment = VerticalAlignment.Center };
-            lCol.Children.Add(new TextBlock
+            var label = new TextBlock
             {
                 Text = lbl,
                 FontFamily = VoltKit.Display,
-                FontSize = 20,
+                FontSize = 18,
                 FontWeight = FontWeights.SemiBold,
-                Foreground = active ? VoltKit.WhiteBrush : VoltKit.LightBrush
-            });
-            if (!string.IsNullOrEmpty(sub))
-            {
-                lCol.Children.Add(new TextBlock
-                {
-                    Text = sub,
-                    FontFamily = VoltKit.Body,
-                    FontSize = 14,
-                    Foreground = VoltKit.MuteBrush,
-                    Margin = new Thickness(0, 2, 0, 0)
-                });
-            }
-            Grid.SetColumn(lCol, 0);
-            grid.Children.Add(lCol);
+                Foreground = VoltKit.LightBrush,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            Grid.SetColumn(label, 0);
+            grid.Children.Add(label);
 
-            UIElement? ctrl = null;
-            if (ctlType == "dd")
+            var valTb = new TextBlock
             {
-                ctrl = new Border
-                {
-                    MinWidth = 160,
-                    Height = 42,
-                    CornerRadius = new CornerRadius(8),
-                    Background = VoltKit.B("#262626"),
-                    Padding = new Thickness(14, 0, 14, 0),
-                    Child = new Grid
-                    {
-                        Children =
-                        {
-                            new TextBlock
-                            {
-                                Text = ctlVal,
-                                FontFamily = VoltKit.Display,
-                                FontSize = 16,
-                                FontWeight = FontWeights.SemiBold,
-                                Foreground = VoltKit.WhiteBrush,
-                                HorizontalAlignment = HorizontalAlignment.Left,
-                                VerticalAlignment = VerticalAlignment.Center
-                            },
-                            new TextBlock
-                            {
-                                Text = "\uE70D",
-                                FontFamily = VoltKit.Icons,
-                                FontSize = 11,
-                                Foreground = VoltKit.MuteBrush,
-                                HorizontalAlignment = HorizontalAlignment.Right,
-                                VerticalAlignment = VerticalAlignment.Center
-                            }
-                        }
-                    }
-                };
-            }
-            else if (ctlType == "toggle")
-            {
-                bool on = ctlVal == "true";
-                var tg = new Border
-                {
-                    Width = 54,
-                    Height = 30,
-                    CornerRadius = new CornerRadius(15),
-                    Background = on ? VoltKit.AmberHotBrush : VoltKit.BorderDarkBrush,
-                    VerticalAlignment = VerticalAlignment.Center
-                };
-                var knob = new Ellipse
-                {
-                    Width = 24,
-                    Height = 24,
-                    Fill = VoltKit.WhiteBrush,
-                    HorizontalAlignment = on ? HorizontalAlignment.Right : HorizontalAlignment.Left,
-                    Margin = new Thickness(on ? 0 : 3, 0, on ? 3 : 0, 0)
-                };
-                tg.Child = knob;
-                ctrl = tg;
-            }
-            else if (ctlType == "chev")
-            {
-                ctrl = new TextBlock
-                {
-                    Text = "\uE76C",
-                    FontFamily = VoltKit.Icons,
-                    FontSize = 14,
-                    Foreground = VoltKit.MuteBrush,
-                    VerticalAlignment = VerticalAlignment.Center
-                };
-            }
-
-            if (ctrl != null)
-            {
-                Grid.SetColumn(ctrl, 1);
-                grid.Children.Add(ctrl);
-            }
+                FontFamily = VoltKit.Display,
+                FontSize = 15,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = VoltKit.AmberHotBrush,
+                VerticalAlignment = VerticalAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Right
+            };
+            valTb.SetBinding(TextBlock.TextProperty, new Binding("Text") { Source = blk });
+            Grid.SetColumn(valTb, 1);
+            grid.Children.Add(valTb);
 
             row.Child = grid;
             leftStack.Children.Add(row);
         }
 
+        // Action Buttons: Measure Rest, Clear Counters, Toggle Raw
+        var actRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(16, 18, 0, 0) };
+
+        var measureBtn = new Border
+        {
+            Height = 42,
+            Padding = new Thickness(16, 0, 16, 0),
+            CornerRadius = new CornerRadius(8),
+            Background = VoltKit.AmberHotBrush,
+            Margin = new Thickness(0, 0, 10, 0),
+            Child = new TextBlock { Text = "Measure Rest", FontFamily = VoltKit.Display, FontSize = 14, FontWeight = FontWeights.Bold, Foreground = VoltKit.B("#111111"), VerticalAlignment = VerticalAlignment.Center }
+        };
+        actRow.Children.Add(ThemeAction(measureBtn, "theme:diagnostics:measure", diagnostics.Measure));
+
+        var clearBtn = new Border
+        {
+            Height = 42,
+            Padding = new Thickness(16, 0, 16, 0),
+            CornerRadius = new CornerRadius(8),
+            Background = VoltKit.B("#262626"),
+            Margin = new Thickness(0, 0, 10, 0),
+            Child = new TextBlock { Text = "Clear Counters", FontFamily = VoltKit.Display, FontSize = 14, FontWeight = FontWeights.SemiBold, Foreground = VoltKit.WhiteBrush, VerticalAlignment = VerticalAlignment.Center }
+        };
+        actRow.Children.Add(ThemeAction(clearBtn, "theme:diagnostics:clear", diagnostics.ClearAll));
+
+        var rawBtn = new Border
+        {
+            Height = 42,
+            Padding = new Thickness(16, 0, 16, 0),
+            CornerRadius = new CornerRadius(8),
+            Background = VoltKit.B("#262626"),
+            Child = new TextBlock { Text = "Toggle Raw Mode", FontFamily = VoltKit.Display, FontSize = 14, FontWeight = FontWeights.SemiBold, Foreground = VoltKit.LightBrush, VerticalAlignment = VerticalAlignment.Center }
+        };
+        actRow.Children.Add(ThemeAction(rawBtn, "theme:diagnostics:raw", diagnostics.ToggleRaw));
+
+        leftStack.Children.Add(actRow);
+
         Canvas.SetLeft(leftStack, 0);
         Canvas.SetTop(leftStack, 10);
         content.Children.Add(leftStack);
 
-        // 2. Right Details Card: Dual sticks reticle + polling rate (width: 410 at x = 550)
+        // 2. Right Details Card: Real Stick Coordinate Reticles (width: 410 at x = 550)
         var rightStack = new StackPanel { Orientation = Orientation.Vertical, Width = 410 };
 
-        // Sticks Reticle Box (#0b0b0b, 410x190)
-        var sticksBox = new Border
-        {
-            Width = 410,
-            Height = 190,
-            Background = VoltKit.B("#0b0b0b"),
-            CornerRadius = new CornerRadius(14),
-            Padding = new Thickness(16)
-        };
-        var sCanvas = new Canvas { Width = 378, Height = 158 };
-
-        // Left Stick circular reticle
-        var leftStickGroup = CreateStickReticle("LEFT STICK (LS)", 0.0, 0.0);
-        Canvas.SetLeft(leftStickGroup, 20);
-        Canvas.SetTop(leftStickGroup, 10);
-        sCanvas.Children.Add(leftStickGroup);
-
-        // Right Stick circular reticle
-        var rightStickGroup = CreateStickReticle("RIGHT STICK (RS)", 0.0, 0.0);
-        Canvas.SetLeft(rightStickGroup, 210);
-        Canvas.SetTop(rightStickGroup, 10);
-        sCanvas.Children.Add(rightStickGroup);
-
-        sticksBox.Child = sCanvas;
-        rightStack.Children.Add(sticksBox);
-
-        // Details card
-        var card = new Border
+        var plotCard = new Border
         {
             Width = 410,
             Background = VoltKit.SheetDarkBrush,
             CornerRadius = new CornerRadius(14),
-            Padding = new Thickness(24, 20, 24, 20),
-            Margin = new Thickness(0, 16, 0, 0)
+            Padding = new Thickness(20)
         };
-        var cStack = new StackPanel { Orientation = Orientation.Vertical };
+        var pStack = new StackPanel { Orientation = Orientation.Vertical };
 
-        cStack.Children.Add(new TextBlock
+        pStack.Children.Add(new TextBlock
         {
-            Text = "POLLING UPDATE RATE",
+            Text = "STICK SENSOR TELEMETRY RETICLES",
             FontFamily = VoltKit.Display,
             FontSize = 13,
             FontWeight = FontWeights.Bold,
             Foreground = VoltKit.B("#8a8a8a"),
-            Margin = new Thickness(0, 0, 0, 2)
+            Margin = new Thickness(0, 0, 0, 12)
         });
 
-        cStack.Children.Add(new TextBlock
-        {
-            Text = "1000 Hz",
-            FontFamily = VoltKit.Display,
-            FontSize = 46,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = VoltKit.AmberHotBrush,
-            LineHeight = 48
-        });
+        var reticlesCanvas = new Canvas { Width = 370, Height = 180, ClipToBounds = true };
+        // Left Reticle
+        var leftRing = new Ellipse { Width = 140, Height = 140, Stroke = VoltKit.B("#333333"), StrokeThickness = 1.5 };
+        Canvas.SetLeft(leftRing, 20);
+        Canvas.SetTop(leftRing, 20);
+        reticlesCanvas.Children.Add(leftRing);
 
-        cStack.Children.Add(new TextBlock
+        var ptL = new Ellipse { Width = 12, Height = 12, Fill = VoltKit.AmberHotBrush, Effect = new DropShadowEffect { Color = VoltKit.AmberHot, BlurRadius = 8, ShadowDepth = 0, Opacity = 0.8 } };
+        Canvas.SetLeft(ptL, 84);
+        Canvas.SetTop(ptL, 84);
+        reticlesCanvas.Children.Add(ptL);
+
+        // Right Reticle
+        var rightRing = new Ellipse { Width = 140, Height = 140, Stroke = VoltKit.B("#333333"), StrokeThickness = 1.5 };
+        Canvas.SetLeft(rightRing, 210);
+        Canvas.SetTop(rightRing, 20);
+        reticlesCanvas.Children.Add(rightRing);
+
+        var ptR = new Ellipse { Width = 12, Height = 12, Fill = VoltKit.AmberHotBrush, Effect = new DropShadowEffect { Color = VoltKit.AmberHot, BlurRadius = 8, ShadowDepth = 0, Opacity = 0.8 } };
+        Canvas.SetLeft(ptR, 274);
+        Canvas.SetTop(ptR, 84);
+        reticlesCanvas.Children.Add(ptR);
+
+        reticlesCanvas.Loaded += (_, _) =>
         {
-            Text = "Live telemetry monitor listening to Player 1 input thread. Measured jitter variance is steady within ±0.04 ms with 0 dropped packets.",
+            double plotSize = global::X20Ctl.Product.Diagnostics.DiagnosticsWorkbench.PlotSize;
+            foreach (var (dot, native, x) in new[] { (ptL, diagnostics.LeftView.Dot, 20.0), (ptR, diagnostics.RightView.Dot, 210.0) })
+            {
+                dot.Visibility = native.Visibility;
+                Canvas.SetLeft(dot, x + 140 * (Canvas.GetLeft(native) + native.Width / 2) / plotSize - dot.Width / 2);
+                Canvas.SetTop(dot, 20 + 140 * (Canvas.GetTop(native) + native.Height / 2) / plotSize - dot.Height / 2);
+            }
+        };
+
+        pStack.Children.Add(reticlesCanvas);
+
+        pStack.Children.Add(new TextBlock
+        {
+            Text = "Direct stick polling captures circular gate deflection. Roll sticks along boundary to test for outer deadzone clipping.",
             FontFamily = VoltKit.Body,
-            FontSize = 15,
+            FontSize = 13,
             Foreground = VoltKit.B("#bdbdbd"),
             TextWrapping = TextWrapping.Wrap,
-            LineHeight = 22,
-            Margin = new Thickness(0, 8, 0, 16)
+            LineHeight = 18,
+            Margin = new Thickness(0, 14, 0, 0)
         });
 
-        // Action button [▶ Calibrate Analog Sticks]
-        var calBtn = VoltKit.OrangeActionButton("Calibrate Analog Sticks", 362, 54);
-        cStack.Children.Add(calBtn);
-
-        card.Child = cStack;
-        rightStack.Children.Add(card);
+        plotCard.Child = pStack;
+        rightStack.Children.Add(plotCard);
 
         Canvas.SetLeft(rightStack, 550);
         Canvas.SetTop(rightStack, 10);
         content.Children.Add(rightStack);
 
-        return VoltKit.TwoPaneShell("diagnostics", "Diagnostics", "Real-time analog stick centering, trigger linear resolution, and button response matrix.", content, VoltSelectPage);
-    }
-
-    private static UIElement CreateStickReticle(string title, double xVal, double yVal)
-    {
-        var root = new Canvas { Width = 148, Height = 138 };
-
-        var label = new TextBlock
-        {
-            Text = title,
-            FontFamily = VoltKit.Display,
-            FontSize = 11,
-            FontWeight = FontWeights.Bold,
-            Foreground = VoltKit.B("#8a8a8a"),
-            HorizontalAlignment = HorizontalAlignment.Center
-        };
-        Canvas.SetLeft(label, 20);
-        Canvas.SetTop(label, 0);
-        root.Children.Add(label);
-
-        // Circular boundary
-        var circle = new Ellipse
-        {
-            Width = 100,
-            Height = 100,
-            Stroke = VoltKit.B("#2a2a2a"),
-            StrokeThickness = 2,
-            Fill = VoltKit.B("#121212")
-        };
-        Canvas.SetLeft(circle, 24);
-        Canvas.SetTop(circle, 22);
-        root.Children.Add(circle);
-
-        // Crosshairs
-        var hLine = new System.Windows.Shapes.Line
-        {
-            X1 = 24,
-            Y1 = 72,
-            X2 = 124,
-            Y2 = 72,
-            Stroke = VoltKit.B("#222222"),
-            StrokeThickness = 1
-        };
-        root.Children.Add(hLine);
-
-        var vLine = new System.Windows.Shapes.Line
-        {
-            X1 = 74,
-            Y1 = 22,
-            X2 = 74,
-            Y2 = 122,
-            Stroke = VoltKit.B("#222222"),
-            StrokeThickness = 1
-        };
-        root.Children.Add(vLine);
-
-        // Center dot in #ffad0a
-        var dot = new Ellipse
-        {
-            Width = 12,
-            Height = 12,
-            Fill = VoltKit.AmberHotBrush,
-            Effect = new DropShadowEffect { Color = VoltKit.AmberHot, BlurRadius = 8, ShadowDepth = 0, Opacity = 0.9 }
-        };
-        Canvas.SetLeft(dot, 74 - 6 + xVal * 40);
-        Canvas.SetTop(dot, 72 - 6 - yVal * 40);
-        root.Children.Add(dot);
-
-        return root;
+        return VoltKit.TwoPaneShell("diagnostics", "Diagnostics", "Sensor telemetry, analog stick center offset, and hardware jitter.", content, VoltSelectPage);
     }
 }

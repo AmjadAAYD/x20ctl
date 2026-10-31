@@ -74,9 +74,6 @@ public partial class StudioScene
         var r2 = NexusKit.RowButton("Settings for", null, NexusKit.Dropdown("Player 1"), focused: false, width: 820);
         rowPanel.Children.Add(r2);
 
-        var r3 = NexusKit.RowButton("Turbo rate", null, new TextBlock { Text = "20 Hz", FontFamily = NexusKit.Body, FontSize = 17, Foreground = NexusKit.SubBrush, VerticalAlignment = VerticalAlignment.Center }, focused: false, width: 820);
-        rowPanel.Children.Add(r3);
-
         var r4 = NexusKit.RowButton("Game bindings", null, null, focused: false, width: 820);
         rowPanel.Children.Add(r4);
 

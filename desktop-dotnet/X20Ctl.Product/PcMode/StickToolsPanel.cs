@@ -132,6 +132,11 @@ public sealed partial class StickToolsPanel : Border
         Unloaded += (_, _) => link.Service.Changed -= refresh;
         ShowStatus();
         if (ThemeCatalog.Current.Id == "pulse") BuildPulseAdvanced(close, reset);
+        else if (ThemeCatalog.Current.Id == "spotlight") BuildSpotlightAdvanced(close, reset);
+        else if (ThemeCatalog.Current.Id == "nexus") BuildNexusAdvanced(close, reset);
+        else if (ThemeCatalog.Current.Id == "tide") BuildTideAdvanced(close, reset);
+        else if (ThemeCatalog.Current.Id == "rebel") BuildRebelAdvanced(close, reset);
+        else if (ThemeCatalog.Current.Id == "hybrid") BuildHybridAdvanced(close);
     }
 
     void Load()
@@ -239,7 +244,7 @@ public sealed partial class StickToolsPanel : Border
     void ApplyMeasured(){if(sampled is not {} result)return;loading=true;rows[CurveChannel.LeftStick].Inner.Value=result.Left.RecommendedInner;rows[CurveChannel.RightStick].Inner.Value=result.Right.RecommendedInner;loading=false;Changed();applyDrift.Visibility=Visibility.Collapsed;}
     static string StickName(CurveChannel c)=>c==CurveChannel.LeftStick?"Left stick":"Right stick";
     static void CopyValues(Row a,Row b){b.Inner.Value=a.Inner.Value;b.Outer.Value=a.Outer.Value;b.Anti.Value=a.Anti.Value;b.Max.Value=a.Max.Value;b.Square.IsChecked=a.Square.IsChecked;b.Raw.IsChecked=a.Raw.IsChecked;b.Ratio.Value=a.Ratio.Value;}
-    public void SelectStick(CurveChannel c){selectedStick=c;foreach(var pair in cards)pair.Value.Visibility=pair.Key==c?Visibility.Visible:Visibility.Collapsed;UpdateTables(Build());RefreshPulseAdvanced();}
+    public void SelectStick(CurveChannel c){selectedStick=c;foreach(var pair in cards)pair.Value.Visibility=pair.Key==c?Visibility.Visible:Visibility.Collapsed;UpdateTables(Build());RefreshPulseAdvanced();RefreshRebelAdvanced();RefreshSpotlightAdvanced();RefreshNexusAdvanced();RefreshTideAdvanced();}
     UIElement Preview(CurveChannel channel){var canvas=new Canvas{Width=720,Height=165,ClipToBounds=true};charts[channel]=canvas;return new Viewbox{Child=canvas,Stretch=Stretch.Uniform,MaxHeight=165,HorizontalAlignment=HorizontalAlignment.Left,Margin=new(0,14,0,0)};}
     public void ShowLive(double leftX,double leftY,double rightX,double rightY){live=true;lx=leftX;ly=leftY;rx=rightX;ry=rightY;UpdateTables(Build());}
     public void ClearLive(){live=false;UpdateTables(Build());}
@@ -257,8 +262,12 @@ public sealed partial class StickToolsPanel : Border
         {Shape gate=center>500&&tuning?.SquareGate==true?new Rectangle{Width=84,Height=84}:new Ellipse{Width=84,Height=84};gate.Stroke=Brushes.SlateGray;gate.StrokeThickness=1;Canvas.SetLeft(gate,center-42);Canvas.SetTop(gate,45);canvas.Children.Add(gate);Put(label,center-34,10);
          if(center<500){foreach(var radius in new[]{(tuning?.Inner??0)/100*42,(tuning?.Outer??100)/100*42}){var ring=new Ellipse{Width=radius*2,Height=radius*2,Stroke=Brushes.LightSkyBlue,StrokeThickness=1};Canvas.SetLeft(ring,center-radius);Canvas.SetTop(ring,87-radius);canvas.Children.Add(ring);}}
          if(live){var dot=new Ellipse{Width=8,Height=8,Fill=Brushes.White};Canvas.SetLeft(dot,center+dx*42-4);Canvas.SetTop(dot,87-dy*42-4);canvas.Children.Add(dot);Put($"{dx:P0}, {dy:P0}",center-40,141);}}
+        RefreshRebelAdvancedGraph(channel);
         void Put(string text,double left,double top){var label=Kit.Text(text,13,"DS.TextSoft");Canvas.SetLeft(label,left);Canvas.SetTop(label,top);canvas.Children.Add(label);}
         RefreshPulseAdvancedGraph(channel);
+        RefreshSpotlightAdvancedGraph(channel);
+        RefreshNexusAdvancedGraph(channel);
+        RefreshTideAdvancedGraph(channel);
     }
 
     static void Wide(TextBlock t) => t.Width = 165;

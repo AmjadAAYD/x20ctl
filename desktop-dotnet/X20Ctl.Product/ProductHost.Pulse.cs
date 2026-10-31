@@ -38,8 +38,8 @@ public sealed partial class ProductHost
 
     internal void NavigatePulsePage(string target)
     {
-        if (Check != null) CloseCheck();
-        if (WriteScan != null) CloseWriteScan();
+        if (Check != null) { CloseCheck(); if (Check != null) return; }
+        if (WriteScan != null) { CloseWriteScan(); if (WriteScan != null) return; }
         if (target == "Zone")
         {
             CloseSettings();
@@ -74,7 +74,7 @@ public sealed partial class ProductHost
         int player = studioPlayer ?? Zone.State.FocusedPlayer ?? 0;
         var assigned = Zone.State.Players[player];
         if (assigned.Model == null)
-            Zone.AssignController(player, Catalog.Find("x20"));
+            { OpenSelector(player); return; }
         EnterStudio(player);
     }
 

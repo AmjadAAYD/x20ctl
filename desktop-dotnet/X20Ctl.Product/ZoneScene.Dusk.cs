@@ -58,7 +58,7 @@ public partial class ZoneScene
         duskZoneBack.Children.Add(DuskKit.Backdrop("x05pro", 0.22));
 
         // Top status bar
-        duskZoneBack.Children.Add(DuskKit.TopBar("Player 1", "19:24", 100));
+        duskZoneBack.Children.Add(DuskKit.TopBar("Player 1"));
 
         // Navigation & Status Badge centered horizontally at top = 80: [● DUSK CONSOLE DECK · TACTICAL QUADRANTS] [1000HZ ULTRA-POLLING]
         var navStack = new StackPanel
@@ -115,7 +115,6 @@ public partial class ZoneScene
                 Foreground = DuskKit.GreenOnlineBrush
             }
         };
-        navStack.Children.Add(statPill);
 
         Canvas.SetLeft(navStack, 450);
         Canvas.SetTop(navStack, 80);
@@ -285,7 +284,7 @@ public partial class ZoneScene
         duskHeroBack.Children.Add(leftShade);
 
         // Top bar
-        duskHeroBack.Children.Add(DuskKit.TopBar("Player 1", "19:24", 100));
+        duskHeroBack.Children.Add(DuskKit.TopBar("Player 1"));
 
         // Subtitle "EASYSMX" + Giant Logo "X05 PRO" at (86, 420)
         duskHeroLogoStack = new StackPanel { Orientation = Orientation.Vertical };
@@ -430,9 +429,9 @@ public partial class ZoneScene
         duskHeroTelemetryRow.Children.Clear();
         var stats = new (string Lab, string Val)[]
         {
-            ("CONNECTION", "2.4G DONGLE"),
-            ("BATTERY", index == 1 ? "92%" : "88%"),
-            ("CURRENT SETUP", index == 1 ? "PRO MECHANICAL" : "DEFAULT RACING")
+            ("CONNECTION", "NOT REPORTED"),
+            ("BATTERY", "NOT REPORTED"),
+            ("CURRENT SETUP", "LOCAL DRAFT")
         };
 
         foreach (var (lab, val) in stats)

@@ -274,7 +274,7 @@ public sealed partial class ProductSettings
 
         var updateCol = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         updateCol.Children.Add(PulseParts.Disp("Keep X20CTL updated", 21, PulseParts.PearlInk, FontWeights.SemiBold));
-        updateCol.Children.Add(PulseParts.Body(updateStatus.Text is { Length: > 0 } ut ? ut : "Up to date · Checked automatically at launch.", 14, PulseParts.PearlSoft));
+        updateCol.Children.Add(PulseParts.Body(updateStatus.Text is { Length: > 0 } ut ? ut : "Checked automatically at launch.", 14, PulseParts.PearlSoft));
         bottomStack.Children.Add(updateCol);
 
         var pearl = PulseParts.RisingPearlCard(bottomStack, new Thickness(36, 22, 36, 22));

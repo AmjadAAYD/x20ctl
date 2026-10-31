@@ -1,6 +1,7 @@
 using System;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
@@ -17,6 +18,13 @@ public partial class StudioScene
     /// </summary>
     private UIElement BuildVoltTester()
     {
+        if (Tester is not { } tester)
+        {
+            var empty = new Canvas { Width = 970, Height = 560 };
+            empty.Children.Add(new TextBlock { Text = "Controller tester is unavailable.", Foreground = VoltKit.MuteBrush, FontSize = 18, Margin = new Thickness(40) });
+            return VoltKit.TwoPaneShell("tester", "Tester", "Hardware input verification, digital button state, and signal latency.", empty, VoltSelectPage);
+        }
+
         var content = new Canvas { Width = 970, Height = 560 };
 
         // 1. Left List: Tester controls and options (width: 520)
@@ -32,198 +40,182 @@ public partial class StudioScene
             Margin = new Thickness(0, 0, 0, 8)
         });
 
-        var testRows = new (string Label, string? Sub, string CtlType, string CtlVal, bool Active)[]
+        // Telemetry rows: Source, Pressed, Ownership
+        var tRows = new (string Label, TextBlock SourceBlock)[]
         {
-            ("Active Input Source", null, "val", "Player 1 (Dune)", false),
-            ("Packet Polling Benchmark", "Measure response latency and jitter", "btn", "Start Test", true),
-            ("View Detailed Input Map", "Inspect digital & analog states", "chev", "", false),
-            ("Controller Perspective", null, "dd", "Front View", false),
-            ("Dynamic Anti-Jitter Filter", "Filter microsecond noise", "toggle", "true", false),
-            ("Continuous Input Log", "Write timestamps to debug ring", "toggle", "false", false)
+            ("Active Input Source", tester.SourceLabel),
+            ("Pressed Buttons", tester.PressedBlock),
+            ("Input Ownership", tester.OwnershipBlock)
         };
 
-        foreach (var (lbl, sub, ctlType, ctlVal, active) in testRows)
+        foreach (var (lbl, srcBlock) in tRows)
         {
             var row = new Border
             {
-                MinHeight = 58,
-                Background = active ? VoltKit.B("#2a2a2a") : Brushes.Transparent,
-                BorderBrush = active ? VoltKit.AmberHotBrush : VoltKit.B("#222222"),
-                BorderThickness = new Thickness(active ? 2 : 0, active ? 2 : 0, active ? 2 : 0, active ? 2 : 1),
-                CornerRadius = active ? new CornerRadius(12) : new CornerRadius(0),
-                Padding = new Thickness(16, 8, 16, 8),
-                Margin = new Thickness(0, 0, 0, 2),
-                Cursor = Cursors.Hand
+                MinHeight = 54,
+                Background = Brushes.Transparent,
+                BorderBrush = VoltKit.B("#222222"),
+                BorderThickness = new Thickness(0, 0, 0, 1),
+                Padding = new Thickness(16, 6, 16, 6)
             };
-
             var grid = new Grid { VerticalAlignment = VerticalAlignment.Center };
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(180) });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-            var lCol = new StackPanel { Orientation = Orientation.Vertical, VerticalAlignment = VerticalAlignment.Center };
-            lCol.Children.Add(new TextBlock
+            var label = new TextBlock
             {
                 Text = lbl,
                 FontFamily = VoltKit.Display,
-                FontSize = 19,
+                FontSize = 18,
                 FontWeight = FontWeights.SemiBold,
-                Foreground = active ? VoltKit.WhiteBrush : VoltKit.LightBrush
-            });
-            if (!string.IsNullOrEmpty(sub))
-            {
-                lCol.Children.Add(new TextBlock
-                {
-                    Text = sub,
-                    FontFamily = VoltKit.Body,
-                    FontSize = 14,
-                    Foreground = VoltKit.MuteBrush,
-                    Margin = new Thickness(0, 2, 0, 0)
-                });
-            }
-            Grid.SetColumn(lCol, 0);
-            grid.Children.Add(lCol);
+                Foreground = VoltKit.LightBrush,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            Grid.SetColumn(label, 0);
+            grid.Children.Add(label);
 
-            UIElement? ctrl = null;
-            if (ctlType == "val")
+            var valTb = new TextBlock
             {
-                ctrl = new TextBlock
-                {
-                    Text = ctlVal,
-                    FontFamily = VoltKit.Display,
-                    FontSize = 16,
-                    FontWeight = FontWeights.SemiBold,
-                    Foreground = VoltKit.AmberHotBrush,
-                    VerticalAlignment = VerticalAlignment.Center
-                };
-            }
-            else if (ctlType == "btn")
-            {
-                ctrl = new Border
-                {
-                    Height = 38,
-                    Padding = new Thickness(18, 0, 18, 0),
-                    CornerRadius = new CornerRadius(8),
-                    Background = VoltKit.AmberHotBrush,
-                    Child = new TextBlock
-                    {
-                        Text = ctlVal,
-                        FontFamily = VoltKit.Display,
-                        FontSize = 15,
-                        FontWeight = FontWeights.Bold,
-                        Foreground = VoltKit.B("#111111"),
-                        VerticalAlignment = VerticalAlignment.Center
-                    }
-                };
-            }
-            else if (ctlType == "dd")
-            {
-                ctrl = new Border
-                {
-                    MinWidth = 150,
-                    Height = 38,
-                    CornerRadius = new CornerRadius(8),
-                    Background = VoltKit.B("#262626"),
-                    Padding = new Thickness(14, 0, 14, 0),
-                    Child = new Grid
-                    {
-                        Children =
-                        {
-                            new TextBlock
-                            {
-                                Text = ctlVal,
-                                FontFamily = VoltKit.Display,
-                                FontSize = 15,
-                                FontWeight = FontWeights.SemiBold,
-                                Foreground = VoltKit.WhiteBrush,
-                                HorizontalAlignment = HorizontalAlignment.Left,
-                                VerticalAlignment = VerticalAlignment.Center
-                            },
-                            new TextBlock
-                            {
-                                Text = "\uE70D",
-                                FontFamily = VoltKit.Icons,
-                                FontSize = 11,
-                                Foreground = VoltKit.MuteBrush,
-                                HorizontalAlignment = HorizontalAlignment.Right,
-                                VerticalAlignment = VerticalAlignment.Center
-                            }
-                        }
-                    }
-                };
-            }
-            else if (ctlType == "toggle")
-            {
-                bool on = ctlVal == "true";
-                var tg = new Border
-                {
-                    Width = 54,
-                    Height = 30,
-                    CornerRadius = new CornerRadius(15),
-                    Background = on ? VoltKit.AmberHotBrush : VoltKit.BorderDarkBrush,
-                    VerticalAlignment = VerticalAlignment.Center
-                };
-                var knob = new Ellipse
-                {
-                    Width = 24,
-                    Height = 24,
-                    Fill = VoltKit.WhiteBrush,
-                    HorizontalAlignment = on ? HorizontalAlignment.Right : HorizontalAlignment.Left,
-                    Margin = new Thickness(on ? 0 : 3, 0, on ? 3 : 0, 0)
-                };
-                tg.Child = knob;
-                ctrl = tg;
-            }
-            else if (ctlType == "chev")
-            {
-                ctrl = new TextBlock
-                {
-                    Text = "\uE76C",
-                    FontFamily = VoltKit.Icons,
-                    FontSize = 14,
-                    Foreground = VoltKit.MuteBrush,
-                    VerticalAlignment = VerticalAlignment.Center
-                };
-            }
-
-            if (ctrl != null)
-            {
-                Grid.SetColumn(ctrl, 1);
-                grid.Children.Add(ctrl);
-            }
+                FontFamily = VoltKit.Display,
+                FontSize = 16,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = VoltKit.AmberHotBrush,
+                VerticalAlignment = VerticalAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Right
+            };
+            valTb.SetBinding(TextBlock.TextProperty, new Binding("Text") { Source = srcBlock });
+            Grid.SetColumn(valTb, 1);
+            grid.Children.Add(valTb);
 
             row.Child = grid;
             leftStack.Children.Add(row);
         }
 
+        // Keyboard & mouse test toggle
+        var kbRow = new Border
+        {
+            MinHeight = 56,
+            Background = Brushes.Transparent,
+            BorderBrush = VoltKit.B("#222222"),
+            BorderThickness = new Thickness(0, 0, 0, 1),
+            Padding = new Thickness(16, 6, 16, 6),
+            Cursor = Cursors.Hand
+        };
+        var kbGrid = new Grid { VerticalAlignment = VerticalAlignment.Center };
+        kbGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        kbGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var kbLabels = new StackPanel();
+        kbLabels.Children.Add(new TextBlock { Text = "Capture Keyboard Inputs", FontFamily = VoltKit.Display, FontSize = 18, FontWeight = FontWeights.SemiBold, Foreground = VoltKit.LightBrush });
+        kbLabels.Children.Add(new TextBlock { Text = "Test mapped keyboard strokes (WASD, Arrows, Q, E)", FontFamily = VoltKit.Body, FontSize = 13, Foreground = VoltKit.MuteBrush });
+        kbGrid.Children.Add(kbLabels);
+
+        var kbToggleFace = new Border
+        {
+            Height = 36,
+            Padding = new Thickness(14, 0, 14, 0),
+            CornerRadius = new CornerRadius(6),
+            Background = tester.KeyboardOn ? VoltKit.AmberHotBrush : VoltKit.B("#262626"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = new TextBlock
+            {
+                Text = tester.KeyboardOn ? "Active" : "Simulate",
+                FontFamily = VoltKit.Display,
+                FontSize = 14,
+                FontWeight = FontWeights.Bold,
+                Foreground = tester.KeyboardOn ? VoltKit.B("#111111") : VoltKit.WhiteBrush,
+                VerticalAlignment = VerticalAlignment.Center
+            }
+        };
+        var kbButton = ThemeAction(kbToggleFace, "theme:tester:keyboard", () =>
+        {
+            tester.ClickKeyboard();
+            VoltLater();
+        });
+        Grid.SetColumn(kbButton, 1);
+        kbGrid.Children.Add(kbButton);
+        kbRow.Child = kbGrid;
+        leftStack.Children.Add(kbRow);
+
+        // Perspective toggle: Front / Rear
+        var perspRow = new Border
+        {
+            MinHeight = 56,
+            Background = Brushes.Transparent,
+            BorderBrush = VoltKit.B("#222222"),
+            BorderThickness = new Thickness(0, 0, 0, 1),
+            Padding = new Thickness(16, 6, 16, 6)
+        };
+        var perspGrid = new Grid { VerticalAlignment = VerticalAlignment.Center };
+        perspGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        perspGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        perspGrid.Children.Add(new TextBlock { Text = "Controller Perspective", FontFamily = VoltKit.Display, FontSize = 18, FontWeight = FontWeights.SemiBold, Foreground = VoltKit.LightBrush, VerticalAlignment = VerticalAlignment.Center });
+
+        var perspStack = new StackPanel { Orientation = Orientation.Horizontal };
+        var frontBtn = new Border
+        {
+            Padding = new Thickness(14, 6, 14, 6),
+            CornerRadius = new CornerRadius(6),
+            Background = VoltKit.AmberHotBrush,
+            Margin = new Thickness(0, 0, 8, 0),
+            Child = new TextBlock { Text = "Front", FontFamily = VoltKit.Display, FontSize = 14, FontWeight = FontWeights.Bold, Foreground = VoltKit.B("#111111") }
+        };
+        perspStack.Children.Add(ThemeAction(frontBtn, "theme:tester:front", () => tester.ShowRear(false)));
+
+        var rearBtn = new Border
+        {
+            Padding = new Thickness(14, 6, 14, 6),
+            CornerRadius = new CornerRadius(6),
+            Background = VoltKit.B("#262626"),
+            Child = new TextBlock { Text = "Rear", FontFamily = VoltKit.Display, FontSize = 14, FontWeight = FontWeights.SemiBold, Foreground = VoltKit.WhiteBrush }
+        };
+        perspStack.Children.Add(ThemeAction(rearBtn, "theme:tester:rear", () => tester.ShowRear(true), HasRearArtwork));
+        Grid.SetColumn(perspStack, 1);
+        perspGrid.Children.Add(perspStack);
+        perspRow.Child = perspGrid;
+        leftStack.Children.Add(perspRow);
+
+        // Action Buttons: Exit Tester
+        var actRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(16, 18, 0, 0) };
+        var exitFace = new Border
+        {
+            Height = 42,
+            Padding = new Thickness(20, 0, 20, 0),
+            CornerRadius = new CornerRadius(8),
+            Background = VoltKit.B("#262626"),
+            Child = new TextBlock { Text = "Exit Tester", FontFamily = VoltKit.Display, FontSize = 14, FontWeight = FontWeights.SemiBold, Foreground = VoltKit.WhiteBrush, VerticalAlignment = VerticalAlignment.Center }
+        };
+        actRow.Children.Add(ThemeAction(exitFace, "theme:tester:exit", () => { tester.ClickExit(); VoltSelectPage("buttons"); }));
+        leftStack.Children.Add(actRow);
+
         Canvas.SetLeft(leftStack, 0);
         Canvas.SetTop(leftStack, 10);
         content.Children.Add(leftStack);
 
-        // 2. Right Details Card: Real-time telemetry readout (width: 410 at x = 550)
+        // 2. Right Details Card: Real-time telemetry readout & mounted stage (width: 410 at x = 550)
         var rightStack = new StackPanel { Orientation = Orientation.Vertical, Width = 410 };
 
-        // Real-time pad art preview
         var artBox = new Border
         {
             Width = 410,
-            Height = 190,
+            Height = 270,
             Background = VoltKit.B("#0b0b0b"),
             CornerRadius = new CornerRadius(14),
             ClipToBounds = true
         };
-        var aCanvas = new Canvas { Width = 410, Height = 190 };
+        var aCanvas = new Canvas { Width = 410, Height = 270 };
 
-        var padArt = VoltKit.ControllerArt("dune", 320);
-        if (padArt != null)
+        var livePad = new Viewbox
         {
-            padArt.Opacity = 0.95;
-            padArt.Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 24, ShadowDepth = 12, Opacity = 0.6 };
-            Canvas.SetLeft(padArt, 45);
-            Canvas.SetTop(padArt, 10);
-            aCanvas.Children.Add(padArt);
-        }
+            Width = 380,
+            Height = 250,
+            Stretch = Stretch.Uniform,
+            Child = tester.TakeStage()
+        };
+        Canvas.SetLeft(livePad, 15);
+        Canvas.SetTop(livePad, 10);
+        aCanvas.Children.Add(livePad);
 
-        // Live listening badge
         var liveBadge = new Border
         {
             Background = VoltKit.AmberHotBrush,
@@ -258,7 +250,7 @@ public partial class StudioScene
 
         cStack.Children.Add(new TextBlock
         {
-            Text = "MEASURED PACKET LATENCY",
+            Text = "INPUT STREAM TELEMETRY",
             FontFamily = VoltKit.Display,
             FontSize = 13,
             FontWeight = FontWeights.Bold,
@@ -268,28 +260,24 @@ public partial class StudioScene
 
         cStack.Children.Add(new TextBlock
         {
-            Text = "0.98 ms",
+            Text = "Real-Time XInput",
             FontFamily = VoltKit.Display,
-            FontSize = 46,
+            FontSize = 30,
             FontWeight = FontWeights.SemiBold,
             Foreground = VoltKit.AmberHotBrush,
-            LineHeight = 48
+            LineHeight = 34
         });
 
         cStack.Children.Add(new TextBlock
         {
-            Text = "Active continuous input sampling at 1000 Hz. Jitter is steady at 0.04 ms with zero frame drops across 50,000 sampled packets.",
+            Text = "Physical buttons report switch contact closures. Trigger sweep demonstrates direct potentiometer linearity.",
             FontFamily = VoltKit.Body,
-            FontSize = 15,
+            FontSize = 14,
             Foreground = VoltKit.B("#bdbdbd"),
             TextWrapping = TextWrapping.Wrap,
-            LineHeight = 22,
-            Margin = new Thickness(0, 8, 0, 16)
+            LineHeight = 20,
+            Margin = new Thickness(0, 6, 0, 0)
         });
-
-        // Action button [▶ Start Polling Stress Test]
-        var stressBtn = VoltKit.OrangeActionButton("Start Stress Test", 362, 54);
-        cStack.Children.Add(stressBtn);
 
         card.Child = cStack;
         rightStack.Children.Add(card);
@@ -298,6 +286,6 @@ public partial class StudioScene
         Canvas.SetTop(rightStack, 10);
         content.Children.Add(rightStack);
 
-        return VoltKit.TwoPaneShell("tester", "Tester", "Real-time controller latency, packet throughput, and input visualizer.", content, VoltSelectPage);
+        return VoltKit.TwoPaneShell("tester", "Tester", "Hardware input verification, digital button state, and signal latency.", content, VoltSelectPage);
     }
 }

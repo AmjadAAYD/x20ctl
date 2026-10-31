@@ -15,14 +15,14 @@ internal static class Ink
     public static Brush B(Color c) { var b = new SolidColorBrush(c); b.Freeze(); return b; }
     public static Brush B(string hex) => B(C(hex));
     public static Color A(Color c, double alpha) => Color.FromArgb((byte)Math.Round(alpha * 255), c.R, c.G, c.B);
-    public static readonly FontFamily Heavy = new("Franklin Gothic Heavy, Franklin Gothic Medium, Impact"), Body = new("Bahnschrift, Segoe UI");
+    public static readonly FontFamily Heavy = new("Franklin Gothic, Impact"), Body = new("Bahnschrift, Segoe UI");
     /// <summary>The faces have no italic, so the board's slant is drawn: about 12 degrees, as the browser synthesised it.</summary>
     public static readonly Transform Slant = Frozen(new SkewTransform(-12, 0));
     private static Transform Frozen(Transform t) { t.Freeze(); return t; }
     public static TextBlock Text(string text, double size, Brush? fg = null, bool heavy = true, FontWeight? weight = null) => new()
     {
         Text = text, FontFamily = heavy ? Heavy : Body, FontSize = size, FontStyle = FontStyles.Normal, RenderTransform = Slant, RenderTransformOrigin = new Point(.5, .5), Foreground = fg ?? B(White),
-        FontWeight = weight ?? FontWeights.Normal, TextWrapping = TextWrapping.NoWrap
+        FontWeight = weight ?? (heavy ? FontWeights.Black : FontWeights.Normal), TextWrapping = TextWrapping.NoWrap
     };
     /// <summary>The small spaced-out red label (.sc).</summary>
     public static TextBlock Label(string text, double size = 12, Brush? fg = null) => new()
@@ -105,7 +105,16 @@ internal static class Ransom
                 "w" => (Ink.White, Ink.Black, false), "k" => (Ink.Black, Ink.White, true), "r" => (Ink.Red, Ink.White, false), "p" => (Ink.Paper, Ink.Black, false), _ => (Colors.Transparent, Ink.White, false)
             };
             double px = size * s.Fs;
-            var face = new TextBlock { Text = s.C, FontFamily = new FontFamily(s.Fam + ", Impact"), FontSize = px, FontWeight = s.Wt == 700 ? FontWeights.Bold : FontWeights.Normal, Foreground = Ink.B(fg), LineHeight = px * 1.08, LineStackingStrategy = LineStackingStrategy.BlockLineHeight };
+            // Browser face names include the weight in the family; WPF exposes these as a family plus a typeface.
+            var (family, weight, stretch) = s.Fam switch
+            {
+                "Franklin Gothic Heavy" => ("Franklin Gothic", FontWeights.Black, FontStretches.Normal),
+                "Bodoni MT Black" => ("Bodoni MT", FontWeights.Black, FontStretches.Normal),
+                "Cooper Black" => ("Cooper", FontWeights.Black, FontStretches.Normal),
+                "Bernard MT Condensed" => ("Bernard MT", FontWeights.Normal, FontStretches.Condensed),
+                _ => (s.Fam, s.Wt == 700 ? FontWeights.Bold : FontWeights.Normal, FontStretches.Normal)
+            };
+            var face = new TextBlock { Text = s.C, FontFamily = new FontFamily(family + ", Impact"), FontSize = px, FontWeight = weight, FontStretch = stretch, Foreground = Ink.B(fg), LineHeight = px * 1.08, LineStackingStrategy = LineStackingStrategy.BlockLineHeight };
             row.Children.Add(new Letter
             {
                 Child = face, Background = Ink.B(bg), Padding = new(px * .13, px * .06, px * .13, px * .02), Margin = new(px * .025, 0, px * .025, 0), Cut = s.Cp,

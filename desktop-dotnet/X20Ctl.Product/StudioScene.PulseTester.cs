@@ -120,7 +120,6 @@ public partial class StudioScene
         pearlStack.Children.Add(PulseParts.Disp(w.SourceText is { Length: > 0 } src ? src : "XInput Controller 1", 27, PulseParts.PearlInk, FontWeights.SemiBold).Also(t => t.Margin = new(0, 6, 0, 12)));
         pearlStack.Children.Add(PulseParts.Body("Listening directly to live gamepad events through the active runtime API.", 15, PulseParts.PearlMid));
         pearlStack.Children.Add(PulseParts.Body("Move sticks, squeeze triggers, or press face buttons to inspect real-time precision and dead-zone limits.", 15, PulseParts.PearlMid).Also(t => t.Margin = new(0, 6, 0, 8)));
-        pearlStack.Children.Add(PulseParts.Body("Hardware and virtual controller routes are polled continuously at 1000 Hz.", 13.5, PulseParts.PearlSoft));
 
         var actRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new(0, 20, 0, 16) };
         actRow.Children.Add(PulseParts.PillButton("Close tester", primary: true, onPearl: true, onClick: () => PulseSelectPage("Dashboard")));

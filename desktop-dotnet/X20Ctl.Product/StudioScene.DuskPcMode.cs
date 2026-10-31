@@ -1,3 +1,4 @@
+using System.Windows.Data;
 using System;
 using System.Windows;
 using System.Windows.Controls;
@@ -10,9 +11,16 @@ namespace X20Ctl.Product;
 
 public partial class StudioScene
 {
+    private PcModePage? duskPcSource;
+    private FrameworkElement? duskPcView;
     private void DuskShowPcMode()
     {
+        var original = ManagementBodyHost.Children.OfType<ScrollViewer>().FirstOrDefault();
+        var source = original?.Content as PcModePage;
         duskPageHost!.Children.Clear();
+        if (source == null && duskPcView != null) { duskPageHost.Children.Add(duskPcView); return; }
+        if (source == null) return;
+        duskPcSource = source; original!.Content = null;
 
         var hints = new[]
         {
@@ -37,84 +45,26 @@ public partial class StudioScene
 
         leftStack.Children.Add(new TextBlock
         {
-            Text = "LOCAL DRAFT · Applied on connection handshake.",
+            Text = "Software processing on this PC. Hardware configuration stays unchanged.",
             FontFamily = DuskKit.Body,
             FontSize = 15,
             Foreground = DuskKit.MuteBrush,
             Margin = new Thickness(0, 0, 0, 14)
         });
 
-        var protoModes = new (string Name, string Sub, string Val, bool Active)[]
-        {
-            ("XInput Mode (Xbox standard)", "Full native Windows games support with rumble", "Active", true),
-            ("DirectInput Mode", "Legacy retro game and emulator compatibility", "Disabled", false),
-            ("Switch Pro Mode", "Gyroscope orientation and Nintendo layout", "Disabled", false),
-            ("Keyboard / Mouse Mode", "Desktop media keys and cursor emulation", "Disabled", false)
-        };
-
-        foreach (var (name, sub, val, active) in protoModes)
-        {
-            var row = new Border
-            {
-                Height = 64,
-                BorderThickness = new Thickness(0, 0, 0, 1),
-                BorderBrush = DuskKit.B("rgba(255,255,255,.07)"),
-                Background = active ? DuskKit.B("rgba(255,255,255,.05)") : Brushes.Transparent,
-                Padding = new Thickness(16, 0, 16, 0),
-                CornerRadius = new CornerRadius(4)
-            };
-
-            var grid = new Grid();
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-            var nameStack = new StackPanel { Orientation = Orientation.Vertical, VerticalAlignment = VerticalAlignment.Center };
-            nameStack.Children.Add(new TextBlock
-            {
-                Text = name,
-                FontFamily = DuskKit.Display,
-                FontSize = 19,
-                FontWeight = FontWeights.SemiBold,
-                Foreground = active ? DuskKit.WhiteBrush : DuskKit.LightBrush
-            });
-            nameStack.Children.Add(new TextBlock
-            {
-                Text = sub,
-                FontFamily = DuskKit.Body,
-                FontSize = 13,
-                Foreground = DuskKit.MuteBrush,
-                Margin = new Thickness(0, 2, 0, 0)
-            });
-            Grid.SetColumn(nameStack, 0);
-            grid.Children.Add(nameStack);
-
-            // Toggle switch (.tg)
-            var tg = new Border
-            {
-                Width = 58,
-                Height = 30,
-                CornerRadius = new CornerRadius(15),
-                Background = active ? DuskKit.B("#1a9fff") : DuskKit.SlateTabOnBrush,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            var tgCanvas = new Canvas { Width = 58, Height = 30 };
-            var knob = new Border
-            {
-                Width = 24,
-                Height = 24,
-                CornerRadius = new CornerRadius(12),
-                Background = DuskKit.WhiteBrush
-            };
-            Canvas.SetLeft(knob, active ? 31 : 3);
-            Canvas.SetTop(knob, 3);
-            tgCanvas.Children.Add(knob);
-            tg.Child = tgCanvas;
-            Grid.SetColumn(tg, 1);
-            grid.Children.Add(tg);
-
-            row.Child = grid;
-            leftStack.Children.Add(row);
-        }
+        var state = new TextBlock { Foreground = DuskKit.WhiteBrush, FontFamily = DuskKit.Display, FontSize = 22, TextWrapping = TextWrapping.Wrap, Margin = new(16,10,0,14) }; state.SetBinding(TextBlock.TextProperty, new Binding("Text") { Source = source.HybridStatus }); leftStack.Children.Add(state);
+        var toggle = new CheckBox { Content = "PC mode", Foreground = DuskKit.WhiteBrush, FontFamily = DuskKit.Display, FontSize = 20, Margin = new(16,8,0,18), Tag = "theme:pc:switch" }; toggle.SetBinding(CheckBox.IsCheckedProperty, new Binding("IsChecked") { Source = source.Switch, Mode = BindingMode.TwoWay }); leftStack.Children.Add(toggle);
+        leftStack.Children.Add(new TextBlock { Text = "Settings for", Foreground = DuskKit.LightBrush, Margin = new(16,0,0,8) });
+        var profile = new ComboBox { DisplayMemberPath = "Label", SelectedValuePath = "Id", Width = 520, Height = 42, HorizontalAlignment = HorizontalAlignment.Left, Margin = new(16,0,0,18), Tag = "theme:pc:profile" };
+        profile.SetBinding(ItemsControl.ItemsSourceProperty, new Binding("ItemsSource") { Source = source.HybridProfiles }); profile.SetBinding(System.Windows.Controls.Primitives.Selector.SelectedValueProperty, new Binding("SelectedValue") { Source = source.HybridProfiles, Mode = BindingMode.TwoWay }); leftStack.Children.Add(profile);
+        foreach (string page in new[] { "Buttons", "Curves", "Macros" }) leftStack.Children.Add(DuskMacroAction("Edit " + page, "pc:edit:" + page, () => DuskSelectPage(page)));
+        var more = DuskMacroAction("More PC settings", "pc:more", () => { }); leftStack.Children.Add(more);
+        var details = new ScrollViewer { Width = 590, Height = 520, Content = source, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, Visibility = Visibility.Collapsed, Tag = "theme:pc:details" }; Canvas.SetLeft(details,0); Canvas.SetTop(details,0); contentCanvas.Children.Add(details);
+        var overview = DuskMacroAction("Back to PC overview", "pc:overview", () => { }); overview.Visibility = Visibility.Collapsed; Canvas.SetLeft(overview,0); Canvas.SetTop(overview,535); contentCanvas.Children.Add(overview);
+        void ShowDetails(bool show) { leftStack.Visibility = show ? Visibility.Collapsed : Visibility.Visible; details.Visibility = show ? Visibility.Visible : Visibility.Collapsed; overview.Visibility = show ? Visibility.Visible : Visibility.Collapsed; }
+        more.Click += (_, _) => ShowDetails(true); overview.Click += (_, _) => { if (!source.NoticeShown) ShowDetails(false); };
+        source.Watch(() => { overview.IsEnabled = !source.NoticeShown; if (source.NoticeShown) { ShowDetails(true); Dispatcher.BeginInvoke(source.HybridRevealNotice, System.Windows.Threading.DispatcherPriority.Loaded); } });
+        if (source.NoticeShown) { ShowDetails(true); Dispatcher.BeginInvoke(source.HybridRevealNotice, System.Windows.Threading.DispatcherPriority.Loaded); }
 
         Canvas.SetLeft(leftStack, 0);
         Canvas.SetTop(leftStack, 0);
@@ -154,7 +104,7 @@ public partial class StudioScene
             Margin = new Thickness(12, 0, 0, 0),
             Child = new TextBlock
             {
-                Text = "LOW LATENCY · 0.98MS",
+                Text = "SOFTWARE ROUTE",
                 FontFamily = DuskKit.Display,
                 FontSize = 10,
                 FontWeight = FontWeights.ExtraBold,
@@ -167,8 +117,8 @@ public partial class StudioScene
         // Cybernetic signal nodes
         var nodes = new (string Name, string Sub, string Icon, Color DotCol, Color BorderCol)[]
         {
-            ("Physical Hardware", "Raw USB HID · 1000 Hz", "\uE7FC", DuskKit.GreenOnline, DuskKit.C("#3d4450")),
-            ("ViGEmBus Emulation", "Kernel Bus Intercept v1.22", "\uE777", DuskKit.CyanNeon, DuskKit.CyanNeon),
+            ("Physical Hardware", "The controller as Windows sees it", "\uE7FC", DuskKit.GreenOnline, DuskKit.C("#3d4450")),
+            ("ViGEmBus Emulation", "Virtual controller bus", "\uE777", DuskKit.CyanNeon, DuskKit.CyanNeon),
             ("Virtual XInput Pad", "DirectX / Xbox 360 Compatible", "\uE977", DuskKit.GreenOnline, DuskKit.GreenOnline)
         };
 
@@ -234,7 +184,7 @@ public partial class StudioScene
                 var connector = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 4, 0, 4) };
                 connector.Children.Add(new TextBlock
                 {
-                    Text = "↓  1000 HZ USB POLLING · ZERO LOSS  ↓",
+                    Text = "↓  LOCAL PC PROCESSING  ↓",
                     FontFamily = DuskKit.Display,
                     FontSize = 11,
                     FontWeight = FontWeights.Bold,
@@ -270,7 +220,7 @@ public partial class StudioScene
         });
         dStack.Children.Add(new TextBlock
         {
-            Text = "ViGEmBus & HidHide Ready",
+            Text = source.StatusText,
             FontFamily = DuskKit.Display,
             FontSize = 20,
             FontWeight = FontWeights.Bold,
@@ -279,12 +229,14 @@ public partial class StudioScene
         });
         dStack.Children.Add(new TextBlock
         {
-            Text = "Direct hardware masking active. Physical DirectInput device hidden to eliminate double input glitches.",
+            Text = source.StatusDetail,
             FontFamily = DuskKit.Body,
             FontSize = 14,
             Foreground = DuskKit.LightBrush,
             TextWrapping = TextWrapping.Wrap
         });
+        ((TextBlock)dStack.Children[1]).SetBinding(TextBlock.TextProperty, new Binding("Text") { Source = source.HybridStatus });
+        ((TextBlock)dStack.Children[2]).SetBinding(TextBlock.TextProperty, new Binding("Text") { Source = source.HybridStatusDetail });
         driverCard.Child = dStack;
         rightStack.Children.Add(driverCard);
 
@@ -295,12 +247,12 @@ public partial class StudioScene
         var shell = DuskKit.SettingsShell(
             activeKey: "pcmode",
             title: "PC Mode & Routing",
-            lead: "Configure direct USB, Bluetooth, and 2.4G wireless virtual controller routing.",
+            lead: "Software remapping, response curves, macros and per-game profiles.",
             content: contentCanvas,
             hints: hints,
             onNav: key => DuskSelectPage(key)
         );
 
-        duskPageHost.Children.Add(shell);
+        duskPcView = shell; duskPageHost.Children.Add(shell);
     }
 }

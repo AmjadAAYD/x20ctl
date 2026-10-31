@@ -289,7 +289,7 @@ public static class HybridKit
         // Time
         panel.Children.Add(new TextBlock
         {
-            Text = "19:24",
+            Text = ThemeClock.Now,
             FontFamily = Body,
             FontSize = 16,
             FontWeight = FontWeights.Normal,
@@ -583,26 +583,7 @@ public static class HybridKit
     /// </summary>
     public static Image? ControllerArt(string modelId = "d10-purple", double width = 690)
     {
-        string safe = modelId.Replace("_", "-").ToLowerInvariant();
-        if (safe.Contains("purple")) safe = "d10-purple";
-        else if (safe.Contains("starfield")) safe = "x15-starfield";
-        else if (safe.Contains("wukong")) safe = "x15-wukong";
-        else if (safe == "x05" || safe == "x05a") safe = "x05pro";
-
-        string path = System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "art", $"{safe}.png");
-        if (!System.IO.File.Exists(path))
-        {
-            path = System.IO.Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "Assets", "art", $"{safe}.png");
-        }
-        if (!System.IO.File.Exists(path)) return null;
-
-        var img = new Image
-        {
-            Width = width,
-            Source = new System.Windows.Media.Imaging.BitmapImage(new Uri(System.IO.Path.GetFullPath(path))),
-            Stretch = Stretch.Uniform
-        };
-        return img;
+        return ThemeArt.Load(modelId, width);
     }
 
     /// <summary>
@@ -936,7 +917,7 @@ public static class HybridKit
 
         var pTime = new TextBlock
         {
-            Text = "19:24",
+            Text = ThemeClock.Now,
             FontFamily = Body,
             FontSize = 14,
             Foreground = B("#9a93a6"),

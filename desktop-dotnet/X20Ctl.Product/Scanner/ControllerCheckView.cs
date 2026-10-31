@@ -113,7 +113,7 @@ public sealed partial class ControllerCheckView : Grid
             Kit.Text("WINDOWS READER", 12, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(2, 0, 0, 8)),
             new Border { CornerRadius = new(12), Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(30, 255, 255, 255))), BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(34, 255, 255, 255))), BorderThickness = new(1), Padding = new(1), Child = readerRow },
             new Grid { Margin = new(0, 14, 0, 0), ColumnDefinitions = { new(), new() { Width = new(10) }, new() { Width = GridLength.Auto } }, Children = { start, fresh.Also(f => Grid.SetColumn(f, 2)) } } } };
-        DockPanel.SetDock(leftFoot, Dock.Bottom); left.Children.Add(leftFoot); left.Children.Add(slotStack);
+        DockPanel.SetDock(leftFoot, Dock.Bottom); left.Children.Add(leftFoot); left.Children.Add(ThemeCatalog.Current.Id == "rebel" ? new ScrollViewer { Content = slotStack, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled } : slotStack);
         body.Children.Add(Kit.Panel("Player slots", "Press A: the slot that lights up is yours", null, left));
 
         // centre: the live diagram, the "no signal" help, or the Raw Input page
@@ -149,13 +149,17 @@ public sealed partial class ControllerCheckView : Grid
             Labelled("PRINTED MODEL (YOUR CLAIM)", model), Labelled("CONNECTED BY", transport).Also(s => s.Margin = new(16, 0, 0, 0)) } };
         var inv = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new(28, 0, 0, 0), Children = { detect, details.Also(d => d.Margin = new(10, 0, 0, 0)), new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new(16, 0, 0, 0), Children = { inventoryText, new StackPanel { Orientation = Orientation.Horizontal, Margin = new(0, 6, 0, 0), Children = { serial, Kit.Text("Include serial numbers (optional, private)", 12.5, "DS.TextMuted").Also(t => t.Margin = new(10, 0, 0, 0)) } } } } } };
         var savers = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Children = { rawToggle, open.Also(o => o.Margin = new(10, 0, 10, 0)), save } };
-        var foot = new DockPanel(); DockPanel.SetDock(savers, Dock.Right); foot.Children.Add(savers); foot.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = { claims, inv } });
+        var foot = new DockPanel();
+        if (ThemeCatalog.Current.Id == "rebel") { inv.Margin = new(16, 0, 0, 8); savers.Margin = new(0, 8, 0, 0); foot.Children.Add(new WrapPanel { Children = { claims, inv, savers } }); }
+        else { DockPanel.SetDock(savers, Dock.Right); foot.Children.Add(savers); foot.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = { claims, inv } }); }
         var footPanel = Kit.Panel(null, null, null, foot, new(22, 14, 22, 14)); Grid.SetRow(footPanel, 4); page.Children.Add(footPanel);
 
         overlay.Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(225, 3, 6, 14))); Children.Add(overlay);
         BuildWarning(); Children.Add(warning); Children.Add(resultsLayer);
         if (ThemeCatalog.Current.Id == "pulse") BuildPulseReadFlow(page);
         if (ThemeCatalog.Current.Id == "spotlight") BuildSpotlightReadFlow(page);
+        if (ThemeCatalog.Current.Id == "rebel") BuildRebelReadFlow(page);
+        else if (ThemeCatalog.Current.Id == "hybrid") BuildHybridReadFlow(page);
 
         timer.Tick += (_, _) => TickInput();
         Loaded += (_, _) => { start.Focus(); if (DS.Motion) { Opacity = 0; BeginAnimation(OpacityProperty, DS.To(1, 240)); } };
@@ -416,6 +420,8 @@ public sealed partial class ControllerCheckView : Grid
         if (ThemeCatalog.Current.Id == "spotlight") BuildSpotlightReadWarning(cards, systemRow, choices, linux);
         if (ThemeCatalog.Current.Id == "nexus") BuildNexusReadWarning(cards, systemRow, choices, linux);
         if (ThemeCatalog.Current.Id == "tide") BuildTideReadWarning(cards, systemRow, choices, linux);
+        if (ThemeCatalog.Current.Id == "rebel") BuildRebelReadWarning(cards, systemRow, choices, linux);
+        else if (ThemeCatalog.Current.Id == "hybrid") BuildHybridReadWarning(cards, systemRow, choices, linux);
     }
     /// <summary>For a controller on a Linux PC: the bundled Linux Controller Check (tools/linux_controller_check), the same
     /// steps and report in a terminal, for every distro with Python 3.</summary>
@@ -533,7 +539,8 @@ public sealed partial class ControllerCheckView : Grid
                     Kit.Text(f.Confidence.ToUpperInvariant(), 11, "DS.TextMuted", FontWeights.SemiBold).Also(t => { DockPanel.SetDock(t, Dock.Right); t.VerticalAlignment = VerticalAlignment.Top; }),
                     new StackPanel { Children = { Kit.Text(f.Area, 13, "DS.TextSoft", FontWeights.SemiBold), Wrap(f.Value, 17, "DS.Text"), Wrap(f.Detail, 13, "DS.TextMuted").Also(t => t.Margin = new(0, 3, 0, 0)) } } } } });
         string status = !saved ? "The report couldn't be saved: " + outcome.Text : "Saved: " + lastSaved;
-        string sent = receipt != null ? $"Sent to X20CTLADMIN · receipt {receipt}" : failure != null ? $"Not sent to X20CTLADMIN ({failure}). The ZIP is saved; you can share it by hand." : "Kept on this PC (not sent).";
+        bool describeAsSaved = saved || ThemeCatalog.Current.Id is not ("rebel" or "hybrid");
+        string sent = receipt != null ? $"Sent to X20CTLADMIN · receipt {receipt}" : failure != null ? $"Not sent to X20CTLADMIN ({failure}). " + (describeAsSaved ? "The ZIP is saved; you can share it by hand." : "The ZIP could not be saved.") : describeAsSaved ? "Kept on this PC (not sent)." : "Not saved or sent.";
         var copy = Action("", "Copy @" + ScanFlow.Discord, "ActionButton"); copy.Click += (_, _) => { try { Clipboard.SetText(ScanFlow.Discord); SetLabel(copy, "Copied"); } catch (System.Runtime.InteropServices.ExternalException) { } };
         var open = Action("", "Open reports folder", "ActionButton"); open.Click += (_, _) => OpenReports();
         var done = Action("", "Done", "PrimaryButton"); done.Click += (_, _) => Fx.Leave(resultsLayer, () => resultsLayer.Visibility = Visibility.Collapsed, 1.02, 200);
@@ -563,8 +570,8 @@ public sealed partial class ControllerCheckView : Grid
         DockPanel.SetDock(side, Dock.Right); body.Children.Add(side);
         body.Children.Add(new DockPanel { Children = { new StackPanel { Margin = new(0, 0, 0, 16), Children = { Kit.Text("Scan complete", 40, "DS.Text", FontWeights.Bold), Wrap("Everything X20CTL could read from this controller, and how sure each reading is.", 16, "DS.TextSoft") } }.Also(s => DockPanel.SetDock(s, Dock.Top)),
             new ScrollViewer { Content = list, VerticalScrollBarVisibility = ScrollBarVisibility.Auto } } });
-        resultsLayer.Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(248, 5, 9, 20))); resultsLayer.Child = body; resultsLayer.Visibility = Visibility.Visible; Fx.Appear(resultsLayer, 1.03, 320);
-        big.Text = "All done"; prompt.Text = "The scan is complete. The results are on screen and the report is saved."; scanMode = false; done.Focus();
+        resultsLayer.Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(248, 5, 9, 20))); resultsLayer.Child = ThemeCatalog.Current.Id == "rebel" ? RebelReadResults(body) : ThemeCatalog.Current.Id == "hybrid" ? HybridReadResults(body) : body; resultsLayer.Visibility = Visibility.Visible; Fx.Appear(resultsLayer, 1.03, 320);
+        big.Text = "All done"; prompt.Text = describeAsSaved ? "The scan is complete. The results are on screen and the report is saved." : "The scan is complete. The results are on screen, but the report could not be saved."; scanMode = false; done.Focus();
     }
 
     /// <summary>Runs just the steps that weren't seen, then saves (and, if chosen, sends) a new report with every result.</summary>
@@ -753,6 +760,16 @@ public sealed partial class ControllerCheckView : Grid
         }
         private void Paint()
         {
+            if (ThemeCatalog.Current.Id == "rebel")
+            {
+                bool lit = selected || IsKeyboardFocused || IsMouseOver;
+                face.CornerRadius = new(0); face.Background = Rebel.Ink.B(lit ? Rebel.Ink.White : Rebel.Ink.Panel);
+                face.BorderBrush = Rebel.Ink.B(lit ? Rebel.Ink.Red : Rebel.Ink.A(Rebel.Ink.White, .3));
+                face.Effect = lit ? Rebel.Ink.Shadow(5, 5, 0, Rebel.Ink.Red, 1) : null;
+                Rebel.RebelToolFrame.InkText(face, lit ? Rebel.Ink.Black : Rebel.Ink.White);
+                dot.Fill = Rebel.Ink.B(input ? Rebel.Ink.Red : present ? Rebel.Ink.White : Rebel.Ink.Grey); dot.Effect = null;
+                Opacity = IsEnabled || selected ? 1 : .7; return;
+            }
             var accent = input ? Green : Kit.Blue;
             face.Background = input ? new SolidColorBrush(Color.FromArgb(60, Green.R, Green.G, Green.B)) : new SolidColorBrush(Color.FromArgb(selected ? (byte)40 : (byte)18, 120, 160, 230));
             face.BorderBrush = IsKeyboardFocused || IsMouseOver ? Brushes.White : selected ? new SolidColorBrush(Color.FromArgb(220, accent.R, accent.G, accent.B)) : new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(36, 255, 255, 255)));

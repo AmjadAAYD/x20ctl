@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -10,24 +11,36 @@ using X20Ctl.Product.Blossom;
 namespace X20Ctl.Product;
 
 /// <summary>
-/// Setups workbench presentation for the Yozakura (Blossom) theme:
-/// "Setups are traditional Japanese festival fans (Uchiwa): the setup's artwork
-/// on a round washi paper face with a bamboo rim and carved timber handle."
+/// Setups library presentation for the Yozakura (Blossom) theme:
+/// "The active profile is painted on a large festival fan (Uchiwa);
+/// saved profiles hang from a bamboo rack like prayer plaques at a shrine."
 /// Strictly implements t_blossom.py:setups().
 /// </summary>
 public partial class StudioScene
 {
+    private bool blossomSetupsWired;
+
     private void RenderBlossomSetups(Canvas host)
     {
-        // 1. Sky & Corner Canopy
+        if (Setups is not { } setups) return;
+
+        if (!blossomSetupsWired)
+        {
+            blossomSetupsWired = true;
+            setups.Watch(BlossomLater);
+        }
+
+        string rawModel = !string.IsNullOrEmpty(Model?.Name) ? Model.Name.Trim() : "CONTROLLER";
+        string shortModel = rawModel.StartsWith("EasySMX ", StringComparison.OrdinalIgnoreCase)
+            ? rawModel.Substring("EasySMX ".Length).Trim()
+            : (rawModel.StartsWith("EASYSMX ", StringComparison.OrdinalIgnoreCase) ? rawModel.Substring("EASYSMX ".Length).Trim() : rawModel);
+
+        // 1. Sky & Backdrop
         var sky = new Rectangle { Width = 1600, Height = 900, Fill = BlossomKit.CreateSkyBackdrop() };
         host.Children.Add(sky);
 
-        // Corner weeping branch canopy
-        host.Children.Add(BlossomKit.CanopyBranch("corner", 11));
-
         // Drifting petals
-        host.Children.Add(BlossomKit.DriftingPetals(new Rect(940, 160, 620, 540), 12, 11));
+        host.Children.Add(BlossomKit.DriftingPetals(new Rect(240, 140, 1320, 240), 10, 8));
 
         // Left Navigation Rail
         RenderBlossomLeftNav(host, "setups");
@@ -46,7 +59,7 @@ public partial class StudioScene
 
         var leadTb = new TextBlock
         {
-            Text = "Saved controller profiles with dedicated response curves, button remappings, and haptic calibrations.",
+            Text = $"{setups.Cards.Count} SAVED SETUPS · {shortModel.ToUpperInvariant()}",
             FontFamily = BlossomKit.Body,
             FontSize = 16,
             Foreground = BlossomKit.TextMuteBrush
@@ -55,7 +68,7 @@ public partial class StudioScene
         Canvas.SetTop(leadTb, 102);
         host.Children.Add(leadTb);
 
-        // 3. Left Side: Active Large Festival Fan (Uchiwa, 300px) at (410, 316)
+        // 3. Left Side: Selected Large Festival Fan (Uchiwa, 300px) at (410, 316)
         var auraGlow = new Ellipse
         {
             Width = 520,
@@ -79,11 +92,16 @@ public partial class StudioScene
         Canvas.SetTop(mainFan, 166);
         host.Children.Add(mainFan);
 
+        var cardList = setups.Cards;
+        var (selId, selName, selState) = cardList.FirstOrDefault(c => c.Id == setups.SelectedId);
+        if (string.IsNullOrEmpty(selId) && cardList.Count > 0) (selId, selName, selState) = cardList[0];
+        if (string.IsNullOrEmpty(selName)) selName = "No Setup Selected";
+
         // Active Setup Details at (600, 176, width 320)
         var detailStack = new StackPanel { Width = 320 };
         detailStack.Children.Add(new TextBlock
         {
-            Text = "ACTIVE PROFILE",
+            Text = "SELECTED SETUP",
             FontFamily = BlossomKit.Small,
             FontSize = 11,
             FontWeight = FontWeights.Bold,
@@ -91,9 +109,9 @@ public partial class StudioScene
         });
         detailStack.Children.Add(new TextBlock
         {
-            Text = "Pro Mechanical",
+            Text = selName,
             FontFamily = BlossomKit.Display,
-            FontSize = 36,
+            FontSize = 32,
             Foreground = BlossomKit.B("#ffe6cc"),
             Margin = new Thickness(0, 6, 0, 0)
         });
@@ -117,7 +135,7 @@ public partial class StudioScene
             Effect = new DropShadowEffect { Color = Color.FromRgb(0xff, 0x96, 0x5a), BlurRadius = 14, ShadowDepth = 0, Opacity = 0.5 },
             Child = new TextBlock
             {
-                Text = "SAVED ON CONTROLLER",
+                Text = selState ?? "SAVED LOCALLY",
                 FontFamily = BlossomKit.Small,
                 FontSize = 11,
                 FontWeight = FontWeights.Bold,
@@ -128,28 +146,22 @@ public partial class StudioScene
 
         detailStack.Children.Add(new TextBlock
         {
-            Text = "Matches active connected hardware model.",
+            Text = $"Target controller: {shortModel}",
             FontFamily = BlossomKit.Body,
-            FontSize = 15,
+            FontSize = 14,
             Foreground = BlossomKit.TextMuteBrush,
             Margin = new Thickness(0, 10, 0, 16)
         });
 
-        // 2-Column Stats Grid
-        var stats = new (string Key, string Val)[]
-        {
-            ("Sampling", "1000 Hz"),
-            ("Curve Profile", "Aggressive Linear"),
-            ("Stick Deadzone", "4%"),
-            ("Vibration Level", "70%")
-        };
+        // 2-Column Stats Grid from setups.Metrics
+        var metrics = setups.Metrics;
         var statGrid = new Grid();
         statGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         statGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         statGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         statGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
-        for (int i = 0; i < stats.Length; i++)
+        for (int i = 0; i < metrics.Count; i++)
         {
             var cell = new Border
             {
@@ -161,8 +173,8 @@ public partial class StudioScene
             var cg = new Grid();
             cg.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             cg.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            cg.Children.Add(new TextBlock { Text = stats[i].Key, FontFamily = BlossomKit.Body, FontSize = 14, Foreground = BlossomKit.TextWhiteBrush });
-            var vt = new TextBlock { Text = stats[i].Val, FontFamily = BlossomKit.Body, FontSize = 14, Foreground = BlossomKit.TextAmberBrush };
+            cg.Children.Add(new TextBlock { Text = metrics[i].Label, FontFamily = BlossomKit.Body, FontSize = 14, Foreground = BlossomKit.TextWhiteBrush });
+            var vt = new TextBlock { Text = metrics[i].Value, FontFamily = BlossomKit.Body, FontSize = 14, Foreground = BlossomKit.TextAmberBrush };
             Grid.SetColumn(vt, 1);
             cg.Children.Add(vt);
             cell.Child = cg;
@@ -173,31 +185,128 @@ public partial class StudioScene
         }
         detailStack.Children.Add(statGrid);
 
+        // Rename Editor Panel (if rename is active)
+        if (setups.RenameActive)
+        {
+            var renameStack = new StackPanel { Margin = new Thickness(0, 12, 0, 0) };
+            renameStack.Children.Add(new TextBlock
+            {
+                Text = "RENAME SETUP",
+                FontFamily = BlossomKit.Small,
+                FontSize = 11,
+                FontWeight = FontWeights.Bold,
+                Foreground = BlossomKit.TextSakuraBrush,
+                Margin = new Thickness(0, 0, 0, 4)
+            });
+
+            var nameBox = setups.TakeNameField();
+            nameBox.Width = 300;
+            nameBox.Height = 36;
+            nameBox.FontSize = 14;
+            nameBox.Background = BlossomKit.B("rgba(255,220,232,0.1)");
+            nameBox.Foreground = BlossomKit.TextWhiteBrush;
+            nameBox.BorderBrush = BlossomKit.TextSakuraBrush;
+            nameBox.BorderThickness = new Thickness(1);
+            nameBox.Margin = new Thickness(0, 0, 0, 8);
+            renameStack.Children.Add(nameBox);
+
+            var renameBtns = new StackPanel { Orientation = Orientation.Horizontal };
+            var saveNameBorder = new Border
+            {
+                Height = 36,
+                Padding = new Thickness(16, 0, 16, 0),
+                CornerRadius = new CornerRadius(18),
+                Background = BlossomKit.CreateWarmLanternBrush(),
+                Margin = new Thickness(0, 0, 8, 0),
+                Cursor = Cursors.Hand,
+                Child = new TextBlock { Text = "Save name", FontFamily = BlossomKit.Body, FontSize = 13, Foreground = BlossomKit.B("#4a140f"), VerticalAlignment = VerticalAlignment.Center }
+            };
+            renameBtns.Children.Add(ThemeAction(saveNameBorder, "theme:setup:save-name", () => setups.Click("saveName")));
+
+            var cancelRenameBorder = new Border
+            {
+                Height = 36,
+                Padding = new Thickness(16, 0, 16, 0),
+                CornerRadius = new CornerRadius(18),
+                Background = BlossomKit.B("rgba(255,220,232,0.1)"),
+                Cursor = Cursors.Hand,
+                Child = new TextBlock { Text = "Cancel", FontFamily = BlossomKit.Body, FontSize = 13, Foreground = BlossomKit.TextWhiteBrush, VerticalAlignment = VerticalAlignment.Center }
+            };
+            renameBtns.Children.Add(ThemeAction(cancelRenameBorder, "theme:setup:cancel-rename", () =>
+            {
+                setups.Click("cancelRename");
+                BlossomLater();
+            }));
+            renameStack.Children.Add(renameBtns);
+            detailStack.Children.Add(renameStack);
+        }
+
         Canvas.SetLeft(detailStack, 600);
         Canvas.SetTop(detailStack, 176);
         host.Children.Add(detailStack);
 
         // Action Buttons at (236, 646)
         var actionStack = new StackPanel { Orientation = Orientation.Horizontal };
-        var applyBtn = new Border
+        if (setups.DeletePending)
         {
-            Height = 46,
-            Padding = new Thickness(24, 0, 24, 0),
-            CornerRadius = new CornerRadius(23),
-            Background = BlossomKit.CreateWarmLanternBrush(),
-            Margin = new Thickness(0, 0, 10, 0),
-            Cursor = Cursors.Hand,
-            Effect = new DropShadowEffect { Color = Color.FromRgb(0xff, 0x96, 0x5a), BlurRadius = 18, ShadowDepth = 0, Opacity = 0.6 }
-        };
-        var aSt = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        aSt.Children.Add(CreateKeyBadge("A", true));
-        aSt.Children.Add(new TextBlock { Text = "Apply to controller", FontFamily = BlossomKit.Body, FontSize = 17, Foreground = BlossomKit.B("#4a140f"), Margin = new Thickness(10, 0, 0, 0) });
-        applyBtn.Child = aSt;
-        actionStack.Children.Add(applyBtn);
+            var delWarn = new TextBlock
+            {
+                Text = setups.DeleteQuestion,
+                FontFamily = BlossomKit.Body,
+                FontSize = 14,
+                FontWeight = FontWeights.Bold,
+                Foreground = BlossomKit.TextSakuraBrush,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 16, 0)
+            };
+            actionStack.Children.Add(delWarn);
 
-        foreach (var act in new[] { "Duplicate", "Export profile", "Delete" })
+            var confirmBtn = new Border
+            {
+                Height = 44,
+                Padding = new Thickness(22, 0, 22, 0),
+                CornerRadius = new CornerRadius(22),
+                Background = BlossomKit.CreateWarmLanternBrush(),
+                Margin = new Thickness(0, 0, 10, 0),
+                Cursor = Cursors.Hand,
+                Child = new TextBlock { Text = "Delete setup", FontFamily = BlossomKit.Body, FontSize = 15, Foreground = BlossomKit.B("#4a140f"), VerticalAlignment = VerticalAlignment.Center }
+            };
+            actionStack.Children.Add(ThemeAction(confirmBtn, "theme:setup:remove", () => setups.Click("remove")));
+
+            var keepBtn = new Border
+            {
+                Height = 44,
+                Padding = new Thickness(22, 0, 22, 0),
+                CornerRadius = new CornerRadius(22),
+                Background = BlossomKit.B("rgba(255,220,232,0.1)"),
+                BorderBrush = BlossomKit.B("rgba(255,220,232,0.3)"),
+                BorderThickness = new Thickness(1),
+                Cursor = Cursors.Hand,
+                Child = new TextBlock { Text = "Keep setup", FontFamily = BlossomKit.Body, FontSize = 15, Foreground = BlossomKit.TextWhiteBrush, VerticalAlignment = VerticalAlignment.Center }
+            };
+            keepBtn.Tag = "theme:macro:setup-keep";
+            actionStack.Children.Add(ThemeAction(keepBtn, "theme:setup:keep", () => setups.Click("keep")));
+        }
+        else
         {
-            var btnBorder = new Border
+            var applyBtn = new Border
+            {
+                Height = 46,
+                Padding = new Thickness(24, 0, 24, 0),
+                CornerRadius = new CornerRadius(23),
+                Background = BlossomKit.CreateWarmLanternBrush(),
+                Margin = new Thickness(0, 0, 10, 0),
+                Cursor = Cursors.Hand,
+                Effect = new DropShadowEffect { Color = Color.FromRgb(0xff, 0x96, 0x5a), BlurRadius = 18, ShadowDepth = 0, Opacity = 0.6 }
+            };
+            var aSt = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            aSt.Children.Add(CreateKeyBadge("A", true));
+            aSt.Children.Add(new TextBlock { Text = "Open Setup", FontFamily = BlossomKit.Body, FontSize = 17, Foreground = BlossomKit.B("#4a140f"), Margin = new Thickness(10, 0, 0, 0) });
+            applyBtn.Child = aSt;
+            applyBtn.Tag = "theme:setup:open";
+            actionStack.Children.Add(ThemeAction(applyBtn, "theme:setup:apply", () => setups.Click("open"), setups.Can("open")));
+
+            var dupBtn = new Border
             {
                 Height = 46,
                 Padding = new Thickness(20, 0, 20, 0),
@@ -207,10 +316,52 @@ public partial class StudioScene
                 BorderThickness = new Thickness(1.5),
                 Margin = new Thickness(0, 0, 10, 0),
                 Cursor = Cursors.Hand,
-                Child = new TextBlock { Text = act, FontFamily = BlossomKit.Body, FontSize = 15, Foreground = BlossomKit.TextWhiteBrush, VerticalAlignment = VerticalAlignment.Center }
+                Child = new TextBlock { Text = "Duplicate", FontFamily = BlossomKit.Body, FontSize = 15, Foreground = BlossomKit.TextWhiteBrush, VerticalAlignment = VerticalAlignment.Center }
             };
-            actionStack.Children.Add(btnBorder);
+            actionStack.Children.Add(ThemeAction(dupBtn, "theme:setup:duplicate", () => setups.Click("duplicate"), setups.Can("duplicate")));
+
+            var renameBtn = new Border
+            {
+                Height = 46,
+                Padding = new Thickness(20, 0, 20, 0),
+                CornerRadius = new CornerRadius(23),
+                Background = BlossomKit.B("rgba(255,220,232,0.06)"),
+                BorderBrush = BlossomKit.B("rgba(246,233,236,0.5)"),
+                BorderThickness = new Thickness(1.5),
+                Margin = new Thickness(0, 0, 10, 0),
+                Cursor = Cursors.Hand,
+                Child = new TextBlock { Text = "Rename", FontFamily = BlossomKit.Body, FontSize = 15, Foreground = BlossomKit.TextWhiteBrush, VerticalAlignment = VerticalAlignment.Center }
+            };
+            actionStack.Children.Add(ThemeAction(renameBtn, "theme:setup:rename", () => setups.Click("rename"), setups.Can("rename")));
+
+            var expBtn = new Border
+            {
+                Height = 46,
+                Padding = new Thickness(20, 0, 20, 0),
+                CornerRadius = new CornerRadius(23),
+                Background = BlossomKit.B("rgba(255,220,232,0.06)"),
+                BorderBrush = BlossomKit.B("rgba(246,233,236,0.5)"),
+                BorderThickness = new Thickness(1.5),
+                Margin = new Thickness(0, 0, 10, 0),
+                Cursor = Cursors.Hand,
+                Child = new TextBlock { Text = "Export", FontFamily = BlossomKit.Body, FontSize = 15, Foreground = BlossomKit.TextWhiteBrush, VerticalAlignment = VerticalAlignment.Center }
+            };
+            actionStack.Children.Add(ThemeAction(expBtn, "theme:setup:export", () => setups.Click("export"), setups.Can("export")));
+
+            var delBtn = new Border
+            {
+                Height = 46,
+                Padding = new Thickness(20, 0, 20, 0),
+                CornerRadius = new CornerRadius(23),
+                Background = BlossomKit.B("rgba(255,220,232,0.06)"),
+                BorderBrush = BlossomKit.B("rgba(255,80,80,0.4)"),
+                BorderThickness = new Thickness(1.5),
+                Cursor = Cursors.Hand,
+                Child = new TextBlock { Text = "Delete", FontFamily = BlossomKit.Body, FontSize = 15, Foreground = BlossomKit.B("#ff8080"), VerticalAlignment = VerticalAlignment.Center }
+            };
+            actionStack.Children.Add(ThemeAction(delBtn, "theme:setup:delete", () => setups.Click("delete"), setups.Can("delete")));
         }
+
         Canvas.SetLeft(actionStack, 236);
         Canvas.SetTop(actionStack, 646);
         host.Children.Add(actionStack);
@@ -236,37 +387,33 @@ public partial class StudioScene
         Canvas.SetTop(bambooBar, 250);
         host.Children.Add(bambooBar);
 
-        // 6 Fans on rack
-        var fanCards = new (string Name, string ModelKey, bool Active)[]
-        {
-            ("Pro Mechanical", "x20", true),
-            ("Fighting Stance", "x20-black", false),
-            ("Racing Sim", "x15-wukong", false),
-            ("Empty Slot 4", "", false),
-            ("Empty Slot 5", "", false),
-            ("Empty Slot 6", "", false)
-        };
-
+        // Fans on rack from setups.Cards
         for (int i = 0; i < 6; i++)
         {
-            var fc = fanCards[i];
             double fx = 1050 + (i % 3) * 196;
             double fy = 270 + (i / 3) * 230;
 
-            if (!string.IsNullOrEmpty(fc.ModelKey))
+            if (i < setups.Cards.Count)
             {
-                var fanElem = BlossomKit.UchiwaFan(140, fc.ModelKey, fc.Active);
+                var card = setups.Cards[i];
+                bool isSelected = card.Id == setups.SelectedId;
+                var fanElem = BlossomKit.UchiwaFan(140, Model.Id, isSelected);
                 fanElem.Cursor = Cursors.Hand;
                 Canvas.SetLeft(fanElem, fx - 70);
                 Canvas.SetTop(fanElem, fy);
-                host.Children.Add(fanElem);
+                string cardId = card.Id;
+                host.Children.Add(ThemeAction(fanElem, "theme:setup:card:" + cardId, () =>
+                {
+                    setups.Select(cardId);
+                    BlossomLater();
+                }));
 
                 var fLabelTb = new TextBlock
                 {
-                    Text = fc.Name,
+                    Text = card.Name,
                     FontFamily = BlossomKit.Heading,
-                    FontSize = 17,
-                    Foreground = fc.Active ? BlossomKit.TextAmberBrush : BlossomKit.TextWhiteBrush,
+                    FontSize = 15,
+                    Foreground = isSelected ? BlossomKit.TextAmberBrush : BlossomKit.TextWhiteBrush,
                     TextAlignment = TextAlignment.Center,
                     Width = 180
                 };
@@ -283,34 +430,80 @@ public partial class StudioScene
             }
         }
 
-        // Bottom Tools: New Setup, Import, Restore
+        // Bottom Tools: New Setup, Save Draft, Import
         var toolRow = new StackPanel { Orientation = Orientation.Horizontal };
-        foreach (var (ic, txt) in new[] { ("\uE710", "New setup"), ("\uE74E", "Import profile"), ("\uE8B5", "Restore defaults") })
+        var newSetupBorder = new Border
         {
-            var btnBorder = new Border
+            Height = 42,
+            Padding = new Thickness(18, 0, 18, 0),
+            CornerRadius = new CornerRadius(21),
+            Background = BlossomKit.B("rgba(255,220,232,0.06)"),
+            BorderBrush = BlossomKit.B("rgba(255,220,232,0.22)"),
+            BorderThickness = new Thickness(1.2),
+            Margin = new Thickness(0, 0, 12, 0),
+            Cursor = Cursors.Hand,
+            Child = new StackPanel
             {
-                Height = 42,
-                Padding = new Thickness(18, 0, 18, 0),
-                CornerRadius = new CornerRadius(21),
-                Background = BlossomKit.B("rgba(255,220,232,0.06)"),
-                BorderBrush = BlossomKit.B("rgba(255,220,232,0.22)"),
-                BorderThickness = new Thickness(1.2),
-                Margin = new Thickness(0, 0, 12, 0),
-                Cursor = Cursors.Hand
-            };
-            var bStack = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            bStack.Children.Add(new TextBlock { Text = ic, FontFamily = BlossomKit.Icons, FontSize = 14, Foreground = BlossomKit.B("#e3cfd6"), Margin = new Thickness(0, 0, 8, 0) });
-            bStack.Children.Add(new TextBlock { Text = txt, FontFamily = BlossomKit.Body, FontSize = 15, Foreground = BlossomKit.B("#e3cfd6") });
-            btnBorder.Child = bStack;
-            toolRow.Children.Add(btnBorder);
-        }
+                Orientation = Orientation.Horizontal,
+                Children =
+                {
+                    new TextBlock { Text = "\uE710", FontFamily = BlossomKit.Icons, FontSize = 14, Foreground = BlossomKit.B("#e3cfd6"), Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center },
+                    new TextBlock { Text = "+ New setup", FontFamily = BlossomKit.Body, FontSize = 15, Foreground = BlossomKit.B("#e3cfd6"), VerticalAlignment = VerticalAlignment.Center }
+                }
+            }
+        };
+        toolRow.Children.Add(ThemeAction(newSetupBorder, "theme:setup:new", () => setups.Click("new"), setups.Can("new")));
+
+        var saveDraftBorder = new Border
+        {
+            Height = 42,
+            Padding = new Thickness(18, 0, 18, 0),
+            CornerRadius = new CornerRadius(21),
+            Background = BlossomKit.B("rgba(255,220,232,0.06)"),
+            BorderBrush = BlossomKit.B("rgba(255,220,232,0.22)"),
+            BorderThickness = new Thickness(1.2),
+            Margin = new Thickness(0, 0, 12, 0),
+            Cursor = Cursors.Hand,
+            Child = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Children =
+                {
+                    new TextBlock { Text = "\uE74E", FontFamily = BlossomKit.Icons, FontSize = 14, Foreground = BlossomKit.B("#e3cfd6"), Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center },
+                    new TextBlock { Text = "Save draft", FontFamily = BlossomKit.Body, FontSize = 15, Foreground = BlossomKit.B("#e3cfd6"), VerticalAlignment = VerticalAlignment.Center }
+                }
+            }
+        };
+        toolRow.Children.Add(ThemeAction(saveDraftBorder, "theme:setup:save", () => setups.Click("save"), setups.Can("save")));
+
+        var impSetupBorder = new Border
+        {
+            Height = 42,
+            Padding = new Thickness(18, 0, 18, 0),
+            CornerRadius = new CornerRadius(21),
+            Background = BlossomKit.B("rgba(255,220,232,0.06)"),
+            BorderBrush = BlossomKit.B("rgba(255,220,232,0.22)"),
+            BorderThickness = new Thickness(1.2),
+            Cursor = Cursors.Hand,
+            Child = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Children =
+                {
+                    new TextBlock { Text = "\uE8B7", FontFamily = BlossomKit.Icons, FontSize = 14, Foreground = BlossomKit.B("#e3cfd6"), Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center },
+                    new TextBlock { Text = "Import setup", FontFamily = BlossomKit.Body, FontSize = 15, Foreground = BlossomKit.B("#e3cfd6"), VerticalAlignment = VerticalAlignment.Center }
+                }
+            }
+        };
+        toolRow.Children.Add(ThemeAction(impSetupBorder, "theme:setup:import", () => setups.Click("import"), setups.Can("import")));
+
         Canvas.SetLeft(toolRow, 960);
         Canvas.SetTop(toolRow, 744);
         host.Children.Add(toolRow);
 
         // Hints
         var hintsStack = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        hintsStack.Children.Add(CreateHint("A", "Apply"));
+        hintsStack.Children.Add(CreateHint("A", "Open"));
         hintsStack.Children.Add(CreateHint("X", "Duplicate"));
         hintsStack.Children.Add(CreateHint("Y", "Delete"));
         hintsStack.Children.Add(CreateHint("B", "Back"));

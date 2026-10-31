@@ -61,7 +61,7 @@ public partial class ZoneScene : UserControl
         ProvenanceText.Text = value == ZoneScenario.Empty ? "LIVE INPUT" : "DEMO";
         ScenarioHint.Text = value switch { ZoneScenario.OneController => "One mock assignment · F9 changes fixture", ZoneScenario.MultipleControllers => "Three mock assignments · F9 changes fixture", _ => "Waiting for controller input" };
         FeedbackText.Text = "Select any player. All four docks begin equal.";
-        if (IsRebel) { foreach (var d in docks) HookRebelDock(d); RebelSync(); } else if (IsPulse) { foreach (var d in docks) HookPulseDock(d); PulseSync(); } else if (IsSpotlight) { SpotlightSync(); } else if (IsNexus) { NexusSync(); } else if (IsTide) { TideSync(); } else if (IsHybrid) { HybridSync(); DuskSync(); } else if (IsDusk) { DuskSync(); } else if (IsVolt) { VoltSync(); } else if (IsBlossom) { BlossomSync(); } else SnapLayout();
+        if (IsRebel) { foreach (var d in docks) HookRebelDock(d); RebelSync(); } else if (IsPulse) { foreach (var d in docks) HookPulseDock(d); PulseSync(); } else if (IsSpotlight) { SpotlightSync(); } else if (IsNexus) { NexusSync(); } else if (IsTide) { TideSync(); } else if (IsHybrid) { foreach (var d in docks) HookHybridDock(d); HybridSync(); } else if (IsDusk) { DuskSync(); } else if (IsVolt) { VoltSync(); } else if (IsBlossom) { BlossomSync(); } else SnapLayout();
     }
     public void RestoreAssignments(IReadOnlyList<string?> ids, ControllerCatalog catalog)
     {
@@ -224,6 +224,16 @@ public partial class ZoneScene : UserControl
     private InputFrame Frame(Buttons buttons) => new(0, true, "simulation:zone-keys", clock.Elapsed.TotalMilliseconds, buttons);
     public async void OnKeyDown(object sender, KeyEventArgs e)
     {
+        if (IsHybrid && State.FocusedPlayer is int hybridPlayer && docks[hybridPlayer].HybridActionFocused && Keyboard.FocusedElement is Button hybridAction)
+        {
+            if (e.Key is Key.Enter or Key.A) { if (!e.IsRepeat) hybridAction.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); e.Handled = true; return; }
+            if (e.Key is Key.Up or Key.Down) { hybridAction.MoveFocus(new(e.Key == Key.Up ? FocusNavigationDirection.Up : FocusNavigationDirection.Down)); e.Handled = true; return; }
+        }
+        if (IsHybrid && !State.FocusedPlayer.HasValue && ReferenceEquals(Keyboard.FocusedElement, hybridAdd))
+        {
+            if (e.Key == Key.Left) { FocusDock(3); e.Handled = true; return; }
+            if (e.Key is Key.Enter or Key.A) { if (!e.IsRepeat) hybridAdd!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); e.Handled = true; return; }
+        }
         if(Keyboard.FocusedElement is System.Windows.Controls.Button shell && (ReferenceEquals(shell,SupportButton)||ReferenceEquals(shell,ToolsButton)))
         {
             if(e.Key==Key.Enter || e.Key==Key.A){if(!e.IsRepeat)shell.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));e.Handled=true;return;}
@@ -298,9 +308,9 @@ public partial class ZoneScene : UserControl
                 NavigationAction.Down when position >= 0 => others[Math.Min(2, position + 1)],
                 _ => selected };
         }
-        else if (IsRebel || IsPulse || IsSpotlight)
+        else if (IsRebel || IsPulse || IsSpotlight || IsHybrid)
         {   // one row of cards, then the Add card
-            if (action == NavigationAction.Right && selected == 3 && (IsPulse ? pulseAddCard : (IsSpotlight ? spotlightAddCard : addCard))!.IsVisible) { (IsPulse ? pulseAddCard : (IsSpotlight ? spotlightAddCard : addCard))!.Focus(); return; }
+            if (action == NavigationAction.Right && selected == 3 && (IsPulse ? pulseAddCard : IsHybrid ? hybridAdd : (IsSpotlight ? spotlightAddCard : addCard))!.IsVisible) { (IsPulse ? pulseAddCard : IsHybrid ? hybridAdd : (IsSpotlight ? spotlightAddCard : addCard))!.Focus(); return; }
             selected = action switch { NavigationAction.Left => Math.Max(0, selected - 1), NavigationAction.Right => Math.Min(3, selected + 1), _ => selected };
         }
         else selected = action switch {

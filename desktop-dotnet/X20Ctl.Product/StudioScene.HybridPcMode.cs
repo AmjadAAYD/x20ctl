@@ -1,316 +1,69 @@
-using System;
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Media;
-using System.Windows.Media.Effects;
 using System.Windows.Shapes;
-using X20Ctl.Product.Hybrid;
 
 namespace X20Ctl.Product;
 
 public partial class StudioScene
 {
-    private void HybridShowPcMode()
+    private PcModePage? hybridPcSource;
+    private void HybridPcModePage()
     {
-        hybridPageHost!.Children.Clear();
-        hybridPageHost.Children.Add(BuildHybridPcMode());
-    }
-
-    private FrameworkElement BuildHybridPcMode()
-    {
-        var root = new Canvas { Width = 1600, Height = 900, ClipToBounds = true };
-
-        var hints = new (string Key, string Label)[]
+        if (hybridPcMode == null) return;
+        var original = ManagementBodyHost.Children.OfType<ScrollViewer>().FirstOrDefault();
+        var source = original?.Content as PcModePage;
+        if (source == null && hybridPcSource != null && hybridPcMode.Children.Count > 0) return;
+        if (source == null) return;
+        if (ReferenceEquals(source, hybridPcSource) && hybridPcMode.Children.Count > 0) return;
+        hybridPcSource = source; original!.Content = null; hybridPcMode.Children.Clear();
+        var board = new Canvas { Width = 1600, Height = 848, Background = HBrush("#17151c"), ClipToBounds = true }; hybridPcMode.Children.Add(board);
+        HAt(board, new Rectangle { Width = 156, Height = 848, Fill = HBrush("#cbb5e4") }, 0, 0);
+        HAt(board, new Rectangle { Width = 140, Height = 848, Fill = HBrush("#29262f") }, 1460, 0);
+        HAt(board, HText("PC mode", 38, "#f5f1fa", FontWeights.ExtraBold), 216, 14);
+        HAt(board, HText("Route controller input through your PC profile.", 14, "#bdb4c8", FontWeights.SemiBold), 218, 64);
+        var pages = new (string label, string key)[] { ("Buttons", "buttons"), ("Curves", "curves"), ("Macros", "macros"), ("Vibration", "vibration"), ("PC mode", "pcmode"), ("Device", "device"), ("Mouse", "mouse"), ("Setups", "setups"), ("Tools", "tools") };
+        for (int i = 0; i < pages.Length; i++) { var (label, key) = pages[i]; var nav = HybridButton(label, "hybrid:nav:" + key, key == "pcmode", 120, 50); nav.Click += (_, _) => HybridGo(key); HAt(board, nav, 18, 88 + i * 67); }
+        var route = new StackPanel { Orientation = Orientation.Horizontal };
+        foreach (string label in new[] { "Controller", "PC profile", "Virtual controller", "Game" })
         {
-            ("A", "Apply mode"),
-            ("X", "Calibrate"),
-            ("B", "Back")
-        };
-
-        // Handheld rails background
-        root.Children.Add(HybridKit.HandheldRails("pcmode", hints, "PC Mode & Protocol", "Switch between XInput, DirectInput, and Nintendo Switch communication profiles.", key =>
-        {
-            HybridSelectPage(key);
-        }));
-
-        // Snap block chain for mode selection at (216, 150)
-        var modes = new (string Name, string Sub, bool Active)[]
-        {
-            ("DirectInput", "Legacy PC", false),
-            ("XInput", "Standard Xbox", true),
-            ("Nintendo Switch", "Console / Pro", false)
-        };
-
-        double bx = 216;
-        for (int i = 0; i < modes.Length; i++)
-        {
-            var (name, sub, active) = modes[i];
-            var block = new Border
-            {
-                Width = 186,
-                Height = 64,
-                CornerRadius = new CornerRadius(14),
-                Background = active ? HybridKit.MauveBrush : HybridKit.B("#1f1c25"),
-                BorderBrush = active ? HybridKit.CyanBrush : HybridKit.B("#34303c"),
-                BorderThickness = new Thickness(active ? 2 : 1),
-                Cursor = System.Windows.Input.Cursors.Hand,
-                Padding = new Thickness(14, 10, 14, 10),
-                Child = new StackPanel
-                {
-                    Orientation = Orientation.Vertical,
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Children =
-                    {
-                        new TextBlock
-                        {
-                            Text = name,
-                            FontFamily = HybridKit.Display,
-                            FontSize = 15,
-                            FontWeight = FontWeights.Bold,
-                            Foreground = active ? HybridKit.WhiteBrush : HybridKit.B("#d5d0df")
-                        },
-                        new TextBlock
-                        {
-                            Text = sub,
-                            FontFamily = HybridKit.Body,
-                            FontSize = 12,
-                            Foreground = active ? HybridKit.CyanBrush : HybridKit.MuteBrush
-                        }
-                    }
-                }
-            };
-            if (active)
-            {
-                block.Effect = new DropShadowEffect { Color = HybridKit.Cyan, BlurRadius = 12, ShadowDepth = 0, Opacity = 0.6 };
-            }
-
-            Canvas.SetLeft(block, bx);
-            Canvas.SetTop(block, 150);
-            root.Children.Add(block);
-
-            // Tab connector
-            if (i < modes.Length - 1)
-            {
-                var connector = new Border
-                {
-                    Width = 14,
-                    Height = 20,
-                    Background = active ? HybridKit.CyanBrush : HybridKit.B("#34303c"),
-                    CornerRadius = new CornerRadius(0, 4, 4, 0)
-                };
-                Canvas.SetLeft(connector, bx + 186);
-                Canvas.SetTop(connector, 172);
-                root.Children.Add(connector);
-            }
-
-            bx += 196;
+            var block = new Border { Width = 250, Height = 58, CornerRadius = new(14), BorderBrush = HBrush("#52dcff"), BorderThickness = new(2), Background = HBrush("#2d2933"), Margin = new(0, 0, 18, 0), Child = HText(label, 16, "#f5f1fa", FontWeights.Bold) };
+            ((TextBlock)block.Child).HorizontalAlignment = HorizontalAlignment.Center; ((TextBlock)block.Child).VerticalAlignment = VerticalAlignment.Center; route.Children.Add(block);
         }
-
-        // Active indicator line at (216, 226)
-        var statusLine = new StackPanel { Orientation = Orientation.Horizontal };
-        for (int i = 0; i < 4; i++)
-        {
-            var dash = new Border
-            {
-                Width = 16,
-                Height = 5,
-                CornerRadius = new CornerRadius(2),
-                Margin = new Thickness(i == 0 ? 0 : 4, 0, 0, 0),
-                Background = i == 0 ? HybridKit.CyanBrush : HybridKit.B("#4d4758")
-            };
-            statusLine.Children.Add(dash);
-        }
-        statusLine.Children.Add(new TextBlock
-        {
-            Text = "PLAYER 1 · XInput protocol · 1000 Hz polling · Zero latency buffer",
-            FontFamily = HybridKit.Body,
-            FontSize = 13,
-            Foreground = HybridKit.MuteBrush,
-            Margin = new Thickness(12, -2, 0, 0)
-        });
-        Canvas.SetLeft(statusLine, 216);
-        Canvas.SetTop(statusLine, 226);
-        root.Children.Add(statusLine);
-
-        // Protocol options rows at (216, 278, w: 588)
-        var rowsPanel = new StackPanel { Width = 588, Orientation = Orientation.Vertical };
-        var options = new (string Label, string Value)[]
-        {
-            ("USB Polling Rate", "1000 Hz (1.0 ms)"),
-            ("Gyroscope Emulation", "Disabled (Pass-through)"),
-            ("Deadzone Pass-through", "Raw Hall-Effect"),
-            ("Trigger Response Curve", "Linear Standard"),
-            ("Vibration Haptic Mode", "Native Dual-Rumble"),
-            ("Analog Stick Resolution", "12-bit (4096 levels)")
-        };
-
-        foreach (var (lbl, val) in options)
-        {
-            var rBorder = new Border
-            {
-                Height = 48,
-                CornerRadius = new CornerRadius(12),
-                Background = HybridKit.B("#1f1c25"),
-                Margin = new Thickness(0, 0, 0, 8),
-                Padding = new Thickness(18, 0, 18, 0)
-            };
-            var rGrid = new Grid();
-            rGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            rGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-            var t1 = new TextBlock
-            {
-                Text = lbl,
-                FontFamily = HybridKit.Body,
-                FontSize = 14,
-                Foreground = HybridKit.WhiteBrush,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            Grid.SetColumn(t1, 0);
-            rGrid.Children.Add(t1);
-
-            var t2 = new TextBlock
-            {
-                Text = val,
-                FontFamily = HybridKit.Body,
-                FontSize = 14,
-                FontWeight = FontWeights.Bold,
-                Foreground = HybridKit.CyanBrush,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            Grid.SetColumn(t2, 1);
-            rGrid.Children.Add(t2);
-
-            rBorder.Child = rGrid;
-            rowsPanel.Children.Add(rBorder);
-        }
-        Canvas.SetLeft(rowsPanel, 216);
-        Canvas.SetTop(rowsPanel, 278);
-        root.Children.Add(rowsPanel);
-
-        // Seam between left and right cards
-        root.Children.Add(HybridKit.Seam(846, 278, 830, 560, true, 0.8));
-
-        // Right side Detail card at (892, 278, w: 492, h: 548)
-        var detailCard = new Border
-        {
-            Width = 492,
-            Height = 548,
-            CornerRadius = new CornerRadius(22),
-            Background = HybridKit.B("#1f1c25"),
-            Padding = new Thickness(28),
-            Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 16, ShadowDepth = 6, Opacity = 0.3 }
-        };
-
-        var detailStack = new StackPanel { Orientation = Orientation.Vertical };
-        detailStack.Children.Add(new TextBlock
-        {
-            Text = "Switching to Nintendo Switch Mode",
-            FontFamily = HybridKit.Display,
-            FontSize = 22,
-            FontWeight = FontWeights.ExtraBold,
-            Foreground = HybridKit.WhiteBrush,
-            Margin = new Thickness(0, 0, 0, 18)
-        });
-
-        var steps = new string[]
-        {
-            "Hold HOME + B for 3 seconds until the central ring flashes.",
-            "Wait for the player status LEDs to sweep purple across the bar.",
-            "Pair via Bluetooth 5.0 or place into the USB-C dock station.",
-            "Confirm button layout remapping (A/B and X/Y position swap)."
-        };
-
-        for (int i = 0; i < steps.Length; i++)
-        {
-            var stepRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 16) };
-            var numPill = new Border
-            {
-                Width = 30,
-                Height = 30,
-                CornerRadius = new CornerRadius(15),
-                Background = HybridKit.LavenderBrush,
-                Margin = new Thickness(0, 0, 14, 0),
-                Child = new TextBlock
-                {
-                    Text = (i + 1).ToString(),
-                    FontFamily = HybridKit.Display,
-                    FontSize = 14,
-                    FontWeight = FontWeights.Bold,
-                    Foreground = HybridKit.InkBrush,
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    VerticalAlignment = VerticalAlignment.Center
-                }
-            };
-            stepRow.Children.Add(numPill);
-
-            stepRow.Children.Add(new TextBlock
-            {
-                Text = steps[i],
-                FontFamily = HybridKit.Body,
-                FontSize = 15,
-                Foreground = HybridKit.B("#d9d3e3"),
-                Width = 380,
-                TextWrapping = TextWrapping.Wrap,
-                VerticalAlignment = VerticalAlignment.Center
-            });
-
-            detailStack.Children.Add(stepRow);
-        }
-
-        // Action button at bottom
-        var btnApply = new Border
-        {
-            Height = 48,
-            CornerRadius = new CornerRadius(24),
-            Background = HybridKit.LavenderBrush,
-            Cursor = System.Windows.Input.Cursors.Hand,
-            Margin = new Thickness(0, 24, 0, 0),
-            Padding = new Thickness(24, 0, 24, 0),
-            Child = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center,
-                Children =
-                {
-                    new Border
-                    {
-                        Width = 22,
-                        Height = 22,
-                        CornerRadius = new CornerRadius(11),
-                        Background = HybridKit.InkBrush,
-                        Margin = new Thickness(0, 0, 10, 0),
-                        Child = new TextBlock
-                        {
-                            Text = "A",
-                            FontFamily = new FontFamily("Segoe UI"),
-                            FontSize = 12,
-                            FontWeight = FontWeights.Bold,
-                            Foreground = Brushes.White,
-                            HorizontalAlignment = HorizontalAlignment.Center,
-                            VerticalAlignment = VerticalAlignment.Center
-                        }
-                    },
-                    new TextBlock
-                    {
-                        Text = "Switch to XInput (Default)",
-                        FontFamily = HybridKit.Body,
-                        FontSize = 15,
-                        FontWeight = FontWeights.Bold,
-                        Foreground = HybridKit.InkBrush,
-                        VerticalAlignment = VerticalAlignment.Center
-                    }
-                }
-            }
-        };
-        detailStack.Children.Add(btnApply);
-
-        detailCard.Child = detailStack;
-        Canvas.SetLeft(detailCard, 892);
-        Canvas.SetTop(detailCard, 278);
-        root.Children.Add(detailCard);
-
-        return root;
+        HAt(board, route, 216, 102);
+        // Keep the native PC-mode page and all its existing status, consent and settings handlers.
+        source.Margin = new(0);
+        var settings = new StackPanel { Width = 588, Tag = "hybrid:pc:settings" }; HAt(board, settings, 216, 226);
+        var status = HText("", 18, "#f5f1fa", FontWeights.Bold); status.SetBinding(TextBlock.TextProperty, new Binding(nameof(TextBlock.Text)) { Source = source.HybridStatus }); settings.Children.Add(status);
+        var statusDetail = HText("", 14, "#bdb4c8", FontWeights.Normal); statusDetail.TextWrapping = TextWrapping.Wrap; statusDetail.Margin = new(0, 4, 0, 14); statusDetail.SetBinding(TextBlock.TextProperty, new Binding(nameof(TextBlock.Text)) { Source = source.HybridStatusDetail }); settings.Children.Add(statusDetail);
+        var switchRow = new DockPanel { Margin = new(0, 0, 0, 14), Height = 58, Background = HBrush("#29242f") };
+        var switchLabel = HText("PC mode", 17, "#f5f1fa", FontWeights.Bold); switchLabel.Margin = new(16, 0, 0, 0); switchLabel.VerticalAlignment = VerticalAlignment.Center; switchRow.Children.Add(switchLabel);
+        var toggle = new CheckBox { Style = DS.Style("DS.Toggle"), Margin = new(12), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center, Tag = "hybrid:pc:switch" };
+        toggle.SetBinding(CheckBox.IsCheckedProperty, new Binding(nameof(CheckBox.IsChecked)) { Source = source.Switch, Mode = BindingMode.TwoWay }); switchRow.Children.Add(toggle); settings.Children.Add(switchRow);
+        var profileLabel = HText("Settings for", 16, "#f5f1fa", FontWeights.Bold); settings.Children.Add(profileLabel);
+        var profile = new ComboBox { DisplayMemberPath = "Label", SelectedValuePath = "Id", Width = 400, Height = 42, HorizontalAlignment = HorizontalAlignment.Left, Margin = new(0, 8, 0, 16), Tag = "hybrid:pc:profile" };
+        profile.SetBinding(ItemsControl.ItemsSourceProperty, new Binding(nameof(ItemsControl.ItemsSource)) { Source = source.HybridProfiles });
+        profile.SetBinding(ComboBox.SelectedValueProperty, new Binding(nameof(ComboBox.SelectedValue)) { Source = source.HybridProfiles, Mode = BindingMode.TwoWay }); settings.Children.Add(profile);
+        var openSettings = HybridButton("More PC settings", "hybrid:pc:more", false, 200, 42); settings.Children.Add(openSettings);
+        var scroll = new ScrollViewer { Width = 588, Height = 570, Content = source, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, Visibility = Visibility.Collapsed, Tag = "hybrid:pc:workbench" };
+        HAt(board, scroll, 216, 226);
+        var backSettings = HybridButton("Back to PC overview", "hybrid:pc:overview", false, 200, 42); backSettings.Visibility = Visibility.Collapsed; HAt(board, backSettings, 216, 760); Panel.SetZIndex(backSettings, 3);
+        void ShowSettings(bool show) { settings.Visibility = show ? Visibility.Collapsed : Visibility.Visible; scroll.Visibility = show ? Visibility.Visible : Visibility.Collapsed; backSettings.Visibility = show ? Visibility.Visible : Visibility.Collapsed; }
+        openSettings.Click += (_, _) => ShowSettings(true); backSettings.Click += (_, _) => { if (!source.NoticeShown) ShowSettings(false); };
+        source.Watch(() => { backSettings.IsEnabled = !source.NoticeShown; if (source.NoticeShown && scroll.Visibility != Visibility.Visible) { ShowSettings(true); Dispatcher.BeginInvoke(source.HybridRevealNotice, System.Windows.Threading.DispatcherPriority.Loaded); } });
+        backSettings.IsEnabled = !source.NoticeShown;
+        if (source.NoticeShown) { ShowSettings(true); Dispatcher.BeginInvoke(source.HybridRevealNotice, System.Windows.Threading.DispatcherPriority.Loaded); }
+        HAt(board, new Rectangle { Width = 2, Height = 560, Fill = HBrush("#52dcff") }, 846, 226);
+        var detail = new StackPanel { Width = 444, Margin = new(24) };
+        detail.Children.Add(HText("How PC mode works", 25, "#f5f1fa", FontWeights.ExtraBold));
+        foreach (var text in new[] {
+            "1   Connect your controller and choose a player.",
+            "2   Turn on PC mode when its required drivers are ready.",
+            "3   Edit buttons, curves and macros in this controller's Studio.",
+            "4   Games receive the virtual controller's input."
+        }) { var line = HText(text, 16, "#d9d3e3", FontWeights.Normal); line.Margin = new(0, 18, 0, 0); detail.Children.Add(line); }
+        var note = HText("Changes apply on this PC. Nothing is written to your controller.", 14, "#bdb4c8", FontWeights.SemiBold); note.Margin = new(0, 26, 0, 0); detail.Children.Add(note);
+        HAt(board, new Border { Width = 492, Height = 548, CornerRadius = new(22), Background = HBrush("#24212b"), Child = detail }, 892, 226);
     }
 }

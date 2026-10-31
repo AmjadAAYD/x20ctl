@@ -164,7 +164,7 @@ public partial class StudioScene
         var savedTag = SpotlightKit.Tag("Saved", false);
         savedTag.Margin = new Thickness(16, 0, 16, 0);
         topRow.Children.Add(savedTag);
-        topRow.Children.Add(new TextBlock { Text = "Matches current controller memory", FontFamily = SpotlightKit.Body, FontStyle = FontStyles.Italic, FontSize = 14, Foreground = SpotlightKit.MuteBrush });
+        topRow.Children.Add(new TextBlock { Text = "Saved on this PC", FontFamily = SpotlightKit.Body, FontStyle = FontStyles.Italic, FontSize = 14, Foreground = SpotlightKit.MuteBrush });
         cardInner.Children.Add(topRow);
 
         var midRow = new Grid { Margin = new Thickness(0, 10, 0, 0) };
@@ -188,7 +188,7 @@ public partial class StudioScene
         cardInner.Children.Add(midRow);
 
         var actionBtns = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 18, 0, 0) };
-        actionBtns.Children.Add(SpotlightKit.TheatricalButton("Apply setup", true, "A", height: 40, fontSize: 12));
+        actionBtns.Children.Add(SpotlightKit.TheatricalButton("Load in local editor", true, "A", height: 40, fontSize: 12));
         var renBtn = SpotlightKit.TheatricalButton("Rename", false, null, height: 40, fontSize: 11);
         renBtn.Margin = new Thickness(10, 0, 0, 0);
         actionBtns.Children.Add(renBtn);
@@ -208,12 +208,12 @@ public partial class StudioScene
         var frame = SpotlightToolFrame.WrapWithProgramme(
             currentKey: "setups",
             title: "Saved setups",
-            lead: "Manage configurations, game profiles and hardware calibration snapshots.",
+            lead: "Manage local setups and game profiles.",
             backLabel: "",
             onBack: () => SpotlightSelectPage("Dashboard"),
             onNavigate: SpotlightSelectPage,
             bodyStage: canvas,
-            hints: new[] { ("A", "Apply setup"), ("X", "Manage"), ("B", "Back") });
+            hints: new[] { ("A", "Load setup"), ("X", "Manage"), ("B", "Back") });
 
         spotlightPageHost.Children.Add(frame);
     }

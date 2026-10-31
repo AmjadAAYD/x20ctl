@@ -1,6 +1,7 @@
 using System;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
@@ -19,6 +20,8 @@ public partial class StudioScene
 {
     private void RenderBlossomTester(Canvas host)
     {
+        if (Tester is not { } tester) return;
+
         // 1. Sky & Backdrop
         var sky = new Rectangle { Width = 1600, Height = 900, Fill = BlossomKit.CreateSkyBackdrop() };
         host.Children.Add(sky);
@@ -75,53 +78,60 @@ public partial class StudioScene
             host.Children.Add(lantern);
         }
 
-        // Center Controller Pad
-        var padImg = BlossomKit.ControllerArt(Model.Id, 460);
-        if (padImg != null)
+        // Center Controller Pad mounted stage
+        var livePad = new Viewbox
         {
-            padImg.Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 24, ShadowDepth = 20, Opacity = 0.65 };
-            Canvas.SetLeft(padImg, cx - 230);
-            Canvas.SetTop(padImg, cy - 150);
-            host.Children.Add(padImg);
-        }
+            Width = 460,
+            Height = 320,
+            Stretch = Stretch.Uniform,
+            Child = tester.TakeStage()
+        };
+        Canvas.SetLeft(livePad, cx - 230);
+        Canvas.SetTop(livePad, cy - 160);
+        host.Children.Add(livePad);
 
         // Mode chips below pad
         var modeStack = new StackPanel { Orientation = Orientation.Horizontal };
-        var rawChip = new Border
+
+        var kbFace = new Border
         {
             Height = 34,
             Padding = new Thickness(14, 0, 14, 0),
             CornerRadius = new CornerRadius(17),
-            Background = BlossomKit.CreateWarmLanternBrush(),
-            Effect = new DropShadowEffect { Color = Color.FromRgb(0xff, 0x96, 0x5a), BlurRadius = 14, ShadowDepth = 0, Opacity = 0.5 },
-            Child = new TextBlock { Text = "Raw input", FontFamily = BlossomKit.Body, FontSize = 14, Foreground = BlossomKit.B("#4a140f"), VerticalAlignment = VerticalAlignment.Center }
+            Background = tester.KeyboardOn ? BlossomKit.CreateWarmLanternBrush() : BlossomKit.B("rgba(255,220,232,0.08)"),
+            BorderBrush = BlossomKit.B("rgba(255,220,232,0.3)"),
+            BorderThickness = new Thickness(1.2),
+            Margin = new Thickness(0, 0, 8, 0),
+            Child = new TextBlock { Text = tester.KeyboardOn ? "Keyboard Test: On" : "Keyboard Test: Off", FontFamily = BlossomKit.Body, FontSize = 14, Foreground = tester.KeyboardOn ? BlossomKit.B("#4a140f") : BlossomKit.TextWhiteBrush, VerticalAlignment = VerticalAlignment.Center }
         };
-        modeStack.Children.Add(rawChip);
+        modeStack.Children.Add(ThemeAction(kbFace, "theme:tester:keyboard", () => { tester.ClickKeyboard(); BlossomLater(); }));
 
-        var dbChip = new Border
+        var frontFace = new Border
         {
             Height = 34,
             Padding = new Thickness(14, 0, 14, 0),
             CornerRadius = new CornerRadius(17),
-            Background = BlossomKit.B("transparent"),
-            BorderBrush = BlossomKit.B("rgba(255,220,232,0.22)"),
+            Background = BlossomKit.B("rgba(255,220,232,0.08)"),
+            BorderBrush = BlossomKit.B("rgba(255,220,232,0.3)"),
             BorderThickness = new Thickness(1.2),
-            Margin = new Thickness(10, 0, 14, 0),
-            Child = new TextBlock { Text = "Deadzones applied", FontFamily = BlossomKit.Body, FontSize = 14, Foreground = BlossomKit.B("#e3cfd6"), VerticalAlignment = VerticalAlignment.Center }
+            Margin = new Thickness(0, 0, 8, 0),
+            Child = new TextBlock { Text = "Front View", FontFamily = BlossomKit.Body, FontSize = 14, Foreground = BlossomKit.TextWhiteBrush, VerticalAlignment = VerticalAlignment.Center }
         };
-        modeStack.Children.Add(dbChip);
+        modeStack.Children.Add(ThemeAction(frontFace, "theme:tester:front", () => tester.ShowRear(false)));
 
-        var playerTag = new Border
+        var rearFace = new Border
         {
-            Padding = new Thickness(10, 4, 10, 4),
-            CornerRadius = new CornerRadius(3),
-            BorderBrush = BlossomKit.B("rgba(255,190,130,0.7)"),
+            Height = 34,
+            Padding = new Thickness(14, 0, 14, 0),
+            CornerRadius = new CornerRadius(17),
+            Background = BlossomKit.B("rgba(255,220,232,0.08)"),
+            BorderBrush = BlossomKit.B("rgba(255,220,232,0.3)"),
             BorderThickness = new Thickness(1.2),
-            Child = new TextBlock { Text = "PLAYER 1", FontFamily = BlossomKit.Small, FontSize = 11, FontWeight = FontWeights.Bold, Foreground = BlossomKit.TextAmberBrush }
+            Child = new TextBlock { Text = "Back View", FontFamily = BlossomKit.Body, FontSize = 14, Foreground = BlossomKit.TextWhiteBrush, VerticalAlignment = VerticalAlignment.Center }
         };
-        modeStack.Children.Add(playerTag);
+        modeStack.Children.Add(ThemeAction(rearFace, "theme:tester:rear", () => tester.ShowRear(true), HasRearArtwork));
 
-        Canvas.SetLeft(modeStack, 384);
+        Canvas.SetLeft(modeStack, 360);
         Canvas.SetTop(modeStack, 646);
         host.Children.Add(modeStack);
 
@@ -147,129 +157,89 @@ public partial class StudioScene
         });
         cardStack.Children.Add(new TextBlock
         {
-            Text = "Physical buttons report true switch contact closures with zero software debouncing lag.",
+            Text = "Reads what Windows reports for the selected controller.",
             FontFamily = BlossomKit.Body,
             FontSize = 15,
             LineHeight = 22,
             Foreground = BlossomKit.B(BlossomKit.LitPaperSub),
-            Margin = new Thickness(0, 0, 0, 8)
-        });
-        cardStack.Children.Add(new TextBlock
-        {
-            Text = "Waiting for input: Press any button, move analog thumbsticks, or depress analog triggers.",
-            FontFamily = BlossomKit.Body,
-            FontSize = 15,
-            LineHeight = 22,
-            Foreground = BlossomKit.B(BlossomKit.LitPaperSub)
+            Margin = new Thickness(0, 0, 0, 12)
         });
 
-        // Action Buttons
-        var btnStack = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 24, 0, 14) };
+        // Telemetry readout rows
+        var rows = new (string Label, TextBlock Blk)[]
+        {
+            ("ACTIVE SOURCE", tester.SourceLabel),
+            ("PRESSED BUTTONS", tester.PressedBlock),
+            ("INPUT OWNERSHIP", tester.OwnershipBlock)
+        };
+
+        foreach (var (lbl, blk) in rows)
+        {
+            var rBorder = new Border
+            {
+                BorderBrush = BlossomKit.B("rgba(59,23,18,0.12)"),
+                BorderThickness = new Thickness(0, 0, 0, 1),
+                Padding = new Thickness(0, 8, 0, 8)
+            };
+            var rg = new Grid();
+            rg.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(160) });
+            rg.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            rg.Children.Add(new TextBlock
+            {
+                Text = lbl,
+                FontFamily = BlossomKit.Small,
+                FontSize = 11,
+                FontWeight = FontWeights.Bold,
+                Foreground = BlossomKit.B(BlossomKit.LitPaperCrimson),
+                VerticalAlignment = VerticalAlignment.Center
+            });
+
+            var valTb = new TextBlock
+            {
+                FontFamily = BlossomKit.Body,
+                FontSize = 15,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = BlossomKit.B(BlossomKit.LitPaperInk),
+                VerticalAlignment = VerticalAlignment.Center,
+                TextWrapping = TextWrapping.Wrap
+            };
+            valTb.SetBinding(TextBlock.TextProperty, new Binding("Text") { Source = blk });
+            Grid.SetColumn(valTb, 1);
+            rg.Children.Add(valTb);
+
+            rBorder.Child = rg;
+            cardStack.Children.Add(rBorder);
+        }
+
+        // Action Buttons: Exit tester
+        var btnStack = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 24, 0, 0) };
         var exitBtn = new Border
         {
-            Height = 46,
+            Height = 44,
             Padding = new Thickness(22, 0, 22, 0),
-            CornerRadius = new CornerRadius(23),
+            CornerRadius = new CornerRadius(22),
             Background = BlossomKit.B(BlossomKit.LitPaperInk),
             Margin = new Thickness(0, 0, 12, 0),
             Cursor = Cursors.Hand
         };
         var eSt = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
         eSt.Children.Add(CreateKeyBadge("B", true));
-        eSt.Children.Add(new TextBlock { Text = "Exit tester", FontFamily = BlossomKit.Body, FontSize = 17, Foreground = BlossomKit.B("#ffe2b8"), Margin = new Thickness(10, 0, 0, 0) });
+        eSt.Children.Add(new TextBlock { Text = "Exit tester", FontFamily = BlossomKit.Body, FontSize = 16, Foreground = BlossomKit.B("#ffe2b8"), Margin = new Thickness(10, 0, 0, 0) });
         exitBtn.Child = eSt;
-        btnStack.Children.Add(exitBtn);
-
-        var clearBtn = new Border
-        {
-            Height = 46,
-            Padding = new Thickness(20, 0, 20, 0),
-            CornerRadius = new CornerRadius(23),
-            BorderBrush = BlossomKit.B("rgba(59,23,18,0.55)"),
-            BorderThickness = new Thickness(1.5),
-            Cursor = Cursors.Hand,
-            Child = new TextBlock { Text = "Clear buffer", FontFamily = BlossomKit.Body, FontSize = 15, Foreground = BlossomKit.B(BlossomKit.LitPaperInk), VerticalAlignment = VerticalAlignment.Center }
-        };
-        btnStack.Children.Add(clearBtn);
+        btnStack.Children.Add(ThemeAction(exitBtn, "theme:tester:exit", () => { tester.ClickExit(); BlossomSelectPage("buttons"); }));
         cardStack.Children.Add(btnStack);
-
-        cardStack.Children.Add(new TextBlock
-        {
-            Text = "Zero frame desync · Direct Windows Raw Input API dispatch",
-            FontFamily = BlossomKit.Body,
-            FontSize = 13,
-            Foreground = BlossomKit.B(BlossomKit.LitPaperSub)
-        });
 
         litCard.Child = cardStack;
         Canvas.SetLeft(litCard, 940);
         Canvas.SetTop(litCard, 150);
         host.Children.Add(litCard);
 
-        // 5. Bottom Gauges Row at (236, 716, width 1308)
-        var gaugeGrid = new Grid { Width = 1308 };
-        for (int i = 0; i < 4; i++) gaugeGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        var gauges = new (string Name, string Val, bool IsStick)[]
-        {
-            ("Left Stick", "X: 0.00 · Y: 0.00", true),
-            ("Right Stick", "X: 0.00 · Y: 0.00", true),
-            ("Left Trigger", "0% · 0/255", false),
-            ("Right Trigger", "0% · 0/255", false)
-        };
-
-        for (int i = 0; i < 4; i++)
-        {
-            var g = gauges[i];
-            var gStack = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-
-            if (g.IsStick)
-            {
-                var stickIcon = new Canvas { Width = 56, Height = 56, Margin = new Thickness(0, 0, 16, 0) };
-                var moon = new Ellipse { Width = 52, Height = 52, Fill = BlossomKit.B("#f1dcde"), Opacity = 0.85 };
-                Canvas.SetLeft(moon, 2);
-                Canvas.SetTop(moon, 2);
-                stickIcon.Children.Add(moon);
-                stickIcon.Children.Add(new Line { X1 = 28, Y1 = 6, X2 = 28, Y2 = 50, Stroke = BlossomKit.B("rgba(70,30,50,0.25)") });
-                stickIcon.Children.Add(new Line { X1 = 6, Y1 = 28, X2 = 50, Y2 = 28, Stroke = BlossomKit.B("rgba(70,30,50,0.25)") });
-                var dot = new Ellipse { Width = 8, Height = 8, Fill = BlossomKit.B("#6a2a44") };
-                Canvas.SetLeft(dot, 24);
-                Canvas.SetTop(dot, 24);
-                stickIcon.Children.Add(dot);
-                gStack.Children.Add(stickIcon);
-            }
-            else
-            {
-                var trigIcon = new Border
-                {
-                    Width = 24,
-                    Height = 56,
-                    CornerRadius = new CornerRadius(12, 12, 12, 12),
-                    Background = BlossomKit.CreateColdLanternBrush(),
-                    BorderBrush = BlossomKit.B("rgba(255,200,215,0.18)"),
-                    BorderThickness = new Thickness(1),
-                    Margin = new Thickness(0, 0, 16, 0)
-                };
-                gStack.Children.Add(trigIcon);
-            }
-
-            var txtStack = new StackPanel();
-            txtStack.Children.Add(new TextBlock { Text = g.Name, FontFamily = BlossomKit.Heading, FontSize = 20, Foreground = BlossomKit.TextWhiteBrush });
-            txtStack.Children.Add(new TextBlock { Text = g.Val, FontFamily = BlossomKit.Body, FontSize = 14, Foreground = BlossomKit.TextMuteBrush, Margin = new Thickness(0, 2, 0, 0) });
-            gStack.Children.Add(txtStack);
-
-            Grid.SetColumn(gStack, i);
-            gaugeGrid.Children.Add(gStack);
-        }
-
-        Canvas.SetLeft(gaugeGrid, 236);
-        Canvas.SetTop(gaugeGrid, 716);
-        host.Children.Add(gaugeGrid);
-
         // Hints
         var hintsStack = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
         hintsStack.Children.Add(CreateHint("A", "Test buttons"));
-        hintsStack.Children.Add(CreateHint("B", "Back"));
+        hintsStack.Children.Add(CreateHint("X", "Keyboard test"));
+        hintsStack.Children.Add(CreateHint("B", "Exit"));
 
         Canvas.SetRight(hintsStack, 44);
         Canvas.SetTop(hintsStack, 846);

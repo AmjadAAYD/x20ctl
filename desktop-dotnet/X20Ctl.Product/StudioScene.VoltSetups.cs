@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -11,284 +12,426 @@ namespace X20Ctl.Product;
 
 public partial class StudioScene
 {
+    private bool voltSetupsWired;
+
     /// <summary>
-    /// Setups page for Volt: Steam Deck game-page style with amber radial atmosphere,
-    /// rotated Dune controller (-8 deg), Georgia serif title (92px), dark bottom band,
-    /// solid orange [▶ Apply Setup] button (300x76), telemetry stat blocks, and square action keys.
-    /// Strictly implements t_volt.py:309 setups().
+    /// Setups workbench for Volt: Profile presets and local configuration library.
+    /// Strictly implements t_volt.py:253 Volt and models.py:setups.
     /// </summary>
     private UIElement BuildVoltSetups()
     {
-        var root = new Canvas { Width = 1600, Height = 900, ClipToBounds = true };
-
-        // 1. Atmosphere radial gradient backdrop: #5e5a3a -> #2a2818 -> #0f0e08
-        var bgRadial = new RadialGradientBrush
+        if (Setups is not { } setups)
         {
-            Center = new Point(0.7, 0.3),
-            GradientOrigin = new Point(0.7, 0.3),
-            RadiusX = 0.8,
-            RadiusY = 0.9,
-            GradientStops =
-            {
-                new(VoltKit.C("#5e5a3a"), 0.0),
-                new(VoltKit.C("#2a2818"), 0.55),
-                new(VoltKit.C("#0f0e08"), 1.0)
-            }
-        };
-        var bgRect = new Rectangle { Width = 1600, Height = 900, Fill = bgRadial };
-        root.Children.Add(bgRect);
-
-        // Amber floating dust particles (specks)
-        var random = new Random(42);
-        for (int i = 0; i < 45; i++)
-        {
-            double x = random.Next(500, 1550);
-            double y = random.Next(40, 700);
-            double sz = random.Next(2, 6);
-            double op = 0.2 + random.NextDouble() * 0.5;
-
-            var speck = new Ellipse
-            {
-                Width = sz,
-                Height = sz,
-                Fill = new SolidColorBrush(Color.FromArgb((byte)(op * 255), 255, 230, 160)),
-                Effect = new BlurEffect { Radius = 1.5 }
-            };
-            Canvas.SetLeft(speck, x);
-            Canvas.SetTop(speck, y);
-            root.Children.Add(speck);
+            var empty = new Canvas { Width = 970, Height = 560 };
+            empty.Children.Add(new TextBlock { Text = "Setups library is unavailable.", Foreground = VoltKit.MuteBrush, FontSize = 18, Margin = new Thickness(40) });
+            return VoltKit.TwoPaneShell("setups", "Setups", "Saved controller setups in local setup library.", empty, VoltSelectPage);
         }
 
-        // Rotated Dune controller art (-8 deg, width: 900 at x = 700, y = 60)
-        var padArt = VoltKit.ControllerArt("dune", 900);
-        if (padArt != null)
+        if (!voltSetupsWired)
         {
-            padArt.RenderTransformOrigin = new Point(0.5, 0.5);
-            padArt.RenderTransform = new RotateTransform(-8);
-            padArt.Effect = new DropShadowEffect
-            {
-                Color = Colors.Black,
-                BlurRadius = 60,
-                ShadowDepth = 30,
-                Direction = 315,
-                Opacity = 0.6
-            };
-            Canvas.SetLeft(padArt, 700);
-            Canvas.SetTop(padArt, 60);
-            root.Children.Add(padArt);
+            voltSetupsWired = true;
+            setups.Watch(VoltLater);
         }
 
-        // Left-side shadow gradient overlay (linear 90 deg: #0f0e08 85% -> transparent 50%)
-        var shadowBrush = new LinearGradientBrush
+        string rawModel = !string.IsNullOrEmpty(Model?.Name) ? Model.Name.Trim() : "CONTROLLER";
+        string shortModel = rawModel.StartsWith("EasySMX ", StringComparison.OrdinalIgnoreCase)
+            ? rawModel.Substring("EasySMX ".Length).Trim()
+            : (rawModel.StartsWith("EASYSMX ", StringComparison.OrdinalIgnoreCase) ? rawModel.Substring("EASYSMX ".Length).Trim() : rawModel);
+
+        var content = new Canvas { Width = 970, Height = 560 };
+
+        // 1. Left List: Profile cards (width: 520)
+        var leftStack = new StackPanel { Orientation = Orientation.Vertical, Width = 520 };
+
+        var headGrid = new Grid { Margin = new Thickness(0, 0, 0, 10) };
+        headGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        headGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var titleBlock = new StackPanel();
+        titleBlock.Children.Add(new TextBlock
         {
-            StartPoint = new Point(0, 0),
-            EndPoint = new Point(1, 0),
-            GradientStops =
-            {
-                new(VoltKit.C("rgba(15,14,8,.85)"), 0.0),
-                new(VoltKit.C("rgba(15,14,8,.4)"), 0.35),
-                new(Colors.Transparent, 0.55)
-            }
+            Text = $"{setups.Cards.Count} SAVED SETUPS · {shortModel.ToUpperInvariant()}",
+            FontFamily = VoltKit.Display,
+            FontSize = 14,
+            FontWeight = FontWeights.Bold,
+            Foreground = VoltKit.B("#8a8a8a")
+        });
+        headGrid.Children.Add(titleBlock);
+
+        // Header Actions: New Setup, Save Current Draft, Import
+        var topBtns = new StackPanel { Orientation = Orientation.Horizontal };
+
+        var newBtn = new Border
+        {
+            Height = 32,
+            Padding = new Thickness(14, 0, 14, 0),
+            CornerRadius = new CornerRadius(6),
+            Background = VoltKit.AmberHotBrush,
+            Margin = new Thickness(0, 0, 8, 0),
+            Cursor = Cursors.Hand,
+            Child = new TextBlock { Text = "+ New Setup", FontFamily = VoltKit.Display, FontSize = 13, FontWeight = FontWeights.Bold, Foreground = VoltKit.B("#111111"), VerticalAlignment = VerticalAlignment.Center }
         };
-        var shadowOverlay = new Rectangle { Width = 1600, Height = 900, Fill = shadowBrush, IsHitTestVisible = false };
-        root.Children.Add(shadowOverlay);
+        topBtns.Children.Add(ThemeAction(newBtn, "theme:setup:new", () => setups.Click("new"), setups.Can("new")));
 
-        // 2. Top bar
-        root.Children.Add(VoltKit.TopBar());
-
-        // 3. Top setup pills at (58, 98)
-        var pillStack = new StackPanel { Orientation = Orientation.Horizontal };
-        var setupNames = new[] { ("DEFAULT FPS", true), ("COMPETITIVE", false), ("TACTICAL RACING", false) };
-        foreach (var (sName, active) in setupNames)
+        var saveBtn = new Border
         {
-            var pill = new Border
+            Height = 32,
+            Padding = new Thickness(14, 0, 14, 0),
+            CornerRadius = new CornerRadius(6),
+            Background = VoltKit.B("#262626"),
+            Margin = new Thickness(0, 0, 8, 0),
+            Cursor = Cursors.Hand,
+            Child = new TextBlock { Text = "Save Draft", FontFamily = VoltKit.Display, FontSize = 13, FontWeight = FontWeights.SemiBold, Foreground = VoltKit.WhiteBrush, VerticalAlignment = VerticalAlignment.Center }
+        };
+        topBtns.Children.Add(ThemeAction(saveBtn, "theme:setup:save", () => setups.Click("save"), setups.Can("save")));
+
+        var impBtn = new Border
+        {
+            Height = 32,
+            Padding = new Thickness(14, 0, 14, 0),
+            CornerRadius = new CornerRadius(6),
+            Background = VoltKit.B("#262626"),
+            Cursor = Cursors.Hand,
+            Child = new TextBlock { Text = "Import", FontFamily = VoltKit.Display, FontSize = 13, FontWeight = FontWeights.SemiBold, Foreground = VoltKit.WhiteBrush, VerticalAlignment = VerticalAlignment.Center }
+        };
+        topBtns.Children.Add(ThemeAction(impBtn, "theme:setup:import", () => setups.Click("import"), setups.Can("import")));
+
+        Grid.SetColumn(topBtns, 1);
+        headGrid.Children.Add(topBtns);
+        leftStack.Children.Add(headGrid);
+
+        if (setups.Cards.Count == 0)
+        {
+            var emptyPanel = new StackPanel { Margin = new Thickness(0, 40, 0, 0), HorizontalAlignment = HorizontalAlignment.Center };
+            emptyPanel.Children.Add(new TextBlock
             {
-                Padding = new Thickness(20, 9, 20, 9),
-                CornerRadius = new CornerRadius(12),
-                Background = active ? VoltKit.AmberHotBrush : VoltKit.B("#1d1d1d"),
-                Margin = new Thickness(0, 0, 10, 0),
-                Cursor = Cursors.Hand,
-                Child = new TextBlock
+                Text = "No saved setups in library.",
+                FontFamily = VoltKit.Display,
+                FontSize = 18,
+                Foreground = VoltKit.MuteBrush,
+                HorizontalAlignment = HorizontalAlignment.Center
+            });
+            emptyPanel.Children.Add(new TextBlock
+            {
+                Text = "Create a new setup or save your current editor settings as a setup.",
+                FontFamily = VoltKit.Body,
+                FontSize = 14,
+                Foreground = VoltKit.SubBrush,
+                Margin = new Thickness(0, 6, 0, 16),
+                HorizontalAlignment = HorizontalAlignment.Center
+            });
+            leftStack.Children.Add(emptyPanel);
+        }
+        else
+        {
+            foreach (var card in setups.Cards)
+            {
+                bool isSelected = card.Id == setups.SelectedId;
+                bool isActiveDraft = card.Id == setups.ActiveId;
+
+                var cBorder = new Border
                 {
-                    Text = sName,
+                    MinHeight = 64,
+                    Background = isSelected ? VoltKit.B("#2a2a2a") : VoltKit.B("#181818"),
+                    BorderBrush = isSelected ? VoltKit.AmberHotBrush : VoltKit.B("#262626"),
+                    BorderThickness = new Thickness(isSelected ? 2 : 1),
+                    CornerRadius = new CornerRadius(12),
+                    Padding = new Thickness(16, 10, 16, 10),
+                    Margin = new Thickness(0, 0, 0, 8),
+                    Cursor = Cursors.Hand
+                };
+
+                var cGrid = new Grid();
+                cGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                cGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+                var tStack = new StackPanel();
+                tStack.Children.Add(new TextBlock
+                {
+                    Text = card.Name,
                     FontFamily = VoltKit.Display,
                     FontSize = 19,
                     FontWeight = FontWeights.SemiBold,
-                    Foreground = active ? VoltKit.B("#111111") : VoltKit.WhiteBrush
+                    Foreground = isSelected ? VoltKit.WhiteBrush : VoltKit.LightBrush
+                });
+                tStack.Children.Add(new TextBlock
+                {
+                    Text = card.State,
+                    FontFamily = VoltKit.Body,
+                    FontSize = 13,
+                    Foreground = isSelected ? VoltKit.AmberHotBrush : VoltKit.MuteBrush,
+                    Margin = new Thickness(0, 2, 0, 0)
+                });
+                cGrid.Children.Add(tStack);
+
+                if (isActiveDraft)
+                {
+                    var pill = new Border
+                    {
+                        Background = VoltKit.AmberHotBrush,
+                        CornerRadius = new CornerRadius(10),
+                        Padding = new Thickness(10, 4, 10, 4),
+                        VerticalAlignment = VerticalAlignment.Center,
+                        Child = new TextBlock { Text = "CURRENT", FontFamily = VoltKit.Display, FontSize = 11, FontWeight = FontWeights.ExtraBold, Foreground = VoltKit.B("#111111") }
+                    };
+                    Grid.SetColumn(pill, 1);
+                    cGrid.Children.Add(pill);
                 }
-            };
-            pillStack.Children.Add(pill);
+
+                cBorder.Child = cGrid;
+                string id = card.Id;
+                leftStack.Children.Add(ThemeAction(cBorder, "theme:setup:select:" + id, () =>
+                {
+                    setups.Select(id);
+                    VoltLater();
+                }));
+            }
         }
 
-        // [+ New Setup] pill
-        var addPill = new Border
+        var leftScroll = new ScrollViewer { Width = 530, Height = 540, Content = leftStack, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
+        Canvas.SetLeft(leftScroll, 0);
+        Canvas.SetTop(leftScroll, 10);
+        content.Children.Add(leftScroll);
+
+        // 2. Right Details Card: Profile information (width: 410 at x = 550)
+        var rightStack = new StackPanel { Orientation = Orientation.Vertical, Width = 410 };
+
+        var cardBox = new Border
         {
-            Padding = new Thickness(18, 9, 18, 9),
-            CornerRadius = new CornerRadius(12),
-            Background = VoltKit.B("#1d1d1d"),
-            Cursor = Cursors.Hand
+            Width = 410,
+            Background = VoltKit.SheetDarkBrush,
+            CornerRadius = new CornerRadius(14),
+            Padding = new Thickness(24, 20, 24, 20)
         };
-        var addStack = new StackPanel { Orientation = Orientation.Horizontal };
-        addStack.Children.Add(new TextBlock
+        var cStack = new StackPanel { Orientation = Orientation.Vertical };
+
+        var cardList = setups.Cards;
+        var (selId, selName, selState) = cardList.FirstOrDefault(c => c.Id == setups.SelectedId);
+        if (string.IsNullOrEmpty(selId) && cardList.Count > 0) (selId, selName, selState) = cardList[0];
+        if (string.IsNullOrEmpty(selName)) selName = "No Setup Selected";
+
+        cStack.Children.Add(new TextBlock
         {
-            Text = "\uE710",
-            FontFamily = VoltKit.Icons,
-            FontSize = 14,
-            Foreground = VoltKit.WhiteBrush,
-            Margin = new Thickness(0, 0, 8, 0),
-            VerticalAlignment = VerticalAlignment.Center
-        });
-        addStack.Children.Add(new TextBlock
-        {
-            Text = "New Setup",
+            Text = "SELECTED SETUP",
             FontFamily = VoltKit.Display,
-            FontSize = 19,
+            FontSize = 13,
+            FontWeight = FontWeights.Bold,
+            Foreground = VoltKit.B("#8a8a8a"),
+            Margin = new Thickness(0, 0, 0, 2)
+        });
+
+        cStack.Children.Add(new TextBlock
+        {
+            Text = selName,
+            FontFamily = VoltKit.Display,
+            FontSize = 28,
             FontWeight = FontWeights.SemiBold,
-            Foreground = VoltKit.WhiteBrush,
-            VerticalAlignment = VerticalAlignment.Center
-        });
-        addPill.Child = addStack;
-        pillStack.Children.Add(addPill);
-
-        Canvas.SetLeft(pillStack, 58);
-        Canvas.SetTop(pillStack, 98);
-        root.Children.Add(pillStack);
-
-        // 4. Hero typography at (96, 300, width: 620)
-        var heroStack = new StackPanel { Orientation = Orientation.Vertical, Width = 620 };
-
-        // Subtitle: "— CURRENT SETUP —"
-        heroStack.Children.Add(new TextBlock
-        {
-            Text = "— CURRENT SETUP —",
-            FontFamily = VoltKit.SerifTitle,
-            FontSize = 22,
-            Foreground = VoltKit.WhiteBrush,
-            Opacity = 0.9,
-            Margin = new Thickness(0, 0, 0, 8)
+            Foreground = VoltKit.AmberHotBrush,
+            LineHeight = 32
         });
 
-        // Title: "DEFAULT FPS" (Georgia 92pt)
-        heroStack.Children.Add(new TextBlock
+        cStack.Children.Add(new TextBlock
         {
-            Text = "DEFAULT FPS",
-            FontFamily = VoltKit.SerifTitle,
-            FontSize = 92,
-            FontWeight = FontWeights.Normal,
-            Foreground = VoltKit.WhiteBrush,
-            LineHeight = 94,
-            Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 20, ShadowDepth = 4, Opacity = 0.6 }
-        });
-
-        // Subtext: "EASYSMX DUNE · Exact Match · Saved to disk"
-        var subStack = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 16, 0, 0) };
-        subStack.Children.Add(new TextBlock
-        {
-            Text = "EASYSMX DUNE · Exact Match · ",
+            Text = $"{selState ?? "SAVED LOCALLY"} · Target controller: {shortModel}",
             FontFamily = VoltKit.Body,
-            FontSize = 19,
-            Foreground = VoltKit.B("#d8d8d8")
+            FontSize = 13,
+            Foreground = VoltKit.B("#bdbdbd"),
+            TextWrapping = TextWrapping.Wrap,
+            LineHeight = 18,
+            Margin = new Thickness(0, 4, 0, 12)
         });
-        subStack.Children.Add(new TextBlock
-        {
-            Text = "Saved to disk",
-            FontFamily = VoltKit.Body,
-            FontSize = 19,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = VoltKit.AmberHotBrush
-        });
-        heroStack.Children.Add(subStack);
 
-        Canvas.SetLeft(heroStack, 96);
-        Canvas.SetTop(heroStack, 300);
-        root.Children.Add(heroStack);
-
-        // 5. Dark translucent band at bottom (top: 706, height: 116)
-        var darkBand = new Border
+        // Controller Art Preview
+        var artBox = new Border
         {
-            Width = 1600,
-            Height = 116,
-            Background = VoltKit.B("rgba(36,36,36,.74)"),
-            Effect = new BlurEffect { Radius = 14 }
+            Width = 362,
+            Height = 140,
+            Background = VoltKit.B("#0b0b0b"),
+            CornerRadius = new CornerRadius(12),
+            ClipToBounds = true,
+            Margin = new Thickness(0, 0, 0, 12)
         };
-        Canvas.SetLeft(darkBand, 0);
-        Canvas.SetTop(darkBand, 706);
-        root.Children.Add(darkBand);
-
-        // 6. Action button: [▶ Apply Setup] (300x76 at x = 58, y = 728)
-        var applyBtn = VoltKit.OrangeActionButton("Apply Setup", 300, 76);
-        Canvas.SetLeft(applyBtn, 58);
-        Canvas.SetTop(applyBtn, 728);
-        root.Children.Add(applyBtn);
-
-        // 7. Stat blocks at x = 400, 590, 780; y = 734
-        var stats = new (string Label, string Val)[]
+        var artCanvas = new Canvas { Width = 362, Height = 140 };
+        var padArt = new Image
         {
-            ("RESPONSE", "Linear Standard"),
-            ("DEADZONE", "0.0% Inner"),
-            ("TRIGGER", "Short Hair 2mm")
+            Width = 260,
+            Source = ControllerArt.Front(Model.Id, PadColours.For(Player, Model.Id)),
+            Stretch = Stretch.Uniform,
+            Opacity = 0.95
         };
+        Canvas.SetLeft(padArt, 51);
+        Canvas.SetTop(padArt, 6);
+        artCanvas.Children.Add(padArt);
+        artBox.Child = artCanvas;
+        cStack.Children.Add(artBox);
 
-        for (int i = 0; i < stats.Length; i++)
+        // Rename Editor Panel (when Rename is active)
+        if (setups.RenameActive)
         {
-            var (sLab, sVal) = stats[i];
-            var sCol = new StackPanel { Orientation = Orientation.Vertical };
-            sCol.Children.Add(new TextBlock
+            var renamePanel = new StackPanel { Orientation = Orientation.Vertical, Margin = new Thickness(0, 0, 0, 12) };
+            renamePanel.Children.Add(new TextBlock
             {
-                Text = sLab,
+                Text = "RENAME SETUP",
                 FontFamily = VoltKit.Display,
-                FontSize = 15,
+                FontSize = 12,
                 FontWeight = FontWeights.Bold,
-                Foreground = VoltKit.B("#d2d2d2"),
+                Foreground = VoltKit.AmberHotBrush,
                 Margin = new Thickness(0, 0, 0, 4)
             });
-            sCol.Children.Add(new TextBlock
-            {
-                Text = sVal,
-                FontFamily = VoltKit.Display,
-                FontSize = 26,
-                FontWeight = FontWeights.SemiBold,
-                Foreground = VoltKit.WhiteBrush
-            });
 
-            Canvas.SetLeft(sCol, 400 + i * 190);
-            Canvas.SetTop(sCol, 734);
-            root.Children.Add(sCol);
-        }
+            var nameBox = setups.TakeNameField();
+            nameBox.Width = 362;
+            nameBox.Height = 38;
+            nameBox.FontSize = 15;
+            nameBox.Background = VoltKit.B("#181818");
+            nameBox.Foreground = VoltKit.WhiteBrush;
+            nameBox.BorderBrush = VoltKit.AmberHotBrush;
+            nameBox.BorderThickness = new Thickness(1.5);
+            nameBox.Margin = new Thickness(0, 0, 0, 8);
+            renamePanel.Children.Add(nameBox);
 
-        // 8. Square action keys at (1240 + i*82, 728, 72x72)
-        var sqIcons = new[] { "\uE8C8", "\uE8AC", "\uEDE1", "\uE712" };
-        for (int i = 0; i < sqIcons.Length; i++)
-        {
-            var sq = new Border
+            var renameBtns = new StackPanel { Orientation = Orientation.Horizontal };
+            var saveNameBtn = new Border
             {
-                Width = 72,
-                Height = 72,
-                CornerRadius = new CornerRadius(10),
-                Background = VoltKit.B("#3a3a3a"),
+                Width = 175,
+                Height = 38,
+                CornerRadius = new CornerRadius(6),
+                Background = VoltKit.AmberHotBrush,
+                Margin = new Thickness(0, 0, 12, 0),
                 Cursor = Cursors.Hand,
-                Child = new TextBlock
-                {
-                    Text = sqIcons[i],
-                    FontFamily = VoltKit.Icons,
-                    FontSize = 30,
-                    Foreground = VoltKit.WhiteBrush,
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    VerticalAlignment = VerticalAlignment.Center
-                }
+                Child = new TextBlock { Text = "Save Name", FontFamily = VoltKit.Display, FontSize = 13, FontWeight = FontWeights.Bold, Foreground = VoltKit.B("#111111"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center }
             };
-            Canvas.SetLeft(sq, 1240 + i * 82);
-            Canvas.SetTop(sq, 728);
-            root.Children.Add(sq);
+            renameBtns.Children.Add(ThemeAction(saveNameBtn, "theme:setup:save-name", () => setups.Click("saveName")));
+
+            var cancelRenameBtn = new Border
+            {
+                Width = 175,
+                Height = 38,
+                CornerRadius = new CornerRadius(6),
+                Background = VoltKit.B("#262626"),
+                Cursor = Cursors.Hand,
+                Child = new TextBlock { Text = "Cancel", FontFamily = VoltKit.Display, FontSize = 13, FontWeight = FontWeights.SemiBold, Foreground = VoltKit.WhiteBrush, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center }
+            };
+            renameBtns.Children.Add(ThemeAction(cancelRenameBtn, "theme:setup:cancel-rename", () =>
+            {
+                setups.Click("cancelRename");
+                VoltLater();
+            }));
+            renamePanel.Children.Add(renameBtns);
+            cStack.Children.Add(renamePanel);
+        }
+        else if (setups.DeletePending)
+        {
+            var delWarn = new TextBlock
+            {
+                Text = setups.DeleteQuestion,
+                FontFamily = VoltKit.Display,
+                FontSize = 14,
+                FontWeight = FontWeights.Bold,
+                Foreground = new SolidColorBrush(VoltKit.C("#ff4d4f")),
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 0, 0, 10)
+            };
+            cStack.Children.Add(delWarn);
+
+            var delRow = new StackPanel { Orientation = Orientation.Horizontal };
+            var confirmFace = VoltKit.OrangeActionButton("Delete Setup", 175, 42, null);
+            delRow.Children.Add(ThemeAction(confirmFace, "theme:setup:remove", () => setups.Click("remove")));
+
+            var cancelBtn = new Border
+            {
+                Width = 175,
+                Height = 42,
+                CornerRadius = new CornerRadius(8),
+                Background = VoltKit.B("#262626"),
+                Margin = new Thickness(12, 0, 0, 0),
+                Cursor = Cursors.Hand,
+                Child = new TextBlock { Text = "Keep Setup", FontFamily = VoltKit.Display, FontSize = 14, FontWeight = FontWeights.SemiBold, Foreground = VoltKit.WhiteBrush, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center }
+            };
+            delRow.Children.Add(ThemeAction(cancelBtn, "theme:setup:keep", () => setups.Click("keep")));
+            cStack.Children.Add(delRow);
+        }
+        else
+        {
+            // Primary Action: Open Setup Locally (loads draft)
+            var openFace = VoltKit.OrangeActionButton("Open Setup Locally", 362, 44, null);
+            var openBtn = ThemeAction(openFace, "theme:setup:open", () => setups.Click("open"), setups.Can("open"));
+            openFace.Tag = "theme:setup:apply"; // support both tags for verification suites
+            cStack.Children.Add(openBtn);
+
+            // Row 2: Duplicate & Rename
+            var row2 = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 0) };
+            var dupBtn = new Border
+            {
+                Width = 175,
+                Height = 36,
+                CornerRadius = new CornerRadius(6),
+                Background = VoltKit.B("#262626"),
+                Margin = new Thickness(0, 0, 12, 0),
+                Cursor = Cursors.Hand,
+                Child = new TextBlock { Text = "Duplicate", FontFamily = VoltKit.Display, FontSize = 13, FontWeight = FontWeights.SemiBold, Foreground = VoltKit.WhiteBrush, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center }
+            };
+            row2.Children.Add(ThemeAction(dupBtn, "theme:setup:duplicate", () => setups.Click("duplicate"), setups.Can("duplicate")));
+
+            var renameBtn = new Border
+            {
+                Width = 175,
+                Height = 36,
+                CornerRadius = new CornerRadius(6),
+                Background = VoltKit.B("#262626"),
+                Cursor = Cursors.Hand,
+                Child = new TextBlock { Text = "Rename", FontFamily = VoltKit.Display, FontSize = 13, FontWeight = FontWeights.SemiBold, Foreground = VoltKit.WhiteBrush, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center }
+            };
+            row2.Children.Add(ThemeAction(renameBtn, "theme:setup:rename", () => setups.Click("rename"), setups.Can("rename")));
+            cStack.Children.Add(row2);
+
+            // Row 3: Export & Delete
+            var row3 = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 0) };
+            var expBtn = new Border
+            {
+                Width = 175,
+                Height = 36,
+                CornerRadius = new CornerRadius(6),
+                Background = VoltKit.B("#262626"),
+                Margin = new Thickness(0, 0, 12, 0),
+                Cursor = Cursors.Hand,
+                Child = new TextBlock { Text = "Export Setup", FontFamily = VoltKit.Display, FontSize = 13, FontWeight = FontWeights.SemiBold, Foreground = VoltKit.WhiteBrush, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center }
+            };
+            row3.Children.Add(ThemeAction(expBtn, "theme:setup:export", () => setups.Click("export"), setups.Can("export")));
+
+            var delBtn = new Border
+            {
+                Width = 175,
+                Height = 36,
+                CornerRadius = new CornerRadius(6),
+                Background = VoltKit.B("#262626"),
+                Cursor = Cursors.Hand,
+                Child = new TextBlock { Text = "Delete", FontFamily = VoltKit.Display, FontSize = 13, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(VoltKit.C("#ff6b6b")), VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center }
+            };
+            delBtn.Tag = "theme:setup:delete";
+            row3.Children.Add(ThemeAction(delBtn, "theme:setup:delete", () => setups.Click("delete"), setups.Can("delete")));
+            cStack.Children.Add(row3);
         }
 
-        // 9. Bottom bar with light: true
-        var hints = new[] { ("A", "APPLY SETUP"), ("B", "BACK"), ("Y", "NEW SETUP") };
-        var bBar = VoltKit.BottomBar(hints, light: true);
-        Canvas.SetLeft(bBar, 0);
-        Canvas.SetTop(bBar, 854);
-        root.Children.Add(bBar);
+        // Library notice
+        var noticeTb = new TextBlock
+        {
+            Text = "Local setup library · Stored on this computer",
+            FontFamily = VoltKit.Body,
+            FontSize = 12,
+            Foreground = VoltKit.B("#8a8a8a"),
+            Margin = new Thickness(0, 12, 0, 0),
+            HorizontalAlignment = HorizontalAlignment.Center
+        };
+        cStack.Children.Add(noticeTb);
 
-        return root;
+        cardBox.Child = cStack;
+        rightStack.Children.Add(cardBox);
+
+        Canvas.SetLeft(rightStack, 550);
+        Canvas.SetTop(rightStack, 10);
+        content.Children.Add(rightStack);
+
+        return VoltKit.TwoPaneShell("setups", "Setups", $"{setups.Cards.Count} SAVED SETUPS · {shortModel.ToUpperInvariant()}", content, VoltSelectPage);
     }
 }

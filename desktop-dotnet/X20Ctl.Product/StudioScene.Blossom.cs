@@ -339,26 +339,10 @@ public partial class StudioScene
         };
         statusStack.Children.Add(new TextBlock
         {
-            Text = "Player 1",
+            Text = DateTime.Now.ToString("HH:mm"),
             FontFamily = BlossomKit.Body,
             FontSize = 16,
-            Foreground = BlossomKit.B("#e3cfd6"),
-            Margin = new Thickness(0, 0, 14, 0)
-        });
-        statusStack.Children.Add(new TextBlock
-        {
-            Text = "19:24",
-            FontFamily = BlossomKit.Body,
-            FontSize = 16,
-            Foreground = BlossomKit.TextMuteBrush,
-            Margin = new Thickness(0, 0, 14, 0)
-        });
-        statusStack.Children.Add(new TextBlock
-        {
-            Text = "\uE83F",
-            FontFamily = BlossomKit.Icons,
-            FontSize = 19,
-            Foreground = BlossomKit.B("#e3cfd6")
+            Foreground = BlossomKit.TextMuteBrush
         });
         Canvas.SetLeft(statusStack, 360);
         Canvas.SetTop(statusStack, 58);
@@ -368,7 +352,7 @@ public partial class StudioScene
         var infoStack = new StackPanel { Width = 420 };
         infoStack.Children.Add(new TextBlock
         {
-            Text = "PLAYER 1",
+            Text = "CONTROLLER",
             FontFamily = BlossomKit.Small,
             FontSize = 12,
             FontWeight = FontWeights.Bold,
@@ -392,45 +376,6 @@ public partial class StudioScene
             Margin = new Thickness(0, 4, 0, 0)
         });
 
-        // 2x2 Telemetry Grid
-        var grid = new Grid { Margin = new Thickness(0, 26, 0, 0) };
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(200) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(200) });
-        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-
-        var telem = new (string Key, string Val)[]
-        {
-            ("PROFILE", "PRO COMBAT"),
-            ("BATTERY", "92%"),
-            ("POLLING RATE", "1000 HZ"),
-            ("FIRMWARE", "V1.04")
-        };
-
-        for (int i = 0; i < telem.Length; i++)
-        {
-            var cell = new StackPanel { Margin = new Thickness(0, 0, 10, 16) };
-            cell.Children.Add(new TextBlock
-            {
-                Text = telem[i].Key,
-                FontFamily = BlossomKit.Small,
-                FontSize = 11,
-                FontWeight = FontWeights.Bold,
-                Foreground = BlossomKit.B("#b48a99")
-            });
-            cell.Children.Add(new TextBlock
-            {
-                Text = telem[i].Val,
-                FontFamily = BlossomKit.Body,
-                FontSize = 18,
-                Foreground = BlossomKit.TextWhiteBrush,
-                Margin = new Thickness(0, 3, 0, 0)
-            });
-            Grid.SetColumn(cell, i % 2);
-            Grid.SetRow(cell, i / 2);
-            grid.Children.Add(cell);
-        }
-        infoStack.Children.Add(grid);
 
         Canvas.SetLeft(infoStack, 58);
         Canvas.SetTop(infoStack, 196);

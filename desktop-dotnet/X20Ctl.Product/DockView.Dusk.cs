@@ -250,7 +250,7 @@ public partial class DockView
             };
             connPill.Child = new TextBlock
             {
-                Text = "2.4G WIRELESS",
+                Text = "LOCAL",
                 FontFamily = DuskKit.Display,
                 FontSize = 12,
                 FontWeight = FontWeights.SemiBold,
@@ -338,43 +338,15 @@ public partial class DockView
 
             batStack.Children.Add(new TextBlock
             {
-                Text = "100%",
+                Text = "—",
                 FontFamily = DuskKit.Display,
                 FontSize = 13,
                 FontWeight = FontWeights.Bold,
                 Foreground = DuskKit.WhiteBrush
             });
             batPill.Child = batStack;
-            telemetryRow.Children.Add(batPill);
+            // Battery is not reported by the controller, so no meter is drawn.
 
-            var ratePill = new Border
-            {
-                Background = DuskKit.B("#161e27"),
-                BorderBrush = DuskKit.B("#2b3847"),
-                BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(14),
-                Padding = new Thickness(12, 6, 12, 6),
-                Margin = new Thickness(10, 0, 0, 0)
-            };
-            var rateStack = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            var rDot = new Ellipse
-            {
-                Width = 6,
-                Height = 6,
-                Fill = DuskKit.GreenOnlineBrush,
-                Margin = new Thickness(0, 0, 6, 0)
-            };
-            rateStack.Children.Add(rDot);
-            rateStack.Children.Add(new TextBlock
-            {
-                Text = "0.98ms Latency",
-                FontFamily = DuskKit.Display,
-                FontSize = 13,
-                FontWeight = FontWeights.SemiBold,
-                Foreground = DuskKit.B("#b8c4cf")
-            });
-            ratePill.Child = rateStack;
-            telemetryRow.Children.Add(ratePill);
 
             if (focused)
             {
@@ -383,7 +355,6 @@ public partial class DockView
                     Background = DuskKit.GreenActionBrush,
                     CornerRadius = new CornerRadius(14),
                     Padding = new Thickness(14, 6, 14, 6),
-                    Margin = new Thickness(12, 0, 0, 0),
                     Effect = new DropShadowEffect { Color = DuskKit.GreenOnline, BlurRadius = 14, ShadowDepth = 0, Opacity = 0.5 }
                 };
                 actionPill.Child = new TextBlock
@@ -617,7 +588,7 @@ public partial class DockView
 
             var subPrompt = new TextBlock
             {
-                Text = $"PORT {Index + 1} · PRESS [A] TO PAIR 2.4G RF OR USB-C",
+                Text = $"PORT {Index + 1} · PRESS [A] TO OPEN",
                 FontFamily = DuskKit.Display,
                 FontSize = 13,
                 FontWeight = FontWeights.SemiBold,

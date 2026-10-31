@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -15,8 +15,11 @@ public partial class StudioScene
     /// Device workbench for Volt: Hardware capabilities, wireless connection telemetry, and firmware verification.
     /// Strictly implements t_volt.py:253 Volt and models.py:device.
     /// </summary>
+    private bool voltDeviceWired;
     private UIElement BuildVoltDevice()
     {
+        if (!voltDeviceWired && Device != null) { voltDeviceWired = true; Device.Watch(VoltLater); }
+
         var content = new Canvas { Width = 970, Height = 560 };
 
         // 1. Left List: Device specs & capabilities (width: 520)
@@ -34,10 +37,10 @@ public partial class StudioScene
 
         var devRows = new (string Label, string Val, bool Active)[]
         {
-            ("Connection", "2.4G Wireless Dongle", true),
-            ("Firmware Version", "v1.0.4 (Current)", false),
-            ("Battery Level", "100% · Normal Discharge", false),
-            ("Polling Frequency", "1000 Hz (1.0ms)", false)
+            ("Connection", Device?.ConnectionText ?? "Not detected", true),
+            ("Firmware Version", Device?.FirmwareText ?? "Not reported", false),
+            ("Battery Level", Device?.BatteryText ?? "Not reported", false),
+            ("Transport", Device?.TransportText ?? "Not reported", false)
         };
 
         foreach (var (lbl, val, active) in devRows)
@@ -98,11 +101,11 @@ public partial class StudioScene
 
         var capRows = new (string Label, string Val)[]
         {
-            ("Analog Sticks", "Hall Effect Magnetic Sensing"),
-            ("Linear Triggers", "Hall Linear 256-Step"),
-            ("Rear Paddles", "M1 · M2 · M3 · M4 Microswitches"),
-            ("Rumble Motors", "Dual Asymmetric Eccentric Motors"),
-            ("Motion Sensors", "6-Axis High-Rate Gyroscope")
+            ("Model", Model.Name),
+            ("Hardware revision", Device?.RevisionText ?? "Not reported"),
+            ("Rear artwork", HasRearArtwork ? "Available" : "Unavailable"),
+            ("Configuration writes", "Locked"),
+            ("Polling rate", "Not measured")
         };
 
         foreach (var (lbl, val) in capRows)
@@ -185,7 +188,7 @@ public partial class StudioScene
         };
         connBadge.Child = new TextBlock
         {
-            Text = "2.4G RF · ONLINE",
+            Text = Device?.ConnectionText ?? "Not detected",
             FontFamily = VoltKit.Display,
             FontSize = 12,
             FontWeight = FontWeights.ExtraBold,
@@ -221,7 +224,7 @@ public partial class StudioScene
 
         cStack.Children.Add(new TextBlock
         {
-            Text = "1000 Hz",
+            Text = Device?.TransportText ?? "Not reported",
             FontFamily = VoltKit.Display,
             FontSize = 46,
             FontWeight = FontWeights.SemiBold,
@@ -231,7 +234,7 @@ public partial class StudioScene
 
         cStack.Children.Add(new TextBlock
         {
-            Text = "Dedicated 2.4 GHz RF wireless dongle. Proprietary anti-interference frequency hopping guarantees steady 1 ms packet delivery under heavy wireless congestion.",
+            Text = "Transport is reported by the active device. Gameplay input does not establish hardware configuration support.",
             FontFamily = VoltKit.Body,
             FontSize = 15,
             Foreground = VoltKit.B("#bdbdbd"),

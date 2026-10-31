@@ -13,6 +13,8 @@ public partial class StudioScene
 {
     private void NexusShowVibration()
     {
+        Vibration ??= new(vibrationDraft, this, RegisterFocus, animate, Model.Id);
+        var vib = Vibration;
         nexusPageHost!.Children.Clear();
 
         // 1. Background gradient
@@ -30,7 +32,7 @@ public partial class StudioScene
         // 2. Top bar
         var topBar = NexusKit.TopBar(
             player: Player,
-            model: "EasySMX X20 Pro",
+            model: Model.Name,
             status: "Offline",
             onZone: () => BackRequested?.Invoke(),
             onSetups: () => ShowManagement("Setups"),
@@ -69,12 +71,9 @@ public partial class StudioScene
         var rowPanel = new StackPanel { Width = 820 };
 
         // Row 0 (Focused): Strength slider 70%
-        var r1 = NexusKit.RowButton("Strength", null, NexusKit.Slider(70, 0, 100, 210), focused: true, width: 820);
+        var strengthSlider = ThemeSlider(vib.Strength, "theme:vibration:strength", 210, vibrationDraft.CanEdit, NexusKit.SliderTrackBrush);
+        var r1 = NexusKit.RowButton("Strength", null, strengthSlider, focused: true, width: 820);
         rowPanel.Children.Add(r1);
-
-        // Row 1: Preview region dropdown "All"
-        var r2 = NexusKit.RowButton("Preview region", null, NexusKit.Dropdown("All"), focused: false, width: 820);
-        rowPanel.Children.Add(r2);
 
         // Row 2: Test on controller disabled
         var disText = new TextBlock
@@ -95,11 +94,11 @@ public partial class StudioScene
         // 5. Visual under rows: Controller with grip vibration glow at (178, 482, w=600)
         double visW = 520;
         var visHost = new Canvas { Width = visW, Height = visW * 0.65, ClipToBounds = false };
-        var padArt = NexusKit.ControllerArt("x20pro", visW);
+        var padArt = NexusKit.ControllerArt(Model.Id, visW);
         if (padArt != null)
         {
             // Green grip glow underneath
-            var glow = NexusKit.ControllerArt("x20pro", visW);
+            var glow = NexusKit.ControllerArt(Model.Id, visW);
             if (glow != null)
             {
                 glow.Effect = new DropShadowEffect
@@ -136,20 +135,21 @@ public partial class StudioScene
         });
         cardStack.Children.Add(new TextBlock
         {
-            Text = "70%",
             FontFamily = NexusKit.Display,
             FontSize = 46,
             FontWeight = FontWeights.SemiBold,
             Foreground = NexusKit.WhiteBrush,
             Margin = new Thickness(0, 4, 0, 0)
-        });
+        }.Also(t => t.SetBinding(TextBlock.TextProperty, new System.Windows.Data.Binding("Value") { Source = vib.Strength, StringFormat = "{0:0}%" })));
 
         // Chips: Off, 25%, 50%, 75%, 100%
         var chips = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 14, 0, 14) };
         foreach (var ch in new[] { "Off", "25%", "50%", "75%", "100%" })
         {
+            int level = ch == "Off" ? 0 : int.Parse(ch.TrimEnd('%'));
             var chip = new Border
             {
+                Cursor = System.Windows.Input.Cursors.Hand,
                 Padding = new Thickness(16, 6, 16, 6),
                 Margin = new Thickness(0, 0, 8, 0),
                 CornerRadius = new CornerRadius(4),
@@ -162,6 +162,7 @@ public partial class StudioScene
                     Foreground = NexusKit.WhiteBrush
                 }
             };
+            chip.MouseLeftButtonDown += (_, _) => vib.Set(level);
             chips.Children.Add(chip);
         }
         cardStack.Children.Add(chips);

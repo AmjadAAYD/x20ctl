@@ -17,6 +17,8 @@ public partial class StudioScene : UserControl
     public ButtonDraft Draft { get; }
     public string SelectedControl { get; private set; } = "";
     public bool IsRear { get; private set; }
+    internal bool RearViewAvailable => RearChoice.IsEnabled;
+    private bool HasRearArtwork => Model.Id is "x20" or "x20_pro";
     public bool AssignmentsVisible => AssignmentOverview.Visibility == Visibility.Visible;
     public bool IsCurves { get; private set; }
     public bool IsMacros { get; private set; }
@@ -67,14 +69,16 @@ public partial class StudioScene : UserControl
     {
         InitializeComponent(); Player = player; Model = model; Draft = draft; PadColours.ActivePlayer = player; Loaded += (_, _) => { if (!IsRebel) BuildRebelStudio(); if (ThemeCatalog.Current.Id == "pulse") BuildPulseStudio(); if (ThemeCatalog.Current.Id == "spotlight") BuildSpotlightStudio(); if (ThemeCatalog.Current.Id == "nexus") BuildNexusStudio(); if (ThemeCatalog.Current.Id == "tide") BuildTideStudio(); if (ThemeCatalog.Current.Id == "hybrid") BuildHybridStudio(); if (ThemeCatalog.Current.Id == "dusk") BuildDuskStudio(); if (ThemeCatalog.Current.Id == "volt") BuildVoltStudio(); if (ThemeCatalog.Current.Id == "blossom") BuildBlossomStudio(); };
         setupStore=setups??new(Path.Combine(Path.GetTempPath(),"x20ctl-render-setup-"+Guid.NewGuid().ToString("N")+".json"));legacySources=legacy??Array.Empty<string>();activeSetup=activeId;
-        Unloaded+=(_,_)=>{StopTry();Tester?.ExitCapture();Diagnostics?.Stop();};
+        Unloaded+=(_,_)=>{SuspendMacroActivity();StopTry();Tester?.ExitCapture();Diagnostics?.Stop();};
+        IsEnabledChanged += (_, _) => { if (!IsEnabled) SuspendMacroActivity(); };
+        IsVisibleChanged += (_, _) => { if (!IsVisible) SuspendMacroActivity(); };
         macroDraft=macros ?? new MacroDraft(model.Id);vibrationDraft=vibration??new(model.Id);
         animate = !reducedMotion && SystemParameters.ClientAreaAnimation;
         StudioBackdrop.ReducedMotion = !animate;
         ControllerContext.Text = $"{model.Name} · Player {player + 1}";
         layout = ControlRegions.Owned(model, File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Data/control-shapes.json")), File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Data/x20-rear.json")));
         TargetChoice.ItemsSource = ButtonDraft.Targets.Select(key => new KeyValuePair<string, string>(key, Label(key))).ToArray();
-        RearChoice.IsEnabled = model.Id is "x20" or "x20_pro";
+        RearChoice.IsEnabled = HasRearArtwork;
         CurvesNav.ToolTip = draft.PcMode ? "PC mode curves · Page Down" : model.Id is "x20" or "x20_pro" ? "Local curve drafts · Page Down" : "Curve preview · read-only for this model · Page Down";
         Unloaded+=(_,_)=>{PcModePage.ProfileChanged-=PcProfileChanged;PcModePage.NoticeAccepted-=PcNoticeAccepted;};
         Loaded+=(_,_)=>{PcModePage.ProfileChanged-=PcProfileChanged;PcModePage.ProfileChanged+=PcProfileChanged;PcModePage.NoticeAccepted-=PcNoticeAccepted;PcModePage.NoticeAccepted+=PcNoticeAccepted;};
@@ -163,7 +167,7 @@ public partial class StudioScene : UserControl
     private void SizeAgentController()
     {
         if (agentPanel == null) return;
-        if (IsPulse || IsSpotlight || IsNexus || IsTide) { agentPanel.Body.Width = 1600; agentPanel.Body.Height = 900; agentPanel.Body.Margin = new(0); agentPanel.Body.HorizontalAlignment = HorizontalAlignment.Stretch; agentPanel.Body.VerticalAlignment = VerticalAlignment.Stretch; return; }
+        if (IsRebel || hybridStudio || IsPulse || IsSpotlight || IsNexus || IsTide) { agentPanel.Body.Width = 1600; agentPanel.Body.Height = 900; agentPanel.Body.Margin = new(0); agentPanel.Body.HorizontalAlignment = HorizontalAlignment.Stretch; agentPanel.Body.VerticalAlignment = VerticalAlignment.Stretch; return; }
         double room=Math.Max(180,StudioShell.ActualHeight-70), wide=Math.Max(280,StudioShell.ActualWidth-40);
         double high=Math.Min(room,wide*Agent.AgentPanel.DesignHeight/Agent.AgentPanel.DesignWidth);
         double across=high*Agent.AgentPanel.DesignWidth/Agent.AgentPanel.DesignHeight;
@@ -509,7 +513,7 @@ public partial class StudioScene : UserControl
         if(ManagementPage=="Tester"){Tester?.Exit.Focus();return;}
         if(ManagementPage=="Device"){Device?.OpenTester.Focus();return;}
         if(ManagementPage=="Setups"){Setups?.NewButton.Focus();return;}
-        if(ManagementPage=="Dashboard"){Dashboard?.FocusHero();return;}
+        if(ManagementPage=="Dashboard"){if(hybridStudio && !hybridGames)HybridFocusDashboard();else Dashboard?.FocusHero();return;}
         if(ManagementPage=="Mouse"){Mouse?.Switch.Focus();return;}
         if(ManagementPage=="Diagnostics"){Diagnostics?.Reset.Focus();return;}
         if(ManagementPage=="PcMode")
@@ -657,7 +661,7 @@ public partial class StudioScene : UserControl
         StickToolsChoice.Visibility=value&&PcMode!=null?Visibility.Visible:Visibility.Collapsed;if(!value)CloseStickTools();
         HardwareShortcuts.Visibility=FrontChoice.Visibility=RearChoice.Visibility=value?Visibility.Collapsed:Visibility.Visible;
         foreach (var control in controls.Values) control.IsEnabled = !value || control.Region.Key is "L3" or "R3" or "LSTICK_ANALOG" or "RSTICK_ANALOG" or "LT" or "RT";
-        FrontChoice.IsEnabled = !value; RearChoice.IsEnabled = !value;
+        FrontChoice.IsEnabled = !value; RearChoice.IsEnabled = !value && HasRearArtwork;
         PlaceCurveToolbar(value);RootLayout.RowDefinitions[4].Height=new(value?144:184);if(value){DraftBar.Visibility=Visibility.Collapsed;RootLayout.RowDefinitions[2].Height=new(0);Apply.Visibility=StatusNote.Visibility=Visibility.Collapsed;TryChoice.Content="Keyboard test";}
         if (value) Curves.SelectChannel(Curves.Channel); else { if(previousButtonControl.Length>0) SelectControl(previousButtonControl);else ClearSelection();RefreshEditor(); }
         EnterMotion(value ? CurveInspectorHost : MappingHero, value ? 14 : -14, 220); EnterMotion(value ? CurveShelfHost : QuickTargets, value ? 14 : -14, 220); UpdateButtonsPage();
@@ -728,26 +732,35 @@ public partial class StudioScene : UserControl
     /// <summary>Curves → Advanced: the fine stick tools, over the Studio until Done (or B / Esc).</summary>
     public void OpenStickTools()
     {
-        if (IsSpotlight) { SpotlightShowAdvanced(); return; }
-        if (IsNexus) { NexusShowAdvanced(); return; }
-        if (IsTide) { TideShowAdvanced(); return; }
         if(PcMode==null||stickToolsLayer!=null)return;
         StickTools=new StickToolsPanel(PcMode,CloseStickTools);
-        StickTools.PulseNavigate = target => { CloseStickTools(); PulseSelectPage(target); };
+        if (IsPulse) StickTools.PulseNavigate = target => { CloseStickTools(); PulseSelectPage(target); };
+        else if (IsSpotlight) StickTools.SpotlightNavigate = target => { CloseStickTools(); SpotlightSelectPage(target); };
+        else if (IsNexus) StickTools.NexusNavigate = target => { CloseStickTools(); NexusSelectPage(target); };
+        else if (IsTide) StickTools.TideNavigate = target => { CloseStickTools(); TideSelectPage(target); };
+        else if (IsRebel) StickTools.RebelNavigate = key => { CloseStickTools(); RebelGoPage(key); };
+        else if (hybridStudio) StickTools.RebelNavigate = key => { CloseStickTools(); HybridGo(key); };
         stickToolsLayer=new Grid{Background=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(200,3,6,16))),Children={StickTools}};
         Grid.SetZIndex(stickToolsLayer,50);StudioShell.Children.Add(stickToolsLayer);Fx.Appear(stickToolsLayer,1.03,240);StickTools.Done.Focus();
     }
     public void CloseStickTools()
     {
-        if (IsSpotlight) { SpotlightShowCurves(); return; }
-        if (IsNexus) { NexusShowCurves(); return; }
-        if (IsTide) { tideAdvanced = false; TideShowCurves(); return; }
+        if (IsSpotlight) SpotlightShowCurves();
+        else if (IsNexus) NexusShowCurves();
+        else if (IsTide) { tideAdvanced = false; TideShowCurves(); }
         if(stickToolsLayer==null)return;var leaving=stickToolsLayer;stickToolsLayer=null;StickTools=null;
         Fx.Leave(leaving,()=>StudioShell.Children.Remove(leaving),1.02,200);if(IsCurves)StickToolsChoice.Focus();
     }
     private void ButtonsTab(object sender,RoutedEventArgs e) => ShowButtons();
     /// <summary>Open the Buttons page from anywhere (tab, Dashboard hero, review harnesses).</summary>
-    public void ShowButtons() { RebelLater(); PulseLater(); SpotlightLater(); NexusLater(); TideLater(); HybridLater(); DuskLater(); VoltLater(); BlossomLater(); ShowCurves(false);if(IsMacros)ShowMacros(false);if(IsVibration)ShowVibration(false);HideManagement();ButtonsNav.IsChecked=true;FrontChoice.IsEnabled=true;RearChoice.IsEnabled=Model.Id=="x20";UpdateButtonsPage(); }
+    // The native macro Body can remain hidden behind a custom themed editor.
+    // Studio lifecycle must therefore stop capture independently of Body visibility.
+    internal void SuspendMacroActivity()
+    {
+        if (Macros is { IsRecording: true } recording) recording.ToggleRecording();
+        Macros?.StopPreview();
+    }
+    public void ShowButtons() { RebelLater(); PulseLater(); SpotlightLater(); NexusLater(); TideLater(); HybridLater(); DuskLater(); VoltLater(); BlossomLater(); ShowCurves(false);if(IsMacros)ShowMacros(false);if(IsVibration)ShowVibration(false);HideManagement();ButtonsNav.IsChecked=true;FrontChoice.IsEnabled=true;RearChoice.IsEnabled=HasRearArtwork;UpdateButtonsPage(); }
     public DashboardConsolePage? Dashboard {get;private set;}
     private DashboardConsolePage CreateDashboard(){var page=new DashboardConsolePage(Model,Player,Draft.UnsentChanges,setupStore.Items.Count(s=>s.ModelId==Model.Id),!animate,setupStore.Items.Where(s=>s.ModelId==Model.Id).ToArray(),id=>LoadSetup(setupStore.NativeSnapshot(id)));if(currentTransport!=null)page.SetTransport(currentTransport);if(currentFirmware!=null)page.SetFirmware(currentFirmware);page.SetBatteryLevel(currentBatteryLevel,currentTransport);if(gameplayConnected is bool connected)page.SetInputConnected(connected);page.TelemetryUpdated+=ApplyTelemetry;page.ConfigureRequested+=ShowButtons;page.PageRequested+=target=>{if(target=="Buttons")ShowButtons();else if(target=="Curves")ShowCurves(true);else if(target=="Macros")ShowMacros(true);else ShowManagement(target);};return page;}
     private void DashboardTab(object sender,RoutedEventArgs e)=>ShowManagement("Dashboard");
@@ -767,7 +780,7 @@ public partial class StudioScene : UserControl
             if(Macros==null) {Macros=new(macroDraft,layout,this,RegisterFocus,!animate,Model.Id);ModelProfiles.Wear(Macros.Body,Model.Id,"Macros",Draft.PcMode);MacroBodyHost.Children.Add(Macros.Body);Macros.Changed+=UpdateMacroContext;}
             UpdateMacroContext();EnterMotion(MacroBodyHost,14,220);
         }
-        else {Macros?.StopPreview();RefreshEditor();}UpdateButtonsPage();
+        else {if ((hybridStudio || IsDusk) && Macros?.IsRecording == true) Macros.ToggleRecording(); Macros?.StopPreview();RefreshEditor();}UpdateButtonsPage();
     }
     private void UpdateMacroContext()
     {
@@ -987,7 +1000,7 @@ public partial class StudioScene : UserControl
     public bool CapturingRemap => OnButtonsPage && buttonsPage != null && buttonsPage.Listening != ButtonsConsolePage.Listen.None;
     public void OnKeyDown(object sender, KeyEventArgs e)
     {
-        if (RebelKey(e) || PulseKey(e)) return;
+        if (HybridDashboardKey(e) || RebelKey(e) || PulseKey(e)) return;
         // the Advanced stick tools own the keyboard while open (arrows nudge their sliders); Esc closes them
         if (stickToolsLayer != null) { if (e.Key == Key.Escape) { CloseStickTools(); e.Handled = true; } return; }
         // the agent window: Esc puts it away, and while typing to it every key is the text box's

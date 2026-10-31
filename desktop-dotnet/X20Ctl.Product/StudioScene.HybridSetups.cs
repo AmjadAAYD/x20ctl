@@ -1,341 +1,55 @@
-using System;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Effects;
 using System.Windows.Shapes;
-using X20Ctl.Product.Hybrid;
+using System.Windows.Threading;
+using X20Ctl.Product.Rebel;
 
 namespace X20Ctl.Product;
 
 public partial class StudioScene
 {
-    private void HybridShowSetups()
+    private SetupsWorkbench? hybridSetupsSource;
+    private void HybridSetupsPage()
     {
-        hybridPageHost!.Children.Clear();
-        hybridPageHost.Children.Add(BuildHybridSetups());
-    }
-
-    private FrameworkElement BuildHybridSetups()
-    {
-        var root = new Canvas { Width = 1600, Height = 900, ClipToBounds = true };
-
-        // Docked mode background halves (seam at x=800, ny=470)
-        root.Children.Add(HybridKit.Halves(800, 470));
-        root.Children.Add(HybridKit.Brand(44, 30, true));
-        root.Children.Add(HybridKit.TopRight(false, 0));
-
-        // Title at (160, 104)
-        var title = new TextBlock
+        var w = Setups; if (hybridSetups == null || w == null) return;
+        if (!ReferenceEquals(hybridSetupsSource, w)) { hybridSetupsSource = w; w.Watch(() => { if (ManagementPage == "Setups") HybridLater(); }); }
+        string? focused = Keyboard.FocusedElement is FrameworkElement { Tag: string tag } element && hybridSetups.IsAncestorOf(element) ? tag : null;
+        TextBox? rename = null; if (w.RenameActive) { rename = w.TakeNameField(); HDetach(rename); }
+        hybridSetups.Children.Clear(); var board = new Canvas { Width = 1600, Height = 848, ClipToBounds = true, Background = HBrush("#211d28") }; hybridSetups.Children.Add(board);
+        HAt(board, new Rectangle { Width = 800, Height = 848, Fill = new LinearGradientBrush((Color)ColorConverter.ConvertFromString("#e7dbf7"), (Color)ColorConverter.ConvertFromString("#b89fd1"), 90) }, 0, 0);
+        HAt(board, new Rectangle { Width = 800, Height = 848, Fill = HBrush("#211e27") }, 800, 0); HAt(board, new Rectangle { Width = 5, Height = 848, Fill = HBrush("#52dcff") }, 798, 0);
+        HAt(board, HText("My setups", 40, "#1b1622", FontWeights.ExtraBold), 160, 52);
+        var left = new Border { Width = 664, Height = 620, CornerRadius = new(44, 10, 10, 44), Background = HBrush("#bba0d9"), BorderBrush = HBrush("#d8c6ec"), BorderThickness = new(8) }; HAt(board, left, 120, 124);
+        var right = new Border { Width = 648, Height = 620, CornerRadius = new(10, 44, 44, 10), Background = HBrush("#302b36"), BorderBrush = HBrush("#4b4453"), BorderThickness = new(8) }; HAt(board, right, 832, 124);
+        var cards = w.Cards; var selected = cards.FirstOrDefault(c => c.Id == w.SelectedId); bool has = selected.Id != null;
+        var face = new Border { Width = 270, Height = 340, CornerRadius = new(18), Background = HBrush("#fbf8ff"), BorderBrush = HBrush("#52dcff"), BorderThickness = new(4) }; HAt(board, face, 160, 168);
+        HAt(board, Pieces.Pad(Model.Id, PadColours.For(Player, Model.Id), 230), 180, 210);
+        HAt(board, HText(has ? selected.Name : "No setup selected", 18, "#1b1622", FontWeights.Bold), 178, 438);
+        HAt(board, HText(has ? selected.State : w.LibraryText, 13, "#5c4075", FontWeights.Normal), 178, 472);
+        HAt(board, HText("SELECTED SETUP", 13, "#5c4075", FontWeights.Bold), 458, 172);
+        HAt(board, HText(has ? w.DetailName : "Make it yours", 26, "#1b1622", FontWeights.ExtraBold), 458, 195);
+        var detail = HText(has ? w.DetailModel : "Create a setup or import a saved copy.", 14, "#5c4075", FontWeights.SemiBold); detail.Width = 285; detail.TextWrapping = TextWrapping.Wrap; HAt(board, detail, 458, 235);
+        int j = 0; foreach (var (label, value) in w.Metrics) { HAt(board, HText(label + "   " + value, 15, "#1b1622", FontWeights.SemiBold), 458, 300 + j++ * 32); }
+        if (rename != null) { rename.Width = 260; rename.Height = 36; rename.Tag = "hybrid:setup:name"; HAt(board, rename, 458, 450); var saveName = HybridButton("Save name", "hybrid:setup:saveName", false, 130, 36); saveName.IsEnabled = w.Can("saveName"); saveName.Click += (_, _) => w.Click("saveName"); HAt(board, saveName, 458, 490); }
+        var actions = new WrapPanel { Width = 610 };
+        foreach (var (label, key) in new[] { ("Open", "open"), ("Save", "save"), ("Duplicate", "duplicate"), ("Rename", "rename"), ("Export", "export"), ("Delete", "delete") }) { var button = HybridButton(label, "hybrid:setup:" + key, key == "open", 130, 40); button.Margin = new(0, 0, 8, 8); button.IsEnabled = w.Can(key); button.Click += (_, _) => w.Click(key); actions.Children.Add(button); } HAt(board, actions, 160, 548);
+        var grid = new WrapPanel { Width = 580, ItemWidth = 190, ItemHeight = 205 };
+        foreach (var card in cards) { var button = HybridButton(card.Name + "\n" + card.State, "hybrid:setup:card:" + card.Id, card.Id == w.SelectedId, 176, 184); button.Click += (_, _) => w.Select(card.Id); grid.Children.Add(button); }
+        var cardScroll = new ScrollViewer { Content = grid, Width = 580, Height = 428, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }; HAt(board, cardScroll, 872, 164);
+        var utilities = new WrapPanel { Width = 580 };
+        foreach (var (label, key) in new[] { ("New setup", "new"), ("Save current draft", "save"), ("Import setup", "import"), ("Copy legacy setups", "legacy") }) { if (key == "legacy" && !w.HasLegacy) continue; var button = HybridButton(label, "hybrid:setup:util:" + key, false, 175, 40); button.Margin = new(0, 0, 8, 8); button.IsEnabled = w.Can(key); button.Click += (_, _) => w.Click(key); utilities.Children.Add(button); } HAt(board, utilities, 872, 668);
+        var notice = HText(w.NoticeText, 13, "#4b3d5e", FontWeights.Normal); notice.MaxWidth = 650; notice.TextTrimming = TextTrimming.CharacterEllipsis; HAt(board, notice, 120, 780);
+        if (w.DeletePending)
         {
-            Text = "My Setups",
-            FontFamily = HybridKit.Display,
-            FontSize = 40,
-            FontWeight = FontWeights.ExtraBold,
-            Foreground = HybridKit.InkBrush
-        };
-        Canvas.SetLeft(title, 160);
-        Canvas.SetTop(title, 104);
-        root.Children.Add(title);
-
-        // Subtitle next to title
-        var subTitle = new TextBlock
-        {
-            Text = "· Cloud & Onboard Controller Profiles",
-            FontFamily = HybridKit.Body,
-            FontSize = 18,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = HybridKit.MauveBrush
-        };
-        Canvas.SetLeft(subTitle, 360);
-        Canvas.SetTop(subTitle, 122);
-        root.Children.Add(subTitle);
-
-        // Open Clamshell Case: Two shells hinged on the seam
-        // 1. Left shell (120, 176, w: 664, h: 620)
-        var leftShell = new Border
-        {
-            Width = 664,
-            Height = 620,
-            CornerRadius = new CornerRadius(44, 10, 10, 44),
-            Background = new LinearGradientBrush
-            {
-                StartPoint = new Point(0, 0),
-                EndPoint = new Point(1, 1),
-                GradientStops =
-                {
-                    new(HybridKit.C("#c4a6ee"), 0.0),
-                    new(HybridKit.C("#a785d9"), 1.0)
-                }
-            },
-            BorderBrush = new SolidColorBrush(Color.FromArgb(0x40, 255, 255, 255)),
-            BorderThickness = new Thickness(10),
-            Effect = new DropShadowEffect { Color = HybridKit.C("#1e1428"), BlurRadius = 40, ShadowDepth = 20, Opacity = 0.35 }
-        };
-        Canvas.SetLeft(leftShell, 120);
-        Canvas.SetTop(leftShell, 176);
-        root.Children.Add(leftShell);
-
-        // 2. Right shell (832, 176, w: 648, h: 620)
-        var rightShell = new Border
-        {
-            Width = 648,
-            Height = 620,
-            CornerRadius = new CornerRadius(10, 44, 44, 10),
-            Background = new LinearGradientBrush
-            {
-                StartPoint = new Point(0, 0),
-                EndPoint = new Point(1, 1),
-                GradientStops =
-                {
-                    new(HybridKit.C("#3a3541"), 0.0),
-                    new(HybridKit.C("#25222b"), 1.0)
-                }
-            },
-            BorderBrush = new SolidColorBrush(Color.FromArgb(0x15, 255, 255, 255)),
-            BorderThickness = new Thickness(10),
-            Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 40, ShadowDepth = 20, Opacity = 0.45 }
-        };
-        Canvas.SetLeft(rightShell, 832);
-        Canvas.SetTop(rightShell, 176);
-        root.Children.Add(rightShell);
-
-        // Seam between shells
-        root.Children.Add(HybridKit.Seam(800, 176, 796, 470, true, 0.9));
-
-        // LEFT SHELL CONTENT:
-        // Selected setup card at (160, 220, w: 270, h: 340)
-        var selCard = new Border
-        {
-            Width = 270,
-            Height = 340,
-            CornerRadius = new CornerRadius(22),
-            Background = HybridKit.B("#fbf8ff"),
-            BorderBrush = HybridKit.CyanBrush,
-            BorderThickness = new Thickness(5),
-            Effect = new DropShadowEffect { Color = HybridKit.Cyan, BlurRadius = 24, ShadowDepth = 0, Opacity = 0.85 }
-        };
-        var cardInner = new Canvas { Width = 260, Height = 330, ClipToBounds = true };
-
-        // Controller artwork on card
-        var cardPad = HybridKit.ControllerArt("d10-purple", 240);
-        if (cardPad != null)
-        {
-            Canvas.SetLeft(cardPad, 10);
-            Canvas.SetTop(cardPad, 20);
-            cardInner.Children.Add(cardPad);
+            HAt(board, new Rectangle { Width = 1600, Height = 848, Fill = new SolidColorBrush(Color.FromArgb(185, 0, 0, 0)) }, 0, 0);
+            HAt(board, new Border { Width = 560, Height = 220, CornerRadius = new(24), Background = HBrush("#2d2933"), BorderBrush = HBrush("#52dcff"), BorderThickness = new(2) }, 520, 260);
+            HAt(board, HText(w.DeleteQuestion, 24, "#f5f1fa", FontWeights.Bold), 555, 288);
+            var keep = HybridButton("Keep setup", "hybrid:setup:keep", true, 210, 44); keep.Click += (_, _) => w.Click("keep"); HAt(board, keep, 555, 370);
+            var remove = HybridButton("Remove setup", "hybrid:setup:remove", false, 210, 44); remove.Click += (_, _) => w.Click("remove"); HAt(board, remove, 790, 370); focused = "hybrid:setup:keep";
         }
-
-        var cardMeta = new StackPanel { Orientation = Orientation.Vertical, Width = 230 };
-        cardMeta.Children.Add(new TextBlock
-        {
-            Text = "Pro Tourney",
-            FontFamily = HybridKit.Display,
-            FontSize = 22,
-            FontWeight = FontWeights.ExtraBold,
-            Foreground = HybridKit.InkBrush
-        });
-        cardMeta.Children.Add(new TextBlock
-        {
-            Text = "EasySMX D10 · Competitive",
-            FontFamily = HybridKit.Body,
-            FontSize = 14,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = HybridKit.MauveBrush
-        });
-        Canvas.SetLeft(cardMeta, 16);
-        Canvas.SetTop(cardMeta, 260);
-        cardInner.Children.Add(cardMeta);
-
-        selCard.Child = cardInner;
-        Canvas.SetLeft(selCard, 160);
-        Canvas.SetTop(selCard, 220);
-        root.Children.Add(selCard);
-
-        // Selected setup detail text on Left shell at (458, 224, w: 300)
-        var detailStack = new StackPanel { Width = 300, Orientation = Orientation.Vertical };
-        detailStack.Children.Add(new TextBlock
-        {
-            Text = "ACTIVE PROFILE",
-            FontFamily = HybridKit.Display,
-            FontSize = 12,
-            FontWeight = FontWeights.Bold,
-            Foreground = HybridKit.B("#5c4075")
-        });
-        detailStack.Children.Add(new TextBlock
-        {
-            Text = "Pro Tourney",
-            FontFamily = HybridKit.Display,
-            FontSize = 32,
-            FontWeight = FontWeights.ExtraBold,
-            Foreground = HybridKit.InkBrush,
-            Margin = new Thickness(0, 2, 0, 10)
-        });
-        detailStack.Children.Add(new TextBlock
-        {
-            Text = "Zero deadzone on Hall-effect analog sticks, aggressive linear triggers, rapid fire macro mapped to back paddle M1. Built for low input variance.",
-            FontFamily = HybridKit.Body,
-            FontSize = 14,
-            Foreground = HybridKit.B("#3a2a4c"),
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 0, 0, 24)
-        });
-
-        // Apply button
-        var btnApply = new Border
-        {
-            Height = 44,
-            CornerRadius = new CornerRadius(22),
-            Background = HybridKit.InkBrush,
-            Cursor = System.Windows.Input.Cursors.Hand,
-            Padding = new Thickness(20, 0, 20, 0),
-            Margin = new Thickness(0, 0, 0, 10),
-            Child = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                VerticalAlignment = VerticalAlignment.Center,
-                Children =
-                {
-                    new Border
-                    {
-                        Width = 20,
-                        Height = 20,
-                        CornerRadius = new CornerRadius(10),
-                        Background = HybridKit.WhiteBrush,
-                        Margin = new Thickness(0, 0, 8, 0),
-                        Child = new TextBlock
-                        {
-                            Text = "A",
-                            FontFamily = new FontFamily("Segoe UI"),
-                            FontSize = 11,
-                            FontWeight = FontWeights.Bold,
-                            Foreground = HybridKit.InkBrush,
-                            HorizontalAlignment = HorizontalAlignment.Center,
-                            VerticalAlignment = VerticalAlignment.Center
-                        }
-                    },
-                    new TextBlock
-                    {
-                        Text = "Apply to Player 1",
-                        FontFamily = HybridKit.Body,
-                        FontSize = 14,
-                        FontWeight = FontWeights.Bold,
-                        Foreground = HybridKit.WhiteBrush,
-                        VerticalAlignment = VerticalAlignment.Center
-                    }
-                }
-            }
-        };
-        detailStack.Children.Add(btnApply);
-
-        // Duplicate button
-        var btnDup = new Border
-        {
-            Height = 40,
-            CornerRadius = new CornerRadius(20),
-            Background = new SolidColorBrush(Color.FromArgb(0x33, 92, 64, 117)),
-            Cursor = System.Windows.Input.Cursors.Hand,
-            Padding = new Thickness(20, 0, 20, 0),
-            Child = new TextBlock
-            {
-                Text = "Duplicate Profile",
-                FontFamily = HybridKit.Body,
-                FontSize = 14,
-                FontWeight = FontWeights.SemiBold,
-                Foreground = HybridKit.InkBrush,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center
-            }
-        };
-        detailStack.Children.Add(btnDup);
-
-        Canvas.SetLeft(detailStack, 458);
-        Canvas.SetTop(detailStack, 224);
-        root.Children.Add(detailStack);
-
-        // RIGHT SHELL CONTENT:
-        // List of other saved profiles at (870, 220, w: 570)
-        var rightStack = new StackPanel { Width = 570, Orientation = Orientation.Vertical };
-        rightStack.Children.Add(new TextBlock
-        {
-            Text = "SAVED PRESETS & TEMPLATES",
-            FontFamily = HybridKit.Display,
-            FontSize = 13,
-            FontWeight = FontWeights.Bold,
-            Foreground = HybridKit.B("#8e809f"),
-            Margin = new Thickness(0, 0, 0, 16)
-        });
-
-        var profiles = new (string Title, string Pad, string Desc)[]
-        {
-            ("Casual Racing", "EasySMX D10", "Smooth progressive steering curve, analog throttle smoothing."),
-            ("Fighting Games", "EasySMX D10", "D-Pad priority diagonals, ultra-short trigger stops."),
-            ("Factory Standard", "EasySMX D10", "Default linear analog mapping and standard rumble.")
-        };
-
-        foreach (var (pTitle, pPad, pDesc) in profiles)
-        {
-            var pBorder = new Border
-            {
-                Height = 110,
-                CornerRadius = new CornerRadius(18),
-                Background = HybridKit.B("#25212c"),
-                Margin = new Thickness(0, 0, 0, 14),
-                Padding = new Thickness(20, 16, 20, 16),
-                Cursor = System.Windows.Input.Cursors.Hand
-            };
-            var pGrid = new Grid();
-            pGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            pGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-            var pTextStack = new StackPanel { Orientation = Orientation.Vertical, VerticalAlignment = VerticalAlignment.Center };
-            pTextStack.Children.Add(new TextBlock
-            {
-                Text = pTitle,
-                FontFamily = HybridKit.Display,
-                FontSize = 18,
-                FontWeight = FontWeights.Bold,
-                Foreground = HybridKit.WhiteBrush
-            });
-            pTextStack.Children.Add(new TextBlock
-            {
-                Text = $"{pPad} · {pDesc}",
-                FontFamily = HybridKit.Body,
-                FontSize = 13,
-                Foreground = HybridKit.MuteBrush,
-                Margin = new Thickness(0, 4, 0, 0)
-            });
-            Grid.SetColumn(pTextStack, 0);
-            pGrid.Children.Add(pTextStack);
-
-            var pBtn = new Border
-            {
-                Height = 36,
-                Padding = new Thickness(14, 0, 14, 0),
-                CornerRadius = new CornerRadius(18),
-                Background = HybridKit.B("#34303c"),
-                VerticalAlignment = VerticalAlignment.Center,
-                Child = new TextBlock
-                {
-                    Text = "Load",
-                    FontFamily = HybridKit.Body,
-                    FontSize = 13,
-                    FontWeight = FontWeights.SemiBold,
-                    Foreground = HybridKit.WhiteBrush,
-                    VerticalAlignment = VerticalAlignment.Center
-                }
-            };
-            Grid.SetColumn(pBtn, 1);
-            pGrid.Children.Add(pBtn);
-
-            pBorder.Child = pGrid;
-            rightStack.Children.Add(pBorder);
-        }
-
-        Canvas.SetLeft(rightStack, 870);
-        Canvas.SetTop(rightStack, 220);
-        root.Children.Add(rightStack);
-
-        return root;
+        string? want = focused ?? (rename != null ? "hybrid:setup:name" : has ? "hybrid:setup:card:" + selected.Id : "hybrid:setup:util:new");
+        if (want != null) Dispatcher.BeginInvoke(() => FindTagged(board, want)?.Focus(), DispatcherPriority.Input);
     }
 }

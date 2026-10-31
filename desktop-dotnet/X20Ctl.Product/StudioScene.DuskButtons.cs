@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -22,46 +22,44 @@ public partial class StudioScene
         };
 
         var contentCanvas = new Canvas { Width = 1040, Height = 580 };
+        var chooseFace = DuskKit.B("#3d4450");
+        var choose = ThemeAction(new Border { Width = 160, Height = 30, Background = chooseFace, Child = new TextBlock { Text = "All controls", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center } }, "theme:all-inputs", () => { });
+        choose.Click += (_, _) => ThemeInputMenu(choose); Canvas.SetLeft(choose, 390); Canvas.SetTop(choose, 0); contentCanvas.Children.Add(choose);
 
         // Left list (w: 580)
-        var listStack = new StackPanel { Width = 580, Orientation = Orientation.Vertical };
+        var listStack = new StackPanel { Width = 600, Orientation = Orientation.Vertical };
 
         listStack.Children.Add(new TextBlock
         {
-            Text = "FACE BUTTONS",
+            Text = RebelAvailableGroups().FirstOrDefault(group => group.keys.Contains(SelectedControl)).name?.ToUpperInvariant() ?? "FACE BUTTONS",
             FontFamily = DuskKit.Display,
             FontSize = 18,
             FontWeight = FontWeights.ExtraBold,
-            Foreground = DuskKit.MuteBrush,
-            Margin = new Thickness(0, 0, 0, 4)
+            Foreground = DuskKit.WhiteBrush,
+            Margin = new Thickness(0, 0, 0, 8)
         });
 
         listStack.Children.Add(new TextBlock
         {
             Text = "LOCAL DRAFT · Not written to controller memory.",
             FontFamily = DuskKit.Body,
-            FontSize = 15,
+            FontSize = 16,
             Foreground = DuskKit.MuteBrush,
             Margin = new Thickness(0, 0, 0, 16)
         });
 
-        var faceButtons = new[]
-        {
-            ("A button", "B", true),
-            ("B button", "B", false),
-            ("X button", "X", false),
-            ("Y button", "Y", false)
-        };
-
+        var faceButtons = ThemeMappingKeys().Select(key => (Label(key), Draft.Target(key), key == SelectedControl)).ToArray();
+        int inputIndex = 0;
         foreach (var (btnName, mapping, active) in faceButtons)
         {
+            string inputKey = ThemeMappingKeys()[inputIndex++];
             var row = new Border
             {
-                Height = 64,
-                BorderThickness = new Thickness(0, 0, 0, 1),
-                BorderBrush = DuskKit.B("rgba(255,255,255,.07)"),
-                Background = active ? DuskKit.B("rgba(255,255,255,.05)") : Brushes.Transparent,
-                Padding = new Thickness(16, 0, 16, 0),
+                Height = 66,
+                BorderThickness = active ? new Thickness(2) : new Thickness(0, 0, 0, 1),
+                BorderBrush = DuskKit.B(active ? "rgba(255,255,255,.16)" : "rgba(255,255,255,.07)"),
+                Background = active ? DuskKit.SlateItemBrush : Brushes.Transparent,
+                Margin = new Thickness(-18, 0, -18, 0), Padding = new Thickness(18, 0, 18, 0),
                 CornerRadius = new CornerRadius(4)
             };
 
@@ -70,15 +68,13 @@ public partial class StudioScene
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
             var lStack = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            var glyph = DuskKit.XboxButtonGlyph(btnName.Split(' ')[0], 28);
-            glyph.Margin = new Thickness(0, 0, 14, 0);
-            lStack.Children.Add(glyph);
+
 
             var label = new TextBlock
             {
-                Text = btnName,
+                Text = btnName + (new[] { "A", "B", "X", "Y" }.Contains(inputKey) ? " button" : ""),
                 FontFamily = DuskKit.Display,
-                FontSize = 21,
+                FontSize = 22,
                 FontWeight = FontWeights.SemiBold,
                 Foreground = active ? DuskKit.WhiteBrush : DuskKit.LightBrush,
                 VerticalAlignment = VerticalAlignment.Center
@@ -90,12 +86,12 @@ public partial class StudioScene
             // Dropdown selector pill (.dd)
             var dd = new Border
             {
-                Height = 40,
+                Width = 230, Height = 46,
                 Padding = new Thickness(18, 0, 14, 0),
                 CornerRadius = new CornerRadius(4),
-                Background = DuskKit.SlateItemBrush,
-                BorderBrush = active ? DuskKit.B("#1a9fff") : DuskKit.SlateBorderBrush,
-                BorderThickness = new Thickness(active ? 2 : 1),
+                Background = DuskKit.SlateBgBrush,
+                BorderBrush = DuskKit.SlateBorderBrush,
+                BorderThickness = new Thickness(1),
                 VerticalAlignment = VerticalAlignment.Center
             };
             var ddStack = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
@@ -121,7 +117,7 @@ public partial class StudioScene
             grid.Children.Add(dd);
 
             row.Child = grid;
-            listStack.Children.Add(row);
+            listStack.Children.Add(ThemeMappingAction(row, inputKey));
         }
 
         // Section: TEST
@@ -137,10 +133,10 @@ public partial class StudioScene
 
         var testRow = new Border
         {
-            Height = 64,
+            Height = 66,
             BorderThickness = new Thickness(0, 0, 0, 1),
             BorderBrush = DuskKit.B("rgba(255,255,255,.07)"),
-            Padding = new Thickness(16, 0, 16, 0),
+            Padding = new Thickness(18, 0, 18, 0), Margin = new Thickness(-18,0,-18,0),
             CornerRadius = new CornerRadius(4)
         };
         var testGrid = new Grid();
@@ -151,7 +147,7 @@ public partial class StudioScene
         {
             Text = "Keyboard test",
             FontFamily = DuskKit.Display,
-            FontSize = 21,
+            FontSize = 22,
             FontWeight = FontWeights.SemiBold,
             Foreground = DuskKit.LightBrush,
             VerticalAlignment = VerticalAlignment.Center
@@ -171,7 +167,7 @@ public partial class StudioScene
         testGrid.Children.Add(chev);
 
         testRow.Child = testGrid;
-        listStack.Children.Add(testRow);
+        listStack.Children.Add(ThemeAction(testRow, "theme:test-mapping", StartTry));
 
         Canvas.SetLeft(listStack, 0);
         Canvas.SetTop(listStack, 0);
@@ -186,7 +182,7 @@ public partial class StudioScene
         var pedestal = DuskKit.PedestalGlow(360, 80, DuskKit.CyanNeon);
         Canvas.SetLeft(pedestal, 30);
         Canvas.SetTop(pedestal, 200);
-        padCanvas.Children.Add(pedestal);
+
 
         string padKey = Model?.Id?.ToLowerInvariant() ?? "x05pro";
         if (padKey.Contains("05")) padKey = "x05pro";
@@ -210,9 +206,12 @@ public partial class StudioScene
             Background = DuskKit.B("rgba(26,159,255,0.18)"),
             Effect = new DropShadowEffect { Color = DuskKit.CyanNeon, BlurRadius = 22, ShadowDepth = 0, Opacity = 0.95 }
         };
-        Canvas.SetLeft(aRing, 309);
-        Canvas.SetTop(aRing, 99);
-        padCanvas.Children.Add(aRing);
+        if (TryCroppedControlCenter(SelectedControl, out var ringFx, out var ringFy))
+        {
+            Canvas.SetLeft(aRing, -5 + ringFx * 430 - 26);
+            Canvas.SetTop(aRing, 10 + ringFy * 430 * 739 / 1100 - 26);
+            padCanvas.Children.Add(aRing);
+        }
 
         // Holographic leader line from A button to detail card
         var lineGeom = new PathGeometry();
@@ -229,7 +228,7 @@ public partial class StudioScene
             Opacity = 0.85,
             Effect = new DropShadowEffect { Color = DuskKit.CyanNeon, BlurRadius = 8, ShadowDepth = 0, Opacity = 0.8 }
         };
-        padCanvas.Children.Add(leaderLine);
+
 
         rightPanel.Children.Add(padCanvas);
 
@@ -265,7 +264,7 @@ public partial class StudioScene
             Margin = new Thickness(12, 0, 0, 0),
             Child = new TextBlock
             {
-                Text = "PIN: GPIO_14 · 1000HZ",
+                Text = Draft.CanEdit(SelectedControl) ? "LOCAL DRAFT" : "READ ONLY",
                 FontFamily = DuskKit.Display,
                 FontSize = 10,
                 FontWeight = FontWeights.ExtraBold,
@@ -276,7 +275,7 @@ public partial class StudioScene
         detailStack.Children.Add(topHead);
         detailStack.Children.Add(new TextBlock
         {
-            Text = "A Button → B",
+            Text = Label(SelectedControl) + " → " + Label(Draft.Target(SelectedControl)),
             FontFamily = DuskKit.Display,
             FontSize = 24,
             FontWeight = FontWeights.Bold,
@@ -285,17 +284,17 @@ public partial class StudioScene
         });
         detailStack.Children.Add(new TextBlock
         {
-            Text = "Direct hardware remap with instant actuation and zero latency penalty.",
+            Text = Draft.PcMode ? "Applies through the selected PC profile. Nothing is written to hardware." : "Local draft only. Native configuration writes remain locked.",
             FontFamily = DuskKit.Body,
             FontSize = 15,
             Foreground = DuskKit.LightBrush,
             TextWrapping = TextWrapping.Wrap
         });
         detailCard.Child = detailStack;
-        rightPanel.Children.Add(detailCard);
 
-        Canvas.SetLeft(rightPanel, 620);
-        Canvas.SetTop(rightPanel, 0);
+
+        Canvas.SetLeft(rightPanel, 618);
+        Canvas.SetTop(rightPanel, 106);
         contentCanvas.Children.Add(rightPanel);
 
         var shell = DuskKit.SettingsShell(

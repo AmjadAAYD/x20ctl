@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
 using System.Windows.Shapes;
@@ -13,6 +14,7 @@ public partial class StudioScene
 {
     private void NexusShowDiagnostics()
     {
+        if (Diagnostics is not { } diagnostics) return;
         nexusPageHost!.Children.Clear();
 
         // 1. Background gradient
@@ -56,7 +58,7 @@ public partial class StudioScene
 
         var lead = new TextBlock
         {
-            Text = "Live hardware sensor telemetry, analog axis precision, and latency tests.",
+            Text = "What this PC reads from the selected controller.",
             FontFamily = NexusKit.Body,
             FontSize = 17,
             Foreground = NexusKit.SubBrush
@@ -72,17 +74,11 @@ public partial class StudioScene
         var r1 = NexusKit.RowButton("Player input", null, NexusKit.Dropdown("XInput 1"), focused: true, width: 820);
         rowPanel.Children.Add(r1);
 
-        var r2 = NexusKit.RowButton("Stick circularity error", null, new TextBlock { Text = "0.4%", FontFamily = NexusKit.Body, FontSize = 17, Foreground = NexusKit.SubBrush, VerticalAlignment = VerticalAlignment.Center }, focused: false, width: 820);
-        rowPanel.Children.Add(r2);
-
-        var r3 = NexusKit.RowButton("Center deadzone drift", null, new TextBlock { Text = "0.2%", FontFamily = NexusKit.Body, FontSize = 17, Foreground = NexusKit.SubBrush, VerticalAlignment = VerticalAlignment.Center }, focused: false, width: 820);
-        rowPanel.Children.Add(r3);
-
-        var r4 = NexusKit.RowButton("Polling rate", null, new TextBlock { Text = "1000 Hz", FontFamily = NexusKit.Body, FontSize = 17, Foreground = NexusKit.SubBrush, VerticalAlignment = VerticalAlignment.Center }, focused: false, width: 820);
-        rowPanel.Children.Add(r4);
-
-        var r5 = NexusKit.RowButton("Sensor jitter", null, new TextBlock { Text = "0.2 ms", FontFamily = NexusKit.Body, FontSize = 17, Foreground = NexusKit.SubBrush, VerticalAlignment = VerticalAlignment.Center }, focused: false, width: 820);
-        rowPanel.Children.Add(r5);
+        TextBlock BoundValue(TextBlock source) { var tb = new TextBlock { FontFamily = NexusKit.Body, FontSize = 17, Foreground = NexusKit.SubBrush, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 520 }; tb.SetBinding(TextBlock.TextProperty, new Binding("Text") { Source = source }); return tb; }
+        rowPanel.Children.Add(NexusKit.RowButton("Left stick", null, BoundValue(diagnostics.LeftView.Stats), focused: false, width: 820));
+        rowPanel.Children.Add(NexusKit.RowButton("Right stick", null, BoundValue(diagnostics.RightView.Stats), focused: false, width: 820));
+        rowPanel.Children.Add(NexusKit.RowButton("Left trigger", null, BoundValue(diagnostics.LtView.Stats), focused: false, width: 820));
+        rowPanel.Children.Add(NexusKit.RowButton("Right trigger", null, BoundValue(diagnostics.RtView.Stats), focused: false, width: 820));
 
         Canvas.SetLeft(rowPanel, 68);
         Canvas.SetTop(rowPanel, 250);
@@ -107,22 +103,22 @@ public partial class StudioScene
         sGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
 
         // Left stick plot
-        var lsStack = CreateStickPlot("Left stick", "X: 0.00  Y: 0.00");
+        var lsStack = CreateStickPlot("Left stick", "—");
         Grid.SetColumn(lsStack, 0);
         sGrid.Children.Add(lsStack);
 
         // Right stick plot
-        var rsStack = CreateStickPlot("Right stick", "X: 0.00  Y: 0.00");
+        var rsStack = CreateStickPlot("Right stick", "—");
         Grid.SetColumn(rsStack, 1);
         sGrid.Children.Add(rsStack);
 
         // LT plot
-        var ltStack = CreateTrigPlot("LT", "0.0%");
+        var ltStack = CreateTrigPlot("LT", "—");
         Grid.SetColumn(ltStack, 2);
         sGrid.Children.Add(ltStack);
 
         // RT plot
-        var rtStack = CreateTrigPlot("RT", "0.0%");
+        var rtStack = CreateTrigPlot("RT", "—");
         Grid.SetColumn(rtStack, 3);
         sGrid.Children.Add(rtStack);
 
@@ -140,24 +136,26 @@ public partial class StudioScene
         var cardStack = new StackPanel();
         cardStack.Children.Add(new TextBlock
         {
-            Text = "Polling rate",
+            Text = "Input changes",
             FontFamily = NexusKit.Display,
             FontSize = 24,
             FontWeight = FontWeights.SemiBold,
             Foreground = NexusKit.WhiteBrush
         });
-        cardStack.Children.Add(new TextBlock
+        var rateValue = new TextBlock
         {
-            Text = "1000 Hz",
             FontFamily = NexusKit.Display,
-            FontSize = 46,
+            FontSize = 24,
             FontWeight = FontWeights.SemiBold,
             Foreground = NexusKit.WhiteBrush,
+            TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 4, 0, 8)
-        });
+        };
+        rateValue.SetBinding(TextBlock.TextProperty, new Binding("Text") { Source = diagnostics.RateBlock });
+        cardStack.Children.Add(rateValue);
         cardStack.Children.Add(new TextBlock
         {
-            Text = $"Player 1 · {Model.Name} · Gameplay API: XInput · Transport and hardware identity verified.",
+            Text = $"Player 1 · {Model.Name} · Reads XInput only · Nothing is written to the controller.",
             FontFamily = NexusKit.Body,
             FontSize = 15,
             Foreground = NexusKit.B(NexusKit.A(Colors.White, 0.78)),

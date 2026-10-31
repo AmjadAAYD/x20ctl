@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Linq;
 using System.Windows;
@@ -294,7 +294,7 @@ public sealed partial class ProductSettings
         var upStack = new StackPanel { Width = 1040, Orientation = Orientation.Vertical };
         var upRows = new (string Title, string Sub, string Val)[]
         {
-            ("Check for application updates", "Current version: v0.018 (Steam Deck Dusk Edition)", "Check now"),
+            ("Check for application updates", $"Current version: {Scanner.ScanFlow.AppVersion}", "Check now"),
             ("Play console opening intro", "Plays silent opening cinematic film at startup", "Enabled")
         };
 
@@ -343,7 +343,7 @@ public sealed partial class ProductSettings
             lead: "Diagnostic scanners, theme customization, firmware tools and system status.",
             content: content,
             hints: hints,
-            onNav: _ => { if (!StepBack()) Back.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); }
+            onNav: key => ThemeNavigate?.Invoke(key)
         );
         board.Children.Add(shell);
     }
@@ -597,7 +597,7 @@ public sealed partial class ProductSettings
             lead: "Select active console look and customized startup cinematics.",
             content: content,
             hints: hints,
-            onNav: _ => ShowThemes(false)
+            onNav: key => ThemeNavigate?.Invoke(key)
         );
         board.Children.Add(shell);
     }
@@ -616,17 +616,24 @@ public sealed partial class ProductSettings
         };
         var aStack = new StackPanel { Orientation = Orientation.Vertical };
         aStack.Children.Add(new TextBlock { Text = "X20CTL — Console Controller Studio", FontFamily = DuskKit.Display, FontSize = 22, FontWeight = FontWeights.Bold, Foreground = DuskKit.WhiteBrush });
-        aStack.Children.Add(new TextBlock { Text = "Version 0.018 · Steam Deck Dusk Console Edition", FontFamily = DuskKit.Display, FontSize = 15, FontWeight = FontWeights.SemiBold, Foreground = DuskKit.GreenOnlineBrush, Margin = new Thickness(0, 4, 0, 16) });
+        aStack.Children.Add(new TextBlock { Text = $"Native Controller Studio · {Updater.Shown}", FontFamily = DuskKit.Display, FontSize = 15, FontWeight = FontWeights.SemiBold, Foreground = DuskKit.GreenOnlineBrush, Margin = new Thickness(0, 4, 0, 16) });
         aStack.Children.Add(new TextBlock
         {
-            Text = "High-performance low-level controller configuration studio designed for EasySMX X05 Pro, X10, X15, X20 and Dune hardware series.\n\nBuilt with 1000 Hz USB telemetry polling, contactless Hall effect calibration, virtual XInput routing, and authentic Steam Deck dark console aesthetics.",
+            Text = "An independent, open-source controller studio for EasySMX pads. Changes stay local drafts. Controller configuration writes remain locked until verified.\n\nMade by Amjad AAYD.\n\nSpecial thanks to Kiin from Team EasySMX for providing an X20 Pro.\n\nConsole design inspired by ApexSenseBridge by ReynArts. Desktop-control layout inspired by Gopher360 by Tylemagne (GPL-3.0); see the distributed license notices.\n\nX20CTL is not affiliated with or endorsed by EasySMX.",
             FontFamily = DuskKit.Body,
             FontSize = 14,
             Foreground = DuskKit.LightBrush,
             TextWrapping = TextWrapping.Wrap,
             LineHeight = 22
         });
-        aboutCard.Child = aStack;
+        var links = new WrapPanel { Margin = new Thickness(0, 18, 0, 0) };
+        foreach (var (label, url) in new[] { ("X20CTL on GitHub", ExternalLinks.Repository), ("ApexSenseBridge by ReynArts", ExternalLinks.Inspiration) })
+        {
+            var link = Pill("", label); link.Margin = new Thickness(0, 0, 10, 10);
+            link.Click += (_, _) => Try(() => ExternalLinks.Open(url)); links.Children.Add(link);
+        }
+        aStack.Children.Add(links);
+        aboutCard.Child = new ScrollViewer { Content = aStack, MaxHeight = 640, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
         Canvas.SetLeft(aboutCard, 0);
         Canvas.SetTop(aboutCard, 0);
         content.Children.Add(aboutCard);
@@ -637,7 +644,7 @@ public sealed partial class ProductSettings
             lead: "Open-source license information, hardware architecture, and runtime details.",
             content: content,
             hints: hints,
-            onNav: _ => ShowAbout(false)
+            onNav: key => ThemeNavigate?.Invoke(key)
         );
         board.Children.Add(shell);
     }
@@ -705,7 +712,7 @@ public sealed partial class ProductSettings
             lead: "Report issues, suggest feature improvements, and upload hardware diagnostics.",
             content: content,
             hints: hints,
-            onNav: _ => ShowFeedback(false)
+            onNav: key => ThemeNavigate?.Invoke(key)
         );
         board.Children.Add(shell);
     }
@@ -721,7 +728,7 @@ public sealed partial class ProductSettings
             lead: "Configure USB virtual routing and ViGEmBus controller emulation.",
             content: content,
             hints: hints,
-            onNav: _ => ShowPcMode(false)
+            onNav: key => ThemeNavigate?.Invoke(key)
         );
         board.Children.Add(shell);
     }

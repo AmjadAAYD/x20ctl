@@ -22,7 +22,7 @@ public sealed partial class ProductHost
 
     public void ShowBlossomThemeRestartNotice(string? themeName = null)
     {
-        string chosen = themeName ?? "Yozakura";
+        string chosen = themeName ?? ThemeCatalog.Find(preferencesHealthy ? preferences.Theme : ThemeCatalog.Current.Id).Name;
         DismissBlossomNotice();
 
         var notice = BuildBlossomModalNotice(
@@ -30,7 +30,7 @@ public sealed partial class ProductHost
             lines: new[]
             {
                 $"X20CTL needs to restart to apply the {chosen} hanami night experience.",
-                "Active controller drafts, curves, and button profiles will be preserved.",
+                "Unsaved controller drafts will be lost. Saved setups and PC mode settings stay on this PC.",
                 "The app will reopen with the bespoke Japanese samurai night lantern theme."
             },
             yesText: "Restart Now (A)",
@@ -181,14 +181,14 @@ public sealed partial class ProductHost
         var rightStack = new StackPanel { Width = 380 };
         rightStack.Children.Add(new TextBlock
         {
-            Text = "Settings and local changes are preserved across restarts.",
+            Text = "Unsaved controller drafts will be lost. Saved setups and PC mode settings stay on this PC.",
             FontFamily = BlossomKit.Body,
             FontSize = 16,
             Foreground = BlossomKit.B(BlossomKit.LitPaperSub)
         });
         rightStack.Children.Add(new TextBlock
         {
-            Text = "Apply update now?",
+            Text = "Continue with this action?",
             FontFamily = BlossomKit.Display,
             FontSize = 30,
             Foreground = BlossomKit.B(BlossomKit.LitPaperInk),
@@ -207,8 +207,7 @@ public sealed partial class ProductHost
             Cursor = Cursors.Hand,
             Child = new TextBlock { Text = noText, FontFamily = BlossomKit.Body, FontSize = 16, Foreground = BlossomKit.B(BlossomKit.LitPaperInk), VerticalAlignment = VerticalAlignment.Center }
         };
-        noBtn.MouseLeftButtonUp += (_, _) => onNo();
-        btnRow.Children.Add(noBtn);
+        btnRow.Children.Add(StudioScene.ThemeAction(noBtn, "notice:no", onNo));
 
         var yesBtn = new Border
         {
@@ -221,8 +220,7 @@ public sealed partial class ProductHost
         var ySt = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
         ySt.Children.Add(new TextBlock { Text = yesText, FontFamily = BlossomKit.Body, FontSize = 16, Foreground = BlossomKit.B("#ffe2b8") });
         yesBtn.Child = ySt;
-        yesBtn.MouseLeftButtonUp += (_, _) => onYes();
-        btnRow.Children.Add(yesBtn);
+        btnRow.Children.Add(StudioScene.ThemeAction(yesBtn, "notice:yes", onYes));
 
         rightStack.Children.Add(btnRow);
         Canvas.SetLeft(rightStack, 512);
@@ -308,15 +306,15 @@ public sealed partial class ProductHost
     {
         ActiveBlossomNotice = notice;
         Panel.SetZIndex(notice, 100);
-        Children.Add(notice);
+        Children.Add(notice); ArmThemeNotice(notice);
     }
 
     public void DismissBlossomNotice()
     {
         if (ActiveBlossomNotice != null)
         {
-            Children.Remove(ActiveBlossomNotice);
-            ActiveBlossomNotice = null;
+            ReleaseThemeNotice(ActiveBlossomNotice); Children.Remove(ActiveBlossomNotice);
+            ActiveBlossomNotice = null; _ = UpdateNativeContext();
         }
     }
 }

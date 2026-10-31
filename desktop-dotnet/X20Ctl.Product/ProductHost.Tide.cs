@@ -12,12 +12,6 @@ public sealed partial class ProductHost
 
     public void ShowTideThemeRestartNotice(string? themeName = null)
     {
-        if (ReviewSandbox.Active)
-        {
-            ShowTideDriverNotice();
-            return;
-        }
-
         string chosen = themeName ?? ThemeCatalog.Find(preferencesHealthy ? preferences.Theme : ThemeCatalog.Current.Id).Name;
         DismissTideNotice();
 
@@ -27,7 +21,7 @@ public sealed partial class ProductHost
             {
                 $"X20CTL needs to restart to apply the {chosen} presentation.",
                 $"App will reopen using {chosen} styles, colors and layouts.",
-                "Your working drafts, saved setups and controller mappings stay as they are.",
+                "Unsaved controller drafts will be lost. Saved setups and PC mode settings stay on this PC.",
                 "Closing the app now will apply the new presentation cleanly.",
                 $"Restart X20CTL now to switch to {chosen}?"
             },
@@ -41,8 +35,8 @@ public sealed partial class ProductHost
             onNo: () => DismissTideNotice(),
             notes: new[]
             {
-                ("THEME SWITCH", $"{chosen} selected · Local drafts preserved"),
-                ("WHILE RESTARTING", "Current setup written to local disk"),
+                ("THEME SWITCH", $"Unsaved controller drafts will be lost. Saved setups and PC mode settings stay on this PC."),
+                ("WHILE RESTARTING", "Only previously saved setups survive restart"),
                 ("AFTER YES", $"X20CTL reopens in {chosen} theme"),
                 ("AFTER NO", "Presentation unchanged")
             });
@@ -79,9 +73,9 @@ public sealed partial class ProductHost
             },
             notes: new[]
             {
-                ("UPDATE", "Update available · V0.017"),
+                ("UPDATE", "Driver installation requires permission"),
                 ("WHILE IT INSTALLS", "Setting up PC mode. Windows may ask for permission…"),
-                ("AFTER YES", "Installed. PC mode starts by itself once you change a setting."),
+                ("AFTER YES", "Installation starts only after permission; the result is checked before PC mode starts."),
                 ("AFTER NO", "PC mode drivers were not installed. PC mode stays off until you allow them.")
             });
 
@@ -92,15 +86,15 @@ public sealed partial class ProductHost
     {
         ActiveTideNotice = notice;
         Panel.SetZIndex(notice, 100);
-        Children.Add(notice);
+        Children.Add(notice); ArmThemeNotice(notice);
     }
 
     public void DismissTideNotice()
     {
         if (ActiveTideNotice != null)
         {
-            Children.Remove(ActiveTideNotice);
-            ActiveTideNotice = null;
+            ReleaseThemeNotice(ActiveTideNotice); Children.Remove(ActiveTideNotice);
+            ActiveTideNotice = null; _ = UpdateNativeContext();
         }
     }
 }

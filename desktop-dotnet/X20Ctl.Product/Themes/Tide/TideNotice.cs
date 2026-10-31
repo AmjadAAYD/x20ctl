@@ -148,15 +148,15 @@ public sealed class TideNotice : Canvas
         Children.Add(card);
 
         // 3. Action Words at (190, 730): Yes (focused) & No
-        var wordYes = TideKit.SlantedWord(yesText.ToUpperInvariant(), focused: true, fs: 72, onClick: onYes);
+        var wordYes = TideKit.SlantedWord(yesText.ToUpperInvariant(), focused: true, fs: 72, onClick: null);
         Canvas.SetLeft(wordYes, 190);
         Canvas.SetTop(wordYes, 650);
-        Children.Add(wordYes);
+        Children.Add(StudioScene.ThemeAction(wordYes, "notice:yes", onYes));
 
-        var wordNo = TideKit.SlantedWord(noText.ToUpperInvariant(), focused: false, fs: 72, onClick: onNo);
+        var wordNo = TideKit.SlantedWord(noText.ToUpperInvariant(), focused: false, fs: 72, onClick: null);
         Canvas.SetLeft(wordNo, 390);
         Canvas.SetTop(wordNo, 650);
-        Children.Add(wordNo);
+        Children.Add(StudioScene.ThemeAction(wordNo, "notice:no", onNo));
 
         // 4. Right side notes at (990, 120, w=560)
         var notesContainer = new StackPanel { Width = 560 };

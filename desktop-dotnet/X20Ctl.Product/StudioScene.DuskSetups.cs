@@ -11,8 +11,12 @@ namespace X20Ctl.Product;
 
 public partial class StudioScene
 {
+    private bool duskSetupsWired;
     private void DuskShowSetups()
     {
+        if (Setups is not {} setups) return;
+        string? focused = (Keyboard.FocusedElement as FrameworkElement)?.Tag as string;
+        if (!duskSetupsWired) { duskSetupsWired = true; setups.Watch(DuskLater); }
         duskPageHost!.Children.Clear();
 
         string padKey = Model?.Id?.ToLowerInvariant() ?? "x05pro";
@@ -29,7 +33,7 @@ public partial class StudioScene
         duskPageHost.Children.Add(backdrop);
 
         // 2. Top bar
-        var top = DuskKit.TopBar($"Player {Player + 1}", "19:24", 100);
+        var top = DuskKit.TopBar($"Player {Player + 1}", battery: currentBatteryLevel);
         duskPageHost.Children.Add(top);
 
         // 3. Header at (52, 100)
@@ -44,7 +48,7 @@ public partial class StudioScene
         });
         headStack.Children.Add(new TextBlock
         {
-            Text = $"3 SAVED SETUPS · EASYSMX {shortModel.ToUpperInvariant()}",
+            Text = $"{setups.Cards.Count} SAVED SETUPS · {shortModel.ToUpperInvariant()}",
             FontFamily = DuskKit.Display,
             FontSize = 17,
             FontWeight = FontWeights.Bold,
@@ -75,7 +79,7 @@ public partial class StudioScene
             Foreground = DuskKit.WhiteBrush,
             VerticalAlignment = VerticalAlignment.Center
         };
-        rightBtns.Children.Add(newBtn);
+        rightBtns.Children.Add(ThemeAction(newBtn, "theme:setup:new", () => setups.Click("new"), setups.Can("new")));
 
         var impBtn = new Border
         {
@@ -94,22 +98,19 @@ public partial class StudioScene
             Foreground = DuskKit.LightBrush,
             VerticalAlignment = VerticalAlignment.Center
         };
-        rightBtns.Children.Add(impBtn);
+        rightBtns.Children.Add(ThemeAction(impBtn, "theme:setup:import", () => setups.Click("import"), setups.Can("import")));
 
         Canvas.SetRight(rightBtns, 44);
         Canvas.SetTop(rightBtns, 104);
         duskPageHost.Children.Add(rightBtns);
 
         // 4. Setup Cards Row at top = 196
-        var setupCards = new (string Name, string Sub, double W, bool Active)[]
-        {
-            ("DEFAULT FPS", "Linear curves · 0ms turbo", 520, true),
-            ("RACING SIM", "50% steering damping", 330, false),
-            ("FIGHTING", "Aggressive D-pad shortcuts", 330, false)
-        };
+        var setupCards = setups.Cards.Select((item, index) => (item.Id, item.Name, Sub: item.State, W: index == 0 ? 520.0 : 330.0, Active: item.Id == setups.SelectedId)).ToArray();
 
-        double curX = 52;
-        foreach (var (cName, cSub, w, active) in setupCards)
+        var cardsCanvas = new Canvas { Width = Math.Max(1496, setupCards.Sum(card => card.W + 16)), Height = 300 };
+        var cardsScroll = new ScrollViewer { Width = 1496, Height = 320, Content = cardsCanvas, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollBarVisibility = ScrollBarVisibility.Disabled }; Canvas.SetLeft(cardsScroll, 52); Canvas.SetTop(cardsScroll, 196); duskPageHost.Children.Add(cardsScroll);
+        double curX = 0;
+        foreach (var (id, cName, cSub, w, active) in setupCards)
         {
             var card = new Border
             {
@@ -218,8 +219,8 @@ public partial class StudioScene
 
             card.Child = cardCanvas;
             Canvas.SetLeft(card, curX);
-            Canvas.SetTop(card, 196);
-            duskPageHost.Children.Add(card);
+            Canvas.SetTop(card, 0);
+            cardsCanvas.Children.Add(ThemeAction(card, "theme:setup:card:" + id, () => { setups.Select(id); DuskLater(); }));
 
             curX += w + 16;
         }
@@ -228,7 +229,7 @@ public partial class StudioScene
         var fStack = new StackPanel { Orientation = Orientation.Vertical };
         fStack.Children.Add(new TextBlock
         {
-            Text = "Default FPS",
+            Text = setups.DetailName,
             FontFamily = DuskKit.Display,
             FontSize = 32,
             FontWeight = FontWeights.Bold,
@@ -272,19 +273,13 @@ public partial class StudioScene
         duskPageHost.Children.Add(band);
 
         // Green action button at (52, 634, w: 300, h: 74)
-        var playBtn = DuskKit.GreenActionButton("Apply Setup", 300, 74, () => DuskSelectPage("buttons"));
-        Canvas.SetLeft(playBtn, 52);
+        var playBtn = DuskKit.GreenActionButton("Open local setup", 300, 74, () => setups.Click("open"));
+        playBtn.IsEnabled = setups.Can("open"); playBtn.Tag = "theme:setup:open"; Canvas.SetLeft(playBtn, 52);
         Canvas.SetTop(playBtn, 634);
         duskPageHost.Children.Add(playBtn);
 
         // Stats at x = 400, 610, 820, 1040
-        var stats = new (string Lab, string Val, double X)[]
-        {
-            ("PROFILE ID", "P-01", 400),
-            ("LAST SYNCED", "Today 14:20", 610),
-            ("STATUS", "Active in RAM", 820),
-            ("POLL RATE", "1000 Hz", 1040)
-        };
+        var stats = setups.Metrics.Select((metric, index) => (Lab: metric.Label, Val: metric.Value, X: 400.0 + index * 210)).ToArray();
 
         foreach (var (sLab, sVal, sX) in stats)
         {
@@ -343,7 +338,8 @@ public partial class StudioScene
             };
             Canvas.SetLeft(sq, 1240 + i * 82);
             Canvas.SetTop(sq, 638);
-            duskPageHost.Children.Add(sq);
+            string action = i switch { 0 => "duplicate", 1 => "rename", 2 => "export", _ => "delete" };
+            duskPageHost.Children.Add(ThemeAction(sq, "theme:setup:" + action, () => setups.Click(action), setups.Can(action)));
         }
 
         // Labels under tools
@@ -358,6 +354,26 @@ public partial class StudioScene
         Canvas.SetLeft(toolLabels, 1240);
         Canvas.SetTop(toolLabels, 716);
         duskPageHost.Children.Add(toolLabels);
+
+        var localActions = new StackPanel { Orientation = Orientation.Horizontal };
+        if (setups.RenameActive)
+        {
+            var name = setups.TakeNameField(); name.Width = 350; name.Height = 40; name.Tag = "theme:setup:name"; localActions.Children.Add(name);
+            localActions.Children.Add(DuskMacroAction("Save name", "setup-save-name", () => setups.Click("saveName"), setups.Can("saveName")));
+        }
+        else if (setups.DeletePending)
+        {
+            localActions.Children.Add(new TextBlock { Text = setups.DeleteQuestion, Foreground = DuskKit.WhiteBrush, MaxWidth = 800, TextWrapping = TextWrapping.Wrap, Margin = new(0,0,18,0) });
+            localActions.Children.Add(DuskMacroAction("Keep setup", "setup-keep", () => setups.Click("keep")));
+            localActions.Children.Add(DuskMacroAction("Delete setup", "setup-remove", () => setups.Click("remove")));
+        }
+        else
+        {
+            localActions.Children.Add(DuskMacroAction("Save current draft", "setup-save", () => setups.Click("save"), setups.Can("save")));
+            localActions.Children.Add(new TextBlock { Text = setups.NoticeText, Foreground = DuskKit.LightBrush, MaxWidth = 1000, TextWrapping = TextWrapping.Wrap });
+        }
+        Canvas.SetLeft(localActions, 52); Canvas.SetTop(localActions, 758); duskPageHost.Children.Add(localActions);
+        if (focused?.StartsWith("theme:") == true) Dispatcher.BeginInvoke(() => FindTagged(duskPageHost, focused)?.Focus(), System.Windows.Threading.DispatcherPriority.Input);
 
         // Bottom bar
         var bar = DuskKit.BottomBar(new[] { ("A", "APPLY"), ("X", "DUPLICATE"), ("B", "BACK") });

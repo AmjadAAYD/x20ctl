@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Linq;
 using System.Windows;
@@ -152,7 +152,7 @@ public sealed partial class ProductSettings
         });
         fStack.Children.Add(new TextBlock
         {
-            Text = "Controller Diagnostic Suite",
+            Text = "Controller check",
             FontFamily = VoltKit.Display,
             FontSize = 36,
             FontWeight = FontWeights.SemiBold,
@@ -161,7 +161,7 @@ public sealed partial class ProductSettings
         });
         fStack.Children.Add(new TextBlock
         {
-            Text = "Run interactive button diagnostics, verify analog stick circularity, emulate virtual controller routing, and customize console themes.",
+            Text = "Read scan records what Windows sees. Write scan is a guided test and writes nothing.",
             FontFamily = VoltKit.Body,
             FontSize = 17,
             Foreground = VoltKit.B("#bdbdbd"),
@@ -174,7 +174,7 @@ public sealed partial class ProductSettings
 
         // Quick feature chips at bottom left of banner
         var chipStack = new StackPanel { Orientation = Orientation.Horizontal };
-        var chips = new[] { ("Firmware Check", true), ("Analog Calibration", false), ("Input Monitor", false) };
+        var chips = System.Array.Empty<(string, bool)>();
         foreach (var (cName, active) in chips)
         {
             var chip = new Border
@@ -206,13 +206,13 @@ public sealed partial class ProductSettings
         // 5. Library Tiles (8 tiles, 242x156 at 540 + col*258, 388 + row*172)
         var tiles = new (string Icon, string Name, string Sub, Action OnClick)[]
         {
-            ("\uE7FC", "Hardware Check", "Full controller scan", () => Check.RaiseEvent(new RoutedEventArgs(Button.ClickEvent))),
+            ("\uE7FC", "Hardware Check", "Read scan", () => Check.RaiseEvent(new RoutedEventArgs(Button.ClickEvent))),
             ("\uE7F4", "PC Mode", "ViGEmBus routing", () => ShowPcMode(true)),
             ("\uE771", "Themes", "Console themes catalog", () => ShowThemes(true)),
             ("\uE946", "About", "Version & credits", () => ShowAbout(true)),
             ("\uE939", "Feedback", "Send feedback", () => ShowFeedback(true)),
             ("\uE710", "Replay Intro", "Cinematic intro", () => Replay.RaiseEvent(new RoutedEventArgs(Button.ClickEvent))),
-            ("\uE8EA", "Write Scan", "Flash memory test", () => WriteScan.RaiseEvent(new RoutedEventArgs(Button.ClickEvent))),
+            ("\uE8EA", "Write Scan", "Guided test", () => WriteScan.RaiseEvent(new RoutedEventArgs(Button.ClickEvent))),
             ("\uE895", "Updates", "Check latest release", () => { })
         };
 
@@ -563,7 +563,7 @@ public sealed partial class ProductSettings
 
         cStack.Children.Add(new TextBlock
         {
-            Text = "Version 2.0 · Universal Controller Studio",
+            Text = $"Native Controller Studio · {Updater.Shown}",
             FontFamily = VoltKit.Body,
             FontSize = 15,
             Foreground = VoltKit.MuteBrush,
@@ -572,7 +572,7 @@ public sealed partial class ProductSettings
 
         cStack.Children.Add(new TextBlock
         {
-            Text = "X20CTL is an independent, open-source gamepad studio for EasySMX controllers. Remap buttons, calibrate deadzones, record macro combos, and test input latency without an account.",
+            Text = "X20CTL is an independent, open-source gamepad studio for EasySMX controllers. Remap buttons, tune curves, record macros and test input without an account.",
             FontFamily = VoltKit.Body,
             FontSize = 15,
             Foreground = VoltKit.B("#bdbdbd"),
@@ -621,8 +621,8 @@ public sealed partial class ProductSettings
         var fbRows = new (string Label, string CtlType, string CtlVal)[]
         {
             ("Topic Category", "dd", "General Experience"),
-            ("Controller Model", "dd", "EasySMX Dune (D15)"),
-            ("Connection Type", "dd", "2.4G Wireless Dongle")
+            ("Controller Model", "dd", "Not selected"),
+            ("Connection Type", "dd", "Not selected")
         };
 
         foreach (var (lbl, ctlType, ctlVal) in fbRows)
@@ -779,10 +779,9 @@ public sealed partial class ProductSettings
 
         var pcRows = new (string Label, string Val, bool Active)[]
         {
-            ("Virtual Controller Emulation", "Active (ViGEmBus)", true),
+            ("Virtual Controller Emulation", "ViGEmBus", false),
             ("Target Protocol", "Xbox 360 Controller", false),
-            ("Input Cloaking (HidHide)", "Enabled", false),
-            ("Passthrough Latency", "< 0.5 ms", false)
+            ("Input Cloaking", "HidHide", false)
         };
 
         foreach (var (lbl, val, active) in pcRows)

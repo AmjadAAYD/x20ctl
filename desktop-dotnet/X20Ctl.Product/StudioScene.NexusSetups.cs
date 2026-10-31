@@ -163,10 +163,10 @@ public partial class StudioScene
         var statRow = new StackPanel { Orientation = Orientation.Horizontal };
         var stats = new (string Label, string Value)[]
         {
-            ("Buttons", "2 remaps"),
-            ("Curves", "0 changed"),
-            ("Macros", "0 sequences"),
-            ("Vibration", "70%")
+            ("Buttons", $"{Draft.UnsentChanges} changed"),
+            ("Curves", $"{Curves.Draft.ModifiedChannels} changed"),
+            ("Macros", $"{Macros?.Draft.ModifiedSlots ?? 0} sequences"),
+            ("Vibration", $"{vibrationDraft.Strength}%")
         };
         foreach (var (lbl, val) in stats)
         {

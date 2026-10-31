@@ -9,6 +9,8 @@ public sealed partial class TesterWorkbench
     internal event Action? Updated;
     internal bool RearShown => rear;
     internal string SourceText => SourceLabel.Text;
+    internal TextBlock PressedBlock => pressed;
+    internal TextBlock OwnershipBlock => ownership;
     internal string PressedText => pressed.Text;
     internal string OwnershipText => ownership.Text;
     internal string KeyboardText => KeyboardMode.Content as string ?? "Keyboard Test";

@@ -146,9 +146,9 @@ public sealed class PulseNotice : Grid
 
         return new PulseNotice(
             "restart",
-            "Update available · v2.4.1",
+            "Theme change",
             $"{themeName} starts on next launch",
-            new[] { "Signed release package from verified maintainer", "Direct controller hardware bridge improvements" },
+            new[] { "Applies on the next launch", "Nothing is sent to the controller" },
             "Your theme preference has been saved to local preferences. Restart X20CTL now to activate the new layout, or continue working with your current session.",
             "Restart X20CTL now?",
             pills,

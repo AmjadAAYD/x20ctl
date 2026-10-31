@@ -627,7 +627,8 @@ internal static class PulseParts
             FontWeight = FontWeights.SemiBold,
             Foreground = Brushes.White,
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new(72, 0, 0, 0),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Margin = new(146, 0, 0, 0),
             Effect = new DropShadowEffect { Color = PulseInk.C("#a8ccff"), BlurRadius = 12, ShadowDepth = 0, Opacity = 0.65 },
             Visibility = active ? Visibility.Visible : Visibility.Collapsed
         };

@@ -168,15 +168,13 @@ public partial class StudioScene
             BorderThickness = new Thickness(1),
             Child = new TextBlock
             {
-                Text = "2.4G RF · 1000HZ ULTRA · HALL SENSING",
+                Text = "X20CTL · LOCAL SETTINGS",
                 FontFamily = VoltKit.Display,
                 FontSize = 12,
                 FontWeight = FontWeights.Bold,
                 Foreground = VoltKit.AmberHotBrush
             }
         };
-        badgeRow.Children.Add(telemetryBadge);
-        titleStack.Children.Add(badgeRow);
 
         titleStack.Children.Add(new TextBlock
         {
@@ -347,7 +345,7 @@ public partial class StudioScene
         };
         centerGrid.Children.Add(centerBg);
 
-        var centerArt = VoltKit.ControllerArt("dune", 374);
+        var centerArt = new Image { Width = 374, Source = ControllerArt.Front(Model.Id, PadColours.For(Player, Model.Id)), Stretch = Stretch.Uniform };
         if (centerArt != null)
         {
             centerArt.Effect = new DropShadowEffect { Color = VoltKit.C("#3c1e00"), BlurRadius = 18, ShadowDepth = 12, Opacity = 0.5 };
@@ -360,7 +358,7 @@ public partial class StudioScene
 
         var centerLabel = new TextBlock
         {
-            Text = "DUNE",
+            Text = Model.Name.Replace("EasySMX ", "", StringComparison.OrdinalIgnoreCase).ToUpperInvariant(),
             FontFamily = VoltKit.LogoFont,
             FontSize = 56,
             FontWeight = FontWeights.Bold,

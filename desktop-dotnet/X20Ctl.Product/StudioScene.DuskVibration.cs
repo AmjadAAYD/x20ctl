@@ -1,3 +1,4 @@
+using System.Windows.Data;
 using System;
 using System.Windows;
 using System.Windows.Controls;
@@ -45,102 +46,23 @@ public partial class StudioScene
             Margin = new Thickness(0, 0, 0, 14)
         });
 
-        var motors = new (string Name, int Val, bool Active)[]
+        var strengthRow = new Grid { Height = 60 };
+        strengthRow.ColumnDefinitions.Add(new() { Width = new GridLength(260) }); strengthRow.ColumnDefinitions.Add(new() { Width = new GridLength(220) }); strengthRow.ColumnDefinitions.Add(new() { Width = new GridLength(84) });
+        strengthRow.Children.Add(new TextBlock { Text = "Linked grip strength", FontFamily = DuskKit.Display, FontSize = 20, Foreground = DuskKit.LightBrush, VerticalAlignment = VerticalAlignment.Center, Margin = new(16,0,0,0) });
+        var strengthSlider = ThemeSlider(Vibration!.Strength, "theme:vibration:strength", 220, true); Grid.SetColumn(strengthSlider, 1); strengthRow.Children.Add(strengthSlider);
+        var strengthValue = new TextBlock { FontFamily = DuskKit.Display, FontSize = 18, Foreground = DuskKit.WhiteBrush, VerticalAlignment = VerticalAlignment.Center, TextAlignment = TextAlignment.Right };
+        strengthValue.SetBinding(TextBlock.TextProperty, new Binding("Value") { Source = Vibration.Strength, StringFormat = "{0:0}%" }); Grid.SetColumn(strengthValue, 2); strengthRow.Children.Add(strengthValue); leftStack.Children.Add(strengthRow);
+        var presets = new WrapPanel { Margin = new(16,12,0,12) };
+        foreach (int percent in new[] { 0, 25, 50, 75, 100 })
         {
-            ("Left Heavy Motor", 80, true),
-            ("Right Light Motor", 65, false),
-            ("Left Trigger Haptics", 50, false),
-            ("Right Trigger Haptics", 50, false)
-        };
-
-        foreach (var (name, val, active) in motors)
+            var face = new Border { Padding = new(14,8,14,8), Margin = new(0,0,8,0), Background = DuskKit.SlateItemBrush, Child = new TextBlock { Text = percent + "%", Foreground = DuskKit.WhiteBrush, FontFamily = DuskKit.Display } };
+            presets.Children.Add(ThemeAction(face, "theme:vibration:preset:" + percent, () => Vibration.Set(percent)));
+        }
+        leftStack.Children.Add(presets);
+        foreach (string region in new[] { "All", "Both grips", "Left grip", "Right grip" })
         {
-            var row = new Border
-            {
-                Height = 60,
-                BorderThickness = new Thickness(0, 0, 0, 1),
-                BorderBrush = DuskKit.B("rgba(255,255,255,.07)"),
-                Background = active ? DuskKit.B("rgba(255,255,255,.05)") : Brushes.Transparent,
-                Padding = new Thickness(16, 0, 16, 0),
-                CornerRadius = new CornerRadius(4)
-            };
-
-            var grid = new Grid();
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-            var label = new TextBlock
-            {
-                Text = name,
-                FontFamily = DuskKit.Display,
-                FontSize = 20,
-                FontWeight = FontWeights.SemiBold,
-                Foreground = active ? DuskKit.WhiteBrush : DuskKit.LightBrush,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            Grid.SetColumn(label, 0);
-            grid.Children.Add(label);
-
-            // Slider control
-            var ctrlStack = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-
-            var trackCanvas = new Canvas { Width = 220, Height = 20, VerticalAlignment = VerticalAlignment.Center };
-            var bgTrack = new Border
-            {
-                Width = 220,
-                Height = 6,
-                CornerRadius = new CornerRadius(3),
-                Background = DuskKit.B("#3d4450")
-            };
-            Canvas.SetLeft(bgTrack, 0);
-            Canvas.SetTop(bgTrack, 7);
-            trackCanvas.Children.Add(bgTrack);
-
-            double fillW = Math.Max(0, 220.0 * (val / 100.0));
-            var fillTrack = new Border
-            {
-                Width = fillW,
-                Height = 6,
-                CornerRadius = new CornerRadius(3),
-                Background = DuskKit.B("#1a9fff")
-            };
-            Canvas.SetLeft(fillTrack, 0);
-            Canvas.SetTop(fillTrack, 7);
-            trackCanvas.Children.Add(fillTrack);
-
-            var knob = new Border
-            {
-                Width = 20,
-                Height = 20,
-                CornerRadius = new CornerRadius(10),
-                Background = DuskKit.WhiteBrush,
-                Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 6, ShadowDepth = 2, Opacity = 0.4 }
-            };
-            Canvas.SetLeft(knob, Math.Clamp(fillW - 10, 0, 200));
-            Canvas.SetTop(knob, 0);
-            trackCanvas.Children.Add(knob);
-
-            ctrlStack.Children.Add(trackCanvas);
-
-            var valBlock = new TextBlock
-            {
-                Text = $"{val}%",
-                FontFamily = DuskKit.Display,
-                FontSize = 18,
-                FontWeight = FontWeights.Bold,
-                Foreground = DuskKit.WhiteBrush,
-                Width = 64,
-                TextAlignment = TextAlignment.Right,
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(14, 0, 0, 0)
-            };
-            ctrlStack.Children.Add(valBlock);
-
-            Grid.SetColumn(ctrlStack, 1);
-            grid.Children.Add(ctrlStack);
-
-            row.Child = grid;
-            leftStack.Children.Add(row);
+            var face = new Border { Height = 54, Background = DuskKit.SlateItemBrush, Margin = new(0,0,0,8), Padding = new(16,0,16,0), Child = new TextBlock { Text = "Preview · " + region, FontFamily = DuskKit.Display, FontSize = 20, Foreground = DuskKit.LightBrush, VerticalAlignment = VerticalAlignment.Center } };
+            leftStack.Children.Add(ThemeAction(face, "theme:vibration:region:" + region, () => Vibration.SelectRegion(region)));
         }
 
         Canvas.SetLeft(leftStack, 0);
@@ -289,7 +211,7 @@ public partial class StudioScene
         });
         detailStack.Children.Add(new TextBlock
         {
-            Text = "Dual Eccentric Weight Rumble",
+            Text = "Linked grip preview",
             FontFamily = DuskKit.Display,
             FontSize = 20,
             FontWeight = FontWeights.Bold,
@@ -298,7 +220,7 @@ public partial class StudioScene
         });
         detailStack.Children.Add(new TextBlock
         {
-            Text = "Left motor delivers low-frequency impact rumble; right motor provides high-frequency texture hum.",
+            Text = "Region selection changes the illustration only. No motor command or independent trigger tuning is available.",
             FontFamily = DuskKit.Body,
             FontSize = 14,
             Foreground = DuskKit.LightBrush,
@@ -308,8 +230,8 @@ public partial class StudioScene
         rightStack.Children.Add(detailCard);
 
         // Action button to test rumble
-        var testRumbleBtn = DuskKit.GreenActionButton("Test Rumble", 360, 48, () => { });
-        testRumbleBtn.Margin = new Thickness(0, 12, 0, 0);
+        var testRumbleBtn = DuskKit.GreenActionButton("Test on controller · unavailable", 360, 48, () => { });
+        testRumbleBtn.IsEnabled = false; testRumbleBtn.Margin = new Thickness(0, 12, 0, 0);
         rightStack.Children.Add(testRumbleBtn);
 
         Canvas.SetLeft(rightStack, 640);
@@ -319,7 +241,7 @@ public partial class StudioScene
         var shell = DuskKit.SettingsShell(
             activeKey: "vibration",
             title: "Vibration & Haptics",
-            lead: "Adjust dual-rumble motor intensity, trigger haptics, and response damping.",
+            lead: "Local linked-strength draft and visual preview. Hardware remains unchanged.",
             content: contentCanvas,
             hints: hints,
             onNav: key => DuskSelectPage(key)

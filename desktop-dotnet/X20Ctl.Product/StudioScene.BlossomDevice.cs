@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -17,8 +17,11 @@ namespace X20Ctl.Product;
 /// </summary>
 public partial class StudioScene
 {
+    private bool blossomDeviceWired;
     private void RenderBlossomDevice(Canvas host)
     {
+        if (!blossomDeviceWired && Device != null) { blossomDeviceWired = true; Device.Watch(BlossomLater); }
+
         // 1. Sky & Backdrop
         var sky = new Rectangle { Width = 1600, Height = 900, Fill = BlossomKit.CreateSkyBackdrop() };
         host.Children.Add(sky);
@@ -145,7 +148,7 @@ public partial class StudioScene
             BorderThickness = new Thickness(1.3),
             Child = new TextBlock
             {
-                Text = "ASSIGNED · LIVE",
+                Text = "ASSIGNED MODEL",
                 FontFamily = BlossomKit.Small,
                 FontSize = 11,
                 FontWeight = FontWeights.Bold,
@@ -157,7 +160,7 @@ public partial class StudioScene
 
         leftStack.Children.Add(new TextBlock
         {
-            Text = "Calibrate internal gyroscopes, Hall-effect magnetic sensors, and stick deadband boundaries.",
+            Text = "The model assigned to this player. Nothing is read from the controller here.",
             FontFamily = BlossomKit.Body,
             FontSize = 15,
             LineHeight = 22,
@@ -187,7 +190,6 @@ public partial class StudioScene
             VerticalAlignment = VerticalAlignment.Center
         });
         calibBtn.Child = btnStack;
-        leftStack.Children.Add(calibBtn);
 
         Canvas.SetLeft(leftStack, 244);
         Canvas.SetTop(leftStack, 530);
@@ -238,10 +240,10 @@ public partial class StudioScene
         var devProps = new (string Key, string Val)[]
         {
             ("Model", Model.Name),
-            ("Serial Number", "ESMX-20-8849-JP"),
-            ("Firmware", "V1.04 · Up to date"),
-            ("Battery Level", "92% · Fast Charging"),
-            ("Active Channel", "2.4G Ultra-Dongle")
+            ("Hardware revision", Device?.RevisionText ?? "Not reported"),
+            ("Firmware", Device?.FirmwareText ?? "Not reported"),
+            ("Battery Level", Device?.BatteryText ?? "Not reported"),
+            ("Connection", Device?.ConnectionText ?? "Not detected")
         };
         foreach (var (k, v) in devProps)
         {
@@ -268,11 +270,11 @@ public partial class StudioScene
 
         var caps = new (string Key, string Val)[]
         {
-            ("Sampling Rate", "1000 Hz Hardware Polling"),
-            ("Analog Sticks", "Dual Non-Contact Hall Effect"),
-            ("Trigger System", "Dual-Mode Linear & Hair-Trigger"),
-            ("Buttons", "Mechanical Microswitch (5M Clicks)"),
-            ("Motion Sensing", "6-Axis Precision Gyroscope")
+            ("Polling rate", "Not measured"),
+            ("Transport", Device?.TransportText ?? "Not reported"),
+            ("Configuration writes", "Locked"),
+            ("Local drafts", ModelProfiles.For(Model.Id).SupportsLocalDrafts ? "Available" : "Unavailable"),
+            ("Rear artwork", HasRearArtwork ? "Available" : "Unavailable")
         };
         foreach (var (k, v) in caps)
         {
@@ -290,7 +292,6 @@ public partial class StudioScene
 
         // Hints
         var hintsStack = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        hintsStack.Children.Add(CreateHint("A", "Calibrate sensors"));
         hintsStack.Children.Add(CreateHint("B", "Back"));
 
         Canvas.SetRight(hintsStack, 44);

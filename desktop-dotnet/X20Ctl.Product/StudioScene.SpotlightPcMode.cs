@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -115,10 +115,8 @@ public partial class StudioScene
 
         // Desk setting rows at (292, 520, w = 600)
         var rowsStack = new StackPanel { Width = 600 };
-        rowsStack.Children.Add(SpotlightKit.Row("PC mode translation", "Create virtual Xbox 360 controller", "Off", false, null, 44));
-        rowsStack.Children.Add(SpotlightKit.Row("Virtual driver", "ViGEmBus kernel driver", "Installed", true, null, 44));
-        rowsStack.Children.Add(SpotlightKit.Row("Turbo repeat rate", "Rapid-fire button frequency", "12 Hz", false, null, 44));
-        rowsStack.Children.Add(SpotlightKit.Row("Hide physical gamepad", "Prevent duplicate inputs via HidHide", "Active", false, null, 44));
+        rowsStack.Children.Add(SpotlightKit.Row("Virtual driver", "ViGEmBus kernel driver", PcModeSetup.BusInstalled ? "Installed" : "Not installed", PcModeSetup.BusInstalled, null, 44));
+        rowsStack.Children.Add(SpotlightKit.Row("Hide physical gamepad", "Prevent duplicate inputs via HidHide", HidHide.Installed ? "Installed" : "Not installed", HidHide.Installed, null, 44));
         Canvas.SetLeft(rowsStack, 292);
         Canvas.SetTop(rowsStack, 520);
         canvas.Children.Add(rowsStack);
@@ -162,11 +160,6 @@ public partial class StudioScene
             cardInner.Children.Add(sRow);
         }
 
-        var btnRow = new StackPanel { Margin = new Thickness(0, 16, 0, 0) };
-        var installBtn = SpotlightKit.TheatricalButton("Install virtual drivers", true, "A", height: 44, fontSize: 13);
-        installBtn.HorizontalAlignment = HorizontalAlignment.Left;
-        btnRow.Children.Add(installBtn);
-        cardInner.Children.Add(btnRow);
 
         var cueCard = SpotlightKit.CueCard(cardInner, 620, label: "Before the curtain", padding: new Thickness(28, 24, 28, 24));
         Canvas.SetLeft(cueCard, 940);
@@ -181,15 +174,17 @@ public partial class StudioScene
             onBack: () => SpotlightSelectPage("Dashboard"),
             onNavigate: SpotlightSelectPage,
             bodyStage: canvas,
-            hints: new[] { ("A", "Toggle PC mode"), ("X", "Driver options"), ("B", "Back") },
+            hints: new[] { ("B", "Back") },
             leadW: 1100);
 
         spotlightPageHost.Children.Add(frame);
     }
 
+    private bool spotlightDeviceWired;
     private void SpotlightShowDevice()
     {
         spotlightPageHost!.Children.Clear();
+        if (!spotlightDeviceWired && Device != null) { spotlightDeviceWired = true; Device.Watch(SpotlightLater); }
         var canvas = new Canvas { Width = 1600, Height = 900, ClipToBounds = true };
 
         // Controller in follow spot at cx = 600, base = 600, w = 480
@@ -213,7 +208,7 @@ public partial class StudioScene
         });
         idStack.Children.Add(new TextBlock
         {
-            Text = $"{Model.Name} · Shadow",
+            Text = Model.Name,
             FontFamily = SpotlightKit.Body,
             FontSize = 23,
             Foreground = SpotlightKit.ChalkBrush,
@@ -221,7 +216,7 @@ public partial class StudioScene
             Margin = new Thickness(0, 4, 0, 0)
         });
 
-        var tagBorder = SpotlightKit.Tag("Connected via USB", false);
+        var tagBorder = SpotlightKit.Tag(Device?.ConnectionText ?? "Not detected", false);
         tagBorder.HorizontalAlignment = HorizontalAlignment.Center;
         tagBorder.Margin = new Thickness(0, 8, 0, 0);
         idStack.Children.Add(tagBorder);
@@ -232,23 +227,23 @@ public partial class StudioScene
 
         // Cue card on right at (950, 170, w = 610, label = "Programme note")
         var cardInner = new StackPanel();
-        cardInner.Children.Add(SpotlightKit.Row("Firmware version", "Hardware controller runtime", "v1.0.4", false, null, 44));
-        cardInner.Children.Add(SpotlightKit.Row("Hardware revision", "Motherboard revision", "Rev 2.1", false, null, 44));
-        cardInner.Children.Add(SpotlightKit.Row("Battery status", "Power level and charge state", "Not reported", false, null, 44));
-        cardInner.Children.Add(SpotlightKit.Row("Transport protocol", "Active transport mechanism", "USB HID", false, null, 44));
-        cardInner.Children.Add(SpotlightKit.Row("Calibration storage", "Controller EEPROM memory", "16 KB flash", false, null, 44));
+        cardInner.Children.Add(SpotlightKit.Row("Firmware version", "Reported by the device", Device?.FirmwareText ?? "Not reported", false, null, 44));
+        cardInner.Children.Add(SpotlightKit.Row("Hardware revision", "Reported by the device", Device?.RevisionText ?? "Not reported", false, null, 44));
+        cardInner.Children.Add(SpotlightKit.Row("Battery status", "Reported power level", Device?.BatteryText ?? "Not reported", false, null, 44));
+        cardInner.Children.Add(SpotlightKit.Row("Transport protocol", "Reported connection", Device?.TransportText ?? "Not reported", false, null, 44));
+        cardInner.Children.Add(SpotlightKit.Row("Configuration writes", "Verification required", "Locked", false, null, 44));
 
         var updateRow = new Grid { Margin = new Thickness(0, 20, 0, 0) };
         updateRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         updateRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
         var updateInfo = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        updateInfo.Children.Add(new TextBlock { Text = "Firmware Update · Current", FontFamily = SpotlightKit.Body, FontSize = 21, Foreground = SpotlightKit.ChalkBrush });
-        updateInfo.Children.Add(new TextBlock { Text = "Latest stable release verified for this model.", FontFamily = SpotlightKit.Body, FontStyle = FontStyles.Italic, FontSize = 13.5, Foreground = SpotlightKit.MuteBrush, Margin = new Thickness(0, 2, 0, 0) });
+        updateInfo.Children.Add(new TextBlock { Text = "Controller diagnostics", FontFamily = SpotlightKit.Body, FontSize = 21, Foreground = SpotlightKit.ChalkBrush });
+        updateInfo.Children.Add(new TextBlock { Text = "Check gameplay input without writing to the controller.", FontFamily = SpotlightKit.Body, FontStyle = FontStyles.Italic, FontSize = 13.5, Foreground = SpotlightKit.MuteBrush, Margin = new Thickness(0, 2, 0, 0) });
         Grid.SetColumn(updateInfo, 0);
         updateRow.Children.Add(updateInfo);
 
-        var checkBtn = SpotlightKit.TheatricalButton("Check update", true, "A", height: 40, fontSize: 11);
+        var checkBtn = SpotlightKit.TheatricalButton("Diagnostics", true, "A", onClick: () => ShowManagement("Diagnostics"), height: 40, fontSize: 11);
         Grid.SetColumn(checkBtn, 1);
         updateRow.Children.Add(checkBtn);
         cardInner.Children.Add(updateRow);

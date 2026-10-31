@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
@@ -89,7 +89,7 @@ public sealed partial class ProductSettings
             ("\uE790", "Themes", "Visual appearance", () => ShowThemes(true)),
             ("\uE714", "Intro", "Play launch sequence", () => Replay.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent))),
             ("\uE73E", "Read scan", "Scan controller packets", () => Check.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent))),
-            ("\uE72C", "Write scan", "Profile memory changes", () => WriteScan.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent))),
+            ("\uE72C", "Write scan", "Guided test", () => WriteScan.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent))),
             ("\uE946", "About", "Versions and credits", () => ShowAbout(true)),
             ("\uE939", "Feedback", "Report an issue", () => Feedback.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent))),
             ("\uE71B", "GitHub", "Source code and docs", () => Support.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent)))
@@ -204,7 +204,7 @@ public sealed partial class ProductSettings
         var frame = SpotlightToolFrame.WrapWithProgramme(
             currentKey: "tools",
             title: "Tools",
-            lead: "Quick access to calibration, diagnostics and community tools.",
+            lead: "Scans, themes and community tools.",
             backLabel: "Back",
             onBack: () => StepBack(),
             onNavigate: target => SpotlightNavigate?.Invoke(target),
@@ -406,7 +406,7 @@ public sealed partial class ProductSettings
         });
         verStack.Children.Add(new TextBlock
         {
-            Text = "Version 0.017-preview · Built for X20 series controllers",
+            Text = $"Native Controller Studio · {Updater.Shown}",
             FontFamily = SpotlightKit.Body,
             FontStyle = FontStyles.Italic,
             FontSize = 17,
@@ -524,10 +524,8 @@ public sealed partial class ProductSettings
 
         // Setting rows at (292, 220, w = 600)
         var rowsStack = new StackPanel { Width = 600 };
-        rowsStack.Children.Add(SpotlightKit.Row("PC mode translation", "Create virtual Xbox 360 controller", "Off", false, null, 46));
-        rowsStack.Children.Add(SpotlightKit.Row("Virtual driver", "ViGEmBus kernel driver", "Installed", true, null, 46));
-        rowsStack.Children.Add(SpotlightKit.Row("Turbo repeat rate", "Rapid-fire button frequency", "12 Hz", false, null, 46));
-        rowsStack.Children.Add(SpotlightKit.Row("Hide physical gamepad", "Prevent duplicate inputs via HidHide", "Active", false, null, 46));
+        rowsStack.Children.Add(SpotlightKit.Row("Virtual driver", "ViGEmBus kernel driver", PcModeSetup.BusInstalled ? "Installed" : "Not installed", PcModeSetup.BusInstalled, null, 46));
+        rowsStack.Children.Add(SpotlightKit.Row("Hide physical gamepad", "Prevent duplicate inputs via HidHide", HidHide.Installed ? "Installed" : "Not installed", HidHide.Installed, null, 46));
         Canvas.SetLeft(rowsStack, 292);
         Canvas.SetTop(rowsStack, 220);
         canvas.Children.Add(rowsStack);
@@ -537,9 +535,6 @@ public sealed partial class ProductSettings
         cardInner.Children.Add(new TextBlock { Text = "PC Mode Configuration", FontFamily = SpotlightKit.Body, FontSize = 21, Foreground = SpotlightKit.ChalkBrush });
         cardInner.Children.Add(new TextBlock { Text = "Configure hardware translation and virtual device routing.", FontFamily = SpotlightKit.Body, FontStyle = FontStyles.Italic, FontSize = 14, Foreground = SpotlightKit.MuteBrush, Margin = new Thickness(0, 2, 0, 14) });
 
-        var btnRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 16, 0, 0) };
-        btnRow.Children.Add(SpotlightKit.TheatricalButton("Install drivers", true, "A", height: 44, fontSize: 13));
-        cardInner.Children.Add(btnRow);
 
         var cueCard = SpotlightKit.CueCard(cardInner, 620, label: "Driver Control", padding: new Thickness(28, 24, 28, 24));
         Canvas.SetLeft(cueCard, 940);
@@ -554,7 +549,7 @@ public sealed partial class ProductSettings
             onBack: () => ShowPcMode(false),
             onNavigate: target => SpotlightNavigate?.Invoke(target),
             bodyStage: canvas,
-            hints: new[] { ("A", "Toggle"), ("B", "Back") });
+            hints: new[] { ("B", "Back") });
 
         board.Children.Add(frame);
     }

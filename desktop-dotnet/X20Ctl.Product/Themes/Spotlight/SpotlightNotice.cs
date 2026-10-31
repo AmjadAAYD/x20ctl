@@ -180,9 +180,11 @@ internal static class SpotlightNotice
         var buttonsRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 20, 0, 0) };
         var noBtn = SpotlightKit.TheatricalButton(noText, primary: false, key: "B", onClick: onNo, height: 44, fontSize: 13);
         noBtn.Margin = new Thickness(0, 0, 12, 0);
+        noBtn.Tag = "notice:no";
         buttonsRow.Children.Add(noBtn);
 
         var yesBtn = SpotlightKit.TheatricalButton(yesText, primary: true, key: "A", onClick: onYes, height: 44, fontSize: 13);
+        yesBtn.Tag = "notice:yes";
         buttonsRow.Children.Add(yesBtn);
         rightCol.Children.Add(buttonsRow);
 

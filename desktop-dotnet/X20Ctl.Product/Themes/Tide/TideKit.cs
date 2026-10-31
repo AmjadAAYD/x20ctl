@@ -7,6 +7,7 @@ using System.Windows.Media;
 using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
+using System.Windows.Media.Animation;
 
 namespace X20Ctl.Product.Tide;
 
@@ -33,11 +34,28 @@ public static class TideKit
     public static readonly Color NavyShadow = Color.FromArgb(0x99, 0x0a, 0x14, 0x78); // rgba(10,20,120,.6)
     public static readonly Color TextSub = Color.FromRgb(0x3b, 0x4a, 0x9a);      // #3b4a9a
 
+    // Cinematic Ocean & Glass Identity (tide.mp4 / intros.py)
+    public static readonly Color OceanDark = Color.FromRgb(0x02, 0x06, 0x17);     // #020617 Midnight sky
+    public static readonly Color OceanNight = Color.FromRgb(0x07, 0x1a, 0x52);    // #071a52 Deep twilight
+    public static readonly Color OceanDeep = Color.FromRgb(0x0d, 0x2f, 0x8f);     // #0d2f8f Swell azure
+    public static readonly Color OceanFloor = Color.FromRgb(0x04, 0x10, 0x3a);    // #04103a Deep floor
+    public static readonly Color OceanAbyss = Color.FromRgb(0x02, 0x0a, 0x26);    // #020a26 Sea abyss
+    public static readonly Color CyanFoam = Color.FromRgb(0x9f, 0xf6, 0xff);      // #9ff6ff Wave crest foam
+    public static readonly Color CyanWave = Color.FromRgb(0x3a, 0xa5, 0xff);      // #3aa5ff Wave lip
+    public static readonly Color HarpoonRed = Color.FromRgb(0xff, 0x24, 0x42);    // #ff2442 Harpoon spark
+    public static readonly Color IceLight = Color.FromRgb(0xf2, 0xfe, 0xff);      // #f2feff Crystalline ice
+    public static readonly Color IceCyan = Color.FromRgb(0xa8, 0xec, 0xff);       // #a8ecff Ice cyan
+    public static readonly Color GlassDeepBg = Color.FromArgb(0xd4, 0x06, 0x14, 0x3a); // Frosted oceanic glass
+    public static readonly Color GlassBorderColor = Color.FromArgb(0xa0, 0x9f, 0xf6, 0xff); // Crystalline border
+
     // Brushes
     public static readonly SolidColorBrush Sea0Brush = new(Sea0);
     public static readonly SolidColorBrush Sea2Brush = new(Sea2);
     public static readonly SolidColorBrush LightCyanBrush = new(LightCyan);
     public static readonly SolidColorBrush SpikeRedBrush = new(SpikeRed);
+    public static readonly SolidColorBrush HarpoonRedBrush = new(HarpoonRed);
+    public static readonly SolidColorBrush CyanFoamBrush = new(CyanFoam);
+    public static readonly SolidColorBrush IceLightBrush = new(IceLight);
     public static readonly SolidColorBrush InkBrush = new(Ink);
     public static readonly SolidColorBrush WhiteBrush = Brushes.White;
     public static readonly SolidColorBrush SubBrush = new(TextSub);
@@ -81,6 +99,7 @@ public static class TideKit
     // Controller Photography Loader
     public static FrameworkElement ControllerArt(string modelId, double targetWidth)
     {
+        if (ThemeArt.Load(modelId, targetWidth) is { } sharedArt) return sharedArt;
         string safeModel = modelId.Replace("_", "-").ToLowerInvariant();
         string artKey = safeModel switch
         {
@@ -212,137 +231,422 @@ public static class TideKit
     /// <summary>
     /// Persona 3 Sea background: Gradient + Embossed concentric rings + Shards + Confetti + Vertical Word
     /// </summary>
-    public static Canvas SeaBackground(int seed = 1, string word = "DASHBOARD")
+    /// <summary>
+    /// Cinematic Ocean at Night background (tide.mp4 / intros.py):
+    /// Single source of truth for all Tide pages.
+    /// Edge-to-edge sky, deterministic twinkling stars (upper 55%),
+    /// celestial moon with soft cyan halo, wave with thin CyanFoam crest,
+    /// water floor, traveling harpoon red spark, and vignette.
+    /// </summary>
+    public static Canvas SeaBackground(int seed = 1, string word = "")
     {
         var canvas = new Canvas { Width = 1600, Height = 900, ClipToBounds = true };
 
-        // 1. Sea gradient: linear-gradient(115deg, #0b1d8e 0%, #1838d8 35%, #1f6fe8 62%, #28b6f0 100%)
+        // 1. Sky: vertical gradient OceanDark (0%) to OceanNight (45%) to OceanDeep (80%) to OceanFloor (100%)
         var bg = new Rectangle
         {
             Width = 1600,
             Height = 900,
             Fill = new LinearGradientBrush
             {
-                StartPoint = new Point(0, 0.2),
-                EndPoint = new Point(1, 0.8),
+                StartPoint = new Point(0, 0),
+                EndPoint = new Point(0, 1),
                 GradientStops =
                 {
-                    new(Sea0, 0.0),
-                    new(Sea1, 0.35),
-                    new(Sea2, 0.62),
-                    new(Sea3, 1.0)
+                    new(OceanDark, 0.00),
+                    new(OceanNight, 0.45),
+                    new(OceanDeep, 0.80),
+                    new(OceanFloor, 1.00)
                 }
             }
         };
         canvas.Children.Add(bg);
 
-        // 2. Embossed concentric rings
-        var ring1 = new Border
-        {
-            Width = 720,
-            Height = 720,
-            CornerRadius = new CornerRadius(360),
-            BorderBrush = new SolidColorBrush(Color.FromArgb((byte)(255 * 0.10), 120, 200, 255)),
-            BorderThickness = new Thickness(26)
-        };
-        Canvas.SetLeft(ring1, 1050);
-        Canvas.SetTop(ring1, 260);
-        canvas.Children.Add(ring1);
-
-        var ring2 = new Border
-        {
-            Width = 460,
-            Height = 460,
-            CornerRadius = new CornerRadius(230),
-            BorderBrush = new SolidColorBrush(Color.FromArgb((byte)(255 * 0.10), 120, 200, 255)),
-            BorderThickness = new Thickness(14)
-        };
-        Canvas.SetLeft(ring2, 1180);
-        Canvas.SetTop(ring2, 390);
-        canvas.Children.Add(ring2);
-
-        // 3. Shards of light
+        // 2. Stars: 20-40 tiny dots (1-2 px), IceLight at 25-80%, deterministic positions, only in the upper 55%
         var rnd = new Random(seed);
-        for (int i = 0; i < 9; i++)
+        for (int i = 0; i < 32; i++)
         {
-            double sx = rnd.Next(300, 1600);
-            double sy = rnd.Next(-100, 800);
-            double sw = rnd.Next(200, 700);
-            double sh = rnd.Next(30, 120);
-            double sRot = rnd.Next(-40, -20);
-            double op = 0.15 + rnd.NextDouble() * 0.20;
+            double sx = rnd.Next(30, 1570);
+            double sy = rnd.Next(15, 480); // upper 55% of 900 = 495
+            double sz = (i % 3 == 0) ? 2.0 : 1.2;
+            double baseOp = 0.25 + (rnd.NextDouble() * 0.55);
 
-            var shard = new Rectangle
+            var star = new Ellipse
             {
-                Width = sw,
-                Height = sh,
-                Fill = new LinearGradientBrush
-                {
-                    StartPoint = new Point(0, 0.5),
-                    EndPoint = new Point(1, 0.5),
-                    GradientStops =
-                    {
-                        new(Color.FromArgb((byte)(255 * op), 150, 230, 255), 0.0),
-                        new(Colors.Transparent, 1.0)
-                    }
-                },
-                RenderTransform = new RotateTransform(sRot)
+                Width = sz,
+                Height = sz,
+                Fill = IceLightBrush,
+                Opacity = baseOp
             };
-            Canvas.SetLeft(shard, sx);
-            Canvas.SetTop(shard, sy);
-            canvas.Children.Add(shard);
+            Canvas.SetLeft(star, sx);
+            Canvas.SetTop(star, sy);
+            canvas.Children.Add(star);
+
+            if (i % 2 == 0)
+            {
+                AnimateTwinkle(star, baseOp * 0.35, Math.Min(1.0, baseOp * 1.6), 2.5 + (i % 4) * 0.7, (i % 5) * 0.5);
+            }
         }
 
-        // 4. Confetti triangles
-        Color[] confettiColors = [Pink, Purple, Colors.White];
-        for (int i = 0; i < 14; i++)
+        // 3. Moon: ONE moon, disc ~130 px, IceLight core with soft cyan halo (radius ~1.6x, 25% opacity)
+        // Position rule: top-right corner of the sky, centred about 14% from right edge and 9% from top.
+        // 1600 * (1 - 0.14) = 1376 center -> Left = 1376 - 65 = 1311.
+        // 900 * 0.09 = 81 center -> Top = 81 - 65 = 16.
+        var moonHalo = new Ellipse
         {
-            double tx = rnd.Next(200, 900);
-            double ty = rnd.Next(150, 800);
-            double sz = rnd.Next(14, 40);
-            double tRot = rnd.Next(0, 360);
-            Color clr = confettiColors[rnd.Next(confettiColors.Length)];
-
-            var polygon = new Polygon
+            Width = 208,
+            Height = 208,
+            Fill = new RadialGradientBrush
             {
-                Points = new PointCollection
+                Center = new Point(0.5, 0.5),
+                RadiusX = 0.5,
+                RadiusY = 0.5,
+                GradientStops =
                 {
-                    new Point(sz / 2, 0),
-                    new Point(0, sz),
-                    new Point(sz, sz)
-                },
-                Fill = new SolidColorBrush(clr),
-                Opacity = 0.85,
-                RenderTransform = new RotateTransform(tRot)
-            };
-            Canvas.SetLeft(polygon, tx);
-            Canvas.SetTop(polygon, ty);
-            canvas.Children.Add(polygon);
-        }
-
-        // 5. Giant Vertical Word down the left edge
-        // .vert: left: -26px; top: 900px; transform: rotate(-90deg); transform-origin: left top; font: 900 180px 'Arial Black'
-        var vertText = new TextBlock
-        {
-            Text = word,
-            FontFamily = Display,
-            FontWeight = FontWeights.Black,
-            FontSize = 180,
-            Foreground = new SolidColorBrush(Color.FromArgb((byte)(255 * 0.9), 235, 244, 255)),
-            RenderTransformOrigin = new Point(0, 0),
-            RenderTransform = new RotateTransform(-90)
+                    new(Color.FromArgb(0x40, 0x9f, 0xe0, 0xff), 0.0),
+                    new(Color.FromArgb(0x18, 0x3a, 0xa5, 0xff), 0.5),
+                    new(Colors.Transparent, 1.0)
+                }
+            },
+            Opacity = 0.85
         };
-        Canvas.SetLeft(vertText, -26);
-        Canvas.SetTop(vertText, 900);
-        canvas.Children.Add(vertText);
+        Canvas.SetLeft(moonHalo, 1272);
+        Canvas.SetTop(moonHalo, -23);
+        canvas.Children.Add(moonHalo);
+        AnimatePulse(moonHalo, 1.0, 1.05, 8.0);
+
+        var moon = new Border
+        {
+            Width = 130,
+            Height = 130,
+            CornerRadius = new CornerRadius(65),
+            Background = new RadialGradientBrush
+            {
+                Center = new Point(0.38, 0.38),
+                RadiusX = 0.7,
+                RadiusY = 0.7,
+                GradientStops =
+                {
+                    new(Colors.White, 0.0),
+                    new(Color.FromRgb(0xf4, 0xf8, 0xff), 0.35),
+                    new(Color.FromRgb(0xc9, 0xdc, 0xff), 0.70),
+                    new(Color.FromRgb(0x9f, 0xba, 0xf0), 1.00)
+                }
+            },
+            Effect = new DropShadowEffect
+            {
+                Color = Color.FromRgb(0x9f, 0xe0, 0xff),
+                BlurRadius = 40,
+                ShadowDepth = 0,
+                Opacity = 0.65
+            }
+        };
+        Canvas.SetLeft(moon, 1311);
+        Canvas.SetTop(moon, 16);
+        canvas.Children.Add(moon);
+        AnimatePulse(moon, 0.99, 1.02, 6.0);
+
+        // Header Scrim: Soft dark gradient across the top so buttons and titles are 100% legible over the moon
+        var headerScrim = new Rectangle
+        {
+            Width = 1600,
+            Height = 100,
+            Fill = new LinearGradientBrush
+            {
+                StartPoint = new Point(0, 0),
+                EndPoint = new Point(0, 1),
+                GradientStops =
+                {
+                    new(Color.FromArgb(0xd0, 0x02, 0x06, 0x17), 0.0),
+                    new(Color.FromArgb(0x80, 0x02, 0x06, 0x17), 0.6),
+                    new(Colors.Transparent, 1.0)
+                }
+            },
+            IsHitTestVisible = false
+        };
+        canvas.Children.Add(headerScrim);
+
+        // 4. Wave: One large curling wave silhouette across the lower-left to centre, occupying lower 45% (y >= 500)
+        // Crest foam line (CyanFoam, 1.5-2 px, with tiny soft glow)
+        var waveContainer = new Canvas { Width = 1600, Height = 900 };
+
+        var waveBody = new System.Windows.Shapes.Path
+        {
+            Data = Geometry.Parse("M -50,900 L -50,680 C 180,620 400,530 650,520 C 850,510 1020,580 1150,650 C 1300,730 1480,780 1650,780 L 1650,900 Z"),
+            Fill = new LinearGradientBrush
+            {
+                StartPoint = new Point(0, 0.0),
+                EndPoint = new Point(0, 1.0),
+                GradientStops =
+                {
+                    new(CyanFoam, 0.00),
+                    new(CyanWave, 0.25),
+                    new(OceanDeep, 0.60),
+                    new(OceanFloor, 1.00)
+                }
+            },
+            Opacity = 0.45
+        };
+        waveContainer.Children.Add(waveBody);
+
+        var crestFoam = new System.Windows.Shapes.Path
+        {
+            Data = Geometry.Parse("M -50,680 C 180,620 400,530 650,520 C 850,510 1020,580 1150,650 C 1300,730 1480,780 1650,780"),
+            Stroke = CyanFoamBrush,
+            StrokeThickness = 1.8,
+            StrokeStartLineCap = PenLineCap.Round,
+            StrokeEndLineCap = PenLineCap.Round,
+            Effect = new DropShadowEffect
+            {
+                Color = Color.FromRgb(0x9f, 0xf6, 0xff),
+                BlurRadius = 8,
+                ShadowDepth = 0,
+                Opacity = 0.75
+            }
+        };
+        waveContainer.Children.Add(crestFoam);
+        canvas.Children.Add(waveContainer);
+        AnimateFloat(waveContainer, 12, 0, 14.0);
+
+        // 5. Water floor: bottom 12-15% (y=780-900) flat darker strip with faint horizontal shimmer lines
+        var waterFloor = new Rectangle
+        {
+            Width = 1600,
+            Height = 120,
+            Fill = new SolidColorBrush(Color.FromArgb(0xb0, 0x02, 0x0a, 0x26))
+        };
+        Canvas.SetLeft(waterFloor, 0);
+        Canvas.SetTop(waterFloor, 780);
+        canvas.Children.Add(waterFloor);
+
+        for (int i = 0; i < 3; i++)
+        {
+            var shimmer = new Rectangle
+            {
+                Width = 320 + i * 140,
+                Height = 1.2,
+                Fill = new SolidColorBrush(Color.FromArgb(0x28, 0x9f, 0xf6, 0xff))
+            };
+            Canvas.SetLeft(shimmer, 200 + i * 400);
+            Canvas.SetTop(shimmer, 800 + i * 32);
+            canvas.Children.Add(shimmer);
+            AnimateFloat(shimmer, 24, 0, 8.0 + i * 3.0);
+        }
+
+        // 6. Harpoon Red Spark: ONE small red streak traveling across the background at lower third (y=640)
+        var sparkTrack = new Canvas { Width = 1600, Height = 900, IsHitTestVisible = false };
+        var sparkHead = new Border
+        {
+            Width = 70,
+            Height = 2.0,
+            CornerRadius = new CornerRadius(1),
+            Background = new LinearGradientBrush
+            {
+                StartPoint = new Point(0, 0),
+                EndPoint = new Point(1, 0),
+                GradientStops =
+                {
+                    new(Colors.Transparent, 0.0),
+                    new(HarpoonRed, 0.8),
+                    new(Colors.White, 1.0)
+                }
+            },
+            Effect = new DropShadowEffect
+            {
+                Color = HarpoonRed,
+                BlurRadius = 10,
+                ShadowDepth = 0,
+                Opacity = 0.95
+            }
+        };
+        Canvas.SetLeft(sparkHead, 350);
+        Canvas.SetTop(sparkHead, 630);
+        sparkTrack.Children.Add(sparkHead);
+        AnimateFloat(sparkHead, 900, 0, 28.0);
+        canvas.Children.Add(sparkTrack);
+
+        // 7. Vignette: subtle edge darkening (black 0% center to 35% corners)
+        var vignette = new Rectangle
+        {
+            Width = 1600,
+            Height = 900,
+            Fill = new RadialGradientBrush
+            {
+                Center = new Point(0.5, 0.5),
+                RadiusX = 0.65,
+                RadiusY = 0.55,
+                GradientStops =
+                {
+                    new(Colors.Transparent, 0.70),
+                    new(Color.FromArgb(0x55, 0x00, 0x04, 0x10), 1.00)
+                }
+            },
+            IsHitTestVisible = false
+        };
+        canvas.Children.Add(vignette);
 
         return canvas;
     }
 
     /// <summary>
-    /// White-outlined Persona status box at (190, 22) or Back box.
+    /// Soft elliptical ground-shadow and concentric pedestal ripples under the controller art.
     /// </summary>
-    public static FrameworkElement StatusBox(string text = "19:24", bool isBack = false, Action onBack = null)
+    public static Canvas PedestalRipples(double width = 500, double height = 120)
+    {
+        var canvas = new Canvas { Width = width, Height = height, IsHitTestVisible = false };
+
+        var shadow = new Ellipse
+        {
+            Width = width * 0.88,
+            Height = height * 0.55,
+            Fill = new RadialGradientBrush
+            {
+                Center = new Point(0.5, 0.5),
+                RadiusX = 0.5,
+                RadiusY = 0.5,
+                GradientStops =
+                {
+                    new(Color.FromArgb(0x70, 0x01, 0x06, 0x1a), 0.0),
+                    new(Color.FromArgb(0x35, 0x02, 0x0a, 0x26), 0.6),
+                    new(Colors.Transparent, 1.0)
+                }
+            }
+        };
+        Canvas.SetLeft(shadow, width * 0.06);
+        Canvas.SetTop(shadow, height * 0.22);
+        canvas.Children.Add(shadow);
+
+        var ring1 = new Ellipse
+        {
+            Width = width * 0.96,
+            Height = height * 0.75,
+            Stroke = new SolidColorBrush(Color.FromArgb(0x25, 0x9f, 0xf6, 0xff)),
+            StrokeThickness = 1.4
+        };
+        Canvas.SetLeft(ring1, width * 0.02);
+        Canvas.SetTop(ring1, height * 0.12);
+        canvas.Children.Add(ring1);
+        AnimatePulse(ring1, 0.98, 1.02, 5.0);
+
+        var ring2 = new Ellipse
+        {
+            Width = width * 0.68,
+            Height = height * 0.50,
+            Stroke = new SolidColorBrush(Color.FromArgb(0x18, 0x9f, 0xf6, 0xff)),
+            StrokeThickness = 1.0
+        };
+        Canvas.SetLeft(ring2, width * 0.16);
+        Canvas.SetTop(ring2, height * 0.25);
+        canvas.Children.Add(ring2);
+        AnimatePulse(ring2, 0.97, 1.03, 4.0);
+
+        return canvas;
+    }
+
+    /// <summary>
+    /// Neutral dashed controller outline silhouette for empty player slots in Zone.
+    /// </summary>
+    public static FrameworkElement NeutralControllerSilhouette(double width = 180, double height = 120)
+    {
+        var canvas = new Canvas { Width = width, Height = height, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+
+        var outline = new System.Windows.Shapes.Path
+        {
+            Data = Geometry.Parse("M 30,35 C 45,20 135,20 150,35 C 165,50 175,100 155,115 C 135,130 120,80 105,80 L 75,80 C 60,80 45,130 25,115 C 5,100 15,50 30,35 Z"),
+            Stroke = new SolidColorBrush(Color.FromArgb(0x60, 0x9f, 0xf6, 0xff)),
+            StrokeThickness = 1.6,
+            StrokeDashArray = new DoubleCollection { 4, 3 },
+            Fill = new SolidColorBrush(Color.FromArgb(0x15, 0x0d, 0x24, 0x56))
+        };
+        canvas.Children.Add(outline);
+
+        var plusIcon = new TextBlock
+        {
+            Text = "+",
+            FontFamily = Display,
+            FontWeight = FontWeights.Black,
+            FontSize = 26,
+            Foreground = new SolidColorBrush(Color.FromArgb(0x80, 0x9f, 0xf6, 0xff)),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        Canvas.SetLeft(plusIcon, width * 0.5 - 9);
+        Canvas.SetTop(plusIcon, height * 0.45 - 16);
+        canvas.Children.Add(plusIcon);
+
+        return canvas;
+    }
+
+    /// <summary>
+    /// Standardized Tide page header row adhering to Section 4:
+    /// Height 72 px, safe margins, moon-orb icon + title, center tabs, right actions + Dashboard back.
+    /// </summary>
+    public static Canvas TideHeader(string title, FrameworkElement? centerTabs = null, FrameworkElement? rightActions = null, Action? onBack = null)
+    {
+        var topBar = new Canvas { Width = 1504, Height = 72 };
+        Canvas.SetLeft(topBar, 48);
+        Canvas.SetTop(topBar, 24);
+
+        // Title with glowing moon-orb mark
+        var titleStack = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        var moonIcon = new Border
+        {
+            Width = 28,
+            Height = 28,
+            CornerRadius = new CornerRadius(14),
+            Background = new RadialGradientBrush
+            {
+                Center = new Point(0.4, 0.4),
+                GradientStops =
+                {
+                    new(Colors.White, 0.0),
+                    new(Color.FromRgb(0x9f, 0xf6, 0xff), 0.7),
+                    new(Color.FromRgb(0x3a, 0xa5, 0xff), 1.0)
+                }
+            },
+            Margin = new Thickness(0, 0, 12, 0),
+            Effect = new DropShadowEffect { Color = Color.FromRgb(0x9f, 0xe0, 0xff), BlurRadius = 14, ShadowDepth = 0, Opacity = 0.9 }
+        };
+        titleStack.Children.Add(moonIcon);
+        titleStack.Children.Add(new TextBlock
+        {
+            Text = "TIDE // " + title.ToUpperInvariant(),
+            FontFamily = Display,
+            FontWeight = FontWeights.Black,
+            FontStyle = FontStyles.Italic,
+            FontSize = 20,
+            Foreground = IceLightBrush,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        topBar.Children.Add(titleStack);
+        Canvas.SetLeft(titleStack, 0);
+        Canvas.SetTop(titleStack, 14);
+
+        if (centerTabs != null)
+        {
+            topBar.Children.Add(centerTabs);
+            Canvas.SetLeft(centerTabs, 520);
+            Canvas.SetTop(centerTabs, 14);
+        }
+
+        var actionsStack = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        if (rightActions != null)
+        {
+            actionsStack.Children.Add(rightActions);
+        }
+        if (onBack != null)
+        {
+            var backBtn = OceanButton("DASHBOARD", icon: "\uE72B", onClick: onBack);
+            backBtn.Margin = new Thickness(10, 0, 0, 0);
+            actionsStack.Children.Add(backBtn);
+        }
+        topBar.Children.Add(actionsStack);
+        Canvas.SetRight(actionsStack, 0);
+        Canvas.SetTop(actionsStack, 12);
+
+        return topBar;
+    }
+    public static FrameworkElement StatusBox(string? text = null, bool isBack = false, Action onBack = null)
     {
         var box = new Border
         {
@@ -382,39 +686,12 @@ public static class TideKit
         {
             row.Children.Add(new TextBlock
             {
-                Text = text,
+                Text = text ?? ThemeClock.Now,
                 FontFamily = Display,
                 FontWeight = FontWeights.Black,
                 FontSize = 27,
                 Foreground = InkBrush,
                 Margin = new Thickness(0, 0, 16, 0),
-                VerticalAlignment = VerticalAlignment.Center
-            });
-            row.Children.Add(new TextBlock
-            {
-                Text = "\uE701",
-                FontFamily = Icons,
-                FontSize = 24,
-                Foreground = InkBrush,
-                Margin = new Thickness(0, 0, 12, 0),
-                VerticalAlignment = VerticalAlignment.Center
-            });
-            row.Children.Add(new TextBlock
-            {
-                Text = "100%",
-                FontFamily = Display,
-                FontWeight = FontWeights.Black,
-                FontSize = 27,
-                Foreground = InkBrush,
-                Margin = new Thickness(0, 0, 14, 0),
-                VerticalAlignment = VerticalAlignment.Center
-            });
-            row.Children.Add(new TextBlock
-            {
-                Text = "\uEBAA",
-                FontFamily = Icons,
-                FontSize = 28,
-                Foreground = InkBrush,
                 VerticalAlignment = VerticalAlignment.Center
             });
         }
@@ -538,6 +815,46 @@ public static class TideKit
         }
 
         border.Child = canvas;
+
+        var tileGroup = new TransformGroup();
+        var tileScale = new ScaleTransform(1.0, 1.0);
+        var tileTrans = new TranslateTransform(0, 0);
+        tileGroup.Children.Add(tileScale);
+        tileGroup.Children.Add(tileTrans);
+        border.RenderTransformOrigin = new Point(0.5, 0.5);
+        border.RenderTransform = tileGroup;
+
+        border.MouseEnter += (_, _) =>
+        {
+            var animScale = new DoubleAnimation(1.04, TimeSpan.FromMilliseconds(160)) { EasingFunction = new BackEase { Amplitude = 0.2, EasingMode = EasingMode.EaseOut } };
+            var animLift = new DoubleAnimation(-6, TimeSpan.FromMilliseconds(160)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
+            tileScale.BeginAnimation(ScaleTransform.ScaleXProperty, animScale);
+            tileScale.BeginAnimation(ScaleTransform.ScaleYProperty, animScale);
+            tileTrans.BeginAnimation(TranslateTransform.YProperty, animLift);
+            border.BorderBrush = LightCyanBrush;
+            if (border.Effect is DropShadowEffect shadow)
+            {
+                shadow.ShadowDepth = 12;
+                shadow.BlurRadius = 24;
+                shadow.Color = Color.FromArgb(255, 40, 182, 240);
+            }
+        };
+        border.MouseLeave += (_, _) =>
+        {
+            var animScale = new DoubleAnimation(1.0, TimeSpan.FromMilliseconds(180)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
+            var animLift = new DoubleAnimation(0, TimeSpan.FromMilliseconds(180)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
+            tileScale.BeginAnimation(ScaleTransform.ScaleXProperty, animScale);
+            tileScale.BeginAnimation(ScaleTransform.ScaleYProperty, animScale);
+            tileTrans.BeginAnimation(TranslateTransform.YProperty, animLift);
+            border.BorderBrush = WhiteBrush;
+            if (border.Effect is DropShadowEffect shadow)
+            {
+                shadow.ShadowDepth = 6;
+                shadow.BlurRadius = 18;
+                shadow.Color = Color.FromArgb(255, 0, 0, 40);
+            }
+        };
+
         return border;
     }
 
@@ -555,9 +872,17 @@ public static class TideKit
             BorderThickness = new Thickness(4),
             CornerRadius = new CornerRadius(6),
             RenderTransformOrigin = new Point(0.5, 0.5),
-            RenderTransform = new RotateTransform(-4),
             Effect = new DropShadowEffect { BlurRadius = 18, ShadowDepth = 6, Direction = 270, Opacity = 0.45, Color = Color.FromArgb(255, 0, 0, 40) }
         };
+
+        var badgeGroup = new TransformGroup();
+        var badgeScale = new ScaleTransform(1.0, 1.0);
+        var badgeTrans = new TranslateTransform(0, 0);
+        var badgeRot = new RotateTransform(-4);
+        badgeGroup.Children.Add(badgeRot);
+        badgeGroup.Children.Add(badgeScale);
+        badgeGroup.Children.Add(badgeTrans);
+        badge.RenderTransform = badgeGroup;
 
         var circle = new Border
         {
@@ -571,6 +896,28 @@ public static class TideKit
         };
         circle.Child = CoverTile(key, size - 36, size - 36, "setups");
         badge.Child = circle;
+
+        badge.MouseEnter += (_, _) =>
+        {
+            var animScale = new DoubleAnimation(1.05, TimeSpan.FromMilliseconds(160)) { EasingFunction = new BackEase { Amplitude = 0.2, EasingMode = EasingMode.EaseOut } };
+            var animLift = new DoubleAnimation(-6, TimeSpan.FromMilliseconds(160));
+            badgeScale.BeginAnimation(ScaleTransform.ScaleXProperty, animScale);
+            badgeScale.BeginAnimation(ScaleTransform.ScaleYProperty, animScale);
+            badgeTrans.BeginAnimation(TranslateTransform.YProperty, animLift);
+            badge.BorderBrush = SpikeRedBrush;
+            if (badge.Effect is DropShadowEffect shadow) { shadow.Color = SpikeRed; shadow.ShadowDepth = 12; }
+        };
+        badge.MouseLeave += (_, _) =>
+        {
+            var animScale = new DoubleAnimation(1.0, TimeSpan.FromMilliseconds(180));
+            var animLift = new DoubleAnimation(0, TimeSpan.FromMilliseconds(180));
+            badgeScale.BeginAnimation(ScaleTransform.ScaleXProperty, animScale);
+            badgeScale.BeginAnimation(ScaleTransform.ScaleYProperty, animScale);
+            badgeTrans.BeginAnimation(TranslateTransform.YProperty, animLift);
+            badge.BorderBrush = WhiteBrush;
+            if (badge.Effect is DropShadowEffect shadow) { shadow.Color = Color.FromArgb(255, 0, 0, 40); shadow.ShadowDepth = 6; }
+        };
+
         return badge;
     }
 
@@ -661,9 +1008,17 @@ public static class TideKit
             Width = Math.Max(fs * 2.2, text.Length * fs * 0.65),
             Height = fs * 1.3,
             Cursor = System.Windows.Input.Cursors.Hand,
-            RenderTransformOrigin = new Point(0, 1),
-            RenderTransform = new RotateTransform(-35)
+            RenderTransformOrigin = new Point(0, 1)
         };
+
+        var wordGroup = new TransformGroup();
+        var wordRot = new RotateTransform(-35);
+        var wordScale = new ScaleTransform(1.0, 1.0);
+        var wordTrans = new TranslateTransform(0, 0);
+        wordGroup.Children.Add(wordRot);
+        wordGroup.Children.Add(wordScale);
+        wordGroup.Children.Add(wordTrans);
+        canvas.RenderTransform = wordGroup;
 
         if (focused)
         {
@@ -723,10 +1078,43 @@ public static class TideKit
         Canvas.SetTop(tb, 0);
         canvas.Children.Add(tb);
 
-        if (onClick != null)
+        canvas.MouseEnter += (_, _) =>
         {
-            canvas.MouseLeftButtonUp += (_, _) => onClick();
-        }
+            var animScale = new DoubleAnimation(1.08, TimeSpan.FromMilliseconds(140)) { EasingFunction = new BackEase { Amplitude = 0.25, EasingMode = EasingMode.EaseOut } };
+            var animTrans = new DoubleAnimation(-5, TimeSpan.FromMilliseconds(140));
+            wordScale.BeginAnimation(ScaleTransform.ScaleXProperty, animScale);
+            wordScale.BeginAnimation(ScaleTransform.ScaleYProperty, animScale);
+            wordTrans.BeginAnimation(TranslateTransform.YProperty, animTrans);
+            if (!focused)
+            {
+                tb.Foreground = WhiteBrush;
+            }
+        };
+        canvas.MouseLeave += (_, _) =>
+        {
+            var animScale = new DoubleAnimation(1.0, TimeSpan.FromMilliseconds(180)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
+            var animTrans = new DoubleAnimation(0, TimeSpan.FromMilliseconds(180));
+            wordScale.BeginAnimation(ScaleTransform.ScaleXProperty, animScale);
+            wordScale.BeginAnimation(ScaleTransform.ScaleYProperty, animScale);
+            wordTrans.BeginAnimation(TranslateTransform.YProperty, animTrans);
+            if (!focused)
+            {
+                tb.Foreground = LightCyanBrush;
+            }
+        };
+        canvas.MouseLeftButtonDown += (_, _) =>
+        {
+            var animPress = new DoubleAnimation(0.94, TimeSpan.FromMilliseconds(70));
+            wordScale.BeginAnimation(ScaleTransform.ScaleXProperty, animPress);
+            wordScale.BeginAnimation(ScaleTransform.ScaleYProperty, animPress);
+        };
+        canvas.MouseLeftButtonUp += (_, _) =>
+        {
+            var animPop = new DoubleAnimation(1.08, TimeSpan.FromMilliseconds(110));
+            wordScale.BeginAnimation(ScaleTransform.ScaleXProperty, animPop);
+            wordScale.BeginAnimation(ScaleTransform.ScaleYProperty, animPop);
+            onClick?.Invoke();
+        };
         return canvas;
     }
 
@@ -842,7 +1230,6 @@ public static class TideKit
             BorderThickness = new Thickness(3),
             CornerRadius = new CornerRadius(12),
             RenderTransformOrigin = new Point(0.5, 0.5),
-            RenderTransform = new RotateTransform(rot),
             Cursor = System.Windows.Input.Cursors.Hand,
             Effect = new DropShadowEffect
             {
@@ -854,6 +1241,15 @@ public static class TideKit
             }
         };
 
+        var keyGroup = new TransformGroup();
+        var keyRot = new RotateTransform(rot);
+        var keyScale = new ScaleTransform(1.0, 1.0);
+        var keyTrans = new TranslateTransform(0, 0);
+        keyGroup.Children.Add(keyRot);
+        keyGroup.Children.Add(keyScale);
+        keyGroup.Children.Add(keyTrans);
+        border.RenderTransform = keyGroup;
+
         var tb = new TextBlock
         {
             Text = glyph,
@@ -864,7 +1260,50 @@ public static class TideKit
             VerticalAlignment = VerticalAlignment.Center
         };
         border.Child = tb;
-        border.MouseLeftButtonUp += (_, _) => onClick?.Invoke();
+
+        border.MouseEnter += (_, _) =>
+        {
+            var animScale = new DoubleAnimation(1.12, TimeSpan.FromMilliseconds(140)) { EasingFunction = new BackEase { Amplitude = 0.35, EasingMode = EasingMode.EaseOut } };
+            var animLift = new DoubleAnimation(-6, TimeSpan.FromMilliseconds(140)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
+            keyScale.BeginAnimation(ScaleTransform.ScaleXProperty, animScale);
+            keyScale.BeginAnimation(ScaleTransform.ScaleYProperty, animScale);
+            keyTrans.BeginAnimation(TranslateTransform.YProperty, animLift);
+            if (!focused)
+            {
+                border.Background = WhiteBrush;
+                border.BorderBrush = InkBrush;
+                tb.Foreground = InkBrush;
+                if (border.Effect is DropShadowEffect shadow) shadow.Color = SpikeRed;
+            }
+        };
+        border.MouseLeave += (_, _) =>
+        {
+            var animScale = new DoubleAnimation(1.0, TimeSpan.FromMilliseconds(180)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
+            var animLift = new DoubleAnimation(0, TimeSpan.FromMilliseconds(180));
+            keyScale.BeginAnimation(ScaleTransform.ScaleXProperty, animScale);
+            keyScale.BeginAnimation(ScaleTransform.ScaleYProperty, animScale);
+            keyTrans.BeginAnimation(TranslateTransform.YProperty, animLift);
+            if (!focused)
+            {
+                border.Background = InkBrush;
+                border.BorderBrush = WhiteBrush;
+                tb.Foreground = WhiteBrush;
+                if (border.Effect is DropShadowEffect shadow) shadow.Color = Sea0;
+            }
+        };
+        border.MouseLeftButtonDown += (_, _) =>
+        {
+            var animPress = new DoubleAnimation(0.92, TimeSpan.FromMilliseconds(70));
+            keyScale.BeginAnimation(ScaleTransform.ScaleXProperty, animPress);
+            keyScale.BeginAnimation(ScaleTransform.ScaleYProperty, animPress);
+        };
+        border.MouseLeftButtonUp += (_, _) =>
+        {
+            var animRelease = new DoubleAnimation(1.12, TimeSpan.FromMilliseconds(120)) { EasingFunction = new BackEase { Amplitude = 0.4 } };
+            keyScale.BeginAnimation(ScaleTransform.ScaleXProperty, animRelease);
+            keyScale.BeginAnimation(ScaleTransform.ScaleYProperty, animRelease);
+            onClick?.Invoke();
+        };
         return border;
     }
 
@@ -1147,6 +1586,23 @@ public static class TideKit
         grid.Children.Add(rightStack);
 
         rowCanvas.Children.Add(grid);
+        rowCanvas.MouseEnter += (_, _) =>
+        {
+            if (!focused)
+            {
+                titleBlock.Foreground = LightCyanBrush;
+                rowCanvas.RenderTransform = new TranslateTransform(8, 0);
+            }
+        };
+        rowCanvas.MouseLeave += (_, _) =>
+        {
+            if (!focused)
+            {
+                titleBlock.Foreground = WhiteBrush;
+                rowCanvas.RenderTransform = null;
+            }
+        };
+
         if (onClick != null) rowCanvas.MouseLeftButtonUp += (_, _) => onClick();
         return rowCanvas;
     }
@@ -1615,7 +2071,7 @@ public static class TideKit
             FontWeight = FontWeights.Black,
             FontStyle = FontStyles.Italic,
             FontSize = 15,
-            Content = text.ToUpperInvariant(),
+            Content = new TextBlock { Text = text.ToUpperInvariant(), Foreground = primary ? InkBrush : WhiteBrush },
             Cursor = System.Windows.Input.Cursors.Hand,
             RenderTransformOrigin = new Point(0.5, 0.5),
             RenderTransform = new RotateTransform(-3),
@@ -1652,5 +2108,606 @@ public static class TideKit
             });
         }
         return stack;
+    }
+
+    // =========================================================================
+    // Persona 3 Animation Engine
+    // =========================================================================
+
+    public static (RotateTransform rot, ScaleTransform scale, TranslateTransform trans) EnsureTransforms(FrameworkElement element, Point? defaultOrigin = null)
+    {
+        if (defaultOrigin.HasValue && (element.RenderTransformOrigin.X == 0 && element.RenderTransformOrigin.Y == 0))
+        {
+            element.RenderTransformOrigin = defaultOrigin.Value;
+        }
+
+        TransformGroup group;
+        if (element.RenderTransform is TransformGroup existingGroup)
+        {
+            group = existingGroup;
+        }
+        else
+        {
+            group = new TransformGroup();
+            if (element.RenderTransform != null)
+            {
+                var clone = element.RenderTransform.Clone();
+                group.Children.Add(clone);
+            }
+            element.RenderTransform = group;
+        }
+
+        var rot = group.Children.OfType<RotateTransform>().FirstOrDefault();
+        if (rot == null)
+        {
+            rot = new RotateTransform(0);
+            group.Children.Add(rot);
+        }
+
+        var scale = group.Children.OfType<ScaleTransform>().FirstOrDefault();
+        if (scale == null)
+        {
+            scale = new ScaleTransform(1.0, 1.0);
+            group.Children.Add(scale);
+        }
+
+        var trans = group.Children.OfType<TranslateTransform>().FirstOrDefault();
+        if (trans == null)
+        {
+            trans = new TranslateTransform(0, 0);
+            group.Children.Add(trans);
+        }
+
+        return (rot, scale, trans);
+    }
+
+    public static void AnimateContinuousRotation(FrameworkElement element, double durationSeconds = 14)
+    {
+        var (rotate, _, _) = EnsureTransforms(element, new Point(0.5, 0.5));
+        var anim = new DoubleAnimation(0, 360, TimeSpan.FromSeconds(durationSeconds))
+        {
+            RepeatBehavior = RepeatBehavior.Forever
+        };
+        rotate.BeginAnimation(RotateTransform.AngleProperty, anim);
+    }
+
+    public static void AnimatePulse(FrameworkElement element, double minScale = 0.96, double maxScale = 1.04, double durationSeconds = 1.5)
+    {
+        var (_, scale, _) = EnsureTransforms(element, new Point(0.5, 0.5));
+        var anim = new DoubleAnimation(minScale, maxScale, TimeSpan.FromSeconds(durationSeconds))
+        {
+            AutoReverse = true,
+            RepeatBehavior = RepeatBehavior.Forever,
+            EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
+        };
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, anim);
+        scale.BeginAnimation(ScaleTransform.ScaleYProperty, anim);
+    }
+
+    public static void AnimateFloat(FrameworkElement element, double deltaX = 12, double deltaY = 8, double durationSeconds = 4.0)
+    {
+        var (_, _, translate) = EnsureTransforms(element);
+        var animX = new DoubleAnimation(-deltaX / 2.0, deltaX / 2.0, TimeSpan.FromSeconds(durationSeconds))
+        {
+            AutoReverse = true,
+            RepeatBehavior = RepeatBehavior.Forever,
+            EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
+        };
+        var animY = new DoubleAnimation(-deltaY / 2.0, deltaY / 2.0, TimeSpan.FromSeconds(durationSeconds * 0.8))
+        {
+            AutoReverse = true,
+            RepeatBehavior = RepeatBehavior.Forever,
+            EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
+        };
+        translate.BeginAnimation(TranslateTransform.XProperty, animX);
+        translate.BeginAnimation(TranslateTransform.YProperty, animY);
+    }
+
+    public static void AnimateShimmer(FrameworkElement element, double baseOpacity, double durationSeconds = 3.0)
+    {
+        var anim = new DoubleAnimation(baseOpacity * 0.65, baseOpacity * 1.35, TimeSpan.FromSeconds(durationSeconds))
+        {
+            AutoReverse = true,
+            RepeatBehavior = RepeatBehavior.Forever,
+            EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
+        };
+        element.BeginAnimation(UIElement.OpacityProperty, anim);
+    }
+
+    public static void AnimateEntrance(FrameworkElement root, double offsetY = 16, double durationSeconds = 0.28)
+    {
+        root.Opacity = 0.0;
+        var (_, _, translate) = EnsureTransforms(root);
+        translate.Y = offsetY;
+
+        var animFade = new DoubleAnimation(0.0, 1.0, TimeSpan.FromSeconds(durationSeconds));
+        var animSlide = new DoubleAnimation(offsetY, 0.0, TimeSpan.FromSeconds(durationSeconds))
+        {
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+        };
+        root.BeginAnimation(UIElement.OpacityProperty, animFade);
+        translate.BeginAnimation(TranslateTransform.YProperty, animSlide);
+    }
+
+    public static void AnimateGlowPulse(Border border, Color fromColor, Color toColor, double durationSeconds = 1.2)
+    {
+        var brush = new SolidColorBrush(fromColor);
+        border.BorderBrush = brush;
+        var anim = new ColorAnimation(fromColor, toColor, TimeSpan.FromSeconds(durationSeconds))
+        {
+            AutoReverse = true,
+            RepeatBehavior = RepeatBehavior.Forever,
+            EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
+        };
+        brush.BeginAnimation(SolidColorBrush.ColorProperty, anim);
+    }
+
+    // =========================================================================
+    // Modern Ocean Glass Primitives (tide.mp4 Luxury Glassmorphism & Animations)
+    // =========================================================================
+
+    /// <summary>
+    /// Frosted deep-ocean glass panel with crystalline ice borders, top specular glint, and smooth hover physics.
+    /// </summary>
+    public static Border OceanGlassCard(double w = double.NaN, double h = double.NaN, CornerRadius? radius = null)
+    {
+        var cr = radius ?? new CornerRadius(10);
+        var border = new Border
+        {
+            CornerRadius = cr,
+            Background = new LinearGradientBrush
+            {
+                StartPoint = new Point(0, 0),
+                EndPoint = new Point(0, 1),
+                GradientStops =
+                {
+                    new(Color.FromArgb(0xdf, 0x08, 0x1a, 0x4c), 0.0),
+                    new(Color.FromArgb(0xf0, 0x04, 0x10, 0x32), 1.0)
+                }
+            },
+            BorderBrush = new LinearGradientBrush
+            {
+                StartPoint = new Point(0, 0),
+                EndPoint = new Point(1, 1),
+                GradientStops =
+                {
+                    new(Color.FromArgb(0xee, 0x9f, 0xf6, 0xff), 0.0),
+                    new(Color.FromArgb(0xaa, 0x3a, 0xa5, 0xff), 0.5),
+                    new(Color.FromArgb(0x66, 0x10, 0x46, 0xc8), 1.0)
+                }
+            },
+            BorderThickness = new Thickness(1.5),
+            Padding = new Thickness(18),
+            Effect = new DropShadowEffect
+            {
+                Color = Color.FromArgb(0xb0, 0x00, 0x0c, 0x28),
+                BlurRadius = 22,
+                ShadowDepth = 6,
+                Direction = 270,
+                Opacity = 0.8
+            }
+        };
+
+        if (!double.IsNaN(w)) border.Width = w;
+        if (!double.IsNaN(h)) border.Height = h;
+
+        // Hover lift and glow
+        var transforms = EnsureTransforms(border, new Point(0.5, 0.5));
+        border.MouseEnter += (_, _) =>
+        {
+            var animLift = new DoubleAnimation(-4, TimeSpan.FromMilliseconds(160)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
+            transforms.trans.BeginAnimation(TranslateTransform.YProperty, animLift);
+            border.BorderBrush = new SolidColorBrush(Color.FromRgb(0x9f, 0xf6, 0xff));
+            if (border.Effect is DropShadowEffect ds)
+            {
+                ds.Color = Color.FromRgb(0x1a, 0x5a, 0xd8);
+                ds.BlurRadius = 32;
+                ds.ShadowDepth = 10;
+            }
+        };
+        border.MouseLeave += (_, _) =>
+        {
+            var animDrop = new DoubleAnimation(0, TimeSpan.FromMilliseconds(180)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
+            transforms.trans.BeginAnimation(TranslateTransform.YProperty, animDrop);
+            border.BorderBrush = new LinearGradientBrush
+            {
+                StartPoint = new Point(0, 0),
+                EndPoint = new Point(1, 1),
+                GradientStops =
+                {
+                    new(Color.FromArgb(0xee, 0x9f, 0xf6, 0xff), 0.0),
+                    new(Color.FromArgb(0xaa, 0x3a, 0xa5, 0xff), 0.5),
+                    new(Color.FromArgb(0x66, 0x10, 0x46, 0xc8), 1.0)
+                }
+            };
+            if (border.Effect is DropShadowEffect ds)
+            {
+                ds.Color = Color.FromArgb(0xb0, 0x00, 0x0c, 0x28);
+                ds.BlurRadius = 22;
+                ds.ShadowDepth = 6;
+            }
+        };
+
+        return border;
+    }
+
+    /// <summary>
+    /// Interactive crystal ocean button with hover shine and tactile spring physics.
+    /// </summary>
+    public static FrameworkElement OceanButton(string text, string? icon = null, bool primary = false, Action? onClick = null)
+    {
+        var btn = new Border
+        {
+            Padding = new Thickness(16, 9, 16, 9),
+            CornerRadius = new CornerRadius(8),
+            Background = primary
+                ? new LinearGradientBrush
+                {
+                    StartPoint = new Point(0, 0),
+                    EndPoint = new Point(1, 1),
+                    GradientStops =
+                    {
+                        new(Color.FromRgb(0x18, 0x5a, 0xe0), 0.0),
+                        new(Color.FromRgb(0x0c, 0x32, 0x96), 1.0)
+                    }
+                }
+                : new SolidColorBrush(Color.FromArgb(0xaa, 0x0d, 0x24, 0x56)),
+            BorderBrush = new SolidColorBrush(primary ? Color.FromRgb(0x9f, 0xf6, 0xff) : Color.FromArgb(0x80, 0x9f, 0xf6, 0xff)),
+            BorderThickness = new Thickness(1.5),
+            Cursor = System.Windows.Input.Cursors.Hand,
+            Effect = new DropShadowEffect
+            {
+                Color = primary ? Color.FromRgb(0x1a, 0x60, 0xf0) : Color.FromArgb(0x80, 0, 0x0a, 0x20),
+                BlurRadius = primary ? 16 : 10,
+                ShadowDepth = 3,
+                Direction = 270,
+                Opacity = 0.7
+            }
+        };
+
+        var sp = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+        if (!string.IsNullOrEmpty(icon))
+        {
+            sp.Children.Add(new TextBlock
+            {
+                Text = icon,
+                FontFamily = Icons,
+                FontSize = 16,
+                Foreground = WhiteBrush,
+                Margin = new Thickness(0, 0, 8, 0),
+                VerticalAlignment = VerticalAlignment.Center
+            });
+        }
+        sp.Children.Add(new TextBlock
+        {
+            Text = text,
+            FontFamily = Display,
+            FontWeight = FontWeights.Black,
+            FontStyle = FontStyles.Italic,
+            FontSize = 13,
+            Foreground = WhiteBrush,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        btn.Child = sp;
+
+        var transforms = EnsureTransforms(btn, new Point(0.5, 0.5));
+        btn.MouseEnter += (_, _) =>
+        {
+            var animScale = new DoubleAnimation(1.04, TimeSpan.FromMilliseconds(120)) { EasingFunction = new BackEase { Amplitude = 0.2 } };
+            transforms.scale.BeginAnimation(ScaleTransform.ScaleXProperty, animScale);
+            transforms.scale.BeginAnimation(ScaleTransform.ScaleYProperty, animScale);
+            btn.BorderBrush = CyanFoamBrush;
+        };
+        btn.MouseLeave += (_, _) =>
+        {
+            var animReset = new DoubleAnimation(1.0, TimeSpan.FromMilliseconds(140));
+            transforms.scale.BeginAnimation(ScaleTransform.ScaleXProperty, animReset);
+            transforms.scale.BeginAnimation(ScaleTransform.ScaleYProperty, animReset);
+            btn.BorderBrush = new SolidColorBrush(primary ? Color.FromRgb(0x9f, 0xf6, 0xff) : Color.FromArgb(0x80, 0x9f, 0xf6, 0xff));
+        };
+        btn.MouseLeftButtonDown += (_, _) =>
+        {
+            var animPress = new DoubleAnimation(0.95, TimeSpan.FromMilliseconds(60));
+            transforms.scale.BeginAnimation(ScaleTransform.ScaleXProperty, animPress);
+            transforms.scale.BeginAnimation(ScaleTransform.ScaleYProperty, animPress);
+        };
+        btn.MouseLeftButtonUp += (_, _) =>
+        {
+            var animPop = new DoubleAnimation(1.04, TimeSpan.FromMilliseconds(100));
+            transforms.scale.BeginAnimation(ScaleTransform.ScaleXProperty, animPop);
+            transforms.scale.BeginAnimation(ScaleTransform.ScaleYProperty, animPop);
+            onClick?.Invoke();
+        };
+
+        return btn;
+    }
+
+    /// <summary>
+    /// Signature Harpoon Red action button (inspired by the red spark harpoon in tide.mp4).
+    /// </summary>
+    public static FrameworkElement SparkButton(string text, string? icon = null, Action? onClick = null)
+    {
+        var btn = new Border
+        {
+            Padding = new Thickness(20, 10, 20, 10),
+            CornerRadius = new CornerRadius(8),
+            Background = new LinearGradientBrush
+            {
+                StartPoint = new Point(0, 0),
+                EndPoint = new Point(1, 1),
+                GradientStops =
+                {
+                    new(Color.FromRgb(0xff, 0x4d, 0x6e), 0.0),
+                    new(HarpoonRed, 1.0)
+                }
+            },
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0xff, 0xc0, 0xcc)),
+            BorderThickness = new Thickness(1.5),
+            Cursor = System.Windows.Input.Cursors.Hand,
+            Effect = new DropShadowEffect
+            {
+                Color = HarpoonRed,
+                BlurRadius = 18,
+                ShadowDepth = 4,
+                Direction = 270,
+                Opacity = 0.8
+            }
+        };
+
+        var sp = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+        if (!string.IsNullOrEmpty(icon))
+        {
+            sp.Children.Add(new TextBlock
+            {
+                Text = icon,
+                FontFamily = Icons,
+                FontSize = 17,
+                Foreground = WhiteBrush,
+                Margin = new Thickness(0, 0, 8, 0),
+                VerticalAlignment = VerticalAlignment.Center
+            });
+        }
+        sp.Children.Add(new TextBlock
+        {
+            Text = text,
+            FontFamily = Display,
+            FontWeight = FontWeights.Black,
+            FontStyle = FontStyles.Italic,
+            FontSize = 14,
+            Foreground = WhiteBrush,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        btn.Child = sp;
+
+        var transforms = EnsureTransforms(btn, new Point(0.5, 0.5));
+        btn.MouseEnter += (_, _) =>
+        {
+            var animScale = new DoubleAnimation(1.05, TimeSpan.FromMilliseconds(120)) { EasingFunction = new BackEase { Amplitude = 0.3 } };
+            transforms.scale.BeginAnimation(ScaleTransform.ScaleXProperty, animScale);
+            transforms.scale.BeginAnimation(ScaleTransform.ScaleYProperty, animScale);
+        };
+        btn.MouseLeave += (_, _) =>
+        {
+            var animReset = new DoubleAnimation(1.0, TimeSpan.FromMilliseconds(140));
+            transforms.scale.BeginAnimation(ScaleTransform.ScaleXProperty, animReset);
+            transforms.scale.BeginAnimation(ScaleTransform.ScaleYProperty, animReset);
+        };
+        btn.MouseLeftButtonDown += (_, _) =>
+        {
+            var animPress = new DoubleAnimation(0.94, TimeSpan.FromMilliseconds(60));
+            transforms.scale.BeginAnimation(ScaleTransform.ScaleXProperty, animPress);
+            transforms.scale.BeginAnimation(ScaleTransform.ScaleYProperty, animPress);
+        };
+        btn.MouseLeftButtonUp += (_, _) =>
+        {
+            var animPop = new DoubleAnimation(1.05, TimeSpan.FromMilliseconds(100));
+            transforms.scale.BeginAnimation(ScaleTransform.ScaleXProperty, animPop);
+            transforms.scale.BeginAnimation(ScaleTransform.ScaleYProperty, animPop);
+            onClick?.Invoke();
+        };
+
+        return btn;
+    }
+
+    /// <summary>
+    /// Signature Ocean Dock navigation bar docked at the bottom with illuminated active states and red spark accents.
+    /// </summary>
+    public static FrameworkElement OceanDock(string activePage, Action<string> onNavigate)
+    {
+        var dock = new Border
+        {
+            Width = 1140,
+            Height = 62,
+            CornerRadius = new CornerRadius(31),
+            Background = new LinearGradientBrush
+            {
+                StartPoint = new Point(0, 0),
+                EndPoint = new Point(0, 1),
+                GradientStops =
+                {
+                    new(Color.FromArgb(0xee, 0x06, 0x16, 0x44), 0.0),
+                    new(Color.FromArgb(0xf8, 0x03, 0x0c, 0x2a), 1.0)
+                }
+            },
+            BorderBrush = new LinearGradientBrush
+            {
+                StartPoint = new Point(0, 0),
+                EndPoint = new Point(1, 0),
+                GradientStops =
+                {
+                    new(Color.FromArgb(0xaa, 0x9f, 0xf6, 0xff), 0.0),
+                    new(Color.FromArgb(0xee, 0x3a, 0xa5, 0xff), 0.5),
+                    new(Color.FromArgb(0xaa, 0x9f, 0xf6, 0xff), 1.0)
+                }
+            },
+            BorderThickness = new Thickness(1.5),
+            Padding = new Thickness(8, 5, 8, 5),
+            Effect = new DropShadowEffect
+            {
+                Color = Color.FromArgb(0xcc, 0x00, 0x08, 0x20),
+                BlurRadius = 26,
+                ShadowDepth = 6,
+                Direction = 270,
+                Opacity = 0.85
+            }
+        };
+
+        var tabs = new (string Key, string Label, string Icon)[]
+        {
+            ("Dashboard", "DASHBOARD", "\uE80F"),
+            ("Buttons", "BUTTONS", "\uE765"),
+            ("Curves", "CURVES", "\uE9D9"),
+            ("Macros", "MACROS", "\uE7C3"),
+            ("Vibration", "VIBRATION", "\uEC42"),
+            ("PcMode", "PC MODE", "\uE7F8"),
+            ("Setups", "SETUPS", "\uE8B5"),
+            ("Tester", "TESTER", "\uE768"),
+            ("Tools", "TOOLS", "\uE713")
+        };
+
+        var sp = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
+
+        foreach (var (key, label, icon) in tabs)
+        {
+            bool isActive = string.Equals(key, activePage, StringComparison.OrdinalIgnoreCase);
+
+            var pill = new Border
+            {
+                CornerRadius = new CornerRadius(22),
+                Padding = new Thickness(14, 6, 14, 6),
+                Margin = new Thickness(3, 0, 3, 0),
+                Cursor = System.Windows.Input.Cursors.Hand,
+                Background = isActive
+                    ? new LinearGradientBrush
+                    {
+                        StartPoint = new Point(0, 0),
+                        EndPoint = new Point(1, 1),
+                        GradientStops =
+                        {
+                            new(Color.FromArgb(0xcc, 0x18, 0x5a, 0xe0), 0.0),
+                            new(Color.FromArgb(0xee, 0x0c, 0x34, 0x98), 1.0)
+                        }
+                    }
+                    : Brushes.Transparent,
+                BorderBrush = isActive
+                    ? new SolidColorBrush(Color.FromRgb(0x9f, 0xf6, 0xff))
+                    : Brushes.Transparent,
+                BorderThickness = new Thickness(isActive ? 1.5 : 0)
+            };
+
+            var itemStack = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+
+            if (isActive)
+            {
+                // Pulsing Harpoon Red Spark indicator dot
+                var sparkDot = new Ellipse
+                {
+                    Width = 6,
+                    Height = 6,
+                    Fill = HarpoonRedBrush,
+                    Margin = new Thickness(0, 0, 6, 0),
+                    Effect = new DropShadowEffect { Color = HarpoonRed, BlurRadius = 8, ShadowDepth = 0, Opacity = 1.0 }
+                };
+                itemStack.Children.Add(sparkDot);
+                AnimatePulse(sparkDot, 0.8, 1.4, 1.2);
+            }
+
+            itemStack.Children.Add(new TextBlock
+            {
+                Text = icon,
+                FontFamily = Icons,
+                FontSize = 14,
+                Foreground = isActive ? CyanFoamBrush : new SolidColorBrush(Color.FromArgb(0x99, 0xa0, 0xc8, 0xf0)),
+                Margin = new Thickness(0, 0, 6, 0),
+                VerticalAlignment = VerticalAlignment.Center
+            });
+
+            itemStack.Children.Add(new TextBlock
+            {
+                Text = label,
+                FontFamily = Display,
+                FontWeight = FontWeights.Black,
+                FontStyle = FontStyles.Italic,
+                FontSize = 11,
+                Foreground = isActive ? WhiteBrush : new SolidColorBrush(Color.FromArgb(0xbb, 0xc0, 0xdc, 0xf8)),
+                VerticalAlignment = VerticalAlignment.Center
+            });
+
+            pill.Child = itemStack;
+
+            if (!isActive)
+            {
+                pill.MouseEnter += (_, _) =>
+                {
+                    pill.Background = new SolidColorBrush(Color.FromArgb(0x40, 0x18, 0x5a, 0xe0));
+                };
+                pill.MouseLeave += (_, _) =>
+                {
+                    pill.Background = Brushes.Transparent;
+                };
+            }
+
+            string targetKey = key;
+            pill.MouseLeftButtonUp += (_, _) => onNavigate?.Invoke(targetKey);
+
+            sp.Children.Add(pill);
+        }
+
+        dock.Child = sp;
+        return dock;
+    }
+
+    /// <summary>
+    /// Glowing Harpoon Red ring marker for targeting selected button controls on the controller art.
+    /// </summary>
+    public static FrameworkElement ActiveControlMarker(double size = 64)
+    {
+        var container = new Canvas { Width = size, Height = size };
+
+        var rippleRing = new Ellipse
+        {
+            Width = size * 1.3,
+            Height = size * 1.3,
+            Stroke = HarpoonRedBrush,
+            StrokeThickness = 1.5,
+            Opacity = 0.5
+        };
+        Canvas.SetLeft(rippleRing, -size * 0.15);
+        Canvas.SetTop(rippleRing, -size * 0.15);
+        container.Children.Add(rippleRing);
+        AnimatePulse(rippleRing, 0.9, 1.3, 1.8);
+
+        var coreRing = new Border
+        {
+            Width = size,
+            Height = size,
+            CornerRadius = new CornerRadius(size / 2),
+            BorderBrush = HarpoonRedBrush,
+            BorderThickness = new Thickness(3.5),
+            Background = new SolidColorBrush(Color.FromArgb(0x33, 0xff, 0x24, 0x42)),
+            Effect = new DropShadowEffect
+            {
+                Color = HarpoonRed,
+                BlurRadius = 16,
+                ShadowDepth = 0,
+                Opacity = 0.95
+            }
+        };
+        container.Children.Add(coreRing);
+        AnimatePulse(coreRing, 0.94, 1.06, 1.2);
+
+        return container;
+    }
+
+    public static void AnimateTwinkle(FrameworkElement element, double minOp, double maxOp, double durationSeconds, double delaySeconds = 0)
+    {
+        var anim = new DoubleAnimation(minOp, maxOp, TimeSpan.FromSeconds(durationSeconds))
+        {
+            AutoReverse = true,
+            RepeatBehavior = RepeatBehavior.Forever,
+            EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut },
+            BeginTime = TimeSpan.FromSeconds(delaySeconds)
+        };
+        element.BeginAnimation(UIElement.OpacityProperty, anim);
     }
 }

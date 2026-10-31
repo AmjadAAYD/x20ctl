@@ -16,7 +16,7 @@ public sealed partial class ProductHost
 
     public void ShowDuskThemeRestartNotice(string? themeName = null)
     {
-        string chosen = themeName ?? "Dusk";
+        string chosen = themeName ?? ThemeCatalog.Find(preferencesHealthy ? preferences.Theme : ThemeCatalog.Current.Id).Name;
         DismissDuskNotice();
 
         var notice = BuildDeckModalNotice(
@@ -24,7 +24,7 @@ public sealed partial class ProductHost
             lines: new[]
             {
                 $"X20CTL needs to restart to apply the {chosen} console experience.",
-                "Active controller drafts, curves, and button profiles will be preserved.",
+                "Unsaved controller drafts will be lost. Saved setups and PC mode settings stay on this PC.",
                 "The app will reopen with the authentic Steam Deck dark console home design."
             },
             yesText: "Restart Now (A)",
@@ -221,8 +221,7 @@ public sealed partial class ProductHost
             Foreground = DuskKit.WhiteBrush,
             VerticalAlignment = VerticalAlignment.Center
         };
-        btnYes.MouseLeftButtonUp += (_, _) => onYes();
-        fBtns.Children.Add(btnYes);
+        fBtns.Children.Add(StudioScene.ThemeAction(btnYes, "notice:yes", onYes));
 
         var btnNo = new Border
         {
@@ -241,8 +240,7 @@ public sealed partial class ProductHost
             Foreground = DuskKit.LightBrush,
             VerticalAlignment = VerticalAlignment.Center
         };
-        btnNo.MouseLeftButtonUp += (_, _) => onNo();
-        fBtns.Children.Add(btnNo);
+        fBtns.Children.Add(StudioScene.ThemeAction(btnNo, "notice:no", onNo));
 
         footer.Child = fBtns;
         Grid.SetRow(footer, 2);
@@ -258,8 +256,8 @@ public sealed partial class ProductHost
 
         var toasts = new (string Lab, string Txt, string Icon, Color Col)[]
         {
-            ("WHILE IT INSTALLS", "USB handshake maintains active rumble calibration in background", "\uE895", DuskKit.C("#1a9fff")),
-            ("AFTER RESTART", "Console home launches with Steam Deck dark slate interface", "\uE73E", DuskKit.GreenOnline),
+            ("WHILE IT INSTALLS", "Only approved driver installers run after permission", "\uE895", DuskKit.C("#1a9fff")),
+            ("AFTER RESTART", "The selected theme applies after restart", "\uE73E", DuskKit.GreenOnline),
             ("IF POSTPONED", "Changes remain staged locally in memory without modifying hardware", "\uE711", DuskKit.TextMute)
         };
 
@@ -325,15 +323,15 @@ public sealed partial class ProductHost
     {
         ActiveDuskNotice = notice;
         Panel.SetZIndex(notice, 100);
-        Children.Add(notice);
+        Children.Add(notice); ArmThemeNotice(notice);
     }
 
     public void DismissDuskNotice()
     {
         if (ActiveDuskNotice != null)
         {
-            Children.Remove(ActiveDuskNotice);
-            ActiveDuskNotice = null;
+            ReleaseThemeNotice(ActiveDuskNotice); Children.Remove(ActiveDuskNotice);
+            ActiveDuskNotice = null; _ = UpdateNativeContext();
         }
     }
 }

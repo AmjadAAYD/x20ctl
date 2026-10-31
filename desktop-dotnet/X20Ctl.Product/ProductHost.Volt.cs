@@ -16,7 +16,7 @@ public sealed partial class ProductHost
 
     public void ShowVoltThemeRestartNotice(string? themeName = null)
     {
-        string chosen = themeName ?? "Volt";
+        string chosen = themeName ?? ThemeCatalog.Find(preferencesHealthy ? preferences.Theme : ThemeCatalog.Current.Id).Name;
         DismissVoltNotice();
 
         var notice = BuildVoltModalNotice(
@@ -24,9 +24,9 @@ public sealed partial class ProductHost
             lines: new[]
             {
                 $"X20CTL needs to restart to apply the {chosen} console experience.",
-                "Active controller drafts, curves, and button profiles will be preserved.",
+                "Unsaved controller drafts will be lost. Saved setups and PC mode settings stay on this PC.",
                 "The app will reopen with the authentic Steam Deck yellow console home design.",
-                "Safe to restart. All local working settings are preserved.",
+                "Unsaved controller drafts will be lost. Saved setups and PC mode settings stay on this PC.",
                 "Restart X20CTL now to apply the new theme?"
             },
             yesText: "Restart now",
@@ -232,8 +232,7 @@ public sealed partial class ProductHost
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center
         };
-        yesBtn.MouseLeftButtonUp += (_, _) => onYes();
-        dStack.Children.Add(yesBtn);
+        dStack.Children.Add(StudioScene.ThemeAction(yesBtn, "notice:yes", onYes));
 
         // [Later] dark button
         var noBtn = new Border
@@ -253,8 +252,7 @@ public sealed partial class ProductHost
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center
         };
-        noBtn.MouseLeftButtonUp += (_, _) => onNo();
-        dStack.Children.Add(noBtn);
+        dStack.Children.Add(StudioScene.ThemeAction(noBtn, "notice:no", onNo));
 
         dlg.Child = dStack;
         Canvas.SetLeft(dlg, 160);
@@ -266,7 +264,7 @@ public sealed partial class ProductHost
         {
             ("UPDATE", "ViGEmBus driver is ready to install.", "\uE895", true),
             ("WHILE IT INSTALLS", "Controller inputs will temporarily pause.", "\uE895", true),
-            ("AFTER YES", "X20CTL reopens with virtual device enabled.", "\uE73E", true),
+            ("AFTER YES", "The requested action runs only after permission.", "\uE73E", true),
             ("AFTER NO", "Physical input mode remains unchanged.", "\uE711", false)
         };
 
@@ -348,15 +346,15 @@ public sealed partial class ProductHost
         DismissVoltNotice();
         ActiveVoltNotice = notice;
         Panel.SetZIndex(notice, 100);
-        Children.Add(notice);
+        Children.Add(notice); ArmThemeNotice(notice);
     }
 
     public void DismissVoltNotice()
     {
         if (ActiveVoltNotice != null)
         {
-            Children.Remove(ActiveVoltNotice);
-            ActiveVoltNotice = null;
+            ReleaseThemeNotice(ActiveVoltNotice); Children.Remove(ActiveVoltNotice);
+            ActiveVoltNotice = null; _ = UpdateNativeContext();
         }
     }
 }

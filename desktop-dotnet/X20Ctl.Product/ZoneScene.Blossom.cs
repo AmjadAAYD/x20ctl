@@ -105,7 +105,7 @@ public partial class ZoneScene
         });
         statusStack.Children.Add(new TextBlock
         {
-            Text = "19:24",
+            Text = ThemeClock.Now,
             FontFamily = BlossomKit.Body,
             FontSize = 16,
             Foreground = BlossomKit.TextMuteBrush,

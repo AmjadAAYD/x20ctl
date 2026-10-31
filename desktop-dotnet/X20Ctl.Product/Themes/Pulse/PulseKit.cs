@@ -399,6 +399,13 @@ internal static class PulseKit
             At(c, dot, sx - dot.Width / 2, peakY - dot.Height / 2);
         }
 
+        var waveAnim = new System.Windows.Media.Animation.DoubleAnimation(0.65, 1.0, TimeSpan.FromSeconds(1.3))
+        {
+            AutoReverse = true,
+            RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever
+        };
+        c.BeginAnimation(UIElement.OpacityProperty, waveAnim);
+
         return c;
     }
 
@@ -791,7 +798,7 @@ internal static class PulseKit
         return row;
     }
 
-    /// <summary>Top-right Prismatic Telemetry Status Pill: glowing orb + Player 1 + 120Hz badge + clock + battery icon.</summary>
+    /// <summary>Top-right Prismatic Telemetry Status Pill: glowing orb + Player 1 + clock.</summary>
     public static Border StatusBar(FrameworkElement clockElement, out TextBlock whoLabel)
     {
         var row = new StackPanel
@@ -825,27 +832,8 @@ internal static class PulseKit
         whoLabel.VerticalAlignment = VerticalAlignment.Center;
         row.Children.Add(whoLabel);
 
-        // Live frequency sync badge
-        var syncBadge = new Border
-        {
-            CornerRadius = new(8),
-            Padding = new(8, 2, 8, 2),
-            Margin = new(12, 0, 0, 0),
-            Background = PulseInk.B(PulseInk.A(PulseInk.Cyan, 0.16)),
-            BorderBrush = PulseInk.B(PulseInk.A(PulseInk.CyanHot, 0.45)),
-            BorderThickness = new(1),
-            VerticalAlignment = VerticalAlignment.Center,
-            Child = PulseInk.MonoText("432 Hz · SYNC", 10.5, PulseInk.B(PulseInk.CyanHot))
-        };
-        row.Children.Add(syncBadge);
-
         var clockWrap = new Border { Margin = new(14, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Child = clockElement };
         row.Children.Add(clockWrap);
-
-        var bat = PulseInk.Icon("\uE83F", 17, PulseInk.B(PulseInk.Soft));
-        bat.Margin = new(14, 1, 0, 0);
-        bat.VerticalAlignment = VerticalAlignment.Center;
-        row.Children.Add(bat);
 
         return new Border
         {
@@ -964,7 +952,7 @@ internal static class PulseKit
     }
 
     /// <summary>Compact horizontal Cardiac ECG + Multi-Sine harmonic strip for Studio status &amp; telemetry cards.</summary>
-    public static Border MiniEcgStrip(string label = "432 Hz · BIO-RESONANCE SYNC")
+    public static Border MiniEcgStrip(string label = "WAVE FIELD")
     {
         var c = new Canvas { Width = 280, Height = 34, ClipToBounds = true, IsHitTestVisible = false };
         // Carrier sine wave

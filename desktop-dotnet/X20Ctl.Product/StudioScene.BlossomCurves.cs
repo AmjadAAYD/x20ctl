@@ -1,4 +1,7 @@
-using System;
+﻿using System;
+using System.Linq;
+using System.Windows.Data;
+using X20Ctl.Zone;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -17,8 +20,16 @@ namespace X20Ctl.Product;
 /// </summary>
 public partial class StudioScene
 {
+    private bool blossomCurvesWired;
+    private Action? blossomCurveRefresh;
     private void RenderBlossomCurves(Canvas host)
     {
+        if (!blossomCurvesWired)
+        {
+            blossomCurvesWired = true;
+            Curves.Changed += () => blossomCurveRefresh?.Invoke();
+            Curves.ChannelSelected += _ => BlossomLater();
+        }
         // 1. Sky & Top Branch Backdrop
         var sky = new Rectangle { Width = 1600, Height = 900, Fill = BlossomKit.CreateSkyBackdrop() };
         host.Children.Add(sky);
@@ -92,7 +103,8 @@ public partial class StudioScene
         var tabs = new[] { "Left stick", "Right stick", "Left trigger", "Right trigger" };
         for (int i = 0; i < tabs.Length; i++)
         {
-            bool on = i == 0;
+            var channel = (CurveChannel)i;
+            bool on = channel == Curves.Channel;
             var tabTb = new TextBlock
             {
                 Text = tabs[i],
@@ -106,7 +118,7 @@ public partial class StudioScene
             {
                 tabTb.Effect = new DropShadowEffect { Color = Color.FromRgb(0xff, 0x96, 0x5a), BlurRadius = 12, ShadowDepth = 0, Opacity = 0.6 };
             }
-            tabsStack.Children.Add(tabTb);
+            tabsStack.Children.Add(ThemeAction(tabTb, "theme:curve:channel:" + channel, () => Curves.SelectChannel(channel)));
         }
         Canvas.SetLeft(tabsStack, 234);
         Canvas.SetTop(tabsStack, 162);
@@ -140,6 +152,9 @@ public partial class StudioScene
 
         var graphCanvas = new Canvas { Width = gw, Height = gh };
 
+        void RefreshGraph()
+        {
+            graphCanvas.Children.Clear();
         // Grid lines
         for (int i = 1; i < 10; i++)
         {
@@ -159,7 +174,7 @@ public partial class StudioScene
         graphCanvas.Children.Add(axisPath);
 
         // Deadzone shaded band (4%)
-        double dzWidth = gw * 0.04;
+        double dzWidth = gw * Curves.Inner.Value / 100;
         var dzShade = new Rectangle
         {
             Width = dzWidth,
@@ -171,29 +186,17 @@ public partial class StudioScene
         graphCanvas.Children.Add(dzShade);
 
         // Response curve path
-        var curveGeom = new PathGeometry();
-        var curveFig = new PathFigure { StartPoint = new Point(0, gh) };
-        curveFig.Segments.Add(new BezierSegment(new Point(gw * 0.35, gh * 0.75), new Point(gw * 0.65, gh * 0.25), new Point(gw, 0), true));
-        curveGeom.Figures.Add(curveFig);
-
-        var curveLine = new System.Windows.Shapes.Path
-        {
-            Data = curveGeom,
-            Stroke = BlossomKit.B("rgba(255,220,232,0.30)"),
-            StrokeThickness = 1.6
-        };
-        graphCanvas.Children.Add(curveLine);
+        graphCanvas.Children.Add(new Polyline { Points = new PointCollection(Enumerable.Range(0,201).Select(i => new Point(i / 200.0 * gw, gh * (1 - Math.Clamp(Curves.Output(i / 200.0),0,1))))), Stroke = BlossomKit.B("rgba(255,220,232,0.30)"), StrokeThickness = 1.6 });
 
         // String of festival light beads along the curve
         for (int i = 0; i <= 36; i++)
         {
             double t = i / 36.0;
-            // Bezier formula for curve
-            double bx = Math.Pow(1 - t, 3) * 0 + 3 * Math.Pow(1 - t, 2) * t * (gw * 0.35) + 3 * (1 - t) * Math.Pow(t, 2) * (gw * 0.65) + Math.Pow(t, 3) * gw;
-            double by = Math.Pow(1 - t, 3) * gh + 3 * Math.Pow(1 - t, 2) * t * (gh * 0.75) + 3 * (1 - t) * Math.Pow(t, 2) * (gh * 0.25) + Math.Pow(t, 3) * 0;
+            double bx = t * gw;
+            double by = gh * (1 - Math.Clamp(Curves.Output(t),0,1));
             double outVal = 1 - by / gh;
 
-            if (t <= 0.04)
+            if (t <= Curves.Inner.Value / 100)
             {
                 var darkBead = new Ellipse
                 {
@@ -232,13 +235,17 @@ public partial class StudioScene
 
         // Calibration Hanging Paper Lantern Bead at input 55%
         double calibT = 0.55;
-        double cx_ = Math.Pow(1 - calibT, 3) * 0 + 3 * Math.Pow(1 - calibT, 2) * calibT * (gw * 0.35) + 3 * (1 - calibT) * Math.Pow(calibT, 2) * (gw * 0.65) + Math.Pow(calibT, 3) * gw;
-        double cy_ = Math.Pow(1 - calibT, 3) * gh + 3 * Math.Pow(1 - calibT, 2) * calibT * (gh * 0.75) + 3 * (1 - calibT) * Math.Pow(calibT, 2) * (gh * 0.25) + Math.Pow(calibT, 3) * 0;
+        double cx_ = calibT * gw;
+        double cy_ = gh * (1 - Math.Clamp(Curves.Output(calibT),0,1));
 
         var calibLantern = BlossomKit.PaperLantern(30, 40, true, null, null, 0.8, 10);
         Canvas.SetLeft(calibLantern, cx_ - calibLantern.Width / 2.0);
         Canvas.SetTop(calibLantern, cy_ - 24);
         graphCanvas.Children.Add(calibLantern);
+
+        }
+        blossomCurveRefresh = RefreshGraph;
+        RefreshGraph();
 
         Canvas.SetLeft(graphCanvas, gx);
         Canvas.SetTop(graphCanvas, gy);
@@ -255,7 +262,8 @@ public partial class StudioScene
         Canvas.SetTop(outLabel, gy + gh + 18);
         host.Children.Add(outLabel);
 
-        var dzLabel = new TextBlock { Text = "4%", FontFamily = BlossomKit.Body, FontSize = 13, Foreground = BlossomKit.TextMuteBrush };
+        var dzLabel = new TextBlock { FontFamily = BlossomKit.Body, FontSize = 13, Foreground = BlossomKit.TextMuteBrush };
+        dzLabel.SetBinding(TextBlock.TextProperty, new Binding("Value") { Source = Curves.Inner, StringFormat = "{0:0}%" });
         Canvas.SetLeft(dzLabel, gx + 6);
         Canvas.SetTop(dzLabel, gy - 26);
         host.Children.Add(dzLabel);
@@ -264,23 +272,16 @@ public partial class StudioScene
         var rightStack = new StackPanel { Width = 560 };
         rightStack.Children.Add(new TextBlock
         {
-            Text = "Left stick",
+            Text = CurveWorkbench.Name(Curves.Channel),
             FontFamily = BlossomKit.Display,
             FontSize = 30,
             Foreground = BlossomKit.TextWhiteBrush,
             Margin = new Thickness(0, 0, 0, 24)
         });
 
-        var sliders = new (string Name, double Pct, string Val, bool Active)[]
+        foreach (var (name, source) in RebelCurveRows)
         {
-            ("Dead zone", 4, "4%", true),
-            ("Sensitivity", 100, "100%", false),
-            ("Max zone", 100, "100%", false),
-            ("Dynamic smoothing", 0, "0%", false)
-        };
-
-        foreach (var s in sliders)
-        {
+            var s = (Name: name, Active: source == Curves.Inner);
             var rowBorder = new Border
             {
                 Height = 60,
@@ -319,7 +320,10 @@ public partial class StudioScene
             Grid.SetColumn(labelTb, 0);
             grid_.Children.Add(labelTb);
 
-            var sliderElem = BlossomKit.LitCordSlider(s.Pct, 220, s.Val);
+            var sliderElem = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            sliderElem.Children.Add(ThemeSlider(source, "theme:curve:" + name, 190, Curves.Draft.CanEdit));
+            var value = new TextBlock { Foreground = BlossomKit.TextAmberBrush, Width = 48, TextAlignment = TextAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
+            value.SetBinding(TextBlock.TextProperty, new Binding("Value") { Source = source, StringFormat = "{0:0}%" }); sliderElem.Children.Add(value);
             Grid.SetColumn(sliderElem, 1);
             grid_.Children.Add(sliderElem);
 
@@ -352,7 +356,7 @@ public partial class StudioScene
                 VerticalAlignment = VerticalAlignment.Center
             }
         };
-        actionRow.Children.Add(btnBorder);
+        actionRow.Children.Add(ThemeAction(btnBorder, "theme:curve:keyboard", StartTry));
         actionRow.Children.Add(new TextBlock
         {
             Text = "Connect a controller or use Keyboard test",
@@ -363,6 +367,16 @@ public partial class StudioScene
             VerticalAlignment = VerticalAlignment.Center
         });
         rightStack.Children.Add(actionRow);
+        var actions = new WrapPanel { Margin = new Thickness(0, 20, 0, 0) };
+        foreach (var (label, tag, action) in new (string, string, Action)[] {
+            ("Reset", "reset", () => Curves.Reset()),
+            ("Preset", "preset", () => Curves.SetPreset(RebelPresets[(Array.IndexOf(RebelPresets, Curves.Draft[Curves.Channel].Preset) + 1) % RebelPresets.Length])),
+            ("Advanced stick tools", "advanced", OpenStickTools) })
+        {
+            var face = new Border { Padding = new Thickness(12,8,12,8), Margin = new Thickness(0,0,10,0), BorderThickness = new Thickness(1), BorderBrush = BlossomKit.TextMuteBrush, CornerRadius = new CornerRadius(16), Child = new TextBlock { Text = label, Foreground = BlossomKit.TextWhiteBrush } };
+            actions.Children.Add(ThemeAction(face, "theme:curve:" + tag, action, Curves.Draft.CanEdit && (tag != "advanced" || Curves.Channel is CurveChannel.LeftStick or CurveChannel.RightStick)));
+        }
+        rightStack.Children.Add(actions);
 
         Canvas.SetLeft(rightStack, 980);
         Canvas.SetTop(rightStack, 236);

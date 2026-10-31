@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Windows;
@@ -290,16 +290,16 @@ public partial class StudioScene
         telemGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(8) });
         telemGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(58) });
 
-        string connStr = currentTransport ?? (isOnline ? "Detected · 2.4 GHz" : "Not detected");
+        string connStr = currentTransport ?? (isOnline ? "Gameplay input detected" : "Not detected");
         string battStr = currentBatteryLevel switch
         {
-            "full" => "100% · Full",
-            "medium" => "74% · Good",
-            "low" => "22% · Low",
-            "wired" => "Wired · Charging",
-            _ => "100% · Standby"
+            "full" => "Full",
+            "medium" => "Medium",
+            "low" => "Low",
+            "wired" => "Wired",
+            _ => "Not reported"
         };
-        string fwStr = currentFirmware ?? (currentTransport == "2.4 GHz receiver" ? "Not readable (XInput)" : "v1.0.8");
+        string fwStr = currentFirmware ?? (currentTransport == "2.4 GHz receiver" ? "Not readable (XInput)" : "Not reported");
         string chgStr = Draft.UnsentChanges > 0 ? $"{Draft.UnsentChanges} unsaved" : "0 unsaved";
 
         // Plaque helper
@@ -877,10 +877,12 @@ public partial class StudioScene
         var canvas = new Canvas { Width = 1600, Height = 900, ClipToBounds = true };
 
         // Tag: Local draft
-        var draftTag = SpotlightKit.Tag(Draft.UnsentChanges > 0 ? "Local draft" : "Synchronized");
-        Canvas.SetLeft(draftTag, 302);
-        Canvas.SetTop(draftTag, 144);
-        canvas.Children.Add(draftTag);
+        var draftTag = SpotlightKit.Tag(Draft.UnsentChanges > 0 ? "Local draft" : "Unmodified preview");
+        var draftRow = new StackPanel { Orientation = Orientation.Horizontal };
+        draftRow.Children.Add(draftTag);
+        Canvas.SetLeft(draftRow, 302);
+        Canvas.SetTop(draftRow, 144);
+        canvas.Children.Add(draftRow);
 
         var noteText = new TextBlock
         {
@@ -888,25 +890,24 @@ public partial class StudioScene
             FontFamily = SpotlightKit.Body,
             FontStyle = FontStyles.Italic,
             FontSize = 17,
-            Foreground = SpotlightKit.B("#b3a48e")
+            Foreground = SpotlightKit.B("#b3a48e"),
+            Margin = new Thickness(12, 2, 0, 0)
         };
-        Canvas.SetLeft(noteText, 410);
-        Canvas.SetTop(noteText, 146);
-        canvas.Children.Add(noteText);
+        draftRow.Children.Add(noteText);
 
         // Tabs: Face · Shoulders · Sticks · System
         var tabs = SpotlightKit.Tabs(new[] { "Face", "Shoulders", "Sticks", "System" }, 0);
         Canvas.SetLeft(tabs, 302);
         Canvas.SetTop(tabs, 196);
-        canvas.Children.Add(tabs);
+        var category = ThemeAction(tabs, "theme:all-inputs", () => { }); category.Click += (_, _) => ThemeInputMenu(category); canvas.Children.Add(category);
 
         // Button mapping list
         var listStack = new StackPanel { Width = 520 };
-        string[] controls = { "A", "B", "X", "Y" };
+        string[] controls = ThemeMappingKeys();
         foreach (var c in controls)
         {
-            bool on = (c == "A");
-            string target = (c == "A") ? "B" : c;
+            bool on = c == SelectedControl;
+            string target = Draft.Target(c);
 
             var r = new Border
             {
@@ -950,7 +951,7 @@ public partial class StudioScene
             leftStack.Children.Add(SpotlightKit.BrassKey(target, false, 26));
             g.Children.Add(leftStack);
 
-            if (on)
+            if (on && target != c)
             {
                 var modText = new TextBlock
                 {
@@ -965,7 +966,7 @@ public partial class StudioScene
             }
 
             r.Child = g;
-            listStack.Children.Add(r);
+            listStack.Children.Add(ThemeMappingAction(r, c));
         }
         Canvas.SetLeft(listStack, 292);
         Canvas.SetTop(listStack, 248);
@@ -980,8 +981,12 @@ public partial class StudioScene
         canvas.Children.Add(star);
 
         // Highlight ring on A button
-        var aRing = SpotlightParts.AButtonHighlight(1290, 420, 22);
-        canvas.Children.Add(aRing);
+        if (TryControlCenter(SelectedControl, out var ringFx, out var ringFy))
+        {
+            // The star is a 3:2 canvas centred on px and standing on baseFloor.
+            var aRing = SpotlightParts.AButtonHighlight(px - w / 2 + ringFx * w, baseFloor - w * 2 / 3 + ringFy * (w * 2 / 3), 22);
+            canvas.Children.Add(aRing);
+        }
 
         // Cue card at bottom: "Cue · A"
         var cardInner = new StackPanel();
@@ -991,7 +996,7 @@ public partial class StudioScene
         topRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
         var bigKeys = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        bigKeys.Children.Add(SpotlightKit.BrassKey("A", true, 54));
+        bigKeys.Children.Add(SpotlightKit.BrassKey(SelectedControl, true, 54));
         bigKeys.Children.Add(new TextBlock
         {
             Text = "→",
@@ -1001,20 +1006,20 @@ public partial class StudioScene
             Margin = new Thickness(16, 0, 16, 0),
             VerticalAlignment = VerticalAlignment.Center
         });
-        bigKeys.Children.Add(SpotlightKit.BrassKey("B", false, 54));
+        bigKeys.Children.Add(SpotlightKit.BrassKey(Draft.Target(SelectedControl), false, 54));
         Grid.SetColumn(bigKeys, 0);
         topRow.Children.Add(bigKeys);
 
         var cueTitle = new StackPanel { Margin = new Thickness(34, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
-        cueTitle.Children.Add(new TextBlock { Text = "A sends B", FontFamily = SpotlightKit.Body, FontSize = 30, Foreground = SpotlightKit.ChalkBrush });
-        cueTitle.Children.Add(new TextBlock { Text = "Modified · Not written to controller memory.", FontFamily = SpotlightKit.Body, FontStyle = FontStyles.Italic, FontSize = 14.5, Foreground = SpotlightKit.MuteBrush, Margin = new Thickness(0, 4, 0, 0) });
+        cueTitle.Children.Add(new TextBlock { Text = Label(SelectedControl) + " sends " + Label(Draft.Target(SelectedControl)), FontFamily = SpotlightKit.Body, FontSize = 30, Foreground = SpotlightKit.ChalkBrush });
+        cueTitle.Children.Add(new TextBlock { Text = Draft.Target(SelectedControl) != SelectedControl ? "Modified · Not written to controller memory." : "Not written to controller memory.", FontFamily = SpotlightKit.Body, FontStyle = FontStyles.Italic, FontSize = 14.5, Foreground = SpotlightKit.MuteBrush, Margin = new Thickness(0, 4, 0, 0) });
         Grid.SetColumn(cueTitle, 1);
         topRow.Children.Add(cueTitle);
 
         var actionBtns = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        actionBtns.Children.Add(SpotlightKit.TheatricalButton("Reset this control", false, null, height: 42, fontSize: 12));
+        actionBtns.Children.Add(SpotlightKit.TheatricalButton("Reset this control", false, null, () => { Draft.Reset(SelectedControl); RefreshEditor(); }, height: 42, fontSize: 12));
         var testBtn = SpotlightKit.TheatricalButton("Test mapping", false, null, height: 42, fontSize: 12);
-        testBtn.Margin = new Thickness(12, 0, 0, 0);
+        testBtn.Click += (_, _) => StartTry(); testBtn.Margin = new Thickness(12, 0, 0, 0);
         actionBtns.Children.Add(testBtn);
         Grid.SetColumn(actionBtns, 2);
         topRow.Children.Add(actionBtns);
@@ -1022,10 +1027,10 @@ public partial class StudioScene
 
         // Choices row
         var choicesRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 22, 0, 0) };
-        string[] outputs = { "A", "B", "X", "Y", "LB", "RB", "LT", "RT", "LS", "RS" };
+        string[] outputs = X20Ctl.Zone.ButtonDraft.Targets.Take(10).ToArray();
         foreach (var o in outputs)
         {
-            bool chosen = (o == "B");
+            bool chosen = o == Draft.Target(SelectedControl);
             var box = new Border
             {
                 MinWidth = 44, Height = 44,
@@ -1045,7 +1050,7 @@ public partial class StudioScene
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center
             };
-            choicesRow.Children.Add(box);
+            choicesRow.Children.Add(ThemeAction(box, "theme:output:" + o, () => SetDraftTarget(o), Draft.CanEdit(SelectedControl)));
         }
         cardInner.Children.Add(choicesRow);
 

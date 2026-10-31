@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
@@ -108,7 +108,7 @@ public partial class StudioScene
         // Row 2: Firmware Version
         rightRows.Children.Add(PulseParts.GlassRow(
             new StackPanel { VerticalAlignment = VerticalAlignment.Center, Children = { PulseParts.Disp("Firmware revision", 15, Colors.White, FontWeights.SemiBold), PulseParts.Body("Onboard microcontroller firmware", 12.5, PulseInk.C("#7f8aa0")) } },
-            PulseParts.Mono(currentFirmware ?? "v1.24 · Up to date", 13.5, PulseParts.CyanBright, FontWeights.Bold),
+            PulseParts.Mono(currentFirmware ?? "Not reported", 13.5, PulseParts.CyanBright, FontWeights.Bold),
             active: false,
             compact: true).Also(r => r.Margin = new(0, 8, 0, 0)));
 
@@ -122,7 +122,7 @@ public partial class StudioScene
         // Row 4: Battery & Power
         rightRows.Children.Add(PulseParts.GlassRow(
             new StackPanel { VerticalAlignment = VerticalAlignment.Center, Children = { PulseParts.Disp("Battery & charge status", 15, Colors.White, FontWeights.SemiBold), PulseParts.Body("Lithium-ion cell power telemetry", 12.5, PulseInk.C("#7f8aa0")) } },
-            PulseParts.Mono(currentBatteryLevel is { Length: > 0 } bl ? bl : "100% · Good", 14, Colors.White, FontWeights.SemiBold),
+            PulseParts.Mono(currentBatteryLevel is { Length: > 0 } bl ? bl : "Not reported", 14, Colors.White, FontWeights.SemiBold),
             active: false,
             compact: true).Also(r => r.Margin = new(0, 8, 0, 0)));
 
@@ -137,16 +137,16 @@ public partial class StudioScene
 
         // 4. Bottom-Left: Rising Pearl Card for Firmware Update (x=262, y=700, w=640)
         var pearlContent = new DockPanel { Width = 580 };
-        var updateBtn = PulseParts.PillButton("Update now", primary: true, onPearl: true, onClick: () => PulseSelectPage("Writescan"));
+        var updateBtn = PulseParts.PillButton("Controller check", primary: true, onPearl: true, onClick: () => PulseSelectPage("Writescan"));
         DockPanel.SetDock(updateBtn, Dock.Right);
         pearlContent.Children.Add(updateBtn);
 
         var updateTitles = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new(0, 0, 20, 0) };
         var headLine = new StackPanel { Orientation = Orientation.Horizontal };
-        headLine.Children.Add(PulseParts.Disp("Firmware Update", 20, PulseParts.PearlInk, FontWeights.SemiBold));
-        headLine.Children.Add(PulseParts.Mono("v2.4.1 available", 13.5, PulseInk.C("#2b6fff"), FontWeights.Bold).Also(t => t.Margin = new(8, 4, 0, 0)));
+        headLine.Children.Add(PulseParts.Disp("Firmware", 20, PulseParts.PearlInk, FontWeights.SemiBold));
+        headLine.Children.Add(PulseParts.Mono("No update source", 13.5, PulseInk.C("#2b6fff"), FontWeights.Bold).Also(t => t.Margin = new(8, 4, 0, 0)));
         updateTitles.Children.Add(headLine);
-        updateTitles.Children.Add(PulseParts.Body("Enhances wireless polling jitter and stick centering stability.", 13.5, PulseParts.PearlSoft).Also(t => t.Margin = new(0, 2, 0, 0)));
+        updateTitles.Children.Add(PulseParts.Body("X20CTL never changes controller firmware.", 13.5, PulseParts.PearlSoft).Also(t => t.Margin = new(0, 2, 0, 0)));
         pearlContent.Children.Add(updateTitles);
 
         var pearlCard = PulseParts.RisingPearlCard(pearlContent, padding: new Thickness(26, 20, 26, 20), topRadius: 26, bottomRadius: 22);

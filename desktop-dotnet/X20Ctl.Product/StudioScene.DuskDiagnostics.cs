@@ -1,3 +1,4 @@
+using System.Windows.Data;
 using System;
 using System.Windows;
 using System.Windows.Controls;
@@ -10,9 +11,12 @@ namespace X20Ctl.Product;
 
 public partial class StudioScene
 {
+    private FrameworkElement? duskDiagnosticsView;
     private void DuskShowDiagnostics()
     {
+        if (Diagnostics is not {} diagnostics) return;
         duskPageHost!.Children.Clear();
+        if (duskDiagnosticsView != null) { duskPageHost.Children.Add(duskDiagnosticsView); return; }
 
         var hints = new[]
         {
@@ -38,20 +42,20 @@ public partial class StudioScene
 
         leftStack.Children.Add(new TextBlock
         {
-            Text = "Real-time coordinate stream at 1000 Hz USB polling.",
+            Text = "Selected-source XInput measurements. Hardware polling rate is separate.",
             FontFamily = DuskKit.Body,
             FontSize = 15,
             Foreground = DuskKit.MuteBrush,
             Margin = new Thickness(0, 0, 0, 14)
         });
 
-        var diagRows = new (string Label, string Val, bool Active)[]
+        var diagRows = new (string Label, TextBlock Val, bool Active)[]
         {
-            ("Left Stick Centering Error", "0.2% · Excellent", true),
-            ("Right Stick Centering Error", "0.4% · Excellent", false),
-            ("Left Trigger (LT) Analog", "0.00 (Resting)", false),
-            ("Right Trigger (RT) Analog", "0.00 (Resting)", false),
-            ("Polling Packet Jitter", "< 0.15 ms", false)
+            ("Left stick", diagnostics.LeftView.Stats, true),
+            ("Right stick", diagnostics.RightView.Stats, false),
+            ("LT", diagnostics.LtView.Stats, false),
+            ("RT", diagnostics.RtView.Stats, false),
+            ("XInput state changes", diagnostics.RateBlock, false)
         };
 
         foreach (var (label, val, active) in diagRows)
@@ -84,13 +88,14 @@ public partial class StudioScene
 
             var valBlock = new TextBlock
             {
-                Text = val,
+                Text = val.Text,
                 FontFamily = DuskKit.Display,
                 FontSize = 18,
                 FontWeight = FontWeights.Bold,
                 Foreground = active ? DuskKit.WhiteBrush : DuskKit.GreenOnlineBrush,
                 VerticalAlignment = VerticalAlignment.Center
             };
+            valBlock.MaxWidth = 300; valBlock.TextWrapping = TextWrapping.Wrap; valBlock.FontSize = 14; valBlock.SetBinding(TextBlock.TextProperty, new Binding("Text") { Source = val });
             Grid.SetColumn(valBlock, 1);
             grid.Children.Add(valBlock);
 
@@ -98,6 +103,13 @@ public partial class StudioScene
             leftStack.Children.Add(row);
         }
 
+        var slots = new WrapPanel { Margin = new(0,12,0,8) };
+        for (int i = 0; i < 4; i++) { int slot = i; slots.Children.Add(DuskMacroAction("Player " + (i + 1), "diagnostics:slot:" + i, () => diagnostics.ChooseSlot(slot))); }
+        leftStack.Children.Add(slots);
+        var actions = new WrapPanel();
+        foreach (var (text, tag, action) in new (string,string,Action)[] { ("Measure rest", "measure", diagnostics.Measure), ("Clear", "clear", diagnostics.ClearAll), ("Raw / normalized", "raw", diagnostics.ToggleRaw), ("Copy report", "copy", diagnostics.CopyReport) }) actions.Children.Add(DuskMacroAction(text, "diagnostics:" + tag, action));
+        leftStack.Children.Add(actions);
+        var source = new TextBlock { Foreground = DuskKit.LightBrush, TextWrapping = TextWrapping.Wrap, Margin = new(0,12,0,0), FontSize = 13 }; source.SetBinding(TextBlock.TextProperty, new Binding("Text") { Source = diagnostics.SourceBlock }); leftStack.Children.Add(source);
         Canvas.SetLeft(leftStack, 0);
         Canvas.SetTop(leftStack, 0);
         contentCanvas.Children.Add(leftStack);
@@ -209,7 +221,7 @@ public partial class StudioScene
             CornerRadius = new CornerRadius(3),
             Child = new TextBlock
             {
-                Text = "DUAL HALL ANALOG STREAMS",
+                Text = "SELECTED SOURCE · XINPUT",
                 FontFamily = DuskKit.Display,
                 FontSize = 9,
                 FontWeight = FontWeights.Bold,
@@ -244,7 +256,7 @@ public partial class StudioScene
         });
         cStack.Children.Add(new TextBlock
         {
-            Text = "Hall Effect 0.3% Circularity",
+            Text = "Measurements",
             FontFamily = DuskKit.Display,
             FontSize = 20,
             FontWeight = FontWeights.Bold,
@@ -253,12 +265,25 @@ public partial class StudioScene
         });
         cStack.Children.Add(new TextBlock
         {
-            Text = "Zero physical wear, contactless electromagnetic sensors with true circular boundary bounding.",
+            Text = "Move the selected controller to collect measurements.",
             FontFamily = DuskKit.Body,
             FontSize = 14,
             Foreground = DuskKit.LightBrush,
             TextWrapping = TextWrapping.Wrap
         });
+        ((TextBlock)cStack.Children[2]).SetBinding(TextBlock.TextProperty, new Binding("Text") { Source = diagnostics.DriftBlock });
+        void UpdatePlots()
+        {
+            foreach (var (dot, native, x) in new[] { (ptL, diagnostics.LeftView.Dot, 30.0), (ptR, diagnostics.RightView.Dot, 190.0) })
+            {
+                dot.Visibility = native.Visibility;
+                Canvas.SetLeft(dot, x + 140 * (Canvas.GetLeft(native) + native.Width / 2) / X20Ctl.Product.Diagnostics.DiagnosticsWorkbench.PlotSize - dot.Width / 2);
+                Canvas.SetTop(dot, 40 + 140 * (Canvas.GetTop(native) + native.Height / 2) / X20Ctl.Product.Diagnostics.DiagnosticsWorkbench.PlotSize - dot.Height / 2);
+            }
+        }
+        diagnostics.Refreshed += UpdatePlots; UpdatePlots();
+        lblL.SetBinding(TextBlock.TextProperty, new Binding("Text") { Source = diagnostics.LeftView.Stats });
+        lblR.SetBinding(TextBlock.TextProperty, new Binding("Text") { Source = diagnostics.RightView.Stats });
         card.Child = cStack;
         rightStack.Children.Add(card);
 
@@ -275,6 +300,6 @@ public partial class StudioScene
             onNav: key => DuskSelectPage(key)
         );
 
-        duskPageHost.Children.Add(shell);
+        duskDiagnosticsView = shell; duskPageHost.Children.Add(shell);
     }
 }

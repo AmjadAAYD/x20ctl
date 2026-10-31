@@ -240,7 +240,7 @@ public partial class DockView
             });
             connStack.Children.Add(new TextBlock
             {
-                Text = "2.4G RF · 1000HZ",
+                Text = "LOCAL SETTINGS",
                 FontFamily = VoltKit.Display,
                 FontSize = 12,
                 FontWeight = FontWeights.Bold,
@@ -248,7 +248,6 @@ public partial class DockView
                 VerticalAlignment = VerticalAlignment.Center
             });
             connPill.Child = connStack;
-            topRow.Children.Add(connPill);
 
             Canvas.SetLeft(topRow, 26);
             Canvas.SetTop(topRow, 22);
@@ -312,7 +311,7 @@ public partial class DockView
             });
             batStack.Children.Add(new TextBlock
             {
-                Text = "100%",
+                Text = "—",
                 FontFamily = VoltKit.Display,
                 FontSize = 13,
                 FontWeight = FontWeights.Bold,
@@ -320,27 +319,8 @@ public partial class DockView
                 Margin = new Thickness(6, 0, 0, 0)
             });
             batPill.Child = batStack;
-            telemetryRow.Children.Add(batPill);
+            // Battery is not reported by the controller, so no meter is drawn.
 
-            // Polling Latency Pill
-            var ratePill = new Border
-            {
-                Background = VoltKit.B("#181818"),
-                BorderBrush = VoltKit.B("#333333"),
-                BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(14),
-                Padding = new Thickness(12, 6, 12, 6),
-                Margin = new Thickness(10, 0, 0, 0)
-            };
-            ratePill.Child = new TextBlock
-            {
-                Text = "0.98ms Latency",
-                FontFamily = VoltKit.Display,
-                FontSize = 13,
-                FontWeight = FontWeights.SemiBold,
-                Foreground = VoltKit.B("#c0c0c0")
-            };
-            telemetryRow.Children.Add(ratePill);
 
             if (focused)
             {
@@ -349,7 +329,6 @@ public partial class DockView
                     Background = VoltKit.AmberHotBrush,
                     CornerRadius = new CornerRadius(14),
                     Padding = new Thickness(16, 6, 16, 6),
-                    Margin = new Thickness(12, 0, 0, 0),
                     Effect = new DropShadowEffect { Color = VoltKit.AmberHot, BlurRadius = 14, ShadowDepth = 2, Opacity = 0.5 }
                 };
                 actionPill.Child = new TextBlock
@@ -537,7 +516,7 @@ public partial class DockView
 
             var subPrompt = new TextBlock
             {
-                Text = $"PORT {Index + 1} · PRESS [A] TO PAIR 2.4G RF OR USB-C",
+                Text = $"PORT {Index + 1} · PRESS [A] TO OPEN",
                 FontFamily = VoltKit.Body,
                 FontSize = 13,
                 FontWeight = FontWeights.SemiBold,

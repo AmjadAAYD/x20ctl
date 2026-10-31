@@ -49,6 +49,7 @@ public static class NexusKit
     public static readonly SolidColorBrush TrackBrush = new(TrackBg);
     public static readonly SolidColorBrush WhiteBrush = Brushes.White;
     public static readonly SolidColorBrush SubBrush = new(TextSub);
+    public static readonly SolidColorBrush SliderTrackBrush = new(Color.FromRgb(0x5A, 0x60, 0x6B));
     public static readonly SolidColorBrush MuteBrush = new(TextMute);
 
     // Fonts
@@ -835,6 +836,7 @@ public static class NexusKit
     /// </summary>
     public static FrameworkElement ControllerArt(string modelId, double width)
     {
+        if (ThemeArt.Load(modelId, width) is { } sharedArt) return sharedArt;
         string safeModel = modelId.Replace("_", "-").ToLowerInvariant();
         string artKey = safeModel switch
         {

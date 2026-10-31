@@ -137,7 +137,7 @@ public partial class StudioScene
 
         var ratePanel = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new(0, 0, 48, 0) };
         ratePanel.Children.Add(PulseParts.Kicker("OBSERVED INPUT RATE", onPearl: true));
-        pulseDiagRate = PulseParts.Disp(w.RateBlock.Text is { Length: > 0 } rt ? rt : "1000 Hz", 26, PulseParts.PearlInk, FontWeights.Bold);
+        pulseDiagRate = PulseParts.Disp(w.RateBlock.Text is { Length: > 0 } rt ? rt : "—", 26, PulseParts.PearlInk, FontWeights.Bold);
         ratePanel.Children.Add(pulseDiagRate);
         DockPanel.SetDock(ratePanel, Dock.Left);
         bottomStack.Children.Add(ratePanel);

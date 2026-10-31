@@ -374,7 +374,7 @@ public partial class StudioScene
                     Foreground = on ? NexusKit.B("#111111") : NexusKit.WhiteBrush
                 }
             };
-            tabsStack.Children.Add(tabBtn);
+            var category = ThemeAction(tabBtn, "theme:all-inputs:" + i, () => { }); category.Click += (_, _) => ThemeInputMenu(category); tabsStack.Children.Add(category);
         }
         Canvas.SetLeft(tabsStack, 68);
         Canvas.SetTop(tabsStack, 200);
@@ -400,13 +400,7 @@ public partial class StudioScene
         });
 
         // 4 mapping rows: A, B, X, Y
-        var rows = new (string Key, string Target)[]
-        {
-            ("A", "B"),
-            ("B", "B"),
-            ("X", "X"),
-            ("Y", "Y")
-        };
+        var rows = ThemeMappingKeys().Select(key => (Key: key, Target: Draft.Target(key))).ToArray();
 
         for (int i = 0; i < rows.Length; i++)
         {
@@ -462,7 +456,7 @@ public partial class StudioScene
             Grid.SetColumn(dd, 1);
             rowGrid.Children.Add(dd);
 
-            pStack.Children.Add(rowGrid);
+            pStack.Children.Add(ThemeMappingAction(rowGrid, r.Key));
         }
 
         // Bottom buttons in panel: Reset this control, Test mapping
@@ -470,14 +464,14 @@ public partial class StudioScene
         var resetBtn = NexusKit.TheatricalButton("Reset this control", primary: false, height: 50, fontSize: 16);
         resetBtn.Width = 244;
         resetBtn.Margin = new Thickness(0, 0, 12, 0);
-        bottomBtns.Children.Add(resetBtn);
+        bottomBtns.Children.Add(ThemeAction(resetBtn, "theme:reset", () => { Draft.Reset(SelectedControl); RefreshEditor(); }, Draft.CanEdit(SelectedControl)));
 
         var testBtn = NexusKit.TheatricalButton("Test mapping", primary: false, height: 50, fontSize: 16);
         testBtn.Width = 244;
-        bottomBtns.Children.Add(testBtn);
+        bottomBtns.Children.Add(ThemeAction(testBtn, "theme:test-mapping", StartTry));
 
         pStack.Children.Add(bottomBtns);
-        panel.Child = pStack;
+        panel.Child = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Content = pStack };
 
         Canvas.SetLeft(panel, 68);
         Canvas.SetTop(panel, 264);
@@ -485,7 +479,7 @@ public partial class StudioScene
 
         // 5. Right Controller Art at (700, 300, w = 820)
         double cx = 700, cy = 300, cw = 820;
-        string btnModel = (Model.Id == "x20" || string.IsNullOrEmpty(Model.Id)) ? "x20pro" : Model.Id;
+        string btnModel = string.IsNullOrEmpty(Model.Id) ? "x20" : Model.Id;
         var padArt = NexusKit.ControllerArt(btnModel, cw);
         if (padArt != null)
         {
@@ -499,6 +493,8 @@ public partial class StudioScene
         // a_button(FEAT, 700, 300, 820) -> (1324.8, 483.2)
         double ax = 1325;
         double ay = 483;
+        bool ringKnown = TryCroppedControlCenter(SelectedControl, out var ringFx, out var ringFy);
+        if (ringKnown) { ax = cx + ringFx * cw; ay = cy + ringFy * cw * 739 / 1100; }
 
         var ring = new Border
         {
@@ -517,7 +513,7 @@ public partial class StudioScene
         };
         Canvas.SetLeft(ring, ax - 30);
         Canvas.SetTop(ring, ay - 30);
-        nexusPageHost.Children.Add(ring);
+        if (ringKnown) nexusPageHost.Children.Add(ring);
 
         // Note: Local draft · Not written to controller memory.
         var draftNote = new TextBlock
@@ -527,8 +523,8 @@ public partial class StudioScene
             FontSize = 15,
             Foreground = NexusKit.SubBrush
         };
-        Canvas.SetLeft(draftNote, 700);
-        Canvas.SetTop(draftNote, 820);
+        Canvas.SetLeft(draftNote, 72);
+        Canvas.SetTop(draftNote, 842);
         nexusPageHost.Children.Add(draftNote);
 
         // 6. Bottom Hints

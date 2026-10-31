@@ -36,6 +36,7 @@
     <EmbeddedResource Include="Themes/Colors.xaml;Themes/Typography.xaml;Themes/Controls.xaml;Themes/Design.xaml;Themes/ZoneSurfaces.xaml" LogicalName="ThemeSource/%(Filename)%(Extension)" />
     <Resource Include="Brand/x20ctl-mark.png" Link="Assets/brand.png" />
     <Resource Include="Agent/agent-shell.png" />
+    <Resource Include="Assets/art/*.png" Exclude="Assets/art/*-line.png;Assets/art/*-rim.png;Assets/art/*-sil.png" />
     <!-- the app icon (the logo on its white tile) as an image, for the setup -->
     <Resource Include="Brand/x20ctl-icon.png" Link="Assets/icon.png" />
     <Content Include="../../x20ctl/controllers/catalog.json" Link="Data/catalog.json" CopyToOutputDirectory="PreserveNewest" />

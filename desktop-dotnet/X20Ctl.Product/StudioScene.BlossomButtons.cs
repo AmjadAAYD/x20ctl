@@ -1,3 +1,4 @@
+using X20Ctl.Zone;
 using System;
 using System.Windows;
 using System.Windows.Controls;
@@ -113,7 +114,7 @@ public partial class StudioScene
             {
                 tabTb.Effect = new DropShadowEffect { Color = Color.FromRgb(0xff, 0x96, 0x5a), BlurRadius = 12, ShadowDepth = 0, Opacity = 0.6 };
             }
-            tabsStack.Children.Add(tabTb);
+            var category = ThemeAction(tabTb, "theme:all-inputs:" + i, () => { }); category.Click += (_, _) => ThemeInputMenu(category); tabsStack.Children.Add(category);
         }
         Canvas.SetLeft(tabsStack, 930);
         Canvas.SetTop(tabsStack, 56);
@@ -121,13 +122,7 @@ public partial class StudioScene
 
         // 4. Left Action / Assignment Rows at (236, 196, width 560)
         var rowContainer = new StackPanel { Width = 560 };
-        var rows = new (string From, string To, bool Active, string Sub)[]
-        {
-            ("A", "B", true, "Modified"),
-            ("B", "B", false, ""),
-            ("X", "X", false, ""),
-            ("Y", "Y", false, "")
-        };
+        var rows = ThemeMappingKeys().Select(key => (From: key, To: Draft.Target(key), Active: key == SelectedControl, Sub: Draft.Target(key) != key ? "Modified" : "")).ToArray();
 
         foreach (var r in rows)
         {
@@ -190,7 +185,7 @@ public partial class StudioScene
             }
 
             rowBorder.Child = grid_;
-            rowContainer.Children.Add(rowBorder);
+            rowContainer.Children.Add(ThemeMappingAction(rowBorder, r.From));
         }
 
         // Reset & Test mapping buttons
@@ -241,7 +236,7 @@ public partial class StudioScene
             bGrid.Children.Add(chev);
 
             btnBorder.Child = bGrid;
-            rowContainer.Children.Add(btnBorder);
+            rowContainer.Children.Add(ThemeAction(btnBorder, txt == "Test mapping" ? "theme:test-mapping" : "theme:reset", () => { if (txt == "Test mapping") StartTry(); else { Draft.Reset(SelectedControl); RefreshEditor(); } }));
         }
 
         Canvas.SetLeft(rowContainer, 236);
@@ -278,6 +273,8 @@ public partial class StudioScene
 
         // Amber Glowing Ring on Button [A]
         double ax = 1270, ay = 280;
+        bool ringKnown = TryCroppedControlCenter(SelectedControl, out var ringFx, out var ringFy);
+        if (ringKnown) { ax = 920 + ringFx * 540; ay = 170 + ringFy * 540 * 739 / 1100; }
         var focusRing = new Ellipse
         {
             Width = 52,
@@ -294,7 +291,7 @@ public partial class StudioScene
         };
         Canvas.SetLeft(focusRing, ax - 26);
         Canvas.SetTop(focusRing, ay - 26);
-        host.Children.Add(focusRing);
+        if (ringKnown) host.Children.Add(focusRing);
 
         // Speech Callout Parchment Badge
         var callout = new Border
@@ -317,14 +314,14 @@ public partial class StudioScene
             Effect = new DropShadowEffect { Color = Color.FromRgb(0xff, 0x96, 0x5a), BlurRadius = 22, ShadowDepth = 0, Opacity = 0.6 },
             Child = new TextBlock
             {
-                Text = "A sends B",
+                Text = Label(SelectedControl) + " sends " + Label(Draft.Target(SelectedControl)),
                 FontFamily = BlossomKit.Heading,
                 FontSize = 18,
                 Foreground = BlossomKit.B("#4a140f")
             }
         };
-        Canvas.SetLeft(callout, ax + 36);
-        Canvas.SetTop(callout, ay - 96);
+        Canvas.SetLeft(callout, ax + 22);
+        Canvas.SetTop(callout, ay + 36);
         host.Children.Add(callout);
 
         // 6. Samurai Seal Output Stones Grid at (930, 580)
@@ -340,11 +337,11 @@ public partial class StudioScene
         Canvas.SetTop(outHeader, 580);
         host.Children.Add(outHeader);
 
-        var outputs = new[] { "A", "B", "X", "Y", "LB", "RB", "LT", "RT", "LS", "RS" };
+        var outputs = ButtonDraft.Targets.Take(10).ToArray();
         for (int i = 0; i < outputs.Length; i++)
         {
             string o = outputs[i];
-            bool on = o == "B";
+            bool on = o == Draft.Target(SelectedControl);
             double ox = 930 + (i % 5) * 112;
             double oy = 616 + (i / 5) * 92;
 
@@ -383,7 +380,7 @@ public partial class StudioScene
 
             Canvas.SetLeft(stone, ox);
             Canvas.SetTop(stone, oy);
-            host.Children.Add(stone);
+            host.Children.Add(ThemeAction(stone, "theme:output:" + o, () => SetDraftTarget(o), Draft.CanEdit(SelectedControl)));
         }
 
         // Hints

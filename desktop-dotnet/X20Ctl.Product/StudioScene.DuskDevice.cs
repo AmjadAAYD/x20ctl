@@ -11,9 +11,11 @@ namespace X20Ctl.Product;
 
 public partial class StudioScene
 {
+    private bool duskDeviceWired;
     private void DuskShowDevice()
     {
         duskPageHost!.Children.Clear();
+        if (!duskDeviceWired && Device != null) { duskDeviceWired = true; Device.Watch(DuskLater); }
 
         var hints = new[]
         {
@@ -39,7 +41,7 @@ public partial class StudioScene
 
         leftStack.Children.Add(new TextBlock
         {
-            Text = "Hardware information queried via USB descriptor handshake.",
+            Text = "Only values reported by the active device are shown.",
             FontFamily = DuskKit.Body,
             FontSize = 15,
             Foreground = DuskKit.MuteBrush,
@@ -48,11 +50,11 @@ public partial class StudioScene
 
         var deviceSpecs = new (string Label, string Val, bool Active)[]
         {
-            ("Firmware Version", "v1.24 (Latest)", true),
-            ("Polling Frequency", "1000 Hz · 1.0ms Latency", false),
-            ("Battery Level", "100% · Charged", false),
-            ("Connection Interface", "2.4 GHz Ultra-Low Latency", false),
-            ("MCU Model", "KeyLinker X05 Core Rev-3", false)
+            ("Firmware", Device?.FirmwareText ?? "Not reported", true),
+            ("Hardware revision", Device?.RevisionText ?? "Not reported", false),
+            ("Battery", Device?.BatteryText ?? "Not reported", false),
+            ("Connection", Device?.ConnectionText ?? "Not detected", false),
+            ("Transport", Device?.TransportText ?? "Not reported", false)
         };
 
         foreach (var (label, val, active) in deviceSpecs)
@@ -116,7 +118,7 @@ public partial class StudioScene
         var calStack = new StackPanel { Orientation = Orientation.Vertical };
         calStack.Children.Add(new TextBlock
         {
-            Text = "CALIBRATION TOOLS",
+            Text = "DEVICE TOOLS",
             FontFamily = DuskKit.Display,
             FontSize = 13,
             FontWeight = FontWeights.ExtraBold,
@@ -139,7 +141,7 @@ public partial class StudioScene
         };
         calSticksBtn.Child = new TextBlock
         {
-            Text = "Calibrate Joysticks (X)",
+            Text = "Open Tester",
             FontFamily = DuskKit.Display,
             FontSize = 16,
             FontWeight = FontWeights.Bold,
@@ -147,7 +149,7 @@ public partial class StudioScene
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center
         };
-        calStack.Children.Add(calSticksBtn);
+        calStack.Children.Add(ThemeAction(calSticksBtn, "theme:device:tester", () => ShowManagement("Tester")));
 
         var calTrigBtn = new Border
         {
@@ -158,7 +160,7 @@ public partial class StudioScene
         };
         calTrigBtn.Child = new TextBlock
         {
-            Text = "Calibrate Triggers",
+            Text = "Saved setups",
             FontFamily = DuskKit.Display,
             FontSize = 16,
             FontWeight = FontWeights.Bold,
@@ -166,7 +168,7 @@ public partial class StudioScene
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center
         };
-        calStack.Children.Add(calTrigBtn);
+        calStack.Children.Add(ThemeAction(calTrigBtn, "theme:device:setups", () => ShowManagement("Setups")));
 
         calCard.Child = calStack;
         rightStack.Children.Add(calCard);
@@ -192,7 +194,7 @@ public partial class StudioScene
         });
         iStack.Children.Add(new TextBlock
         {
-            Text = "ESMX-X05P-2026-9901A",
+            Text = Model.Name,
             FontFamily = DuskKit.LogoFont,
             FontSize = 18,
             FontWeight = FontWeights.Bold,
@@ -201,7 +203,7 @@ public partial class StudioScene
         });
         iStack.Children.Add(new TextBlock
         {
-            Text = "Official EasySMX certified production run with high-precision Hall effect magnetic sensors.",
+            Text = "Native configuration writes and calibration commands remain locked.",
             FontFamily = DuskKit.Body,
             FontSize = 14,
             Foreground = DuskKit.LightBrush,
@@ -217,7 +219,7 @@ public partial class StudioScene
         var shell = DuskKit.SettingsShell(
             activeKey: "device",
             title: "Device Information",
-            lead: "Hardware firmware revision, USB descriptor telemetry, and sensor calibration.",
+            lead: "Reported hardware state and local device tools.",
             content: contentCanvas,
             hints: hints,
             onNav: key => DuskSelectPage(key)

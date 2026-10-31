@@ -81,7 +81,6 @@ internal static class PulsePcModeBuilder
 
         // Row 2: Native USB input
         var r2Ctrl = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        r2Ctrl.Children.Add(PulseParts.Chip("1000 Hz", "ok"));
         leftStage.Children.Add(PulseParts.GlassRow(
             new StackPanel { VerticalAlignment = VerticalAlignment.Center, Children = { PulseParts.Disp("1 · Native X20 USB Input", 15, Colors.White, FontWeights.SemiBold), PulseParts.Body("Hardware input stream captured over USB or 2.4 GHz", 12.5, PulseInk.C("#7f8aa0")) } },
             r2Ctrl,

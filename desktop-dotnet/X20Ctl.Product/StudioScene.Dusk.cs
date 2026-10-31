@@ -175,7 +175,7 @@ public partial class StudioScene
         duskPageHost.Children.Add(backdrop);
 
         // 2. Top status row
-        var top = DuskKit.TopBar($"Player {Player + 1}", "19:24", 100);
+        var top = DuskKit.TopBar($"Player {Player + 1}", battery: currentBatteryLevel);
         duskPageHost.Children.Add(top);
 
         // Stage floor pedestal glow under hero capsule
@@ -246,14 +246,13 @@ public partial class StudioScene
             HorizontalAlignment = HorizontalAlignment.Left,
             Child = new TextBlock
             {
-                Text = "2.4G RF DONGLE · 1000HZ ULTRA-POLLING · HALL SENSING V3",
+                Text = "X20CTL · LOCAL SETTINGS · NOTHING SENT TO THE CONTROLLER",
                 FontFamily = DuskKit.Display,
                 FontSize = 12,
                 FontWeight = FontWeights.Bold,
                 Foreground = DuskKit.CyanNeonBrush
             }
         };
-        titleStack.Children.Add(hudPill);
 
         var metaStack = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
         metaStack.Children.Add(new TextBlock
@@ -338,7 +337,7 @@ public partial class StudioScene
                 Foreground = DuskKit.SlateBgBrush
             }
         };
-        playerStack.Children.Add(pBadge);
+        // No player count is shown: this page does not know how many pads are connected.
         tabPlayers.Child = playerStack;
         tabPlayers.MouseLeftButtonUp += (_, _) => BackRequested?.Invoke();
         tabsPanel.Children.Add(tabPlayers);

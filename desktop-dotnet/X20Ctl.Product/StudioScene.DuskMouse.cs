@@ -1,3 +1,4 @@
+using System.Windows.Data;
 using System;
 using System.Windows;
 using System.Windows.Controls;
@@ -10,9 +11,12 @@ namespace X20Ctl.Product;
 
 public partial class StudioScene
 {
+    private FrameworkElement? duskMouseView;
     private void DuskShowMouse()
     {
+        if (Mouse is not {} mouse) return;
         duskPageHost!.Children.Clear();
+        if (duskMouseView != null) { duskPageHost.Children.Add(duskMouseView); return; }
 
         var hints = new[]
         {
@@ -45,107 +49,30 @@ public partial class StudioScene
             Margin = new Thickness(0, 0, 0, 14)
         });
 
-        var mouseFields = new (string Name, int Val, bool Active)[]
+        var enabled = new CheckBox { Content = "Controller as mouse", Foreground = DuskKit.WhiteBrush, Tag = "theme:mouse:switch", Margin = new(16,8,0,18) };
+        enabled.SetBinding(CheckBox.IsCheckedProperty, new Binding("IsChecked") { Source = mouse.Switch, Mode = BindingMode.TwoWay }); leftStack.Children.Add(enabled);
+        foreach (var (name, source) in new[] { ("Pointer speed", mouse.SpeedSlider), ("Response curve", mouse.CurveSlider), ("Scroll speed", mouse.ScrollSlider), ("Dead zone", mouse.DeadzoneSlider), ("Precision", mouse.PrecisionSlider) })
         {
-            ("Cursor Sensitivity", 65, true),
-            ("Acceleration Curve", 40, false),
-            ("Scroll Wheel Speed", 50, false),
-            ("Cursor Deadzone", 8, false)
-        };
-
-        foreach (var (name, val, active) in mouseFields)
-        {
-            var row = new Border
-            {
-                Height = 60,
-                BorderThickness = new Thickness(0, 0, 0, 1),
-                BorderBrush = DuskKit.B("rgba(255,255,255,.07)"),
-                Background = active ? DuskKit.B("rgba(255,255,255,.05)") : Brushes.Transparent,
-                Padding = new Thickness(16, 0, 16, 0),
-                CornerRadius = new CornerRadius(4)
-            };
-
-            var grid = new Grid();
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-            var label = new TextBlock
-            {
-                Text = name,
-                FontFamily = DuskKit.Display,
-                FontSize = 20,
-                FontWeight = FontWeights.SemiBold,
-                Foreground = active ? DuskKit.WhiteBrush : DuskKit.LightBrush,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            Grid.SetColumn(label, 0);
-            grid.Children.Add(label);
-
-            // Slider control
-            var ctrlStack = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-
-            var trackCanvas = new Canvas { Width = 220, Height = 20, VerticalAlignment = VerticalAlignment.Center };
-            var bgTrack = new Border
-            {
-                Width = 220,
-                Height = 6,
-                CornerRadius = new CornerRadius(3),
-                Background = DuskKit.B("#3d4450")
-            };
-            Canvas.SetLeft(bgTrack, 0);
-            Canvas.SetTop(bgTrack, 7);
-            trackCanvas.Children.Add(bgTrack);
-
-            double fillW = Math.Max(0, 220.0 * (val / 100.0));
-            var fillTrack = new Border
-            {
-                Width = fillW,
-                Height = 6,
-                CornerRadius = new CornerRadius(3),
-                Background = DuskKit.B("#1a9fff")
-            };
-            Canvas.SetLeft(fillTrack, 0);
-            Canvas.SetTop(fillTrack, 7);
-            trackCanvas.Children.Add(fillTrack);
-
-            var knob = new Border
-            {
-                Width = 20,
-                Height = 20,
-                CornerRadius = new CornerRadius(10),
-                Background = DuskKit.WhiteBrush,
-                Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 6, ShadowDepth = 2, Opacity = 0.4 }
-            };
-            Canvas.SetLeft(knob, Math.Clamp(fillW - 10, 0, 200));
-            Canvas.SetTop(knob, 0);
-            trackCanvas.Children.Add(knob);
-
-            ctrlStack.Children.Add(trackCanvas);
-
-            var valBlock = new TextBlock
-            {
-                Text = $"{val}%",
-                FontFamily = DuskKit.Display,
-                FontSize = 18,
-                FontWeight = FontWeights.Bold,
-                Foreground = DuskKit.WhiteBrush,
-                Width = 64,
-                TextAlignment = TextAlignment.Right,
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(14, 0, 0, 0)
-            };
-            ctrlStack.Children.Add(valBlock);
-
-            Grid.SetColumn(ctrlStack, 1);
-            grid.Children.Add(ctrlStack);
-
-            row.Child = grid;
-            leftStack.Children.Add(row);
+            var row = new Grid { Height = 56 }; row.ColumnDefinitions.Add(new() { Width = new GridLength(260) }); row.ColumnDefinitions.Add(new() { Width = new GridLength(220) }); row.ColumnDefinitions.Add(new() { Width = new GridLength(84) });
+            row.Children.Add(new TextBlock { Text = name, FontFamily = DuskKit.Display, FontSize = 20, Foreground = DuskKit.LightBrush, VerticalAlignment = VerticalAlignment.Center, Margin = new(16,0,0,0) });
+            var slider = ThemeSlider(source, "theme:mouse:" + name, 220, true); slider.TickFrequency = source.TickFrequency; Grid.SetColumn(slider,1); row.Children.Add(slider);
+            var value = new TextBlock { Foreground = DuskKit.WhiteBrush, VerticalAlignment = VerticalAlignment.Center, TextAlignment = TextAlignment.Right }; value.SetBinding(TextBlock.TextProperty,new Binding("Value") { Source = source, StringFormat = "{0:0.##}" }); Grid.SetColumn(value,2); row.Children.Add(value); leftStack.Children.Add(row);
         }
+        foreach (var (label, source) in new[] { ("Input source", mouse.SourceBox), ("Pointer stick", mouse.PointerBox), ("Shortcut first", mouse.Chord1Box), ("Shortcut second", mouse.Chord2Box), ("Hold behavior", mouse.HoldBox) })
+        {
+            var row = new DockPanel { Margin = new(16,8,0,0) }; row.Children.Add(new TextBlock { Text = label, Width = 220, Foreground = DuskKit.LightBrush, VerticalAlignment = VerticalAlignment.Center });
+            var choice = new ComboBox { Width = 260, Height = 36, DisplayMemberPath = source.DisplayMemberPath, SelectedValuePath = source.SelectedValuePath, Tag = "theme:mouse:" + label };
+            choice.SetBinding(ItemsControl.ItemsSourceProperty, new Binding("ItemsSource") { Source = source }); choice.SetBinding(System.Windows.Controls.Primitives.Selector.SelectedIndexProperty, new Binding("SelectedIndex") { Source = source, Mode = BindingMode.TwoWay }); row.Children.Add(choice); leftStack.Children.Add(row);
+        }
+        foreach (var (label, source) in new[] { ("Scroll", mouse.ScrollsBox), ("Shortcut toggle", mouse.ComboToggle), ("Horizontal scroll", mouse.HorizontalBox), ("Invert vertical", mouse.InvertVBox), ("Invert horizontal", mouse.InvertHBox) })
+        {
+            var toggle = new CheckBox { Content = label, Foreground = DuskKit.LightBrush, Margin = new(16,10,0,0), Tag = "theme:mouse:" + label }; toggle.SetBinding(CheckBox.IsCheckedProperty, new Binding("IsChecked") { Source = source, Mode = BindingMode.TwoWay }); leftStack.Children.Add(toggle);
+        }
+        foreach (string preset in X20Ctl.Product.MouseWorkbench.PresetNames) leftStack.Children.Add(DuskMacroAction("Preset · " + preset, "mouse:preset:" + preset, () => mouse.ApplyPreset(preset)));
 
         Canvas.SetLeft(leftStack, 0);
         Canvas.SetTop(leftStack, 0);
-        contentCanvas.Children.Add(leftStack);
+        var settingsScroll = new ScrollViewer { Width = 590, Height = 580, Content = leftStack, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }; Canvas.SetLeft(settingsScroll,0); Canvas.SetTop(settingsScroll,0); contentCanvas.Children.Add(settingsScroll);
 
         // Right side: 8-way directional mapping grid
         var rightStack = new StackPanel { Width = 380, Orientation = Orientation.Vertical };
@@ -168,39 +95,21 @@ public partial class StudioScene
             Margin = new Thickness(0, 0, 0, 14)
         });
 
-        var grid8 = new Grid { Width = 280, Height = 140, HorizontalAlignment = HorizontalAlignment.Center };
-        for (int i = 0; i < 3; i++) grid8.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        for (int j = 0; j < 3; j++) grid8.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-
-        var dirs = new (int r, int c, string sym)[]
+        var grid8 = new WrapPanel();
+        foreach (string key in mouse.Inputs)
         {
-            (0, 1, "▲ Up"),
-            (1, 0, "◀ Left"),
-            (1, 1, "● Center"),
-            (1, 2, "Right ▶"),
-            (2, 1, "▼ Down")
-        };
-        foreach (var (r, c, sym) in dirs)
-        {
-            var cell = new Border
+            var action = DuskMacroAction(mouse.LabelFor(key), "mouse:input:" + key, () => { });
+            action.Click += (_, _) =>
             {
-                Background = (r == 1 && c == 1) ? DuskKit.B("#1a9fff") : DuskKit.SlateTabOnBrush,
-                CornerRadius = new CornerRadius(4),
-                Margin = new Thickness(2)
+                mouse.PickKey(key); var menu = new ContextMenu { PlacementTarget = action };
+                foreach (var group in mouse.Groups)
+                {
+                    var section = new MenuItem { Header = group.Group };
+                    foreach (var choice in group.Actions) { var item = new MenuItem { Header = choice.ToString(), Tag = "theme:mouse:assign:" + choice }; item.Click += (_, _) => mouse.Assign(choice); section.Items.Add(item); } menu.Items.Add(section);
+                }
+                action.ContextMenu = menu; if (!ReviewSandbox.Active) menu.IsOpen = true;
             };
-            cell.Child = new TextBlock
-            {
-                Text = sym,
-                FontFamily = DuskKit.Display,
-                FontSize = 12,
-                FontWeight = FontWeights.Bold,
-                Foreground = DuskKit.WhiteBrush,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            Grid.SetRow(cell, r);
-            Grid.SetColumn(cell, c);
-            grid8.Children.Add(cell);
+            grid8.Children.Add(action);
         }
         mapStack.Children.Add(grid8);
         mapCard.Child = mapStack;
@@ -227,7 +136,7 @@ public partial class StudioScene
         });
         dStack.Children.Add(new TextBlock
         {
-            Text = "Ballistic Curve with Micro-Damping",
+            Text = mouse.StatusText,
             FontFamily = DuskKit.Display,
             FontSize = 19,
             FontWeight = FontWeights.Bold,
@@ -236,12 +145,15 @@ public partial class StudioScene
         });
         dStack.Children.Add(new TextBlock
         {
-            Text = "Provides pixel-level accuracy for desktop UI navigation, cursor snapping, and window targeting.",
+            Text = mouse.MappedText,
             FontFamily = DuskKit.Body,
             FontSize = 14,
             Foreground = DuskKit.LightBrush,
             TextWrapping = TextWrapping.Wrap
         });
+        void UpdateState() { ((TextBlock)dStack.Children[1]).Text = mouse.StatusText; ((TextBlock)dStack.Children[2]).Text = mouse.MappedText + " · " + mouse.SavedText; }
+        mouse.Watch(UpdateState); UpdateState();
+        dStack.Children.Add(DuskMacroAction("Reset mouse settings", "mouse:reset", mouse.ResetMode));
         detailCard.Child = dStack;
         rightStack.Children.Add(detailCard);
 
@@ -258,6 +170,6 @@ public partial class StudioScene
             onNav: key => DuskSelectPage(key)
         );
 
-        duskPageHost.Children.Add(shell);
+        duskMouseView = shell; duskPageHost.Children.Add(shell);
     }
 }

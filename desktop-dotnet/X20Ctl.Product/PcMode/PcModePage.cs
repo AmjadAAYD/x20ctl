@@ -67,7 +67,7 @@ public static class PcModeSetup
             : "•  HidHide: hides the physical pad so games don't see it twice"));
         string text = "PC mode needs " + (names.Count == 1 ? "a small driver" : "two small drivers") + ":\n\n" + list
             + "\n\nThey are the signed installers from Nefarius Software Solutions, packaged with X20CTL. Windows will ask for permission and a setup window may flash by. You can remove them any time in Windows Apps.\n\nInstall now?";
-        bool Ask() => MessageBox.Show(Application.Current.MainWindow, text, "X20CTL · PC mode drivers", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) == MessageBoxResult.Yes;
+        bool Ask() => Application.Current.MainWindow is ProductWindow window && ThemeCatalog.Current.Id == "rebel" ? window.Host.ConfirmRebelDrivers(names) : Application.Current.MainWindow is ProductWindow hybridWindow && ThemeCatalog.Current.Id == "hybrid" ? hybridWindow.Host.ConfirmHybridDrivers(names) : Application.Current.MainWindow is ProductWindow themedWindow && ThemeCatalog.Current.Id != "default" ? themedWindow.Host.ConfirmThemeDrivers(names) : MessageBox.Show(Application.Current.MainWindow, text, "X20CTL · PC mode drivers", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) == MessageBoxResult.Yes;
         return Application.Current.Dispatcher.CheckAccess() ? Ask() : Application.Current.Dispatcher.Invoke(Ask);
     }
 

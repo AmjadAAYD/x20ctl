@@ -1,6 +1,7 @@
 using System;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
@@ -19,6 +20,8 @@ public partial class StudioScene
 {
     private void RenderBlossomDiagnostics(Canvas host)
     {
+        if (Diagnostics is not { } diagnostics) return;
+
         // 1. Sky & Backdrop
         var sky = new Rectangle { Width = 1600, Height = 900, Fill = BlossomKit.CreateSkyBackdrop() };
         host.Children.Add(sky);
@@ -52,55 +55,75 @@ public partial class StudioScene
         Canvas.SetTop(leadTb, 102);
         host.Children.Add(leadTb);
 
-        // 3. Top Mode & Filter Chips at (234, 200, width 1310)
+        // 3. Top Action Chips at (234, 180, width 1310)
         var chipStack = new StackPanel { Orientation = Orientation.Horizontal };
-        var chips = new[]
-        {
-            ("Player input · XInput 1", true),
-            ("Raw sensor stream", false),
-            ("Deadband filter: Off", false),
-            ("Dynamic centering: Active", false),
-            ("Buffer depth: 1 frame", false)
-        };
 
-        foreach (var (txt, on) in chips)
+        var measureChip = new Border
         {
-            var cBorder = new Border
-            {
-                Height = 36,
-                Padding = new Thickness(16, 0, 16, 0),
-                CornerRadius = new CornerRadius(18),
-                Background = on ? BlossomKit.CreateWarmLanternBrush() : BlossomKit.B("rgba(255,220,232,0.06)"),
-                BorderBrush = on ? BlossomKit.B("transparent") : BlossomKit.B("rgba(255,220,232,0.22)"),
-                BorderThickness = new Thickness(1.2),
-                Margin = new Thickness(0, 0, 10, 0),
-                Cursor = Cursors.Hand
-            };
-            if (on)
-            {
-                cBorder.Effect = new DropShadowEffect { Color = Color.FromRgb(0xff, 0x96, 0x5a), BlurRadius = 14, ShadowDepth = 0, Opacity = 0.5 };
-            }
-            cBorder.Child = new TextBlock
-            {
-                Text = txt,
-                FontFamily = BlossomKit.Body,
-                FontSize = 14,
-                Foreground = on ? BlossomKit.B("#4a140f") : BlossomKit.B("#e3cfd6"),
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            chipStack.Children.Add(cBorder);
-        }
+            Height = 36,
+            Padding = new Thickness(16, 0, 16, 0),
+            CornerRadius = new CornerRadius(18),
+            Background = BlossomKit.CreateWarmLanternBrush(),
+            Margin = new Thickness(0, 0, 10, 0),
+            Effect = new DropShadowEffect { Color = Color.FromRgb(0xff, 0x96, 0x5a), BlurRadius = 14, ShadowDepth = 0, Opacity = 0.5 },
+            Child = new TextBlock { Text = "Measure rest drift", FontFamily = BlossomKit.Body, FontSize = 14, Foreground = BlossomKit.B("#4a140f"), VerticalAlignment = VerticalAlignment.Center }
+        };
+        chipStack.Children.Add(ThemeAction(measureChip, "theme:diagnostics:measure", diagnostics.Measure));
+
+        var clearChip = new Border
+        {
+            Height = 36,
+            Padding = new Thickness(16, 0, 16, 0),
+            CornerRadius = new CornerRadius(18),
+            Background = BlossomKit.B("rgba(255,220,232,0.06)"),
+            BorderBrush = BlossomKit.B("rgba(255,220,232,0.22)"),
+            BorderThickness = new Thickness(1.2),
+            Margin = new Thickness(0, 0, 10, 0),
+            Child = new TextBlock { Text = "Clear counters", FontFamily = BlossomKit.Body, FontSize = 14, Foreground = BlossomKit.B("#e3cfd6"), VerticalAlignment = VerticalAlignment.Center }
+        };
+        chipStack.Children.Add(ThemeAction(clearChip, "theme:diagnostics:clear", diagnostics.ClearAll));
+
+        var rawChip = new Border
+        {
+            Height = 36,
+            Padding = new Thickness(16, 0, 16, 0),
+            CornerRadius = new CornerRadius(18),
+            Background = BlossomKit.B("rgba(255,220,232,0.06)"),
+            BorderBrush = BlossomKit.B("rgba(255,220,232,0.22)"),
+            BorderThickness = new Thickness(1.2),
+            Margin = new Thickness(0, 0, 10, 0),
+            Child = new TextBlock { Text = "Raw / normalized", FontFamily = BlossomKit.Body, FontSize = 14, Foreground = BlossomKit.B("#e3cfd6"), VerticalAlignment = VerticalAlignment.Center }
+        };
+        chipStack.Children.Add(ThemeAction(rawChip, "theme:diagnostics:raw", diagnostics.ToggleRaw));
+
+        var copyChip = new Border
+        {
+            Height = 36,
+            Padding = new Thickness(16, 0, 16, 0),
+            CornerRadius = new CornerRadius(18),
+            Background = BlossomKit.B("rgba(255,220,232,0.06)"),
+            BorderBrush = BlossomKit.B("rgba(255,220,232,0.22)"),
+            BorderThickness = new Thickness(1.2),
+            Child = new TextBlock { Text = "Copy report", FontFamily = BlossomKit.Body, FontSize = 14, Foreground = BlossomKit.B("#e3cfd6"), VerticalAlignment = VerticalAlignment.Center }
+        };
+        chipStack.Children.Add(ThemeAction(copyChip, "theme:diagnostics:copy", diagnostics.CopyReport));
+
         Canvas.SetLeft(chipStack, 234);
         Canvas.SetTop(chipStack, 180);
         host.Children.Add(chipStack);
 
         // 4. Two Celestial Moon Stick Plots at cx = 470 and cx = 860, cy = 430, r = 140
-        host.Children.Add(CreateMoonPlot(470, 430, 140, "Left stick", "X: 0.00  ·  Y: 0.00"));
-        host.Children.Add(CreateMoonPlot(860, 430, 140, "Right stick", "X: 0.00  ·  Y: 0.00"));
+        host.Children.Add(CreateLiveMoonPlot(470, 430, 140, "Left stick", diagnostics.LeftView));
+        host.Children.Add(CreateLiveMoonPlot(860, 430, 140, "Right stick", diagnostics.RightView));
 
         // 5. Tall Cylindrical Paper Lantern Triggers at x = 1190 and x = 1370
-        var triggers = new[] { ("LT", 1190), ("RT", 1370) };
-        foreach (var (tName, tx) in triggers)
+        var triggers = new (string Name, TextBlock Stats, int Tx)[]
+        {
+            ("LT", diagnostics.LtView.Stats, 1190),
+            ("RT", diagnostics.RtView.Stats, 1370)
+        };
+
+        foreach (var (tName, tStats, tx) in triggers)
         {
             // Suspension wire
             host.Children.Add(new Line { X1 = tx + 30, Y1 = 260, X2 = tx + 30, Y2 = 280, Stroke = BlossomKit.B("#3a2430"), StrokeThickness = 2 });
@@ -158,15 +181,17 @@ public partial class StudioScene
                 Foreground = BlossomKit.TextWhiteBrush,
                 TextAlignment = TextAlignment.Center
             });
-            trigLabelStack.Children.Add(new TextBlock
+            var valTb = new TextBlock
             {
-                Text = "0% · 0 / 255",
                 FontFamily = BlossomKit.Body,
                 FontSize = 13,
                 Foreground = BlossomKit.TextMuteBrush,
                 TextAlignment = TextAlignment.Center,
                 Margin = new Thickness(0, 2, 0, 0)
-            });
+            };
+            valTb.SetBinding(TextBlock.TextProperty, new Binding("Text") { Source = tStats });
+            trigLabelStack.Children.Add(valTb);
+
             Canvas.SetLeft(trigLabelStack, tx - 40);
             Canvas.SetTop(trigLabelStack, 550);
             host.Children.Add(trigLabelStack);
@@ -190,32 +215,35 @@ public partial class StudioScene
         var rStack = new StackPanel();
         rStack.Children.Add(new TextBlock
         {
-            Text = "POLLING RATE",
+            Text = "POLLING TELEMETRY",
             FontFamily = BlossomKit.Small,
             FontSize = 11,
             FontWeight = FontWeights.Bold,
             Foreground = BlossomKit.TextSakuraBrush
         });
-        rStack.Children.Add(new TextBlock
+        var rateTb = new TextBlock
         {
-            Text = "1000 HZ",
             FontFamily = BlossomKit.Display,
-            FontSize = 28,
+            FontSize = 24,
             Foreground = BlossomKit.TextAmberBrush,
             Margin = new Thickness(0, 2, 0, 0)
-        });
+        };
+        rateTb.SetBinding(TextBlock.TextProperty, new Binding("Text") { Source = diagnostics.RateBlock });
+        rStack.Children.Add(rateTb);
         rateCard.Child = rStack;
         telemStack.Children.Add(rateCard);
 
         var statusMsg = new TextBlock
         {
-            Text = "Input loop running at 1.00ms interval · Zero packet loss · Hall sensors calibrated",
             FontFamily = BlossomKit.Body,
-            FontSize = 16,
+            FontSize = 15,
             Foreground = BlossomKit.TextMuteBrush,
             Margin = new Thickness(24, 0, 0, 0),
-            VerticalAlignment = VerticalAlignment.Center
+            VerticalAlignment = VerticalAlignment.Center,
+            TextWrapping = TextWrapping.Wrap,
+            MaxWidth = 800
         };
+        statusMsg.SetBinding(TextBlock.TextProperty, new Binding("Text") { Source = diagnostics.SourceBlock });
         telemStack.Children.Add(statusMsg);
 
         Canvas.SetLeft(telemStack, 234);
@@ -225,7 +253,7 @@ public partial class StudioScene
         // Hints
         var hintsStack = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
         hintsStack.Children.Add(CreateHint("A", "Test triggers"));
-        hintsStack.Children.Add(CreateHint("X", "Center sticks"));
+        hintsStack.Children.Add(CreateHint("X", "Measure rest"));
         hintsStack.Children.Add(CreateHint("B", "Back"));
 
         Canvas.SetRight(hintsStack, 44);
@@ -234,10 +262,9 @@ public partial class StudioScene
     }
 
     /// <summary>
-    /// Builds a stick plot rendered as a luminous celestial moon with craters and celestial coordinate rings.
-    /// Strictly implements t_blossom.py:moonplot().
+    /// Builds a live stick plot rendered as a luminous celestial moon with coordinate rings and active position reticle.
     /// </summary>
-    private FrameworkElement CreateMoonPlot(double cx, double cy, double r, string label, string sub)
+    private FrameworkElement CreateLiveMoonPlot(double cx, double cy, double r, string label, (Polygon Reach, Ellipse Dot, Ellipse Resting, TextBlock Stats) view)
     {
         var canvas = new Canvas
         {
@@ -274,88 +301,79 @@ public partial class StudioScene
                 RadiusY = 0.7,
                 GradientStops = new GradientStopCollection
                 {
-                    new GradientStop(Color.FromRgb(0xff, 0xf8, 0xf2), 0.0),
-                    new GradientStop(Color.FromRgb(0xf1, 0xdc, 0xde), 0.7),
-                    new GradientStop(Color.FromRgb(0xd9, 0xbc, 0xc4), 1.0)
+                    new GradientStop(Color.FromRgb(0x2a, 0x14, 0x22), 0.0),
+                    new GradientStop(Color.FromRgb(0x18, 0x0c, 0x14), 1.0)
                 }
-            }
+            },
+            Stroke = BlossomKit.B("rgba(255,220,232,0.3)"),
+            StrokeThickness = 1.5
         };
         Canvas.SetLeft(moon, ocx - r);
         Canvas.SetTop(moon, ocy - r);
         canvas.Children.Add(moon);
 
-        // Moon craters
-        var craters = new (double DX, double DY, double CR)[]
-        {
-            (-50, -40, 22), (40, 30, 16), (-20, 60, 12), (60, -50, 10)
-        };
-        foreach (var c in craters)
-        {
-            var crater = new Ellipse
-            {
-                Width = c.CR * 2,
-                Height = c.CR * 2,
-                Fill = BlossomKit.B("rgba(160,120,135,0.16)")
-            };
-            Canvas.SetLeft(crater, ocx + c.DX - c.CR);
-            Canvas.SetTop(crater, ocy + c.DY - c.CR);
-            canvas.Children.Add(crater);
-        }
-
-        // Celestial concentric coordinate rings (33%, 66%, 100%)
+        // Coordinate rings
         foreach (double f in new[] { 0.33, 0.66, 1.0 })
         {
             var ring = new Ellipse
             {
                 Width = r * 2 * f,
                 Height = r * 2 * f,
-                Stroke = BlossomKit.B(f == 1.0 ? "rgba(70,30,50,0.32)" : "rgba(70,30,50,0.18)"),
-                StrokeThickness = 1.4
+                Stroke = BlossomKit.B("rgba(255,220,232,0.15)"),
+                StrokeThickness = 1
             };
             Canvas.SetLeft(ring, ocx - r * f);
             Canvas.SetTop(ring, ocy - r * f);
             canvas.Children.Add(ring);
         }
 
-        // Celestial crosshair lines
-        canvas.Children.Add(new Line { X1 = ocx, Y1 = ocy - r + 8, X2 = ocx, Y2 = ocy + r - 8, Stroke = BlossomKit.B("rgba(70,30,50,0.22)"), StrokeThickness = 1 });
-        canvas.Children.Add(new Line { X1 = ocx - r + 8, Y1 = ocy, X2 = ocx + r - 8, Y2 = ocy, Stroke = BlossomKit.B("rgba(70,30,50,0.22)"), StrokeThickness = 1 });
-
-        // Center stick resting point (cherry seed #6a2a44)
-        var stickPoint = new Ellipse
+        // Active Reticle Dot
+        var dot = new Ellipse
         {
-            Width = 18,
-            Height = 18,
-            Fill = BlossomKit.B("#6a2a44")
+            Width = 14,
+            Height = 14,
+            Fill = BlossomKit.CreateWarmLanternBrush(),
+            Effect = new DropShadowEffect { Color = Color.FromRgb(0xff, 0x96, 0x5a), BlurRadius = 12, ShadowDepth = 0, Opacity = 0.8 }
         };
-        Canvas.SetLeft(stickPoint, ocx - 9);
-        Canvas.SetTop(stickPoint, ocy - 9);
-        canvas.Children.Add(stickPoint);
+        Canvas.SetLeft(dot, ocx - 7);
+        Canvas.SetTop(dot, ocy - 7);
+        canvas.Children.Add(dot);
 
-        // Labels below
-        var labelStack = new StackPanel { Width = 280, HorizontalAlignment = HorizontalAlignment.Center };
+        canvas.Loaded += (_, _) =>
+        {
+            double plotSize = global::X20Ctl.Product.Diagnostics.DiagnosticsWorkbench.PlotSize;
+            var native = view.Dot;
+            dot.Visibility = native.Visibility;
+            Canvas.SetLeft(dot, ocx + r * (Canvas.GetLeft(native) + native.Width / 2 - plotSize / 2) / (plotSize / 2) - dot.Width / 2);
+            Canvas.SetTop(dot, ocy + r * (Canvas.GetTop(native) + native.Height / 2 - plotSize / 2) / (plotSize / 2) - dot.Height / 2);
+        };
+
+        // Label and stats below
+        var labelStack = new StackPanel { Width = r * 2 + 40, HorizontalAlignment = HorizontalAlignment.Center };
         labelStack.Children.Add(new TextBlock
         {
             Text = label,
             FontFamily = BlossomKit.Heading,
-            FontSize = 22,
+            FontSize = 20,
             Foreground = BlossomKit.TextWhiteBrush,
             TextAlignment = TextAlignment.Center
         });
-        labelStack.Children.Add(new TextBlock
+        var statsTb = new TextBlock
         {
-            Text = sub,
             FontFamily = BlossomKit.Body,
-            FontSize = 14,
-            Foreground = BlossomKit.TextMuteBrush,
+            FontSize = 13,
+            Foreground = BlossomKit.TextAmberBrush,
             TextAlignment = TextAlignment.Center,
             Margin = new Thickness(0, 2, 0, 0)
-        });
-        Canvas.SetLeft(labelStack, ocx - 140);
-        Canvas.SetTop(labelStack, ocy + r + 18);
+        };
+        statsTb.SetBinding(TextBlock.TextProperty, new Binding("Text") { Source = view.Stats });
+        labelStack.Children.Add(statsTb);
+
+        Canvas.SetLeft(labelStack, ocx - (r + 20));
+        Canvas.SetTop(labelStack, ocy + r + 14);
         canvas.Children.Add(labelStack);
 
-        Canvas.SetLeft(canvas, cx - canvas.Width / 2.0);
+        Canvas.SetLeft(canvas, cx - ocx);
         Canvas.SetTop(canvas, cy - ocy);
         return canvas;
     }

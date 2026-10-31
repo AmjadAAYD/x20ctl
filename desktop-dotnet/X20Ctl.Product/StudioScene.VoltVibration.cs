@@ -1,4 +1,5 @@
-using System;
+﻿using System;
+using System.Windows.Data;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -25,7 +26,7 @@ public partial class StudioScene
 
         leftStack.Children.Add(new TextBlock
         {
-            Text = "MOTOR INTENSITY",
+            Text = "LINKED GRIP STRENGTH",
             FontFamily = VoltKit.Display,
             FontSize = 14,
             FontWeight = FontWeights.Bold,
@@ -33,172 +34,22 @@ public partial class StudioScene
             Margin = new Thickness(0, 0, 0, 8)
         });
 
-        var motors = new (string Name, int Val, bool Active)[]
+        if (Vibration is not {} vibration) return content;
+        var strength = ThemeSlider(vibration.Strength,"theme:vibration:strength",460,true); leftStack.Children.Add(strength);
+        var presets = new WrapPanel { Margin = new Thickness(0,18,0,18) };
+        foreach(int percent in new[]{0,25,50,75,100})
         {
-            ("Left Heavy Motor", 80, true),
-            ("Right Light Motor", 65, false),
-            ("Left Trigger Haptics", 50, false),
-            ("Right Trigger Haptics", 50, false)
-        };
-
-        foreach (var (name, val, active) in motors)
-        {
-            var row = new Border
-            {
-                Height = 64,
-                Background = active ? VoltKit.B("#2a2a2a") : Brushes.Transparent,
-                BorderBrush = active ? VoltKit.AmberHotBrush : VoltKit.B("#222222"),
-                BorderThickness = new Thickness(active ? 2 : 0, active ? 2 : 0, active ? 2 : 0, active ? 2 : 1),
-                CornerRadius = active ? new CornerRadius(12) : new CornerRadius(0),
-                Padding = new Thickness(16, 0, 16, 0),
-                Cursor = Cursors.Hand
-            };
-
-            var grid = new Grid { VerticalAlignment = VerticalAlignment.Center };
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-            var label = new TextBlock
-            {
-                Text = name,
-                FontFamily = VoltKit.Display,
-                FontSize = 21,
-                FontWeight = FontWeights.SemiBold,
-                Foreground = active ? VoltKit.WhiteBrush : VoltKit.LightBrush,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            Grid.SetColumn(label, 0);
-            grid.Children.Add(label);
-
-            // Slider control: 170px width, #3b3b3b track, #ffad0a fill, 26px white knob
-            var ctrlStack = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-
-            var trackCanvas = new Canvas { Width = 170, Height = 26, VerticalAlignment = VerticalAlignment.Center };
-            var bgTrack = new Border
-            {
-                Width = 170,
-                Height = 8,
-                CornerRadius = new CornerRadius(4),
-                Background = VoltKit.BorderDarkBrush
-            };
-            Canvas.SetLeft(bgTrack, 0);
-            Canvas.SetTop(bgTrack, 9);
-            trackCanvas.Children.Add(bgTrack);
-
-            double fillW = Math.Max(0, 170.0 * (val / 100.0));
-            var fillTrack = new Border
-            {
-                Width = fillW,
-                Height = 8,
-                CornerRadius = new CornerRadius(4),
-                Background = VoltKit.AmberHotBrush
-            };
-            Canvas.SetLeft(fillTrack, 0);
-            Canvas.SetTop(fillTrack, 9);
-            trackCanvas.Children.Add(fillTrack);
-
-            var knob = new Border
-            {
-                Width = 26,
-                Height = 26,
-                CornerRadius = new CornerRadius(13),
-                Background = VoltKit.WhiteBrush,
-                Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 8, ShadowDepth = 2, Opacity = 0.5 }
-            };
-            Canvas.SetLeft(knob, Math.Clamp(fillW - 13, 0, 144));
-            Canvas.SetTop(knob, 0);
-            trackCanvas.Children.Add(knob);
-
-            ctrlStack.Children.Add(trackCanvas);
-
-            var valBlock = new TextBlock
-            {
-                Text = $"{val}%",
-                FontFamily = VoltKit.Display,
-                FontSize = 18,
-                FontWeight = FontWeights.SemiBold,
-                Foreground = active ? VoltKit.AmberHotBrush : VoltKit.LightBrush,
-                Width = 64,
-                TextAlignment = TextAlignment.Right,
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(14, 0, 0, 0)
-            };
-            ctrlStack.Children.Add(valBlock);
-
-            Grid.SetColumn(ctrlStack, 1);
-            grid.Children.Add(ctrlStack);
-
-            row.Child = grid;
-            leftStack.Children.Add(row);
+            var face = new Border { Padding=new Thickness(14,8,14,8),Margin=new Thickness(0,0,10,0),Background=VoltKit.B("#262626"),CornerRadius=new CornerRadius(10),Child=new TextBlock{Text=percent+"%",Foreground=VoltKit.WhiteBrush}};
+            presets.Children.Add(ThemeAction(face,"theme:vibration:preset:"+percent,()=>vibration.Set(percent)));
         }
-
-        // Response damping options row
-        var dampRow = new Border
+        leftStack.Children.Add(presets);
+        foreach(string region in new[]{"All","Both grips","Left grip","Right grip"})
         {
-            Height = 64,
-            Background = Brushes.Transparent,
-            BorderBrush = VoltKit.B("#222222"),
-            BorderThickness = new Thickness(0, 0, 0, 1),
-            Padding = new Thickness(16, 0, 16, 0),
-            Cursor = Cursors.Hand
-        };
-        var dGrid = new Grid { VerticalAlignment = VerticalAlignment.Center };
-        dGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        dGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-        var dLabel = new TextBlock
-        {
-            Text = "Response Damping Curve",
-            FontFamily = VoltKit.Display,
-            FontSize = 21,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = VoltKit.LightBrush,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        Grid.SetColumn(dLabel, 0);
-        dGrid.Children.Add(dLabel);
-
-        var dDropdown = new Border
-        {
-            MinWidth = 170,
-            Height = 44,
-            CornerRadius = new CornerRadius(8),
-            Background = VoltKit.B("#262626"),
-            Padding = new Thickness(16, 0, 16, 0),
-            Child = new Grid
-            {
-                Children =
-                {
-                    new TextBlock
-                    {
-                        Text = "Logarithmic Smooth",
-                        FontFamily = VoltKit.Display,
-                        FontSize = 17,
-                        FontWeight = FontWeights.SemiBold,
-                        Foreground = VoltKit.WhiteBrush,
-                        HorizontalAlignment = HorizontalAlignment.Left,
-                        VerticalAlignment = VerticalAlignment.Center
-                    },
-                    new TextBlock
-                    {
-                        Text = "\uE70D",
-                        FontFamily = VoltKit.Icons,
-                        FontSize = 11,
-                        Foreground = VoltKit.MuteBrush,
-                        HorizontalAlignment = HorizontalAlignment.Right,
-                        VerticalAlignment = VerticalAlignment.Center
-                    }
-                }
-            }
-        };
-        Grid.SetColumn(dDropdown, 1);
-        dGrid.Children.Add(dDropdown);
-        dampRow.Child = dGrid;
-        leftStack.Children.Add(dampRow);
-
-        Canvas.SetLeft(leftStack, 0);
-        Canvas.SetTop(leftStack, 10);
-        content.Children.Add(leftStack);
+            var face = new Border { Height=54,Padding=new Thickness(14,0,14,0),Margin=new Thickness(0,0,0,8),Background=VoltKit.B("#262626"),CornerRadius=new CornerRadius(10),Child=new TextBlock{Text="Preview · "+region,Foreground=VoltKit.WhiteBrush,VerticalAlignment=VerticalAlignment.Center}};
+            leftStack.Children.Add(ThemeAction(face,"theme:vibration:region:"+region,()=>vibration.SelectRegion(region)));
+        }
+        leftStack.Children.Add(new TextBlock { Text="One linked strength. Local draft and visual preview only.",Foreground=VoltKit.MuteBrush,Margin=new Thickness(0,16,0,0),TextWrapping=TextWrapping.Wrap });
+        Canvas.SetLeft(leftStack,0);Canvas.SetTop(leftStack,10);content.Children.Add(leftStack);
 
         // 2. Right Details Card (width: 410 at x = 550)
         var rightStack = new StackPanel { Orientation = Orientation.Vertical, Width = 410 };
@@ -214,7 +65,7 @@ public partial class StudioScene
         };
         var vCanvas = new Canvas { Width = 410, Height = 220 };
 
-        var padArt = VoltKit.ControllerArt("dune", 340);
+        var padArt = ControllerArt.Front(Model.Id, PadColours.For(Player, Model.Id)) is {} art ? new Image { Source=art,Width=340,Stretch=Stretch.Uniform } : null;
         if (padArt != null)
         {
             var pGlow = VoltKit.PedestalGlow(280, 80, VoltKit.AmberHot);
@@ -299,7 +150,7 @@ public partial class StudioScene
 
         cStack.Children.Add(new TextBlock
         {
-            Text = "HEAVY MOTOR INTENSITY",
+            Text = "LINKED STRENGTH",
             FontFamily = VoltKit.Display,
             FontSize = 13,
             FontWeight = FontWeights.Bold,
@@ -307,19 +158,19 @@ public partial class StudioScene
             Margin = new Thickness(0, 0, 0, 2)
         });
 
-        cStack.Children.Add(new TextBlock
+        var strengthValue = new TextBlock
         {
-            Text = "80%",
             FontFamily = VoltKit.Display,
             FontSize = 46,
             FontWeight = FontWeights.SemiBold,
             Foreground = VoltKit.AmberHotBrush,
             LineHeight = 48
-        });
+        };
+        strengthValue.SetBinding(TextBlock.TextProperty,new Binding("Value"){Source=vibration.Strength,StringFormat="{0:0}%"}); cStack.Children.Add(strengthValue);
 
         cStack.Children.Add(new TextBlock
         {
-            Text = "Independent asymmetric dual-motor rumble. The high-torque left motor delivers deep mechanical explosion pulses, while the high-frequency right motor renders fine terrain texture vibrations.",
+            Text = "One linked grip-strength value. Preview regions do not send vibration commands. Physical testing requires a verified connection and bounded motor command.",
             FontFamily = VoltKit.Body,
             FontSize = 15,
             Foreground = VoltKit.B("#bdbdbd"),
@@ -330,7 +181,7 @@ public partial class StudioScene
 
         // Action button [▶ Test Rumble]
         var testBtn = VoltKit.OrangeActionButton("Test Rumble", 362, 54);
-        cStack.Children.Add(testBtn);
+        testBtn.IsEnabled = false; testBtn.ToolTip = vibration.Test.ToolTip; cStack.Children.Add(testBtn);
 
         card.Child = cStack;
         rightStack.Children.Add(card);
@@ -339,6 +190,6 @@ public partial class StudioScene
         Canvas.SetTop(rightStack, 10);
         content.Children.Add(rightStack);
 
-        return VoltKit.TwoPaneShell("vibration", "Vibration", "Adjust dual-rumble motor intensity and feedback curves.", content, VoltSelectPage);
+        return VoltKit.TwoPaneShell("vibration", "Vibration", "Linked grip strength · local draft and visual preview.", content, VoltSelectPage);
     }
 }

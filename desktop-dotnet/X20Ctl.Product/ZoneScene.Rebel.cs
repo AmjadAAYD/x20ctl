@@ -60,7 +60,7 @@ public partial class ZoneScene
         board = new Grid { Width = 1600, Height = 900, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, ClipToBounds = false };
         zoneBack = Backdrop(false); heroBack = Backdrop(true); heroBack.Visibility = Visibility.Collapsed; board.Children.Add(zoneBack); board.Children.Add(heroBack);
         // the title, cut from ransom letters (not the Default's "Player slots")
-        var title = Ransom.Make("Controller Zone", 54); title.RenderTransformOrigin = new(.5, .5); title.RenderTransform = new RotateTransform(-2); Put(title, 80, 30); board.Children.Add(title); zoneTitle = title;
+        var title = Ransom.Make("Controller Zone", 54); title.Name = "RebelZoneTitle"; title.RenderTransformOrigin = new(.5, .5); title.RenderTransform = new RotateTransform(-2); Put(title, 80, 30); board.Children.Add(title); zoneTitle = title;
         // the stage the four calling cards stand on: moved out of the Default's workspace
         Workspace.Children.Remove(DockStage); DockStage.ClearValue(Grid.RowProperty); DockStage.Margin = new(0); DockStage.HorizontalAlignment = HorizontalAlignment.Left; DockStage.VerticalAlignment = VerticalAlignment.Top;
         Workspace.Children.Remove(FeedbackText); board.Children.Add(FeedbackText);
@@ -92,11 +92,11 @@ public partial class ZoneScene
         hintsOverview = Parts.Hints(("A", "Select"), ("Y", "Change"), ("B", "Back")); hintsHero = Parts.Hints(("A", "Open Studio"), ("B", "Back")); hintsHero.Visibility = Visibility.Collapsed;
         foreach (var h in new[] { hintsOverview, hintsHero }) { h.HorizontalAlignment = HorizontalAlignment.Right; h.VerticalAlignment = VerticalAlignment.Top; h.Margin = new(0, 836, 40, 0); board.Children.Add(h); }
         // the brand mark stays where the intro lands its X (beside the status pill)
-        original.Children.Remove(HeaderBar); var tile = BrandTile; var tileParent = (Panel)tile.Parent; tileParent.Children.Remove(tile); tile.Width = tile.Height = 46; Put(tile, 1296, 28); BrandMark.Source = new System.Windows.Media.Imaging.BitmapImage(new Uri(System.IO.Path.Combine(AppContext.BaseDirectory, "Brand", "themes", "rebel", "logo.png"))); board.Children.Add(tile);
-        var strip = HeaderActions; ((Panel)strip.Parent).Children.Remove(strip); Grid.SetColumn(strip, 0); strip.HorizontalAlignment = HorizontalAlignment.Right; strip.VerticalAlignment = VerticalAlignment.Top; strip.Margin = new(0, 4, 8, 0); strip.LayoutTransform = new ScaleTransform(.8, .8);
-        var notice = UpdateNotice; ((Panel)notice.Parent).Children.Remove(notice); Grid.SetColumn(notice, 0); notice.HorizontalAlignment = HorizontalAlignment.Center; notice.VerticalAlignment = VerticalAlignment.Top; notice.Margin = new(0, 10, 0, 0);
+        original.Children.Remove(HeaderBar); var tile = BrandTile; var tileParent = (Panel)tile.Parent; tileParent.Children.Remove(tile); tile.Width = tile.Height = 46; Put(tile, 1296, 40); BrandMark.Source = new System.Windows.Media.Imaging.BitmapImage(new Uri(System.IO.Path.Combine(AppContext.BaseDirectory, "Brand", "themes", "rebel", "logo.png"))); board.Children.Add(tile);
+        var strip = HeaderActions; ((Panel)strip.Parent).Children.Remove(strip); Grid.SetColumn(strip, 0); var chrome = RebelChrome.Fit(strip, 580);
+        var notice = UpdateNotice; ((Panel)notice.Parent).Children.Remove(notice); Grid.SetColumn(notice, 0); notice.Width = 560; notice.HorizontalAlignment = HorizontalAlignment.Right; notice.VerticalAlignment = VerticalAlignment.Top; notice.Margin = new(0, 100, 42, 0);
         original.Visibility = Visibility.Collapsed;
-        Surface.Children.Add(board); board.Children.Add(strip); board.Children.Add(notice);
+        Surface.Children.Add(board); board.Children.Add(chrome); board.Children.Add(notice);
         // stage geometry: the row of cards, or the whole board for the hero
         DockStage.SizeChanged += (_, _) => { };
         foreach (var d in docks) HookRebelDock(d);
@@ -135,7 +135,7 @@ public partial class ZoneScene
         for (int i = 0; i < 4; i++) b[i] = hero == i ? new(0, 0, DockStage.ActualWidth, DockStage.ActualHeight) : new(i * (CardW + CardGap), 0, CardW, CardH);
         return b;
     }
-    private DockBounds[] Bounds() => IsRebel ? RebelBounds() : ZoneLayout.Calculate(DockStage.ActualWidth, DockStage.ActualHeight, State.FocusedPlayer);
+    private DockBounds[] Bounds() => IsRebel ? RebelBounds() : IsHybrid ? HybridBounds() : IsDusk ? DuskBounds() : ZoneLayout.Calculate(DockStage.ActualWidth, DockStage.ActualHeight, State.FocusedPlayer);
     /// <summary>Hard and fast, as the theme asks: the Zone snaps between overview and hero.</summary>
     private Task RebelFocus(int? index)
     {

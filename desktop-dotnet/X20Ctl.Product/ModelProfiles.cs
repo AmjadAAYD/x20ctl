@@ -6,12 +6,12 @@ namespace X20Ctl.Product;
 /// <summary>
 /// What each controller is, for the placeholder pages (owner direction 10 Oct 2026: Curves, Macros, Vibration,
 /// Device and Setups for every controller, no exception). Facts come from the catalog plus the owner's research notes;
-/// anything the sources disagree on, or never state, says so instead of picking a number. Only the X20 is verified,
-/// so every other model's pages are read-only previews.
+/// anything the sources disagree on, or never state, says so instead of picking a number. Local draft editing is separate from native configuration availability. Hardware writes remain locked.
 /// </summary>
 public sealed record ModelProfile(string Id, string Sticks, string Triggers, string[] Paddles, string Motors, string Polling, string Motion, string Battery, int BatteryLevels, string Extras)
 {
-    public bool Verified => Id == "x20";
+    /// <summary>Models whose local editor formats are implemented; this does not authorize hardware writes.</summary>
+    public bool SupportsLocalDrafts => Id is "x20" or "x20_pro";
     /// <summary>One line naming what is known, for banners and the Device page.</summary>
     public string Summary => $"{Sticks} sticks · {Triggers} triggers · {(Paddles.Length == 0 ? "no back buttons" : string.Join("/", Paddles))} · {Motors}";
 }
@@ -33,7 +33,7 @@ public static class ModelProfiles
     /// <summary>Puts the banner on top of a page grid (a new Auto row above everything already there); verified models wear nothing.</summary>
     public static void Wear(Grid page, string id, string name, bool pcMode = false)
     {
-        if (For(id).Verified && !pcMode) return;
+        if (For(id).SupportsLocalDrafts && !pcMode) return;
         if (page.RowDefinitions.Count == 0) page.RowDefinitions.Add(new());
         foreach (UIElement child in page.Children) Grid.SetRow(child, Grid.GetRow(child) + 1);
         page.RowDefinitions.Insert(0, new RowDefinition { Height = GridLength.Auto });

@@ -91,6 +91,8 @@ public sealed partial class FeedbackPage : Border
         if (ThemeCatalog.Current.Id == "spotlight") BuildSpotlightFeedback(back, kinds);
         if (ThemeCatalog.Current.Id == "nexus") BuildNexusFeedback(back, kinds);
         if (ThemeCatalog.Current.Id == "tide") BuildTideFeedback(back, kinds);
+        if (ThemeCatalog.Current.Id == "rebel") BuildRebelFeedback(back, kinds);
+        else if (ThemeCatalog.Current.Id == "hybrid") BuildHybridFeedback(back, kinds);
     }
 
     private static TextBlock Label(string text, double top) => Kit.Text(text, 12, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(2, top, 0, 8));

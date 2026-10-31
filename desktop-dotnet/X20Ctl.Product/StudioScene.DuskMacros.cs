@@ -1,3 +1,5 @@
+using X20Ctl.Zone;
+using System.Windows.Data;
 using System;
 using System.Windows;
 using System.Windows.Controls;
@@ -10,8 +12,16 @@ namespace X20Ctl.Product;
 
 public partial class StudioScene
 {
+    private bool duskMacroWired;
+    private Button DuskMacroAction(string text, string tag, Action action, bool enabled = true)
+    {
+        return ThemeAction(new Border { MinHeight = 38, Padding = new(12,8,12,8), Margin = new(0,0,6,6), Background = DuskKit.SlateItemBrush, Child = new TextBlock { Text = text, Foreground = DuskKit.WhiteBrush, FontFamily = DuskKit.Display, FontSize = 15 } }, "theme:macro:" + tag, action, enabled);
+    }
     private void DuskShowMacros()
     {
+        if (Macros is not {} macro) return;
+        string? focused = (System.Windows.Input.Keyboard.FocusedElement as FrameworkElement)?.Tag as string;
+        if (!duskMacroWired) { duskMacroWired = true; macro.Changed += DuskLater; }
         duskPageHost!.Children.Clear();
 
         var hints = new[]
@@ -45,13 +55,7 @@ public partial class StudioScene
             Margin = new Thickness(0, 0, 0, 14)
         });
 
-        var macroSlots = new (string Name, string Steps, string Trigger, bool Active)[]
-        {
-            ("M1 Combo Sequence", "4 actions · 180ms", "Paddle M1", true),
-            ("M2 Rapid Evade", "3 actions · 95ms", "Paddle M2", false),
-            ("M3 Reload & Slide", "5 actions · 240ms", "Unassigned", false),
-            ("M4 Jump Shot", "2 actions · 60ms", "Unassigned", false)
-        };
+        var macroSlots = macro.Draft.SlotNames.Select(slot => (Name: slot, Steps: macro.Draft[slot].Count + " events · " + macro.Draft.Duration(slot) + "ms", Trigger: macro.Draft.PcMode ? macro.Draft.Trigger(slot) ?? "Not used" : macro.Draft.PhysicalSlots.Contains(slot) ? "Paddle " + slot : "Not used", Active: slot == macro.Slot)).ToArray();
 
         foreach (var (name, steps, trigger, active) in macroSlots)
         {
@@ -108,9 +112,23 @@ public partial class StudioScene
             grid.Children.Add(trigPill);
 
             row.Child = grid;
-            leftStack.Children.Add(row);
+            leftStack.Children.Add(ThemeAction(row, "theme:macro:slot:" + name, () => macro.SelectSlot(name)));
         }
 
+        var actions = new WrapPanel { Margin = new(0,16,0,0) };
+        actions.Children.Add(DuskMacroAction("+ Add event", "add", macro.Add, macro.Draft.CanEdit && macro.Draft.EntryCount(macro.Slot) < 47));
+        var record = DuskMacroAction(macro.IsRecording ? "Stop recording" : "Record", "record", () => { macro.ToggleRecording(); DuskLater(); }); record.SetBinding(IsEnabledProperty, new Binding("IsEnabled") { Source = macro.Record });
+        if (macro.Record.Content is StackPanel { Children.Count: 2 } nativeRecord && nativeRecord.Children[1] is TextBlock nativeLabel && record.Content is Border { Child: TextBlock recordLabel })
+            recordLabel.SetBinding(TextBlock.TextProperty, new Binding("Text") { Source = nativeLabel });
+        actions.Children.Add(record);
+        var preview = DuskMacroAction("Preview timeline", "preview", macro.Preview); preview.SetBinding(ContentControl.ToolTipProperty, new Binding("Text") { Source = macro.StatusText }); actions.Children.Add(preview);
+        leftStack.Children.Add(actions);
+        if (macro.Draft.PcMode)
+        {
+            var trigger = new ComboBox { ItemsSource = new[] { "Not used" }.Concat(MacroDraft.TriggerInputs), SelectedItem = macro.Draft.Trigger(macro.Slot) ?? "Not used", IsEnabled = macro.Draft.CanEdit, Tag = "theme:macro:trigger", Height = 38, Margin = new(0,12,0,0) };
+            trigger.SelectionChanged += (_, _) => { if (trigger.SelectedItem is string choice) macro.SetTrigger(choice == "Not used" ? null : choice); }; leftStack.Children.Add(trigger);
+        }
+        var status = new TextBlock { Foreground = DuskKit.MuteBrush, TextWrapping = TextWrapping.Wrap, Margin = new(0,12,0,0) }; status.SetBinding(TextBlock.TextProperty, new Binding("Text") { Source = macro.StatusText }); leftStack.Children.Add(status);
         Canvas.SetLeft(leftStack, 0);
         Canvas.SetTop(leftStack, 0);
         contentCanvas.Children.Add(leftStack);
@@ -149,7 +167,7 @@ public partial class StudioScene
             Margin = new Thickness(12, 0, 0, 0),
             Child = new TextBlock
             {
-                Text = "LOOP READY · 180MS",
+                Text = macro.Draft.Duration(macro.Slot) + "MS · PREVIEW ONLY",
                 FontFamily = DuskKit.Display,
                 FontSize = 10,
                 FontWeight = FontWeights.ExtraBold,
@@ -161,7 +179,8 @@ public partial class StudioScene
 
         // Sequence blocks with luminous dropshadows
         var blockRow = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 0, 16) };
-        var seqBlocks = new[] { ("X", DuskKit.CyanNeon), ("RB", DuskKit.GreenOnline), ("A", DuskKit.CyanNeon) };
+        var events = macro.Draft[macro.Slot];
+        var seqBlocks = events.Select((entry, index) => (RebelPresses(entry), index == macro.SelectedIndex ? DuskKit.GreenOnline : DuskKit.CyanNeon)).ToArray();
         for (int i = 0; i < seqBlocks.Length; i++)
         {
             var (bName, bCol) = seqBlocks[i];
@@ -180,13 +199,13 @@ public partial class StudioScene
                     Foreground = DuskKit.SlateBgBrush
                 }
             };
-            blockRow.Children.Add(block);
+            int eventIndex = i; blockRow.Children.Add(ThemeAction(block, "theme:macro:event:" + i, () => { macro.Select(eventIndex); DuskLater(); }));
 
             if (i < seqBlocks.Length - 1)
             {
                 var arrow = new TextBlock
                 {
-                    Text = "→ 45ms →",
+                    Text = "→ " + events[i].PauseMs + "ms →",
                     FontFamily = DuskKit.Display,
                     FontSize = 12,
                     FontWeight = FontWeights.SemiBold,
@@ -197,29 +216,9 @@ public partial class StudioScene
                 blockRow.Children.Add(arrow);
             }
         }
-        timeStack.Children.Add(blockRow);
+        timeStack.Children.Add(new ScrollViewer { Content = blockRow, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollBarVisibility = ScrollBarVisibility.Disabled });
 
-        // Timeline ruler with active playhead needle
-        var ruler = new Canvas { Width = 320, Height = 36 };
-        var rLine = new Line { X1 = 0, Y1 = 15, X2 = 320, Y2 = 15, Stroke = DuskKit.B("#3d4450"), StrokeThickness = 2 };
-        ruler.Children.Add(rLine);
-        for (int x = 0; x <= 320; x += 80)
-        {
-            var tick = new Line { X1 = x, Y1 = 10, X2 = x, Y2 = 20, Stroke = DuskKit.B("#8b929a"), StrokeThickness = 1.5 };
-            ruler.Children.Add(tick);
-            var lbl = new TextBlock { Text = $"{x / 2}ms", FontFamily = DuskKit.Display, FontSize = 10, Foreground = DuskKit.MuteBrush };
-            Canvas.SetLeft(lbl, Math.Max(0, x - 10));
-            Canvas.SetTop(lbl, 22);
-            ruler.Children.Add(lbl);
-        }
-
-        // Radiant playhead needle at X = 135
-        var needle = new Line { X1 = 135, Y1 = 2, X2 = 135, Y2 = 28, Stroke = DuskKit.CyanNeonBrush, StrokeThickness = 2, Effect = new DropShadowEffect { Color = DuskKit.CyanNeon, BlurRadius = 6, ShadowDepth = 0, Opacity = 0.9 } };
-        var needleHead = new Polygon { Points = new PointCollection { new Point(130, 0), new Point(140, 0), new Point(135, 6) }, Fill = DuskKit.CyanNeonBrush };
-        ruler.Children.Add(needle);
-        ruler.Children.Add(needleHead);
-
-        timeStack.Children.Add(ruler);
+        timeStack.Children.Add(new TextBlock { Text = macro.CapacityDescription, Foreground = DuskKit.LightBrush, TextWrapping = TextWrapping.Wrap });
         timeCard.Child = timeStack;
         rightStack.Children.Add(timeCard);
 
@@ -247,7 +246,7 @@ public partial class StudioScene
         });
         detailStack.Children.Add(new TextBlock
         {
-            Text = "Hold to Loop · 180ms Cycle",
+            Text = "Event editor",
             FontFamily = DuskKit.Display,
             FontSize = 20,
             FontWeight = FontWeights.Bold,
@@ -256,23 +255,49 @@ public partial class StudioScene
         });
         detailStack.Children.Add(new TextBlock
         {
-            Text = "Fires sequence continuously while M1 paddle remains held, then releases all inputs cleanly.",
+            Text = "Local sequence draft. Preview emits no Windows or controller input.",
             FontFamily = DuskKit.Body,
             FontSize = 14,
             Foreground = DuskKit.LightBrush,
             TextWrapping = TextWrapping.Wrap
         });
+        if (macro.SelectedIndex >= 0 && macro.SelectedIndex < events.Count)
+        {
+            var entry = events[macro.SelectedIndex]; var inputs = new WrapPanel { Margin = new(0,12,0,0) };
+            foreach (string key in MacroDraft.Inputs)
+            {
+                inputs.Children.Add(DuskMacroAction((entry.Buttons.Contains(key) ? "● " : "") + key, "input:" + key, () => macro.Update(entry with { Buttons = entry.Buttons.Contains(key) ? entry.Buttons.Where(b => b != key).ToArray() : entry.Buttons.Append(key).ToArray() }), macro.Draft.CanEdit));
+            }
+            detailStack.Children.Add(inputs);
+            foreach (var (label, pause) in new[] { ("Hold", false), ("Pause", true) })
+            {
+                var value = pause ? entry.PauseMs : entry.HoldMs; var timing = new WrapPanel(); timing.Children.Add(new TextBlock { Text = label + " " + value + "ms", Foreground = DuskKit.WhiteBrush, Width = 140, VerticalAlignment = VerticalAlignment.Center });
+                foreach (int delta in new[] { -5, 5 }) timing.Children.Add(DuskMacroAction(delta < 0 ? "−5" : "+5", "time:" + label + ":" + delta, () => macro.Update(pause ? entry with { PauseMs = Math.Clamp(value + delta, 0, 327675) } : entry with { HoldMs = Math.Clamp(value + delta, 0, 327675) }), macro.Draft.CanEdit));
+                detailStack.Children.Add(timing);
+            }
+            foreach (var (label, left) in new[] { ("Left stick", true), ("Right stick", false) })
+            {
+                detailStack.Children.Add(new TextBlock { Text = label, Foreground = DuskKit.LightBrush, Margin = new(0,8,0,6) });
+                var directions = new System.Windows.Controls.Primitives.UniformGrid { Columns = 3, Width = 210, HorizontalAlignment = HorizontalAlignment.Left };
+                StickHeading[] order = [StickHeading.UpLeft, StickHeading.Up, StickHeading.UpRight, StickHeading.Left, StickHeading.Neutral, StickHeading.Right, StickHeading.DownLeft, StickHeading.Down, StickHeading.DownRight];
+                foreach (var direction in order) directions.Children.Add(DuskMacroAction(RebelArrow(direction), "stick:" + label + ":" + direction, () => macro.Update(left ? entry with { Left = direction } : entry with { Right = direction }), macro.Draft.CanEdit));
+                detailStack.Children.Add(directions);
+            }
+            var editActions = new WrapPanel();
+            foreach (var (text, key, action) in new (string,string,Action)[] { ("Earlier", "earlier", () => macro.Move(-1)), ("Later", "later", () => macro.Move(1)), ("Duplicate", "duplicate", macro.Duplicate), ("Remove", "remove", macro.Remove) }) editActions.Children.Add(DuskMacroAction(text, key, action, macro.Draft.CanEdit && (key != "duplicate" || macro.Draft.EntryCount(macro.Slot) < 47)));
+            detailStack.Children.Add(editActions);
+        }
         detailCard.Child = detailStack;
         rightStack.Children.Add(detailCard);
 
         // Action button to test macro
-        var testMacroBtn = DuskKit.GreenActionButton("Test Sequence", 360, 48, () => { });
+        var testMacroBtn = DuskKit.GreenActionButton("Preview sequence", 360, 48, macro.Preview);
         testMacroBtn.Margin = new Thickness(0, 12, 0, 0);
         rightStack.Children.Add(testMacroBtn);
 
         Canvas.SetLeft(rightStack, 640);
         Canvas.SetTop(rightStack, 0);
-        contentCanvas.Children.Add(rightStack);
+        var rightScroll = new ScrollViewer { Width = 380, Height = 580, Content = rightStack, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }; Canvas.SetLeft(rightScroll, 640); Canvas.SetTop(rightScroll, 0); contentCanvas.Children.Add(rightScroll);
 
         var shell = DuskKit.SettingsShell(
             activeKey: "macros",
@@ -284,5 +309,6 @@ public partial class StudioScene
         );
 
         duskPageHost.Children.Add(shell);
+        if (focused?.StartsWith("theme:macro:") == true) Dispatcher.BeginInvoke(() => FindTagged(shell, focused)?.Focus(), System.Windows.Threading.DispatcherPriority.Input);
     }
 }

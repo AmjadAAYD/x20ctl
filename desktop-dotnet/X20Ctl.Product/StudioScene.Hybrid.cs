@@ -1,323 +1,137 @@
-using System;
-using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Effects;
+using System.Windows.Media.Animation;
 using System.Windows.Shapes;
-using X20Ctl.Product.Hybrid;
+using System.Windows.Threading;
+using X20Ctl.Product.Rebel;
 
 namespace X20Ctl.Product;
 
 public partial class StudioScene
 {
-    private Canvas? hybridPageHost;
-    private string currentHybridPage = "Dashboard";
-
-    public bool IsHybrid => ThemeCatalog.Current.Id == "hybrid";
-
+    private Grid? hybridDashboard, hybridButtons, hybridCurves, hybridMacros, hybridVibration, hybridPcMode, hybridDevice, hybridDiagnostics, hybridTester, hybridMouse, hybridSetups;
+    private Button? hybridReturn;
+    private bool hybridStudio, hybridGames, hybridQueued;
+    private Grid? hybridPreviousPage;
+    private static Brush HBrush(string color) => new SolidColorBrush((Color)ColorConverter.ConvertFromString(color));
+    private static void HAt(Canvas canvas, UIElement child, double x, double y) { Canvas.SetLeft(child, x); Canvas.SetTop(child, y); canvas.Children.Add(child); }
+    private static TextBlock HText(string value, double size, string color, FontWeight weight) => new() { Text = value, FontSize = size, Foreground = HBrush(color), FontWeight = weight, FontFamily = new FontFamily("Segoe UI Variable Display, Segoe UI") };
     private void BuildHybridStudio()
     {
-        if (!IsHybrid || hybridPageHost != null) return;
-
-        RootLayout.Visibility = Visibility.Hidden;
-
-        hybridPageHost = new Canvas
-        {
-            Width = 1600,
-            Height = 900,
-            ClipToBounds = true,
-            Background = HybridKit.InkBrush
-        };
-        Canvas.SetLeft(hybridPageHost, 0);
-        Canvas.SetTop(hybridPageHost, 0);
-
-        if (StudioShell.Parent is Grid parentGrid)
-        {
-            if (!parentGrid.Children.Contains(hybridPageHost))
-            {
-                parentGrid.Children.Add(hybridPageHost);
-            }
-        }
-        else
-        {
-            StudioShell.Children.Add(hybridPageHost);
-        }
-
-        HybridShow();
+        if (ThemeCatalog.Current.Id != "hybrid" || hybridStudio) return;
+        hybridStudio = true;
+        hybridDashboard = new Grid { Width = 1600, Height = 848, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new(0, 52, 0, 0), Visibility = Visibility.Collapsed, ClipToBounds = true, Name = "HybridDashboard" };
+        StudioShell.Children.Add(hybridDashboard);
+        hybridButtons = new Grid { Width = 1600, Height = 848, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new(0, 52, 0, 0), Visibility = Visibility.Collapsed, ClipToBounds = true, Name = "HybridButtons" };
+        StudioShell.Children.Add(hybridButtons);
+        hybridCurves = new Grid { Width = 1600, Height = 848, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new(0, 52, 0, 0), Visibility = Visibility.Collapsed, ClipToBounds = true, Name = "HybridCurves" };
+        StudioShell.Children.Add(hybridCurves);
+        hybridMacros = new Grid { Width = 1600, Height = 848, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new(0, 52, 0, 0), Visibility = Visibility.Collapsed, ClipToBounds = true, Name = "HybridMacros" };
+        StudioShell.Children.Add(hybridMacros);
+        hybridVibration = new Grid { Width = 1600, Height = 848, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new(0, 52, 0, 0), Visibility = Visibility.Collapsed, ClipToBounds = true, Name = "HybridVibration" };
+        StudioShell.Children.Add(hybridVibration);
+        hybridPcMode = new Grid { Width = 1600, Height = 848, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new(0, 52, 0, 0), Visibility = Visibility.Collapsed, ClipToBounds = true, Name = "HybridPcMode" };
+        StudioShell.Children.Add(hybridPcMode);
+        hybridDevice = new Grid { Width = 1600, Height = 848, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new(0, 52, 0, 0), Visibility = Visibility.Collapsed, ClipToBounds = true, Name = "HybridDevice" };
+        StudioShell.Children.Add(hybridDevice);
+        hybridDiagnostics = new Grid { Width = 1600, Height = 848, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new(0, 52, 0, 0), Visibility = Visibility.Collapsed, ClipToBounds = true, Name = "HybridDiagnostics" };
+        StudioShell.Children.Add(hybridDiagnostics);
+        hybridTester = new Grid { Width = 1600, Height = 848, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new(0, 52, 0, 0), Visibility = Visibility.Collapsed, ClipToBounds = true, Name = "HybridTester" };
+        StudioShell.Children.Add(hybridTester);
+        hybridMouse = new Grid { Width = 1600, Height = 848, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new(0, 52, 0, 0), Visibility = Visibility.Collapsed, ClipToBounds = true, Name = "HybridMouse" };
+        StudioShell.Children.Add(hybridMouse);
+        hybridSetups = new Grid { Width = 1600, Height = 848, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new(0, 52, 0, 0), Visibility = Visibility.Collapsed, ClipToBounds = true, Name = "HybridSetups" };
+        StudioShell.Children.Add(hybridSetups);
+        hybridReturn = new Button { Content = "Return to Hybrid", Tag = "hybrid:games:return", Width = 150, Height = 34, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new(0, 56, 24, 0), Visibility = Visibility.Collapsed };
+        hybridReturn.Click += (_, _) => { hybridGames = false; HybridShow(); }; StudioShell.Children.Add(hybridReturn);
+        HybridLater();
     }
-
-    private bool hybridQueued;
-    public void HybridLater()
+    private void HybridLater()
     {
-        if (!IsHybrid || hybridQueued) return;
-        hybridQueued = true;
-        Dispatcher.InvokeAsync(() =>
-        {
-            hybridQueued = false;
-            HybridShow();
-        }, System.Windows.Threading.DispatcherPriority.Loaded);
+        if (!hybridStudio || hybridQueued) return;
+        hybridQueued = true; Dispatcher.BeginInvoke(() => { hybridQueued = false; HybridShow(); }, DispatcherPriority.Loaded);
     }
-
-    public void HybridSelectPage(string page)
-    {
-        if (!IsHybrid || hybridPageHost == null) return;
-        currentHybridPage = page;
-
-        switch (page.ToLowerInvariant())
-        {
-            case "buttons":
-                ShowButtons();
-                break;
-            case "curves":
-                ShowCurves(true);
-                break;
-            case "macros":
-                ShowMacros(true);
-                break;
-            case "vibration":
-                ShowVibration(true);
-                break;
-            case "pcmode":
-                ShowManagement("PcMode");
-                break;
-            case "device":
-                ShowManagement("Device");
-                break;
-            case "mouse":
-                ShowManagement("Mouse");
-                break;
-            case "setups":
-                ShowManagement("Setups");
-                break;
-            case "tester":
-                ShowManagement("Tester");
-                break;
-            case "diagnostics":
-                ShowManagement("Diagnostics");
-                break;
-            case "tools":
-                ToolsRequested?.Invoke();
-                break;
-            case "dashboard":
-            default:
-                currentHybridPage = "Dashboard";
-                HybridShowDashboard();
-                break;
-        }
-    }
-
     private void HybridShow()
     {
-        if (!IsHybrid || hybridPageHost == null) return;
-
-        string activePage = CurrentPage;
-        currentHybridPage = activePage;
-        switch (activePage)
+        if (!hybridStudio || hybridDashboard == null || hybridReturn == null) return;
+        bool dashboard = ManagementPage == "Dashboard";
+        bool buttons = OnButtonsPage;
+        if (hybridButtons != null) { hybridButtons.Visibility = buttons ? Visibility.Visible : Visibility.Collapsed; if (buttons) HybridButtonsPage(); }
+        if (hybridCurves != null) { hybridCurves.Visibility = IsCurves ? Visibility.Visible : Visibility.Collapsed; if (IsCurves) HybridCurvesPage(); }
+        if (hybridMacros != null) { hybridMacros.Visibility = IsMacros ? Visibility.Visible : Visibility.Collapsed; if (IsMacros) HybridMacrosPage(); }
+        if (hybridVibration != null) { hybridVibration.Visibility = IsVibration ? Visibility.Visible : Visibility.Collapsed; if (IsVibration) HybridVibrationPage(); }
+        if (hybridPcMode != null) { hybridPcMode.Visibility = ManagementPage == "PcMode" ? Visibility.Visible : Visibility.Collapsed; if (ManagementPage == "PcMode") HybridPcModePage(); }
+        if (hybridDevice != null) { hybridDevice.Visibility = ManagementPage == "Device" ? Visibility.Visible : Visibility.Collapsed; if (ManagementPage == "Device") HybridDevicePage(); }
+        if (hybridDiagnostics != null) { hybridDiagnostics.Visibility = ManagementPage == "Diagnostics" ? Visibility.Visible : Visibility.Collapsed; if (ManagementPage == "Diagnostics") HybridDiagnosticsPage(); }
+        if (hybridTester != null) { hybridTester.Visibility = ManagementPage == "Tester" ? Visibility.Visible : Visibility.Collapsed; if (ManagementPage == "Tester") HybridTesterPage(); }
+        if (hybridMouse != null) { hybridMouse.Visibility = ManagementPage == "Mouse" ? Visibility.Visible : Visibility.Collapsed; if (ManagementPage == "Mouse") HybridMousePage(); }
+        if (hybridSetups != null) { hybridSetups.Visibility = ManagementPage == "Setups" ? Visibility.Visible : Visibility.Collapsed; if (ManagementPage == "Setups") HybridSetupsPage(); }
+        if (!dashboard) hybridGames = false;
+        bool newlyVisible = dashboard && !hybridGames && hybridDashboard.Visibility != Visibility.Visible;
+        hybridDashboard.Visibility = dashboard && !hybridGames ? Visibility.Visible : Visibility.Collapsed;
+        hybridReturn.Visibility = dashboard && hybridGames ? Visibility.Visible : Visibility.Collapsed;
+        var visiblePage = new[] { hybridDashboard, hybridButtons, hybridCurves, hybridMacros, hybridVibration, hybridPcMode, hybridDevice, hybridDiagnostics, hybridTester, hybridMouse, hybridSetups }.FirstOrDefault(page => page?.Visibility == Visibility.Visible);
+        if (!ReferenceEquals(visiblePage, hybridPreviousPage))
         {
-            case "Buttons":
-                HybridShowButtons();
-                break;
-            case "Curves":
-                HybridShowCurves();
-                break;
-            case "Macros":
-                HybridShowMacros();
-                break;
-            case "Vibration":
-                HybridShowVibration();
-                break;
-            case "PcMode":
-                HybridShowPcMode();
-                break;
-            case "Device":
-                HybridShowDevice();
-                break;
-            case "Mouse":
-                HybridShowMouse();
-                break;
-            case "Setups":
-                HybridShowSetups();
-                break;
-            case "Tester":
-                HybridShowTester();
-                break;
-            case "Diagnostics":
-                HybridShowDiagnostics();
-                break;
-            case "Dashboard":
-            default:
-                currentHybridPage = "Dashboard";
-                HybridShowDashboard();
-                break;
+            if (animate && visiblePage != null && hybridPreviousPage != null)
+            {
+                var slide = new TranslateTransform(); visiblePage.RenderTransform = slide;
+                slide.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(28, 0, TimeSpan.FromMilliseconds(220)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+            }
+            hybridPreviousPage = visiblePage;
         }
+        if (!dashboard || hybridGames) return;
+        if (hybridDashboard.Children.Count > 0) { if (newlyVisible) HybridFocusDashboard(); return; }
+        Dashboard ??= CreateDashboard(); hybridDashboard.Children.Clear();
+        var board = new Canvas { Width = 1600, Height = 848, ClipToBounds = true }; hybridDashboard.Children.Add(board);
+        board.Children.Add(new Rectangle { Width = 800, Height = 848, Fill = new LinearGradientBrush((Color)ColorConverter.ConvertFromString("#e8dcf8"), (Color)ColorConverter.ConvertFromString("#bba4d1"), 90) });
+        var right = new Rectangle { Width = 800, Height = 848, Fill = new LinearGradientBrush((Color)ColorConverter.ConvertFromString("#38333e"), (Color)ColorConverter.ConvertFromString("#19171e"), 90) }; HAt(board, right, 800, 0);
+        HAt(board, new Rectangle { Width = 5, Height = 848, Fill = HBrush("#52dcff"), Opacity = .75 }, 798, 0);
+        HAt(board, HText($"PLAYER {Player + 1}", 14, "#5c4075", FontWeights.Bold), 52, 216);
+        HAt(board, HText(Model.Name, 40, "#1b1622", FontWeights.ExtraBold), 52, 242);
+        var finish = PadColours.Catalog.For(Model.Id).FirstOrDefault(f => f.Id == PadColours.For(Player, Model.Id))?.Name;
+        HAt(board, HText(finish ?? "", 20, "#5c4075", FontWeights.SemiBold), 52, 296);
+        var facts = new (string title, TextBlock source)[] { ("CURRENT SETUP", Dashboard.RebelSetup), ("CONNECTION", Dashboard.RebelConnection), ("BATTERY", Dashboard.RebelBattery), ("CHANGES", Dashboard.RebelChanges) };
+        for (int i = 0; i < facts.Length; i++)
+        {
+            double x = 52 + i % 2 * 190, y = 334 + i / 2 * 70;
+            HAt(board, HText(facts[i].title, 11, "#6d5786", FontWeights.Bold), x, y);
+            var value = HText("", 16, "#1b1622", FontWeights.SemiBold); value.Width = 180; value.TextTrimming = TextTrimming.CharacterEllipsis; value.SetBinding(TextBlock.TextProperty, new Binding("Text") { Source = facts[i].source }); HAt(board, value, x, y + 19);
+        }
+        HAt(board, Pieces.Pad(Model.Id, PadColours.For(Player, Model.Id), 690), 455, 60);
+        var hints = new StackPanel { Orientation = Orientation.Vertical };
+        foreach (var (key, label) in new[] { ("A", "Select"), ("B", "Controller Zone"), ("X", "Configure"), ("Y", "Rescan games") }) hints.Children.Add(HText($"{key}    {label}", 17, "#f4f1f8", FontWeights.SemiBold).Also(t => t.Margin = new(0, 0, 0, 18)));
+        HAt(board, hints, 1350, 210);
+        HAt(board, new Border { Width = 564, Height = 128, Background = HBrush("#445c4075"), CornerRadius = new(64, 0, 0, 64) }, 236, 624);
+        HAt(board, new Border { Width = 548, Height = 128, Background = HBrush("#203d3846"), CornerRadius = new(0, 64, 64, 0) }, 816, 624);
+        var pages = new (string label, string key)[] { ("Buttons", "buttons"), ("Curves", "curves"), ("Macros", "macros"), ("Vibration", "vibration"), ("PC mode", "pcmode"), ("Device", "device"), ("Mouse", "mouse"), ("Setups", "setups"), ("Tools", "tools") };
+        for (int i = 0; i < pages.Length; i++)
+        {
+            var (label, key) = pages[i]; var button = new Button { Content = label, Tag = "hybrid:dashboard:" + key, Width = 112, Height = 78, MinHeight = 0, FontSize = 13, FontWeight = FontWeights.Bold, Foreground = HBrush(i < 4 ? "#1b1622" : "#f4f1f8"), Background = HBrush(i < 4 ? "#f7f1ff" : "#494352"), BorderBrush = HBrush("#52dcff"), BorderThickness = new(2), Cursor = System.Windows.Input.Cursors.Hand };
+            void Paint() { bool focused = button.IsKeyboardFocused || button.IsMouseOver; button.BorderThickness = new(focused ? 5 : 2); button.BorderBrush = HBrush(focused ? "#52dcff" : "#777080"); }
+            button.GotKeyboardFocus += (_, _) => Paint(); button.LostKeyboardFocus += (_, _) => Paint(); button.MouseEnter += (_, _) => Paint(); button.MouseLeave += (_, _) => Paint(); Paint();
+            System.Windows.Automation.AutomationProperties.SetName(button, "Open " + label);
+            button.Click += (_, _) => HybridGo(key); HAt(board, button, 304 + i * 124, 650);
+        }
+        var games = new Button { Content = "Games", Tag = "hybrid:dashboard:games", Width = 120, Height = 38, MinHeight = 0, Background = HBrush("#1b1622"), Foreground = Brushes.White };
+        games.Click += (_, _) => { hybridGames = true; HybridShow(); Dashboard?.FocusHero(); }; HAt(board, games, 52, 500);
+        if (newlyVisible) HybridFocusDashboard();
     }
-
-    /// <summary>
-    /// Docked Hybrid Dashboard: identical to concept board out/hybrid/dashboard.png.
-    /// Features two halves split at x=800, ny=450 with cyan tab-and-socket seam,
-    /// EasySMX D10 Farout Purple controller, Face button diamond cluster on charcoal right,
-    /// and unified 9-button dock pill crowned with double ring cyan glow.
-    /// </summary>
-    private void HybridShowDashboard()
+    private void HybridFocusDashboard() => Dispatcher.BeginInvoke(() =>
     {
-        hybridPageHost!.Children.Clear();
-
-        // 1. Two halves background (.hl + .hr + seam)
-        var halves = HybridKit.Halves(800, 450);
-        hybridPageHost.Children.Add(halves);
-
-        // 2. Top Brand (X20CTL logo + wordmark)
-        var brand = HybridKit.Brand(44, 30, dark: true);
-        hybridPageHost.Children.Add(brand);
-
-        // 3. Top Right Player status
-        var topRight = HybridKit.TopRight(dark: false, activePlayer: Player);
-        Canvas.SetRight(topRight, 0);
-        Canvas.SetTop(topRight, 0);
-        hybridPageHost.Children.Add(topRight);
-
-        // 4. Controller floor shadow ellipse at (470, 560, w: 660, h: 60)
-        var shadow = new Ellipse
-        {
-            Width = 660,
-            Height = 60,
-            Fill = new RadialGradientBrush
-            {
-                Center = new Point(0.5, 0.5),
-                GradientOrigin = new Point(0.5, 0.5),
-                RadiusX = 0.5,
-                RadiusY = 0.5,
-                GradientStops =
-                {
-                    new(Color.FromArgb(0x8c, 0x14, 0x0e, 0x1c), 0.0),
-                    new(Colors.Transparent, 1.0)
-                }
-            }
-        };
-        Canvas.SetLeft(shadow, 470);
-        Canvas.SetTop(shadow, 560);
-        hybridPageHost.Children.Add(shadow);
-
-        // 5. Featured Controller: EasySMX D10 Farout Purple (455, 112, w: 690)
-        var padArt = HybridKit.ControllerArt("d10-purple", 690);
-        if (padArt != null)
-        {
-            padArt.Effect = new DropShadowEffect
-            {
-                Color = Colors.Black,
-                BlurRadius = 30,
-                ShadowDepth = 24,
-                Direction = 270,
-                Opacity = 0.5
-            };
-            Canvas.SetLeft(padArt, 455);
-            Canvas.SetTop(padArt, 112);
-            hybridPageHost.Children.Add(padArt);
-        }
-
-        // 6. Left side specs block at (52, 268, w: 380)
-        var leftSpecs = new StackPanel { Width = 380 };
-
-        var playerTag = new TextBlock
-        {
-            Text = $"PLAYER {Player + 1}",
-            FontFamily = HybridKit.Body,
-            FontSize = 13,
-            FontWeight = FontWeights.Bold,
-            Foreground = HybridKit.B("#5c4075")
-        };
-        leftSpecs.Children.Add(playerTag);
-
-        var modelName = new TextBlock
-        {
-            Text = "EasySMX D10",
-            FontFamily = HybridKit.Display,
-            FontSize = 40,
-            FontWeight = FontWeights.ExtraBold,
-            Foreground = HybridKit.InkBrush,
-            Margin = new Thickness(0, 6, 0, 0)
-        };
-        leftSpecs.Children.Add(modelName);
-
-        var finishName = new TextBlock
-        {
-            Text = "Farout Purple",
-            FontFamily = HybridKit.Display,
-            FontSize = 20,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = HybridKit.B("#5c4075"),
-            Margin = new Thickness(0, 2, 0, 0)
-        };
-        leftSpecs.Children.Add(finishName);
-
-        // 2x2 status grid
-        var statusGrid = new Grid { Margin = new Thickness(0, 26, 0, 0) };
-        statusGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        statusGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        statusGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        statusGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-
-        var statPairs = new (string Title, string Value, int Col, int Row)[]
-        {
-            ("CURRENT SETUP", "Current working settings", 0, 0),
-            ("CONNECTION", "Not detected", 1, 0),
-            ("BATTERY", "Not reported", 0, 1),
-            ("CHANGES", "No local changes", 1, 1)
-        };
-
-        foreach (var (stTitle, stVal, col, row) in statPairs)
-        {
-            var cell = new StackPanel { Margin = new Thickness(col == 0 ? 0 : 9, row == 0 ? 0 : 16, col == 0 ? 9 : 0, 0) };
-            cell.Children.Add(new TextBlock
-            {
-                Text = stTitle,
-                FontFamily = HybridKit.Body,
-                FontSize = 11,
-                FontWeight = FontWeights.Bold,
-                Foreground = HybridKit.B("#6d5786")
-            });
-            cell.Children.Add(new TextBlock
-            {
-                Text = stVal,
-                FontFamily = HybridKit.Body,
-                FontSize = 17,
-                FontWeight = FontWeights.SemiBold,
-                Foreground = HybridKit.InkBrush,
-                Margin = new Thickness(0, 3, 0, 0)
-            });
-            Grid.SetColumn(cell, col);
-            Grid.SetRow(cell, row);
-            statusGrid.Children.Add(cell);
-        }
-        leftSpecs.Children.Add(statusGrid);
-
-        Canvas.SetLeft(leftSpecs, 52);
-        Canvas.SetTop(leftSpecs, 268);
-        hybridPageHost.Children.Add(leftSpecs);
-
-        // 7. Right side: Face button diamond cluster + action legend
-        var rightCluster = HybridKit.FaceButtonCluster(
-            cx: 1262,
-            cy: 352,
-            onSelect: () => ShowButtons(),
-            onZone: () => BackRequested?.Invoke(),
-            onConfigure: () => ShowCurves(true),
-            onRescan: () => ToolsRequested?.Invoke()
-        );
-        hybridPageHost.Children.Add(rightCluster);
-
-        // 8. Bottom unified dock pill (Buttons selected = index 0)
-        var dock = HybridKit.DashboardDock(
-            activeIndex: 0,
-            onSelect: idx =>
-            {
-                var keys = new[] { "buttons", "curves", "macros", "vibration", "pcmode", "device", "mouse", "setups", "tools" };
-                if (idx >= 0 && idx < keys.Length) HybridSelectPage(keys[idx]);
-            }
-        );
-        hybridPageHost.Children.Add(dock);
+        if (hybridDashboard?.Visibility == Visibility.Visible && hybridDashboard.Children.OfType<Canvas>().FirstOrDefault()?.Children.OfType<Button>().FirstOrDefault(b => b.Tag as string == "hybrid:dashboard:buttons") is { } button) button.Focus();
+    }, DispatcherPriority.ApplicationIdle);
+    private void HybridGo(string key)
+    {
+        switch (key) { case "buttons": ShowButtons(); break; case "curves": ShowCurves(true); break; case "macros": ShowMacros(true); break; case "vibration": ShowVibration(true); break; case "pcmode": ShowManagement("PcMode"); break; case "device": ShowManagement("Device"); break; case "mouse": ShowManagement("Mouse"); break; case "setups": ShowManagement("Setups"); break; case "tools": ToolsRequested?.Invoke(); break; }
+    }
+    private bool HybridDashboardKey(KeyEventArgs e)
+    {
+        if (!hybridStudio || ManagementPage != "Dashboard" || AgentOpen || stickToolsLayer != null || e.Key is not (Key.B or Key.Escape)) return false;
+        if (hybridGames) { hybridGames = false; HybridShow(); } else BackRequested?.Invoke();
+        e.Handled = true; return true;
     }
 }

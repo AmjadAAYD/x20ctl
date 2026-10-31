@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Linq;
 using System.Windows;
@@ -152,15 +152,6 @@ public sealed partial class ProductSettings
         board.Children.Add(leadTb);
 
         // Top Recommended Fix Banner
-        var fixTitle = new TextBlock { Text = "RECOMMENDED ACTION", FontFamily = BlossomKit.Small, FontSize = 11, FontWeight = FontWeights.Bold, Foreground = BlossomKit.TextSakuraBrush };
-        Canvas.SetLeft(fixTitle, 236);
-        Canvas.SetTop(fixTitle, 150);
-        board.Children.Add(fixTitle);
-
-        var fixLead = new TextBlock { Text = "Calibrate analog stick centerpoints before competitive tournament play.", FontFamily = BlossomKit.Body, FontSize = 15, Foreground = BlossomKit.TextWhiteBrush };
-        Canvas.SetLeft(fixLead, 236);
-        Canvas.SetTop(fixLead, 170);
-        board.Children.Add(fixLead);
 
         // Suspension wire for stalls top
         board.Children.Add(new Line { X1 = 800, Y1 = 150, X2 = 1520, Y2 = 150, Stroke = BlossomKit.B("#4a2c38"), StrokeThickness = 2 });
@@ -169,11 +160,11 @@ public sealed partial class ProductSettings
         var stalls = new (string Icon, string Name, string Sub, bool Active, Action Act)[]
         {
             ("\uE790", "Themes", "Changes how X20CTL looks across all consoles and drafts.", true, () => ShowThemes(true)),
-            ("\uE7F4", "PC Mode", "Direct hardware polling pipeline bypassing game layers.", false, () => ShowPcMode(true)),
+            ("\uE7F4", "PC Mode", "Remaps through a virtual Xbox pad.", false, () => ShowPcMode(true)),
             ("\uE9D9", "Diagnostics", "Raw input stream, stick centering and trigger fill.", false, () => { }),
             ("\uE962", "Mouse", "Control the mouse cursor using analog thumbsticks.", false, () => { }),
-            ("\uE768", "Tester", "Hardware button switch verification and latency.", false, () => { }),
-            ("\uE8B5", "Scanner", "Deep inspection of controller memory and calibrations.", false, () => { }),
+            ("\uE768", "Tester", "Check buttons, sticks and triggers.", false, () => { }),
+            ("\uE8B5", "Scanner", "Read scan and Write scan.", false, () => { }),
             ("\uE946", "About", "Version, developer credits and licensing notices.", false, () => ShowAbout(true)),
             ("\uE777", "Feedback", "Send impressions, bug reports, and hardware suggestions.", false, () => ShowFeedback(true))
         };
@@ -514,7 +505,7 @@ public sealed partial class ProductSettings
 
         var titleStack = new StackPanel();
         titleStack.Children.Add(new TextBlock { Text = "X20CTL", FontFamily = BlossomKit.Display, FontSize = 72, Foreground = BlossomKit.TextWhiteBrush });
-        titleStack.Children.Add(new TextBlock { Text = "Version 1.04 · Yozakura Console Edition", FontFamily = BlossomKit.Heading, FontStyle = FontStyles.Italic, FontSize = 21, Foreground = BlossomKit.TextSakuraBrush, Margin = new Thickness(0, 8, 0, 0) });
+        titleStack.Children.Add(new TextBlock { Text = $"Native Controller Studio · {Updater.Shown}", FontFamily = BlossomKit.Heading, FontStyle = FontStyles.Italic, FontSize = 21, Foreground = BlossomKit.TextSakuraBrush, Margin = new Thickness(0, 8, 0, 0) });
         Canvas.SetLeft(titleStack, 158);
         Canvas.SetTop(titleStack, 580);
         board.Children.Add(titleStack);
@@ -545,7 +536,7 @@ public sealed partial class ProductSettings
         spStack.Children.Add(new TextBlock
         {
             Text = "X20CTL is an open-source hardware control environment built for competitive precision gamepads. " +
-                   "Engineered for sub-millisecond USB polling, raw Hall-effect telemetry, and deep hardware customization.",
+                   "Changes stay local drafts; controller writes remain locked until verified.",
             FontFamily = BlossomKit.Body,
             FontSize = 16,
             LineHeight = 24,
@@ -567,10 +558,10 @@ public sealed partial class ProductSettings
         // Contributor credits
         var people = new (string Role, string Name)[]
         {
-            ("LEAD ARCHITECT", "Antigravity Pairing Team"),
-            ("THEME DIRECTION", "Yozakura Night Hanami"),
-            ("HARDWARE PROTOCOL", "EasySMX 1000Hz USB / 2.4G"),
-            ("UI FRAMEWORK", "WPF / .NET 10 Offscreen Native")
+            ("MADE BY", "Amjad AAYD"),
+            ("THANKS", "Kiin from Team EasySMX — X20 Pro"),
+            ("INSPIRATION", "ApexSenseBridge by ReynArts"),
+            ("CREDITS", "Gopher360 — Tylemagne, GPL-3.0")
         };
         foreach (var p in people)
         {
@@ -609,7 +600,7 @@ public sealed partial class ProductSettings
         bClose.MouseLeftButtonUp += (_, _) => ShowAbout(false);
         aRow.Children.Add(bClose);
 
-        foreach (var act in new[] { "GitHub Repository", "Documentation" })
+        foreach (var act in new[] { "GitHub Repository", "ApexSenseBridge" })
         {
             var bOther = new Border
             {
@@ -622,6 +613,7 @@ public sealed partial class ProductSettings
                 Cursor = Cursors.Hand,
                 Child = new TextBlock { Text = act, FontFamily = BlossomKit.Body, FontSize = 15, Foreground = BlossomKit.TextWhiteBrush, VerticalAlignment = VerticalAlignment.Center }
             };
+            bOther.MouseLeftButtonUp += (_, _) => Try(() => ExternalLinks.Open(act == "GitHub Repository" ? ExternalLinks.Repository : ExternalLinks.Inspiration));
             aRow.Children.Add(bOther);
         }
         spStack.Children.Add(aRow);
@@ -773,8 +765,8 @@ public sealed partial class ProductSettings
         var ema = BlossomKit.EmaPlaque(
             604,
             430,
-            "The 1000Hz polling rate in PC mode feels exceptionally responsive in combat titles. Would love custom stick curve presets for fighting games.",
-            "134 / 2000 characters");
+            "",
+            "0 / 2000 characters");
         Canvas.SetLeft(ema, 940);
         Canvas.SetTop(ema, 162);
         board.Children.Add(ema);
@@ -890,10 +882,10 @@ public sealed partial class ProductSettings
         double startX = 234, startY = 130, stageW = 310, stageH = 150, gap = 16;
         var stages = new (string Num, string Title, string Sub, string Detail)[]
         {
-            ("1", "Physical Controller", "Direct Hardware Link", "1000Hz USB polling · sub-1ms"),
-            ("2", "Kernel Filter Driver", "Raw HID Intercept", "Zero-jitter timestamping engine"),
-            ("3", "Virtual Device Emulation", "ViGEmBus Emulation", "Xbox 360 / DualShock 4 feed"),
-            ("4", "Target Application", "Game Engine / Steam", "Native XInput / DirectInput feed")
+            ("1", "Physical Controller", "XInput", "What Windows sees"),
+            ("2", "PC Profile", "Remaps and curves", "Applied on this PC"),
+            ("3", "Virtual Xbox Pad", "ViGEmBus", "Needs the driver"),
+            ("4", "Game", "XInput", "Reads the virtual pad")
         };
 
         for (int i = 0; i < stages.Length; i++)
@@ -942,14 +934,12 @@ public sealed partial class ProductSettings
 
         var configStack = new StackPanel { Margin = new Thickness(36, 30, 36, 30) };
         configStack.Children.Add(new TextBlock { Text = "Routing & Driver Settings", FontFamily = BlossomKit.Display, FontSize = 24, Foreground = BlossomKit.B(BlossomKit.LitPaperInk) });
-        configStack.Children.Add(new TextBlock { Text = "Manage high-performance virtual gamepad drivers and kernel-level polling optimization.", FontFamily = BlossomKit.Body, FontSize = 15, Foreground = BlossomKit.B(BlossomKit.LitPaperSub), Margin = new Thickness(0, 4, 0, 24) });
+        configStack.Children.Add(new TextBlock { Text = "The two drivers PC mode uses.", FontFamily = BlossomKit.Body, FontSize = 15, Foreground = BlossomKit.B(BlossomKit.LitPaperSub), Margin = new Thickness(0, 4, 0, 24) });
 
         var options = new (string Name, string Desc, string Status, bool On)[]
         {
-            ("ViGEmBus Virtual Bus Driver", "Provides system-level virtual Xbox 360 and DualShock 4 device emulation.", "Installed & Active (v1.22.0)", true),
-            ("1000 Hz Sub-millisecond USB Polling", "Overrides standard 125Hz polling rate for 1ms response latency.", "Enabled · Active on Port 3", true),
-            ("Low-Jitter Kernel Timestamping", "Hardware microsecond clock calibration for consistent frame delivery.", "Active", true),
-            ("Auto-Fallback to Native XInput", "Gracefully falls back to physical gamepad if virtual bus driver restarts.", "Enabled", true)
+            ("ViGEmBus", "Creates the virtual Xbox pad.", "Set up in PC mode", false),
+            ("HidHide", "Hides the physical pad from games.", "Set up in PC mode", false)
         };
 
         foreach (var opt in options)
