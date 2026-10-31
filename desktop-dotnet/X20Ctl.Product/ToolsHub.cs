@@ -212,6 +212,20 @@ public sealed partial class ProductSettings : Grid
         feedback.Children.Add(new ScrollViewer { Content = form, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled });
         return form;
     }
+    /// <summary>Puts the real feedback form (message, category, controller, Send) on a themed page.</summary>
+    internal void MountFeedbackForm(Panel host, double left, double top, double width, double height)
+    {
+        var form = FeedbackForm;
+        FeedbackPage.Detach(form);
+        form.Background = Brushes.Transparent;
+        form.BorderThickness = new Thickness(0);
+        form.Padding = new Thickness(0, 0, 18, 0);
+        form.MaxWidth = width - 20;
+        var scroll = new ScrollViewer { Width = width, Height = height, Content = form, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
+        Canvas.SetLeft(scroll, left);
+        Canvas.SetTop(scroll, top);
+        host.Children.Add(scroll);
+    }
     public void ShowFeedback(bool on)
     {
         if (on) _ = FeedbackForm;

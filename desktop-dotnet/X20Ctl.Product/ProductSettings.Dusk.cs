@@ -652,57 +652,7 @@ public sealed partial class ProductSettings
         var hints = new[] { ("A", "Send"), ("B", "Back") };
         var content = new Canvas { Width = 1040, Height = 580 };
 
-        var fCard = new Border
-        {
-            Width = 640,
-            CornerRadius = new CornerRadius(6),
-            Background = DuskKit.SlateItemBrush,
-            Padding = new Thickness(26)
-        };
-        var fStack = new StackPanel { Orientation = Orientation.Vertical };
-        fStack.Children.Add(new TextBlock { Text = "Submit Diagnostic Feedback", FontFamily = DuskKit.Display, FontSize = 22, FontWeight = FontWeights.Bold, Foreground = DuskKit.WhiteBrush });
-        fStack.Children.Add(new TextBlock { Text = "Include anonymous telemetry logs and hardware descriptor states to help improve compatibility.", FontFamily = DuskKit.Body, FontSize = 14, Foreground = DuskKit.LightBrush, Margin = new Thickness(0, 6, 0, 16), TextWrapping = TextWrapping.Wrap });
-
-        var inputBorder = new Border
-        {
-            Height = 120,
-            CornerRadius = new CornerRadius(4),
-            Background = DuskKit.B("#141920"),
-            BorderBrush = DuskKit.SlateBorderBrush,
-            BorderThickness = new Thickness(1),
-            Padding = new Thickness(14),
-            Margin = new Thickness(0, 0, 0, 16)
-        };
-        inputBorder.Child = new TextBlock
-        {
-            Text = "Describe controller behavior, observed firmware version, or button mapping issues...",
-            FontFamily = DuskKit.Body,
-            FontSize = 14,
-            Foreground = DuskKit.MuteBrush
-        };
-        fStack.Children.Add(inputBorder);
-
-        var submitBtn = new Border
-        {
-            Height = 44,
-            Width = 180,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            CornerRadius = new CornerRadius(4),
-            Background = new LinearGradientBrush
-            {
-                StartPoint = new Point(0, 0.5),
-                EndPoint = new Point(1, 0.5),
-                GradientStops = { new(DuskKit.GreenGrad0, 0.0), new(DuskKit.GreenGrad1, 1.0) }
-            },
-            Cursor = Cursors.Hand
-        };
-        submitBtn.Child = new TextBlock { Text = "Send Feedback (A)", FontFamily = DuskKit.Display, FontSize = 15, FontWeight = FontWeights.Bold, Foreground = DuskKit.WhiteBrush, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-        fStack.Children.Add(submitBtn);
-
-        fCard.Child = fStack;
-        Canvas.SetLeft(fCard, 0);
-        Canvas.SetTop(fCard, 0);
-        content.Children.Add(fCard);
+        MountFeedbackForm(content, 0, 0, 1040, 580);
 
         var shell = DuskKit.SettingsShell(
             activeKey: "tools",

@@ -196,7 +196,7 @@ public sealed partial class FeedbackPage
         Child = frame;
     }
 
-    private static void Detach(FrameworkElement? element)
+    internal static void Detach(FrameworkElement? element)
     {
         if (element == null) return;
         if (element.Parent is Panel p) p.Children.Remove(element);

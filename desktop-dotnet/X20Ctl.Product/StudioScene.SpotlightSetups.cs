@@ -1,3 +1,4 @@
+using System.Linq;
 using System;
 using System.Windows;
 using System.Windows.Controls;
@@ -9,18 +10,30 @@ namespace X20Ctl.Product;
 
 public partial class StudioScene
 {
+    private SetupsWorkbench? spotlightSetupsBench;
+
     private void SpotlightShowSetups()
     {
         spotlightPageHost!.Children.Clear();
+        var bench = Setups;
+        if (bench != null && !ReferenceEquals(bench, spotlightSetupsBench))
+        {
+            spotlightSetupsBench = bench;
+            bench.Watch(() => Dispatcher.BeginInvoke(new Action(() => { if (CurrentPage == "Setups" && ReferenceEquals(spotlightSetupsBench, Setups)) SpotlightShowSetups(); })));
+        }
+        var cards = bench?.Cards ?? new List<(string Id, string Name, string State)>();
+        string selectedId = bench?.SelectedId ?? (cards.Count > 0 ? cards[0].Id : "");
+        var selected = cards.FirstOrDefault(c => c.Id == selectedId);
+        var others = cards.Where(c => c.Id != selectedId).Take(4).ToList();
         var canvas = new Canvas { Width = 1600, Height = 900, ClipToBounds = true };
 
         // Top actions: + New setup, Import, Export at (1050, 150)
         var topActions = new StackPanel { Orientation = Orientation.Horizontal };
-        topActions.Children.Add(SpotlightKit.TheatricalButton("New setup", false, null, height: 40, fontSize: 11));
-        var impBtn = SpotlightKit.TheatricalButton("Import", false, null, height: 40, fontSize: 11);
+        topActions.Children.Add(SpotlightKit.TheatricalButton("New setup", false, null, onClick: () => bench?.Click("new"), height: 40, fontSize: 11));
+        var impBtn = SpotlightKit.TheatricalButton("Import", false, null, onClick: () => bench?.Click("import"), height: 40, fontSize: 11);
         impBtn.Margin = new Thickness(10, 0, 0, 0);
         topActions.Children.Add(impBtn);
-        var expBtn = SpotlightKit.TheatricalButton("Export", false, null, height: 40, fontSize: 11);
+        var expBtn = SpotlightKit.TheatricalButton("Export", false, null, onClick: () => bench?.Click("export"), height: 40, fontSize: 11);
         expBtn.Margin = new Thickness(10, 0, 0, 0);
         topActions.Children.Add(expBtn);
         Canvas.SetLeft(topActions, 1050);
@@ -63,7 +76,7 @@ public partial class StudioScene
         var posterText = new StackPanel { Width = 250 };
         posterText.Children.Add(new TextBlock
         {
-            Text = "LOCAL SETUP",
+            Text = selected.Name == null ? "NO SETUPS YET" : selected.State,
             FontFamily = SpotlightKit.Display,
             FontSize = 10,
             FontWeight = FontWeights.Light,
@@ -71,7 +84,7 @@ public partial class StudioScene
         });
         posterText.Children.Add(new TextBlock
         {
-            Text = "Default Profile",
+            Text = selected.Name ?? "—",
             FontFamily = SpotlightKit.Body,
             FontSize = 27,
             Foreground = SpotlightKit.ChalkBrush,
@@ -87,13 +100,12 @@ public partial class StudioScene
         canvas.Children.Add(posterBorder);
 
         // Repertoire Carousel: 4 other posters at px = 680 + i * 178
-        string[] otherNames = { "FPS Pro", "Racing", "Arcade", "Custom" };
         for (int i = 0; i < 4; i++)
         {
             double px = 680 + i * 178;
             double pw = 140, ph = 180;
 
-            if (i < 2)
+            if (i < others.Count)
             {
                 var sidePoster = new Border
                 {
@@ -114,6 +126,9 @@ public partial class StudioScene
                 spCanvas.Children.Add(padMin);
                 sidePoster.Child = spCanvas;
 
+                string pickId = others[i].Id;
+                sidePoster.Cursor = System.Windows.Input.Cursors.Hand;
+                sidePoster.MouseLeftButtonDown += (_, _) => { bench?.Select(pickId); SpotlightShowSetups(); };
                 Canvas.SetLeft(sidePoster, px);
                 Canvas.SetTop(sidePoster, 300);
                 canvas.Children.Add(sidePoster);
@@ -121,7 +136,7 @@ public partial class StudioScene
                 var spText = new StackPanel { Width = 160 };
                 spText.Children.Add(new TextBlock
                 {
-                    Text = otherNames[i],
+                    Text = others[i].Name,
                     FontFamily = SpotlightKit.Body,
                     FontSize = 16,
                     Foreground = SpotlightKit.ChalkDimBrush,
@@ -129,7 +144,7 @@ public partial class StudioScene
                 });
                 spText.Children.Add(new TextBlock
                 {
-                    Text = "SAVED",
+                    Text = others[i].State,
                     FontFamily = SpotlightKit.Display,
                     FontSize = 9.5,
                     FontWeight = FontWeights.Light,
@@ -161,7 +176,7 @@ public partial class StudioScene
 
         var topRow = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
         topRow.Children.Add(new TextBlock { Text = "SELECTED SETUP", FontFamily = SpotlightKit.Display, FontSize = 11, FontWeight = FontWeights.Light, Foreground = SpotlightKit.GoldBrush });
-        var savedTag = SpotlightKit.Tag("Saved", false);
+        var savedTag = SpotlightKit.Tag(selected.State ?? "Empty", false);
         savedTag.Margin = new Thickness(16, 0, 16, 0);
         topRow.Children.Add(savedTag);
         topRow.Children.Add(new TextBlock { Text = "Saved on this PC", FontFamily = SpotlightKit.Body, FontStyle = FontStyles.Italic, FontSize = 14, Foreground = SpotlightKit.MuteBrush });
@@ -171,15 +186,15 @@ public partial class StudioScene
         midRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(290) });
         midRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var setupTitle = new TextBlock { Text = "Default Profile", FontFamily = SpotlightKit.Body, FontSize = 28, Foreground = SpotlightKit.ChalkBrush };
+        var setupTitle = new TextBlock { Text = selected.Name ?? "No setups yet", FontFamily = SpotlightKit.Body, FontSize = 28, Foreground = SpotlightKit.ChalkBrush };
         Grid.SetColumn(setupTitle, 0);
         midRow.Children.Add(setupTitle);
 
         var statsRow = new StackPanel { Orientation = Orientation.Horizontal };
-        foreach (var (k, v) in new[] { ("BUTTONS", "0 modified"), ("CURVES", "Linear"), ("MACROS", "None") })
+        foreach (var (k0, v) in bench?.Metrics ?? new List<(string Label, string Value)>())
         {
-            var stat = new StackPanel { Width = 180 };
-            stat.Children.Add(new TextBlock { Text = k, FontFamily = SpotlightKit.Display, FontSize = 10, FontWeight = FontWeights.Light, Foreground = SpotlightKit.MuteBrush });
+            var stat = new StackPanel { Width = 160 };
+            stat.Children.Add(new TextBlock { Text = k0.ToUpperInvariant(), FontFamily = SpotlightKit.Display, FontSize = 10, FontWeight = FontWeights.Light, Foreground = SpotlightKit.MuteBrush });
             stat.Children.Add(new TextBlock { Text = v, FontFamily = SpotlightKit.Bodoni, FontSize = 22, Foreground = SpotlightKit.B("#f3e7d3"), Margin = new Thickness(0, 4, 0, 0) });
             statsRow.Children.Add(stat);
         }
@@ -188,14 +203,14 @@ public partial class StudioScene
         cardInner.Children.Add(midRow);
 
         var actionBtns = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 18, 0, 0) };
-        actionBtns.Children.Add(SpotlightKit.TheatricalButton("Load in local editor", true, "A", height: 40, fontSize: 12));
-        var renBtn = SpotlightKit.TheatricalButton("Rename", false, null, height: 40, fontSize: 11);
+        actionBtns.Children.Add(SpotlightKit.TheatricalButton("Load in local editor", true, "A", onClick: () => bench?.Click("open"), height: 40, fontSize: 12));
+        var renBtn = SpotlightKit.TheatricalButton("Rename", false, null, onClick: () => bench?.Click("rename"), height: 40, fontSize: 11);
         renBtn.Margin = new Thickness(10, 0, 0, 0);
         actionBtns.Children.Add(renBtn);
-        var dupBtn = SpotlightKit.TheatricalButton("Duplicate", false, null, height: 40, fontSize: 11);
+        var dupBtn = SpotlightKit.TheatricalButton("Duplicate", false, null, onClick: () => bench?.Click("duplicate"), height: 40, fontSize: 11);
         dupBtn.Margin = new Thickness(10, 0, 0, 0);
         actionBtns.Children.Add(dupBtn);
-        var delBtn = SpotlightKit.TheatricalButton("Delete", false, null, height: 40, fontSize: 11);
+        var delBtn = SpotlightKit.TheatricalButton("Delete", false, null, onClick: () => bench?.Click("delete"), height: 40, fontSize: 11);
         delBtn.Margin = new Thickness(10, 0, 0, 0);
         actionBtns.Children.Add(delBtn);
         cardInner.Children.Add(actionBtns);
@@ -218,8 +233,11 @@ public partial class StudioScene
         spotlightPageHost.Children.Add(frame);
     }
 
+    private bool spotlightTesterRear;
+
     private void SpotlightShowTester()
     {
+        if (Tester is not { } tester) return;
         spotlightPageHost!.Children.Clear();
         var canvas = new Canvas { Width = 1600, Height = 900, ClipToBounds = true };
 
@@ -228,70 +246,45 @@ public partial class StudioScene
         var spot = SpotlightKit.FollowSpot(cx, 640, 260, -60, 0.26);
         canvas.Children.Add(spot);
 
-        var star = SpotlightParts.SpotlightStar(Model.Id, cx, baseFloor, w, reflection: 0.18);
-        canvas.Children.Add(star);
-
-        // Dashed targeting reticles over sticks and buttons
-        double height = w * 0.64;
-        double x0 = cx - w / 2, y0 = baseFloor - height;
-        (double fx, double fy, double r)[] reticles =
-        {
-            (0.27, 0.42, 42), (0.62, 0.63, 42), (0.37, 0.66, 38),
-            (0.755, 0.39, 48), (0.2, 0.06, 28), (0.8, 0.06, 28)
-        };
-        foreach (var (rfx, rfy, rr) in reticles)
-        {
-            var reticle = new Ellipse
-            {
-                Width = rr * 2, Height = rr * 2,
-                Stroke = SpotlightKit.B(SpotlightKit.A(SpotlightKit.GoldHi, 0.40)),
-                StrokeThickness = 1.2,
-                StrokeDashArray = new DoubleCollection { 2, 6 }
-            };
-            Canvas.SetLeft(reticle, x0 + rfx * w - rr);
-            Canvas.SetTop(reticle, y0 + rfy * height - rr);
-            canvas.Children.Add(reticle);
-        }
+        var livePad = new System.Windows.Controls.Viewbox { Width = w, Height = 330, Stretch = Stretch.Uniform, Child = tester.TakeStage() };
+        Canvas.SetLeft(livePad, cx - w / 2);
+        Canvas.SetTop(livePad, baseFloor - 330);
+        canvas.Children.Add(livePad);
 
         // View chips below controller at (cx - 160, 660)
         var viewChips = new StackPanel { Orientation = Orientation.Horizontal, Width = 320, HorizontalAlignment = HorizontalAlignment.Center };
-        viewChips.Children.Add(SpotlightKit.Chip("Standard", true));
+        var frontChip = SpotlightKit.Chip("Front", !spotlightTesterRear);
+        frontChip.Cursor = System.Windows.Input.Cursors.Hand;
+        frontChip.MouseLeftButtonDown += (_, _) => { spotlightTesterRear = false; tester.ShowRear(false); Dispatcher.BeginInvoke(new Action(SpotlightShowTester)); };
+        viewChips.Children.Add(frontChip);
         viewChips.Children.Add(new Border { Width = 8 });
-        viewChips.Children.Add(SpotlightKit.Chip("Raw Input", false));
-        viewChips.Children.Add(new Border { Width = 8 });
-        viewChips.Children.Add(SpotlightKit.Tag("Player 1", false));
+        var rearChip = SpotlightKit.Chip("Back", spotlightTesterRear);
+        rearChip.Cursor = System.Windows.Input.Cursors.Hand;
+        rearChip.MouseLeftButtonDown += (_, _) => { if (!HasRearArtwork) return; spotlightTesterRear = true; tester.ShowRear(true); Dispatcher.BeginInvoke(new Action(SpotlightShowTester)); };
+        viewChips.Children.Add(rearChip);
         Canvas.SetLeft(viewChips, cx - 160);
         Canvas.SetTop(viewChips, 660);
         canvas.Children.Add(viewChips);
 
-        // Mini horizontal gauge faders at (302, 760)
-        var gaugeRow = new StackPanel { Orientation = Orientation.Horizontal };
-        foreach (var (name, val) in new[] { ("LT", "0%"), ("RT", "0%"), ("LX", "0"), ("LY", "0"), ("RX", "0"), ("RY", "0") })
-        {
-            var cell = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 36, 0), VerticalAlignment = VerticalAlignment.Center };
-            cell.Children.Add(SpotlightKit.HorizontalFader(0, 60));
-            var textStack = new StackPanel { Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
-            textStack.Children.Add(new TextBlock { Text = name, FontFamily = SpotlightKit.Body, FontSize = 17, Foreground = SpotlightKit.ChalkBrush });
-            textStack.Children.Add(new TextBlock { Text = val, FontFamily = SpotlightKit.Body, FontStyle = FontStyles.Italic, FontSize = 13, Foreground = SpotlightKit.MuteBrush });
-            cell.Children.Add(textStack);
-            gaugeRow.Children.Add(cell);
-        }
-        Canvas.SetLeft(gaugeRow, 302);
-        Canvas.SetTop(gaugeRow, 760);
-        canvas.Children.Add(gaugeRow);
-
         // Cue card at (1000, 200, w = 560, label = "Stage manager")
         var cardInner = new StackPanel();
         cardInner.Children.Add(new TextBlock { Text = "INPUT SOURCE", FontFamily = SpotlightKit.Display, FontSize = 11, FontWeight = FontWeights.Light, Foreground = SpotlightKit.GoldBrush });
-        cardInner.Children.Add(new TextBlock { Text = "XInput Player 1", FontFamily = SpotlightKit.Body, FontSize = 27, Foreground = SpotlightKit.ChalkBrush, Margin = new Thickness(0, 4, 0, 0) });
-        cardInner.Children.Add(new TextBlock { Text = "Active hardware capture session owned by X20CTL.", FontFamily = SpotlightKit.Body, FontSize = 16, Foreground = SpotlightKit.ChalkDimBrush, Margin = new Thickness(0, 8, 0, 0) });
-        cardInner.Children.Add(new TextBlock { Text = "Actuate any button, stick or trigger to verify physical response.", FontFamily = SpotlightKit.Body, FontStyle = FontStyles.Italic, FontSize = 14, Foreground = SpotlightKit.MuteBrush, Margin = new Thickness(0, 4, 0, 0) });
+        var srcTitle = new TextBlock { FontFamily = SpotlightKit.Body, FontSize = 27, Foreground = SpotlightKit.ChalkBrush, Margin = new Thickness(0, 4, 0, 0), TextWrapping = TextWrapping.Wrap };
+        srcTitle.SetBinding(TextBlock.TextProperty, new System.Windows.Data.Binding("Text") { Source = tester.SourceLabel });
+        cardInner.Children.Add(srcTitle);
+        foreach (var (lbl, blk) in new[] { ("PRESSED", tester.PressedBlock), ("INPUT OWNERSHIP", tester.OwnershipBlock) })
+        {
+            cardInner.Children.Add(new TextBlock { Text = lbl, FontFamily = SpotlightKit.Display, FontSize = 11, FontWeight = FontWeights.Light, Foreground = SpotlightKit.GoldBrush, Margin = new Thickness(0, 14, 0, 2) });
+            var val = new TextBlock { FontFamily = SpotlightKit.Body, FontSize = 16, Foreground = SpotlightKit.ChalkDimBrush, TextWrapping = TextWrapping.Wrap };
+            val.SetBinding(TextBlock.TextProperty, new System.Windows.Data.Binding("Text") { Source = blk });
+            cardInner.Children.Add(val);
+        }
 
         var actionBtns = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 18, 0, 0) };
-        actionBtns.Children.Add(SpotlightKit.TheatricalButton("Stop test", true, "B", height: 40, fontSize: 12));
-        var resetBtn = SpotlightKit.TheatricalButton("Reset min/max", false, null, height: 40, fontSize: 11);
-        resetBtn.Margin = new Thickness(10, 0, 0, 0);
-        actionBtns.Children.Add(resetBtn);
+        actionBtns.Children.Add(SpotlightKit.TheatricalButton("Leave tester", true, "B", onClick: () => { tester.ClickExit(); SpotlightSelectPage("Device"); }, height: 40, fontSize: 12));
+        var kbBtn = SpotlightKit.TheatricalButton(tester.KeyboardOn ? "Keyboard test: on" : "Keyboard test", false, null, onClick: () => { tester.ClickKeyboard(); Dispatcher.BeginInvoke(new Action(SpotlightShowTester)); }, height: 40, fontSize: 11);
+        kbBtn.Margin = new Thickness(10, 0, 0, 0);
+        actionBtns.Children.Add(kbBtn);
         cardInner.Children.Add(actionBtns);
 
         var cueCard = SpotlightKit.CueCard(cardInner, 560, label: "Stage manager", padding: new Thickness(30, 24, 30, 24));
@@ -307,7 +300,7 @@ public partial class StudioScene
             onBack: () => SpotlightSelectPage("Device"),
             onNavigate: SpotlightSelectPage,
             bodyStage: canvas,
-            hints: new[] { ("A", "Keyboard test"), ("B", "Stop test") },
+            hints: new[] { ("B", "Back") },
             leadW: 640);
 
         spotlightPageHost.Children.Add(frame);

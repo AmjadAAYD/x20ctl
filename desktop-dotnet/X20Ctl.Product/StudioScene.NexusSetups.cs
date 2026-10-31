@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -11,9 +12,20 @@ namespace X20Ctl.Product;
 
 public partial class StudioScene
 {
+    private SetupsWorkbench? nexusSetupsBench;
+
     private void NexusShowSetups()
     {
         nexusPageHost!.Children.Clear();
+        var bench = Setups;
+        if (bench != null && !ReferenceEquals(bench, nexusSetupsBench))
+        {
+            nexusSetupsBench = bench;
+            bench.Watch(() => Dispatcher.BeginInvoke(new Action(() => { if (CurrentPage == "Setups" && ReferenceEquals(nexusSetupsBench, Setups)) NexusShowSetups(); })));
+        }
+        var cards = bench?.Cards ?? new List<(string Id, string Name, string State)>();
+        string selectedId = bench?.SelectedId ?? (cards.Count > 0 ? cards[0].Id : "");
+        var selected = cards.FirstOrDefault(c => c.Id == selectedId);
 
         // 1. Radial background
         var bg = new Rectangle
@@ -35,7 +47,7 @@ public partial class StudioScene
         nexusPageHost.Children.Add(bg);
 
         // 2. Featured Controller angled in background: (820, 90, w=720), rotated -6 deg
-        string bgModel = (Model.Id == "x20" || string.IsNullOrEmpty(Model.Id)) ? "x20pro" : Model.Id;
+        string bgModel = string.IsNullOrEmpty(Model.Id) ? "x20" : Model.Id;
         var padArt = NexusKit.ControllerArt(bgModel, 720);
         if (padArt != null)
         {
@@ -96,8 +108,8 @@ public partial class StudioScene
         // 4. Breadcrumb at (62, 136)
         var crumb = new TextBlock
         {
-            Text = " Go Back  ·  My setups",
-            FontFamily = NexusKit.Icons,
+            Text = "← Back  ·  My setups",
+            FontFamily = NexusKit.Body,
             FontSize = 18,
             Foreground = NexusKit.WhiteBrush,
             Opacity = 0.9,
@@ -121,7 +133,7 @@ public partial class StudioScene
         });
         titleStack.Children.Add(new TextBlock
         {
-            Text = "Competitive FPS",
+            Text = selected.Name ?? "No setups yet",
             FontFamily = NexusKit.Display,
             FontSize = 54,
             FontWeight = FontWeights.SemiBold,
@@ -129,7 +141,7 @@ public partial class StudioScene
         });
         titleStack.Children.Add(new TextBlock
         {
-            Text = "EasySMX X20 Pro · Matches assigned model · Saved locally",
+            Text = selected.Name == null ? "Create one from what you have now" : $"{Model.Name} · {selected.State}",
             FontFamily = NexusKit.Body,
             FontSize = 17,
             Foreground = NexusKit.SubBrush,
@@ -141,17 +153,19 @@ public partial class StudioScene
 
         // 6. Action buttons row at (68, 376)
         var actRow = new StackPanel { Orientation = Orientation.Horizontal };
-        var actions = new (string Text, string Icon, bool Focused)[]
+        var actions = new (string Text, string Which, bool Focused)[]
         {
-            ("Open", "\uE768", true),
-            ("Duplicate", "\uE8C8", false),
-            ("Rename", "\uE8AC", false),
-            ("Export Setup", "\uEDE1", false),
-            ("More ▾", "\uE712", false)
+            ("Open", "open", true),
+            ("Duplicate", "duplicate", false),
+            ("Rename", "rename", false),
+            ("Export", "export", false),
+            ("Delete", "delete", false)
         };
-        foreach (var (t, ic, foc) in actions)
+        foreach (var (label, which, foc) in actions)
         {
-            var btn = NexusKit.TheatricalButton(t, primary: foc, height: 50, fontSize: 16, key: ic);
+            string act = which;
+            var btn = NexusKit.TheatricalButton(label, primary: foc, height: 50, fontSize: 16, onClick: () => bench?.Click(act));
+            btn.IsEnabled = bench?.Can(act) == true;
             btn.Margin = new Thickness(0, 0, 12, 0);
             actRow.Children.Add(btn);
         }
@@ -161,13 +175,7 @@ public partial class StudioScene
 
         // 7. Stats panels at (68, 478)
         var statRow = new StackPanel { Orientation = Orientation.Horizontal };
-        var stats = new (string Label, string Value)[]
-        {
-            ("Buttons", $"{Draft.UnsentChanges} changed"),
-            ("Curves", $"{Curves.Draft.ModifiedChannels} changed"),
-            ("Macros", $"{Macros?.Draft.ModifiedSlots ?? 0} sequences"),
-            ("Vibration", $"{vibrationDraft.Strength}%")
-        };
+        var stats = bench?.Metrics ?? new List<(string Label, string Value)>();
         foreach (var (lbl, val) in stats)
         {
             var panel = new Border
@@ -203,19 +211,15 @@ public partial class StudioScene
         // 9. Setup tiles at y = 630
         var tileRow = new Canvas { Width = 1464, Height = 190 };
         double tx = 0;
-        var setupCards = new (string Title, string Page)[]
+        string[] coverPages = { "setups", "curves", "vibration" };
+        for (int i = 0; i < cards.Count; i++)
         {
-            ("Competitive FPS", "setups"),
-            ("Racing", "curves"),
-            ("Everyday", "vibration")
-        };
-        for (int i = 0; i < setupCards.Length; i++)
-        {
-            var (sc, pageKey) = setupCards[i];
-            bool foc = (i == 0);
+            var card = cards[i];
+            string pageKey = coverPages[i % coverPages.Length];
+            bool foc = card.Id == selectedId;
 
             var tCanvas = new Canvas { Width = 300, Height = 190, ClipToBounds = true };
-            var cover = NexusKit.CoverTile("x20pro", 300, 190, pageKey, dark: 0.8, radius: 6);
+            var cover = NexusKit.CoverTile(string.IsNullOrEmpty(Model.Id) ? "x20" : Model.Id, 300, 190, pageKey, dark: 0.8, radius: 6);
             tCanvas.Children.Add(cover);
 
             var localBadge = new Border
@@ -223,17 +227,19 @@ public partial class StudioScene
                 Background = NexusKit.WhiteBrush,
                 CornerRadius = new CornerRadius(3),
                 Padding = new Thickness(8, 3, 8, 3),
-                Child = new TextBlock { Text = "LOCAL", FontFamily = NexusKit.Body, FontSize = 12, FontWeight = FontWeights.Bold, Foreground = NexusKit.B("#111111") }
+                Child = new TextBlock { Text = card.State, FontFamily = NexusKit.Body, FontSize = 12, FontWeight = FontWeights.Bold, Foreground = NexusKit.B("#111111") }
             };
             Canvas.SetLeft(localBadge, 12);
             Canvas.SetTop(localBadge, 12);
             tCanvas.Children.Add(localBadge);
 
-            var tile = NexusKit.Tile(300, 190, tCanvas, sc, focused: foc);
+            string pickId = card.Id;
+            var tile = NexusKit.Tile(300, 190, tCanvas, card.Name, focused: foc, onClick: () => { bench?.Select(pickId); NexusShowSetups(); });
             Canvas.SetLeft(tile, tx);
             Canvas.SetTop(tile, 0);
             tileRow.Children.Add(tile);
             tx += 316;
+            if (tx > 1000) break;
         }
 
         // New setup tile
@@ -247,7 +253,7 @@ public partial class StudioScene
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center
         });
-        var addTile = NexusKit.Tile(190, 190, addGrid, "New setup", focused: false);
+        var addTile = NexusKit.Tile(190, 190, addGrid, "New setup", focused: false, onClick: () => bench?.Click("new"));
         Canvas.SetLeft(addTile, tx);
         Canvas.SetTop(addTile, 0);
         tileRow.Children.Add(addTile);
@@ -264,7 +270,7 @@ public partial class StudioScene
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center
         });
-        var impTile = NexusKit.Tile(190, 190, impGrid, "Import Setup", focused: false);
+        var impTile = NexusKit.Tile(190, 190, impGrid, "Import", focused: false, onClick: () => bench?.Click("import"));
         Canvas.SetLeft(impTile, tx);
         Canvas.SetTop(impTile, 0);
         tileRow.Children.Add(impTile);
@@ -280,8 +286,11 @@ public partial class StudioScene
         nexusPageHost.Children.Add(hints);
     }
 
+    private bool nexusTesterRear;
+
     private void NexusShowTester()
     {
+        if (Tester is not { } tester) return;
         nexusPageHost!.Children.Clear();
 
         // 1. Background gradient
@@ -325,7 +334,7 @@ public partial class StudioScene
 
         var lead = new TextBlock
         {
-            Text = "Working Draft · No input · Gameplay tester",
+            Text = "Live view of what this PC reads from the controller",
             FontFamily = NexusKit.Body,
             FontSize = 17,
             Foreground = NexusKit.SubBrush
@@ -335,18 +344,14 @@ public partial class StudioScene
         nexusPageHost.Children.Add(lead);
 
         // 4. Center Controller Art at (68, 250, w=820)
-        var padArt = NexusKit.ControllerArt(Model.Id, 560);
-        if (padArt != null)
-        {
-            padArt.Effect = new DropShadowEffect { BlurRadius = 40, ShadowDepth = 25, Direction = 270, Opacity = 0.55, Color = Colors.Black };
-            Canvas.SetLeft(padArt, 198);
-            Canvas.SetTop(padArt, 260);
-            nexusPageHost.Children.Add(padArt);
-        }
+        var livePad = new Viewbox { Width = 560, Height = 360, Stretch = Stretch.Uniform, Child = tester.TakeStage() };
+        Canvas.SetLeft(livePad, 198);
+        Canvas.SetTop(livePad, 260);
+        nexusPageHost.Children.Add(livePad);
 
         // Subtabs under controller: Front, Back
         var tabsStack = new StackPanel { Orientation = Orientation.Horizontal };
-        foreach (var (t, on) in new[] { ("Front", true), ("Back", false) })
+        foreach (var (t, on) in new[] { ("Front", !nexusTesterRear), ("Back", nexusTesterRear) })
         {
             var tabBtn = new Border
             {
@@ -363,6 +368,9 @@ public partial class StudioScene
                     Foreground = on ? NexusKit.B("#111111") : NexusKit.WhiteBrush
                 }
             };
+            bool rear = t == "Back";
+            tabBtn.Cursor = System.Windows.Input.Cursors.Hand;
+            tabBtn.MouseLeftButtonDown += (_, _) => { if (!rear || HasRearArtwork) { nexusTesterRear = rear; tester.ShowRear(rear); Dispatcher.BeginInvoke(new Action(NexusShowTester)); } };
             tabsStack.Children.Add(tabBtn);
         }
         Canvas.SetLeft(tabsStack, 395);
@@ -380,39 +388,24 @@ public partial class StudioScene
             Background = NexusKit.PanelBrush
         };
         var cardStack = new StackPanel();
-        cardStack.Children.Add(new TextBlock
+        var sourceTitle = new TextBlock { FontFamily = NexusKit.Display, FontSize = 24, FontWeight = FontWeights.SemiBold, Foreground = NexusKit.WhiteBrush, TextWrapping = TextWrapping.Wrap };
+        sourceTitle.SetBinding(TextBlock.TextProperty, new System.Windows.Data.Binding("Text") { Source = tester.SourceLabel });
+        cardStack.Children.Add(sourceTitle);
+        foreach (var (lbl, blk) in new[] { ("Pressed", tester.PressedBlock), ("Input ownership", tester.OwnershipBlock) })
         {
-            Text = "Gameplay input unavailable",
-            FontFamily = NexusKit.Display,
-            FontSize = 24,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = NexusKit.WhiteBrush
-        });
-        cardStack.Children.Add(new TextBlock
-        {
-            Text = "Gameplay source",
-            FontFamily = NexusKit.Body,
-            FontSize = 15,
-            Foreground = NexusKit.SubBrush,
-            Margin = new Thickness(0, 4, 0, 16)
-        });
-
-        cardStack.Children.Add(new TextBlock
-        {
-            Text = "Tester owns gameplay input. UI navigation is paused.\n\nWaiting for native gameplay input.\n\nHardware configuration remains separate.",
-            FontFamily = NexusKit.Body,
-            FontSize = 15,
-            Foreground = NexusKit.B(NexusKit.A(Colors.White, 0.78)),
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 0, 0, 16)
-        });
+            cardStack.Children.Add(new TextBlock { Text = lbl, FontFamily = NexusKit.Body, FontSize = 14, Foreground = NexusKit.SubBrush, Margin = new Thickness(0, 14, 0, 2) });
+            var val = new TextBlock { FontFamily = NexusKit.Body, FontSize = 15, Foreground = NexusKit.B(NexusKit.A(Colors.White, 0.78)), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 2) };
+            val.SetBinding(TextBlock.TextProperty, new System.Windows.Data.Binding("Text") { Source = blk });
+            cardStack.Children.Add(val);
+        }
+        cardStack.Children.Add(new Border { Height = 14 });
 
         var btnStack = new StackPanel { Orientation = Orientation.Horizontal };
-        var exitBtn = NexusKit.TheatricalButton("Exit Tester", primary: true, height: 46, fontSize: 15, onClick: () => ShowButtons());
+        var exitBtn = NexusKit.TheatricalButton("Exit Tester", primary: true, height: 46, fontSize: 15, onClick: () => { tester.ClickExit(); ShowButtons(); });
         exitBtn.Margin = new Thickness(0, 0, 10, 0);
         btnStack.Children.Add(exitBtn);
 
-        var kbBtn = NexusKit.TheatricalButton("Keyboard Test", primary: false, height: 46, fontSize: 15);
+        var kbBtn = NexusKit.TheatricalButton(tester.KeyboardOn ? "Keyboard test: on" : "Keyboard test", primary: false, height: 46, fontSize: 15, onClick: () => { tester.ClickKeyboard(); Dispatcher.BeginInvoke(new Action(NexusShowTester)); });
         btnStack.Children.Add(kbBtn);
         cardStack.Children.Add(btnStack);
 
@@ -432,56 +425,8 @@ public partial class StudioScene
         Canvas.SetTop(sideStack, 250);
         nexusPageHost.Children.Add(sideStack);
 
-        // 6. Bottom Gauges Shelf at (68, 740, w=1464)
-        var gaugeShelf = new Border
-        {
-            Width = 1464, Height = 64,
-            Padding = new Thickness(24, 0, 24, 0),
-            CornerRadius = new CornerRadius(8),
-            Background = NexusKit.PanelBrush
-        };
-        var gGrid = new Grid();
-        gGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        gGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        gGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        gGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        var gauges = new (string Name, string Val)[]
-        {
-            ("Left Stick", "X —  Y —"),
-            ("Right Stick", "X —  Y —"),
-            ("LT", "Unavailable"),
-            ("RT", "Unavailable")
-        };
-        for (int i = 0; i < gauges.Length; i++)
-        {
-            var (gn, gv) = gauges[i];
-            var gStack = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            var iconCircle = new Border
-            {
-                Width = 40, Height = 40,
-                CornerRadius = new CornerRadius(20),
-                BorderBrush = NexusKit.B(NexusKit.A(Colors.White, 0.2)),
-                BorderThickness = new Thickness(2),
-                Margin = new Thickness(0, 0, 12, 0)
-            };
-            gStack.Children.Add(iconCircle);
-
-            var tStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-            tStack.Children.Add(new TextBlock { Text = gn, FontFamily = NexusKit.Body, FontSize = 14, FontWeight = FontWeights.SemiBold, Foreground = NexusKit.WhiteBrush });
-            tStack.Children.Add(new TextBlock { Text = gv, FontFamily = NexusKit.Body, FontSize = 12, Foreground = NexusKit.SubBrush });
-            gStack.Children.Add(tStack);
-
-            Grid.SetColumn(gStack, i);
-            gGrid.Children.Add(gStack);
-        }
-        gaugeShelf.Child = gGrid;
-        Canvas.SetLeft(gaugeShelf, 68);
-        Canvas.SetTop(gaugeShelf, 740);
-        nexusPageHost.Children.Add(gaugeShelf);
-
         // 7. Bottom Hints
-        var hints = NexusKit.HintsBar(new[] { ("B", "Hold to exit") });
+        var hints = NexusKit.HintsBar(new[] { ("B", "Exit") });
         Canvas.SetRight(hints, 62);
         Canvas.SetTop(hints, 856);
         nexusPageHost.Children.Add(hints);

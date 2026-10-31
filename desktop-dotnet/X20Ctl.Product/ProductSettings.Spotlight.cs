@@ -458,7 +458,7 @@ public sealed partial class ProductSettings
         });
 
         // Credits / People
-        foreach (var (role, person) in new[] { ("ARCHITECTURE", "Amjad Masad & Codex"), ("DESIGN & DIRECTION", "Gemini & Team"), ("COMMUNITY & TESTING", "Monratis & Contributors") })
+        foreach (var (role, person) in new[] { ("MADE BY", "Amjad AAYD"), ("COMMUNITY & TESTING", "Monratis & Contributors") })
         {
             var pBox = new StackPanel { Margin = new Thickness(0, 18, 0, 0) };
             pBox.Children.Add(new TextBlock

@@ -1,6 +1,7 @@
 using System;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using X20Ctl.Product.Spotlight;
@@ -38,59 +39,17 @@ public sealed partial class FeedbackPage
         Canvas.SetTop(catHead, 210);
         board.Children.Add(catHead);
 
-        // 4 Category tiles in 2x2 grid at (302 + col * 300, 240 + row * 60)
-        string[] categories = { "Bug report", "Feature suggestion", "Controller compatibility", "General feedback" };
-        for (int i = 0; i < categories.Length; i++)
-        {
-            double cx = 302 + (i % 2) * 300;
-            double cy = 240 + (i / 2) * 60;
-            bool on = (i == 0);
+        // Real controls from the shared page, laid out on the stage
+        Detach(kinds); Detach(controller); Detach(connection); Detach(Message); Detach(counter); Detach(SendButton); Detach(status);
 
-            var catTile = new Border
-            {
-                Width = 286, Height = 52,
-                Background = on
-                    ? new RadialGradientBrush
-                    {
-                        Center = new(0.3, 0.5), RadiusX = 0.7, RadiusY = 1.6,
-                        GradientStops = { new(SpotlightKit.A(SpotlightKit.C("#ffdcaf"), 0.22), 0.0), new(SpotlightKit.A(SpotlightKit.C("#ffdcaf"), 0.05), 0.7), new(Colors.Transparent, 1.0) }
-                    }
-                    : Brushes.Transparent,
-                BorderBrush = on ? SpotlightKit.GoldBrush : SpotlightKit.B(SpotlightKit.A(SpotlightKit.Gold, 0.12)),
-                BorderThickness = new Thickness(on ? 3 : 0, 0, 0, on ? 0 : 1),
-                Padding = new Thickness(16, 0, 16, 0),
-                Cursor = System.Windows.Input.Cursors.Hand
-            };
+        if (kinds is UniformGrid kindGrid) { kindGrid.Rows = 2; kindGrid.Columns = 2; }
+        foreach (var child in kinds.Children) if (child is RadioButton radio) radio.MinWidth = 280;
+        Canvas.SetLeft(kinds, 302);
+        Canvas.SetTop(kinds, 240);
+        board.Children.Add(kinds);
 
-            var stack = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            if (on)
-            {
-                var lamp = new Path
-                {
-                    Data = Geometry.Parse("M3 4L13 4L11 11L5 11Z M5 11L1 18H15L11 11"),
-                    Fill = SpotlightKit.GoldBrush,
-                    Margin = new Thickness(0, 0, 10, 0),
-                    VerticalAlignment = VerticalAlignment.Center
-                };
-                stack.Children.Add(lamp);
-            }
-            stack.Children.Add(new TextBlock
-            {
-                Text = categories[i],
-                FontFamily = SpotlightKit.Body,
-                FontSize = 18,
-                Foreground = on ? SpotlightKit.B("#fff6e6") : SpotlightKit.B("#e2d6c3"),
-                VerticalAlignment = VerticalAlignment.Center
-            });
-            catTile.Child = stack;
-            Canvas.SetLeft(catTile, cx);
-            Canvas.SetTop(catTile, cy);
-            board.Children.Add(catTile);
-        }
-
-        // Dropdown fields at (302, 392 + j * 92)
         var dropStack = new StackPanel { Width = 586 };
-        foreach (var (lbl, val) in new[] { ("CONTROLLER MODEL", "X20 Pro"), ("CONNECTION TYPE", "USB Cable (Standard)") })
+        foreach (var (lbl, box) in new[] { ("CONTROLLER (OPTIONAL)", controller), ("CONNECTED BY (OPTIONAL)", connection) })
         {
             var fld = new StackPanel { Margin = new Thickness(0, 0, 0, 24) };
             fld.Children.Add(new TextBlock
@@ -99,45 +58,12 @@ public sealed partial class FeedbackPage
                 FontFamily = SpotlightKit.Display,
                 FontSize = 11,
                 FontWeight = FontWeights.Light,
-                Foreground = SpotlightKit.GoldBrush
-            });
-
-            var ddBorder = new Border
-            {
-                BorderBrush = SpotlightKit.B(SpotlightKit.A(SpotlightKit.Gold, 0.55)),
-                BorderThickness = new Thickness(0, 0, 0, 1),
-                Height = 36,
-                Margin = new Thickness(0, 6, 0, 0)
-            };
-            var ddGrid = new Grid();
-            ddGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            ddGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-            var valText = new TextBlock
-            {
-                Text = val,
-                FontFamily = SpotlightKit.Body,
-                FontStyle = FontStyles.Italic,
-                FontSize = 16,
-                Foreground = SpotlightKit.B("#f3e7d3"),
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            Grid.SetColumn(valText, 0);
-            ddGrid.Children.Add(valText);
-
-            var chev = new TextBlock
-            {
-                Text = "\uE70D",
-                FontFamily = SpotlightKit.Icons,
-                FontSize = 9,
                 Foreground = SpotlightKit.GoldBrush,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            Grid.SetColumn(chev, 1);
-            ddGrid.Children.Add(chev);
-
-            ddBorder.Child = ddGrid;
-            fld.Children.Add(ddBorder);
+                Margin = new Thickness(0, 0, 0, 6)
+            });
+            box.Width = double.NaN;
+            box.HorizontalAlignment = HorizontalAlignment.Stretch;
+            fld.Children.Add(box);
             dropStack.Children.Add(fld);
         }
         Canvas.SetLeft(dropStack, 302);
@@ -146,7 +72,7 @@ public sealed partial class FeedbackPage
 
         var privacyText = new TextBlock
         {
-            Text = "Feedback is transmitted securely to the development team. No hardware identifiers or telemetry logs are included unless explicitly attached.",
+            Text = "What's sent: your message, what it's about, the controller and connection if you pick them, the X20CTL version and the Windows version. No account, files or personal details.",
             FontFamily = SpotlightKit.Body,
             FontStyle = FontStyles.Italic,
             FontSize = 14,
@@ -162,7 +88,23 @@ public sealed partial class FeedbackPage
         var spot = SpotlightKit.FollowSpot(1250, 760, 260, -60, 0.16, pool: false);
         board.Children.Add(spot);
 
-        // Script paper at (980, 220, w = 540, h = 420, angle = 1.2)
+        // Script paper holds the real message box
+        var ink = SpotlightKit.B("#2a1a12");
+        Message.Background = Brushes.Transparent;
+        Message.BorderThickness = new Thickness(0);
+        Message.Foreground = ink;
+        Message.CaretBrush = ink;
+        Message.FontFamily = SpotlightKit.Body;
+        Message.FontStyle = FontStyles.Italic;
+        Message.FontSize = 24;
+        Message.Height = 290;
+        Message.MaxHeight = 290;
+        Message.Margin = new Thickness(0, 16, 0, 0);
+        counter.Foreground = SpotlightKit.B(SpotlightKit.A(SpotlightKit.C("#2a1a12"), 0.7));
+        counter.FontFamily = SpotlightKit.Body;
+        counter.FontSize = 14;
+        counter.HorizontalAlignment = HorizontalAlignment.Right;
+
         var paperInner = new StackPanel();
         paperInner.Children.Add(new TextBlock
         {
@@ -170,27 +112,10 @@ public sealed partial class FeedbackPage
             FontFamily = SpotlightKit.Display,
             FontSize = 12,
             FontWeight = FontWeights.Light,
-            Foreground = SpotlightKit.B("#2a1a12")
+            Foreground = ink
         });
-        paperInner.Children.Add(new TextBlock
-        {
-            Text = "Stick deadzone feels slightly loose on initial travel after firmware update.",
-            FontFamily = SpotlightKit.Body,
-            FontStyle = FontStyles.Italic,
-            FontSize = 28,
-            Foreground = SpotlightKit.B("#2a1a12"),
-            Margin = new Thickness(0, 20, 0, 0),
-            TextWrapping = TextWrapping.Wrap
-        });
-        paperInner.Children.Add(new TextBlock
-        {
-            Text = "73 / 1000 characters",
-            FontFamily = SpotlightKit.Body,
-            FontSize = 14,
-            Foreground = SpotlightKit.B(SpotlightKit.A(SpotlightKit.C("#2a1a12"), 0.7)),
-            TextAlignment = TextAlignment.Right,
-            Margin = new Thickness(0, 16, 0, 0)
-        });
+        paperInner.Children.Add(Message);
+        paperInner.Children.Add(counter);
 
         var scriptPaper = SpotlightParts.ScriptPaper(paperInner, 540, 420, 1.2);
         Canvas.SetLeft(scriptPaper, 980);
@@ -199,7 +124,8 @@ public sealed partial class FeedbackPage
 
         // Action buttons at (990, 680)
         var actionsRow = new StackPanel { Orientation = Orientation.Horizontal };
-        var sendBtn = SpotlightKit.TheatricalButton("Send feedback", true, "A", height: 44, fontSize: 13);
+        var sendBtn = SpotlightKit.TheatricalButton("Send feedback", true, "A", onClick: () => _ = Submit(), height: 44, fontSize: 13);
+        sendBtn.SetBinding(UIElement.IsEnabledProperty, new System.Windows.Data.Binding("IsEnabled") { Source = SendButton });
         actionsRow.Children.Add(sendBtn);
 
         var cancelBtn = SpotlightKit.TheatricalButton("Cancel", false, "B", onClick: () => back.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent)), height: 44, fontSize: 13);
@@ -209,6 +135,12 @@ public sealed partial class FeedbackPage
         Canvas.SetLeft(actionsRow, 990);
         Canvas.SetTop(actionsRow, 680);
         board.Children.Add(actionsRow);
+
+        status.Width = 540;
+        status.FontFamily = SpotlightKit.Body;
+        Canvas.SetLeft(status, 990);
+        Canvas.SetTop(status, 740);
+        board.Children.Add(status);
 
         var frame = SpotlightToolFrame.WrapWithProgramme(
             currentKey: "tools",

@@ -86,7 +86,7 @@ public partial class StudioScene
         }));
 
         var tagRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
-        tagRow.Children.Add(PulseParts.Chip($"Connected · {currentTransport ?? "2.4 GHz"}", "ok"));
+        tagRow.Children.Add(PulseParts.Chip(currentTransport is { } linkName ? $"Connected · {linkName}" : "Not detected", currentTransport is null ? "off" : "ok"));
         idStack.Children.Add(tagRow);
 
         Canvas.SetLeft(idStack, cx - 250);
@@ -101,7 +101,7 @@ public partial class StudioScene
         // Row 1: Connection Protocol
         rightRows.Children.Add(PulseParts.GlassRow(
             new StackPanel { VerticalAlignment = VerticalAlignment.Center, Children = { PulseParts.Disp("Connection protocol", 15, Colors.White, FontWeights.SemiBold), PulseParts.Body("Active gameplay transport pipeline", 12.5, PulseInk.C("#7f8aa0")) } },
-            PulseParts.Chip(currentTransport ?? "2.4 GHz receiver", "ok"),
+            PulseParts.Chip(currentTransport ?? "Not detected", currentTransport is null ? "off" : "ok"),
             active: true,
             compact: true));
 
@@ -114,14 +114,14 @@ public partial class StudioScene
 
         // Row 3: Sensor Hardware
         rightRows.Children.Add(PulseParts.GlassRow(
-            new StackPanel { VerticalAlignment = VerticalAlignment.Center, Children = { PulseParts.Disp("Stick sensors", 15, Colors.White, FontWeights.SemiBold), PulseParts.Body("Electromagnetic contactless Hall Effect sensors", 12.5, PulseInk.C("#7f8aa0")) } },
-            PulseParts.Chip("Hall Effect · Anti-drift", "on"),
+            new StackPanel { VerticalAlignment = VerticalAlignment.Center, Children = { PulseParts.Disp("Stick sensors", 15, Colors.White, FontWeights.SemiBold), PulseParts.Body("Reported by the device", 12.5, PulseInk.C("#7f8aa0")) } },
+            PulseParts.Mono("Not reported", 13.5, PulseParts.CyanBright, FontWeights.Bold),
             active: false,
             compact: true).Also(r => r.Margin = new(0, 8, 0, 0)));
 
         // Row 4: Battery & Power
         rightRows.Children.Add(PulseParts.GlassRow(
-            new StackPanel { VerticalAlignment = VerticalAlignment.Center, Children = { PulseParts.Disp("Battery & charge status", 15, Colors.White, FontWeights.SemiBold), PulseParts.Body("Lithium-ion cell power telemetry", 12.5, PulseInk.C("#7f8aa0")) } },
+            new StackPanel { VerticalAlignment = VerticalAlignment.Center, Children = { PulseParts.Disp("Battery & charge status", 15, Colors.White, FontWeights.SemiBold), PulseParts.Body("Reported by the device", 12.5, PulseInk.C("#7f8aa0")) } },
             PulseParts.Mono(currentBatteryLevel is { Length: > 0 } bl ? bl : "Not reported", 14, Colors.White, FontWeights.SemiBold),
             active: false,
             compact: true).Also(r => r.Margin = new(0, 8, 0, 0)));
@@ -129,7 +129,7 @@ public partial class StudioScene
         // Row 5: Native Engine Core
         rightRows.Children.Add(PulseParts.GlassRow(
             new StackPanel { VerticalAlignment = VerticalAlignment.Center, Children = { PulseParts.Disp("Native engine core", 15, Colors.White, FontWeights.SemiBold), PulseParts.Body(NativeEngineStatus, 12.5, PulseInk.C("#7f8aa0")) } },
-            PulseParts.Chip("C++ Driver Core", "ok"),
+            PulseParts.Chip(NativeEngineStatus.Contains("running") ? "Running" : "Not connected", NativeEngineStatus.Contains("running") ? "ok" : "off"),
             active: false,
             compact: true).Also(r => r.Margin = new(0, 8, 0, 0)));
 
@@ -156,7 +156,7 @@ public partial class StudioScene
         host.Children.Add(pearlCard);
 
         // 5. Bottom Note (x=940, y=852)
-        var noteBlock = PulseParts.Body("Hardware features detected over native USB protocol", 13, PulseInk.C("#7f8aa0"));
+        var noteBlock = PulseParts.Body(NativeEngineStatus, 13, PulseInk.C("#7f8aa0"));
         Canvas.SetLeft(noteBlock, 940);
         Canvas.SetTop(noteBlock, 852);
         host.Children.Add(noteBlock);
