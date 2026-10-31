@@ -126,7 +126,7 @@ public sealed partial class ProductSettings
             BorderThickness = new Thickness(1),
             Child = new TextBlock
             {
-                Text = "[SYSTEM DIAGNOSTICS // VERIFIED]",
+                Text = "DIAGNOSTICS",
                 FontFamily = DuskKit.Display,
                 FontSize = 10,
                 FontWeight = FontWeights.Bold,
@@ -140,7 +140,7 @@ public sealed partial class ProductSettings
         var fText = new StackPanel { Orientation = Orientation.Vertical, Width = 260 };
         fText.Children.Add(new TextBlock
         {
-            Text = "Calibrate & Verify Hardware",
+            Text = "Sticks & Triggers",
             FontFamily = DuskKit.Display,
             FontSize = 26,
             FontWeight = FontWeights.Bold,
@@ -149,7 +149,7 @@ public sealed partial class ProductSettings
         });
         fText.Children.Add(new TextBlock
         {
-            Text = "Run stick centering, trigger ranges, and deadzone recalibration wizard.",
+            Text = "Live readings in Diagnostics.",
             FontFamily = DuskKit.Body,
             FontSize = 14,
             Foreground = DuskKit.LightBrush,
@@ -167,7 +167,7 @@ public sealed partial class ProductSettings
             CornerRadius = new CornerRadius(14),
             Background = DuskKit.WhiteBrush,
             Margin = new Thickness(0, 0, 8, 0),
-            Child = new TextBlock { Text = "Hall Sticks", FontFamily = DuskKit.Display, FontSize = 13, FontWeight = FontWeights.Bold, Foreground = DuskKit.SlateBgBrush }
+            Child = new TextBlock { Text = "Sticks", FontFamily = DuskKit.Display, FontSize = 13, FontWeight = FontWeights.Bold, Foreground = DuskKit.SlateBgBrush }
         };
         var chip2 = new Border
         {
@@ -193,9 +193,7 @@ public sealed partial class ProductSettings
             ("\uE790", "Themes", "Console looks & intros", () => ShowThemes(true)),
             ("\uE977", "PC Mode", "Routing & drivers", () => ShowPcMode(true)),
             ("\uE946", "About", "Version & licenses", () => ShowAbout(true)),
-            ("\uE939", "Feedback", "Bug reports & logs", () => ShowFeedback(true)),
-            ("\uE72C", "Check Updates", "Latest firmware & app", () => { }),
-            ("\uE712", "Hardware Tools", "Raw HID protocol suite", () => { })
+            ("\uE939", "Feedback", "Bug reports & logs", () => ShowFeedback(true))
         };
 
         for (int i = 0; i < toolTiles.Length; i++)

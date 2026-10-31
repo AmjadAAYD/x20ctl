@@ -117,8 +117,10 @@ public partial class StudioScene
             {
                 Text = val.Text,
                 FontFamily = DuskKit.Display,
-                FontSize = 17,
+                FontSize = 14,
                 FontWeight = FontWeights.Bold,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                MaxWidth = 190,
                 Foreground = DuskKit.B(col)
             });
             ((TextBlock)colStack.Children[1]).SetBinding(TextBlock.TextProperty, new Binding("Text") { Source = val });

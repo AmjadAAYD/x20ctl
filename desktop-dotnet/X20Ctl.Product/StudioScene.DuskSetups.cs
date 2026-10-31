@@ -247,7 +247,7 @@ public partial class StudioScene
         });
         fMeta.Children.Add(new TextBlock
         {
-            Text = "Synchronized to Controller Memory",
+            Text = "Saved on this PC",
             FontFamily = DuskKit.Display,
             FontSize = 17,
             FontWeight = FontWeights.Bold,

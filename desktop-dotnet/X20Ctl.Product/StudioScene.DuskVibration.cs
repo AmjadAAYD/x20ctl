@@ -230,7 +230,7 @@ public partial class StudioScene
         rightStack.Children.Add(detailCard);
 
         // Action button to test rumble
-        var testRumbleBtn = DuskKit.GreenActionButton("Test on controller · unavailable", 360, 48, () => { });
+        var testRumbleBtn = DuskKit.GreenActionButton("Test unavailable", 360, 48, () => { });
         testRumbleBtn.IsEnabled = false; testRumbleBtn.Margin = new Thickness(0, 12, 0, 0);
         rightStack.Children.Add(testRumbleBtn);
 

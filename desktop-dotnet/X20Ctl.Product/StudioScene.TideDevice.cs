@@ -45,7 +45,7 @@ public sealed partial class StudioScene
         frame.SetLeftList(listHost, 176);
 
         // Right side: Visual (Floating Character pad) + Detail Card
-        var padVisual = TideKit.CharacterArt("x15-starfield", 420, -8);
+        var padVisual = TideKit.ControllerArt(Model.Id, 420);
 
         var detailCard = TideKit.DetailCard(
             title: "Connection",
