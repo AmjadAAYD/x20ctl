@@ -103,6 +103,7 @@
  "Send online": "Online senden",
  "Controller Zone": "Controller-Zone",
  "Back to control": "Zurück zur Steuerung",
+ "Starts the next time X20CTL opens.": "Gilt ab dem nächsten Start von X20CTL.",
  "Esc skips it.": "Esc überspringt es.",
  "Esc skips it, M mutes it.": "Esc überspringt, M schaltet stumm.",
  "Plays without sound.": "Wird ohne Ton abgespielt.",

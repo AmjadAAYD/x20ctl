@@ -103,6 +103,7 @@
  "Send online": "在线发送",
  "Controller Zone": "手柄区",
  "Back to control": "返回控制",
+ "Starts the next time X20CTL opens.": "下次打开 X20CTL 时生效。",
  "Esc skips it.": "按 Esc 跳过。",
  "Esc skips it, M mutes it.": "按 Esc 跳过，按 M 静音。",
  "Plays without sound.": "无声播放。",

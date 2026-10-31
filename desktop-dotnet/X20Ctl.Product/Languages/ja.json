@@ -103,6 +103,7 @@
  "Send online": "オンラインで送信",
  "Controller Zone": "コントローラーゾーン",
  "Back to control": "操作に戻る",
+ "Starts the next time X20CTL opens.": "次回 X20CTL を開いたときに反映されます。",
  "Esc skips it.": "Esc でスキップ。",
  "Esc skips it, M mutes it.": "Esc でスキップ、M でミュート。",
  "Plays without sound.": "音なしで再生します。",
