@@ -43,7 +43,7 @@ public partial class ZoneScene : UserControl
         Surface.SizeChanged += (_, _) => Surface.Clip = new RectangleGeometry(new Rect(0, 0, Surface.ActualWidth, Surface.ActualHeight), OuterFrame.CornerRadius.TopLeft, OuterFrame.CornerRadius.TopLeft);
         if (ReducedMotion) MotionHint.Text = "F8 Demo assignments · Reduced motion";
         LoadScenario(ZoneScenario.Empty);
-        if (ThemeCatalog.Current.Id == "rebel") BuildRebel(); else if (ThemeCatalog.Current.Id == "pulse") BuildPulse(); else if (ThemeCatalog.Current.Id == "spotlight") BuildSpotlight(); else if (ThemeCatalog.Current.Id == "nexus") BuildNexus(); else if (ThemeCatalog.Current.Id == "tide") BuildTide(); else if (ThemeCatalog.Current.Id == "hybrid") BuildHybrid(); else if (ThemeCatalog.Current.Id == "dusk") BuildDusk(); else if (ThemeCatalog.Current.Id == "volt") BuildVolt(); else if (ThemeCatalog.Current.Id == "blossom") BuildBlossom();
+        if (ThemeCatalog.Current.Id == "rebel") BuildRebel(); else if (ThemeCatalog.Current.Id == "pulse") BuildPulse(); else if (ThemeCatalog.Current.Id == "spotlight") BuildSpotlight(); else if (ThemeCatalog.Current.Id == "nexus") BuildNexus(); else if (ThemeCatalog.Current.Id == "tide") BuildTide(); else if (ThemeCatalog.Current.Id == "dusk") BuildDusk(); else if (ThemeCatalog.Current.Id == "volt") BuildVolt(); else if (ThemeCatalog.Current.Id == "blossom") BuildBlossom();
     }
     public void LoadScenario(ZoneScenario value)
     {
@@ -61,26 +61,26 @@ public partial class ZoneScene : UserControl
         ProvenanceText.Text = value == ZoneScenario.Empty ? "LIVE INPUT" : "DEMO";
         ScenarioHint.Text = value switch { ZoneScenario.OneController => "One mock assignment · F9 changes fixture", ZoneScenario.MultipleControllers => "Three mock assignments · F9 changes fixture", _ => "Waiting for controller input" };
         FeedbackText.Text = "Select any player. All four docks begin equal.";
-        if (IsRebel) { foreach (var d in docks) HookRebelDock(d); RebelSync(); } else if (IsPulse) { foreach (var d in docks) HookPulseDock(d); PulseSync(); } else if (IsSpotlight) { SpotlightSync(); } else if (IsNexus) { NexusSync(); } else if (IsTide) { TideSync(); } else if (IsHybrid) { foreach (var d in docks) HookHybridDock(d); HybridSync(); } else if (IsDusk) { DuskSync(); } else if (IsVolt) { VoltSync(); } else if (IsBlossom) { BlossomSync(); } else SnapLayout();
+        if (IsRebel) { foreach (var d in docks) HookRebelDock(d); RebelSync(); } else if (IsPulse) { foreach (var d in docks) HookPulseDock(d); PulseSync(); } else if (IsSpotlight) { SpotlightSync(); } else if (IsNexus) { NexusSync(); } else if (IsTide) { TideSync(); } else if (IsDusk) { DuskSync(); } else if (IsVolt) { VoltSync(); } else if (IsBlossom) { BlossomSync(); } else SnapLayout();
     }
     public void RestoreAssignments(IReadOnlyList<string?> ids, ControllerCatalog catalog)
     {
         State.Restore(ids, catalog);
         for (int i = 0; i < 4; i++) docks[i].RefreshPlayer(State.Players[i]);
-        SnapLayout(); RebelSync(); PulseSync(); SpotlightSync(); NexusSync(); TideSync(); HybridSync(); DuskSync(); VoltSync(); BlossomSync();
+        SnapLayout(); RebelSync(); PulseSync(); SpotlightSync(); NexusSync(); TideSync(); DuskSync(); VoltSync(); BlossomSync();
         ScenarioHint.Text = "Saved models · connection checked separately";
     }
     public void AssignController(int index, ControllerModel model)
     {
         State.Assign(index, model);
         docks[index].RefreshPlayer(State.Players[index]);
-        SnapLayout(); RebelSync(); PulseSync(); SpotlightSync(); NexusSync(); TideSync(); HybridSync(); DuskSync(); VoltSync(); BlossomSync();
+        SnapLayout(); RebelSync(); PulseSync(); SpotlightSync(); NexusSync(); TideSync(); DuskSync(); VoltSync(); BlossomSync();
         FeedbackText.Text = $"{model.Name} assigned to Player {index + 1}. Hardware connection is separate.";
         ScenarioHint.Text = "Assigned models · connection checked separately";
     }
     public void RemoveController(int index)
     {
-        transition?.Cancel();State.Clear(index);docks[index].RefreshPlayer(State.Players[index]);SnapLayout();UpdateOverviewPill();RebelSync();PulseSync();SpotlightSync(); NexusSync(); TideSync(); HybridSync(); DuskSync();
+        transition?.Cancel();State.Clear(index);docks[index].RefreshPlayer(State.Players[index]);SnapLayout();UpdateOverviewPill();RebelSync();PulseSync();SpotlightSync(); NexusSync(); TideSync(); DuskSync();
         FeedbackText.Text=$"Player {index+1} controller removed. Saved setups retained.";
         ControllerRemoved?.Invoke(index);
     }
@@ -144,7 +144,7 @@ public partial class ZoneScene : UserControl
     public async Task FocusPlayerAsync(int? index)
     {
         if (index == State.FocusedPlayer) return;
-        if (IsRebel) { await RebelFocus(index); return; } if (IsPulse) { await PulseFocus(index); return; } if (IsSpotlight) { await SpotlightFocus(index); return; } if (IsNexus) { await NexusFocus(index); return; } if (IsTide) { await TideFocus(index); return; } if (IsHybrid) { await HybridFocus(index); return; } if (IsDusk) { await DuskFocus(index); return; } if (IsVolt) { await VoltFocus(index); return; } if (IsBlossom) { await BlossomFocus(index); return; }
+        if (IsRebel) { await RebelFocus(index); return; } if (IsPulse) { await PulseFocus(index); return; } if (IsSpotlight) { await SpotlightFocus(index); return; } if (IsNexus) { await NexusFocus(index); return; } if (IsTide) { await TideFocus(index); return; } if (IsDusk) { await DuskFocus(index); return; } if (IsVolt) { await VoltFocus(index); return; } if (IsBlossom) { await BlossomFocus(index); return; }
         transition?.Cancel();
         // Freeze the displayed rectangles before retracting for a new selection.
         CompositionTarget.Rendering -= MoveFrame; moveClock.Stop();
@@ -224,16 +224,6 @@ public partial class ZoneScene : UserControl
     private InputFrame Frame(Buttons buttons) => new(0, true, "simulation:zone-keys", clock.Elapsed.TotalMilliseconds, buttons);
     public async void OnKeyDown(object sender, KeyEventArgs e)
     {
-        if (IsHybrid && State.FocusedPlayer is int hybridPlayer && docks[hybridPlayer].HybridActionFocused && Keyboard.FocusedElement is Button hybridAction)
-        {
-            if (e.Key is Key.Enter or Key.A) { if (!e.IsRepeat) hybridAction.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); e.Handled = true; return; }
-            if (e.Key is Key.Up or Key.Down) { hybridAction.MoveFocus(new(e.Key == Key.Up ? FocusNavigationDirection.Up : FocusNavigationDirection.Down)); e.Handled = true; return; }
-        }
-        if (IsHybrid && !State.FocusedPlayer.HasValue && ReferenceEquals(Keyboard.FocusedElement, hybridAdd))
-        {
-            if (e.Key == Key.Left) { FocusDock(3); e.Handled = true; return; }
-            if (e.Key is Key.Enter or Key.A) { if (!e.IsRepeat) hybridAdd!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); e.Handled = true; return; }
-        }
         if(Keyboard.FocusedElement is System.Windows.Controls.Button shell && (ReferenceEquals(shell,SupportButton)||ReferenceEquals(shell,ToolsButton)))
         {
             if(e.Key==Key.Enter || e.Key==Key.A){if(!e.IsRepeat)shell.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));e.Handled=true;return;}
@@ -308,9 +298,9 @@ public partial class ZoneScene : UserControl
                 NavigationAction.Down when position >= 0 => others[Math.Min(2, position + 1)],
                 _ => selected };
         }
-        else if (IsRebel || IsPulse || IsSpotlight || IsHybrid)
+        else if (IsRebel || IsPulse || IsSpotlight)
         {   // one row of cards, then the Add card
-            if (action == NavigationAction.Right && selected == 3 && (IsPulse ? pulseAddCard : IsHybrid ? hybridAdd : (IsSpotlight ? spotlightAddCard : addCard))!.IsVisible) { (IsPulse ? pulseAddCard : IsHybrid ? hybridAdd : (IsSpotlight ? spotlightAddCard : addCard))!.Focus(); return; }
+            if (action == NavigationAction.Right && selected == 3 && (IsPulse ? pulseAddCard : (IsSpotlight ? spotlightAddCard : addCard))!.IsVisible) { (IsPulse ? pulseAddCard : (IsSpotlight ? spotlightAddCard : addCard))!.Focus(); return; }
             selected = action switch { NavigationAction.Left => Math.Max(0, selected - 1), NavigationAction.Right => Math.Min(3, selected + 1), _ => selected };
         }
         else selected = action switch {

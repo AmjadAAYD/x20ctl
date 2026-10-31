@@ -328,7 +328,6 @@ public sealed partial class AgentPanel
             RenderTransform = new TransformGroup { Children = { pop, offset } }, RenderTransformOrigin = new(1, 1),
         };
         if (ThemeCatalog.Current.Id == "rebel") BuildRebelAgent();
-        else if (ThemeCatalog.Current.Id == "hybrid") BuildHybridAgent();
         blink.Tick += (_, _) => Blink();
         if (ThemeCatalog.Current.Id == "pulse") BuildPulseAgent();
         if (ThemeCatalog.Current.Id == "spotlight") BuildSpotlightAgent();
@@ -979,7 +978,6 @@ public sealed partial class AgentPanel
             Child = Wrap(text, 14, "DS.Text"),
         };
         if (ThemeCatalog.Current.Id == "rebel") bubble = RebelBubble(text, mine);
-        else if (ThemeCatalog.Current.Id == "hybrid") bubble = HybridBubble(text, mine);
         else if (ThemeCatalog.Current.Id == "pulse") bubble = PulseBubble(text, mine);
         transcript.Children.Add(bubble); Fx.Appear(bubble, .97, 200); scroller.ScrollToEnd(); return bubble;
     }

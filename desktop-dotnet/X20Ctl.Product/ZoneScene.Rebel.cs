@@ -135,7 +135,7 @@ public partial class ZoneScene
         for (int i = 0; i < 4; i++) b[i] = hero == i ? new(0, 0, DockStage.ActualWidth, DockStage.ActualHeight) : new(i * (CardW + CardGap), 0, CardW, CardH);
         return b;
     }
-    private DockBounds[] Bounds() => IsRebel ? RebelBounds() : IsHybrid ? HybridBounds() : IsDusk ? DuskBounds() : ZoneLayout.Calculate(DockStage.ActualWidth, DockStage.ActualHeight, State.FocusedPlayer);
+    private DockBounds[] Bounds() => IsRebel ? RebelBounds() : IsDusk ? DuskBounds() : ZoneLayout.Calculate(DockStage.ActualWidth, DockStage.ActualHeight, State.FocusedPlayer);
     /// <summary>Hard and fast, as the theme asks: the Zone snaps between overview and hero.</summary>
     private Task RebelFocus(int? index)
     {

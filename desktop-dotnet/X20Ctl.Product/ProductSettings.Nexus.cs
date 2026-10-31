@@ -383,7 +383,6 @@ public sealed partial class ProductSettings
             ("spotlight", "Spotlight"),
             ("nexus", "Nexus"),
             ("rebel", "Rebel"),
-            ("hybrid", "Hybrid"),
             ("dusk", "Dusk"),
             ("volt", "Volt"),
             ("yozakura", "Yozakura"),

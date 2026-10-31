@@ -190,7 +190,6 @@ public sealed partial class PhoneGuide : Grid
         if (stuck) body.Children.Add(HelpPanel(s.Help));
 
         if (ThemeCatalog.Current.Id == "rebel") { BuildRebelGuide(body, next, back, help, s.Screen); return; }
-        if (ThemeCatalog.Current.Id == "hybrid") { BuildHybridGuide(body, s.Screen); return; }
         var left = Kit.Panel(title, $"Step {index + 1} of {steps.Length}", null, body);
         Children.Add(new ScrollViewer { Content = left, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
         var right = Kit.Panel("Where to tap", null, null, new Viewbox { MaxHeight = 560, Stretch = Stretch.Uniform, Child = Phone.Draw(s.Screen) });
@@ -208,11 +207,6 @@ public sealed partial class PhoneGuide : Grid
             {
                 var card = new Rebel.SlabButton((done ? "✓  " : $"{i + 1}  ") + steps[i].Title, Math.Clamp(steps[i].Title.Length * 8 + 50, 110, 230), 36, 800 + i, i % 2 == 0 ? -1 : 1, 13, Rebel.Ink.White, current) { Margin = new(0, 0, 8, 8) };
                 card.Click += (_, _) => Go(n); row.Children.Add(card); continue;
-            }
-            if (ThemeCatalog.Current.Id == "hybrid")
-            {
-                var card = Hybrid.HybridToolFrame.Button((done ? "✓  " : $"{i + 1}  ") + steps[i].Title, "hybrid:phone:step:" + i, Math.Clamp(steps[i].Title.Length * 8 + 50, 110, 220), 36, current);
-                card.Margin = new(0, 0, 8, 8); card.Click += (_, _) => Go(n); row.Children.Add(card); continue;
             }
             var c = current ? Kit.Blue : done ? ThemeCatalog.R(Color.FromRgb(150, 175, 215)) : ThemeCatalog.R(Color.FromRgb(90, 104, 130));
             var chip = new Button

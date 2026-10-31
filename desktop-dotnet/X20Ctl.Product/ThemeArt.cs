@@ -6,7 +6,7 @@ using System.Windows.Media.Imaging;
 
 namespace X20Ctl.Product;
 
-/// <summary>The upright controller art the Blossom, Dusk and Hybrid themes draw: loose files in a dev checkout, the embedded copy everywhere else.</summary>
+/// <summary>The upright controller art the Blossom and Dusk themes draw: loose files in a dev checkout, the embedded copy everywhere else.</summary>
 internal static class ThemeArt
 {
     /// <summary>Art file name (without .png) for a model id such as x20, x20_pro, x05_pro, d10, x15 or dune.</summary>

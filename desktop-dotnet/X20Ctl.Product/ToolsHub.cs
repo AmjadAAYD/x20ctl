@@ -185,13 +185,11 @@ public sealed partial class ProductSettings : Grid
         about.Children.Add(BuildAbout());
 
         if (ThemeCatalog.Current.Id == "rebel") BuildRebel();
-        if (ThemeCatalog.Current.Id == "hybrid") BuildHybridSettings();
         if (DS.Motion) Loaded += (_, _) => Enter(hub);
         if (ThemeCatalog.Current.Id == "pulse") BuildPulse();
         if (ThemeCatalog.Current.Id == "spotlight") BuildSpotlight();
         if (ThemeCatalog.Current.Id == "nexus") BuildNexus();
         if (ThemeCatalog.Current.Id == "tide") BuildTide();
-        if (ThemeCatalog.Current.Id == "hybrid") BuildHybridSettings();
         if (ThemeCatalog.Current.Id == "dusk") BuildDusk();
         if (ThemeCatalog.Current.Id == "volt") BuildVolt();
         if (ThemeCatalog.Current.Id == "blossom") BuildBlossom();
@@ -199,10 +197,10 @@ public sealed partial class ProductSettings : Grid
 
     public void ShowAbout(bool on)
     {
-        hub.Visibility = on ? Visibility.Collapsed : Visibility.Visible; about.Visibility = on ? Visibility.Visible : Visibility.Collapsed; footer.Visibility = hub.Visibility; RebelSync(); HybridSettingsSync();
+        hub.Visibility = on ? Visibility.Collapsed : Visibility.Visible; about.Visibility = on ? Visibility.Visible : Visibility.Collapsed; footer.Visibility = hub.Visibility; RebelSync();
         if (DS.Motion) Enter(on ? about : hub);
         (on ? aboutBack : About).Focus();
-        PulseSync(); SpotlightSync(); NexusSync(); TideSync(); HybridSettingsSync(); DuskSync(); VoltSync(); BlossomSync();
+        PulseSync(); SpotlightSync(); NexusSync(); TideSync(); DuskSync(); VoltSync(); BlossomSync();
     }
     /// <summary>B / Esc: from About back to the hub, from the hub back to the Zone.</summary>
     private FeedbackPage BuildFeedback()
@@ -229,27 +227,27 @@ public sealed partial class ProductSettings : Grid
     public void ShowFeedback(bool on)
     {
         if (on) _ = FeedbackForm;
-        hub.Visibility = on ? Visibility.Collapsed : Visibility.Visible; feedback.Visibility = on ? Visibility.Visible : Visibility.Collapsed; footer.Visibility = hub.Visibility; RebelSync(); HybridSettingsSync();
+        hub.Visibility = on ? Visibility.Collapsed : Visibility.Visible; feedback.Visibility = on ? Visibility.Visible : Visibility.Collapsed; footer.Visibility = hub.Visibility; RebelSync();
         if (DS.Motion) Enter(on ? feedback : hub);
         if (on) FeedbackForm.Message.Focus(); else Feedback.Focus();
-        PulseSync(); SpotlightSync(); NexusSync(); TideSync(); HybridSettingsSync(); DuskSync(); VoltSync(); BlossomSync();
+        PulseSync(); SpotlightSync(); NexusSync(); TideSync(); DuskSync(); VoltSync(); BlossomSync();
     }
     public void ShowPcMode(bool on)
     {
         if (on && pcMode.Children.Count == 0 && buildPcMode != null)
             pcMode.Children.Add(new ScrollViewer { Content = buildPcMode(), VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled });
-        hub.Visibility = on ? Visibility.Collapsed : Visibility.Visible; pcMode.Visibility = on ? Visibility.Visible : Visibility.Collapsed; footer.Visibility = hub.Visibility; RebelSync(); HybridSettingsSync();
+        hub.Visibility = on ? Visibility.Collapsed : Visibility.Visible; pcMode.Visibility = on ? Visibility.Visible : Visibility.Collapsed; footer.Visibility = hub.Visibility; RebelSync();
         if (DS.Motion) Enter(on ? pcMode : hub);
         if (!on) PcMode.Focus();
-        PulseSync(); SpotlightSync(); NexusSync(); TideSync(); HybridSettingsSync(); DuskSync(); VoltSync(); BlossomSync();
+        PulseSync(); SpotlightSync(); NexusSync(); TideSync(); DuskSync(); VoltSync(); BlossomSync();
     }
     public void ShowThemes(bool on)
     {
         if (on && themes.Children.Count == 0) themes.Children.Add(BuildThemes());
-        hub.Visibility = on ? Visibility.Collapsed : Visibility.Visible; themes.Visibility = on ? Visibility.Visible : Visibility.Collapsed; footer.Visibility = hub.Visibility; RebelSync(); HybridSettingsSync();
+        hub.Visibility = on ? Visibility.Collapsed : Visibility.Visible; themes.Visibility = on ? Visibility.Visible : Visibility.Collapsed; footer.Visibility = hub.Visibility; RebelSync();
         if (DS.Motion) Enter(on ? themes : hub);
         if (on) themeCards.FirstOrDefault(c => c.Tag as string == ChosenTheme)?.Focus(); else Themes.Focus();
-        PulseSync(); SpotlightSync(); NexusSync(); TideSync(); HybridSettingsSync(); DuskSync(); VoltSync(); BlossomSync();
+        PulseSync(); SpotlightSync(); NexusSync(); TideSync(); DuskSync(); VoltSync(); BlossomSync();
     }
 
     public bool StepBack()
@@ -259,7 +257,7 @@ public sealed partial class ProductSettings : Grid
         if (ShowingFeedback) { ShowFeedback(false); return true; }
         if (!ShowingAbout) return false; ShowAbout(false); return true;
     }
-    public void FocusFirst() { if (rebelRoot != null && rebelRoot.IsVisible) RebelFocus("t:pcmode"); else if (hybridSettingsRoot != null && hybridSettingsRoot.IsVisible) HybridSettingsFocus("hybrid:tools:check"); else (pulseRoot != null && pulseRoot.IsVisible && pulseTiles.Count > 0 ? pulseTiles[0] : Check).Focus(); }
+    public void FocusFirst() { if (rebelRoot != null && rebelRoot.IsVisible) RebelFocus("t:pcmode"); else (pulseRoot != null && pulseRoot.IsVisible && pulseTiles.Count > 0 ? pulseTiles[0] : Check).Focus(); }
 
     private void SetAuto(bool on)
     {

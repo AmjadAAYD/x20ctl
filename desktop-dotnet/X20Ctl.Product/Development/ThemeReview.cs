@@ -304,15 +304,6 @@ internal static class ThemeReview
                 await Shot("14-notice-drivers");
                 host.DismissTideNotice();
             }
-            if (id == "hybrid")
-            {
-                host.ShowHybridNotice("Restart X20CTL?", "Unsaved controller drafts will be lost.", Array.Empty<string>(), "Save your work before restarting.", "Restart", _ => { });
-                await Shot("13-notice-restart");
-                host.ActiveHybridNotice?.Resolve(false);
-                host.ShowHybridNotice("PC mode drivers", "PC mode needs two small drivers.", new[] { "ViGEmBus provides the virtual controller.", "HidHide prevents duplicate input." }, "Install the packaged signed drivers?", "Install", _ => { });
-                await Shot("14-notice-drivers");
-                host.ActiveHybridNotice?.Resolve(false);
-            }
             if (id == "dusk")
             {
                 host.ShowDuskThemeRestartNotice("Dusk");

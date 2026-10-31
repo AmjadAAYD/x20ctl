@@ -159,7 +159,6 @@ public sealed partial class ControllerCheckView : Grid
         if (ThemeCatalog.Current.Id == "pulse") BuildPulseReadFlow(page);
         if (ThemeCatalog.Current.Id == "spotlight") BuildSpotlightReadFlow(page);
         if (ThemeCatalog.Current.Id == "rebel") BuildRebelReadFlow(page);
-        else if (ThemeCatalog.Current.Id == "hybrid") BuildHybridReadFlow(page);
 
         timer.Tick += (_, _) => TickInput();
         Loaded += (_, _) => { start.Focus(); if (DS.Motion) { Opacity = 0; BeginAnimation(OpacityProperty, DS.To(1, 240)); } };
@@ -421,7 +420,6 @@ public sealed partial class ControllerCheckView : Grid
         if (ThemeCatalog.Current.Id == "nexus") BuildNexusReadWarning(cards, systemRow, choices, linux);
         if (ThemeCatalog.Current.Id == "tide") BuildTideReadWarning(cards, systemRow, choices, linux);
         if (ThemeCatalog.Current.Id == "rebel") BuildRebelReadWarning(cards, systemRow, choices, linux);
-        else if (ThemeCatalog.Current.Id == "hybrid") BuildHybridReadWarning(cards, systemRow, choices, linux);
     }
     /// <summary>For a controller on a Linux PC: the bundled Linux Controller Check (tools/linux_controller_check), the same
     /// steps and report in a terminal, for every distro with Python 3.</summary>
@@ -539,7 +537,7 @@ public sealed partial class ControllerCheckView : Grid
                     Kit.Text(f.Confidence.ToUpperInvariant(), 11, "DS.TextMuted", FontWeights.SemiBold).Also(t => { DockPanel.SetDock(t, Dock.Right); t.VerticalAlignment = VerticalAlignment.Top; }),
                     new StackPanel { Children = { Kit.Text(f.Area, 13, "DS.TextSoft", FontWeights.SemiBold), Wrap(f.Value, 17, "DS.Text"), Wrap(f.Detail, 13, "DS.TextMuted").Also(t => t.Margin = new(0, 3, 0, 0)) } } } } });
         string status = !saved ? "The report couldn't be saved: " + outcome.Text : "Saved: " + lastSaved;
-        bool describeAsSaved = saved || ThemeCatalog.Current.Id is not ("rebel" or "hybrid");
+        bool describeAsSaved = saved || ThemeCatalog.Current.Id != "rebel";
         string sent = receipt != null ? $"Sent to X20CTLADMIN · receipt {receipt}" : failure != null ? $"Not sent to X20CTLADMIN ({failure}). " + (describeAsSaved ? "The ZIP is saved; you can share it by hand." : "The ZIP could not be saved.") : describeAsSaved ? "Kept on this PC (not sent)." : "Not saved or sent.";
         var copy = Action("", "Copy @" + ScanFlow.Discord, "ActionButton"); copy.Click += (_, _) => { try { Clipboard.SetText(ScanFlow.Discord); SetLabel(copy, "Copied"); } catch (System.Runtime.InteropServices.ExternalException) { } };
         var open = Action("", "Open reports folder", "ActionButton"); open.Click += (_, _) => OpenReports();
@@ -570,7 +568,7 @@ public sealed partial class ControllerCheckView : Grid
         DockPanel.SetDock(side, Dock.Right); body.Children.Add(side);
         body.Children.Add(new DockPanel { Children = { new StackPanel { Margin = new(0, 0, 0, 16), Children = { Kit.Text("Scan complete", 40, "DS.Text", FontWeights.Bold), Wrap("Everything X20CTL could read from this controller, and how sure each reading is.", 16, "DS.TextSoft") } }.Also(s => DockPanel.SetDock(s, Dock.Top)),
             new ScrollViewer { Content = list, VerticalScrollBarVisibility = ScrollBarVisibility.Auto } } });
-        resultsLayer.Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(248, 5, 9, 20))); resultsLayer.Child = ThemeCatalog.Current.Id == "rebel" ? RebelReadResults(body) : ThemeCatalog.Current.Id == "hybrid" ? HybridReadResults(body) : body; resultsLayer.Visibility = Visibility.Visible; Fx.Appear(resultsLayer, 1.03, 320);
+        resultsLayer.Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(248, 5, 9, 20))); resultsLayer.Child = ThemeCatalog.Current.Id == "rebel" ? RebelReadResults(body) : body; resultsLayer.Visibility = Visibility.Visible; Fx.Appear(resultsLayer, 1.03, 320);
         big.Text = "All done"; prompt.Text = describeAsSaved ? "The scan is complete. The results are on screen and the report is saved." : "The scan is complete. The results are on screen, but the report could not be saved."; scanMode = false; done.Focus();
     }
 

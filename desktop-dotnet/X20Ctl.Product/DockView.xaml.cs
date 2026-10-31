@@ -98,7 +98,7 @@ public partial class DockView : UserControl
         ColourButton = new Button { Content = "Change color", Style = (Style)FindResource("ActionButton"), Height = 38, Width = 150, Visibility = Visibility.Collapsed };
         ColourButton.Click += (_, e) => { e.Handled = true; ChangeColour(); }; ActionCanvas.Children.Add(ColourButton);
         FocusButton.TabIndex = index;
-        InitRebel(); InitHybrid(); InitPulse(); InitSpotlight(); InitNexus(); InitTide(); InitDusk(); InitVolt(); InitBlossom();
+        InitRebel(); InitPulse(); InitSpotlight(); InitNexus(); InitTide(); InitDusk(); InitVolt(); InitBlossom();
         RefreshPlayer(player);
     }
     public void RefreshPlayer(PlayerDock player)
@@ -217,7 +217,7 @@ public partial class DockView : UserControl
         System.Windows.Automation.AutomationProperties.SetName(ColourButton, $"Player {Player.Number}, Change color");
         System.Windows.Automation.AutomationProperties.SetName(Primary, $"Player {Player.Number}, {(empty ? "Choose Controller" : "Enter Studio")}");
         System.Windows.Automation.AutomationProperties.SetName(Switch, $"Player {Player.Number}, Switch Controller");
-        if (rebel) PresentRebel(hero); else if (hybrid) PresentHybrid(hero); else if (pulse) PresentPulse(hero); else if (spotlight) PresentSpotlight(hero); else if (nexus) PresentNexus(hero); else if (tide) PresentTide(hero); else if (dusk) PresentDusk(hero); else if (volt) PresentVolt(hero); else if (blossom) PresentBlossom(hero);
+        if (rebel) PresentRebel(hero); else if (pulse) PresentPulse(hero); else if (spotlight) PresentSpotlight(hero); else if (nexus) PresentNexus(hero); else if (tide) PresentTide(hero); else if (dusk) PresentDusk(hero); else if (volt) PresentVolt(hero); else if (blossom) PresentBlossom(hero);
     }
     /// <summary>The chosen controller is lit in the accent blue with a soft glow; focus adds a white edge and a small lift.</summary>
     private void UpdateCard()

@@ -86,7 +86,7 @@ public sealed partial class ProductHost : Grid
     private readonly object nativeEventLock=new();private JsonElement? latestNativeEvent;private int nativeEventScheduled;
     private HashSet<string> lastNativeButtons=new();private bool nativeArmed;private long lastNativeSequence=-1,lastNavigationUs;
     internal string ExpectedNativeContext=>NativeInputStudio?.InputContext is InputOwner.TesterCapture or InputOwner.RemapCapture?"TESTER_CAPTURE":"UI_NAVIGATION";
-    internal StudioScene? NativeInputStudio => Settings != null || Check != null || WriteScan != null || ActivePulseNotice != null || ActiveRebelNotice != null || ActiveHybridNotice != null || ActiveThemeNotice != null ? null : Studio;
+    internal StudioScene? NativeInputStudio => Settings != null || Check != null || WriteScan != null || ActivePulseNotice != null || ActiveRebelNotice != null || ActiveThemeNotice != null ? null : Studio;
     private int? studioPlayer;
     public bool IntroWasPlayed {get;private set;}
     private readonly ProductPreferences preferences;
@@ -326,7 +326,6 @@ public sealed partial class ProductHost : Grid
                 return;
             }
             if(ActiveRebelNotice is {} notice){if(!connected||Window.GetWindow(this)?.IsActive!=true){nativeArmed=false;return;}if(!nativeArmed){if(now.Count==0)nativeArmed=true;return;}if(pressed.Contains("B"))notice.Resolve(false);else if(pressed.Contains("A") && Keyboard.FocusedElement is Button action && notice.IsKeyboardFocusWithin)action.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));else foreach(var direction in new[]{("DPAD_LEFT",FocusNavigationDirection.Left),("DPAD_RIGHT",FocusNavigationDirection.Right),("DPAD_UP",FocusNavigationDirection.Up),("DPAD_DOWN",FocusNavigationDirection.Down)})if(pressed.Contains(direction.Item1) && Keyboard.FocusedElement is UIElement focused)focused.MoveFocus(new(direction.Item2));return;}
-            if(ActiveHybridNotice is {} hybridNotice){if(!connected||Window.GetWindow(this)?.IsActive!=true){nativeArmed=false;return;}if(!nativeArmed){if(now.Count==0)nativeArmed=true;return;}if(pressed.Contains("B"))hybridNotice.Resolve(false);else if(pressed.Contains("A") && Keyboard.FocusedElement is Button action && hybridNotice.IsKeyboardFocusWithin)action.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));else foreach(var direction in new[]{("DPAD_LEFT",FocusNavigationDirection.Left),("DPAD_RIGHT",FocusNavigationDirection.Right),("DPAD_UP",FocusNavigationDirection.Up),("DPAD_DOWN",FocusNavigationDirection.Down)})if(pressed.Contains(direction.Item1) && Keyboard.FocusedElement is UIElement focused)focused.MoveFocus(new(direction.Item2));return;}
             long time=value.GetProperty("timestampUs").GetInt64();
             if(NativeInputStudio?.CapturingButtonEditor==true){if(connected){foreach(var button in pressed.Where(b=>!b.StartsWith("LS_")))NativeInputStudio!.SelectPhysicalButton(button);}nativeArmed=false;return;}
             if(connected&&NativeInputStudio?.IsCurves==true){if(pressed.Contains("L3"))NativeInputStudio!.Curves.SelectChannel(X20Ctl.Zone.CurveChannel.LeftStick);else if(pressed.Contains("R3"))NativeInputStudio!.Curves.SelectChannel(X20Ctl.Zone.CurveChannel.RightStick);}
@@ -416,7 +415,6 @@ public sealed partial class ProductHost : Grid
     public void ShowSettings()
     {
         if (ThemeCatalog.Current.Id == "rebel") { ShowRebelSettings(); return; }
-        if (ThemeCatalog.Current.Id == "hybrid") { ShowHybridSettings(); return; }
         if (ThemeCatalog.Current.Id == "pulse") { ShowPulseSettings(); return; }
         if (ThemeCatalog.Current.Id == "default") ReturnToZone();
         CloseSelector(); CloseSettings(); Zone.IsEnabled = false;
@@ -433,14 +431,14 @@ public sealed partial class ProductHost : Grid
     /// <summary>"Controller not working?": the Controller Check (Scanner 2.0.0 engine) as its own full-window app over Tools.</summary>
     public Scanner.ControllerCheckView? Check {get;private set;}
     public void OpenCheck(){if(Check!=null)return;Studio?.SuspendMacroActivity();if(Studio?.ManagementPage=="Diagnostics")Studio.ShowManagement("Device"); // both use Raw Input, one registration per process
-        if(PcMode!=null)PcMode.Paused=true;Check=new(CloseCheck){ContinueToWrite=read=>{CloseCheck();if(Check==null)OpenWriteScan(read);},PulseNavigate=NavigatePulsePage};if(ThemeCatalog.Current.Id is "rebel" or "hybrid")Check.RebelNavigate=key=>{CloseCheck();if(Check==null)NavigateRebelPage(key);};Children.Add(Check);Panel.SetZIndex(Check,40);Fx.Appear(Check,1.06,360);_=UpdateNativeContext();}
+        if(PcMode!=null)PcMode.Paused=true;Check=new(CloseCheck){ContinueToWrite=read=>{CloseCheck();if(Check==null)OpenWriteScan(read);},PulseNavigate=NavigatePulsePage};if(ThemeCatalog.Current.Id == "rebel")Check.RebelNavigate=key=>{CloseCheck();if(Check==null)NavigateRebelPage(key);};Children.Add(Check);Panel.SetZIndex(Check,40);Fx.Appear(Check,1.06,360);_=UpdateNativeContext();}
     /// <summary>A scan screen that lost its place (closed, but still drawn) is removed outright, so Back can never be dead.</summary>
     private bool RemoveOrphans(){var stale=Children.OfType<FrameworkElement>().Where(c=>c is Scanner.ControllerCheckView v&&v!=Check||c is Scanner.WriteScanView w&&w!=WriteScan).ToList();foreach(var c in stale)Children.Remove(c);return stale.Count>0;}
     public void CloseCheck(){if(Check==null){RemoveOrphans();return;}if(!Check.TryClose())return;var closing=Check;Check=null;closing.Shutdown();if(PcMode!=null)PcMode.Paused=false;Fx.Leave(closing,()=>Children.Remove(closing),1.05,240);Settings?.Check.Focus();}
     /// <summary>The Write scan: reads a phone's Bluetooth log of the official app changing one setting. It never talks to the controller.</summary>
     public Scanner.WriteScanView? WriteScan {get;private set;}
     public void OpenWriteScan()=>OpenWriteScan(null);
-    public void OpenWriteScan(Scanner.ReadReport? read){if(WriteScan!=null)return;Studio?.SuspendMacroActivity();WriteScan=new(CloseWriteScan,read){PulseNavigate=NavigatePulsePage};if(ThemeCatalog.Current.Id is "rebel" or "hybrid")WriteScan.RebelNavigate=key=>{CloseWriteScan();if(WriteScan==null)NavigateRebelPage(key);};Children.Add(WriteScan);Panel.SetZIndex(WriteScan,40);Fx.Appear(WriteScan,1.06,360);_=UpdateNativeContext();}
+    public void OpenWriteScan(Scanner.ReadReport? read){if(WriteScan!=null)return;Studio?.SuspendMacroActivity();WriteScan=new(CloseWriteScan,read){PulseNavigate=NavigatePulsePage};if(ThemeCatalog.Current.Id == "rebel")WriteScan.RebelNavigate=key=>{CloseWriteScan();if(WriteScan==null)NavigateRebelPage(key);};Children.Add(WriteScan);Panel.SetZIndex(WriteScan,40);Fx.Appear(WriteScan,1.06,360);_=UpdateNativeContext();}
     public void CloseWriteScan(){if(WriteScan==null){RemoveOrphans();return;}if(!WriteScan.TryClose())return;var closing=WriteScan;WriteScan=null;closing.Shutdown();Fx.Leave(closing,()=>Children.Remove(closing),1.05,240);Settings?.WriteScan.Focus();}
     private string? updateText;private bool updateShown;
     private async Task CheckUpdatesAtLaunch(bool install)
@@ -480,7 +478,6 @@ public sealed partial class ProductHost : Grid
         if (HandleThemeNoticeKey(e)) return;
         if(ActivePulseNotice!=null){if(HandlePulseNoticeKey(e))return;}
         if(ActiveRebelNotice is {} notice){if(key is Key.Escape or Key.B)notice.Resolve(false);else if(key is Key.A or Key.Enter && !e.IsRepeat && Keyboard.FocusedElement is Button action && notice.IsKeyboardFocusWithin)action.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));else if(key is Key.Left or Key.Right or Key.Up or Key.Down && Keyboard.FocusedElement is UIElement focused)focused.MoveFocus(new(key is Key.Left ? FocusNavigationDirection.Left : key is Key.Right ? FocusNavigationDirection.Right : key is Key.Up ? FocusNavigationDirection.Up : FocusNavigationDirection.Down));if(key != Key.Tab)e.Handled=true;return;}
-        if(ActiveHybridNotice is {} hybridNotice){if(key is Key.Escape or Key.B)hybridNotice.Resolve(false);else if(key is Key.A or Key.Enter && !e.IsRepeat && Keyboard.FocusedElement is Button action && hybridNotice.IsKeyboardFocusWithin)action.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));else if(key is Key.Left or Key.Right or Key.Up or Key.Down && Keyboard.FocusedElement is UIElement focused)focused.MoveFocus(new(key is Key.Left ? FocusNavigationDirection.Left : key is Key.Right ? FocusNavigationDirection.Right : key is Key.Up ? FocusNavigationDirection.Up : FocusNavigationDirection.Down));if(key != Key.Tab)e.Handled=true;return;}
         // the identity scan popup: Esc / B backs out, A / Enter presses the focused button, nothing behind it moves
         if(verifyLayer!=null)
         {

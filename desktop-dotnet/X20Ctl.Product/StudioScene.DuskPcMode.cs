@@ -52,19 +52,19 @@ public partial class StudioScene
             Margin = new Thickness(0, 0, 0, 14)
         });
 
-        var state = new TextBlock { Foreground = DuskKit.WhiteBrush, FontFamily = DuskKit.Display, FontSize = 22, TextWrapping = TextWrapping.Wrap, Margin = new(16,10,0,14) }; state.SetBinding(TextBlock.TextProperty, new Binding("Text") { Source = source.HybridStatus }); leftStack.Children.Add(state);
+        var state = new TextBlock { Foreground = DuskKit.WhiteBrush, FontFamily = DuskKit.Display, FontSize = 22, TextWrapping = TextWrapping.Wrap, Margin = new(16,10,0,14) }; state.SetBinding(TextBlock.TextProperty, new Binding("Text") { Source = source.StatusLabel }); leftStack.Children.Add(state);
         var toggle = new CheckBox { Content = "PC mode", Foreground = DuskKit.WhiteBrush, FontFamily = DuskKit.Display, FontSize = 20, Margin = new(16,8,0,18), Tag = "theme:pc:switch" }; toggle.SetBinding(CheckBox.IsCheckedProperty, new Binding("IsChecked") { Source = source.Switch, Mode = BindingMode.TwoWay }); leftStack.Children.Add(toggle);
         leftStack.Children.Add(new TextBlock { Text = "Settings for", Foreground = DuskKit.LightBrush, Margin = new(16,0,0,8) });
         var profile = new ComboBox { DisplayMemberPath = "Label", SelectedValuePath = "Id", Width = 520, Height = 42, HorizontalAlignment = HorizontalAlignment.Left, Margin = new(16,0,0,18), Tag = "theme:pc:profile" };
-        profile.SetBinding(ItemsControl.ItemsSourceProperty, new Binding("ItemsSource") { Source = source.HybridProfiles }); profile.SetBinding(System.Windows.Controls.Primitives.Selector.SelectedValueProperty, new Binding("SelectedValue") { Source = source.HybridProfiles, Mode = BindingMode.TwoWay }); leftStack.Children.Add(profile);
+        profile.SetBinding(ItemsControl.ItemsSourceProperty, new Binding("ItemsSource") { Source = source.ProfileList }); profile.SetBinding(System.Windows.Controls.Primitives.Selector.SelectedValueProperty, new Binding("SelectedValue") { Source = source.ProfileList, Mode = BindingMode.TwoWay }); leftStack.Children.Add(profile);
         foreach (string page in new[] { "Buttons", "Curves", "Macros" }) leftStack.Children.Add(DuskMacroAction("Edit " + page, "pc:edit:" + page, () => DuskSelectPage(page)));
         var more = DuskMacroAction("More PC settings", "pc:more", () => { }); leftStack.Children.Add(more);
         var details = new ScrollViewer { Width = 590, Height = 520, Content = source, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, Visibility = Visibility.Collapsed, Tag = "theme:pc:details" }; Canvas.SetLeft(details,0); Canvas.SetTop(details,0); contentCanvas.Children.Add(details);
         var overview = DuskMacroAction("Back to PC overview", "pc:overview", () => { }); overview.Visibility = Visibility.Collapsed; Canvas.SetLeft(overview,0); Canvas.SetTop(overview,535); contentCanvas.Children.Add(overview);
         void ShowDetails(bool show) { leftStack.Visibility = show ? Visibility.Collapsed : Visibility.Visible; details.Visibility = show ? Visibility.Visible : Visibility.Collapsed; overview.Visibility = show ? Visibility.Visible : Visibility.Collapsed; }
         more.Click += (_, _) => ShowDetails(true); overview.Click += (_, _) => { if (!source.NoticeShown) ShowDetails(false); };
-        source.Watch(() => { overview.IsEnabled = !source.NoticeShown; if (source.NoticeShown) { ShowDetails(true); Dispatcher.BeginInvoke(source.HybridRevealNotice, System.Windows.Threading.DispatcherPriority.Loaded); } });
-        if (source.NoticeShown) { ShowDetails(true); Dispatcher.BeginInvoke(source.HybridRevealNotice, System.Windows.Threading.DispatcherPriority.Loaded); }
+        source.Watch(() => { overview.IsEnabled = !source.NoticeShown; if (source.NoticeShown) { ShowDetails(true); Dispatcher.BeginInvoke(source.RevealNotice, System.Windows.Threading.DispatcherPriority.Loaded); } });
+        if (source.NoticeShown) { ShowDetails(true); Dispatcher.BeginInvoke(source.RevealNotice, System.Windows.Threading.DispatcherPriority.Loaded); }
 
         Canvas.SetLeft(leftStack, 0);
         Canvas.SetTop(leftStack, 0);
@@ -235,8 +235,8 @@ public partial class StudioScene
             Foreground = DuskKit.LightBrush,
             TextWrapping = TextWrapping.Wrap
         });
-        ((TextBlock)dStack.Children[1]).SetBinding(TextBlock.TextProperty, new Binding("Text") { Source = source.HybridStatus });
-        ((TextBlock)dStack.Children[2]).SetBinding(TextBlock.TextProperty, new Binding("Text") { Source = source.HybridStatusDetail });
+        ((TextBlock)dStack.Children[1]).SetBinding(TextBlock.TextProperty, new Binding("Text") { Source = source.StatusLabel });
+        ((TextBlock)dStack.Children[2]).SetBinding(TextBlock.TextProperty, new Binding("Text") { Source = source.StatusDetailLabel });
         driverCard.Child = dStack;
         rightStack.Children.Add(driverCard);
 

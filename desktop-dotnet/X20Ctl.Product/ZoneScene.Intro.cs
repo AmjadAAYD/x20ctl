@@ -27,7 +27,7 @@ public partial class ZoneScene : IIntroHandoff
     private static readonly Rect MarkInk = new(.07 * 46, (.47 - .43 * 662 / 951) * 46, .86 * 46, .86 * 662 / 951 * 46);
     private readonly ScaleTransform brandPulse = new(1, 1);
 
-    public Rect? MarkTarget(Visual to) => IsPulse ? PulseMarkTarget(to) : IsRebel || IsHybrid ? RebelMarkTarget(to) : Within(BrandMark, MarkInk, to);
+    public Rect? MarkTarget(Visual to) => IsPulse ? PulseMarkTarget(to) : IsRebel ? RebelMarkTarget(to) : Within(BrandMark, MarkInk, to);
     public Rect? WordTarget(Visual to)
     {
         // "20CTL" inside "X20CTL": after the width of the X
@@ -49,7 +49,6 @@ public partial class ZoneScene : IIntroHandoff
     {
         if (IsPulse) { PulseHandoffBegin(); return; }
         if (IsRebel) { RebelHandoffBegin(); return; }
-        if (IsHybrid) { HybridHandoff(0, 0, 0, 1); return; }
         foreach (var e in Revealed) { e.BeginAnimation(OpacityProperty, null); e.Opacity = 0; }
         BrandMark.Opacity = BrandWord.Opacity = 0; BrandMark.RenderTransformOrigin = new(.5, .5); BrandMark.RenderTransform = brandPulse;
         if (docks.Length > 0) docks[0].Art.Opacity = 0;
@@ -59,7 +58,6 @@ public partial class ZoneScene : IIntroHandoff
     {
         if (IsPulse) { PulseHandoff(reveal, brand, controller, pulse); return; }
         if (IsRebel) { RebelHandoff(reveal, brand, controller, pulse); return; }
-        if (IsHybrid) { HybridHandoff(reveal, brand, controller, pulse); return; }
         static double In(double t, double a, double b) { double x = Math.Clamp((t - a) / (b - a), 0, 1); return x * x * (3 - 2 * x); }
         HeaderActions.Opacity = BrandRule.Opacity = BrandLabel.Opacity = In(reveal, .15, .55);
         BrandTile.Opacity = In(reveal, .35, .7); HeadingRow.Opacity = In(reveal, .25, .65); FooterBar.Opacity = In(reveal, .45, .85);
@@ -71,7 +69,6 @@ public partial class ZoneScene : IIntroHandoff
     {
         if (IsPulse) { PulseHandoffEnd(); return; }
         if (IsRebel) { RebelHandoff(1, 1, 1, 1); BrandMark.RenderTransform = null; return; }
-        if (IsHybrid) { HybridHandoff(1, 1, 1, 1); BrandMark.RenderTransform = null; return; }
         foreach (var e in Revealed) e.Opacity = 1;
         BrandMark.Opacity = BrandWord.Opacity = 1; BrandMark.RenderTransform = null;
         if (docks.Length > 0) docks[0].Art.Opacity = 1;

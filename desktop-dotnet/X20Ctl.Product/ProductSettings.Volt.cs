@@ -345,7 +345,6 @@ public sealed partial class ProductSettings
             ("default", "Default"),
             ("volt", "Volt"),
             ("dusk", "Dusk"),
-            ("hybrid", "Hybrid"),
             ("pulse", "Pulse"),
             ("spotlight", "Spotlight"),
             ("nexus", "Nexus"),

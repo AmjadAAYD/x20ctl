@@ -67,7 +67,7 @@ public partial class StudioScene : UserControl
     private Point? lastFocusCenter;
     public StudioScene(int player, ControllerModel model, ButtonDraft draft, bool reducedMotion = false, CurveDraft? curveDraft = null,MacroDraft? macros = null,VibrationDraft? vibration = null,SetupStore? setups=null,IReadOnlyList<string>? legacy=null,string? activeId=null)
     {
-        InitializeComponent(); Player = player; Model = model; Draft = draft; PadColours.ActivePlayer = player; Loaded += (_, _) => { if (!IsRebel) BuildRebelStudio(); if (ThemeCatalog.Current.Id == "pulse") BuildPulseStudio(); if (ThemeCatalog.Current.Id == "spotlight") BuildSpotlightStudio(); if (ThemeCatalog.Current.Id == "nexus") BuildNexusStudio(); if (ThemeCatalog.Current.Id == "tide") BuildTideStudio(); if (ThemeCatalog.Current.Id == "hybrid") BuildHybridStudio(); if (ThemeCatalog.Current.Id == "dusk") BuildDuskStudio(); if (ThemeCatalog.Current.Id == "volt") BuildVoltStudio(); if (ThemeCatalog.Current.Id == "blossom") BuildBlossomStudio(); };
+        InitializeComponent(); Player = player; Model = model; Draft = draft; PadColours.ActivePlayer = player; Loaded += (_, _) => { if (!IsRebel) BuildRebelStudio(); if (ThemeCatalog.Current.Id == "pulse") BuildPulseStudio(); if (ThemeCatalog.Current.Id == "spotlight") BuildSpotlightStudio(); if (ThemeCatalog.Current.Id == "nexus") BuildNexusStudio(); if (ThemeCatalog.Current.Id == "tide") BuildTideStudio(); if (ThemeCatalog.Current.Id == "dusk") BuildDuskStudio(); if (ThemeCatalog.Current.Id == "volt") BuildVoltStudio(); if (ThemeCatalog.Current.Id == "blossom") BuildBlossomStudio(); };
         setupStore=setups??new(Path.Combine(Path.GetTempPath(),"x20ctl-render-setup-"+Guid.NewGuid().ToString("N")+".json"));legacySources=legacy??Array.Empty<string>();activeSetup=activeId;
         Unloaded+=(_,_)=>{SuspendMacroActivity();StopTry();Tester?.ExitCapture();Diagnostics?.Stop();};
         IsEnabledChanged += (_, _) => { if (!IsEnabled) SuspendMacroActivity(); };
@@ -129,7 +129,7 @@ public partial class StudioScene : UserControl
         if (ThemeCatalog.Current.Id == "spotlight") BuildSpotlightStudio();
         if (ThemeCatalog.Current.Id == "nexus") BuildNexusStudio();
         if (ThemeCatalog.Current.Id == "tide") BuildTideStudio();
-        if (ThemeCatalog.Current.Id == "hybrid") BuildHybridStudio();
+       
         if (ThemeCatalog.Current.Id == "dusk") BuildDuskStudio();
         if (ThemeCatalog.Current.Id == "volt") BuildVoltStudio();
     }
@@ -167,7 +167,7 @@ public partial class StudioScene : UserControl
     private void SizeAgentController()
     {
         if (agentPanel == null) return;
-        if (IsRebel || hybridStudio || IsPulse || IsSpotlight || IsNexus || IsTide) { agentPanel.Body.Width = 1600; agentPanel.Body.Height = 900; agentPanel.Body.Margin = new(0); agentPanel.Body.HorizontalAlignment = HorizontalAlignment.Stretch; agentPanel.Body.VerticalAlignment = VerticalAlignment.Stretch; return; }
+        if (IsRebel || IsPulse || IsSpotlight || IsNexus || IsTide) { agentPanel.Body.Width = 1600; agentPanel.Body.Height = 900; agentPanel.Body.Margin = new(0); agentPanel.Body.HorizontalAlignment = HorizontalAlignment.Stretch; agentPanel.Body.VerticalAlignment = VerticalAlignment.Stretch; return; }
         double room=Math.Max(180,StudioShell.ActualHeight-70), wide=Math.Max(280,StudioShell.ActualWidth-40);
         double high=Math.Min(room,wide*Agent.AgentPanel.DesignHeight/Agent.AgentPanel.DesignWidth);
         double across=high*Agent.AgentPanel.DesignWidth/Agent.AgentPanel.DesignHeight;
@@ -513,7 +513,7 @@ public partial class StudioScene : UserControl
         if(ManagementPage=="Tester"){Tester?.Exit.Focus();return;}
         if(ManagementPage=="Device"){Device?.OpenTester.Focus();return;}
         if(ManagementPage=="Setups"){Setups?.NewButton.Focus();return;}
-        if(ManagementPage=="Dashboard"){if(hybridStudio && !hybridGames)HybridFocusDashboard();else Dashboard?.FocusHero();return;}
+        if(ManagementPage=="Dashboard"){Dashboard?.FocusHero();return;}
         if(ManagementPage=="Mouse"){Mouse?.Switch.Focus();return;}
         if(ManagementPage=="Diagnostics"){Diagnostics?.Reset.Focus();return;}
         if(ManagementPage=="PcMode")
@@ -533,7 +533,7 @@ public partial class StudioScene : UserControl
     }
     private void RefreshEditor()
     {
-        RebelLater(); PulseLater(); SpotlightLater(); NexusLater(); TideLater(); HybridLater(); DuskLater(); VoltLater(); BlossomLater();
+        RebelLater(); PulseLater(); SpotlightLater(); NexusLater(); TideLater(); DuskLater(); VoltLater(); BlossomLater();
         updating = true; var region = layout.Controls.FirstOrDefault(r => r.Key == SelectedControl);
         bool macro = region?.Role == "macro", editable = region != null && Draft.CanEdit(SelectedControl);
         SelectedName.Text = region == null ? "Choose a control" : Label(SelectedControl);
@@ -642,7 +642,7 @@ public partial class StudioScene : UserControl
     }
     public void ShowCurves(bool value)
     {
-        RebelLater(); PulseLater(); SpotlightLater(); NexusLater(); TideLater(); HybridLater(); DuskLater(); VoltLater(); BlossomLater();
+        RebelLater(); PulseLater(); SpotlightLater(); NexusLater(); TideLater(); DuskLater(); VoltLater(); BlossomLater();
         // a page this model cannot use is refused before anything changes (it used to drop a Device or Setups
         // page onto Buttons with no tab lit, found by the stress run on 10 Oct 2026)
         HideManagement();
@@ -739,7 +739,6 @@ public partial class StudioScene : UserControl
         else if (IsNexus) StickTools.NexusNavigate = target => { CloseStickTools(); NexusSelectPage(target); };
         else if (IsTide) StickTools.TideNavigate = target => { CloseStickTools(); TideSelectPage(target); };
         else if (IsRebel) StickTools.RebelNavigate = key => { CloseStickTools(); RebelGoPage(key); };
-        else if (hybridStudio) StickTools.RebelNavigate = key => { CloseStickTools(); HybridGo(key); };
         stickToolsLayer=new Grid{Background=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(200,3,6,16))),Children={StickTools}};
         Grid.SetZIndex(stickToolsLayer,50);StudioShell.Children.Add(stickToolsLayer);Fx.Appear(stickToolsLayer,1.03,240);StickTools.Done.Focus();
     }
@@ -760,13 +759,13 @@ public partial class StudioScene : UserControl
         if (Macros is { IsRecording: true } recording) recording.ToggleRecording();
         Macros?.StopPreview();
     }
-    public void ShowButtons() { RebelLater(); PulseLater(); SpotlightLater(); NexusLater(); TideLater(); HybridLater(); DuskLater(); VoltLater(); BlossomLater(); ShowCurves(false);if(IsMacros)ShowMacros(false);if(IsVibration)ShowVibration(false);HideManagement();ButtonsNav.IsChecked=true;FrontChoice.IsEnabled=true;RearChoice.IsEnabled=HasRearArtwork;UpdateButtonsPage(); }
+    public void ShowButtons() { RebelLater(); PulseLater(); SpotlightLater(); NexusLater(); TideLater(); DuskLater(); VoltLater(); BlossomLater(); ShowCurves(false);if(IsMacros)ShowMacros(false);if(IsVibration)ShowVibration(false);HideManagement();ButtonsNav.IsChecked=true;FrontChoice.IsEnabled=true;RearChoice.IsEnabled=HasRearArtwork;UpdateButtonsPage(); }
     public DashboardConsolePage? Dashboard {get;private set;}
     private DashboardConsolePage CreateDashboard(){var page=new DashboardConsolePage(Model,Player,Draft.UnsentChanges,setupStore.Items.Count(s=>s.ModelId==Model.Id),!animate,setupStore.Items.Where(s=>s.ModelId==Model.Id).ToArray(),id=>LoadSetup(setupStore.NativeSnapshot(id)));if(currentTransport!=null)page.SetTransport(currentTransport);if(currentFirmware!=null)page.SetFirmware(currentFirmware);page.SetBatteryLevel(currentBatteryLevel,currentTransport);if(gameplayConnected is bool connected)page.SetInputConnected(connected);page.TelemetryUpdated+=ApplyTelemetry;page.ConfigureRequested+=ShowButtons;page.PageRequested+=target=>{if(target=="Buttons")ShowButtons();else if(target=="Curves")ShowCurves(true);else if(target=="Macros")ShowMacros(true);else ShowManagement(target);};return page;}
     private void DashboardTab(object sender,RoutedEventArgs e)=>ShowManagement("Dashboard");
     public void ShowMacros(bool value)
     {
-        RebelLater(); PulseLater(); SpotlightLater(); NexusLater(); TideLater(); HybridLater(); DuskLater(); VoltLater(); BlossomLater();
+        RebelLater(); PulseLater(); SpotlightLater(); NexusLater(); TideLater(); DuskLater(); VoltLater(); BlossomLater();
         HideManagement();
         if(IsVibration)ShowVibration(false);
         if(value==IsMacros)return;
@@ -780,7 +779,7 @@ public partial class StudioScene : UserControl
             if(Macros==null) {Macros=new(macroDraft,layout,this,RegisterFocus,!animate,Model.Id);ModelProfiles.Wear(Macros.Body,Model.Id,"Macros",Draft.PcMode);MacroBodyHost.Children.Add(Macros.Body);Macros.Changed+=UpdateMacroContext;}
             UpdateMacroContext();EnterMotion(MacroBodyHost,14,220);
         }
-        else {if ((hybridStudio || IsDusk) && Macros?.IsRecording == true) Macros.ToggleRecording(); Macros?.StopPreview();RefreshEditor();}UpdateButtonsPage();
+        else {if ((IsDusk) && Macros?.IsRecording == true) Macros.ToggleRecording(); Macros?.StopPreview();RefreshEditor();}UpdateButtonsPage();
     }
     private void UpdateMacroContext()
     {
@@ -791,7 +790,7 @@ public partial class StudioScene : UserControl
     private void MacrosTab(object sender,RoutedEventArgs e)=>ShowMacros(true);
     public void ShowVibration(bool value)
     {
-        RebelLater(); PulseLater(); SpotlightLater(); NexusLater(); TideLater(); HybridLater(); DuskLater(); VoltLater(); BlossomLater();
+        RebelLater(); PulseLater(); SpotlightLater(); NexusLater(); TideLater(); DuskLater(); VoltLater(); BlossomLater();
         HideManagement();
         if(value==IsVibration)return;
         if(value && IsCurves)ShowCurves(false);if(value && IsMacros)ShowMacros(false);
@@ -808,7 +807,7 @@ public partial class StudioScene : UserControl
     private void ResetVibration(object sender,RoutedEventArgs e)=>Vibration?.Reset();
     public void ShowManagement(string page)
     {
-        RebelLater(); PulseLater(); SpotlightLater(); NexusLater(); TideLater(); HybridLater(); DuskLater(); VoltLater(); BlossomLater();
+        RebelLater(); PulseLater(); SpotlightLater(); NexusLater(); TideLater(); DuskLater(); VoltLater(); BlossomLater();
         DraftBar.Visibility=page=="Dashboard"?Visibility.Collapsed:Visibility.Visible;RootLayout.RowDefinitions[2].Height=new(page=="Dashboard"?0:40);
         Apply.Visibility=StatusNote.Visibility=page=="Dashboard"?Visibility.Collapsed:Visibility.Visible;ChangeCount.Visibility=page=="Dashboard"?Visibility.Collapsed:Visibility.Visible;
         if(page is not ("Dashboard" or "PcMode" or "Device" or "Diagnostics" or "Mouse" or "Tester" or "Setups"))throw new ArgumentException("Unknown Studio page.");
@@ -1000,7 +999,7 @@ public partial class StudioScene : UserControl
     public bool CapturingRemap => OnButtonsPage && buttonsPage != null && buttonsPage.Listening != ButtonsConsolePage.Listen.None;
     public void OnKeyDown(object sender, KeyEventArgs e)
     {
-        if (HybridDashboardKey(e) || RebelKey(e) || PulseKey(e)) return;
+        if (RebelKey(e) || PulseKey(e)) return;
         // the Advanced stick tools own the keyboard while open (arrows nudge their sliders); Esc closes them
         if (stickToolsLayer != null) { if (e.Key == Key.Escape) { CloseStickTools(); e.Handled = true; } return; }
         // the agent window: Esc puts it away, and while typing to it every key is the text box's

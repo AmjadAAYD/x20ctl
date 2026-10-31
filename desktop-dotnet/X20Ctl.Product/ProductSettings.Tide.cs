@@ -407,7 +407,6 @@ public sealed partial class ProductSettings
             ("nexus", "NEXUS", "#38BDF8", "Holo Matrix"),
             ("rebel", "REBEL", "#F43F5E", "Cyberpunk Edge"),
             ("tide", "TIDE", "#28B6F0", "Persona 3 Blue"),
-            ("hybrid", "HYBRID", "#A855F7", "Modern Hybrid"),
             ("dusk", "DUSK", "#FB923C", "Twilight Orange"),
             ("volt", "VOLT", "#FACC15", "High Voltage"),
             ("blossom", "YOZAKURA", "#F472B6", "Night Blossom")

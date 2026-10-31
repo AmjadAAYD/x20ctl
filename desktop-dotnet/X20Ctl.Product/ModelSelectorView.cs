@@ -99,7 +99,6 @@ public sealed partial class ModelSelectorView : Grid
             }
         };
         if (ThemeCatalog.Current.Id == "rebel") BuildRebelSelector(catalog, facts);
-        else if (ThemeCatalog.Current.Id == "hybrid") BuildHybridSelector(catalog, facts);
     }
 
     // every model that comes in more than one colour turns to its next colour at the same moment, then holds it (owner

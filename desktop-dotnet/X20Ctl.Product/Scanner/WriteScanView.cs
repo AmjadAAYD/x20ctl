@@ -85,7 +85,6 @@ public sealed partial class WriteScanView : Grid
         if (ThemeCatalog.Current.Id == "pulse") BuildPulseWriteFlow(page);
         if (ThemeCatalog.Current.Id == "spotlight") BuildSpotlightWriteFlow(page);
         if (ThemeCatalog.Current.Id == "rebel") BuildRebelWriteFlow(page);
-        else if (ThemeCatalog.Current.Id == "hybrid") BuildHybridWriteFlow(page);
         timer.Tick += (_, _) => Tick();
         Drop += async (_, e) => { if (e.Data.GetData(DataFormats.FileDrop) is string[] { Length: > 0 } files && warning.Visibility != Visibility.Visible) await Read(files[0]); };
         Loaded += (_, _) => { if (DS.Motion) { Opacity = 0; BeginAnimation(OpacityProperty, DS.To(1, 240)); } };
@@ -121,7 +120,6 @@ public sealed partial class WriteScanView : Grid
         if (ThemeCatalog.Current.Id == "nexus") BuildNexusWriteWarning(cards, go, leave);
         if (ThemeCatalog.Current.Id == "tide") BuildTideWriteWarning(cards, go, leave);
         if (ThemeCatalog.Current.Id == "rebel") BuildRebelWriteWarning(cards, go, leave);
-        else if (ThemeCatalog.Current.Id == "hybrid") BuildHybridWriteWarning(cards, go, leave);
     }
 
     // ================= the five steps =================
@@ -130,7 +128,6 @@ public sealed partial class WriteScanView : Grid
         step = n; timer.Stop(); handsOff.Reset();
         strip.Children.Clear();
         if (ThemeCatalog.Current.Id == "rebel") BuildRebelWriteSteps();
-        else if (ThemeCatalog.Current.Id == "hybrid") BuildHybridWriteSteps();
         else for (int i = 0; i < StepNames.Length; i++)
         {
             bool done = i < step, current = i == step;
@@ -143,7 +140,7 @@ public sealed partial class WriteScanView : Grid
         }
         stage.Children.Clear();
         if (ThemeCatalog.Current.Id == "pulse") { BuildPulseWriteSteps(); stage.Children.Add(n switch { 0 => PulseWritePlan(), 1 => PhonePage(), 2 => PulseWriteTest(TestPage()), 3 => RecordingPage(), _ => PulseWriteResults(ResultsPage()) }); return; }
-        stage.Children.Add(n switch { 0 => ThemeCatalog.Current.Id == "rebel" ? RebelWritePlan() : ThemeCatalog.Current.Id == "hybrid" ? HybridWritePlan() : PlanPage(), 1 => PhonePage(), 2 => TestPage(), 3 => RecordingPage(), _ => ResultsPage() });
+        stage.Children.Add(n switch { 0 => ThemeCatalog.Current.Id == "rebel" ? RebelWritePlan() : PlanPage(), 1 => PhonePage(), 2 => TestPage(), 3 => RecordingPage(), _ => ResultsPage() });
         if (ThemeCatalog.Current.Id == "rebel" && stage.Children[0] is FrameworkElement content) { content.MaxHeight = 560; content.VerticalAlignment = VerticalAlignment.Top; stage.ClipToBounds = true; }
     }
 
@@ -213,7 +210,6 @@ public sealed partial class WriteScanView : Grid
         help.Visibility = Visibility.Collapsed;
         var stuck = Action("", "I'm stuck", "ActionButton"); stuck.Click += (_, _) => help.Visibility = help.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
         if (ThemeCatalog.Current.Id == "rebel") { ShowPart(); return RebelWriteTest(restart, stuck, help); }
-        if (ThemeCatalog.Current.Id == "hybrid") { ShowPart(); return HybridWriteTest(restart, stuck, help); }
         var left = Kit.Panel("Do the test", "Follow each step on the phone, then confirm here", null, new StackPanel { Children = {
             Detach(partTitle), Detach(partSay).Also(t => t.Margin = new(0, 8, 0, 0)), Detach(partCount).Also(t => t.Margin = new(0, 14, 0, 0)),
             new WrapPanel { Margin = new(0, 22, 0, 0), Children = { partDone, restart.Also(b => b.Margin = new(12, 0, 0, 0)), stuck.Also(b => b.Margin = new(12, 0, 0, 0)) } }, help } });
@@ -357,7 +353,6 @@ public sealed partial class WriteScanView : Grid
         DockPanel.SetDock(foot, Dock.Bottom); dock.Children.Add(foot);
         dock.Children.Add(new Border { CornerRadius = new(12), ClipToBounds = true, Child = Detach(summary) });
         if (ThemeCatalog.Current.Id == "rebel") return RebelWriteResults(dock, report.Plan.Setting, report.Source);
-        if (ThemeCatalog.Current.Id == "hybrid") return HybridWriteResults(dock, report.Plan.Setting, report.Source);
         return Kit.Panel("Results", report.Plan.Setting.Length > 0 ? $"{report.Plan.Setting}, in {report.Source}" : report.Source, null, dock);
     }
 

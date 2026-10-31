@@ -1,7 +1,7 @@
 # Console themes in the app
 
-The ten themes from `previews/console-concepts/themes` (Default, Pulse, Spotlight, Nexus, Rebel, Tide, Hybrid, Dusk,
-Volt, Yozakura) brought into X20CTL itself.
+The themes from `previews/console-concepts/themes` (Default, Pulse, Spotlight, Nexus, Rebel, Tide, Dusk,
+Volt, Yozakura) brought into X20CTL itself. Hybrid was retired on 1 Nov 2026.
 
 ## This pass
 
