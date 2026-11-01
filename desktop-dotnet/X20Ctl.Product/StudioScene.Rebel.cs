@@ -88,7 +88,7 @@ public partial class StudioScene
     }
     private string RebelCurrent => ManagementPage switch
     {
-        "Dashboard" => "dashboard", "PcMode" => "pcmode", "Device" => "device", "Diagnostics" => "diagnostics", "Tester" => "tester", "Mouse" => "mouse", "Setups" => "setups",
+        "Dashboard" => "dashboard", "PcMode" => "pcmode", "Device" => "device", "Screen" => "screen", "Diagnostics" => "diagnostics", "Tester" => "tester", "Mouse" => "mouse", "Setups" => "setups",
         _ => IsCurves ? "curves" : IsMacros ? "macros" : IsVibration ? "vibration" : "buttons"
     };
     /// <summary>Lays the page shown out as its board.</summary>
@@ -99,12 +99,12 @@ public partial class StudioScene
         bool dash = page == "dashboard", buttons = page == "buttons", curves = page == "curves", macros = page == "macros" && Macros != null, vibration = page == "vibration" && Vibration != null, pcmode = page == "pcmode", device = page == "device" && Device != null, mouse = page == "mouse" && Mouse != null, setups = page == "setups" && Setups != null, tester = page == "tester" && Tester != null, diag = page == "diagnostics" && Diagnostics != null;
         RootLayout.Visibility = dash || curves || macros || vibration || pcmode || device || mouse || setups || tester || diag || buttons && !AssignmentsVisible ? Visibility.Hidden : Visibility.Visible; rebelCurves!.Visibility = curves ? Visibility.Visible : Visibility.Collapsed; rebelMacros!.Visibility = macros ? Visibility.Visible : Visibility.Collapsed; rebelVibration!.Visibility = vibration ? Visibility.Visible : Visibility.Collapsed; rebelPc!.Visibility = pcmode ? Visibility.Visible : Visibility.Collapsed; rebelDevice!.Visibility = device ? Visibility.Visible : Visibility.Collapsed; rebelMouse!.Visibility = mouse ? Visibility.Visible : Visibility.Collapsed; rebelSetups!.Visibility = setups ? Visibility.Visible : Visibility.Collapsed; rebelTester!.Visibility = tester ? Visibility.Visible : Visibility.Collapsed; rebelDiag!.Visibility = diag ? Visibility.Visible : Visibility.Collapsed;
         rebelFrame!.Visibility = dash ? Visibility.Collapsed : Visibility.Visible; rebelDash!.Visibility = dash ? Visibility.Visible : Visibility.Collapsed; rebelButtons!.Visibility = buttons ? Visibility.Visible : Visibility.Collapsed;
-        string nav = page switch { "diagnostics" or "tester" => "device", _ => page };
+        string nav = page switch { "diagnostics" or "tester" or "screen" => "device", _ => page };
         foreach (var slab in rebelNav) slab.On = (string)slab.Tag == nav;
         if (changed) RebelBackdrop(page);
         rebelTitle!.Content = new Viewbox { MaxWidth = 700, MaxHeight = 86, StretchDirection = StretchDirection.DownOnly, HorizontalAlignment = HorizontalAlignment.Left, Child = Ransom.Make(page switch
         {
-            "buttons" => "Buttons", "curves" => "Curves", "macros" => "Macros", "vibration" => "Vibration", "pcmode" => "PC mode", "device" => "Device", "diagnostics" => "Diagnostics",
+            "buttons" => "Buttons", "curves" => "Curves", "macros" => "Macros", "vibration" => "Vibration", "pcmode" => "PC mode", "device" => "Device", "screen" => "Screen", "diagnostics" => "Diagnostics",
             "mouse" => "Controller as mouse", "setups" => "My setups", "tester" => "Tester", _ => "Studio"
         }, page == "mouse" ? 51 : 58) };
         ((FrameworkElement)rebelTitle.Content).RenderTransform = new RotateTransform(-2); ((FrameworkElement)rebelTitle.Content).RenderTransformOrigin = new(0, .5);

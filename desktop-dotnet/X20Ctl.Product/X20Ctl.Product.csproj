@@ -67,4 +67,5 @@
   <Target Name="RequireLiveInputEngine" BeforeTargets="PrepareForBuild">
     <Error Condition="!Exists('../../artifacts/product-engine-phase/native-build/Release/x20ctl-engine.exe')" Text="Live input engine is missing. Build native-core with CMake into artifacts/product-engine-phase/native-build (Release, target x20ctl-engine) before building the app. A build without live input must not ship." />
   </Target>
+  <ItemGroup><PackageReference Include="System.IO.Ports" Version="10.0.0" /></ItemGroup>
 </Project>

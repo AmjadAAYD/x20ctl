@@ -54,6 +54,7 @@ public partial class StudioScene
         var below = new StackPanel { Width = 580 };
         below.Children.Add(Ink.Text("Controller input and configuration connection are checked separately.", 16, Ink.B(Ink.C("#cfc7c9")), false).Also(t => { t.TextWrapping = TextWrapping.Wrap; t.RenderTransform = Ink.Slant; t.RenderTransformOrigin = new(0, .5); }));
         below.Children.Add(RebelPrimary("Open Diagnostics", w.OpenDiagnostics, "dev:diag", false).Also(b => { b.Margin = new(0, 18, 0, 0); b.HorizontalAlignment = HorizontalAlignment.Left; }));
+        if(w.OpenScreen!=null)below.Children.Add(RebelPrimary("Screen artwork",()=>ShowManagement("Screen"),"dev:screen",false).Also(b=>{b.Margin=new(0,12,0,0);b.HorizontalAlignment=HorizontalAlignment.Left;}));
         below.Children.Add(Ink.Text(ModelProfiles.For(Model.Id).SupportsLocalDrafts ? "Local drafts available. Native configuration writes remain locked." : "Layout and artwork available. Native configuration is unavailable for this model.", 13, Ink.B(Ink.C("#9d9598")), false)
             .Also(t => { t.Margin = new(0, 14, 0, 0); t.TextWrapping = TextWrapping.Wrap; t.RenderTransform = Ink.Slant; t.RenderTransformOrigin = new(0, .5); }));
         g.Children.Add(Place(below, 296, 584));

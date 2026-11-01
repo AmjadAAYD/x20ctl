@@ -8,6 +8,13 @@ public partial class App : Application
     {
         try
         {
+            if (e.Args.Length is 3 or 4 && e.Args[0] == "--review-screen")
+            {
+                ShutdownMode = ShutdownMode.OnExplicitShutdown;
+                try { await Development.ScreenReview.Run(e.Args[1],e.Args[2],e.Args.Length==4?e.Args[3]:null); Shutdown(0); }
+                catch(Exception failure) { Directory.CreateDirectory(e.Args[1]); File.WriteAllText(Path.Combine(e.Args[1],"failure.txt"),failure.ToString()); Shutdown(1); }
+                return;
+            }
             if (e.Args.Length == 3 && e.Args[0] == "--review-themes" && e.Args[2] == "baseline-default")
             {
                 ShutdownMode = ShutdownMode.OnExplicitShutdown;

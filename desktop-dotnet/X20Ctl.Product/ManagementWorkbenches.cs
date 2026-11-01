@@ -19,7 +19,7 @@ internal static class ManagementVisuals
 public sealed partial class DeviceWorkbench
 {
     public Grid Body {get;}=new();public Grid Shelf {get;}=new();public DeviceOverview State {get;}
-    public Button OpenTester {get;}public Button OpenSetups {get;}
+    public Button OpenTester {get;}public Button OpenSetups {get;}public Button? OpenScreen {get;}
     readonly TextBlock battery=ManagementVisuals.Copy("Not reported",24,true),connection=ManagementVisuals.Copy("Not detected",20,true);
     readonly TextBlock firmware=ManagementVisuals.Copy("Not reported",20,true);
     readonly TextBlock hardwareRevision=ManagementVisuals.Copy("Not reported",20,true);
@@ -52,7 +52,7 @@ public sealed partial class DeviceWorkbench
     public void SetBatteryLevel(string? level) => SetBatteryLevel(level, null);
     public void SetConnection(bool connected)=>connection.Text=connected?"Gameplay input detected":"Not detected";
     public void UpdateEngineStatus(string status) { /* Process availability does not establish hardware configuration support. */ }
-    public DeviceWorkbench(ControllerModel model,int player,FrameworkElement resources,Action<Button> register,Action tester,Action setups)
+    public DeviceWorkbench(ControllerModel model,int player,FrameworkElement resources,Action<Button> register,Action tester,Action setups,Action? screen=null)
     {
         State=new(model.Id,player);
         Body.ColumnDefinitions.Add(new(){Width=new(1,GridUnitType.Star)});Body.ColumnDefinitions.Add(new(){Width=new(1.25,GridUnitType.Star)});
@@ -64,6 +64,7 @@ public sealed partial class DeviceWorkbench
         var overview=new StackPanel();var scroll=new ScrollViewer{Content=overview,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,Padding=new(0,0,8,0)};Grid.SetColumn(scroll,1);Body.Children.Add(scroll);
         var status=new StackPanel();status.Children.Add(connection);status.Children.Add(ManagementVisuals.Copy("Controller input and configuration connection are checked separately.",14).Also(t=>t.Margin=new(0,8,0,12)));
         OpenTester=ManagementVisuals.Action(resources,"Open Diagnostics",tester,register);OpenTester.HorizontalAlignment=HorizontalAlignment.Left;status.Children.Add(OpenTester);
+        if(model.Id=="x20_pro" && screen!=null){OpenScreen=ManagementVisuals.Action(resources,"Screen artwork",screen,register).Also(b=>b.Margin=new(0,12,0,0));status.Children.Add(OpenScreen);}
         overview.Children.Add(Kit.Panel("Connection",null,null,status));
         var values=new System.Windows.Controls.Primitives.UniformGrid{Columns=2,Margin=new(-5,12,-5,0)};
         foreach(var (label,value) in new[]{("Battery",battery),("Firmware",firmware),("Hardware revision",hardwareRevision),("Transport",transport)})
