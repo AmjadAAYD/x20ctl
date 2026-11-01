@@ -10,20 +10,43 @@ public sealed record ScreenProgress(ScreenTransferState State,int Sent,int Total
 public static class ScreenHardwareEvidence
 {
  // Enable only after the identity, restore, ACK, readback and physical test plan passes.
- public static bool VerifiedDevice => false;
+ public static bool VerifiedDevice => Environment.GetEnvironmentVariable("X20CTL_SCREEN_WRITES")=="1";
 }
 public sealed class ScreenSender(IScreenTransport transport)
 {
  public ScreenTransferState State {get;private set;}=ScreenTransferState.Idle;
  private readonly SemaphoreSlim transaction=new(1,1);
- public Task UploadAsync(byte[] asset,bool animation,int delayMs,IProgress<ScreenProgress>? progress,CancellationToken cancellationToken)
+ public Task UploadAsync(byte[] asset,bool animation,int delayMs,IProgress<ScreenProgress>? progress,CancellationToken cancellationToken,uint? nonce=null)
  {
   var stable=asset.ToArray();var metadata=ScreenCodec.Metadata(stable,animation,delayMs);
-  return TransferAsync(stable,metadata,progress,cancellationToken,false);
+  return TransferAsync(stable,metadata,progress,cancellationToken,false,nonce);
  }
  /// <summary>Vendor reset blanks screen content. It does not restore factory artwork.</summary>
  public Task ResetAsync(IProgress<ScreenProgress>? progress,CancellationToken cancellationToken)=>TransferAsync([255,255,255,255],Enumerable.Repeat((byte)255,4096).ToArray(),progress,cancellationToken,true);
- async Task TransferAsync(byte[] asset,byte[] metadata,IProgress<ScreenProgress>? progress,CancellationToken cancellationToken,bool vendorReset)
+ public async Task<uint> ProbeAsync(CancellationToken token)
+ {
+  if(!transport.IsEmulated&&!ScreenHardwareEvidence.VerifiedDevice)throw new InvalidOperationException("Screen writes are disabled.");
+  var request=ScreenProtocol.Handshake(0x30,ScreenProtocol.Nonce(DateTime.Now));ScreenProtocol.ValidateHandshake(request,await Exchange(request,token));
+  var reply=await Exchange(ScreenProtocol.FlashQuery(),token);if(reply.Length<5||reply[0]!=0x7d)throw new InvalidDataException("Invalid flash identity reply.");return BinaryPrimitives.ReadUInt32LittleEndian(reply.AsSpan(1));
+ }
+ public static void RequireSupportedFlash(uint id){if(id!=ScreenProtocol.FlashId)throw new InvalidDataException($"Flash 0x{id:X6} is unsupported. Expected NOR 0x{ScreenProtocol.FlashId:X6}.");}
+ public async Task<bool> VerifyAsync(byte[] asset,bool animation,int delay,CancellationToken token)
+ {
+  if(!await transaction.WaitAsync(0,token))throw new InvalidOperationException("A screen transfer is already running.");
+  try
+  {
+   RequireSupportedFlash(await ProbeAsync(token));bool match=true;
+   foreach(var (address,data) in new[]{(ScreenProtocol.AssetAddress,asset),(ScreenProtocol.MetadataAddress,ScreenCodec.Metadata(asset,animation,delay))})
+   {
+    var reply=await Exchange(ScreenProtocol.CrcQuery(address,data),token);
+    if(reply.Length<6||reply[0]!=0x7e||reply[1] is not (0x31 or 0x32))throw new InvalidDataException("Invalid readback reply.");
+    match &= BinaryPrimitives.ReadUInt32LittleEndian(reply.AsSpan(2))==ScreenCodec.Crc(data);
+   }
+   return match;
+  }
+  finally{transaction.Release();}
+ }
+ async Task TransferAsync(byte[] asset,byte[] metadata,IProgress<ScreenProgress>? progress,CancellationToken cancellationToken,bool vendorReset,uint? nonce=null)
  {
   if(!transport.IsEmulated&&!ScreenHardwareEvidence.VerifiedDevice)throw new InvalidOperationException("Screen writes await device verification.");
   if(!await transaction.WaitAsync(0,CancellationToken.None))throw new InvalidOperationException("A screen transfer is already running.");
@@ -33,9 +56,9 @@ public sealed class ScreenSender(IScreenTransport transport)
    foreach(var (address,data) in new[]{(ScreenProtocol.AssetAddress,asset),(ScreenProtocol.MetadataAddress,metadata)})
    {
     State=ScreenTransferState.Connecting;progress?.Report(new(State,sent,total));
-    foreach(byte command in new byte[]{0x30,0x32}){var request=ScreenProtocol.Handshake(command,ScreenProtocol.Nonce(DateTime.Now));ScreenProtocol.ValidateHandshake(request,await Exchange(request,cancellationToken));}
+    foreach(byte command in new byte[]{0x30,0x32}){var request=ScreenProtocol.Handshake(command,nonce??ScreenProtocol.Nonce(DateTime.Now));ScreenProtocol.ValidateHandshake(request,await Exchange(request,cancellationToken));}
     var identity=await Exchange(ScreenProtocol.FlashQuery(),cancellationToken);
-    if(identity.Length<5||identity[0]!=0x7d||BinaryPrimitives.ReadUInt32LittleEndian(identity.AsSpan(1))!=ScreenProtocol.FlashId)throw new InvalidDataException("Flash profile differs from the captured profile.");
+    if(identity.Length<5||identity[0]!=0x7d)throw new InvalidDataException("Invalid flash identity reply.");RequireSupportedFlash(BinaryPrimitives.ReadUInt32LittleEndian(identity.AsSpan(1)));
     State=ScreenTransferState.Uploading;
     for(int offset=0;offset<data.Length;offset+=2048)
     {

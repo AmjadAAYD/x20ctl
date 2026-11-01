@@ -2,7 +2,7 @@ using System.Buffers.Binary;
 namespace X20Ctl.Zone.Screen;
 
 /// <summary>Independent format implementation. Inputs are already decoded/cropped RGBA pixels.</summary>
-public static class ScreenCodec
+public static partial class ScreenCodec
 {
  public const int Width=160,Height=80,InputLimit=2*1024*1024,AssetLimit=3*1024*1024;
  public static uint Crc(ReadOnlySpan<byte> data)
@@ -22,16 +22,16 @@ public static class ScreenCodec
   var result=new byte[length+12];Put32(result,0,12);Put16(result,4,height);Put16(result,6,width);Put24(result,8,length);
   for(int i=0;i<words.Length;i++)BinaryPrimitives.WriteUInt16BigEndian(result.AsSpan(12+i*2),words[i]);return result;
  }
- public static byte[] EncodeAnimation(IReadOnlyList<byte[]> frames,int width=Width,int height=Height,bool truncateToLimit=false,CancellationToken cancellationToken=default)
+ public static byte[] EncodeAnimation(IReadOnlyList<byte[]> frames,int width=Width,int height=Height,bool truncateToLimit=false,CancellationToken cancellationToken=default,Action<string>? diagnostic=null)
  {
   if(frames.Count is <1 or >65535)throw new ArgumentException("Animation must contain 1 to 65535 frames.");
   var parts=new List<(byte[] Data,byte Kind)>();int payloadSize=0;
-  foreach(var frame in frames){cancellationToken.ThrowIfCancellationRequested();var part=Compress(Words(frame,width,height),height,width);if(truncateToLimit&&2+16*parts.Count+payloadSize+part.Data.Length>AssetLimit)break;parts.Add(part);payloadSize=checked(payloadSize+part.Data.Length);if(!truncateToLimit&&2+16*parts.Count+payloadSize>AssetLimit)throw new ArgumentException("Animation exceeds 3 MiB. Reduce its frames.");}
+  foreach(var frame in frames){cancellationToken.ThrowIfCancellationRequested();var part=Compress(Words(frame,width,height),height,width,diagnostic);if(truncateToLimit&&2+16*parts.Count+payloadSize+part.Data.Length>AssetLimit)break;parts.Add(part);payloadSize=checked(payloadSize+part.Data.Length);if(!truncateToLimit&&2+16*parts.Count+payloadSize>AssetLimit)throw new ArgumentException("Animation exceeds 3 MiB. Reduce its frames.");}
   if(parts.Count==0)throw new ArgumentException("No animation frame fits.");int offset=2+parts.Count*16+payloadSize;
   var result=new byte[offset];Put16(result,0,parts.Count);offset=2+parts.Count*16;
   for(int i=0;i<parts.Count;i++){int row=2+i*16;var part=parts[i];Put32(result,row,(uint)offset);Put16(result,row+8,height);Put16(result,row+10,width);Put24(result,row+12,part.Data.Length);result[row+15]=part.Kind;part.Data.CopyTo(result,offset);offset+=part.Data.Length;}return result;
  }
- static (byte[] Data,byte Kind) Compress(ushort[] words,int width,int height)
+ static (byte[] Data,byte Kind) Compress(ushort[] words,int width,int height,Action<string>? diagnostic)
  {
   var raw=new byte[words.Length*2];for(int i=0;i<words.Length;i++)Put16(raw,i*2,words[i]);
   var blocks=new List<(ushort[] Palette,byte Mode,byte[] Stream)>();int start=0;
@@ -44,7 +44,7 @@ public static class ScreenCodec
    byte mode=(byte)(runs.Count<indices.Length?1:0);blocks.Add((palette.ToArray(),mode,mode==1?runs.ToArray():indices));start=end;if(blocks.Count>255)return(raw,0);
   }
   if(blocks.Sum(b=>b.Stream.Length)>=raw.Length*7/10)return(raw,0);
-  int size=12+blocks.Count*516+blocks.Sum(b=>b.Stream.Length);var result=new byte[(size+1)&~1];result[0]=0x4c;result[1]=0x54;Put16(result,2,width);Put16(result,4,height);result[6]=(byte)blocks.Count;result[7]=3;Put32(result,8,(uint)size);
+  int size=12+blocks.Count*516+blocks.Sum(b=>b.Stream.Length);if((size&1)!=0&&size>=raw.Length){diagnostic?.Invoke("Raw fallback: odd LT payload exceeds the raw buffer.");return(raw,0);}var result=new byte[(size+1)&~1];result[0]=0x4c;result[1]=0x54;Put16(result,2,width);Put16(result,4,height);result[6]=(byte)blocks.Count;result[7]=3;Put32(result,8,(uint)size);
   int row=12,offset=12+516*blocks.Count;foreach(var block in blocks){Put24(result,row,block.Stream.Length);result[row+3]=block.Mode;for(int i=0;i<block.Palette.Length;i++)Put16(result,row+4+i*2,block.Palette[i]);row+=516;block.Stream.CopyTo(result,offset);offset+=block.Stream.Length;}
   // Original compressor overwrites its raw buffer; odd alignment retains the raw byte at this offset.
   // Padding beyond the original raw allocation is not established by the captured cases.
