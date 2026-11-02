@@ -7,7 +7,7 @@ namespace X20Ctl.Product;
 /// <summary>Owned-silhouette visual preview driven by a local draft, never motor telemetry.
 /// Since 10 Oct 2026 (owner: "just keep it as a fast heartbeat") each motor's outline beats, lub-dub, brightening and
 /// swelling a touch on each thump, faster as the strength rises (72 to 180 bpm). Both grips beat together; only the
-/// X20 Pro and the Dune have trigger motors, so only they beat on the triggers too. The body stays still.
+/// Only the grips beat; the owner removed triggers from Vibration on 2 Nov 2026. The body stays still.
 /// Reduced motion shows the same picture held still.</summary>
 public sealed class VibrationVisual : Grid
 {
@@ -247,7 +247,7 @@ public sealed class VibrationVisual : Grid
             if (Body != null) dc.PushClip(Body);
             foreach (var part in Parts)
             {
-                if(Region!="All" && (Region=="Triggers"?part.Grip:!part.Grip))continue;
+                if(!part.Grip)continue;
                 if(Region=="Left grip"&&!part.Left || Region=="Right grip"&&part.Left)continue;
                 double m = part.Left ? left : right; if (m <= 0) continue;
                 double railCore = part.Grip ? 5 : 3.8, lit = .6 + .4 * m;

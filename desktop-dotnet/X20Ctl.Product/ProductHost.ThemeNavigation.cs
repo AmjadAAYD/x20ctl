@@ -30,6 +30,8 @@ public sealed partial class ProductHost
                 case "curves": Studio?.ShowCurves(true); break;
                 case "macros": Studio?.ShowMacros(true); break;
                 case "vibration": Studio?.ShowVibration(true); break;
+                case "rgb": Studio?.ShowManagement("RGB"); break;
+                case "screen": Studio?.ShowManagement("Screen"); break;
                 case "device": Studio?.ShowManagement("Device"); break;
                 case "pcmode": Studio?.ShowManagement("PcMode"); break;
                 case "mouse": Studio?.ShowManagement("Mouse"); break;

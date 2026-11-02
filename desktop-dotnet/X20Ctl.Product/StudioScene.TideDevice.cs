@@ -25,7 +25,7 @@ public sealed partial class StudioScene
         listStack.Children.Add(TideKit.PersonaRow("Connection", value: "Not detected", focused: true));
         listStack.Children.Add(TideKit.PersonaRow("Battery", value: "Not reported"));
         listStack.Children.Add(TideKit.PersonaRow("Firmware", value: "Not reported"));
-        listStack.Children.Add(TideKit.PersonaRow("Hardware revision", value: "Not reported"));
+        listStack.Children.Add(TideKit.PersonaRow("Hardware ID", value: "Not reported"));
         listStack.Children.Add(TideKit.PersonaRow("Transport", value: "Not reported"));
 
         listStack.Children.Add(TideKit.SectionHeader("Model capabilities"));

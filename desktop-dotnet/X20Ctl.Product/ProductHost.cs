@@ -1,4 +1,4 @@
-﻿using System.Windows.Media.Animation;
+using System.Windows.Media.Animation;
 ﻿using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -11,16 +11,32 @@ namespace X20Ctl.Product;
 public sealed partial class ProductHost : Grid
 {
     private string?[] batteryLevels=new string?[4];
+    private readonly string?[] measuredBatteryLevels=new string?[4];
+    private readonly X20Ctl.Zone.Telemetry.TelemetryRefreshPolicy telemetryRefresh=new();
+    private bool telemetryReading;
+    internal event Action? TelemetryRefreshed;
+    internal bool AutomaticTelemetryInReview {get;set;}
+    internal void RequestAutomaticTelemetryRefresh(bool? connected=null)
+    {
+        if(ReviewSandbox.Active&&!AutomaticTelemetryInReview)return;
+        int player=Studio?.Player??0;
+        string? model=Studio?.Model.Id??Zone.State.Players[player].ModelId;
+        if(model==null)return;
+        string target=$"{player}:{model}";
+        bool refresh=connected.HasValue?telemetryRefresh.OnConnection(target,connected.Value):telemetryRefresh.OnOpen(target);
+        if(refresh)_=RefreshBleTelemetryAsync();
+    }
     private string? currentTransport;
     public string?[] BatteryLevels => batteryLevels;
-    private string? currentFirmware;
-    private TelemetryData? latestTelemetry;
+    private readonly Dictionary<(int Player,string Model),TelemetryData> latestTelemetry=[];
+    private readonly string?[] measuredBatteryModels=new string?[4];
 
     public void RecordTelemetry(TelemetryData telemetry, int player = 0)
     {
-        latestTelemetry = telemetry;
-        if (telemetry.Firmware != null) currentFirmware = telemetry.Firmware;
-        if (telemetry.Battery != null && player < batteryLevels.Length) batteryLevels[player] = telemetry.Battery;
+        string? model=telemetry.Controller switch {"EasySMX X20 Pro"=>"x20_pro","EasySMX X20"=>"x20",_=>null};
+        if(model!=null){latestTelemetry[(player,model)]=telemetry;if(player>=0&&player<4)measuredBatteryModels[player]=model;}
+        if (telemetry.Battery != null && player >= 0 && player < batteryLevels.Length) measuredBatteryLevels[player]=batteryLevels[player] = telemetry.Battery;
+        TelemetryRefreshed?.Invoke();
     }
 
     public async Task RefreshBleTelemetryAsync()
@@ -28,28 +44,21 @@ public sealed partial class ProductHost : Grid
         string? modelId = Studio?.Model.Id ?? (Zone.State.Players.Count > 0 ? Zone.State.Players[0].ModelId ?? Catalog.Models.FirstOrDefault(m => m.Name == Zone.State.Players[0].Model)?.Id : null);
         if (modelId is not ("x20" or "x20_pro")) return;
 
+        if(telemetryReading)return;
+        int targetPlayer=Studio?.Player??0;
+        telemetryReading=true;
         try
         {
             var res = await PadBridge.Status(modelId);
             if (res.Ok && res.Telemetry != null)
             {
-                latestTelemetry = res.Telemetry;
-                if (res.Telemetry.Firmware != null) currentFirmware = res.Telemetry.Firmware;
-                if (res.Telemetry.Battery != null)
-                {
-                    int player = Studio?.Player ?? 0;
-                    if (player < batteryLevels.Length) batteryLevels[player] = res.Telemetry.Battery;
-                }
-                _ = Dispatcher.BeginInvoke(() =>
-                {
-                    if (Studio != null)
-                    {
-                        Studio.ApplyTelemetry(res.Telemetry);
-                    }
-                });
+                if(Studio is {} current && current.Player==targetPlayer && current.Model.Id==modelId)
+                    current.ApplyTelemetry(res.Telemetry);
+                else RecordTelemetry(res.Telemetry,targetPlayer);
             }
         }
         catch { }
+        finally{telemetryReading=false;}
     }
 
     public void UpdateBatteryLevels(string?[] levels, string? transport = null)
@@ -62,7 +71,7 @@ public sealed partial class ProductHost : Grid
             {
                 continue;
             }
-            batteryLevels[i] = levels[i];
+            batteryLevels[i] = X20Ctl.Zone.Telemetry.NativeTelemetry.PreferMeasuredBattery(measuredBatteryLevels[i],levels[i]);
         }
         if (transport != null) currentTransport = transport;
         if (Studio is { } studio)
@@ -95,8 +104,7 @@ public sealed partial class ProductHost : Grid
     public PcModeService? PcMode { get; }
     /// <summary>Controller as mouse. A fixture window gets one that never listens to the controller.</summary>
     public MouseModeService? MouseMode { get; }
-    private readonly X20Ctl.Zone.PcMode.PcModeStore? pcModeStore;
-    private readonly Action<string> support;
+    private readonly X20Ctl.Zone.PcMode.PcModeStore? pcModeStore;    private readonly Action<string> support;
     private readonly AssignmentStore store;
     private readonly Dictionary<(int, string), ButtonDraft> drafts = new();
     private readonly Dictionary<(int, string), CurveDraft> curves = new();
@@ -229,9 +237,10 @@ public sealed partial class ProductHost : Grid
         };
 
         if (currentTransport != null) Studio.SetTransport(currentTransport);
-        if (currentFirmware != null) Studio.SetFirmware(currentFirmware);
-        if (latestTelemetry != null) Studio.ApplyTelemetry(latestTelemetry);
-        // BLE telemetry is strictly user-invoked and does not auto-query on launch.
+        if(latestTelemetry.TryGetValue((player,model.Id),out var rememberedTelemetry))Studio.ApplyTelemetry(rememberedTelemetry);
+        else if(measuredBatteryModels[player]!=model.Id){measuredBatteryLevels[player]=null;batteryLevels[player]=null;Studio.SetBatteryLevel(null);}
+        RequestAutomaticTelemetryRefresh();
+        // One session-opening read; subsequent reads follow reconnection or an explicit refresh.
         Studio.NativeEngineStatus=NativeEngineStatus;
         Studio.InputContextChanged+=()=>_=UpdateNativeContext();
         if(Engine!=null)_=RefreshNativeCapabilities(model.Id);
@@ -306,6 +315,7 @@ public sealed partial class ProductHost : Grid
             long sequence=value.GetProperty("sequence").GetInt64();if(sequence<=lastNativeSequence)return;lastNativeSequence=sequence;
             var payload=value.GetProperty("payload");bool connected=payload.GetProperty("connected").GetBoolean();Zone.ProvenanceText.Text=connected?"LIVE INPUT":"NO CONTROLLER";Zone.ScenarioHint.Text=connected?"XInput navigation · Model identity unverified · Configuration locked":"No gameplay source connected · Configuration locked";
             NativeInputStudio?.SetGameplayConnected(connected);
+            RequestAutomaticTelemetryRefresh(connected);
             if(connected)NativeInputStudio?.ObserveLiveInput(payload.GetProperty("leftX").GetDouble(),payload.GetProperty("leftY").GetDouble(),payload.GetProperty("rightX").GetDouble(),payload.GetProperty("rightY").GetDouble(),payload.GetProperty("lt").GetDouble(),payload.GetProperty("rt").GetDouble());
             // virtual buttons: triggers and left stick become digital presses with a threshold
             var now=payload.GetProperty("buttons").EnumerateArray().Select(v=>v.GetString()!).ToHashSet();

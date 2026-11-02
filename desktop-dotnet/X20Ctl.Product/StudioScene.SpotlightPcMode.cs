@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -228,7 +228,7 @@ public partial class StudioScene
         // Cue card on right at (950, 170, w = 610, label = "Programme note")
         var cardInner = new StackPanel();
         cardInner.Children.Add(SpotlightKit.Row("Firmware version", "Reported by the device", Device?.FirmwareText ?? "Not reported", false, null, 44));
-        cardInner.Children.Add(SpotlightKit.Row("Hardware revision", "Reported by the device", Device?.RevisionText ?? "Not reported", false, null, 44));
+        cardInner.Children.Add(SpotlightKit.Row("Hardware ID", "Reported by the device", Device?.RevisionText ?? "Not reported", false, null, 44));
         cardInner.Children.Add(SpotlightKit.Row("Battery status", "Reported power level", Device?.BatteryText ?? "Not reported", false, null, 44));
         cardInner.Children.Add(SpotlightKit.Row("Transport protocol", "Reported connection", Device?.TransportText ?? "Not reported", false, null, 44));
         cardInner.Children.Add(SpotlightKit.Row("Configuration writes", "Verification required", "Locked", false, null, 44));

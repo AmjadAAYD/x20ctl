@@ -19,7 +19,7 @@ public sealed partial class MouseWorkbench
     readonly int player; readonly ControllerModel model;
     readonly Action<Button> register;
     readonly TextBlock status=Copy("Off",16), saved=Copy("Saved on this PC · Changes apply immediately",13), mapped=Copy("",13), selected=Copy("A",24), scrollSource=Copy("",13), precisionSource=Copy("",13), previewReadout=Copy("Choose Test pointer to begin",13);
-    readonly ComboBox source=Choice(new[]{"Choose input source", "XInput 1", "XInput 2", "XInput 3", "XInput 4"}), pointer=Choice(new[]{"Left stick","Right stick"});
+    readonly ComboBox source=Choice(new[]{"Automatic", "XInput 1", "XInput 2", "XInput 3", "XInput 4"}), pointer=Choice(new[]{"Left stick","Right stick"});
     readonly ComboBox chord1=Choice(PadButtons.Mask.Keys.ToArray()),chord2=Choice(PadButtons.Mask.Keys.ToArray()), hold=Choice(new[]{"0.5 seconds","1 second","1.5 seconds","2 seconds","3 seconds"});
     readonly Dictionary<string,Button> mappings=new();
     readonly Dictionary<string,PhysicalHotspot> hotspots=new();
@@ -134,7 +134,6 @@ public sealed partial class MouseWorkbench
     void ToggleTest()
     {
         if(testing){EndPreview();return;}
-        if(profile.SourceSlot<0){saved.Text="Choose the XInput source to test first.";return;}
         try{service.TakeControl(player,model.Id,true);testing=true;preview.Visibility=previewReadout.Visibility=Visibility.Visible;previewMapper=new(profile);px=210;py=72;test.Content="Stop pointer test";}
         catch(InvalidOperationException error){service.Previewing=false;saved.Text=error.Message;}
     }

@@ -51,7 +51,7 @@ public partial class StudioScene
         var deviceSpecs = new (string Label, string Val, bool Active)[]
         {
             ("Firmware", Device?.FirmwareText ?? "Not reported", true),
-            ("Hardware revision", Device?.RevisionText ?? "Not reported", false),
+            ("Hardware ID", Device?.RevisionText ?? "Not reported", false),
             ("Battery", Device?.BatteryText ?? "Not reported", false),
             ("Connection", Device?.ConnectionText ?? "Not detected", false),
             ("Transport", Device?.TransportText ?? "Not reported", false)

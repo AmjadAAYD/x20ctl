@@ -40,7 +40,7 @@ public sealed class ScreenWorkbench
   Body.ColumnDefinitions.Add(new(){Width=new(1.15,GridUnitType.Star)});Body.ColumnDefinitions.Add(new(){Width=new(1,GridUnitType.Star)});
   var left=new StackPanel();left.Children.Add(ManagementVisuals.Copy("Screen",28,true));left.Children.Add(ManagementVisuals.Copy("160 × 80",14));
   var bezel=new Border{Background=Brushes.Black,BorderBrush=DS.Brush("DS.TextSoft"),BorderThickness=new(2),CornerRadius=new(12),Padding=new(8),Margin=new(0,18,0,10),Child=new Viewbox{Child=image,Stretch=Stretch.Uniform}};left.Children.Add(bezel);left.Children.Add(details);left.Children.Add(sizeText);left.Children.Add(notice);
-  var local=new WrapPanel{Margin=new(0,12,0,0)};local.Children.Add(Action("Open…",Open));local.Children.Add(Action("Save project…",SaveProject));local.Children.Add(Action("Export .bin…",Export));left.Children.Add(local);left.Children.Add(Action("Back to Device",back));
+  var local=new WrapPanel{Margin=new(0,12,0,0)};local.Children.Add(Action("Open…",Open));local.Children.Add(Action("Save project…",SaveProject));local.Children.Add(Action("Export .bin…",Export));left.Children.Add(local);
   Body.Children.Add(Kit.Panel(null,null,null,new ScrollViewer{Content=left,VerticalScrollBarVisibility=ScrollBarVisibility.Auto},new Thickness(20)).Also(b=>b.Margin=new(0,0,12,0)));
   editor.Children.Add(ManagementVisuals.Copy("Choose",20,true));Import=Action("Choose image…",Choose);editor.Children.Add(Import);
   var wallpapers=new WrapPanel();for(int i=0;i<6;i++){int n=i;wallpapers.Children.Add(Action(ScreenArtwork.WallpaperNames[i],()=>LoadWallpaper(n)));}editor.Children.Add(wallpapers);

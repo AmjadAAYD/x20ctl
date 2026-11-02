@@ -36,7 +36,6 @@ public sealed class MouseModeService : IDisposable
     {
         if(active || Previewing)return;
         var next=ProfileFor(player,model);
-        if(next.SourceSlot<0)return;
         lock(gate){OwnerPlayer=player;OwnerModel=model;profile=next;latest=default;}
         reload=true;Connected=false;
     }
@@ -48,7 +47,6 @@ public sealed class MouseModeService : IDisposable
     public void TakeControl(int player,string model,bool preview=false)
     {
         var next=ProfileFor(player,model);
-        if(next.SourceSlot<0) throw new InvalidOperationException("Choose a physical XInput source first.");
         Active=false; Previewing=preview; lock(gate) { OwnerPlayer=player;OwnerModel=model;profile=next;latest=default; }
         reload=true; Connected=false; Active=true;
     }
@@ -64,7 +62,7 @@ public sealed class MouseModeService : IDisposable
     public bool Active
     {
         get => active;
-        set { if(value && Profile.SourceSlot<0) return; if (active == value) return; active = value; if (PcMode != null) PcMode.Mute = value; Changed?.Invoke(); }
+        set { if (active == value) return; active = value; if (PcMode != null) PcMode.Mute = value; Changed?.Invoke(); }
     }
 
     public MouseProfile Profile { get { lock (gate) return profile.Clone(); } }
@@ -99,10 +97,9 @@ public sealed class MouseModeService : IDisposable
                 double now = clock.Elapsed.TotalMilliseconds, dt = (now - last) / 1000; last = now;
                 if (slot < 0 || PcModeService.IsVirtual(slot) || !reader.Read(slot, out var state))
                 {
-                    slot = -1;
-                    if(p.SourceSlot>=0 && !PcModeService.IsVirtual(p.SourceSlot) && reader.Read(p.SourceSlot,out _)) slot=p.SourceSlot;
+                    slot = MouseProfile.PickSlot(p.SourceSlot, Enumerable.Range(0, 4).Where(i => !PcModeService.IsVirtual(i) && reader.Read(i, out _)));
                     Connected=false; lock(gate) latest=default;
-                    if (slot < 0) { Release(); SetStatus(active ? $"Waiting for Player {OwnerPlayer+1}'s selected input source." : "Off."); Thread.Sleep(250); continue; }
+                    if (slot < 0) { Release(); SetStatus(active ? "Waiting for a controller." : "Off."); Thread.Sleep(250); continue; }
                     continue;
                 }
                 var pad = new PadState(state.Pad.Buttons, state.Pad.LT, state.Pad.RT, state.Pad.LX, state.Pad.LY, state.Pad.RX, state.Pad.RY);

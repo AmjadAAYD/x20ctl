@@ -280,7 +280,7 @@ public partial class StudioScene
 
         var playbackBtns = new StackPanel { Orientation = Orientation.Horizontal, Margin = new(6, 16, 0, 0) };
         playbackBtns.Children.Add(PulseParts.PillButton(m.IsRecording ? "Stop record" : "Record", primary: m.IsRecording, small: true, onClick: () => { m.ToggleRecording(); PulseLater(); }).Also(b => b.Margin = new(0, 0, 12, 0)));
-        playbackBtns.Children.Add(PulseParts.PillButton("Read controller", primary: false, small: true, onClick: () => { pulseMacroNote = "Reading the stored macro needs the controller's configuration link, which X20CTL can't open yet. Use Record to capture a sequence now."; PulseLater(); }).Also(b => b.Margin = new(0, 0, 12, 0)));
+        playbackBtns.Children.Add(PulseParts.PillButton("Read controller", primary: false, small: true, onClick: () => { _ = m.ReadController(text => { pulseMacroNote = text; PulseLater(); }); }).Also(b => b.Margin = new(0, 0, 12, 0)));
         playbackBtns.Children.Add(PulseParts.PillButton(m.IsPreviewing ? "Stop" : "Preview timeline", primary: m.IsPreviewing, small: true, onClick: () => { if (m.IsPreviewing) m.StopPreview(); else m.Preview(); PulseLater(); }));
         rightTools.Children.Add(playbackBtns);
         host.Children.Add(rightTools);

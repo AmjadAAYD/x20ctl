@@ -102,7 +102,7 @@ public partial class StudioScene
         g.Children.Add(Place(played, 262, 624));
         var tools = new StackPanel { Orientation = Orientation.Horizontal };
         tools.Children.Add(RebelBt(m.IsRecording ? "Stop" : "Record", "", () => { m.ToggleRecording(); RebelLater(); }, "mac:record", enabled: d.CanEdit));
-        tools.Children.Add(RebelBt("Read controller", "", () => { rebelMacroNote = "Reading the stored macro needs the controller's configuration link, which X20CTL can't open yet. Use Record to capture a sequence now."; RebelLater(); }, "mac:read"));
+        tools.Children.Add(RebelBt("Read controller", "", () => { _ = m.ReadController(text => { rebelMacroNote = text; RebelLater(); }); }, "mac:read"));
         tools.Children.Add(RebelBt(m.IsPreviewing ? "Stop preview" : "Preview timeline", "", RebelMacroPreview, "mac:preview", enabled: d.Duration(slot) > 0));
         g.Children.Add(Place(tools, 264, 696));
 

@@ -200,7 +200,7 @@ public partial class StudioScene
         regionStack.Children.Add(PulseParts.Kicker("MOTOR REGIONS", onPearl: true));
 
         var regChips = new StackPanel { Orientation = Orientation.Horizontal, Margin = new(0, 10, 0, 12) };
-        foreach (string rName in new[] { "All motors", "Left grip", "Right grip", "Triggers" })
+        foreach (string rName in new[] { "All motors", "Left grip", "Right grip" })
         {
             bool regActive = region == rName;
             string rCopy = rName;

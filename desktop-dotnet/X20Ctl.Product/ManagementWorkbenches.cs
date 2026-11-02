@@ -25,6 +25,32 @@ public sealed partial class DeviceWorkbench
     readonly TextBlock hardwareRevision=ManagementVisuals.Copy("Not reported",20,true);
     readonly TextBlock transport=ManagementVisuals.Copy("Not reported",20,true);
     private string? currentTransport;
+    private string targetModel="x20_pro";
+    private bool readingDetails;
+    private Button? refreshDetails;
+    private readonly TextBlock telemetryStatus=ManagementVisuals.Copy("Read device details over Bluetooth while using the receiver for gameplay.",13);
+    public void SetHardwareId(string? value){hardwareRevision.Text=value??"Not reported";hardwareRevision.FontSize=14;hardwareRevision.ToolTip="Controller updater hardware ID; board revision is not reported.";}
+    internal async Task RefreshDetailsAsync()
+    {
+        if(readingDetails)return;
+        readingDetails=true;if(refreshDetails!=null)refreshDetails.IsEnabled=false;
+        telemetryStatus.Text="Reading device details over Bluetooth…";
+        try
+        {
+            var result=await PadBridge.Status(targetModel);
+            if(result.Ok&&result.Telemetry is {} data)
+            {
+                if(data.Firmware!=null)SetFirmware(data.Firmware);
+                if(data.Battery!=null)SetBatteryLevel(data.Battery,currentTransport);
+                if(data.HardwareId!=null)SetHardwareId(data.HardwareId);
+                telemetryStatus.Text=data.Battery!=null?"Updated over Bluetooth · gameplay connection unchanged.":"Identity updated over Bluetooth. Battery was not reported.";
+                TelemetryUpdated?.Invoke(data);
+            }
+            else telemetryStatus.Text=result.Text;
+        }
+        catch(Exception error){telemetryStatus.Text="Device details could not be read: "+error.Message;}
+        finally{readingDetails=false;if(refreshDetails!=null)refreshDetails.IsEnabled=true;}
+    }
     public event Action<TelemetryData>? TelemetryUpdated;
 
     public void SetTransport(string? value)
@@ -52,9 +78,9 @@ public sealed partial class DeviceWorkbench
     public void SetBatteryLevel(string? level) => SetBatteryLevel(level, null);
     public void SetConnection(bool connected)=>connection.Text=connected?"Gameplay input detected":"Not detected";
     public void UpdateEngineStatus(string status) { /* Process availability does not establish hardware configuration support. */ }
-    public DeviceWorkbench(ControllerModel model,int player,FrameworkElement resources,Action<Button> register,Action tester,Action setups,Action? screen=null)
+    public DeviceWorkbench(ControllerModel model,int player,FrameworkElement resources,Action<Button> register,Action tester,Action setups,Action? screen=null,Func<Action<string>,Task>? factoryReset=null)
     {
-        State=new(model.Id,player);
+        targetModel=model.Id;State=new(model.Id,player);
         Body.ColumnDefinitions.Add(new(){Width=new(1,GridUnitType.Star)});Body.ColumnDefinitions.Add(new(){Width=new(1.25,GridUnitType.Star)});
         var hardware=new Grid();hardware.RowDefinitions.Add(new(){Height=GridLength.Auto});hardware.RowDefinitions.Add(new());hardware.RowDefinitions.Add(new(){Height=GridLength.Auto});
         var identity=new StackPanel{Children={ManagementVisuals.Copy($"PLAYER {player+1}",13),ManagementVisuals.Copy(model.Name,28,true),ManagementVisuals.Copy("Assigned controller",14)}};hardware.Children.Add(identity);
@@ -64,34 +90,25 @@ public sealed partial class DeviceWorkbench
         var overview=new StackPanel();var scroll=new ScrollViewer{Content=overview,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,Padding=new(0,0,8,0)};Grid.SetColumn(scroll,1);Body.Children.Add(scroll);
         var status=new StackPanel();status.Children.Add(connection);status.Children.Add(ManagementVisuals.Copy("Controller input and configuration connection are checked separately.",14).Also(t=>t.Margin=new(0,8,0,12)));
         OpenTester=ManagementVisuals.Action(resources,"Open Diagnostics",tester,register);OpenTester.HorizontalAlignment=HorizontalAlignment.Left;status.Children.Add(OpenTester);
-        if(ModelProfiles.For(model.Id).HasScreen && screen!=null){OpenScreen=ManagementVisuals.Action(resources,"Screen artwork",screen,register).Also(b=>b.Margin=new(0,12,0,0));status.Children.Add(OpenScreen);}
+        if(model.Id is "x20" or "x20_pro")
+        {
+            refreshDetails=ManagementVisuals.Action(resources,"Refresh device details",async()=>await RefreshDetailsAsync(),register);
+            refreshDetails.Margin=new(0,12,0,10);refreshDetails.HorizontalAlignment=HorizontalAlignment.Left;
+            status.Children.Add(refreshDetails);status.Children.Add(telemetryStatus);
+        }
         overview.Children.Add(Kit.Panel("Connection",null,null,status));
         var values=new System.Windows.Controls.Primitives.UniformGrid{Columns=2,Margin=new(-5,12,-5,0)};
-        foreach(var (label,value) in new[]{("Battery",battery),("Firmware",firmware),("Hardware revision",hardwareRevision),("Transport",transport)})
+        foreach(var (label,value) in new[]{("Battery",battery),("Firmware",firmware),("Hardware ID",hardwareRevision),("Transport",transport)})
         {
             var metric=new StackPanel{Children={ManagementVisuals.Copy(label,13),value}};
             value.Margin=new(0,8,0,0);
             var tile=Kit.Panel(null,null,null,metric,new Thickness(16));
             tile.Margin=new(5,0,5,10);
-            if (label == "Battery" && model.Id is "x20" or "x20_pro")
+            if (label is "Battery" or "Firmware" or "Hardware ID" && model.Id is "x20" or "x20_pro")
             {
                 tile.Cursor = Cursors.Hand;
-                tile.ToolTip = "Click to refresh battery and firmware over Bluetooth";
-                tile.MouseLeftButtonUp += async (_, _) =>
-                {
-                    battery.Text = "Reading…";
-                    var r = await PadBridge.Status(model.Id);
-                    if (r.Ok && r.Telemetry != null)
-                    {
-                        if (r.Telemetry.Firmware != null) SetFirmware(r.Telemetry.Firmware);
-                        if (r.Telemetry.Battery != null) SetBatteryLevel(r.Telemetry.Battery, currentTransport);
-                        TelemetryUpdated?.Invoke(r.Telemetry);
-                    }
-                    else
-                    {
-                        SetBatteryLevel(currentBattery, currentTransport);
-                    }
-                };
+                tile.ToolTip = "Read battery, firmware and hardware ID over Bluetooth";
+                tile.MouseLeftButtonUp += async (_, _) => await RefreshDetailsAsync();
             }
             if (label == "Battery") batteryTile = tile;
             values.Children.Add(tile);
@@ -103,6 +120,18 @@ public sealed partial class DeviceWorkbench
         overview.Children.Add(Kit.Panel("Model capabilities",null,null,support));
         var compatibility=new StackPanel{Children={ManagementVisuals.Copy(profile.SupportsLocalDrafts?"Local drafts available. Native configuration writes remain locked.":"Layout and artwork available. Native configuration is unavailable for this model.",14),ManagementVisuals.Copy("Gyro, rear controls and independent motors appear only when the connected interface supports them.",13).Also(t=>t.Margin=new(0,8,0,0))}};
         var supportPanel=Kit.Panel("X20CTL support",null,null,compatibility);supportPanel.Margin=new(0,12,0,0);overview.Children.Add(supportPanel);
+        if(factoryReset!=null)
+        {
+            const string resetWarning="Erases the settings saved on the controller.";
+            var resetNote=ManagementVisuals.Copy(resetWarning,14);
+            var resetYes=ManagementVisuals.Action(resources,"Reset controller",()=>{},register);var resetNo=ManagementVisuals.Action(resources,"Cancel",()=>{},register);
+            var resetConfirm=new StackPanel{Orientation=Orientation.Horizontal,Visibility=Visibility.Collapsed,Margin=new(0,12,0,0),Children={resetYes,resetNo}};
+            var resetAsk=ManagementVisuals.Action(resources,"Factory reset",()=>{resetConfirm.Visibility=Visibility.Visible;resetNote.Text="Reset this controller? This can't be undone.";},register);
+            resetAsk.HorizontalAlignment=HorizontalAlignment.Left;resetAsk.Margin=new(0,12,0,0);
+            resetNo.Click+=(_,_)=>{resetConfirm.Visibility=Visibility.Collapsed;resetNote.Text=resetWarning;};
+            resetYes.Click+=async(_,_)=>{resetConfirm.Visibility=Visibility.Collapsed;resetAsk.IsEnabled=false;await factoryReset(text=>resetNote.Text=text);resetAsk.IsEnabled=true;};
+            var resetPanel=Kit.Panel("Factory reset",null,null,new StackPanel{Children={resetNote,resetAsk,resetConfirm}});resetPanel.Margin=new(0,12,0,0);overview.Children.Add(resetPanel);
+        }
 
         OpenSetups=ManagementVisuals.Action(resources,"My setups",setups,register);OpenSetups.Visibility=Visibility.Collapsed;
     }

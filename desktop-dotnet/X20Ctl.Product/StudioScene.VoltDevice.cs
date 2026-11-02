@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -102,7 +102,7 @@ public partial class StudioScene
         var capRows = new (string Label, string Val)[]
         {
             ("Model", Model.Name),
-            ("Hardware revision", Device?.RevisionText ?? "Not reported"),
+            ("Hardware ID", Device?.RevisionText ?? "Not reported"),
             ("Rear artwork", HasRearArtwork ? "Available" : "Unavailable"),
             ("Configuration writes", "Locked"),
             ("Polling rate", "Not measured")

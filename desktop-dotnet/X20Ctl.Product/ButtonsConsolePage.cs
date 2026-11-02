@@ -37,6 +37,12 @@ public sealed class ButtonsConsolePage : Grid
     private readonly Canvas markers=new(){Width=1536,Height=1024,IsHitTestVisible=false};
     private readonly TextBlock mappingLabel=Kit.Text("",32,"DS.Text",FontWeights.SemiBold);
     private bool connected;
+    private readonly TextBlock controllerNote=Kit.Text("",13,"DS.TextSoft");
+    private readonly Button applyButton;
+    private Action? ApplyToController;
+    /// <summary>This controller stores its own mappings: shows the button that writes them.</summary>
+    public void UseController(Action apply){ApplyToController=apply;applyButton.Visibility=Visibility.Visible;controllerNote.Text="Apply to save this on the controller.";}
+    public void SayController(string text)=>controllerNote.Text=text;
     public void SetConnected(bool value){connected=value;RefreshMapping();}
     public void SelectPhysical(string key){if(Listening!=Listen.None){Press(key);return;}if(layout.Controls.Any(r=>r.Key==key))Pick(key);}
     private bool TargetAllowed(string key)=>ButtonDraft.Targets.Contains(key)||key=="NONE"&&draft.PcMode;
@@ -80,14 +86,15 @@ public sealed class ButtonsConsolePage : Grid
         }
         workspace.Children.Add(selectionTitle);
         workspace.Children.Add(BuildMappingCard());
-        workspace.Children.Add(Kit.Text(draft.PcMode?"PC MODE · Processed by X20CTL on this PC. Controller memory is unchanged.":"LOCAL DRAFT · Not written to controller memory.",13,"DS.TextSoft").Also(t=>{t.TextWrapping=TextWrapping.Wrap;t.Margin=new(0,10,0,12);}));
+        controllerNote.TextWrapping=TextWrapping.Wrap;controllerNote.Margin=new(0,10,0,12);controllerNote.Text=draft.PcMode?"PC MODE · Processed by X20CTL on this PC. Controller memory is unchanged.":"";workspace.Children.Add(controllerNote);
+        applyButton=ActionButton("","Apply to controller","ActionButton");applyButton.Margin=new(0,0,0,12);applyButton.HorizontalAlignment=HorizontalAlignment.Left;applyButton.Visibility=Visibility.Collapsed;applyButton.Click+=(_,_)=>ApplyToController?.Invoke();workspace.Children.Add(applyButton);
         outputPicker.Children.Add(outputsHint);
         outputPicker.Children.Add(new Border{CornerRadius=new(12),Background=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(20,255,255,255))),Padding=new(2),Child=seg,Margin=new(0,8,0,10)});
         workspace.Children.Add(outputPicker);
         tryButton = ActionButton("", "Test mapping", "ActionButton"); tryButton.Click += (_, _) => this.toggleTry();
         allButton = ActionButton("", "All assignments", "ActionButton"); allButton.Click += (_, _) => ShowOverview(overview.Visibility != Visibility.Visible);
         var more = new Button { Content = "", Style = DS.Style("DS.ActionRound"), ToolTip = "Reset options" };
-        more.ContextMenu = new ContextMenu { Items = { Menu("Reset this control", () => { if (Source.Length > 0 && draft.CanEdit(Source)) { draft.Reset(Source); Changed?.Invoke(); } }), Menu("Reset all controls", () => { draft.ResetAll(); Changed?.Invoke(); }) } };
+        more.ContextMenu = new ContextMenu { Items = { Menu("Reset this control", () => { if (Source.Length > 0 && draft.CanEdit(Source)) { draft.Reset(Source); Changed?.Invoke(); ApplyToController?.Invoke(); } }), Menu("Reset all controls", () => { draft.ResetAll(); Changed?.Invoke(); ApplyToController?.Invoke(); }) } };
         more.Click += (_, _) => { more.ContextMenu.PlacementTarget = more; more.ContextMenu.IsOpen = true; };
         var actions = new Grid { Margin = new(0, 14, 0, 0) }; actions.ColumnDefinitions.Add(new()); actions.ColumnDefinitions.Add(new() { Width = new(12) }); actions.ColumnDefinitions.Add(new()); actions.ColumnDefinitions.Add(new() { Width = new(12) }); actions.ColumnDefinitions.Add(new() { Width = GridLength.Auto });
         actions.Children.Add(tryButton); Grid.SetColumn(allButton, 2); actions.Children.Add(allButton); Grid.SetColumn(more, 4); actions.Children.Add(more);
@@ -182,7 +189,7 @@ public sealed class ButtonsConsolePage : Grid
         sendsName.Text = waitTarget ? "Choose output below" : editable ? target=="NONE"?"Disabled":Kind(target) : has ? "Can't change" : "Then press its new job";
         selectionTitle.Text=has?label(Source):"Select a control";
         sentence.Text=!has?(connected?"Select a control on the picture or press it on the controller.":"Select a control on the picture. Physical detection is unavailable while offline."):editable?$"Current mapping: {Short(Source)} → {Short(target)}":"This input can be inspected; remapping is unavailable.";
-        readOnly.Text = !has ? "" : model.Id != "x20" && !draft.PcMode ? "Remapping is not verified for this model yet, so it can only be inspected." : editable ? "" : $"{name} can't be remapped. It has no button role to swap.";
+        readOnly.Text = !has ? "" : model.Id is not ("x20" or "x20_pro") && !draft.PcMode ? "Remapping is not verified for this model yet, so it can only be inspected." : editable ? "" : $"{name} can't be remapped. It has no button role to swap.";
         readOnly.Visibility = readOnly.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed; sentence.Visibility = sentence.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         restore.Visibility = changed ? Visibility.Visible : Visibility.Collapsed;restore.Content=$"Restore {Short(Source)} → {Short(Source)}";
         outputPicker.Visibility=editable?Visibility.Visible:Visibility.Collapsed;tryButton.Visibility=changed?Visibility.Visible:Visibility.Collapsed;
@@ -239,7 +246,7 @@ public sealed class ButtonsConsolePage : Grid
         var arrow = Kit.Icon("\uE72A", 22, "DS.AccentHi"); arrow.Margin = new(18, 0, 18, 8); Grid.SetColumn(arrow, 1); g.Children.Add(arrow);
         var right = Side("GAME GETS", sendsFace, sendsRing, sendsName, Listen.Target, "Choose an output below, or capture a button when connected"); Grid.SetColumn(right, 2); g.Children.Add(right);
         restore.Style = DS.Style("ActionButton"); restore.Height = 42; restore.MinHeight = 42; restore.Padding = new(22, 0, 22, 0); restore.FontSize = 13.5;
-        restore.Click += (_, _) => { if (Source.Length > 0 && draft.CanEdit(Source)) { draft.Reset(Source); Changed?.Invoke(); RefreshMapping(); } };
+        restore.Click += (_, _) => { if (Source.Length > 0 && draft.CanEdit(Source)) { draft.Reset(Source); Changed?.Invoke(); ApplyToController?.Invoke(); RefreshMapping(); } };
         var foot = new DockPanel { Margin = new(2, 8, 0, 0) }; DockPanel.SetDock(restore, Dock.Right); foot.Children.Add(restore);
         readOnly.TextWrapping = TextWrapping.Wrap; readOnly.TextTrimming = TextTrimming.None; sentence.TextWrapping = TextWrapping.Wrap; sentence.TextTrimming = TextTrimming.None;
         foot.Children.Add(new StackPanel { VerticalAlignment = VerticalAlignment.Center, Children = { sentence, readOnly } });
@@ -302,7 +309,7 @@ public sealed class ButtonsConsolePage : Grid
                         Child = IconLabel("", "Default") } };
                 defaults.MouseEnter += (_, _) => ((Border)defaults.Content).BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(200, 125, 182, 255)));
                 defaults.MouseLeave += (_, _) => ((Border)defaults.Content).BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(60, 255, 255, 255)));
-                defaults.Click += (_, _) => { if (Source.Length > 0 && draft.CanEdit(Source)) { draft.Reset(Source); Changed?.Invoke(); RefreshMapping(); } };
+                defaults.Click += (_, _) => { if (Source.Length > 0 && draft.CanEdit(Source)) { draft.Reset(Source); Changed?.Invoke(); ApplyToController?.Invoke(); RefreshMapping(); } };
                 special.Children.Add(defaults);
                 if (draft.PcMode) { var disabled = Output("NONE", "Disabled", 168, 40); special.Children.Add(disabled); }
                 stage.Children.Add(special);
@@ -431,7 +438,7 @@ public sealed class ButtonsConsolePage : Grid
     private void BuildOverview()
     {
         overview.Children.Clear(); overview.Children.Add(Kit.Section("All assignments", 0));
-        if (model.Id != "x20" && !draft.PcMode) { overview.Children.Add(Kit.Info("No verified mappings for this model yet.")); return; }
+        if (model.Id is not ("x20" or "x20_pro") && !draft.PcMode) { overview.Children.Add(Kit.Info("No verified mappings for this model yet.")); return; }
         foreach (var (name, _, keys) in Groups.Take(4))
         {
             var rows = keys.Where(ButtonDraft.Sources.Contains).Select(k => (label(k), draft.Target(k) == k ? "Default" : "→ " + label(draft.Target(k)), draft.Target(k) == k ? (string?)null : "DS.AccentHi")).ToArray();

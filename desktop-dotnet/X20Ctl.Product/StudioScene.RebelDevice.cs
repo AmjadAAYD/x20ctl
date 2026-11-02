@@ -60,7 +60,7 @@ public partial class StudioScene
         g.Children.Add(Place(below, 296, 584));
 
         // the facts
-        var rows = new (string label, string value, string tag)[] { ("Connection", w.ConnectionText, "dev:conn"), ("Battery", w.BatteryText, "dev:battery"), ("Firmware", w.FirmwareText, "dev:firmware"), ("Hardware revision", w.RevisionText, "dev:revision"), ("Transport", w.TransportText, "dev:transport") };
+        var rows = new (string label, string value, string tag)[] { ("Connection", w.ConnectionText, "dev:conn"), ("Battery", w.BatteryText, "dev:battery"), ("Firmware", w.FirmwareText, "dev:firmware"), ("Hardware ID", w.RevisionText, "dev:revision"), ("Transport", w.TransportText, "dev:transport") };
         var list = new StackPanel { Width = 600 }; list.Children.Add(Ink.Label("Device", 12, Ink.B(Ink.Red)).Also(l => l.Margin = new(6, 0, 0, 8)));
         for (int i = 0; i < rows.Length; i++)
         {

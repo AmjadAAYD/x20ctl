@@ -113,14 +113,17 @@ public sealed class MacroWorkbench
         foreach(var b in new[]{add,preview}){b.Height=44;b.MinHeight=0;b.Padding=new(22,0,22,0);b.FontSize=15;b.Margin=new(0,0,10,0);}
         preview.ToolTip="Plays the timeline on screen only. Nothing is sent to the controller or to Windows.";
         var more=new Button{Content="",Style=DS.Style("DS.ActionRound"),Width=44,Height=44,MinHeight=0,ToolTip="More macro actions"};focusRegistration(more);var menu=new ContextMenu();
-        var clearMenu=new MenuItem {Header="Clear this slot"};clearMenu.Click+=(_,_)=>Guard(Clear);menu.Items.Add(clearMenu);menu.Items.Add(new MenuItem {Header="Recording unavailable",IsEnabled=false});more.ContextMenu=menu;more.Click+=(_,_)=>{clearMenu.IsEnabled=Draft[Slot].Count>0;menu.PlacementTarget=more;menu.Placement=PlacementMode.Bottom;menu.IsOpen=true;};
+        var clearMenu=new MenuItem {Header="Clear this slot"};clearMenu.Click+=(_,_)=>Guard(Clear);menu.Items.Add(clearMenu);more.ContextMenu=menu;more.Click+=(_,_)=>{clearMenu.IsEnabled=Draft[Slot].Count>0;menu.PlacementTarget=more;menu.Placement=PlacementMode.Bottom;menu.IsOpen=true;};
                 Record=new Button{Style=DS.Style("ActionButton"),Height=44,MinHeight=0,Padding=new(18,0,20,0),Margin=new(0,0,10,0),ToolTip="Play the sequence on your controller and it becomes this slot's events (read-only input; nothing is sent)",
             Content=new StackPanel{Orientation=Orientation.Horizontal,Children={new Ellipse{Width=11,Height=11,Fill=new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(255,72,96))),Margin=new(0,0,10,0),VerticalAlignment=VerticalAlignment.Center,Effect=new DropShadowEffect{Color=ThemeCatalog.R(Color.FromRgb(255,72,96)),BlurRadius=10,ShadowDepth=0,Opacity=.9}},new TextBlock{Text="Record",FontFamily=DS.Display,FontSize=15,FontWeight=FontWeights.SemiBold,Foreground=DS.Brush("DS.Text"),VerticalAlignment=VerticalAlignment.Center}}}};
         Record.Click+=(_,_)=>ToggleRecording();focusRegistration(Record);Record.IsEnabled=Draft.CanEdit;
         var read=new Button{Style=DS.Style("ActionButton"),Height=44,MinHeight=0,Padding=new(18,0,20,0),Margin=new(0,0,10,0),ToolTip="Read the macro stored on the controller into this slot",
             Content=new StackPanel{Orientation=Orientation.Horizontal,Children={Kit.Icon("\uE896",14,"DS.Text").Also(i=>i.Margin=new(0,0,10,0)),new TextBlock{Text="Read controller",FontFamily=DS.Display,FontSize=15,FontWeight=FontWeights.SemiBold,Foreground=DS.Brush("DS.Text"),VerticalAlignment=VerticalAlignment.Center}}}};
-        read.Click+=(_,_)=>notice.Text="Reading the stored macro needs the controller's configuration link, which X20CTL can't open yet (it only reads ordinary input today). The X20's read-back command is known and will be used once that link exists. Use Record to capture a sequence now.";focusRegistration(read);
-        var workspaceActions=new StackPanel {Orientation=Orientation.Horizontal,VerticalAlignment=VerticalAlignment.Center,Children={Record,read,add,preview,more}};DockPanel.SetDock(workspaceActions,System.Windows.Controls.Dock.Right);header.Children.Add(workspaceActions);
+        read.Click+=async(_,_)=>{read.IsEnabled=false;try{await ReadController();}finally{read.IsEnabled=true;}};focusRegistration(read);
+        applyButton=new Button{Style=DS.Style("ActionButton"),Height=44,MinHeight=0,Padding=new(18,0,20,0),Margin=new(0,0,10,0),Visibility=Visibility.Collapsed,
+            Content=new TextBlock{Text="Apply to controller",FontFamily=DS.Display,FontSize=15,FontWeight=FontWeights.SemiBold,Foreground=DS.Brush("DS.Text"),VerticalAlignment=VerticalAlignment.Center}};
+        applyButton.Click+=async(_,_)=>{if(applyToController==null)return;applyButton.IsEnabled=false;try{await applyToController(text=>notice.Text=text);}finally{applyButton.IsEnabled=true;}};focusRegistration(applyButton);
+        var workspaceActions=new StackPanel {Orientation=Orientation.Horizontal,VerticalAlignment=VerticalAlignment.Center,Children={Record,read,applyButton,add,preview,more}};DockPanel.SetDock(workspaceActions,System.Windows.Controls.Dock.Right);header.Children.Add(workspaceActions);
         header.Children.Add(new StackPanel {VerticalAlignment=VerticalAlignment.Center,Children={heading,summary}});
         sequenceViewport.Content=sequence;sequenceViewport.Height=76;Grid.SetRow(sequenceViewport,1);page.Children.Add(sequenceViewport);
         sequenceViewport.PreviewMouseWheel+=(_,e)=>{if(steps.Count>0)Select(Math.Clamp(SelectedIndex-Math.Sign(e.Delta),0,steps.Count-1));e.Handled=true;};
@@ -336,6 +339,24 @@ public sealed class MacroWorkbench
         }
         catch(Exception error) when(error is ArgumentException or InvalidOperationException){notice.Text="The recording couldn't be stored: "+error.Message;Refresh();}
     }
+    readonly Button applyButton;
+    Func<Action<string>,Task>? applyToController;
+    /// <summary>This controller stores its own macros: shows the button that writes them.</summary>
+    public void UseController(Func<Action<string>,Task> apply){applyToController=apply;applyButton.Visibility=Visibility.Visible;Refresh();}
+    /// <summary>Replaces this slot with what the controller has stored, over Bluetooth. Reads only.</summary>
+    public async Task ReadController(Action<string>? report=null)
+    {
+        void Say(string text){notice.Text=text;report?.Invoke(text);}
+        if(Draft.PhysicalSlots.Count!=6){Say("Reading is verified on the X20 Pro only.");return;}
+        string slot=Slot;Say($"Reading {slot}…");
+        try
+        {
+            var events=MacroRecord.Parse(await LightingBleClient.ReadMacroAsync(Array.IndexOf(Draft.SlotNames,slot)));
+            StopPreview();Draft.Replace(slot,events);if(slot==Slot){SelectedIndex=events.Count==0?-1:0;}Refresh();Changed?.Invoke();
+            Say(events.Count==0?$"{slot} is empty on the controller.":$"Read {slot}: {events.Count} event{(events.Count==1?"":"s")} · {string.Join(" + ",events[0].Buttons.DefaultIfEmpty("no buttons"))}{(events.Count>1?" first":"")}.");
+        }
+        catch(Exception error) when(error is IOException or TimeoutException or FormatException or ArgumentException or InvalidOperationException or System.Runtime.InteropServices.COMException){Say("Couldn't read the controller: "+error.Message);}
+    }
     public void Preview() {if(IsPreviewing){StopPreview();return;}if(Draft.Duration(Slot)<=0)return;clock.Restart();timer.Start();preview.Content="Stop preview";notice.Text="Timeline preview only · No controller or Windows input is emitted.";UpdatePlayhead();}
     public void StopPreview() {timer.Stop();clock.Stop();PreviewIndex=-1;PreviewIsPause=false;preview.Content="Preview timeline";playhead.Visibility=Visibility.Collapsed;UpdateEventSelection();UpdateLaneHighlight();if(SelectedIndex>=0)SnapTo(SelectedIndex);}
     private void Deactivated(object? sender,EventArgs e)=>StopPreview();
@@ -352,7 +373,7 @@ public sealed class MacroWorkbench
     public void Refresh()
     {
         if(SelectedIndex>=Draft[Slot].Count)SelectedIndex=Draft[Slot].Count-1;
-        heading.Text=Slot+" · Sequence";summary.Text=$"Events {Draft[Slot].Count} · Capacity {Draft.EntryCount(Slot)} / 47 · {Draft.Duration(Slot)} ms";summary.ToolTip="Each hold uses one capacity unit; a nonzero following pause uses another. Hardware contents are unknown.";notice.Text=Draft.EntryCount(Slot)>=47?"Maximum sequence capacity reached.":"Local draft · Hold and pause timing are a sequence preview.";
+        heading.Text=Slot+" · Sequence";summary.Text=$"Events {Draft[Slot].Count} · Capacity {Draft.EntryCount(Slot)} / 47 · {Draft.Duration(Slot)} ms";summary.ToolTip="Each hold uses one capacity unit; a nonzero following pause uses another. Hardware contents are unknown.";notice.Text=Draft.EntryCount(Slot)>=47?"Maximum sequence capacity reached.":applyToController!=null?"Apply to save on the controller.":"Local draft · Hold and pause timing are a sequence preview.";
         PaintSlots();foreach(var (key,shape) in paddles)shape.Illuminate(key==Slot,false);
         if(Draft.PcMode){bool was=updating;updating=true;trigger.SelectedValue=Draft.Trigger(Slot)??"";updating=was;notice.Text=Draft.Trigger(Slot) is {} by?$"PC mode plays this when you press {TriggerLabel(by)}, instead of what {TriggerShort(by)} usually does.":Draft[Slot].Count>0?"Pick the button that plays this slot (left), or PC mode won't play it.":"PC mode · Add events, then pick the button that plays them.";}
         sequence.Children.Clear();steps.Clear();for(int i=0;i<Draft[Slot].Count;i++)

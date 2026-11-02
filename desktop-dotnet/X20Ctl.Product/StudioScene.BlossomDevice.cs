@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -240,7 +240,7 @@ public partial class StudioScene
         var devProps = new (string Key, string Val)[]
         {
             ("Model", Model.Name),
-            ("Hardware revision", Device?.RevisionText ?? "Not reported"),
+            ("Hardware ID", Device?.RevisionText ?? "Not reported"),
             ("Firmware", Device?.FirmwareText ?? "Not reported"),
             ("Battery Level", Device?.BatteryText ?? "Not reported"),
             ("Connection", Device?.ConnectionText ?? "Not detected")

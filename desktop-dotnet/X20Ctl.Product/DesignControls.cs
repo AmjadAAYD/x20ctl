@@ -340,6 +340,7 @@ public sealed class HeaderBattery : Button
     /// <summary>full, medium, low, empty or wired; anything else is "not reported".</summary>
     public void Show(string? reported)
     {
+        if(reported=="receiver")reported=null;
         int lit = reported switch { "full" => 4, "medium" => 2, "low" => 1, _ => 0 };
         if (lit == 0 && reported != null)
         {

@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -17,8 +17,10 @@ public partial class StudioScene
     private void QueueNavigation(){if(navigationQueued)return;navigationQueued=true;Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded,new Action(()=>{navigationQueued=false;UpdateNavigation();}));}
     private void BuildNavigation()
     {
-        navigation=[DashboardNav,ButtonsNav,CurvesNav,MacrosNav,VibrationNav,PcModeNav,DeviceNav,MouseNav,SetupsNav];
+        navigation=new[]{DashboardNav,ButtonsNav,CurvesNav,MacrosNav,VibrationNav,PcModeNav,RgbNav,ScreenNav,DeviceNav,MouseNav,SetupsNav}.Where(t=>(t!=RgbNav||Model.Id=="x20_pro")&&(t!=ScreenNav||ModelProfiles.For(Model.Id).HasScreen)).ToArray();
+        RgbNav.Visibility=Model.Id=="x20_pro"?Visibility.Visible:Visibility.Collapsed;ScreenNav.Visibility=ModelProfiles.For(Model.Id).HasScreen?Visibility.Visible:Visibility.Collapsed;
         string group="studio-tabs-"+Guid.NewGuid().ToString("N");DiagnosticsNav.GroupName=group;DiagnosticsNav.Checked+=(_,_)=>QueueNavigation();UiSound.SetCue(DiagnosticsNav,UiSound.Cue.Tab);foreach(var tab in navigation){UiSound.SetCue(tab,UiSound.Cue.Tab);tab.GroupName=group;tab.Checked+=(_,_)=>QueueNavigation();}
+        BuildFeatureNavigation();
         NavigationIndicator.RenderTransform=new TransformGroup{Children={navigationLensScale,navigationSlide}};
         NavigationIndicator.RenderTransformOrigin=new(.5,.5);
         NavigationIndicator.Effect=null;

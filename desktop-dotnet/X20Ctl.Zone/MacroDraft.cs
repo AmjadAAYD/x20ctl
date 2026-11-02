@@ -49,6 +49,7 @@ public sealed class MacroDraft(string modelId)
         var next=sequences[slot].ToList();var item=next[from];next.RemoveAt(from);next.Insert(Math.Clamp(to,0,next.Count),item);Commit(slot,next);
     }
     public void Clear(string slot)=>Commit(slot,[]);
+    public void Replace(string slot,IEnumerable<MacroEvent> events)=>Commit(slot,events.ToList());
     public void Duplicate(string slot,int index){var next=sequences[slot].ToList();next.Insert(index+1,next[index] with {Id=Guid.NewGuid()});Commit(slot,next);}
     private void Commit(string slot,List<MacroEvent> next)
     {
