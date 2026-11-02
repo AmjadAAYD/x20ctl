@@ -4,6 +4,9 @@
 
 ### Added
 
+- **Artwork for the X20 Pro screen.** Preview a wallpaper or GIF, edit its crop and colors, save a project or binary, and try uploads in Simulate. A first-run check guides the owner through an explicit COM port, flash identity, dry run, test image and restore. Physical sends stay off until the owner enables them.
+
+
 - **Soft interface sounds.** Switching tabs, clicking, hovering a game, a tool or a controller, and choosing a controller each make a quiet, smooth sound. The tab-switch sound serves every click, button and hover (hovers at half volume); choosing a controller has its own. They follow the Sound switch under Tools, Opening intro.
 - **EasySMX X20 Pro in the command line and library.** The X20 Pro (firmware 1.44) is recognised, its 2.4 GHz receiver is identified, and its six macro slots (M1 to M6) are read and saved. Settings are changed over Bluetooth only, each one read back and restored in the logs: remaps, stick and trigger curves, vibration, idle timeout, macros and turbo. Calibrate and factory reset stay locked. (added by [Monratis](https://github.com/Monratis), tested on an X20 Pro)
 - **Each Tools card tells its own little story** on its own while the page is open: the wrench fixing, feedback travelling to its inbox, pause turning into play, a link between phone and controller, a beating heart, and the star shining and filling. They are bolder and in colour, they spring as they move. They stop when you leave the page, and stay still with reduced motion.
