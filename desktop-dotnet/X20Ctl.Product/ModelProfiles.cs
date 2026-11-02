@@ -11,6 +11,7 @@ namespace X20Ctl.Product;
 public sealed record ModelProfile(string Id, string Sticks, string Triggers, string[] Paddles, string Motors, string Polling, string Motion, string Battery, int BatteryLevels, string Extras)
 {
     /// <summary>Models whose local editor formats are implemented; this does not authorize hardware writes.</summary>
+    public bool HasScreen => Id == "x20_pro";
     public bool SupportsLocalDrafts => Id is "x20" or "x20_pro";
     /// <summary>One line naming what is known, for banners and the Device page.</summary>
     public string Summary => $"{Sticks} sticks · {Triggers} triggers · {(Paddles.Length == 0 ? "no back buttons" : string.Join("/", Paddles))} · {Motors}";
