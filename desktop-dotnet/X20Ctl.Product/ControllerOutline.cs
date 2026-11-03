@@ -17,8 +17,49 @@ namespace X20Ctl.Product;
 /// every picture once (the old Assets/controllers copies doubled the download).</summary>
 public static class ControllerArt
 {
-    public static System.Windows.Media.Imaging.BitmapImage Front(string model) => LiveController.Bitmap($"Assets/native/{model}/native/front-full.png");
-    public static System.Windows.Media.Imaging.BitmapImage Rear(string model) => LiveController.Bitmap($"Assets/native/{model}/native/rear-full.png");
+    /// <summary>Where a model's layers live in one of its colours; the original colour is the model's own art.</summary>
+    public static string Folder(string model, string? finish = null) =>
+        finish is null or X20Ctl.Zone.FinishCatalog.Original || !PadColours.Catalog.Has(model, finish) ? $"Assets/native/{model}/native/" : $"Assets/native/{model}/finishes/{finish}/";
+    public static System.Windows.Media.Imaging.BitmapImage Front(string model, string? finish = null) => LiveController.Bitmap(Folder(model, finish) + "front-full.png");
+    public static System.Windows.Media.Imaging.BitmapImage Rear(string model, string? finish = null) => LiveController.Bitmap(Folder(model, finish) + "rear-full.png");
+}
+
+/// <summary>The colour each player's pad is shown in. The app can't tell a pad's colour from its identity, so the player
+/// picks it with Change colour in the Zone; it is remembered per player and model and every view of that pad follows it.</summary>
+public static class PadColours
+{
+    private static X20Ctl.Zone.FinishCatalog? catalog;
+    private static X20Ctl.Zone.PadColourStore? store;
+    public static event Action<int>? Changed;
+    public static X20Ctl.Zone.FinishCatalog Catalog => catalog ??= Read();
+    private static X20Ctl.Zone.FinishCatalog Read()
+    {
+        try { return new(File.ReadAllText(System.IO.Path.Combine(AppContext.BaseDirectory, "Data", "finishes.json"))); }
+        catch (Exception error) when (error is IOException or JsonException or InvalidDataException or KeyNotFoundException or InvalidOperationException) { return X20Ctl.Zone.FinishCatalog.Empty; }
+    }
+    /// <summary>Called once by the host; a review window points it at a file beside its own fixtures.</summary>
+    public static void Use(string path)
+    {
+        store = new(path);
+        try { store.Load(); } catch (Exception error) when (error is IOException or JsonException or InvalidDataException or UnauthorizedAccessException) { store = null; }
+    }
+    /// <summary>This session's pick (kept even if the file could not take it), else the remembered one, else the model's default colour.</summary>
+    public static string For(int player, string model)
+    {
+        string finish = session.TryGetValue((player, model), out var picked) ? picked : store?.Get(player, model) ?? Catalog.Default(model);
+        return Catalog.Has(model, finish) ? finish : Catalog.Default(model);
+    }
+    /// <summary>Remembers the colour (for this session if the file can't be written) and tells every view of the pad.</summary>
+    public static void Set(int player, string model, string finish)
+    {
+        session[(player, model)] = finish;
+        try { store?.Set(player, model, finish); } catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidOperationException) { }
+        Changed?.Invoke(player);
+    }
+    private static readonly Dictionary<(int, string), string> session = new();
+    /// <summary>The player whose Studio is open; its pages show that pad in its colour.</summary>
+    public static int? ActivePlayer { get; set; }
+    public static string Active(string model) => ActivePlayer is int player ? For(player, model) : Catalog.Default(model);
 }
 
 public sealed class ControllerOutline : FrameworkElement
@@ -27,19 +68,21 @@ public sealed class ControllerOutline : FrameworkElement
     private Geometry geometry = Geometry.Empty;
     // a crisp edge, no glow (owner, 10 Oct 2026: the soft halo read as fog): a dark line seats the controller on the
     // page and covers the cut-out's soft band, a fine light line on top of it catches the light from above
-    private static readonly Pen Seat = Freeze(new Pen(new SolidColorBrush(Color.FromArgb(200, 6, 11, 24)), 4.2) { LineJoin = PenLineJoin.Round });
-    private static readonly Pen Catch = Freeze(new Pen(new LinearGradientBrush(Color.FromArgb(220, 228, 236, 250), Color.FromArgb(90, 150, 170, 205), 90), 1.3) { LineJoin = PenLineJoin.Round });
+    private static readonly Pen Seat = Freeze(new Pen(new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(200, 6, 11, 24))), 4.2) { LineJoin = PenLineJoin.Round });
+    private static readonly Pen Catch = Freeze(new Pen(new LinearGradientBrush(ThemeCatalog.R(Color.FromArgb(220, 228, 236, 250)), ThemeCatalog.R(Color.FromArgb(90, 150, 170, 205)), 90), 1.3) { LineJoin = PenLineJoin.Round });
     private static Pen Freeze(Pen pen) { pen.Freeze(); return pen; }
 
     public ControllerOutline() { Width = 1536; Height = 1024; IsHitTestVisible = false; }
     /// <summary>Point the outline at a model and view; unknown models simply draw nothing.</summary>
-    public void Show(string model, bool rear) { geometry = For(model, rear) ?? Geometry.Empty; InvalidateVisual(); }
+    public void Show(string model, bool rear, string? finish = null) { geometry = For(model, rear, finish) ?? Geometry.Empty; InvalidateVisual(); }
     protected override void OnRender(DrawingContext dc) { if (geometry.IsEmpty()) return; dc.DrawGeometry(null, Seat, geometry); dc.DrawGeometry(null, Catch, geometry); }
     /// <summary>Trims an art layer to the traced outline, so the cut-out's pale, jagged fringe never shows outside the rim.</summary>
-    public static void Trim(UIElement art, string model, bool rear) => art.Clip = For(model, rear);
+    public static void Trim(UIElement art, string model, bool rear, string? finish = null) => art.Clip = For(model, rear, finish);
 
-    public static Geometry? For(string model, bool rear)
+    /// <summary>A colour whose shell is cut a little differently has its own trace ("model/colour"); the rest share the model's.</summary>
+    public static Geometry? For(string model, bool rear, string? finish = null)
     {
+        if (finish is not (null or X20Ctl.Zone.FinishCatalog.Original) && For(model + "/" + finish, rear) is Geometry own) return own;
         string key = model + (rear ? ":back" : ":front");
         if (cache.TryGetValue(key, out var known)) return known;
         Geometry? result = null;

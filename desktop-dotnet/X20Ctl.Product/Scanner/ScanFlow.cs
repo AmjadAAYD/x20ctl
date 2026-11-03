@@ -23,7 +23,7 @@ public static class ScanFlow
     public static readonly (int Vid, int Pid, string Meaning)[] Known =
     [
         (0x045E, 0x028E, "Xbox 360-compatible XInput identity. Most pads in XInput mode, EasySMX included, use it, so it proves nothing about the model."),
-        (0x045E, 0x02E0, "Xbox Wireless (Bluetooth) identity, shared by many pads. The EasySMX X05 uses it on Bluetooth (an owner's scan, 10 Oct 2026: \"Xbox Bluetooth Gamepad\", no vendor channels, about 158 reports/s), while the Dune 8K uses 02FD."),
+        (0x045E, 0x02E0, "Xbox Wireless (Bluetooth) identity, shared by many pads; the EasySMX Dune 8K uses 02FD instead."),
         (0x045E, 0x02FD, "Xbox Wireless Controller over Bluetooth. A genuine Microsoft controller uses it, and so does the EasySMX Dune 8K on Bluetooth (an owner's scan, 10 Oct 2026: \"Xbox Bluetooth Gamepad\" by Microsoft Corporation, no vendor channels). Pick the model you hold."),
         (0x0079, 0x181C, "Seen with the EasySMX X20 in DInput mode."),
         (0x1D57, 0xFA60, "A Xenta wireless keyboard and mouse receiver. It is not an EasySMX receiver; the X20's own dongle shows the pad's identity instead."),
@@ -56,7 +56,7 @@ public static class ScanFlow
             {
                 if (string.IsNullOrWhiteSpace(text) || !text.Contains("EasySMX", StringComparison.OrdinalIgnoreCase)) continue;
                 string t = text.ToUpperInvariant();
-                string? model = t.Contains("DUNE") || t.Contains("D15") ? "Dune / D15" : t.Contains("X20 PRO") ? "X20 Pro" : t.Contains("X20") ? "X20" : t.Contains("X15") ? "X15" : t.Contains("X10") ? "X10" : t.Contains("X05 PRO") ? "X05 Pro" : t.Contains("X05") ? "X05" : t.Contains("D10") ? "D10" : null;
+                string? model = t.Contains("DUNE") || t.Contains("D15") ? "Dune / D15" : t.Contains("X20 PRO") ? "X20 Pro" : t.Contains("X20") ? "X20" : t.Contains("X15") ? "X15" : t.Contains("X10") ? "X10" : t.Contains("X05 PRO") ? "X05 Pro" : t.Contains("D10") ? "D10" : null;
                 if (model != null) return (text.Trim(), model);
             }
         if (inventory.interfaces.Any(i => i.vid == 0x413D && i.pid == 0x2131)) return ("EasySMX receiver (X20 Pro or Dune)", "X20 Pro / Dune");

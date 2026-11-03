@@ -55,7 +55,7 @@ public sealed class PhysicalHotspot : Button
         selected = active; navigationFocus = controllerFocus;
         double previous = Light; BeginAnimation(LightProperty, null); Light = active ? 1 : 0;
         if (animate) BeginAnimation(LightProperty, new DoubleAnimation(previous, Light, TimeSpan.FromMilliseconds(160)) { FillBehavior = FillBehavior.Stop });
-        Effect = active ? new DropShadowEffect { ShadowDepth = 0, BlurRadius = 10, Color = Color.FromRgb(66, 145, 255), Opacity = .4 } : null;
+        Effect = active ? new DropShadowEffect { ShadowDepth = 0, BlurRadius = 10, Color = ThemeCatalog.R(Color.FromRgb(66, 145, 255)), Opacity = .4 } : null;
         InvalidateVisual();
     }
     protected override HitTestResult? HitTestCore(PointHitTestParameters p) => geometry.FillContains(p.HitPoint) ? new PointHitTestResult(this, p.HitPoint) : null;
@@ -76,11 +76,11 @@ public sealed class PhysicalHotspot : Button
             double fontSize = Math.Clamp(Height * .42, 24, 38);
             FormattedText Label(Brush brush) => new(Region.Key, System.Globalization.CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
                 font, fontSize, brush, VisualTreeHelper.GetDpi(this).PixelsPerDip);
-            Brush ink = selected ? Brushes.White : new SolidColorBrush(Color.FromRgb(218, 231, 249));
+            Brush ink = selected ? Brushes.White : new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(218, 231, 249)));
             var text = Label(ink);
             if(text.Width > Width * .76) { fontSize *= Width * .76 / text.Width; text = Label(ink); }
             var location = new Point((anchor.X - Region.Bounds.X) * 1536 - text.Width / 2, (anchor.Y - Region.Bounds.Y) * 1024 - text.Height / 2);
-            dc.DrawText(Label(new SolidColorBrush(Color.FromArgb(220, 5, 12, 24))), new(location.X, location.Y + 2));
+            dc.DrawText(Label(new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(220, 5, 12, 24)))), new(location.X, location.Y + 2));
             dc.DrawText(text, location);
         }
     }
@@ -153,7 +153,7 @@ internal sealed class ConsoleFocusAdorner : Adorner
     {
         var bounds = new Rect(AdornedElement.RenderSize); bounds.Inflate(4, 4);
         double radius = AdornedElement is StickDirectionSelector ? bounds.Width/2 : AdornedElement.RenderSize.Width <= 52 ? 28 : 14;
-        dc.DrawRoundedRectangle(null, new Pen(new SolidColorBrush(Color.FromArgb(65, 67, 139, 255)), 7), bounds, radius, radius);
+        dc.DrawRoundedRectangle(null, new Pen(new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(65, 67, 139, 255))), 7), bounds, radius, radius);
         dc.DrawRoundedRectangle(null, new Pen(Brushes.White, 2.5), bounds, radius, radius);
     }
 }

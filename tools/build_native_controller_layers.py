@@ -26,7 +26,7 @@ from scipy import ndimage
 
 ROOT = Path(__file__).resolve().parents[1]
 ASSETS = ROOT / "src" / "assets" / "controllers"
-MODELS = ["x20", "x20_pro", "x15", "x10", "x05", "x05_pro", "d10"]
+MODELS = ["x20", "x20_pro", "x15", "x10", "x05_pro", "d10"]
 W, H = 1536, 1024
 SS = 4  # supersampling for anti-aliased masks
 

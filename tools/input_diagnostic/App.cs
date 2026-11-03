@@ -38,7 +38,7 @@ namespace InputDiagnostic {
             Controls.Add(layout);
             layout.Controls.Add(new Label {Text="LIVE INPUT CHECK   /   Verify the source before scanning",Dock=DockStyle.Fill,Font=new Font("Segoe UI",17,FontStyle.Bold)},0,0);
             var choices=new FlowLayoutPanel {Dock=DockStyle.Fill,WrapContents=false};
-            model.DropDownStyle=ComboBoxStyle.DropDownList;model.Items.AddRange(new object[]{"Unknown","X05","X05 Pro","X10","X15","D10","Dune / D15","X20 Pro","X20"});model.SelectedItem=claimedModel;model.Width=130;
+            model.DropDownStyle=ComboBoxStyle.DropDownList;model.Items.AddRange(new object[]{"Unknown","X05 Pro","X10","X15","D10","Dune / D15","X20 Pro","X20"});model.SelectedItem=claimedModel;model.Width=130;
             transport.DropDownStyle=ComboBoxStyle.DropDownList;transport.Items.AddRange(new object[]{"Receiver","USB cable","Bluetooth","Not sure"});transport.SelectedItem=claimedTransport;transport.Width=130;
             library.DropDownStyle=ComboBoxStyle.DropDownList;library.Items.AddRange(new object[]{"XInput1_4.dll","XInput9_1_0.dll","XInput1_3.dll"});library.SelectedIndex=0;library.Width=170;
             slot.DropDownStyle=ComboBoxStyle.DropDownList;slot.Items.AddRange(new object[]{"Player slot 1","Player slot 2","Player slot 3","Player slot 4"});slot.SelectedIndex=0;slot.Width=125;

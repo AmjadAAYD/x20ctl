@@ -6,6 +6,8 @@
 
 **Thank you EasySMX Kiin & Team EasySMX for supplying an EasySMX X20 Pro to build and test X20CTL.**
 
+**Special thanks to EasySMX-Khalil for providing an EasySMX Dune.**
+
 *This is the plain-text version of the README. The main README is an illustrated page; this copy keeps everything selectable and copyable.*
 
 > **Independent project.** X20CTL is open-source software. EasySMX supplied an X20 Pro to help develop it, but the app is not made, endorsed, sponsored or supported by EasySMX. Product names belong to their owners and are used only to say which controllers X20CTL works with.
@@ -202,7 +204,6 @@ Without a phone log, the command line can compare the controller's own settings 
 | EasySMX Dune | Read-only preview: TMR sticks, M1–M4, four motors including the triggers |
 | EasySMX X15 | Read-only preview |
 | EasySMX X10 | Read-only preview |
-| EasySMX X05 | Read-only preview |
 | EasySMX X05 Pro | Read-only preview |
 | EasySMX D10 | Read-only preview |
 

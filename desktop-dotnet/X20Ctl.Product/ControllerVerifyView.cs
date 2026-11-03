@@ -18,7 +18,7 @@ public static class ControllerVerify
     // model ids by the name ScanFlow.DetectModel returns
     private static readonly Dictionary<string, string> ByName = new()
     {
-        ["Dune / D15"] = "dune", ["X20 Pro"] = "x20_pro", ["X20"] = "x20", ["X15"] = "x15", ["X10"] = "x10", ["X05 Pro"] = "x05_pro", ["X05"] = "x05", ["D10"] = "d10",
+        ["Dune / D15"] = "dune", ["X20 Pro"] = "x20_pro", ["X20"] = "x20", ["X15"] = "x15", ["X10"] = "x10", ["X05 Pro"] = "x05_pro", ["D10"] = "d10",
     };
     // identities seen on real hardware that name a model outright (docs/00-findings.md); the shared Xbox identities never do
     private static readonly Dictionary<(int, int), string> ById = new() { [(0x0079, 0x181C)] = "x20", [(0x1D57, 0xFA60)] = "x20" };
@@ -77,9 +77,9 @@ public sealed class ControllerVerifyView : Grid
     private readonly TextBlock status = Kit.Text("", 15, "DS.TextMuted");
     private readonly TextBlock title = Kit.Text("", 20, "DS.Text", FontWeights.SemiBold);
     private readonly WrapPanel buttons = new() { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new(0, 20, 0, 0) };
-    private readonly Path rim = new() { Data = GamepadGlyph.Outline, StrokeThickness = 8.5, StrokeLineJoin = PenLineJoin.Round, Stroke = new SolidColorBrush(Color.FromRgb(240, 245, 255)) };
+    private readonly Path rim = new() { Data = GamepadGlyph.Outline, StrokeThickness = 8.5, StrokeLineJoin = PenLineJoin.Round, Stroke = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(240, 245, 255))) };
     private readonly Path runner = new() { Data = GamepadGlyph.Outline, StrokeThickness = 8.5, StrokeLineJoin = PenLineJoin.Round, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round };
-    private readonly SolidColorBrush runnerBrush = new(Color.FromRgb(120, 215, 255));
+    private readonly SolidColorBrush runnerBrush = new(ThemeCatalog.R(Color.FromRgb(120, 215, 255)));
     private readonly System.Windows.Media.Effects.DropShadowEffect rimGlow = new() { Color = Colors.White, BlurRadius = 20, ShadowDepth = 0, Opacity = .6 };
     private readonly Ellipse[] dots = new Ellipse[3];
     private readonly TextBlock verdict = new() { FontFamily = DS.Display, FontSize = 54, FontWeight = FontWeights.SemiBold, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Opacity = 0 };
@@ -97,11 +97,11 @@ public sealed class ControllerVerifyView : Grid
     public ControllerVerifyView(string modelId, string modelName, bool animate)
     {
         this.animate = animate; selectedName = modelName;
-        Background = new SolidColorBrush(Color.FromArgb(170, 2, 6, 18));
-        var accent = Color.FromRgb(86, 190, 255);
+        Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(170, 2, 6, 18)));
+        var accent = ThemeCatalog.R(Color.FromRgb(86, 190, 255));
         var size = GamepadGlyph.Size;
         // dark glass body, white tube rim with a soft glow, a light running round it
-        rim.Fill = new LinearGradientBrush(Color.FromRgb(46, 54, 76), Color.FromRgb(22, 27, 42), 90);
+        rim.Fill = new LinearGradientBrush(ThemeCatalog.R(Color.FromRgb(46, 54, 76)), ThemeCatalog.R(Color.FromRgb(22, 27, 42)), 90);
         rim.Effect = rimGlow;
         runner.Stroke = runnerBrush;
         double dash = GamepadGlyph.Length * .16 / runner.StrokeThickness, gap = GamepadGlyph.Length * .84 / runner.StrokeThickness;
@@ -127,7 +127,7 @@ public sealed class ControllerVerifyView : Grid
         }
         var scanClip = padded.Clone();
         var scanSurface = new Grid { Clip = scanClip, IsHitTestVisible = false };
-        scanBeam.Fill = new LinearGradientBrush(Color.FromArgb(0, 70, 170, 255), Color.FromArgb(190, 110, 220, 255), 90);
+        scanBeam.Fill = new LinearGradientBrush(ThemeCatalog.R(Color.FromArgb(0, 70, 170, 255)), ThemeCatalog.R(Color.FromArgb(190, 110, 220, 255)), 90);
         scanBeam.RenderTransform = scanMove; scanSurface.Children.Add(scanBeam);
         art.Children.Add(scanSurface); art.Children.Add(dotRow); art.Children.Add(verdict);
         var stage = new Viewbox { MaxHeight = 300, Stretch = Stretch.Uniform, Child = art, Margin = new(0, 22, 0, 14) };
@@ -147,9 +147,9 @@ public sealed class ControllerVerifyView : Grid
         right.Children.Add(new ScrollViewer { Content = deviceList, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled });
         var columns = new Grid(); columns.ColumnDefinitions.Add(new() { Width = new GridLength(1.2, GridUnitType.Star) }); columns.ColumnDefinitions.Add(new() { Width = new GridLength(1, GridUnitType.Star) });
         columns.Children.Add(left); Grid.SetColumn(right, 1); columns.Children.Add(right);
-        var divider = new Border { Width = 1, Background = new SolidColorBrush(Color.FromArgb(45, 140, 190, 255)), HorizontalAlignment = HorizontalAlignment.Left }; Grid.SetColumn(divider, 1); columns.Children.Add(divider);
+        var divider = new Border { Width = 1, Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(45, 140, 190, 255))), HorizontalAlignment = HorizontalAlignment.Left }; Grid.SetColumn(divider, 1); columns.Children.Add(divider);
         card.CornerRadius = new(24); card.Padding = new(30); card.MaxWidth = 1500; card.Height = 540; card.Margin = new(28);
-        card.Background = new LinearGradientBrush(Color.FromRgb(17, 29, 54), Color.FromRgb(7, 14, 32), 90);
+        card.Background = new LinearGradientBrush(ThemeCatalog.R(Color.FromRgb(17, 29, 54)), ThemeCatalog.R(Color.FromRgb(7, 14, 32)), 90);
         card.BorderBrush = new SolidColorBrush(Color.FromArgb(130, accent.R, accent.G, accent.B)); card.BorderThickness = new(1);
         card.HorizontalAlignment = HorizontalAlignment.Stretch; card.VerticalAlignment = VerticalAlignment.Center;
         card.Child = columns; Children.Add(card);
@@ -161,15 +161,15 @@ public sealed class ControllerVerifyView : Grid
     public void BeginScan()
     {
         StopAnimation(); title.Text = "Finding your controller";
-        card.BorderBrush = new SolidColorBrush(Color.FromArgb(130, 86, 190, 255));
+        card.BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(130, 86, 190, 255)));
         rimGlow.Color = Colors.White; scanMove.Y = 0;
         status.Text = $"Reading Windows gamepad inventory · selected {selectedName}";
         deviceCount.Text = "Scanning"; deviceList.Children.Clear();
         foreach (var width in new[] { 220.0, 170.0, 200.0 })
-            deviceList.Children.Add(new Border { Height = 64, Margin = new(0, 0, 0, 12), Padding = new(18), CornerRadius = new(12), Background = new SolidColorBrush(Color.FromArgb(50, 100, 145, 205)), Child = new Border { Width = width, MaxWidth = width, Height = 9, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center, CornerRadius = new(4), Background = new SolidColorBrush(Color.FromArgb(70, 165, 200, 245)) } });
+            deviceList.Children.Add(new Border { Height = 64, Margin = new(0, 0, 0, 12), Padding = new(18), CornerRadius = new(12), Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(50, 100, 145, 205))), Child = new Border { Width = width, MaxWidth = width, Height = 9, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center, CornerRadius = new(4), Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(70, 165, 200, 245))) } });
         buttons.Children.Clear(); buttons.Children.Add(Action("Cancel scan", false, RaiseCancel));
         runner.Visibility = scanBeam.Visibility = Visibility.Visible; verdict.Opacity = 0;
-        rim.Stroke = new SolidColorBrush(Color.FromRgb(230, 240, 255));
+        rim.Stroke = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(230, 240, 255)));
         foreach (var d in dots) { d.Visibility = Visibility.Visible; d.Opacity = .35; }
         if (animate) Start();
     }
@@ -188,7 +188,7 @@ public sealed class ControllerVerifyView : Grid
         // the light runs the whole way round: the dash and its gap add up to one lap
         double lap = GamepadGlyph.Length / runner.StrokeThickness;
         runner.BeginAnimation(Shape.StrokeDashOffsetProperty, new DoubleAnimation(0, -lap, TimeSpan.FromSeconds(2.4)) { RepeatBehavior = forever });
-        runnerBrush.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(Color.FromRgb(120, 215, 255), Color.FromRgb(190, 130, 255), TimeSpan.FromSeconds(2.4)) { RepeatBehavior = forever, AutoReverse = true });
+        runnerBrush.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(ThemeCatalog.R(Color.FromRgb(120, 215, 255)), ThemeCatalog.R(Color.FromRgb(190, 130, 255)), TimeSpan.FromSeconds(2.4)) { RepeatBehavior = forever, AutoReverse = true });
         rimGlow.BeginAnimation(System.Windows.Media.Effects.DropShadowEffect.OpacityProperty, new DoubleAnimation(.3, .75, TimeSpan.FromSeconds(1.2)) { RepeatBehavior = forever, AutoReverse = true, EasingFunction = new SineEase() });
         for (int i = 0; i < 3; i++)
             dots[i].BeginAnimation(OpacityProperty, new DoubleAnimationUsingKeyFrames
@@ -211,7 +211,7 @@ public sealed class ControllerVerifyView : Grid
         runner.BeginAnimation(Shape.StrokeDashOffsetProperty, null); runnerBrush.BeginAnimation(SolidColorBrush.ColorProperty, null);
         rimGlow.BeginAnimation(System.Windows.Media.Effects.DropShadowEffect.OpacityProperty, null);
         foreach (var d in dots) { d.BeginAnimation(OpacityProperty, null); d.Visibility = Visibility.Collapsed; }
-        Color tone = r.Outcome switch { VerifyOutcome.Match => Color.FromRgb(90, 220, 150), VerifyOutcome.Mismatch => Color.FromRgb(255, 105, 95), VerifyOutcome.Unconfirmed => Color.FromRgb(255, 190, 80), _ => Color.FromRgb(160, 175, 210) };
+        Color tone = r.Outcome switch { VerifyOutcome.Match => ThemeCatalog.R(Color.FromRgb(90, 220, 150)), VerifyOutcome.Mismatch => ThemeCatalog.R(Color.FromRgb(255, 105, 95)), VerifyOutcome.Unconfirmed => ThemeCatalog.R(Color.FromRgb(255, 190, 80)), _ => ThemeCatalog.R(Color.FromRgb(160, 175, 210)) };
         // the whole outline takes the verdict's colour, and the running light is put away
         rim.Stroke = new SolidColorBrush(tone);
         rimGlow.Color = tone; rimGlow.Opacity = .8;
@@ -235,11 +235,11 @@ public sealed class ControllerVerifyView : Grid
                 var vector=new Path { Data=Geometry.Parse(glyph switch {
                     "usb"=>"M 8,4 L 16,4 L 16,12 L 8,12 Z M 10,1 L 10,4 M 14,1 L 14,4 M 12,12 L 12,17 Q 12,22 7,22 L 3,22",
                     "receiver"=>"M 8,12 L 16,12 L 16,23 L 8,23 Z M 10,8 L 14,8 L 14,12 M 8,6 Q 12,2 16,6 M 5,3 Q 12,-3 19,3",
-                    _=>"M 12,1 L 18,6 L 6,17 M 6,6 L 18,17 L 12,23 L 12,1" }),Stroke=new SolidColorBrush(Color.FromRgb(166,211,255)),StrokeThickness=1.6,StrokeStartLineCap=PenLineCap.Round,StrokeEndLineCap=PenLineCap.Round,StrokeLineJoin=PenLineJoin.Round };
+                    _=>"M 12,1 L 18,6 L 6,17 M 6,6 L 18,17 L 12,23 L 12,1" }),Stroke=new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(166,211,255))),StrokeThickness=1.6,StrokeStartLineCap=PenLineCap.Round,StrokeEndLineCap=PenLineCap.Round,StrokeLineJoin=PenLineJoin.Round };
                 var iconArt=new Canvas { Width=24,Height=24,Children={vector} };
-                var icon=new Border { Width=42,Height=42,CornerRadius=new(12),VerticalAlignment=VerticalAlignment.Center,HorizontalAlignment=HorizontalAlignment.Left,Background=new LinearGradientBrush(Color.FromArgb(120,55,103,157),Color.FromArgb(70,22,48,82),90),BorderBrush=new SolidColorBrush(Color.FromArgb(65,140,190,245)),BorderThickness=new(1),Child=new Viewbox { Width=22,Height=22,HorizontalAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Center,Child=iconArt } };
+                var icon=new Border { Width=42,Height=42,CornerRadius=new(12),VerticalAlignment=VerticalAlignment.Center,HorizontalAlignment=HorizontalAlignment.Left,Background=new LinearGradientBrush(ThemeCatalog.R(Color.FromArgb(120,55,103,157)),ThemeCatalog.R(Color.FromArgb(70,22,48,82)),90),BorderBrush=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(65,140,190,245))),BorderThickness=new(1),Child=new Viewbox { Width=22,Height=22,HorizontalAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Center,Child=iconArt } };
                 var content=new Grid();content.ColumnDefinitions.Add(new(){Width=new GridLength(58)});content.ColumnDefinitions.Add(new());content.Children.Add(icon);Grid.SetColumn(text,1);content.Children.Add(text);
-                empty.Children.Add(new Border { MinHeight=76,Padding=new(16,12,16,12),Margin=new(0,0,0,10),CornerRadius=new(14),Background=new LinearGradientBrush(Color.FromArgb(70,55,82,120),Color.FromArgb(35,24,39,65),90),BorderBrush=new SolidColorBrush(Color.FromArgb(50,150,190,240)),BorderThickness=new(1),Child=content });
+                empty.Children.Add(new Border { MinHeight=76,Padding=new(16,12,16,12),Margin=new(0,0,0,10),CornerRadius=new(14),Background=new LinearGradientBrush(ThemeCatalog.R(Color.FromArgb(70,55,82,120)),ThemeCatalog.R(Color.FromArgb(35,24,39,65)),90),BorderBrush=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(50,150,190,240))),BorderThickness=new(1),Child=content });
             }
             deviceList.Children.Add(empty);
         }
@@ -248,7 +248,7 @@ public sealed class ControllerVerifyView : Grid
             bool selected = device.ModelId != null && device.ModelId == r.DetectedId && r.Outcome == VerifyOutcome.Match;
             var name = Kit.Text(device.Name, 16, "DS.Text", FontWeights.SemiBold); name.TextWrapping = TextWrapping.Wrap;
             var info = Kit.Text(device.Detail, 12, "DS.TextMuted"); info.TextWrapping = TextWrapping.Wrap; info.Margin = new(0, 6, 0, 0);
-            deviceList.Children.Add(new Border { Padding = new(18), Margin = new(0, 0, 0, 12), CornerRadius = new(14), Background = new SolidColorBrush(Color.FromArgb(selected ? (byte)70 : (byte)32, 50, 150, 220)), BorderBrush = new SolidColorBrush(Color.FromArgb(100, 100, 180, 230)), BorderThickness = new(1), Child = new StackPanel { Children = { name, info } } });
+            deviceList.Children.Add(new Border { Padding = new(18), Margin = new(0, 0, 0, 12), CornerRadius = new(14), Background = new SolidColorBrush(Color.FromArgb(selected ? (byte)70 : (byte)32, 50, 150, 220)), BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(100, 100, 180, 230))), BorderThickness = new(1), Child = new StackPanel { Children = { name, info } } });
         }
         buttons.Children.Clear();
         switch (r.Outcome)
@@ -280,6 +280,6 @@ public sealed class ControllerVerifyView : Grid
 
     private static string ModelLabel(string id, string? fallback) => id switch
     {
-        "x20" => "X20", "x20_pro" => "X20 Pro", "x15" => "X15", "x10" => "X10", "x05" => "X05", "x05_pro" => "X05 Pro", "d10" => "D10", "dune" => "Dune 8K", _ => fallback ?? id,
+        "x20" => "X20", "x20_pro" => "X20 Pro", "x15" => "X15", "x10" => "X10", "x05_pro" => "X05 Pro", "d10" => "D10", "dune" => "Dune 8K", _ => fallback ?? id,
     };
 }

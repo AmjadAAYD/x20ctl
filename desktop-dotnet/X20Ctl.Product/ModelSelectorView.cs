@@ -13,7 +13,7 @@ namespace X20Ctl.Product;
 /// (four, then three centred), each with its art, name, a short description built from the catalog's hardware facts and
 /// an honest support line. Cards rise in one after another; focus lifts a card with a white edge. Arrows / D-pad move,
 /// A / Enter chooses, B / Esc goes back.</summary>
-public sealed class ModelSelectorView : Grid
+public sealed partial class ModelSelectorView : Grid
 {
     public event Action<ControllerModel>? Chosen;
     public event Action? Cancelled;
@@ -52,10 +52,10 @@ public sealed class ModelSelectorView : Grid
         body.RowDefinitions.Add(new() { Height = GridLength.Auto }); body.RowDefinitions.Add(new()); body.RowDefinitions.Add(new() { Height = new(56) });
         Children.Add(body);
         var header = new DockPanel { Margin = new(9, 0, 9, 26) };
-        var back = new Button { Content = "Back", Style = (Style)FindResource("ActionButton"), MinHeight = 38, Height = 38, Padding = new(18, 0, 18, 0), FontSize = 14.5, VerticalAlignment = VerticalAlignment.Center };
+        var back = new Button { Content = "Back", Style = (Style)FindResource("ActionButton"), MinHeight = 38, Height = 38, Padding = new(18, 0, 18, 0), FontSize = 14.5, VerticalAlignment = VerticalAlignment.Center }; UiSound.SetCue(back, UiSound.Cue.Back);
         back.Click += (_, _) => Cancelled?.Invoke(); DockPanel.SetDock(back, Dock.Right); header.Children.Add(back);
         var title = new StackPanel();
-        title.Children.Add(new Border { CornerRadius = new(11), Height = 30, Padding = new(10, 0, 10, 0), HorizontalAlignment = HorizontalAlignment.Left, Background = new SolidColorBrush(Color.FromArgb(28, 255, 255, 255)), BorderBrush = new SolidColorBrush(Color.FromArgb(38, 255, 255, 255)), BorderThickness = new(1), Child = new TextBlock { Text = $"PLAYER {player + 1}", FontFamily = DS.Display, FontSize = 17, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(184, 198, 217)), VerticalAlignment = VerticalAlignment.Center } });
+        title.Children.Add(new Border { CornerRadius = new(11), Height = 30, Padding = new(10, 0, 10, 0), HorizontalAlignment = HorizontalAlignment.Left, Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(28, 255, 255, 255))), BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(38, 255, 255, 255))), BorderThickness = new(1), Child = new TextBlock { Text = $"PLAYER {player + 1}", FontFamily = DS.Display, FontSize = 17, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(184, 198, 217))), VerticalAlignment = VerticalAlignment.Center } });
         title.Children.Add(new TextBlock { Text = "Which controller is this?", Style = (Style)FindResource("DS.Display"), FontWeight = FontWeights.SemiBold, FontSize = 32, Margin = new(0, 10, 0, 4) });
         title.Children.Add(new TextBlock { Text = "Pick the model in your hands. This sets its layout and tools; connecting the hardware is a separate step.", Style = (Style)FindResource("DS.Body"), Foreground = DS.Brush("Zone.TextSecondary") });
         header.Children.Add(title); body.Children.Add(header);
@@ -70,16 +70,23 @@ public sealed class ModelSelectorView : Grid
         foreach (var model in catalog.Models)
         {
             var card = Card(model, facts.TryGetValue(model.Id, out var f) ? f : null);
-            card.Click += (_, _) => Chosen?.Invoke(model);
+            // the pad takes the colour its card is showing (owner, 25 Oct 2026), not the model's default
+            card.Click += (_, _) => { PadColours.Set(Player, model.Id, blends.First(b => b.ModelId == model.Id).Finish); Chosen?.Invoke(model); };
             choices[model.Id] = card; cards.Add(card);
             rows[n < 4 ? 0 : 1].Add(card); n++;
         }
         var footer = GlyphHint.Footer(("A", "Choose"), ("B", "Back"), ("✥", "Move"));
         footer.Margin = new(9, 0, 0, 0); Grid.SetRow(footer, 2); body.Children.Add(footer);
 
+        Unloaded += (_, _) => turn.Stop();
+        if (ThemeCatalog.Current.Id == "pulse") BuildPulseSelector(catalog, facts);
+        if (ThemeCatalog.Current.Id == "spotlight") BuildSpotlightSelector(catalog, facts);
+        if (ThemeCatalog.Current.Id == "nexus") BuildNexusSelector(catalog, facts);
+        if (ThemeCatalog.Current.Id == "tide") BuildTideSelector(catalog, facts);
         Loaded += (_, _) =>
         {
             if (cards.Count > 0) cards[0].Focus();
+            Warm(); StartTurning();
             if(!DS.Motion)return;
             // the cards rise in one after another
             for (int i = 0; i < cards.Count; i++)
@@ -91,6 +98,34 @@ public sealed class ModelSelectorView : Grid
                 shift.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(18, 0, TimeSpan.FromMilliseconds(320)) { BeginTime = at, EasingFunction = ease });
             }
         };
+        if (ThemeCatalog.Current.Id == "rebel") BuildRebelSelector(catalog, facts);
+    }
+
+    // every model that comes in more than one colour turns to its next colour at the same moment, then holds it (owner
+    // direction 24 Oct 2026: all together, not one card after another); nothing runs between changes, so idle stays cheap
+    private readonly List<FinishBlend> blends = new();
+    public IReadOnlyList<FinishBlend> Blends => blends;
+    private readonly System.Windows.Threading.DispatcherTimer turn = new() { Interval = TimeSpan.FromMilliseconds(3800) };
+    /// <summary>Every card starts in its model's default colour and then cycles like the rest (owner, 24 Oct 2026).</summary>
+    private static bool Turns(FinishBlend m) => PadColours.Catalog.For(m.ModelId).Count > 1;
+    // the pictures and the spread of every colour are made a little at a time while the screen is idle, so the first change
+    // does not stall (owner, 25 Oct 2026: a flicker when the cycle began)
+    private readonly Queue<string> warming = new();
+    private void Warm()
+    {
+        if (warming.Count == 0) return;
+        if (!FinishBlend.PrepareStep(warming.Peek())) warming.Dequeue();
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, Warm);
+    }
+    private void StartTurning()
+    {
+        if (!DS.Motion || !blends.Any(Turns)) return;
+        turn.Tick -= Turn; turn.Tick += Turn; turn.Start();
+    }
+    private void Turn(object? sender, EventArgs e)
+    {
+        foreach (var card in blends.Where(Turns))
+            _ = card.ChangeTo(PadColours.Catalog.Next(card.ModelId, card.Finish).Id);
     }
 
     public void FocusFirst() { if (cards.Count > 0) cards[0].Focus(); }
@@ -103,17 +138,16 @@ public sealed class ModelSelectorView : Grid
         var edge = new Border { CornerRadius = new(16), BorderThickness = new(1), BorderBrush = DS.Brush("Zone.BorderDefault"), Background = DS.Brush("Zone.ContentSurface"), Padding = new(20, 18, 20, 18) };
         var stack = new Grid();
         stack.RowDefinitions.Add(new() { Height = new(1, GridUnitType.Star) }); stack.RowDefinitions.Add(new() { Height = GridLength.Auto }); stack.RowDefinitions.Add(new() { Height = GridLength.Auto }); stack.RowDefinitions.Add(new() { Height = GridLength.Auto });
-        var picture = new Image { Source = ControllerArt.Front(model.Id), Stretch = Stretch.Fill };
-        RenderOptions.SetBitmapScalingMode(picture, BitmapScalingMode.HighQuality);
-        var rim = new ControllerOutline(); rim.Show(model.Id, false); ControllerOutline.Trim(picture, model.Id, false);
-        var art = new Viewbox { Stretch = Stretch.Uniform, Margin = new(0, 0, 0, 12), Child = new Grid { Width = 1536, Height = 1024, Children = { picture } } };
+        string shown = PadColours.Catalog.Default(model.Id);
+        var blend = new FinishBlend(model.Id, shown); blends.Add(blend); warming.Enqueue(blend.ModelId);
+        var art = new Viewbox { Stretch = Stretch.Uniform, Margin = new(0, 0, 0, 12), Child = blend };
         stack.Children.Add(art);
         var name = new TextBlock { Text = model.Name, FontFamily = DS.Display, FontSize = 19, FontWeight = FontWeights.SemiBold, Foreground = DS.Brush("DS.Text"), TextTrimming = TextTrimming.CharacterEllipsis }; Grid.SetRow(name, 1); stack.Children.Add(name);
         var about = new TextBlock { Text = facts?.Description ?? "", FontFamily = DS.Body, FontSize = 12.5, Foreground = DS.Brush("Zone.TextSecondary"), TextWrapping = TextWrapping.Wrap, Margin = new(0, 5, 0, 10), MaxHeight = 36 }; Grid.SetRow(about, 2); stack.Children.Add(about);
         bool full = model.Support == "SUPPORTED";
         var line = new StackPanel { Orientation = Orientation.Horizontal };
-        line.Children.Add(new System.Windows.Shapes.Ellipse { Width = 7, Height = 7, Margin = new(1, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center, Fill = new SolidColorBrush(full ? Accent : Color.FromRgb(98, 112, 134)) });
-        line.Children.Add(new TextBlock { Text = facts?.SupportLine ?? model.Summary, FontFamily = DS.Display, FontSize = 12, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(full ? Color.FromRgb(150, 205, 255) : Color.FromRgb(150, 162, 182)), VerticalAlignment = VerticalAlignment.Center });
+        line.Children.Add(new System.Windows.Shapes.Ellipse { Width = 7, Height = 7, Margin = new(1, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center, Fill = new SolidColorBrush(full ? Accent : ThemeCatalog.R(Color.FromRgb(98, 112, 134))) });
+        line.Children.Add(new TextBlock { Text = facts?.SupportLine ?? model.Summary, FontFamily = DS.Display, FontSize = 12, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(full ? ThemeCatalog.R(Color.FromRgb(150, 205, 255)) : ThemeCatalog.R(Color.FromRgb(150, 162, 182))), VerticalAlignment = VerticalAlignment.Center });
         Grid.SetRow(line, 3); stack.Children.Add(line);
         edge.Child = stack;
         var button = new Button { Content = edge, Margin = new(9, 0, 9, 18), Padding = new(0), Background = Brushes.Transparent, BorderThickness = new(0), FocusVisualStyle = null, Cursor = Cursors.Hand, RenderTransformOrigin = new(.5, .5), RenderTransform = new TransformGroup { Children = { lift } } };
@@ -127,6 +161,7 @@ public sealed class ModelSelectorView : Grid
             lift.BeginAnimation(ScaleTransform.ScaleXProperty,null);lift.BeginAnimation(ScaleTransform.ScaleYProperty,null);lift.ScaleX=lift.ScaleY=1;
 
         }
+        UiSound.SetCue(button, UiSound.Cue.Pick);
         button.GotKeyboardFocus += (_, _) => Light(); button.LostKeyboardFocus += (_, _) => Light(); button.MouseEnter += (_, _) => Light(); button.MouseLeave += (_, _) => Light();
         return button;
     }

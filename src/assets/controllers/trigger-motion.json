@@ -64,36 +64,6 @@
         "travelAngle": 26
       }
     },
-    "x05": {
-      "RT": {
-        "hinge": [
-          [
-            348,
-            272
-          ],
-          [
-            515,
-            255
-          ]
-        ],
-        "restAngle": 32,
-        "travelAngle": 27
-      },
-      "LT": {
-        "hinge": [
-          [
-            1188,
-            272
-          ],
-          [
-            1021,
-            255
-          ]
-        ],
-        "restAngle": 32,
-        "travelAngle": 27
-      }
-    },
     "x05_pro": {
       "RT": {
         "hinge": [

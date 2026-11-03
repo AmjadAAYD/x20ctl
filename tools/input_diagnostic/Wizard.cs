@@ -49,7 +49,7 @@ namespace InputDiagnostic {
         void Detect() {
             var p=Page("3 / 4   Detect Windows interfaces");
             p.Controls.Add(Copy("Printed controller model (optional). Choose Unknown if unsure; Windows names and IDs do not prove an EasySMX model.",90));
-            var models=new ComboBox{DropDownStyle=ComboBoxStyle.DropDownList,Width=250};models.Items.AddRange(new object[]{"Unknown","X05","X05 Pro","X10","X15","D10","Dune / D15","X20 Pro","X20"});models.SelectedItem=model;models.SelectedIndexChanged+=(s,e)=>model=models.SelectedItem.ToString();p.Controls.Add(models);
+            var models=new ComboBox{DropDownStyle=ComboBoxStyle.DropDownList,Width=250};models.Items.AddRange(new object[]{"Unknown","X05 Pro","X10","X15","D10","Dune / D15","X20 Pro","X20"});models.SelectedItem=model;models.SelectedIndexChanged+=(s,e)=>model=models.SelectedItem.ToString();p.Controls.Add(models);
             serial.Text="Include serial strings where available (optional; private identifiers)";serial.Width=850;serial.Height=40;p.Controls.Add(serial);
             p.Controls.Add(Copy("Interface paths are retained for private analysis and may contain identifiers. No keyboard/mouse input is recorded. Nothing is sent.",85));
             var status=Copy("Ready to inspect Windows. This does not change controller settings.",60);p.Controls.Add(status);

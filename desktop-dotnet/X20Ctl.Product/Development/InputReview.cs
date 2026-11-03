@@ -37,10 +37,12 @@ internal static class InputReview
             Send(Key.PageDown); await Settle(); Check("RB → Macros", s.CurrentPage == "Macros");
             Send(InputMap.SectionNext); await Settle(); Check("Macros RT next slot", s.Macros?.Slot == "M2", s.Macros?.Slot ?? "");
             Send(Key.PageDown); await Settle(); Check("RB → Vibration", s.CurrentPage == "Vibration");
+            Send(Key.PageDown); await Settle(); Check("RB → PC mode", s.CurrentPage == "PcMode");
             Send(Key.PageDown); await Settle(); Check("RB → Device", s.CurrentPage == "Device");
-            Send(Key.PageDown); await Settle(); Check("RB → Setups (no Tester tab)", s.CurrentPage == "Setups");
-            for (int i = 0; i < 6; i++) { Send(Key.PageUp); await Settle(); }
-            Check("LB walks back to Dashboard", s.CurrentPage == "Dashboard");
+            Send(Key.PageDown); await Settle(); Check("RB → Mouse", s.CurrentPage == "Mouse");
+            Send(Key.Escape); await Settle(); Check("Esc on Mouse → Dashboard", s.CurrentPage == "Dashboard");
+            Send(Key.PageUp); await Settle(); Check("LB from Dashboard wraps to Setups", s.CurrentPage == "Setups");
+            Send(Key.PageDown); await Settle(); Check("RB from Setups wraps to Dashboard", s.CurrentPage == "Dashboard");
             Send(InputMap.ControllerZone); await Settle(); Check("View returns to Controller Zone", window.Host.Studio == null);
             File.WriteAllText(Path.Combine(directory, "input-review.json"), JsonSerializer.Serialize(new { failed, checks }, new JsonSerializerOptions { WriteIndented = true }));
         }

@@ -1,4 +1,4 @@
-﻿using System.Net.Http;
+using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -39,7 +39,7 @@ public static class FeedbackClient
 }
 
 /// <summary>Tools → Send feedback: pick what it's about, write it, send it to X20CTL's private inbox.</summary>
-public sealed class FeedbackPage : Border
+public sealed partial class FeedbackPage : Border
 {
     public Button SendButton { get; }
     public TextBox Message { get; }
@@ -52,8 +52,8 @@ public sealed class FeedbackPage : Border
     public FeedbackPage(Button back, IEnumerable<string> controllers)
     {
         CornerRadius = new(22); BorderThickness = new(1); Padding = new(48, 36, 48, 36); MaxWidth = 1100; HorizontalAlignment = HorizontalAlignment.Left; VerticalAlignment = VerticalAlignment.Top;
-        Background = new LinearGradientBrush(Color.FromArgb(215, 14, 24, 52), Color.FromArgb(200, 8, 14, 34), 90);
-        BorderBrush = new LinearGradientBrush(Color.FromArgb(110, 120, 170, 255), Color.FromArgb(30, 120, 170, 255), 90);
+        Background = new LinearGradientBrush(ThemeCatalog.R(Color.FromArgb(215, 14, 24, 52)), ThemeCatalog.R(Color.FromArgb(200, 8, 14, 34)), 90);
+        BorderBrush = new LinearGradientBrush(ThemeCatalog.R(Color.FromArgb(110, 120, 170, 255)), ThemeCatalog.R(Color.FromArgb(30, 120, 170, 255)), 90);
         var stack = new StackPanel(); Child = stack;
         stack.Children.Add(Kit.Text("Send feedback", 36, "DS.Text", FontWeights.Bold));
         stack.Children.Add(Kit.Text("Tell X20CTL what's broken, what you'd like, or how your controller behaves. It goes straight to the X20CTL inbox.", 16.5, "DS.TextSoft").Also(t => { t.TextWrapping = TextWrapping.Wrap; t.Margin = new(0, 8, 0, 0); }));
@@ -65,7 +65,7 @@ public sealed class FeedbackPage : Border
             var r = new RadioButton { Content = label, Style = DS.Style("DS.Segment"), GroupName = group, IsChecked = id == category, MinWidth = 190 };
             r.Checked += (_, _) => category = id; kinds.Children.Add(r);
         }
-        stack.Children.Add(new Border { CornerRadius = new(12), Background = new SolidColorBrush(Color.FromArgb(30, 255, 255, 255)), BorderBrush = new SolidColorBrush(Color.FromArgb(34, 255, 255, 255)), BorderThickness = new(1), Padding = new(1), HorizontalAlignment = HorizontalAlignment.Left, Child = kinds });
+        stack.Children.Add(new Border { CornerRadius = new(12), Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(30, 255, 255, 255))), BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(34, 255, 255, 255))), BorderThickness = new(1), Padding = new(1), HorizontalAlignment = HorizontalAlignment.Left, Child = kinds });
 
         controller.Items.Add(NotChosen); foreach (var c in controllers) controller.Items.Add(c); controller.SelectedIndex = 0;
         foreach (var c in new[] { NotChosen, "USB cable", "2.4G receiver", "Bluetooth" }) connection.Items.Add(c); connection.SelectedIndex = 0;
@@ -75,7 +75,7 @@ public sealed class FeedbackPage : Border
 
         stack.Children.Add(Label("YOUR MESSAGE", 22));
         Message = new TextBox { AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MinHeight = 170, MaxHeight = 260, MaxLength = 4000, FontSize = 15.5, VerticalContentAlignment = VerticalAlignment.Top, Padding = new(14, 12, 14, 12), VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Foreground = DS.Brush("DS.Text"), CaretBrush = DS.Brush("DS.Text"), Background = new SolidColorBrush(Color.FromArgb(120, 4, 8, 20)), BorderBrush = new SolidColorBrush(Color.FromArgb(70, 140, 180, 255)), BorderThickness = new(1) };
+            Foreground = DS.Brush("DS.Text"), CaretBrush = DS.Brush("DS.Text"), Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(120, 4, 8, 20))), BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(70, 140, 180, 255))), BorderThickness = new(1) };
         stack.Children.Add(Message);
         counter = Kit.Text("0 / 4000", 12.5, "DS.TextMuted"); counter.HorizontalAlignment = HorizontalAlignment.Right; counter.Margin = new(0, 6, 0, 0); stack.Children.Add(counter);
 
@@ -87,6 +87,11 @@ public sealed class FeedbackPage : Border
         stack.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Margin = new(0, 18, 0, 0), Children = { back, SendButton } });
         status = Kit.Text("", 15, "DS.TextSoft"); status.TextWrapping = TextWrapping.Wrap; status.Margin = new(0, 16, 0, 0); stack.Children.Add(status);
         stack.Children.Add(Kit.Text("What's sent: your message, what it's about, the controller and connection if you pick them, the X20CTL version and the Windows version. No account, files or personal details.", 13, "DS.TextMuted").Also(t => { t.TextWrapping = TextWrapping.Wrap; t.Margin = new(0, 18, 0, 0); }));
+        if (ThemeCatalog.Current.Id == "pulse") BuildPulseFeedback(back, kinds);
+        if (ThemeCatalog.Current.Id == "spotlight") BuildSpotlightFeedback(back, kinds);
+        if (ThemeCatalog.Current.Id == "nexus") BuildNexusFeedback(back, kinds);
+        if (ThemeCatalog.Current.Id == "tide") BuildTideFeedback(back, kinds);
+        if (ThemeCatalog.Current.Id == "rebel") BuildRebelFeedback(back, kinds);
     }
 
     private static TextBlock Label(string text, double top) => Kit.Text(text, 12, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(2, top, 0, 8));

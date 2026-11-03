@@ -45,11 +45,11 @@ public sealed class StickDirectionSelector : Button
     }
     protected override void OnRender(DrawingContext dc)
     {
-        var center=new Point(54,54);dc.DrawEllipse(new SolidColorBrush(Color.FromRgb(14,27,45)),new Pen(new SolidColorBrush(Color.FromRgb(94,136,186)),1.5),center,49,49);
-        for(int i=0;i<8;i++){double angle=-Math.PI/2+i*Math.PI/4;dc.DrawLine(new Pen(new SolidColorBrush(Color.FromArgb(130,112,158,218)),2),new(54+Math.Cos(angle)*39,54+Math.Sin(angle)*39),new(54+Math.Cos(angle)*45,54+Math.Sin(angle)*45));}
-        dc.DrawEllipse(null,new Pen(new SolidColorBrush(Color.FromArgb(100,158,192,230)),1),center,16,16);
+        var center=new Point(54,54);dc.DrawEllipse(new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(14,27,45))),new Pen(new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(94,136,186))),1.5),center,49,49);
+        for(int i=0;i<8;i++){double angle=-Math.PI/2+i*Math.PI/4;dc.DrawLine(new Pen(new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(130,112,158,218))),2),new(54+Math.Cos(angle)*39,54+Math.Sin(angle)*39),new(54+Math.Cos(angle)*45,54+Math.Sin(angle)*45));}
+        dc.DrawEllipse(null,new Pen(new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(100,158,192,230))),1),center,16,16);
         double selectedAngle=-Math.PI/2+((int)Direction-1)*Math.PI/4;var dot=Direction==StickHeading.Neutral?center:new Point(54+Math.Cos(selectedAngle)*29,54+Math.Sin(selectedAngle)*29);
-        dc.DrawLine(new Pen(new SolidColorBrush(Color.FromArgb(90,99,187,248)),3),center,dot);dc.DrawEllipse(new SolidColorBrush(Color.FromRgb(123,202,255)),new Pen(Brushes.White,1.5),dot,9,9);
-        var caption=new FormattedText(Direction==StickHeading.Neutral?"NEUTRAL":"DIRECTION",CultureInfo.InvariantCulture,FlowDirection.LeftToRight,new Typeface("Segoe UI"),9,new SolidColorBrush(Color.FromRgb(170,196,227)),VisualTreeHelper.GetDpi(this).PixelsPerDip);dc.DrawText(caption,new(54-caption.Width/2,83));
+        dc.DrawLine(new Pen(new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(90,99,187,248))),3),center,dot);dc.DrawEllipse(new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(123,202,255))),new Pen(Brushes.White,1.5),dot,9,9);
+        var caption=new FormattedText(Direction==StickHeading.Neutral?"NEUTRAL":"DIRECTION",CultureInfo.InvariantCulture,FlowDirection.LeftToRight,new Typeface("Segoe UI"),9,new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(170,196,227))),VisualTreeHelper.GetDpi(this).PixelsPerDip);dc.DrawText(caption,new(54-caption.Width/2,83));
     }
 }

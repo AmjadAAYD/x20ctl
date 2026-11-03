@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using X20Ctl.Product.Scanner;
 using System.Windows;
 using System.Windows.Controls;
@@ -17,7 +17,7 @@ public sealed record PcModeLink(PcModeStore Store, PcModeService Service, Produc
 /// up/down speed, and a number table of what the game gets. PC mode applies them on this PC for any controller, EasySMX
 /// or not; nothing is written to the controller. They replace PC mode's whole-percent stick dead zones.
 /// </summary>
-public sealed class StickToolsPanel : Border
+public sealed partial class StickToolsPanel : Border
 {
     static readonly (string Name, CurveChannel Channel)[] Sticks = [("Left stick", CurveChannel.LeftStick), ("Right stick", CurveChannel.RightStick)];
     static readonly int[] TablePoints = [5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
@@ -54,15 +54,15 @@ public sealed class StickToolsPanel : Border
     {
         this.link = link;
         CornerRadius = new(22); BorderThickness = new(1); Padding = new(40, 30, 40, 30); MaxWidth = 1080; HorizontalAlignment = HorizontalAlignment.Center; VerticalAlignment = VerticalAlignment.Center;
-        Background = new LinearGradientBrush(Color.FromArgb(250, 14, 24, 52), Color.FromArgb(250, 8, 14, 34), 90);
-        BorderBrush = new LinearGradientBrush(Color.FromArgb(120, 120, 170, 255), Color.FromArgb(40, 120, 170, 255), 90);
+        Background = new LinearGradientBrush(ThemeCatalog.R(Color.FromArgb(250, 14, 24, 52)), ThemeCatalog.R(Color.FromArgb(250, 8, 14, 34)), 90);
+        BorderBrush = new LinearGradientBrush(ThemeCatalog.R(Color.FromArgb(120, 120, 170, 255)), ThemeCatalog.R(Color.FromArgb(40, 120, 170, 255)), 90);
         var stack=new StackPanel();var footer=new StackPanel();var body=new Grid();body.RowDefinitions.Add(new());body.RowDefinitions.Add(new(){Height=GridLength.Auto});body.Children.Add(new ScrollViewer{Content=stack,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,MaxHeight=570});Grid.SetRow(footer,1);body.Children.Add(footer);Child=body;
         stack.Children.Add(Kit.Text("Advanced stick tools", 30, "DS.Text", FontWeights.Bold));
         stack.Children.Add(Wrap("PC-side processing for accessible analog sticks · Nothing is written to controller memory. Settings save locally as you edit; sliders adjust in 0.1% steps.", 15, "DS.TextSoft", 8));
         status = Wrap("", 14, "DS.TextMuted", 10); stack.Children.Add(status);
 
         notice = new Border { CornerRadius = new(14), Padding = new(20, 16, 20, 16), Margin = new(0, 16, 0, 0), BorderThickness = new(1), Visibility = Visibility.Collapsed,
-            Background = new SolidColorBrush(Color.FromArgb(70, 120, 80, 10)), BorderBrush = new SolidColorBrush(Color.FromArgb(160, 245, 200, 80)) };
+            Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(70, 120, 80, 10))), BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(160, 245, 200, 80))) };
         var accept = Pill("I understand"); accept.Margin = new(0, 12, 0, 0); accept.HorizontalAlignment = HorizontalAlignment.Left; accept.Click += (_, _) => Accept();
         notice.Child = new StackPanel { Children = { Kit.Text("Before PC mode starts", 17, "DS.Text", FontWeights.SemiBold),
             Wrap(PcModePage.NoticeLines[0], 14.5, "DS.TextSoft", 8), Wrap(PcModePage.NoticeLines[1], 14.5, "DS.TextSoft", 4), Wrap(PcModePage.NoticeLines[2], 14.5, "DS.TextSoft", 4), accept } };
@@ -108,7 +108,7 @@ public sealed class StickToolsPanel : Border
                     Label("Vertical sensitivity", 30).Also(t => t.ToolTip = "Scales the Y-axis output relative to X. It applies to analog stick input, after the response curve."), ratio, ratioText } },
                 PresetRow(channel) } };
             rows[channel] = new(inner, outer, anti, max, square, rawBox, ratio, table, tuning);
-            var card=new Border { CornerRadius = new(14), Padding = new(20, 16, 20, 16), Margin = new(0, 18, 0, 0), Background = new SolidColorBrush(Color.FromArgb(90, 4, 8, 20)),
+            var card=new Border { CornerRadius = new(14), Padding = new(20, 16, 20, 16), Margin = new(0, 18, 0, 0), Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(90, 4, 8, 20))),
                 Child = new StackPanel { Children = {
                     title,
                     new StackPanel { Orientation = Orientation.Horizontal, Margin = new(0, 10, 0, 0), Children = {
@@ -131,6 +131,11 @@ public sealed class StickToolsPanel : Border
         Loaded += (_, _) => { link.Service.Changed -= refresh; link.Service.Changed += refresh; ShowStatus(); };
         Unloaded += (_, _) => link.Service.Changed -= refresh;
         ShowStatus();
+        if (ThemeCatalog.Current.Id == "pulse") BuildPulseAdvanced(close, reset);
+        else if (ThemeCatalog.Current.Id == "spotlight") BuildSpotlightAdvanced(close, reset);
+        else if (ThemeCatalog.Current.Id == "nexus") BuildNexusAdvanced(close, reset);
+        else if (ThemeCatalog.Current.Id == "tide") BuildTideAdvanced(close, reset);
+        else if (ThemeCatalog.Current.Id == "rebel") BuildRebelAdvanced(close, reset);
     }
 
     void Load()
@@ -238,7 +243,7 @@ public sealed class StickToolsPanel : Border
     void ApplyMeasured(){if(sampled is not {} result)return;loading=true;rows[CurveChannel.LeftStick].Inner.Value=result.Left.RecommendedInner;rows[CurveChannel.RightStick].Inner.Value=result.Right.RecommendedInner;loading=false;Changed();applyDrift.Visibility=Visibility.Collapsed;}
     static string StickName(CurveChannel c)=>c==CurveChannel.LeftStick?"Left stick":"Right stick";
     static void CopyValues(Row a,Row b){b.Inner.Value=a.Inner.Value;b.Outer.Value=a.Outer.Value;b.Anti.Value=a.Anti.Value;b.Max.Value=a.Max.Value;b.Square.IsChecked=a.Square.IsChecked;b.Raw.IsChecked=a.Raw.IsChecked;b.Ratio.Value=a.Ratio.Value;}
-    public void SelectStick(CurveChannel c){selectedStick=c;foreach(var pair in cards)pair.Value.Visibility=pair.Key==c?Visibility.Visible:Visibility.Collapsed;UpdateTables(Build());}
+    public void SelectStick(CurveChannel c){selectedStick=c;foreach(var pair in cards)pair.Value.Visibility=pair.Key==c?Visibility.Visible:Visibility.Collapsed;UpdateTables(Build());RefreshPulseAdvanced();RefreshRebelAdvanced();RefreshSpotlightAdvanced();RefreshNexusAdvanced();RefreshTideAdvanced();}
     UIElement Preview(CurveChannel channel){var canvas=new Canvas{Width=720,Height=165,ClipToBounds=true};charts[channel]=canvas;return new Viewbox{Child=canvas,Stretch=Stretch.Uniform,MaxHeight=165,HorizontalAlignment=HorizontalAlignment.Left,Margin=new(0,14,0,0)};}
     public void ShowLive(double leftX,double leftY,double rightX,double rightY){live=true;lx=leftX;ly=leftY;rx=rightX;ry=rightY;UpdateTables(Build());}
     public void ClearLive(){live=false;UpdateTables(Build());}
@@ -256,7 +261,12 @@ public sealed class StickToolsPanel : Border
         {Shape gate=center>500&&tuning?.SquareGate==true?new Rectangle{Width=84,Height=84}:new Ellipse{Width=84,Height=84};gate.Stroke=Brushes.SlateGray;gate.StrokeThickness=1;Canvas.SetLeft(gate,center-42);Canvas.SetTop(gate,45);canvas.Children.Add(gate);Put(label,center-34,10);
          if(center<500){foreach(var radius in new[]{(tuning?.Inner??0)/100*42,(tuning?.Outer??100)/100*42}){var ring=new Ellipse{Width=radius*2,Height=radius*2,Stroke=Brushes.LightSkyBlue,StrokeThickness=1};Canvas.SetLeft(ring,center-radius);Canvas.SetTop(ring,87-radius);canvas.Children.Add(ring);}}
          if(live){var dot=new Ellipse{Width=8,Height=8,Fill=Brushes.White};Canvas.SetLeft(dot,center+dx*42-4);Canvas.SetTop(dot,87-dy*42-4);canvas.Children.Add(dot);Put($"{dx:P0}, {dy:P0}",center-40,141);}}
+        RefreshRebelAdvancedGraph(channel);
         void Put(string text,double left,double top){var label=Kit.Text(text,13,"DS.TextSoft");Canvas.SetLeft(label,left);Canvas.SetTop(label,top);canvas.Children.Add(label);}
+        RefreshPulseAdvancedGraph(channel);
+        RefreshSpotlightAdvancedGraph(channel);
+        RefreshNexusAdvancedGraph(channel);
+        RefreshTideAdvancedGraph(channel);
     }
 
     static void Wide(TextBlock t) => t.Width = 165;

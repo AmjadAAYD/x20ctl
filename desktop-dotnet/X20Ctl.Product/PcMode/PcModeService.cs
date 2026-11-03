@@ -177,7 +177,7 @@ public sealed class PcModeService : IDisposable
                         HidHide.RememberForRecovery(devices);
                         HidHide.Hide(devices); hidden.AddRange(devices);
                         // one virtual pad per real one, in slot order, so player 1 stays player 1
-                        foreach (int real in reals) pairs.Add(new(real, new VirtualPad()));
+                        foreach (int real in reals) pairs.Add(new(real, new VirtualPad(real)));
                         Assign();
                         Volatile.Write(ref virtualSlots, pairs.Select(p => p.Pad.Slot).Where(s => s >= 0).ToArray());
                         Controllers = pairs.Count;
@@ -247,12 +247,15 @@ public sealed class PcModeService : IDisposable
 /// <summary>The virtual Xbox 360 pad games see. Needs the ViGEmBus driver.</summary>
 sealed class VirtualPad : IDisposable
 {
-    readonly ViGEmClient client; readonly IXbox360Controller pad;
+    readonly ViGEmClient client; readonly IXbox360Controller pad; readonly int real;
     public int Slot { get; private set; } = -1;
-    public VirtualPad()
+    public VirtualPad(int real)
     {
+        this.real = real;
         client = new ViGEmClient();
-        pad = client.CreateXbox360Controller(); pad.AutoSubmitReport = false; pad.Connect();
+        pad = client.CreateXbox360Controller(); pad.AutoSubmitReport = false;
+        pad.FeedbackReceived += (_, e) => ControllerRumble.Set(real, e.LargeMotor * 257, e.SmallMotor * 257); // a game's vibration goes on to the real pad
+        pad.Connect();
         Refresh();
     }
     /// <summary>Asks ViGEm for the XInput slot again; it may not know it straight after connecting.</summary>
@@ -272,7 +275,7 @@ sealed class VirtualPad : IDisposable
         pad.SetAxisValue(Xbox360Axis.RightThumbX, s.RightX); pad.SetAxisValue(Xbox360Axis.RightThumbY, s.RightY);
         pad.SubmitReport();
     }
-    public void Dispose() { try { pad.Disconnect(); } catch (Exception) { } client.Dispose(); }
+    public void Dispose() { try { pad.Disconnect(); } catch (Exception) { } client.Dispose(); ControllerRumble.Set(real, 0, 0); }
 }
 
 /// <summary>
@@ -299,22 +302,8 @@ static class HidHide
         return output;
     }
 
-    /// <summary>The instance paths to hide for every gaming device present. HidHideCLI's --dev-gaming prints JSON with a
-    /// "deviceInstancePath" (the HID device) and, for Xbox-style pads, an "xusbDeviceInstancePath" that XInput reads
-    /// instead; both are hidden. Read by pattern rather than as JSON, since a device name Windows' console can't encode
-    /// would otherwise cut the output short.</summary>
-    public static List<string> GamingDevices() => ParseGamingDevices(Run("--dev-gaming"));
-    internal static List<string> ParseGamingDevices(string output)
-    {
-        var paths = new List<string>();
-        foreach (System.Text.RegularExpressions.Match device in System.Text.RegularExpressions.Regex.Matches(output, @"\{[^{}]*\}"))
-        {
-            if (!System.Text.RegularExpressions.Regex.IsMatch(device.Value, @"""present""\s*:\s*true")) continue;
-            foreach (System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(device.Value, @"""(?:deviceInstancePath|xusbDeviceInstancePath)""\s*:\s*""((?:[^""\\]|\\.)*)"""))
-                if (m.Groups[1].Value.Replace(@"\\", @"\") is { Length: > 0 } path) paths.Add(path);
-        }
-        return paths.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-    }
+    /// <summary>The instance paths to hide for every gaming device present.</summary>
+    public static List<string> GamingDevices() => HidHideDeviceList.Parse(Run("--dev-gaming"));
     /// <summary>HidHideCLI --cloak-state answers "--cloak-on" or "--cloak-off".</summary>
     public static bool CloakIsOn() { try { return Run("--cloak-state").Contains("--cloak-on", StringComparison.OrdinalIgnoreCase); } catch (Exception) { return false; } }
     public static void RegisterSelf() { if (Environment.ProcessPath is { } exe) Run("--app-reg", exe); }

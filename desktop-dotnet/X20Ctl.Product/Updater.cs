@@ -16,7 +16,7 @@ public static class Updater
 {
     public const string Api = "https://api.github.com/repos/AmjadAAYD/x20ctl/releases?per_page=30";
     public const string ReleasesPage = ExternalLinks.Repository + "/releases";
-    public sealed record Release(string Tag, string Version, string Title, string Page, string ExeName, string ExeUrl, string SumsUrl, bool Prerelease);
+    public sealed record Release(string Tag, string Version, string Title, string Page, string ExeName, string ExeUrl, string SumsUrl, bool Prerelease, long ExeSize = 0);
 
     public static string Current => Scanner.ScanFlow.AppVersion;
     /// <summary>This copy's version as people see it: V0.016.</summary>
@@ -49,39 +49,23 @@ public static class Updater
             bool pre = r.GetProperty("prerelease").GetBoolean(); if (pre && !takePre) continue;
             string tag = r.GetProperty("tag_name").GetString() ?? "", version = Regex.Replace(tag.TrimStart('v'), "-exe$", "");
             if (Compare(version, Current) <= 0 || best != null && Compare(version, best.Version) <= 0) continue;
-            string? exe = null, exeUrl = null, sums = null;
-            foreach (var a in r.GetProperty("assets").EnumerateArray())
-            {
-                string name = a.GetProperty("name").GetString() ?? "", url = a.GetProperty("browser_download_url").GetString() ?? "";
-                if (name.EndsWith("-windows-x64.exe", StringComparison.OrdinalIgnoreCase)) (exe, exeUrl) = (name, url);
-                if (name == "SHA256SUMS.txt") sums = url;
-            }
-            if (exe == null || exeUrl == null || sums == null || !Trusted(exeUrl) || !Trusted(sums)) continue;
-            best = new(tag, version, r.GetProperty("name").GetString() ?? tag, r.GetProperty("html_url").GetString() ?? ReleasesPage, exe, exeUrl, sums, pre);
+            var assets = r.GetProperty("assets").EnumerateArray().Select(a => new X20Ctl.Zone.UpdateAsset(a.GetProperty("name").GetString() ?? "", a.GetProperty("browser_download_url").GetString() ?? "", a.TryGetProperty("size", out var size) ? size.GetInt64() : 0)).ToList();
+            if (X20Ctl.Zone.UpdateKit.Pick(X20Ctl.Zone.InstallKind.WindowsExe, assets) is not { } package) continue;
+            best = new(tag, version, r.GetProperty("name").GetString() ?? tag, r.GetProperty("html_url").GetString() ?? ReleasesPage, package.File.Name, package.File.Url, package.Sums.Url, pre, package.File.Size);
         }
         return best;
     }
 
-    static bool Trusted(string url) => url.StartsWith("https://github.com/AmjadAAYD/x20ctl/releases/download/", StringComparison.Ordinal);
-
-    /// <summary>Downloads, verifies and swaps in the new exe. Returns false (with the reason) when it can't.</summary>
-    public static async Task<(bool Done, string Message)> Install(Release release)
+    /// <summary>Downloads, verifies (size and checksum) and swaps in the new exe. Returns false (with the reason) when it can't, and the running exe is then untouched.</summary>
+    public static async Task<(bool Done, string Message)> Install(Release release, IProgress<double>? progress = null, CancellationToken cancel = default)
     {
         if (!CanInstall) return (false, "This copy is a folder build, so it can't update itself. Download the new version from GitHub.");
         string exe = Environment.ProcessPath!, folder = Path.GetDirectoryName(exe)!, download = exe + ".download", old = exe + ".old";
-        using var http = Client();
-        string sums = await http.GetStringAsync(release.SumsUrl);
-        var line = sums.Split('\n').Select(l => l.Trim()).FirstOrDefault(l => l.EndsWith(" " + release.ExeName) || l.EndsWith("*" + release.ExeName));
-        if (line == null || !Regex.IsMatch(line, "^[0-9a-fA-F]{64}")) return (false, "The release's checksum list doesn't include the exe, so the update was skipped.");
-        string expected = line[..64].ToLowerInvariant();
+        var package = new X20Ctl.Zone.UpdatePackage(new(release.ExeName, release.ExeUrl, release.ExeSize), new("SHA256SUMS.txt", release.SumsUrl, 0));
+        var fetched = await X20Ctl.Zone.UpdateKit.Fetch(package, download, progress, cancel);
+        if (fetched.Outcome != X20Ctl.Zone.UpdateKit.Outcome.Verified) return (false, fetched.Message);
         try
         {
-            await using (var source = await http.GetStreamAsync(release.ExeUrl))
-            await using (var target = new FileStream(download, FileMode.Create, FileAccess.Write, FileShare.None))
-                await source.CopyToAsync(target);
-            string actual;
-            await using (var check = File.OpenRead(download)) actual = Convert.ToHexString(await SHA256.HashDataAsync(check)).ToLowerInvariant();
-            if (actual != expected) { File.Delete(download); return (false, "The download didn't match the release's checksum, so it was thrown away."); }
             if (File.Exists(old)) File.Delete(old);
             File.Move(exe, old);
             try { File.Move(download, exe); } catch { File.Move(old, exe); throw; }
@@ -92,10 +76,19 @@ public static class Updater
             return (false, $"Couldn't replace the exe in {folder} ({error.Message}). Download the new version from GitHub instead.");
         }
         Installed = release.Version;
-        // the one-file exe unpacks itself the first time it starts (about 2 s): do that now, in the background, rather than at the next open
-        try { using var warm = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exe, "--warm-up") { UseShellExecute = false, WorkingDirectory = folder }); }
-        catch (Exception error) when (error is System.ComponentModel.Win32Exception or InvalidOperationException) { }
         return (true, $"{release.Title} is installed. It starts the next time you open X20CTL.");
+    }
+
+    /// <summary>Starts the freshly installed exe (this process is then closed by the caller). False when it couldn't start, so the caller keeps running.</summary>
+    public static bool Restart()
+    {
+        try
+        {
+            string exe = Environment.ProcessPath!;
+            using var next = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exe) { UseShellExecute = false, WorkingDirectory = Path.GetDirectoryName(exe)! });
+            return next != null;
+        }
+        catch (Exception error) when (error is System.ComponentModel.Win32Exception or InvalidOperationException) { return false; }
     }
 
     /// <summary>At launch, when turned on: check, and for the one-file exe install straight away. Reports one line.</summary>
@@ -107,7 +100,11 @@ public static class Updater
             var release = await Latest(); Ready = release;
             if (release == null) return null;
             if (!CanInstall) return $"{release.Title} is out. Open Tools to get it.";
-            var (_, message) = await Install(release); return message;
+            var (done, message) = await Install(release);
+            // the one-file exe unpacks itself the first time it starts (about 2 s): do that now, in the background, rather than at the next open
+            if (done) try { string exe = Environment.ProcessPath!; using var warm = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exe, "--warm-up") { UseShellExecute = false, WorkingDirectory = Path.GetDirectoryName(exe)! }); }
+                catch (Exception error) when (error is System.ComponentModel.Win32Exception or InvalidOperationException) { }
+            return message;
         }
         catch (Exception error) when (error is HttpRequestException or TaskCanceledException or JsonException or IOException or InvalidOperationException or KeyNotFoundException) { return null; }
     }
