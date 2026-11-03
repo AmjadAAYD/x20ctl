@@ -119,6 +119,18 @@ internal static class UpdateMockReview
                 Check("...and the current exe is untouched, nothing left behind", File.ReadAllBytes(target).SequenceEqual(oldBytes) && !File.Exists(target + ".download") && !File.Exists(target + ".old"));
             }
 
+            // 6b. the exe cannot be replaced (held open by something else): refused in-app, nothing changed
+            {
+                string target = Target("g.exe"); Updater.TestHandler = new FakeGitHub(newBytes, $"{good}  {ExeName}\n");
+                using (new FileStream(target, FileMode.Open, FileAccess.Read, FileShare.None))
+                {
+                    var (done, message) = await Updater.Install(Release(), null, default);
+                    Check("an exe that cannot be replaced fails with a reason, no success", !done && message.Contains("Couldn't replace"));
+                    Check("...no .download left, no .old created", !File.Exists(target + ".download") && !File.Exists(target + ".old"));
+                }
+                Check("...and its content is still the old bytes", File.ReadAllBytes(target).SequenceEqual(oldBytes));
+            }
+
             // 7. keys on the real view: A answers, B/Esc are No/Cancel/Close, nothing else moves
             {
                 var flow = new UpdateFlow("V0.099", true); flow.Open();
@@ -172,6 +184,7 @@ internal static class UpdateMockReview
             Updater.TestTarget = null; Updater.TestHandler = null;
             try { Directory.Delete(work, true); } catch (IOException) { }
         }
+        log.Add("Info: this review process is " + (new System.Security.Principal.WindowsPrincipal(System.Security.Principal.WindowsIdentity.GetCurrent()).IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator) ? "elevated" : "not elevated") + " (the release exe is built to require administrator, so it is always elevated).");
         log.Add(failures == 0 ? "ALL CHECKS PASSED" : failures + " CHECK(S) FAILED");
         log.Add("Mock only: fake in-memory GitHub, stand-in exe in a temp folder (deleted), real Updater.Install, flow, view and preferences. No window shown, no network, no release, installed X20CTL untouched.");
         File.WriteAllLines(Path.Combine(directory, "update-mock-results.txt"), log);
