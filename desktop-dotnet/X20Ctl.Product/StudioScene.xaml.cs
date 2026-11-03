@@ -30,10 +30,11 @@ public partial class StudioScene : UserControl
     public ScreenWorkbench? Screen {get;private set;}
     public TesterWorkbench? Tester {get;private set;}
     public SetupsWorkbench? Setups {get;private set;}
-    public bool CapturingButtonEditor=>buttonsPage!=null && OnButtonsPage && !IsTrying && !AgentOpen;
+    /// <summary>Remap capture is engaged on Buttons (R3, or a "You press"/"Game gets" slot). Without it the controller browses.</summary>
+    public bool CapturingButtonEditor=>CapturingRemap && !IsTrying && !AgentOpen;
     public void SelectPhysicalButton(string key)=>buttonsPage?.SelectPhysical(key);
     private InputOwner? lastPageOwner;
-    public InputOwner InputContext=>CapturingButtonEditor?InputOwner.RemapCapture:(tryLayer != null || ManagementPage is "Tester" or "Diagnostics" or "Mouse")?InputOwner.TesterCapture:InputOwner.UiNavigation;
+    public InputOwner InputContext=>IsMacros && Macros?.IsRecording==true?InputOwner.MacroRecording:CapturingButtonEditor?InputOwner.RemapCapture:(tryLayer != null || ManagementPage is "Tester" or "Diagnostics" or "Mouse")?InputOwner.TesterCapture:InputOwner.UiNavigation;
     /// <summary>The Diagnostics tab, built on first open; it only listens while shown.</summary>
     public Diagnostics.DiagnosticsWorkbench? Diagnostics { get; private set; }
     /// <summary>Controller as mouse: the service lives in the host; the tab is built on first open.</summary>
@@ -87,7 +88,7 @@ public partial class StudioScene : UserControl
         BuildTargets(); BuildInventory();
         BuildTitlePills(); BuildNavigation();
         buttonsPage = new ButtonsConsolePage(model, layout, draft, Label, animate, SelectControl, OpenMacroSlot, () => { if (IsTrying) StopTry(); else StartTry(); });
-        buttonsPage.Changed += RefreshEditor; ButtonsPageHost.Children.Add(buttonsPage);
+        buttonsPage.Changed += RefreshEditor; ButtonsPageHost.Children.Add(buttonsPage); BuildCaptureBanner();
         PreviewGotKeyboardFocus += (_, _) => Dispatcher.BeginInvoke(UpdateHints, System.Windows.Threading.DispatcherPriority.Background);
         foreach (var h in buttonsPage.Hotspots) RegisterFocus(h);
         Curves = new(curveDraft ?? new CurveDraft(model.Id), this,animate); ModelProfiles.Wear(Curves.Inspector, model.Id, "Curves", draft.PcMode);
@@ -149,6 +150,7 @@ public partial class StudioScene : UserControl
     }
     public void OpenAgent()
     {
+        CancelRemapCapture();
         if (agentPanel == null)
         {
             agentPanel = new(Model.Id, Model.Name, PcMode, RegisterFocus, Player, AgentMeter, reducedMotion:!animate);
@@ -367,7 +369,7 @@ public partial class StudioScene : UserControl
         ButtonsPageHost.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
         if (!on) buttonsPage.CancelListening();
         if (on) { HardwareStage.Visibility = InspectorStage.Visibility = AssignmentShelf.Visibility = Visibility.Collapsed; OverviewChoice.Visibility = Visibility.Collapsed; EnterMotion(ButtonsPageHost, 14, 220); }
-        UpdateHints();var owner=InputContext;if(lastPageOwner!=owner){lastPageOwner=owner;InputContextChanged?.Invoke();}
+        UpdateHints();NotifyInputOwner();
     }
     private LiveController ActiveLive => OnButtonsPage && buttonsPage != null ? buttonsPage.Live : Live;
     private void BuildInventory()
@@ -738,6 +740,7 @@ public partial class StudioScene : UserControl
     /// <summary>Curves → Advanced: the fine stick tools, over the Studio until Done (or B / Esc).</summary>
     public void OpenStickTools()
     {
+        CancelRemapCapture();
         if(PcMode==null||stickToolsLayer!=null)return;
         StickTools=new StickToolsPanel(PcMode,CloseStickTools);
         if (IsPulse) StickTools.PulseNavigate = target => { CloseStickTools(); PulseSelectPage(target); };
@@ -762,7 +765,7 @@ public partial class StudioScene : UserControl
     // Studio lifecycle must therefore stop capture independently of Body visibility.
     internal void SuspendMacroActivity()
     {
-        if (Macros is { IsRecording: true } recording) recording.ToggleRecording();
+        if (Macros is { IsRecording: true } recording) recording.CancelRecording();
         Macros?.StopPreview();
     }
     public void ShowButtons() { RebelLater(); PulseLater(); SpotlightLater(); NexusLater(); TideLater(); DuskLater(); VoltLater(); BlossomLater(); ShowCurves(false);if(IsMacros)ShowMacros(false);if(IsVibration)ShowVibration(false);HideManagement();ButtonsNav.IsChecked=true;FrontChoice.IsEnabled=true;RearChoice.IsEnabled=HasRearArtwork;UpdateButtonsPage(); }
@@ -782,10 +785,10 @@ public partial class StudioScene : UserControl
         ResetCurveChoice.Visibility=CurveMoreChoice.Visibility=Visibility.Collapsed;CurveInspectorHost.Visibility=CurveShelfFrame.Visibility=Visibility.Collapsed;
         if(value)
         {
-            if(Macros==null) {Macros=new(macroDraft,layout,this,RegisterFocus,!animate,Model.Id);ModelProfiles.Wear(Macros.Body,Model.Id,"Macros",Draft.PcMode);MacroBodyHost.Children.Add(Macros.Body);Macros.Changed+=UpdateMacroContext;UseControllerWrites(Macros);}
+            if(Macros==null) {Macros=new(macroDraft,layout,this,RegisterFocus,!animate,Model.Id);ModelProfiles.Wear(Macros.Body,Model.Id,"Macros",Draft.PcMode);MacroBodyHost.Children.Add(Macros.Body);Macros.Changed+=UpdateMacroContext;Macros.RecordingChanged+=NotifyInputOwner;UseControllerWrites(Macros);}
             UpdateMacroContext();EnterMotion(MacroBodyHost,14,220);
         }
-        else {if ((IsDusk) && Macros?.IsRecording == true) Macros.ToggleRecording(); Macros?.StopPreview();RefreshEditor();}UpdateButtonsPage();
+        else {if (Macros?.IsRecording == true) Macros.CancelRecording(); Macros?.StopPreview();RefreshEditor();}UpdateButtonsPage();
     }
     private void UpdateMacroContext()
     {
@@ -859,6 +862,7 @@ public partial class StudioScene : UserControl
     private void ToggleTry(object sender, RoutedEventArgs e) { if (IsTrying) StopTry(); else StartTry(); }
     public void StartTry()
     {
+        CancelRemapCapture();
         if (!OnButtonsPage) return;
         tryDiagnostics = new Diagnostics.DiagnosticsWorkbench(Player, _ => {}, compact: true,model:Model);
         var close = new Button { Content = "Close test", Style = DS.Style("ActionButton"), HorizontalAlignment = HorizontalAlignment.Right, Margin = new(16) };
@@ -885,7 +889,7 @@ public partial class StudioScene : UserControl
         StatusNote.Text = navigationMode ? "Navigation preview" : "Controller offline";
     }
     /// <summary>Called when the window loses focus so a held key can never stick.</summary>
-    public void ReleaseTransientInput() { if (trial == null) return; trial.Clear(); PushTrialFrame(); }
+    public void ReleaseTransientInput() { keyboardHeld.Clear(); controllerHeld.Clear(); CancelRemapCapture(); if (trial == null) return; trial.Clear(); PushTrialFrame(); }
     private static SimulationKey? TrialKey(Key key) => key switch { Key.W => SimulationKey.W, Key.A => SimulationKey.A, Key.S => SimulationKey.S, Key.D => SimulationKey.D, Key.Up => SimulationKey.Up, Key.Down => SimulationKey.Down, Key.Left => SimulationKey.Left, Key.Right => SimulationKey.Right, Key.Q => SimulationKey.Q, Key.E => SimulationKey.E, _ => null };
     private void PushTrialFrame()
     {
@@ -980,7 +984,8 @@ public partial class StudioScene : UserControl
         if (page == "Dashboard") focus = Dashboard?.FocusAction;
         else if (page == "Buttons" && Keyboard.FocusedElement is PhysicalHotspot) focus = Draft.CanEdit(SelectedControl) ? "Choose output" : "Inspect";
         else if (page == "Buttons" && buttonsPage?.IsKeyboardFocusWithin == true && Keyboard.FocusedElement is Button { Tag: string t } && ButtonDraft.Targets.Contains(t)) focus = "Assign";
-        if(page=="Mouse"||CapturingButtonEditor){LiveHints.Children.Clear();LiveHints.Children.Add(GlyphHint.Footer(("Esc","Back")));return;}
+        if(CapturingButtonEditor){LiveHints.Children.Clear();LiveHints.Children.Add(GlyphHint.Footer(("Esc","Cancel")));return;}
+        if(page=="Mouse"){LiveHints.Children.Clear();LiveHints.Children.Add(GlyphHint.Footer(("Esc","Back")));return;}
         var map = InputMap.For(page, focus, IsTrying);
         var hints = new List<(string, string)>();
         if (map.A != null) hints.Add(("A", map.A));
@@ -988,6 +993,7 @@ public partial class StudioScene : UserControl
         if (map.X != null) hints.Add(("X", map.X));
         if (map.Y != null) hints.Add(("Y", map.Y));
         if (map.Triggers != null) hints.Add(("LT/RT", map.Triggers));
+        if (page == "Buttons" && CanEngageRemap) hints.Add(("R3", "Listen"));
         if (page is not ("Tester" or "Diagnostics")) hints.Add(("LB/RB", "Tabs"));
         LiveHints.Children.Clear(); LiveHints.Children.Add(GlyphHint.Footer(hints.ToArray()));
     }
@@ -1004,12 +1010,25 @@ public partial class StudioScene : UserControl
     private void Front(object sender, RoutedEventArgs e) { ShowController(false); ClearSelection(); }
     private void Rear(object sender, RoutedEventArgs e) { ShowController(true); ClearSelection(); }
     private void Back(object sender, RoutedEventArgs e) => BackRequested?.Invoke();
-    public void OnKeyUp(object sender,KeyEventArgs e){if(trial!=null && TrialKey(e.Key) is {} up){trial.Release(up);PushTrialFrame();e.Handled=true;return;}if(ManagementPage=="Tester" && Tester?.HandleKeyboard(e.Key,false)==true)e.Handled=true;}
+    public void OnKeyUp(object sender,KeyEventArgs e){var key=e.Key==Key.System?e.SystemKey:e.Key;if(InputMap.ButtonFor(key) is {} up0 && keyboardHeld.Remove(up0) && CapturingRemap){buttonsPage!.Observe(HeldCaptureInputs());e.Handled=true;return;}if(trial!=null && TrialKey(e.Key) is {} up){trial.Release(up);PushTrialFrame();e.Handled=true;return;}if(ManagementPage=="Tester" && Tester?.HandleKeyboard(e.Key,false)==true)e.Handled=true;}
     /// <summary>The Buttons page is waiting for "the button you want" or "what it should do": every press is captured.</summary>
     public bool CapturingRemap => OnButtonsPage && buttonsPage != null && buttonsPage.Listening != ButtonsConsolePage.Listen.None;
     public void OnKeyDown(object sender, KeyEventArgs e)
     {
-        if (RebelKey(e) || PulseKey(e)) return;
+        // the input contract: capture and recording first, then a focused text field, then theme and page keys
+        bool controller = sender is ProductHost; var key = e.Key == Key.System ? e.SystemKey : e.Key;
+        if (!controller && !e.IsRepeat && InputMap.ButtonFor(key) is { } held) keyboardHeld.Add(held);
+        if (CapturingRemap)
+        {
+            e.Handled = true; if (e.IsRepeat) return;
+            if (e.Key == Key.Escape) { buttonsPage!.CancelListening(); return; }
+            buttonsPage!.Observe(HeldCaptureInputs());
+            return;
+        }
+        if (InputContext == InputOwner.MacroRecording) { e.Handled = true; if (e.Key == Key.Escape && !e.IsRepeat) Macros!.CancelRecording(); return; }
+        if (Keyboard.FocusedElement is TextBox { IsReadOnly: false, IsEnabled: true } field && (controller ? e.Key == Key.B : e.Key == Key.Escape)) { LeaveField(field); e.Handled = true; return; }
+        bool typing = !controller && Keyboard.FocusedElement is TextBox { IsReadOnly: false };
+        if (!typing && RebelKey(e)) return;
         // the Advanced stick tools own the keyboard while open (arrows nudge their sliders); Esc closes them
         if (stickToolsLayer != null) { if (e.Key == Key.Escape) { CloseStickTools(); e.Handled = true; } return; }
         // the agent window: Esc puts it away, and while typing to it every key is the text box's
@@ -1037,15 +1056,10 @@ public partial class StudioScene : UserControl
         if(IsVibration && Vibration?.HandleKey(e)==true)return;
         if(IsMacros && Macros?.HandleKey(e)==true)return;
         if (IsCurves && Curves.HandleKey(e)) return;
-        // LB/RB walk the tabs: Dashboard, Buttons, Curves, Macros, Vibration, PC mode, Device, Mouse, Setups (the Tester is no longer a tab)
-        if(e.Key is Key.PageDown or Key.PageUp && !e.IsRepeat)
-        {
-            int step=e.Key==Key.PageDown?1:-1;int index=ManagementPage switch {"Dashboard"=>0,"PcMode"=>5,"Device"=>6,"Diagnostics"=>6,"Mouse"=>7,"Setups"=>8,_=>IsVibration?4:IsMacros?3:IsCurves?2:1};
-            int next=Math.Clamp(index+step,0,8);
-            // a model X20CTL can't write skips the tabs it can't use; with PC mode on only Vibration stays out of reach
-            while(Model.Id is not ("x20" or "x20_pro")&&(next==4||!Draft.PcMode&&next is 2 or 3))next+=step;
-            if(next==0)ShowManagement("Dashboard");else if(next>=5)ShowManagement(next switch {5=>"PcMode",6=>"Device",7=>"Mouse",_=>"Setups"});else if(next==4)ShowVibration(true);else if(next==3)ShowMacros(true);else if(next==2)ShowCurves(true);else ShowButtons();e.Handled=true;return;
-        }
+        // LB/RB walk the visible tabs in order, wrapping, the same on every theme
+        if(e.Key is Key.PageDown or Key.PageUp){e.Handled=true;if(!e.IsRepeat)StepTab(e.Key==Key.PageDown?1:-1);return;}
+        // a text field owns letters, digits, arrows and Enter
+        if (typing) return;
         if (e.Key == Key.F6) { if (!e.IsRepeat) SetNavigationPreview(!navigationMode); e.Handled = true; return; }
         if (e.Key is Key.Escape or Key.B)
         {

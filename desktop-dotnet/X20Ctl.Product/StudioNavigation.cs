@@ -13,7 +13,6 @@ public partial class StudioScene
     private double lensTargetX=double.NaN,lensTargetWidth=double.NaN;
     private void PreviousTabClick(object sender,RoutedEventArgs e)=>StepTab(-1);
     private void NextTabClick(object sender,RoutedEventArgs e)=>StepTab(1);
-    private void StepTab(int step){int current=Array.FindIndex(navigation,t=>t.IsChecked==true);navigation[(current+step+navigation.Length)%navigation.Length].RaiseEvent(new RoutedEventArgs(RadioButton.ClickEvent));}
     private void QueueNavigation(){if(navigationQueued)return;navigationQueued=true;Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded,new Action(()=>{navigationQueued=false;UpdateNavigation();}));}
     private void BuildNavigation()
     {

@@ -92,9 +92,9 @@ public sealed partial class ProductHost : Grid
     public long InputPresentationCoalesced {get;private set;}
     private string? nativeEpoch,nativeSubscription;
     private readonly SemaphoreSlim nativeContextLock=new(1,1);
-    private readonly object nativeEventLock=new();private JsonElement? latestNativeEvent;private int nativeEventScheduled;
+    private readonly object nativeEventLock=new();private readonly EdgeQueue<JsonElement> nativeEvents=new();private int nativeEventScheduled;
     private HashSet<string> lastNativeButtons=new();private bool nativeArmed;private long lastNativeSequence=-1,lastNavigationUs;
-    internal string ExpectedNativeContext=>NativeInputStudio?.InputContext is InputOwner.TesterCapture or InputOwner.RemapCapture?"TESTER_CAPTURE":"UI_NAVIGATION";
+    internal string ExpectedNativeContext=>NativeInputStudio?.InputContext is InputOwner.TesterCapture or InputOwner.RemapCapture or InputOwner.MacroRecording?"TESTER_CAPTURE":"UI_NAVIGATION";
     internal StudioScene? NativeInputStudio => Settings != null || Check != null || WriteScan != null || ActivePulseNotice != null || ActiveRebelNotice != null || ActiveThemeNotice != null ? null : Studio;
     private int? studioPlayer;
     public bool IntroWasPlayed {get;private set;}
@@ -282,7 +282,7 @@ public sealed partial class ProductHost : Grid
     public async Task InitializeNativeEngineAsync()
     {
         if(Engine!=null)return;
-        try{Engine=new();Engine.EventReceived+=QueueNativeEvent;Engine.Disconnected+=reason=>Dispatcher.BeginInvoke(new Action(()=>{nativeSubscription=null;nativeArmed=false;NativeEngineStatus="Native core disconnected · Configuration unavailable";if(Studio!=null){Studio.NativeEngineStatus=NativeEngineStatus;Studio.Device?.UpdateEngineStatus(NativeEngineStatus);Studio.Tester?.ExitCapture();}}));var hello=await Engine.Request("handshake",new{});if(!hello.TryGetProperty("engineEpoch",out var epoch))throw new InvalidDataException("Native handshake omitted epoch.");nativeEpoch=epoch.GetString();NativeEngineStatus="Native C++ core running · Configuration locked";Zone.ProvenanceText.Text="LIVE INPUT";await RefreshNativeCapabilities(Studio?.Model.Id??"x20");await UpdateNativeContext();}
+        try{Engine=new();Engine.EventReceived+=QueueNativeEvent;Engine.Disconnected+=reason=>Dispatcher.BeginInvoke(new Action(()=>{nativeSubscription=null;nativeArmed=false;NativeEngineStatus="Native core disconnected · Configuration unavailable";if(Studio!=null){Studio.NativeEngineStatus=NativeEngineStatus;Studio.Device?.UpdateEngineStatus(NativeEngineStatus);Studio.Tester?.ExitCapture();Studio.CancelRemapCapture();}}));var hello=await Engine.Request("handshake",new{});if(!hello.TryGetProperty("engineEpoch",out var epoch))throw new InvalidDataException("Native handshake omitted epoch.");nativeEpoch=epoch.GetString();NativeEngineStatus="Native C++ core running · Configuration locked";Zone.ProvenanceText.Text="LIVE INPUT";await RefreshNativeCapabilities(Studio?.Model.Id??"x20");await UpdateNativeContext();}
         catch(Exception error){Zone.ProvenanceText.Text="INPUT UNAVAILABLE";NativeEngineStatus="Native core unavailable · "+error.Message;if(Studio!=null){Studio.NativeEngineStatus=NativeEngineStatus;Studio.Device?.UpdateEngineStatus(NativeEngineStatus);}Zone.FeedbackText.Text="Native connection unavailable; local previews remain available.";}
     }
     private async Task RefreshNativeCapabilities(string model)
@@ -304,12 +304,28 @@ public sealed partial class ProductHost : Grid
     }
     private void QueueNativeEvent(JsonElement message)
     {
-        lock(nativeEventLock){if(latestNativeEvent.HasValue)InputPresentationCoalesced++;latestNativeEvent=message;}
-        if(Interlocked.Exchange(ref nativeEventScheduled,1)==0)Dispatcher.BeginInvoke(new Action(ConsumeNativeEvent));
+        // only analog-only samples merge: a press and its release between two renders both reach the UI, in order
+        lock(nativeEventLock){nativeEvents.Offer(message,NativeEdgeKey(message));InputPresentationCoalesced=nativeEvents.Coalesced+nativeEvents.Dropped;}
+        if(Interlocked.Exchange(ref nativeEventScheduled,1)==0)Dispatcher.BeginInvoke(new Action(ConsumeNativeEvents));
     }
-    private void ConsumeNativeEvent()
+    /// <summary>The digital state a sample carries (buttons, triggers and stick past their thresholds); samples that share it may merge.</summary>
+    internal static string NativeEdgeKey(JsonElement message)
     {
-        JsonElement? message;lock(nativeEventLock){message=latestNativeEvent;latestNativeEvent=null;Interlocked.Exchange(ref nativeEventScheduled,0);}if(!message.HasValue)return;var value=message.Value;
+        try
+        {
+            var p=message.GetProperty("payload");double lx=p.GetProperty("leftX").GetDouble(),ly=p.GetProperty("leftY").GetDouble();
+            string stick=Math.Abs(lx)>.6&&Math.Abs(lx)>=Math.Abs(ly)?(lx>0?"R":"L"):Math.Abs(ly)>.6?(ly>0?"U":"D"):"";
+            return string.Join(",",p.GetProperty("buttons").EnumerateArray().Select(v=>v.GetString()))+"|"+p.GetProperty("connected").GetBoolean()+(p.GetProperty("lt").GetDouble()>.55?"|LT":"")+(p.GetProperty("rt").GetDouble()>.55?"|RT":"")+"|"+stick+"|"+(message.TryGetProperty("subscriptionId",out var id)?id.GetString():"");
+        }
+        catch(Exception error) when(error is InvalidOperationException or KeyNotFoundException or FormatException){return Guid.NewGuid().ToString("N");}
+    }
+    private void ConsumeNativeEvents()
+    {
+        List<JsonElement> messages;lock(nativeEventLock){messages=nativeEvents.Drain();Interlocked.Exchange(ref nativeEventScheduled,0);}
+        foreach(var message in messages)ConsumeNativeEvent(message);
+    }
+    private void ConsumeNativeEvent(JsonElement value)
+    {
         try{
             if(value.GetProperty("engineEpoch").GetString()!=nativeEpoch||value.GetProperty("subscriptionId").GetString()!=nativeSubscription||value.GetProperty("inputContext").GetString()!=ExpectedNativeContext)return;
             long sequence=value.GetProperty("sequence").GetInt64();if(sequence<=lastNativeSequence)return;lastNativeSequence=sequence;
@@ -337,7 +353,16 @@ public sealed partial class ProductHost : Grid
             }
             if(ActiveRebelNotice is {} notice){if(!connected||Window.GetWindow(this)?.IsActive!=true){nativeArmed=false;return;}if(!nativeArmed){if(now.Count==0)nativeArmed=true;return;}if(pressed.Contains("B"))notice.Resolve(false);else if(pressed.Contains("A") && Keyboard.FocusedElement is Button action && notice.IsKeyboardFocusWithin)action.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));else foreach(var direction in new[]{("DPAD_LEFT",FocusNavigationDirection.Left),("DPAD_RIGHT",FocusNavigationDirection.Right),("DPAD_UP",FocusNavigationDirection.Up),("DPAD_DOWN",FocusNavigationDirection.Down)})if(pressed.Contains(direction.Item1) && Keyboard.FocusedElement is UIElement focused)focused.MoveFocus(new(direction.Item2));return;}
             long time=value.GetProperty("timestampUs").GetInt64();
-            if(NativeInputStudio?.CapturingButtonEditor==true){if(connected){foreach(var button in pressed.Where(b=>!b.StartsWith("LS_")))NativeInputStudio!.SelectPhysicalButton(button);}nativeArmed=false;return;}
+            NativeInputStudio?.NoteControllerHeld(now);
+            // remap capture and macro recording own every press of the pad, but only while X20CTL is in front
+            if(NativeInputStudio is {} owner && (owner.CapturingRemap || owner.InputContext==InputOwner.MacroRecording))
+            {
+                nativeArmed=false;
+                var rule=InputOwnerRules.Resolve(new(Window.GetWindow(this)?.IsActive==true,connected,false,owner.InputContext==InputOwner.MacroRecording,owner.CapturingRemap,false,false));
+                if(rule==InputOwnerRules.Owner.Nobody)owner.CancelRemapCapture();
+                else if(rule==InputOwnerRules.Owner.RemapCapture)owner.ObserveCapture(now);
+                return;
+            }
             if(connected&&NativeInputStudio?.IsCurves==true){if(pressed.Contains("L3"))NativeInputStudio!.Curves.SelectChannel(X20Ctl.Zone.CurveChannel.LeftStick);else if(pressed.Contains("R3"))NativeInputStudio!.Curves.SelectChannel(X20Ctl.Zone.CurveChannel.RightStick);}
             // Home / Guide: bring X20CTL forward from anywhere (tray, behind a game); in front it goes home
             if(connected&&pressed.Contains("HOME")&&NativeInputStudio?.ManagementPage is not ("Diagnostics" or "Mouse")){HomeRequested?.Invoke();return;}
@@ -350,6 +375,7 @@ public sealed partial class ProductHost : Grid
                 if(NativeInputStudio!.ManagementPage=="Tester")NativeInputStudio!.Tester?.ReceiveNative(value);nativeArmed=false;return;
             }
             if(!connected||Window.GetWindow(this)?.IsActive!=true){nativeArmed=false;return;}if(!nativeArmed){if(now.Count==0)nativeArmed=true;return;}
+            if(NativeInputStudio?.CanEngageRemap==true && Settings==null && pressed.Contains("R3")){NativeInputStudio.BeginRemapCapture();return;}
             if(Intro!=null){if(pressed.Contains("B"))Intro.Finish();else if(pressed.Contains("Y"))Intro.ToggleMute();return;}
             if(ActivePulseNotice!=null)
             {
@@ -506,7 +532,7 @@ public sealed partial class ProductHost : Grid
         // the Write scan is typed into and clicked; the keyboard's Esc leaves, nothing else navigates behind it
         if(WriteScan!=null){if(sender is not ProductHost && e.Key==Key.Escape){CloseWriteScan();e.Handled=true;}return;}
         // remapping on the Buttons page: Menu, View and B are buttons being assigned, not navigation
-        if(Studio?.CapturingRemap==true && Intro==null && Settings==null){Studio.OnKeyDown(sender,e);return;}
+        if(Studio?.OwnsAllInput==true && Intro==null && Settings==null){Studio.OnKeyDown(sender,e);return;}
         if(key==InputMap.Settings && Intro==null){if(Settings!=null)CloseSettings();else ShowSettings();e.Handled=true;return;}
         if(key==InputMap.ControllerZone && Intro==null && Settings==null && Studio!=null && Studio.ManagementPage is not ("Tester" or "Diagnostics")){ReturnToZone();e.Handled=true;return;}
         if(Intro!=null){if(e.Key is Key.Escape or Key.B)Intro.Finish();else if(e.Key==Key.M&&!e.IsRepeat)Intro.ToggleMute();e.Handled=true;return;}
@@ -553,5 +579,5 @@ public sealed partial class ProductHost : Grid
         }
         if (Studio != null) Studio.OnKeyDown(sender, e); else Zone.OnKeyDown(sender, e);
     }
-    public void OnKeyUp(object sender, KeyEventArgs e) { if(Intro!=null||Settings!=null||Check!=null||WriteScan!=null)return;if(Studio!=null)Studio.OnKeyUp(sender,e);else if (Selector == null) Zone.OnKeyUp(sender, e); }
+    public void OnKeyUp(object sender, KeyEventArgs e) { if(Studio?.OwnsAllInput==true && Intro==null && Settings==null){Studio.OnKeyUp(sender,e);return;}if(Intro!=null||Settings!=null||Check!=null||WriteScan!=null)return;if(Studio!=null)Studio.OnKeyUp(sender,e);else if (Selector == null) Zone.OnKeyUp(sender, e); }
 }

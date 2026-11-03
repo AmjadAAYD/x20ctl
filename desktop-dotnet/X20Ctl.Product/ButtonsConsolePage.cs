@@ -44,7 +44,9 @@ public sealed class ButtonsConsolePage : Grid
     public void UseController(Action apply){ApplyToController=apply;applyButton.Visibility=Visibility.Visible;controllerNote.Text="Apply to save this on the controller.";}
     public void SayController(string text)=>controllerNote.Text=text;
     public void SetConnected(bool value){connected=value;RefreshMapping();}
-    public void SelectPhysical(string key){if(Listening!=Listen.None){Press(key);return;}if(layout.Controls.Any(r=>r.Key==key))Pick(key);}
+    /// <summary>One physical press with no release information (review harnesses). While listening it goes through the
+    /// capture rules, so a second call without a release in between is ignored.</summary>
+    public void SelectPhysical(string key){if(Listening!=Listen.None){Observe(new[]{key});return;}if(layout.Controls.Any(r=>r.Key==key))Pick(key);}
     private bool TargetAllowed(string key)=>ButtonDraft.Targets.Contains(key)||key=="NONE"&&draft.PcMode;
     private string TargetName(string key)=>key=="NONE"?"Disabled":label(key);
     public PhotoController Controller { get; private set; }
@@ -155,8 +157,28 @@ public sealed class ButtonsConsolePage : Grid
     public Listen Listening { get; private set; }
     /// <summary>The physical button on the left of the card ("you press"); empty until the player picks one.</summary>
     public string Source { get; private set; } = "";
-    public void BeginListening(Listen side) { if(!connected && side!=Listen.None){Listening=Listen.None;RefreshMapping();return;}Listening = side == Listen.Target && Source.Length == 0 ? Listen.Source : side; RefreshMapping(); }
-    public void CancelListening() { if (Listening == Listen.None) return; Listening = Listen.None; RefreshMapping(); }
+    /// <summary>The capture rules: neutral first, one fresh button per stage, a release between source and target.</summary>
+    public RemapCapture Capture { get; } = new();
+    /// <summary>Buttons held right now on the controller and its keyboard mirror; listening waits for them to be let go.</summary>
+    public Func<IReadOnlyCollection<string>> HeldInputs { get; set; } = () => Array.Empty<string>();
+    public event Action? ListeningChanged;
+    public void BeginListening(Listen side)
+    {
+        if(!connected && side!=Listen.None){Listening=Listen.None;Capture.Cancel();RefreshMapping();return;}
+        Listening = side == Listen.Target && Source.Length == 0 ? Listen.Source : side;
+        if (Listening == Listen.None) Capture.Cancel(); else Capture.Begin(Listening == Listen.Source ? RemapCapture.Side.Source : RemapCapture.Side.Target, HeldInputs());
+        RefreshMapping();
+    }
+    public void CancelListening() { if (Listening == Listen.None) return; Listening = Listen.None; Capture.Cancel(); RefreshMapping(); }
+    /// <summary>The full set of held buttons; a press that the capture rules accept fills the waiting side.</summary>
+    public void Observe(IReadOnlyCollection<string> held)
+    {
+        if (Listening == Listen.None) { Capture.Observe(held); return; }
+        bool waiting = Capture.WaitingForRelease, ambiguous = Capture.Ambiguous;
+        if (Capture.Observe(held) is { } button) Press(button);
+        else if (waiting != Capture.WaitingForRelease || ambiguous != Capture.Ambiguous) RefreshMapping();
+    }
+    public string CapturePrompt => Capture.Ambiguous ? "Press one button" : Capture.WaitingForRelease ? "Release all buttons" : Listening == Listen.Source ? "Press the button to change" : "Press what it should send";
     /// <summary>A press while listening: a controller button (from the controller or its keyboard mirror), a click on
     /// the picture, or a click in Outputs. The first fills "you press" and moves on; the second sets what it does.</summary>
     public void Press(string button)
@@ -165,17 +187,17 @@ public sealed class ButtonsConsolePage : Grid
         {
             if (!layout.Controls.Any(r => r.Key == button)) return;
             Source = button; select(button);
-            Listening = draft.CanEdit(button) ? Listen.Target : Listen.None; RefreshMapping(); return;
+            Listening = draft.CanEdit(button) ? Listen.Target : Listen.None; Capture.Continue(Listening == Listen.Target ? RemapCapture.Side.Target : RemapCapture.Side.None); RefreshMapping(); return;
         }
         if (Listening == Listen.Target && TargetAllowed(button) && draft.CanEdit(Source))
         {
-            Listening = Listen.None; draft.Set(Source, button); Changed?.Invoke(); RefreshMapping();
+            Listening = Listen.None; Capture.Continue(RemapCapture.Side.None); draft.Set(Source, button); Changed?.Invoke(); RefreshMapping();
         }
     }
     private void Pick(string key)
     {
         if (openMacro(key)) return;
-        Source = key; select(key); Listening = Listen.None; RefreshMapping();
+        Source = key; select(key); Listening = Listen.None; Capture.Cancel(); RefreshMapping();
     }
     private void RefreshMapping()
     {
@@ -185,10 +207,10 @@ public sealed class ButtonsConsolePage : Grid
         FillFace(pressedFace, waitSource ? "…" : has ? Short(Source) : "+", waitSource || !has ? null : Source, false, waitSource);
         FillFace(sendsFace, editable ? Short(target) : has ? "—" : "+", !editable ? null : target, changed, waitTarget);
         Pulse(pressedRing, waitSource); Pulse(sendsRing, waitTarget);
-        pressedName.Text = waitSource ? "Press a button…" : has ? Kind(Source) : "Click to choose";
-        sendsName.Text = waitTarget ? "Choose output below" : editable ? target=="NONE"?"Disabled":Kind(target) : has ? "Can't change" : "Then press its new job";
+        pressedName.Text = waitSource ? CapturePrompt : has ? Kind(Source) : "Click to choose";
+        sendsName.Text = waitTarget ? CapturePrompt : editable ? target=="NONE"?"Disabled":Kind(target) : has ? "Can't change" : "Then press its new job";
         selectionTitle.Text=has?label(Source):"Select a control";
-        sentence.Text=!has?(connected?"Select a control on the picture or press it on the controller.":"Select a control on the picture. Physical detection is unavailable while offline."):editable?$"Current mapping: {Short(Source)} → {Short(target)}":"This input can be inspected; remapping is unavailable.";
+        sentence.Text=!has?(connected?"Select a control on the picture, or press R3 and then the button.":"Select a control on the picture. Physical detection is unavailable while offline."):editable?$"Current mapping: {Short(Source)} → {Short(target)}":"This input can be inspected; remapping is unavailable.";
         readOnly.Text = !has ? "" : model.Id is not ("x20" or "x20_pro") && !draft.PcMode ? "Remapping is not verified for this model yet, so it can only be inspected." : editable ? "" : $"{name} can't be remapped. It has no button role to swap.";
         readOnly.Visibility = readOnly.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed; sentence.Visibility = sentence.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         restore.Visibility = changed ? Visibility.Visible : Visibility.Collapsed;restore.Content=$"Restore {Short(Source)} → {Short(Source)}";
@@ -198,6 +220,7 @@ public sealed class ButtonsConsolePage : Grid
         foreach (var pair in groups)pair.Value.IsChecked=pair.Key==outputGroup;showcaseHint.Text=editable?$"Assign {Short(Source)} to any output":has?"This control can't be reassigned":"Pick a control first";
         foreach (var (k,b) in outputs){Paint(b,k,editable&&k==target,editable||!has);b.Opacity=outputGroup=="All"||k=="NONE"||Groups.First(g=>g.Name==outputGroup).Keys.Contains(k)?1:.3;}
         RefreshMarkers();
+        ListeningChanged?.Invoke();
         outputsHint.Text=editable?$"Assign {Short(Source)} to:":"Select a control first";
     }
 

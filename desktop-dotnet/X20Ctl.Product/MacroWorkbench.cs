@@ -152,7 +152,7 @@ public sealed class MacroWorkbench
         var dockPanel=Kit.Panel(null,null,null,Dock,new(20,12,20,12));Grid.SetRow(dockPanel,2);Body.Children.Add(dockPanel);
         timer.Tick+=(_,_)=>{if(clock.ElapsedMilliseconds>=Draft.Duration(Slot))StopPreview();else UpdatePlayhead();};
         timeline.SizeChanged+=(_,_)=>RenderTimeline();sequenceViewport.SizeChanged+=(_,_)=>UpdateCardMetrics();
-        Body.IsVisibleChanged+=(_,_)=>{if(!Body.IsVisible){StopPreview();if(IsRecording)StopRecording(true);}};Body.Unloaded+=(_,_)=>{StopPreview();if(previewWindow!=null)previewWindow.Deactivated-=Deactivated;previewWindow=null;};
+        Body.IsVisibleChanged+=(_,_)=>{if(!Body.IsVisible){StopPreview();if(IsRecording)CancelRecording();}};Body.Unloaded+=(_,_)=>{StopPreview();if(previewWindow!=null)previewWindow.Deactivated-=Deactivated;previewWindow=null;};
         Body.Loaded+=(_,_)=>{if(previewWindow==null && Window.GetWindow(Body) is Window window){previewWindow=window;window.Deactivated+=Deactivated;}};
         Refresh();
     }
@@ -303,28 +303,36 @@ public sealed class MacroWorkbench
     // ----- Record: play it on the controller -----
     private MacroRecorder? recorder; private DispatcherTimer? recordTimer; private int countdown;
     public bool IsRecording => recorder != null || countdown > 0;
+    /// <summary>Countdown or recording started or ended: while it runs, recording owns the controller.</summary>
+    public event Action? RecordingChanged;
     private void SetRecordLabel(string text){if(Record.Content is StackPanel {Children.Count:2} s && s.Children[1] is TextBlock t)t.Text=text;}
     public void ToggleRecording()
     {
         if(IsRecording){StopRecording(true);return;}
         if(!Draft.CanEdit){notice.Text=ReadOnly;return;}
-        StopPreview();countdown=3;SetRecordLabel("Stop");
+        StopPreview();countdown=3;SetRecordLabel("Stop");RecordingChanged?.Invoke();
         recordTimer=new DispatcherTimer(DispatcherPriority.Input){Interval=TimeSpan.FromMilliseconds(1000)};
         notice.Text=$"Get ready… {countdown}   Hold the controller; recording starts when the count ends.";
         recordTimer.Tick+=(_,_)=>
         {
             if(countdown>0){countdown--;if(countdown>0){notice.Text=$"Get ready… {countdown}";return;}
                 try{recorder=new MacroRecorder();recorder.Stopped+=()=>Body.Dispatcher.BeginInvoke(new Action(()=>StopRecording(false)));recorder.Start();}
-                catch(Exception error) when(error is IOException or ArgumentException){recorder=null;recordTimer?.Stop();SetRecordLabel("Record");notice.Text="Can't read the controller: "+error.Message;return;}
+                catch(Exception error) when(error is IOException or ArgumentException){recorder=null;recordTimer?.Stop();SetRecordLabel("Record");notice.Text="Can't read the controller: "+error.Message;RecordingChanged?.Invoke();return;}
                 recordTimer!.Interval=TimeSpan.FromMilliseconds(100);}
             if(recorder==null)return;
             notice.Text=recorder.Slot<0?"● Recording · press the first button on your controller":$"● Recording on player slot {recorder.Slot+1} · holding {recorder.Holding} · {recorder.Elapsed/1000:0.0} s · stops after a 2.5 s rest";
         };
         recordTimer.Start();
     }
+    /// <summary>Stops without storing anything (leaving the page, Esc): the slot keeps its macro.</summary>
+    public void CancelRecording()
+    {
+        if(!IsRecording)return;recordTimer?.Stop();recordTimer=null;countdown=0;SetRecordLabel("Record");
+        var r=recorder;recorder=null;if(r!=null){r.Stop();r.Dispose();}notice.Text="Recording cancelled. The slot is unchanged.";RecordingChanged?.Invoke();
+    }
     private void StopRecording(bool byHand)
     {
-        recordTimer?.Stop();recordTimer=null;countdown=0;SetRecordLabel("Record");
+        bool was=IsRecording;recordTimer?.Stop();recordTimer=null;countdown=0;SetRecordLabel("Record");if(was)RecordingChanged?.Invoke();
         var r=recorder;recorder=null;if(r==null){notice.Text="Recording cancelled.";return;}
         r.Stop();var events=r.Events();r.Dispose();
         if(events.Count==0){notice.Text="Nothing was pressed, so the slot is unchanged.";return;}

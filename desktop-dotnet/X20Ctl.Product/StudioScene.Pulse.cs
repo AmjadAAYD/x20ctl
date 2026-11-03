@@ -128,6 +128,8 @@ public partial class StudioScene
                 ShowVibration(true);
                 break;
             case "PcMode":
+            case "RGB":
+            case "Screen":
             case "Device":
             case "Diagnostics":
             case "Mouse":
@@ -193,7 +195,7 @@ public partial class StudioScene
             var hints = activePage switch
             {
                 "Dashboard" => new[] { ("A", "Open"), ("B", "Zone"), ("X", "Configure"), ("Y", "Flip"), ("LB/RB", "Orbit") },
-                "Buttons" => new[] { ("A", "Assign"), ("B", "Clear / Back"), ("X", "Try it"), ("Y", "Overview"), ("LT/RT", "Front / Rear") },
+                "Buttons" => CapturingRemap ? new[] { ("Esc", "Cancel") } : new[] { ("A", "Assign"), ("B", "Clear / Back"), ("X", "Try it"), ("Y", "Overview"), ("LT/RT", "Front / Rear"), ("R3", "Listen"), ("LB/RB", "Orbit") },
                 "Curves" => new[] { ("A", "Adjust"), ("B", "Back"), ("X", "Reset"), ("Y", "Preset"), ("LT/RT", "Channel") },
                 "Macros" => new[] { ("A", "Edit step"), ("B", "Back"), ("X", "Add event"), ("Y", "Preview"), ("LT/RT", "Slot") },
                 "Vibration" => new[] { ("A", "Preset"), ("B", "Back"), ("X", "Reset"), ("LT/RT", "Strength"), ("LB/RB", "Orbit") },
@@ -771,23 +773,4 @@ public partial class StudioScene
         host.Children.Add(pearlCard);
     }
 
-    private bool PulseKey(KeyEventArgs e)
-    {
-        if (!IsPulse || pulseLayer == null) return false;
-        // Let StickToolsPanel, Agent, or Remap capture handle their own keys first
-        if (stickToolsLayer != null || AgentOpen || CapturingRemap || trial != null) return false;
-
-        if (e.Key is Key.PageDown or Key.PageUp && !e.IsRepeat)
-        {
-            string[] order = ["Dashboard", "Buttons", "Curves", "Macros", "Vibration", "PcMode", "Device", "Mouse", "Setups", "Tester"];
-            int idx = Array.FindIndex(order, p => string.Equals(p, CurrentPage, StringComparison.OrdinalIgnoreCase));
-            if (idx < 0) idx = 0;
-            int step = e.Key == Key.PageDown ? 1 : -1;
-            int next = (idx + step + order.Length) % order.Length;
-            PulseSelectPage(order[next]);
-            e.Handled = true;
-            return true;
-        }
-        return false;
-    }
 }

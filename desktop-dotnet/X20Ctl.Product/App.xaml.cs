@@ -15,6 +15,13 @@ public partial class App : Application
                 catch(Exception failure){Directory.CreateDirectory(e.Args[1]);File.WriteAllText(Path.Combine(e.Args[1],"failure.txt"),failure.ToString());Shutdown(1);}
                 return;
             }
+            if(e.Args.Length==3 && e.Args[0]=="--review-input-contract")
+            {
+                ShutdownMode=ShutdownMode.OnExplicitShutdown;
+                try{await Development.InputContractReview.Run(e.Args[1],e.Args[2]);Shutdown(0);}
+                catch(Exception failure){Directory.CreateDirectory(e.Args[1]);File.WriteAllText(Path.Combine(e.Args[1],"failure.txt"),failure.ToString());Shutdown(1);}
+                return;
+            }
             if(e.Args.Length==3 && e.Args[0]=="--review-feature-tabs")
             {
                 ShutdownMode=ShutdownMode.OnExplicitShutdown;
