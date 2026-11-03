@@ -7,9 +7,12 @@ public interface IScreenByteChannel:IDisposable
  void SetBaudRate(int baud);
 }
 /// <summary>One exclusive byte stream, fixed captured 63-byte replies, no implicit retries.</summary>
-public sealed class ScreenStreamTransport(IScreenByteChannel channel,bool isEmulated=false,TimeSpan? timeout=null,uint? nonce=null):IScreenTransport,IDisposable
+public sealed class ScreenStreamTransport(IScreenByteChannel channel,bool isEmulated=false,TimeSpan? timeout=null,uint? nonce=null,uint magic=ScreenProtocol.ModelMagic,bool alreadyFast=false):IScreenTransport,IDisposable
 {
  public bool IsEmulated=>isEmulated;
+ uint chip=magic;
+ /// <summary>The chip the reply identified once connected; before that, the one asked for.</summary>
+ public uint Magic=>chip;
  readonly SemaphoreSlim exchange=new(1,1);readonly Queue<byte> pending=[];bool negotiated,failed;
  public async ValueTask<byte[]> ExchangeAsync(ReadOnlyMemory<byte> request,CancellationToken cancellationToken)
  {
@@ -25,8 +28,10 @@ public sealed class ScreenStreamTransport(IScreenByteChannel channel,bool isEmul
    {
     if(!negotiated)
     {
-     var first=ScreenProtocol.Handshake(0x30,nonce??ScreenProtocol.Nonce(DateTime.Now),9);ScreenProtocol.ValidateHandshake(first,await Send(first,deadline.Token));channel.SetBaudRate(1382400);
-     var second=ScreenProtocol.Handshake(0x30,nonce??ScreenProtocol.Nonce(DateTime.Now));ScreenProtocol.ValidateHandshake(second,await Send(second,deadline.Token));negotiated=true;
+     // A chip left at 1382400 by an earlier session (pad still plugged in) only answers the fast handshake.
+     if(alreadyFast){channel.SetBaudRate(1382400);var fast=ScreenProtocol.Handshake(0x30,nonce??ScreenProtocol.Nonce(DateTime.Now),magic:magic);chip=ScreenProtocol.IdentifyChip(fast,await Send(fast,deadline.Token))??throw new InvalidDataException("Unknown screen chip.");negotiated=true;return await Send(request,deadline.Token);}
+     var first=ScreenProtocol.Handshake(0x30,nonce??ScreenProtocol.Nonce(DateTime.Now),9,magic);chip=ScreenProtocol.IdentifyChip(first,await Send(first,deadline.Token))??throw new InvalidDataException("Unknown screen chip.");channel.SetBaudRate(1382400);
+     var second=ScreenProtocol.Handshake(0x30,nonce??ScreenProtocol.Nonce(DateTime.Now),magic:chip);ScreenProtocol.ValidateHandshake(second,await Send(second,deadline.Token),chip);negotiated=true;
     }
     return await Send(request,deadline.Token);
    }

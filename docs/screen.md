@@ -1,6 +1,8 @@
 # Screen artwork
 
-Open **Device → Screen artwork** on X20 Pro. **Simulate** starts enabled. It uses local memory and needs no controller.
+Open **Device → Screen artwork** on X20 Pro. Uploads go to the controller. Tick **Simulate** to use local memory instead.
+
+To upload: switch the controller off, hold **M** and plug it in by USB. The white light comes on and Windows adds a "USB Serial Device" port (`VID_EEEF&PID_268A`). Press **Upload**; X20CTL finds that port itself, waits for it if needed, then gives the screen chip three seconds before connecting. After a stopped transfer, unplug and plug in again holding M before retrying.
 
 Choose or drop a PNG, JPEG, BMP or GIF up to 2 MiB, or choose one of six built-in wallpapers. Fit/Fill, rotation, zoom, horizontal/vertical position, brightness and contrast edit a 160×80 image. The live meter shows the generated asset against the 3 MiB limit. Preview is decoded from the generated binary in display orientation.
 
@@ -10,7 +12,7 @@ Wallpapers are static by default. Enable Animation for GIFs, choose FPS and fram
 
 ## First controller run
 
-Physical operations are off by default. For the owner's first-run session, launch X20CTL with the single setting `X20CTL_SCREEN_WRITES=1` in its process environment; unset it afterwards. Keep this setting off during ordinary preview/review work. No driver installation is performed by Screen.
+Uploads were verified on the owner's X20 Pro on 3 Nov 2026 (screen chip LT165, flash 0x5E4017): every packet acknowledged, both CRCs read back on a fresh connection, and the GIF seen on the pad. **Restore stock** stays simulate-only: it has never been sent to a Pro. No driver installation is performed by Screen. The steps below are the original first-run record.
 
 1. Open **First-run check**, which prepares a static native-size test pattern. Record the current screen and the controller firmware/mode. Turn Simulate off.
 2. Press **Detect**. Present controller-like interfaces and available COM names are listed. Type the controller's COM name explicitly. Device names and ports are not automatically associated or selected.

@@ -57,6 +57,18 @@ public partial class App : Application
                 catch(Exception failure) { File.WriteAllText(Path.Combine(e.Args[1],"failure.txt"),failure.ToString()); Shutdown(1); }
                 return;
             }
+            if (e.Args.Length is 2 or 3 && e.Args[0] == "--review-screen-probe")
+            {
+                // Real pad: waits for the screen port (hold M while plugging in), reads the flash ID, then asks
+                // for the CRCs at the asset and metadata addresses. With a GIF, compares them with our own encoding; upload=<gif> writes it.
+                ShutdownMode = ShutdownMode.OnExplicitShutdown;
+                Directory.CreateDirectory(e.Args[1]);
+                string logFile = Path.Combine(e.Args[1], "screen-probe.txt");
+                void Log(string line) => File.AppendAllText(logFile, $"{DateTime.Now:HH:mm:ss.fff} {line}\r\n");
+                try { if (e.Args.Length == 3 && e.Args[2].StartsWith("upload")) await Development.ScreenProbe.Upload(e.Args[1], e.Args[2] == "upload-test" ? null : e.Args[2]["upload=".Length..], Log); else await Development.ScreenProbe.Run(e.Args[1], e.Args.Length == 3 ? e.Args[2] : null, Log); }
+                catch (Exception error) { Log($"FAILED {error.GetType().Name}: {error.Message}"); Environment.ExitCode = 1; }
+                Shutdown(); return;
+            }
             if (e.Args.Length is 2 or 3 && e.Args[0] == "--review-remap-write")
             {
                 // Real pad: writes one mapping such as A=B through the same path as Apply; with no mapping, clears them.

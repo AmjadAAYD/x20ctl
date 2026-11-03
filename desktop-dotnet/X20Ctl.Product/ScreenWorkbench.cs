@@ -20,10 +20,10 @@ public sealed class ScreenWorkbench
  internal Button Retry=>retry;internal Button Cancel=>cancel;internal bool IsBusy=>busy;internal string StatusText=>status.Text;
  public byte[]? EncodedAsset=>asset?.ToArray();
  readonly Image image=new(){Width=480,Height=240,Stretch=Stretch.Fill};
- readonly TextBlock details=ManagementVisuals.Copy("Choose an image or wallpaper",14),status=ManagementVisuals.Copy("Simulate",14),sizeText=ManagementVisuals.Copy("Input 0 / 2 MiB · Upload 0 / 3 MiB",13),notice=ManagementVisuals.Copy("",13);
+ readonly TextBlock details=ManagementVisuals.Copy("Choose an image or wallpaper",14),status=ManagementVisuals.Copy("Controller",14),sizeText=ManagementVisuals.Copy("Input 0 / 2 MiB · Upload 0 / 3 MiB",13),notice=ManagementVisuals.Copy("",13);
  readonly TextBox portName=new(){Width=150,HorizontalAlignment=HorizontalAlignment.Left};
  readonly ProgressBar transferProgress=new(){Minimum=0,Maximum=100,Height=6,Margin=new(0,8,0,6)};
- readonly CheckBox animation=new(){Content="Animation",Foreground=Brushes.White},simulate=new(){Content="Simulate",IsChecked=true,Foreground=Brushes.White},confirmReset=new(){Content="Confirm reset",Foreground=Brushes.White};
+ readonly CheckBox animation=new(){Content="Animation",Foreground=Brushes.White},simulate=new(){Content="Simulate",IsChecked=false,Foreground=Brushes.White},confirmReset=new(){Content="Confirm reset",Foreground=Brushes.White};
  readonly CheckBox before=new(){Content="Before: current screen noted",Foreground=Brushes.White},after=new(){Content="After: image and colors match",Foreground=Brushes.White};
  readonly Slider zoom=new(){Minimum=1,Maximum=4,Value=1},panX=new(){Minimum=-1,Maximum=1},panY=new(){Minimum=-1,Maximum=1},brightness=new(){Minimum=-.5,Maximum=.5},contrast=new(){Minimum=.25,Maximum=2,Value=1},fps=new(){Minimum=1,Maximum=20,Value=5,TickFrequency=1,IsSnapToTickEnabled=true},frameLimit=new(){Minimum=1,Maximum=1,Value=1,TickFrequency=1,IsSnapToTickEnabled=true};
  readonly ComboBox rotation=new(){ItemsSource=new[]{"0°","90°","180°","270°"},SelectedIndex=0,Width=100},fit=new(){ItemsSource=new[]{"Fill","Fit"},SelectedIndex=0,Width=100};
@@ -31,7 +31,8 @@ public sealed class ScreenWorkbench
  readonly ScreenEmulator emulator=new();readonly Button cancel,retry,checkTransfer;readonly StackPanel editor=new(),firstRun=new();readonly ScrollViewer scroll;
  readonly TextBlock flashStatus=ManagementVisuals.Copy("Flash ID —",14),deviceStatus=ManagementVisuals.Copy("Device —",13);
  readonly TextBlock firstStatus=ManagementVisuals.Copy("1 · Connect USB, then Detect",14);readonly Stopwatch firstTimer=new();
- uint? plannedNonce;byte[]? editorProject;
+ uint? plannedNonce;byte[]? editorProject;UIElement[] animationOnly=[];bool waiting;
+ readonly TextBlock[] steps=[ManagementVisuals.Copy("1 · Choose an image",13),ManagementVisuals.Copy("2 · Upload",13),ManagementVisuals.Copy("3 · Controller off, hold M, plug in USB",13)];
  CancellationTokenSource? operation;IScreenTransport? reviewTransport;byte[]? asset,sourceBytes,sourceAsset,uncertainAsset;bool uncertainAnimation;int uncertainDelay;int sourceBuiltin=-1,frameIndex,revision,delay=200,retries,transferEpoch;bool testUploaded;long inputBytes;DateTime previewUntil;bool busy,restoring,uncertain,checkedFailure,planReady,identityReady,firstMode,loading;string sourceName="";
  public ScreenWorkbench(FrameworkElement resources,Action<Button> register,Action back)
  {
@@ -45,9 +46,9 @@ public sealed class ScreenWorkbench
   editor.Children.Add(ManagementVisuals.Copy("Choose",20,true));Import=Action("Choose image…",Choose);editor.Children.Add(Import);
   var wallpapers=new WrapPanel();for(int i=0;i<6;i++){int n=i;wallpapers.Children.Add(Action(ScreenArtwork.WallpaperNames[i],()=>LoadWallpaper(n)));}editor.Children.Add(wallpapers);
   editor.Children.Add(ManagementVisuals.Copy("Edit",20,true).Also(t=>t.Margin=new(0,10,0,0)));
-  var geometry=new WrapPanel();geometry.Children.Add(fit);geometry.Children.Add(rotation);editor.Children.Add(geometry);Field("Zoom",zoom);Field("Horizontal",panX);Field("Vertical",panY);Field("Brightness",brightness);Field("Contrast",contrast);editor.Children.Add(animation);Field("FPS",fps);Field("Frames",frameLimit);
-  Preview=Action("Build preview",async()=>await BuildPreviewAsync());editor.Children.Add(Preview);editor.Children.Add(Action("Play / pause",()=>{if(previewClock.IsEnabled)StopPreview();else if(encodedFrames.Count>1){previewUntil=DateTime.UtcNow.AddSeconds(30);previewClock.Start();}}));
-  var modes=new WrapPanel();modes.Children.Add(simulate);modes.Children.Add(Action("First-run check",()=>ShowFirstRun(true)));editor.Children.Add(modes);
+  var geometry=new WrapPanel();geometry.Children.Add(fit);geometry.Children.Add(rotation);editor.Children.Add(geometry);Field("Zoom",zoom);Field("Horizontal",panX);Field("Vertical",panY);Field("Brightness",brightness);Field("Contrast",contrast);editor.Children.Add(animation);Field("FPS",fps);Field("Frames",frameLimit);animationOnly=editor.Children.Cast<UIElement>().TakeLast(4).ToArray();
+  Preview=Action("Build preview",async()=>await BuildPreviewAsync());editor.Children.Add(Action("Play / pause",()=>{if(previewClock.IsEnabled)StopPreview();else if(encodedFrames.Count>1){previewUntil=DateTime.UtcNow.AddSeconds(30);previewClock.Start();}}));
+  var modes=new WrapPanel();modes.Children.Add(simulate);editor.Children.Add(modes);
   firstRun.Children.Add(ManagementVisuals.Copy("First-run check",22,true));firstRun.Children.Add(firstStatus);firstRun.Children.Add(deviceStatus);firstRun.Children.Add(flashStatus);
   firstRun.Children.Add(Action("1 · Detect",async()=>await Detect()));firstRun.Children.Add(ManagementVisuals.Copy("2 · Choose controller COM port",13));firstRun.Children.Add(portName);
   firstRun.Children.Add(Action("3 · Read flash ID",async()=>await ProbeAsync()));firstRun.Children.Add(Action("4 · Dry run",DryRun));firstRun.Children.Add(before);firstRun.Children.Add(Action("5 · Upload test image",async()=>{if(!identityReady||!planReady||before.IsChecked!=true){firstStatus.Text="Complete steps 1–4 and Before";return;}await TransferAsync(false);}));firstRun.Children.Add(after);firstRun.Children.Add(Action("Record result",()=>{if(!testUploaded){firstStatus.Text="Upload test image first";return;}firstTimer.Stop();firstStatus.Text=after.IsChecked==true?$"Result recorded · {firstTimer.Elapsed.TotalSeconds:0}s":"Confirm the image and colors";SaveSession("physical-observation",new{before=before.IsChecked,after=after.IsChecked,elapsedSeconds=firstTimer.Elapsed.TotalSeconds,port=portName.Text});}));firstRun.Children.Add(Action("Back to editor",()=>ShowFirstRun(false)));
@@ -56,7 +57,8 @@ public sealed class ScreenWorkbench
   Upload=Action("Upload",async()=>await TransferAsync(false));Reset=Action("Restore stock",async()=>{if(confirmReset.IsChecked!=true){status.Text="Select Confirm reset";return;}await TransferAsync(true);});
   cancel=Action("Cancel",()=>operation?.Cancel());cancel.IsEnabled=false;retry=Action("Retry once",async()=>{if(checkedFailure&&!restoring&&retries++==0){uncertain=false;await TransferAsync(false);}});checkTransfer=Action("Check transfer",async()=>await CheckAsync());
   var actions=new WrapPanel{Children={Upload,Reset,cancel}};var recovery=new WrapPanel{Children={checkTransfer,retry}};
-  modes.Children.Remove(simulate);var footer=new StackPanel{Children={simulate,actions,confirmReset,recovery,status,transferProgress}};
+  modes.Children.Remove(simulate);var guide=new StackPanel{Margin=new(0,0,0,6)};foreach(var step in steps){step.Margin=new(0,1,0,1);guide.Children.Add(step);}
+  var footer=new StackPanel{Children={guide,simulate,actions,confirmReset,recovery,status,transferProgress}};
   // The mode checkbox belongs to the pinned footer, keeping the transport choice visible.
   modes.Children.Remove(simulate);
   scroll=new ScrollViewer{Content=editor,VerticalScrollBarVisibility=ScrollBarVisibility.Auto};var dock=new DockPanel();DockPanel.SetDock(footer,Dock.Bottom);dock.Children.Add(footer);dock.Children.Add(scroll);var panel=Kit.Panel(null,null,null,dock,new Thickness(20));Grid.SetColumn(panel,1);Body.Children.Add(panel);
@@ -84,7 +86,7 @@ public sealed class ScreenWorkbench
   bool animated=ScreenCodec.IsAnimationAsset(bytes);var decoded=ScreenCodec.DecodeAsset(bytes,animated);ResetEdits();frames.Clear();frames.AddRange(decoded.Select(Bitmap));sourceBytes=null;sourceAsset=bytes.ToArray();sourceBuiltin=-1;sourceName="Encoded artwork";inputBytes=0;FinishLoad();animation.IsChecked=animated;fps.Value=Math.Clamp(1000d/playbackDelay,1,20);notice.Text="Encoded asset · delay stored in project";
  }
  void ResetEdits(){loading=true;transferProgress.Value=0;StopPreview();zoom.Value=1;panX.Value=panY.Value=brightness.Value=0;contrast.Value=1;rotation.SelectedIndex=fit.SelectedIndex=0;animation.IsChecked=false;fps.Value=5;planReady=false;}
- void FinishLoad(){notice.Text="Transparency on black";frameLimit.Maximum=Math.Max(1,frames.Count);frameLimit.Value=frames.Count;loading=false;Refresh();details.Text=$"{sourceName} · {frames.Count} frame{(frames.Count==1?"":"s")}";}
+ void FinishLoad(){notice.Text="Transparency on black";frameLimit.Maximum=Math.Max(1,frames.Count);frameLimit.Value=frames.Count;animation.IsChecked=frames.Count>1;loading=false;Refresh();details.Text=$"{sourceName} · {frames.Count} frame{(frames.Count==1?"":"s")}";}
  void Refresh()
  {
   if(loading)return;revision++;planReady=false;plannedNonce=null;asset=null;encodedFrames.Clear();StopPreview();UpdateWriteGates();if(frames.Count>0){image.Source=Crop(frames[0]);editClock.Stop();editClock.Start();}sizeText.Text=$"Input {inputBytes:N0} / 2,097,152 · Upload calculating / 3,145,728";
@@ -108,33 +110,48 @@ public sealed class ScreenWorkbench
   {
    int version=revision;bool animated=animation.IsChecked==true;delay=(int)Math.Clamp(Math.Round(100d/fps.Value)*10,10,2550);previewClock.Interval=TimeSpan.FromMilliseconds(delay);
    var pixels=(animated?frames.Take((int)frameLimit.Value):frames.Take(1)).Select(f=>ScreenArtwork.Adjust(Rgba(Crop(f)),brightness.Value,contrast.Value)).ToArray();
-   var built=await Task.Run(()=>animated?ScreenCodec.EncodeAnimation(pixels):ScreenCodec.EncodeStill(pixels[0]));if(version!=revision)return;asset=built;encodedFrames.Clear();encodedFrames.AddRange(ScreenCodec.DecodeAsset(asset,animated).Select(Bitmap));image.Source=encodedFrames[0];
+   var built=await Task.Run(()=>animated?ScreenCodec.EncodeAnimation(pixels):ScreenCodec.EncodeStill(pixels[0]));if(version!=revision)return;asset=built;encodedFrames.Clear();encodedFrames.AddRange(ScreenCodec.DecodeAsset(asset,animated).Select(Bitmap));image.Source=encodedFrames[0];if(encodedFrames.Count>1){previewUntil=DateTime.UtcNow.AddSeconds(30);previewClock.Start();}
    sizeText.Text=$"Input {inputBytes:N0} / 2,097,152 · Upload {asset.Length:N0} / 3,145,728";status.Text=$"{(animated?$"{encodedFrames.Count} frames · {1000d/delay:0.#} FPS":"Static wallpaper")} · {(simulate.IsChecked==true?"Simulate":"Controller")}";
   }
   catch(ArgumentException e){asset=null;status.Text=e.Message;}
   finally{busy=false;UpdateWriteGates();if(asset==null&&frames.Count>0&&revision>0)sizeText.Text="Upload unavailable · reduce frames or size";}
  }
  void ModeChanged(){if(busy){simulate.IsChecked=reviewTransport?.IsEmulated==true;return;}identityReady=planReady=false;plannedNonce=null;UpdateWriteGates();status.Text=simulate.IsChecked==true?"Simulate":"Controller";}
- IScreenTransport Transport()=>simulate.IsChecked==true?reviewTransport??emulator:new ScreenSerialTransport(portName.Text.Trim(),plannedNonce,NewTracePath());
- bool Ready=>(simulate.IsChecked==true||(ScreenHardwareEvidence.VerifiedDevice&&ScreenSerialTransport.ValidPortName(portName.Text.Trim())))&&!busy;
- void UpdateWriteGates(){editor.IsEnabled=firstRun.IsEnabled=!busy;Upload.IsEnabled=Ready&&asset!=null&&!uncertain&&(!firstMode||(identityReady&&planReady&&before.IsChecked==true));Reset.IsEnabled=Ready;retry.IsEnabled=Ready&&checkedFailure&&!restoring&&retries==0;checkTransfer.IsEnabled=Ready&&uncertain&&!restoring;cancel.IsEnabled=busy;Import.IsEnabled=Preview.IsEnabled=!busy;simulate.IsEnabled=!busy;}
+ IScreenTransport Transport(string? port=null)=>simulate.IsChecked==true?reviewTransport??emulator:new ScreenSerialTransport(port??portName.Text.Trim(),plannedNonce,NewTracePath());
+ bool Ready=>(simulate.IsChecked==true||(ScreenHardwareEvidence.VerifiedDevice&&(!firstMode||ScreenSerialTransport.ValidPortName(portName.Text.Trim()))))&&!busy;
+ /// <summary>The screen chip's port, waiting for the M plug-in if it is not there yet; the chip needs a few seconds before it answers.</summary>
+ async Task<string?> ScreenPortAsync(CancellationToken token)
+ {
+  if(simulate.IsChecked==true)return null;if(firstMode)return portName.Text.Trim();
+  var port=ScreenSerialTransport.FindScreenPort();if(port!=null)return port;
+  // Like DIYTool, any serial port works; a port that appears after Upload is taken as the pad when its USB ID is unknown.
+  var before=SerialPort.GetPortNames();string? Arrived()=>ScreenSerialTransport.FindScreenPort()??SerialPort.GetPortNames().Except(before).FirstOrDefault();
+  status.Text="Switch the controller off, hold M and plug it in";waiting=true;UpdateWriteGates();
+  try{while((port=Arrived())==null)await Task.Delay(100,token);}finally{waiting=false;UpdateWriteGates();}
+  status.Text="Connecting · "+port;await Task.Delay(3000,token);return SerialPort.GetPortNames().Contains(port)?port:throw new IOException("The controller was unplugged.");
+ }
+ void UpdateWriteGates(){editor.IsEnabled=firstRun.IsEnabled=!busy;Upload.IsEnabled=Ready&&asset!=null&&!uncertain&&(!firstMode||(identityReady&&planReady&&before.IsChecked==true));Reset.IsEnabled=Ready&&simulate.IsChecked==true;retry.IsEnabled=Ready&&checkedFailure&&!restoring&&retries==0;checkTransfer.IsEnabled=Ready&&uncertain&&!restoring;cancel.IsEnabled=busy;Import.IsEnabled=Preview.IsEnabled=!busy;simulate.IsEnabled=!busy;
+  bool live=simulate.IsChecked!=true;Reset.Visibility=confirmReset.Visibility=live?Visibility.Collapsed:Visibility.Visible;cancel.Visibility=busy?Visibility.Visible:Visibility.Collapsed;
+  checkTransfer.Visibility=uncertain&&!busy?Visibility.Visible:Visibility.Collapsed;retry.Visibility=retry.IsEnabled?Visibility.Visible:Visibility.Collapsed;
+  foreach(var element in animationOnly)element.Visibility=animation.IsChecked==true?Visibility.Visible:Visibility.Collapsed;
+  int current=waiting?2:asset==null&&!busy?0:1;for(int i=0;i<steps.Length;i++){steps[i].Opacity=i==current?1:.45;steps[i].FontWeight=i==current?FontWeights.SemiBold:FontWeights.Normal;steps[i].Visibility=live?Visibility.Visible:Visibility.Collapsed;}}
  async Task TransferAsync(bool reset)
  {
   if(!Ready||(!reset&&(asset==null||uncertain||firstMode&&(!identityReady||!planReady||before.IsChecked!=true))))return;int epoch=++transferEpoch;transferProgress.Value=0;busy=true;restoring=reset;if(!reset){uncertainAsset=asset!.ToArray();uncertainAnimation=animation.IsChecked==true;uncertainDelay=delay;}StopPreview();editClock.Stop();UpdateWriteGates();operation=new();
   try
   {
-   var transport=Transport();using var lease=transport as IDisposable;var sender=new ScreenSender(transport);var progress=new Progress<ScreenProgress>(p=>{if(busy&&epoch==transferEpoch){transferProgress.Value=p.Total==0?0:100d*p.Sent/p.Total;status.Text=$"{(simulate.IsChecked==true?"Simulate · ":"")}{p.State} · {p.Sent:N0} / {p.Total:N0}";}});
+   var transport=Transport(await ScreenPortAsync(operation.Token));using var lease=transport as IDisposable;var sender=new ScreenSender(transport);var progress=new Progress<ScreenProgress>(p=>{if(busy&&epoch==transferEpoch){transferProgress.Value=p.Total==0?0:100d*p.Sent/p.Total;status.Text=$"{(simulate.IsChecked==true?"Simulate · ":"")}{p.State} · {p.Sent:N0} / {p.Total:N0}";}});
    if(reset)await sender.ResetAsync(progress,operation.Token);else await sender.UploadAsync(asset!,animation.IsChecked==true,delay,progress,operation.Token,plannedNonce);
    uncertain=checkedFailure=false;retries=0;transferProgress.Value=100;if(firstMode&&!reset)testUploaded=true;status.Text=reset?"Restored · restart controller":"Upload completed";confirmReset.IsChecked=false;SaveSession(reset?"restore":"upload",new{simulated=simulate.IsChecked,bytes=reset?4:asset!.Length,port=portName.Text});
   }
   catch(OperationCanceledException){uncertain=true;status.Text="Transfer cancelled · check transfer";}
-  catch(Exception e)when(e is IOException or InvalidOperationException or ArgumentException or TimeoutException or UnauthorizedAccessException){uncertain=true;status.Text="Transfer stopped · "+e.Message;SaveSession("failure",new{error=e.Message,reset,port=portName.Text});}
+  catch(Exception e)when(e is IOException or InvalidOperationException or ArgumentException or TimeoutException or UnauthorizedAccessException){uncertain=true;status.Text="Transfer stopped · "+e.Message+(simulate.IsChecked==true?"":" · Replug holding M");SaveSession("failure",new{error=e.Message,reset,port=portName.Text});}
   finally{operation.Dispose();operation=null;busy=false;UpdateWriteGates();}
  }
  async Task CheckAsync()
  {
   if(!Ready||uncertainAsset==null||!uncertain)return;busy=true;UpdateWriteGates();using var stop=new CancellationTokenSource(TimeSpan.FromSeconds(100));operation=stop;
-  try{var transport=Transport();using var lease=transport as IDisposable;bool match=await new ScreenSender(transport).VerifyAsync(uncertainAsset,uncertainAnimation,uncertainDelay,stop.Token);checkedFailure=!match;status.Text=match?"Transfer verified":"Readback differs · Retry once or Restore stock";if(match)uncertain=false;}
+  try{var transport=Transport(await ScreenPortAsync(stop.Token));using var lease=transport as IDisposable;bool match=await new ScreenSender(transport).VerifyAsync(uncertainAsset,uncertainAnimation,uncertainDelay,stop.Token);checkedFailure=!match;status.Text=match?"Transfer verified":"Readback differs · Retry once or Restore stock";if(match)uncertain=false;}
   catch(Exception e)when(e is IOException or InvalidOperationException or TimeoutException or OperationCanceledException){checkedFailure=false;status.Text="Readback unavailable · "+e.Message;}
   finally{operation=null;busy=false;UpdateWriteGates();}
  }
@@ -147,6 +164,7 @@ public sealed class ScreenWorkbench
   if(!firstTimer.IsRunning)firstTimer.Start();var ports=ReviewSandbox.Active?new[]{"COM7"}:SerialPort.GetPortNames();
   var inventory=ReviewSandbox.Active?new Inventory():await Inventory.Bound(Task.Run(()=>WindowsInventory.Read()),3000);
   var candidates=inventory.interfaces.Where(d=>d.vid is 0x1020 or 0x413d||(d.product+" "+d.manufacturer).Contains("EasySMX",StringComparison.OrdinalIgnoreCase)).Select(d=>d.product).Distinct().ToArray();
+  var screenPort=ReviewSandbox.Active?null:ScreenSerialTransport.FindScreenPort();if(screenPort!=null){portName.Text=screenPort;candidates=[..candidates,"Screen "+screenPort];}
   deviceStatus.Text=candidates.Length==0?"Device not identified":string.Join(" · ",candidates);firstStatus.Text=$"Ports: {(ports.Length==0?"none":string.Join(", ",ports))} · choose explicitly · {firstTimer.Elapsed.TotalSeconds:0}s";SaveSession("detect",new{ports,candidates,errors=inventory.errors,model="x20_pro"});
  }
  async Task ProbeAsync()
@@ -156,7 +174,7 @@ public sealed class ScreenWorkbench
   catch(Exception e)when(e is IOException or InvalidOperationException or TimeoutException or OperationCanceledException){identityReady=false;firstStatus.Text=e.Message;}
   finally{operation=null;busy=false;UpdateWriteGates();}
  }
- void DryRun(){if(asset==null){firstStatus.Text="Build preview first";return;}uint nonce=ScreenProtocol.Nonce(DateTime.Now);plannedNonce=nonce;var frames=ScreenTransferPlan.Build(asset,animation.IsChecked==true,delay,nonce);var opening=new[]{ScreenProtocol.Handshake(0x30,nonce,9),ScreenProtocol.Handshake(0x30,nonce)};SaveSession("dry-run",new{port=portName.Text,nonce,opening=opening.Select(Convert.ToHexString),frames=frames.Select(Convert.ToHexString),bytes=frames.Sum(f=>f.Length)+128,delay});planReady=true;UpdateWriteGates();firstStatus.Text=$"Dry run · {frames.Count+2} frames · no bytes sent";}
+ void DryRun(){if(asset==null){firstStatus.Text="Build preview first";return;}uint nonce=ScreenProtocol.Nonce(DateTime.Now);plannedNonce=nonce;uint magic=simulate.IsChecked==true?ScreenProtocol.ModelMagic:ScreenProtocol.X20ProMagic;var frames=ScreenTransferPlan.Build(asset,animation.IsChecked==true,delay,nonce,magic);var opening=new[]{ScreenProtocol.Handshake(0x30,nonce,9,magic),ScreenProtocol.Handshake(0x30,nonce,magic:magic)};SaveSession("dry-run",new{port=portName.Text,nonce,opening=opening.Select(Convert.ToHexString),frames=frames.Select(Convert.ToHexString),bytes=frames.Sum(f=>f.Length)+128,delay});planReady=true;UpdateWriteGates();firstStatus.Text=$"Dry run · {frames.Count+2} frames · no bytes sent";}
  string SessionRoot(){string root=ReviewSandbox.Active?Path.Combine(Path.GetTempPath(),"X20CTL-ScreenReview"):Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"X20CTL","Screen","FirstRun");Directory.CreateDirectory(root);return root;}
  string NewTracePath()=>Path.Combine(SessionRoot(),$"{DateTime.UtcNow:yyyyMMdd-HHmmssfff}-serial.jsonl");
  void SaveSession(string name,object value){File.WriteAllText(Path.Combine(SessionRoot(),$"{DateTime.UtcNow:yyyyMMdd-HHmmssfff}-{name}.json"),JsonSerializer.Serialize(value,new JsonSerializerOptions{WriteIndented=true}));}

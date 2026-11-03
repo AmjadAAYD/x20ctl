@@ -99,10 +99,13 @@ public class ScreenTests
   await Assert.ThrowsAnyAsync<OperationCanceledException>(()=>sender.UploadAsync(Data("uniform.bin"),true,100,null,stop.Token));
   Assert.Empty(transport.Requests);Assert.Equal(ScreenTransferState.Cancelled,sender.State);
  }
- [Fact] public async Task PhysicalWritesDefaultToLocked()
+ [Fact] public async Task PhysicalWritesLockWhenTurnedOffAndRestoreStaysLocked()
  {
   var sender=new ScreenSender(new PhysicalStub());
-  await Assert.ThrowsAsync<InvalidOperationException>(()=>sender.UploadAsync(Data("uniform.bin"),true,100,null,CancellationToken.None));
+  await Assert.ThrowsAsync<InvalidOperationException>(()=>sender.ResetAsync(null,CancellationToken.None));
+  ScreenHardwareEvidence.VerifiedDevice=false;
+  try{await Assert.ThrowsAsync<InvalidOperationException>(()=>sender.UploadAsync(Data("uniform.bin"),true,100,null,CancellationToken.None));}
+  finally{ScreenHardwareEvidence.VerifiedDevice=true;}
  }
  [Fact] public async Task ResetBlanksContentAndMetadataWithoutPretendingToRestoreFactoryArt()
  {
@@ -129,7 +132,7 @@ public class ScreenTests
  sealed class BrokenReply(ScreenEmulator emulator,bool crc):IScreenTransport
  {
   public bool IsEmulated=>true;
-  public async ValueTask<byte[]> ExchangeAsync(ReadOnlyMemory<byte> request,CancellationToken token){var reply=await emulator.ExchangeAsync(request,token);if(crc&&request.Span[0]==0x6e)reply[2]^=1;if(!crc&&request.Span[0]==0x6c)reply[1]=1;return reply;}
+  public async ValueTask<byte[]> ExchangeAsync(ReadOnlyMemory<byte> request,CancellationToken token){var reply=await emulator.ExchangeAsync(request,token);if(crc&&request.Span[0]==0x6e)reply[2]^=1;if(!crc&&request.Span[0]==0x6c)reply[1]=2;return reply;}
  }
  sealed class PhysicalStub:IScreenTransport
  {

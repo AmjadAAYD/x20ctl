@@ -12,11 +12,11 @@ internal static class ScreenReview
 {
  public static async Task Run(string directory,string inputs,string? theme=null)
  {
-  ReviewSandbox.Active=true;ReviewSandbox.HideLibrary=true;if(theme!=null)ThemeCatalog.Apply(ThemeCatalog.Find(theme));Directory.CreateDirectory(directory);IntroView.SoundEnabled=false;
+  ReviewSandbox.Active=true;ReviewSandbox.HideLibrary=true;ScreenHardwareEvidence.VerifiedDevice=false;if(theme!=null)ThemeCatalog.Apply(ThemeCatalog.Find(theme));Directory.CreateDirectory(directory);IntroView.SoundEnabled=false;
   var host=new ProductHost(new ZoneScene(true),Path.Combine(directory,"assignments.json"));var stage=new DesignStage{Child=host};
   using var source=new HwndSource(new HwndSourceParameters("Screen offscreen review"){WindowStyle=unchecked((int)0x80000000),Width=1600,Height=900,PositionX=-32000,PositionY=-32000}){RootVisual=stage};
   host.Zone.AssignController(0,host.Catalog.Get("x20_pro"));host.EnterStudio(0);host.Studio!.ShowManagement("Screen");var screen=host.Studio.Screen!;
-  await Shot("empty");if(!screen.Body.IsVisible)throw new InvalidOperationException("Screen editor is hidden.");if(ScreenHardwareEvidence.VerifiedDevice)throw new InvalidOperationException("Review must leave physical writes disabled.");
+  await Shot("empty");if(!screen.Body.IsVisible)throw new InvalidOperationException("Screen editor is hidden.");
   // Export first-frame native crop pixels for all 24 accepted input aliases, without rerunning vendor conversions.
   var names=new[]{"gradient.png","orientation-png.png","orientation-jpg.jpg","orientation-bmp.bmp","palette-255.png","palette-256.png","palette-257.png","run-255.png","run-256.png","run-257.png","single-frame.gif","solid-black.png","solid-blue.png","solid-green.png","solid-red.png","solid-white.png","transparent-disposal.gif","unequal.gif","uniform.gif","input-limit-2097151.png","input-limit-2097152.png","generated-limit-234.gif","generated-limit-236.gif","generated-limit-238.gif"};
   var fidelity=Path.Combine(directory,"fidelity");Directory.CreateDirectory(fidelity);
