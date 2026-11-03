@@ -522,24 +522,17 @@ public sealed partial class ProductSettings
     {
         var canvas = new Canvas { Width = 1600, Height = 900, ClipToBounds = true };
 
-        // Setting rows at (292, 220, w = 600)
-        var rowsStack = new StackPanel { Width = 600 };
-        rowsStack.Children.Add(SpotlightKit.Row("Virtual driver", "ViGEmBus kernel driver", PcModeSetup.BusInstalled ? "Installed" : "Not installed", PcModeSetup.BusInstalled, null, 46));
-        rowsStack.Children.Add(SpotlightKit.Row("Hide physical gamepad", "Prevent duplicate inputs via HidHide", HidHide.Installed ? "Installed" : "Not installed", HidHide.Installed, null, 46));
-        Canvas.SetLeft(rowsStack, 292);
-        Canvas.SetTop(rowsStack, 220);
-        canvas.Children.Add(rowsStack);
-
-        // Cue card on right
-        var cardInner = new StackPanel();
-        cardInner.Children.Add(new TextBlock { Text = "PC Mode Configuration", FontFamily = SpotlightKit.Body, FontSize = 21, Foreground = SpotlightKit.ChalkBrush });
-        cardInner.Children.Add(new TextBlock { Text = "Configure hardware translation and virtual device routing.", FontFamily = SpotlightKit.Body, FontStyle = FontStyles.Italic, FontSize = 14, Foreground = SpotlightKit.MuteBrush, Margin = new Thickness(0, 2, 0, 14) });
-
-
-        var cueCard = SpotlightKit.CueCard(cardInner, 620, label: "Driver Control", padding: new Thickness(28, 24, 28, 24));
-        Canvas.SetLeft(cueCard, 940);
-        Canvas.SetTop(cueCard, 220);
-        canvas.Children.Add(cueCard);
+        // The real PC mode page, not a drawn copy
+        if (buildPcMode != null)
+        {
+            var scroll = new ScrollViewer
+            {
+                Width = 1240, Height = 560, Content = buildPcMode(),
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
+            };
+            Canvas.SetLeft(scroll, 292); Canvas.SetTop(scroll, 210);
+            canvas.Children.Add(scroll);
+        }
 
         var frame = SpotlightToolFrame.WrapWithProgramme(
             currentKey: "tools",

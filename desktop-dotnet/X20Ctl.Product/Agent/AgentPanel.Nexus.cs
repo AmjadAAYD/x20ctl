@@ -109,16 +109,15 @@ public partial class AgentPanel
             FontSize = 14,
             Foreground = NexusKit.GreenBrush
         });
-        statusRow.Children.Add(new TextBlock
-        {
-            Text = "Ready · X20 Pro · Player 1 · Settings now · all default",
-            FontFamily = NexusKit.Body,
-            FontSize = 15,
-            Foreground = NexusKit.SubBrush
-        });
+        var liveStatus = new TextBlock { FontFamily = NexusKit.Body, FontSize = 15, Foreground = NexusKit.SubBrush };
+        var statusRun = new System.Windows.Documents.Run(); statusRun.SetBinding(System.Windows.Documents.Run.TextProperty, new System.Windows.Data.Binding("Text") { Source = status });
+        var settingsRun = new System.Windows.Documents.Run(); settingsRun.SetBinding(System.Windows.Documents.Run.TextProperty, new System.Windows.Data.Binding("Text") { Source = settingsToggle });
+        liveStatus.Inlines.Add(statusRun); liveStatus.Inlines.Add(new System.Windows.Documents.Run(" · ")); liveStatus.Inlines.Add(settingsRun);
+        statusRow.Children.Add(liveStatus);
         idText.Children.Add(statusRow);
         idStack.Children.Add(idText);
 
+        idStack.Cursor = System.Windows.Input.Cursors.Hand; idStack.MouseLeftButtonUp += (_, _) => ShowSettingsPage(!SettingsOpen);
         Canvas.SetLeft(idStack, 30);
         Canvas.SetTop(idStack, 94);
         guideCanvas.Children.Add(idStack);
@@ -144,146 +143,31 @@ public partial class AgentPanel
                     Foreground = on ? NexusKit.B("#111111") : NexusKit.WhiteBrush
                 }
             };
-            chipsStack.Children.Add(ch);
+            string topic = new[] { "sticks", "triggers", "buttons", "PC mode" }[i];
+            chipsStack.Children.Add(ChipButton(ch, () => { Search.Text = topic; ShowView(View.Ideas); }));
         }
         Canvas.SetLeft(chipsStack, 30);
         Canvas.SetTop(chipsStack, 178);
         guideCanvas.Children.Add(chipsStack);
 
-        // Messages at (30, 240, w = 840)
-        var msgList = new StackPanel { Width = 840 };
-
-        // 1. Agent greeting
-        var m1 = new StackPanel { Margin = new Thickness(0, 0, 0, 14) };
-        m1.Children.Add(new TextBlock { Text = "X20 Pro", FontFamily = NexusKit.Body, FontSize = 13, Foreground = NexusKit.SubBrush, Margin = new Thickness(0, 0, 0, 5) });
-        var bub1 = new Border
-        {
-            MaxWidth = 640,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Padding = new Thickness(16, 12, 16, 12),
-            CornerRadius = new CornerRadius(6),
-            Background = NexusKit.InputBrush,
-            Child = new TextBlock
-            {
-                Text = "I'm Agent XCTL. Ask me anything about remapping buttons, dead zones, back paddles or vibration.",
-                FontFamily = NexusKit.Body,
-                FontSize = 17,
-                Foreground = NexusKit.WhiteBrush,
-                TextWrapping = TextWrapping.Wrap
-            }
-        };
-        m1.Children.Add(bub1);
-        msgList.Children.Add(m1);
-
-        // 2. User query (Green bubble on right)
-        var m2 = new StackPanel { HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 0, 0, 14) };
-        m2.Children.Add(new TextBlock { Text = "You", FontFamily = NexusKit.Body, FontSize = 13, Foreground = NexusKit.SubBrush, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 0, 0, 5) });
-        var bub2 = new Border
-        {
-            MaxWidth = 640,
-            Padding = new Thickness(16, 12, 16, 12),
-            CornerRadius = new CornerRadius(6),
-            Background = NexusKit.GreenDeepBrush,
-            Child = new TextBlock
-            {
-                Text = "what does the dead zone do",
-                FontFamily = NexusKit.Body,
-                FontSize = 17,
-                Foreground = NexusKit.WhiteBrush,
-                TextWrapping = TextWrapping.Wrap
-            }
-        };
-        m2.Children.Add(bub2);
-        msgList.Children.Add(m2);
-
-        // 3. Agent answer
-        var m3 = new StackPanel { Margin = new Thickness(0, 0, 0, 14) };
-        m3.Children.Add(new TextBlock { Text = "X20 Pro", FontFamily = NexusKit.Body, FontSize = 13, Foreground = NexusKit.SubBrush, Margin = new Thickness(0, 0, 0, 5) });
-        var bub3 = new Border
-        {
-            MaxWidth = 820,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Padding = new Thickness(16, 12, 16, 12),
-            CornerRadius = new CornerRadius(6),
-            Background = NexusKit.InputBrush
-        };
-        var aStack = new StackPanel();
-        aStack.Children.Add(new TextBlock
-        {
-            Text = "Dead zone ignores small physical movements near center.",
-            FontFamily = NexusKit.Body,
-            FontSize = 17,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = NexusKit.WhiteBrush,
-            Margin = new Thickness(0, 0, 0, 6)
-        });
-        aStack.Children.Add(new TextBlock
-        {
-            Text = "It creates a resting window around (0,0) where stick drift won't trigger unwanted in-game turning. Raise it if your character walks on their own; lower it for snappy aim.",
-            FontFamily = NexusKit.Body,
-            FontSize = 16,
-            Foreground = NexusKit.WhiteBrush,
-            TextWrapping = TextWrapping.Wrap
-        });
-        aStack.Children.Add(new TextBlock
-        {
-            Text = "(No changes made to controller settings)",
-            FontFamily = NexusKit.Body,
-            FontSize = 13,
-            Foreground = NexusKit.SubBrush,
-            Margin = new Thickness(0, 8, 0, 0)
-        });
-        bub3.Child = aStack;
-        m3.Children.Add(bub3);
-        msgList.Children.Add(m3);
-
-        Canvas.SetLeft(msgList, 30);
-        Canvas.SetTop(msgList, 240);
-        guideCanvas.Children.Add(msgList);
-
-        // Bottom Input Row at (30, bottom: 28, w = 840, h = 56)
+        // The real chat, ideas, check-up and settings, and the real input
+        MountRealViews(guideCanvas, 30, 230, 840, 480, NexusKit.B(Color.FromArgb(0xf7, 0x16, 0x18, 0x1b)), NexusKit.GreenBrush);
+        StyleRealInput(NexusKit.Body, 17, NexusKit.WhiteBrush);
         var inputBorder = new Border
         {
-            Width = 840, Height = 56,
-            CornerRadius = new CornerRadius(4),
-            Background = NexusKit.InputBrush,
-            BorderBrush = NexusKit.GreenBrush,
-            BorderThickness = new Thickness(3),
-            Padding = new Thickness(18, 0, 10, 0)
+            Width = 840, Height = 56, CornerRadius = new CornerRadius(4), Background = NexusKit.InputBrush,
+            BorderBrush = NexusKit.GreenBrush, BorderThickness = new Thickness(3), Padding = new Thickness(18, 0, 10, 0)
         };
         var iGrid = new Grid();
         iGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         iGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-        var prompt = new TextBlock
+        Grid.SetColumn(Input, 0); iGrid.Children.Add(Input);
+        var sendBtn = ChipButton(new Border
         {
-            Text = "Ask Agent XCTL or describe what you want to change...",
-            FontFamily = NexusKit.Body,
-            FontSize = 17,
-            Foreground = NexusKit.SubBrush,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        Grid.SetColumn(prompt, 0);
-        iGrid.Children.Add(prompt);
-
-        var sendBtn = new Border
-        {
-            Width = 44, Height = 44,
-            CornerRadius = new CornerRadius(4),
-            Background = NexusKit.B("#3c4046"),
-            Child = new TextBlock
-            {
-                Text = "\uE724", // Share / Send
-                FontFamily = NexusKit.Icons,
-                FontSize = 18,
-                Foreground = NexusKit.WhiteBrush,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center
-            }
-        };
-        Grid.SetColumn(sendBtn, 1);
-        iGrid.Children.Add(sendBtn);
-
+            Width = 44, Height = 44, CornerRadius = new CornerRadius(4), Background = NexusKit.B("#3c4046"),
+            Child = new TextBlock { Text = "\uE724", FontFamily = NexusKit.Icons, FontSize = 18, Foreground = NexusKit.WhiteBrush, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center }
+        }, ClickSend);
+        Grid.SetColumn(sendBtn, 1); iGrid.Children.Add(sendBtn);
         inputBorder.Child = iGrid;
         Canvas.SetLeft(inputBorder, 30);
         Canvas.SetTop(inputBorder, 820 - 56 - 28);

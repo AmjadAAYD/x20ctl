@@ -56,6 +56,9 @@ public sealed partial class ProductSettings
             case "about":
                 RenderNexusAbout(board);
                 break;
+            case "pcmode":
+                RenderNexusPcMode(board);
+                break;
             case "themes":
                 RenderNexusThemes(board);
                 break;
@@ -452,6 +455,50 @@ public sealed partial class ProductSettings
         var hints = NexusKit.HintsBar(new[] { ("A", "Apply"), ("B", "Back") });
         Canvas.SetRight(hints, 62);
         Canvas.SetTop(hints, 856);
+        board.Children.Add(hints);
+    }
+
+    private void RenderNexusPcMode(Canvas board)
+    {
+        board.Children.Add(new Rectangle
+        {
+            Width = 1600, Height = 900,
+            Fill = new LinearGradientBrush
+            {
+                StartPoint = new(0.5, 0), EndPoint = new(0.5, 1),
+                GradientStops = { new(NexusKit.C("#1a1c20"), 0.0), new(NexusKit.House, 1.0) }
+            }
+        });
+        var topBar = NexusKit.TopBar(
+            player: 0,
+            model: "EasySMX X20 Pro",
+            status: "Offline",
+            onZone: () => NexusNavigate?.Invoke("Zone"),
+            onSetups: () => NexusNavigate?.Invoke("Setups"),
+            onPcMode: null,
+            onTools: () => ShowPcMode(false)
+        );
+        Canvas.SetLeft(topBar, 62); Canvas.SetTop(topBar, 46);
+        board.Children.Add(topBar);
+
+        var title = new TextBlock { Text = "PC mode", FontFamily = NexusKit.Display, FontSize = 38, FontWeight = FontWeights.SemiBold, Foreground = NexusKit.WhiteBrush };
+        Canvas.SetLeft(title, 68); Canvas.SetTop(title, 140);
+        board.Children.Add(title);
+
+        // The real PC mode page, not a drawn copy
+        if (buildPcMode != null)
+        {
+            var scroll = new ScrollViewer
+            {
+                Width = 1464, Height = 600, Content = buildPcMode(),
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
+            };
+            Canvas.SetLeft(scroll, 68); Canvas.SetTop(scroll, 210);
+            board.Children.Add(scroll);
+        }
+
+        var hints = NexusKit.HintsBar(new[] { ("B", "Back") });
+        Canvas.SetRight(hints, 62); Canvas.SetTop(hints, 856);
         board.Children.Add(hints);
     }
 
