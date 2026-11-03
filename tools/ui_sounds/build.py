@@ -19,8 +19,11 @@ import ui_dense2
 import ui_dense3
 
 
+GAIN_DB = 9  # the renders peak between -31 and -22 dBFS, too quiet to hear in the app; this lifts them to between -22 and -13
+
+
 def write(path, y):  # 24 kHz 16-bit stereo: nothing in these sounds is above ~2.5 kHz
-    y = resample_poly(y, 1, 2, axis=0)
+    y = np.clip(resample_poly(y, 1, 2, axis=0) * 10 ** (GAIN_DB / 20), -.95, .95)
     with wave.open(str(path), "wb") as w: w.setnchannels(2); w.setsampwidth(2); w.setframerate(24000); w.writeframes((np.clip(y, -1, 1) * 32767).astype("<i2").tobytes())
 
 
