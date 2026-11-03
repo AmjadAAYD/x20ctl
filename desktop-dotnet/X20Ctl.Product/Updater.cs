@@ -84,12 +84,13 @@ public static class Updater
     }
 
     /// <summary>Starts the freshly installed exe (this process is then closed by the caller). False when it couldn't start, so the caller keeps running.</summary>
+    /// <summary>The release exe asks for administrator permission at launch, so this process is already elevated and the new one starts without a second prompt. The shell launch (not CreateProcess) is deliberate: if this process ever were not elevated, Windows asks the normal UAC question instead of the start failing.</summary>
     public static bool Restart()
     {
         try
         {
             string exe = Environment.ProcessPath!;
-            using var next = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exe) { UseShellExecute = false, WorkingDirectory = Path.GetDirectoryName(exe)! });
+            using var next = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exe) { UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(exe)! });
             return next != null;
         }
         catch (Exception error) when (error is System.ComponentModel.Win32Exception or InvalidOperationException) { return false; }
