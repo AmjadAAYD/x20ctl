@@ -70,9 +70,7 @@ public static class Updater
         if (fetched.Outcome != X20Ctl.Zone.UpdateKit.Outcome.Verified) return (false, fetched.Message);
         try
         {
-            if (File.Exists(old)) File.Delete(old);
-            File.Move(exe, old);
-            try { File.Move(download, exe); } catch { File.Move(old, exe); throw; }
+            Swap(exe, download, old, TestMove);
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {
@@ -83,14 +81,34 @@ public static class Updater
         return (true, $"{release.Title} is installed. It starts the next time you open X20CTL.");
     }
 
-    /// <summary>Starts the freshly installed exe (this process is then closed by the caller). False when it couldn't start, so the caller keeps running.</summary>
-    /// <summary>The release exe asks for administrator permission at launch, so this process is already elevated and the new one starts without a second prompt. The shell launch (not CreateProcess) is deliberate: if this process ever were not elevated, Windows asks the normal UAC question instead of the start failing.</summary>
+    /// <summary>Puts the verified download in place: the running exe is renamed aside (Windows allows that while it runs), the download takes its name,
+    /// and if that second step fails the old exe is put back so the install is never left without an exe.</summary>
+    internal static void Swap(string exe, string download, string old, Action<string, string>? move = null)
+    {
+        move ??= (from, to) => File.Move(from, to);
+        if (File.Exists(old)) File.Delete(old);
+        move(exe, old);
+        try { move(download, exe); } catch { move(old, exe); throw; }
+    }
+
+    /// <summary>Review harness only: replaces the file move, a stand-in exe's launch arguments and records the last launch.</summary>
+    internal static Action<string, string>? TestMove { get => ReviewSandbox.Active ? testMove : null; set => testMove = value; }
+    internal static string? TestRestartArgs { get => ReviewSandbox.Active ? testRestartArgs : null; set => testRestartArgs = value; }
+    internal static System.Diagnostics.Process? LastLaunched { get; private set; }
+    static Action<string, string>? testMove; static string? testRestartArgs;
+
+    /// <summary>Starts the freshly installed exe (this process is then closed by the caller). False when it couldn't start, so the caller keeps running.
+    /// The release exe asks for administrator permission at launch, so this process is already elevated and the new one starts without a second prompt.
+    /// The shell launch (not CreateProcess) is deliberate: if this process ever were not elevated, Windows asks the normal UAC question instead of the start failing.</summary>
     public static bool Restart()
     {
         try
         {
-            string exe = Environment.ProcessPath!;
-            using var next = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exe) { UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(exe)! });
+            string exe = TestTarget ?? Environment.ProcessPath!;
+            var info = new System.Diagnostics.ProcessStartInfo(exe) { UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(exe)! };
+            if (TestRestartArgs != null) info.Arguments = TestRestartArgs;
+            var next = System.Diagnostics.Process.Start(info);
+            LastLaunched = next;
             return next != null;
         }
         catch (Exception error) when (error is System.ComponentModel.Win32Exception or InvalidOperationException) { return false; }
