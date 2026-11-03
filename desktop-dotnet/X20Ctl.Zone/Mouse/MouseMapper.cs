@@ -37,6 +37,13 @@ public sealed class MouseProfile
     public string[] ToggleButtons { get; set; } = ["SELECT", "Y"];
     public int HoldMilliseconds { get; set; } = 1000;
     public int SourceSlot { get; set; } = -1;
+    /// <summary>The chosen controller when it is connected, otherwise the first that is; -1 when none is. A choice saved
+    /// for a slot the controller no longer sits in must not leave the mouse waiting for it.</summary>
+    public static int PickSlot(int chosen, IEnumerable<int> connected)
+    {
+        var slots = connected.ToArray();
+        return slots.Contains(chosen) ? chosen : slots.Length > 0 ? slots[0] : -1;
+    }
     public bool HorizontalScroll { get; set; } = true;
     public bool InvertVerticalScroll { get; set; }
     public bool InvertHorizontalScroll { get; set; }

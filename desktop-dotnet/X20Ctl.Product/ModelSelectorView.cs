@@ -13,7 +13,7 @@ namespace X20Ctl.Product;
 /// (four, then three centred), each with its art, name, a short description built from the catalog's hardware facts and
 /// an honest support line. Cards rise in one after another; focus lifts a card with a white edge. Arrows / D-pad move,
 /// A / Enter chooses, B / Esc goes back.</summary>
-public sealed class ModelSelectorView : Grid
+public sealed partial class ModelSelectorView : Grid
 {
     public event Action<ControllerModel>? Chosen;
     public event Action? Cancelled;
@@ -55,7 +55,7 @@ public sealed class ModelSelectorView : Grid
         var back = new Button { Content = "Back", Style = (Style)FindResource("ActionButton"), MinHeight = 38, Height = 38, Padding = new(18, 0, 18, 0), FontSize = 14.5, VerticalAlignment = VerticalAlignment.Center }; UiSound.SetCue(back, UiSound.Cue.Back);
         back.Click += (_, _) => Cancelled?.Invoke(); DockPanel.SetDock(back, Dock.Right); header.Children.Add(back);
         var title = new StackPanel();
-        title.Children.Add(new Border { CornerRadius = new(11), Height = 30, Padding = new(10, 0, 10, 0), HorizontalAlignment = HorizontalAlignment.Left, Background = new SolidColorBrush(Color.FromArgb(28, 255, 255, 255)), BorderBrush = new SolidColorBrush(Color.FromArgb(38, 255, 255, 255)), BorderThickness = new(1), Child = new TextBlock { Text = $"PLAYER {player + 1}", FontFamily = DS.Display, FontSize = 17, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(184, 198, 217)), VerticalAlignment = VerticalAlignment.Center } });
+        title.Children.Add(new Border { CornerRadius = new(11), Height = 30, Padding = new(10, 0, 10, 0), HorizontalAlignment = HorizontalAlignment.Left, Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(28, 255, 255, 255))), BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(38, 255, 255, 255))), BorderThickness = new(1), Child = new TextBlock { Text = $"PLAYER {player + 1}", FontFamily = DS.Display, FontSize = 17, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(184, 198, 217))), VerticalAlignment = VerticalAlignment.Center } });
         title.Children.Add(new TextBlock { Text = "Which controller is this?", Style = (Style)FindResource("DS.Display"), FontWeight = FontWeights.SemiBold, FontSize = 32, Margin = new(0, 10, 0, 4) });
         title.Children.Add(new TextBlock { Text = "Pick the model in your hands. This sets its layout and tools; connecting the hardware is a separate step.", Style = (Style)FindResource("DS.Body"), Foreground = DS.Brush("Zone.TextSecondary") });
         header.Children.Add(title); body.Children.Add(header);
@@ -79,6 +79,10 @@ public sealed class ModelSelectorView : Grid
         footer.Margin = new(9, 0, 0, 0); Grid.SetRow(footer, 2); body.Children.Add(footer);
 
         Unloaded += (_, _) => turn.Stop();
+        if (ThemeCatalog.Current.Id == "pulse") BuildPulseSelector(catalog, facts);
+        if (ThemeCatalog.Current.Id == "spotlight") BuildSpotlightSelector(catalog, facts);
+        if (ThemeCatalog.Current.Id == "nexus") BuildNexusSelector(catalog, facts);
+        if (ThemeCatalog.Current.Id == "tide") BuildTideSelector(catalog, facts);
         Loaded += (_, _) =>
         {
             if (cards.Count > 0) cards[0].Focus();
@@ -94,6 +98,7 @@ public sealed class ModelSelectorView : Grid
                 shift.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(18, 0, TimeSpan.FromMilliseconds(320)) { BeginTime = at, EasingFunction = ease });
             }
         };
+        if (ThemeCatalog.Current.Id == "rebel") BuildRebelSelector(catalog, facts);
     }
 
     // every model that comes in more than one colour turns to its next colour at the same moment, then holds it (owner
@@ -141,8 +146,8 @@ public sealed class ModelSelectorView : Grid
         var about = new TextBlock { Text = facts?.Description ?? "", FontFamily = DS.Body, FontSize = 12.5, Foreground = DS.Brush("Zone.TextSecondary"), TextWrapping = TextWrapping.Wrap, Margin = new(0, 5, 0, 10), MaxHeight = 36 }; Grid.SetRow(about, 2); stack.Children.Add(about);
         bool full = model.Support == "SUPPORTED";
         var line = new StackPanel { Orientation = Orientation.Horizontal };
-        line.Children.Add(new System.Windows.Shapes.Ellipse { Width = 7, Height = 7, Margin = new(1, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center, Fill = new SolidColorBrush(full ? Accent : Color.FromRgb(98, 112, 134)) });
-        line.Children.Add(new TextBlock { Text = facts?.SupportLine ?? model.Summary, FontFamily = DS.Display, FontSize = 12, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(full ? Color.FromRgb(150, 205, 255) : Color.FromRgb(150, 162, 182)), VerticalAlignment = VerticalAlignment.Center });
+        line.Children.Add(new System.Windows.Shapes.Ellipse { Width = 7, Height = 7, Margin = new(1, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center, Fill = new SolidColorBrush(full ? Accent : ThemeCatalog.R(Color.FromRgb(98, 112, 134))) });
+        line.Children.Add(new TextBlock { Text = facts?.SupportLine ?? model.Summary, FontFamily = DS.Display, FontSize = 12, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(full ? ThemeCatalog.R(Color.FromRgb(150, 205, 255)) : ThemeCatalog.R(Color.FromRgb(150, 162, 182))), VerticalAlignment = VerticalAlignment.Center });
         Grid.SetRow(line, 3); stack.Children.Add(line);
         edge.Child = stack;
         var button = new Button { Content = edge, Margin = new(9, 0, 9, 18), Padding = new(0), Background = Brushes.Transparent, BorderThickness = new(0), FocusVisualStyle = null, Cursor = Cursors.Hand, RenderTransformOrigin = new(.5, .5), RenderTransform = new TransformGroup { Children = { lift } } };

@@ -68,8 +68,8 @@ public sealed class ControllerOutline : FrameworkElement
     private Geometry geometry = Geometry.Empty;
     // a crisp edge, no glow (owner, 10 Oct 2026: the soft halo read as fog): a dark line seats the controller on the
     // page and covers the cut-out's soft band, a fine light line on top of it catches the light from above
-    private static readonly Pen Seat = Freeze(new Pen(new SolidColorBrush(Color.FromArgb(200, 6, 11, 24)), 4.2) { LineJoin = PenLineJoin.Round });
-    private static readonly Pen Catch = Freeze(new Pen(new LinearGradientBrush(Color.FromArgb(220, 228, 236, 250), Color.FromArgb(90, 150, 170, 205), 90), 1.3) { LineJoin = PenLineJoin.Round });
+    private static readonly Pen Seat = Freeze(new Pen(new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(200, 6, 11, 24))), 4.2) { LineJoin = PenLineJoin.Round });
+    private static readonly Pen Catch = Freeze(new Pen(new LinearGradientBrush(ThemeCatalog.R(Color.FromArgb(220, 228, 236, 250)), ThemeCatalog.R(Color.FromArgb(90, 150, 170, 205)), 90), 1.3) { LineJoin = PenLineJoin.Round });
     private static Pen Freeze(Pen pen) { pen.Freeze(); return pen; }
 
     public ControllerOutline() { Width = 1536; Height = 1024; IsHitTestVisible = false; }

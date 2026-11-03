@@ -16,15 +16,41 @@ internal static class ManagementVisuals
     public static TextBlock Copy(string text,double size=16,bool strong=false)=>new(){Text=text,FontSize=size,FontWeight=strong?FontWeights.SemiBold:FontWeights.Normal,TextWrapping=TextWrapping.Wrap,Foreground=strong?Brushes.White:Brushes.LightSteelBlue};
     public static Button Action(FrameworkElement resources,string text,Action action,Action<Button> register){var button=new Button {Content=text,Style=(Style)resources.FindResource("ConsoleAction"),Margin=new(0,0,12,0)};button.Click+=(_,_)=>action();register(button);return button;}
 }
-public sealed class DeviceWorkbench
+public sealed partial class DeviceWorkbench
 {
     public Grid Body {get;}=new();public Grid Shelf {get;}=new();public DeviceOverview State {get;}
-    public Button OpenTester {get;}public Button OpenSetups {get;}
+    public Button OpenTester {get;}public Button OpenSetups {get;}public Button? OpenScreen {get;}
     readonly TextBlock battery=ManagementVisuals.Copy("Not reported",24,true),connection=ManagementVisuals.Copy("Not detected",20,true);
     readonly TextBlock firmware=ManagementVisuals.Copy("Not reported",20,true);
     readonly TextBlock hardwareRevision=ManagementVisuals.Copy("Not reported",20,true);
     readonly TextBlock transport=ManagementVisuals.Copy("Not reported",20,true);
     private string? currentTransport;
+    private string targetModel="x20_pro";
+    private bool readingDetails;
+    private Button? refreshDetails;
+    private readonly TextBlock telemetryStatus=ManagementVisuals.Copy("Read device details over Bluetooth while using the receiver for gameplay.",13);
+    public void SetHardwareId(string? value){hardwareRevision.Text=value??"Not reported";hardwareRevision.FontSize=14;hardwareRevision.ToolTip="Controller updater hardware ID; board revision is not reported.";}
+    internal async Task RefreshDetailsAsync()
+    {
+        if(readingDetails)return;
+        readingDetails=true;if(refreshDetails!=null)refreshDetails.IsEnabled=false;
+        telemetryStatus.Text="Reading device details over Bluetooth…";
+        try
+        {
+            var result=await PadBridge.Status(targetModel);
+            if(result.Ok&&result.Telemetry is {} data)
+            {
+                if(data.Firmware!=null)SetFirmware(data.Firmware);
+                if(data.Battery!=null)SetBatteryLevel(data.Battery,currentTransport);
+                if(data.HardwareId!=null)SetHardwareId(data.HardwareId);
+                telemetryStatus.Text=data.Battery!=null?"Updated over Bluetooth · gameplay connection unchanged.":"Identity updated over Bluetooth. Battery was not reported.";
+                TelemetryUpdated?.Invoke(data);
+            }
+            else telemetryStatus.Text=result.Text;
+        }
+        catch(Exception error){telemetryStatus.Text="Device details could not be read: "+error.Message;}
+        finally{readingDetails=false;if(refreshDetails!=null)refreshDetails.IsEnabled=true;}
+    }
     public event Action<TelemetryData>? TelemetryUpdated;
 
     public void SetTransport(string? value)
@@ -52,9 +78,9 @@ public sealed class DeviceWorkbench
     public void SetBatteryLevel(string? level) => SetBatteryLevel(level, null);
     public void SetConnection(bool connected)=>connection.Text=connected?"Gameplay input detected":"Not detected";
     public void UpdateEngineStatus(string status) { /* Process availability does not establish hardware configuration support. */ }
-    public DeviceWorkbench(ControllerModel model,int player,FrameworkElement resources,Action<Button> register,Action tester,Action setups)
+    public DeviceWorkbench(ControllerModel model,int player,FrameworkElement resources,Action<Button> register,Action tester,Action setups,Action? screen=null,Func<Action<string>,Task>? factoryReset=null)
     {
-        State=new(model.Id,player);
+        targetModel=model.Id;State=new(model.Id,player);
         Body.ColumnDefinitions.Add(new(){Width=new(1,GridUnitType.Star)});Body.ColumnDefinitions.Add(new(){Width=new(1.25,GridUnitType.Star)});
         var hardware=new Grid();hardware.RowDefinitions.Add(new(){Height=GridLength.Auto});hardware.RowDefinitions.Add(new());hardware.RowDefinitions.Add(new(){Height=GridLength.Auto});
         var identity=new StackPanel{Children={ManagementVisuals.Copy($"PLAYER {player+1}",13),ManagementVisuals.Copy(model.Name,28,true),ManagementVisuals.Copy("Assigned controller",14)}};hardware.Children.Add(identity);
@@ -64,34 +90,27 @@ public sealed class DeviceWorkbench
         var overview=new StackPanel();var scroll=new ScrollViewer{Content=overview,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,Padding=new(0,0,8,0)};Grid.SetColumn(scroll,1);Body.Children.Add(scroll);
         var status=new StackPanel();status.Children.Add(connection);status.Children.Add(ManagementVisuals.Copy("Controller input and configuration connection are checked separately.",14).Also(t=>t.Margin=new(0,8,0,12)));
         OpenTester=ManagementVisuals.Action(resources,"Open Diagnostics",tester,register);OpenTester.HorizontalAlignment=HorizontalAlignment.Left;status.Children.Add(OpenTester);
+        if(model.Id is "x20" or "x20_pro")
+        {
+            refreshDetails=ManagementVisuals.Action(resources,"Refresh device details",async()=>await RefreshDetailsAsync(),register);
+            refreshDetails.Margin=new(0,12,0,10);refreshDetails.HorizontalAlignment=HorizontalAlignment.Left;
+            status.Children.Add(refreshDetails);status.Children.Add(telemetryStatus);
+        }
         overview.Children.Add(Kit.Panel("Connection",null,null,status));
         var values=new System.Windows.Controls.Primitives.UniformGrid{Columns=2,Margin=new(-5,12,-5,0)};
-        foreach(var (label,value) in new[]{("Battery",battery),("Firmware",firmware),("Hardware revision",hardwareRevision),("Transport",transport)})
+        foreach(var (label,value) in new[]{("Battery",battery),("Firmware",firmware),("Hardware ID",hardwareRevision),("Transport",transport)})
         {
             var metric=new StackPanel{Children={ManagementVisuals.Copy(label,13),value}};
             value.Margin=new(0,8,0,0);
             var tile=Kit.Panel(null,null,null,metric,new Thickness(16));
             tile.Margin=new(5,0,5,10);
-            if (label == "Battery" && model.Id is "x20" or "x20_pro")
+            if (label is "Battery" or "Firmware" or "Hardware ID" && model.Id is "x20" or "x20_pro")
             {
                 tile.Cursor = Cursors.Hand;
-                tile.ToolTip = "Click to refresh battery and firmware over Bluetooth";
-                tile.MouseLeftButtonUp += async (_, _) =>
-                {
-                    battery.Text = "Reading…";
-                    var r = await PadBridge.Status(model.Id);
-                    if (r.Ok && r.Telemetry != null)
-                    {
-                        if (r.Telemetry.Firmware != null) SetFirmware(r.Telemetry.Firmware);
-                        if (r.Telemetry.Battery != null) SetBatteryLevel(r.Telemetry.Battery, currentTransport);
-                        TelemetryUpdated?.Invoke(r.Telemetry);
-                    }
-                    else
-                    {
-                        SetBatteryLevel(currentBattery, currentTransport);
-                    }
-                };
+                tile.ToolTip = "Read battery, firmware and hardware ID over Bluetooth";
+                tile.MouseLeftButtonUp += async (_, _) => await RefreshDetailsAsync();
             }
+            if (label == "Battery") batteryTile = tile;
             values.Children.Add(tile);
         }
         overview.Children.Add(values);
@@ -99,13 +118,25 @@ public sealed class DeviceWorkbench
         foreach(var (label,value) in new[]{("Sticks",profile.Sticks),("Triggers",profile.Triggers),("Rear controls",profile.Paddles.Length==0?"None listed":string.Join(" · ",profile.Paddles)),("Motors",profile.Motors),("Motion",profile.Motion)})
         {var row=new Grid{Margin=new(0,0,0,10)};row.ColumnDefinitions.Add(new(){Width=new(110)});row.ColumnDefinitions.Add(new());row.Children.Add(ManagementVisuals.Copy(label,14));var detail=ManagementVisuals.Copy(value,14,true);Grid.SetColumn(detail,1);row.Children.Add(detail);support.Children.Add(row);}
         overview.Children.Add(Kit.Panel("Model capabilities",null,null,support));
-        var compatibility=new StackPanel{Children={ManagementVisuals.Copy(profile.Verified?"Local drafts available. Applying to hardware requires a verified connection.":"Layout and artwork available. Native configuration is unavailable for this model.",14),ManagementVisuals.Copy("Gyro, rear controls and independent motors appear only when the connected interface supports them.",13).Also(t=>t.Margin=new(0,8,0,0))}};
+        var compatibility=new StackPanel{Children={ManagementVisuals.Copy(profile.SupportsLocalDrafts?"Local drafts available. Native configuration writes remain locked.":"Layout and artwork available. Native configuration is unavailable for this model.",14),ManagementVisuals.Copy("Gyro, rear controls and independent motors appear only when the connected interface supports them.",13).Also(t=>t.Margin=new(0,8,0,0))}};
         var supportPanel=Kit.Panel("X20CTL support",null,null,compatibility);supportPanel.Margin=new(0,12,0,0);overview.Children.Add(supportPanel);
+        if(factoryReset!=null)
+        {
+            const string resetWarning="Erases the settings saved on the controller.";
+            var resetNote=ManagementVisuals.Copy(resetWarning,14);
+            var resetYes=ManagementVisuals.Action(resources,"Reset controller",()=>{},register);var resetNo=ManagementVisuals.Action(resources,"Cancel",()=>{},register);
+            var resetConfirm=new StackPanel{Orientation=Orientation.Horizontal,Visibility=Visibility.Collapsed,Margin=new(0,12,0,0),Children={resetYes,resetNo}};
+            var resetAsk=ManagementVisuals.Action(resources,"Factory reset",()=>{resetConfirm.Visibility=Visibility.Visible;resetNote.Text="Reset this controller? This can't be undone.";},register);
+            resetAsk.HorizontalAlignment=HorizontalAlignment.Left;resetAsk.Margin=new(0,12,0,0);
+            resetNo.Click+=(_,_)=>{resetConfirm.Visibility=Visibility.Collapsed;resetNote.Text=resetWarning;};
+            resetYes.Click+=async(_,_)=>{resetConfirm.Visibility=Visibility.Collapsed;resetAsk.IsEnabled=false;await factoryReset(text=>resetNote.Text=text);resetAsk.IsEnabled=true;};
+            var resetPanel=Kit.Panel("Factory reset",null,null,new StackPanel{Children={resetNote,resetAsk,resetConfirm}});resetPanel.Margin=new(0,12,0,0);overview.Children.Add(resetPanel);
+        }
 
         OpenSetups=ManagementVisuals.Action(resources,"My setups",setups,register);OpenSetups.Visibility=Visibility.Collapsed;
     }
 }
-public sealed class TesterWorkbench
+public sealed partial class TesterWorkbench
 {
     public Grid Body {get;}=new();public Grid Shelf {get;}=new();public TesterState State {get;}
     public Button Exit {get;}public TextBlock SourceLabel {get;}=ManagementVisuals.Copy("Gameplay input unavailable",20,true);
@@ -121,7 +152,7 @@ public sealed class TesterWorkbench
         this.model=model;layout=geometry;resources=owner;animate=animations;State=new(model.Id);KeyboardTest=new(model.Id);
         Body.ColumnDefinitions.Add(new(){Width=new GridLength(1.5,GridUnitType.Star)});Body.ColumnDefinitions.Add(new());var stage=new Grid();stage.RowDefinitions.Add(new(){Height=new GridLength(42)});stage.RowDefinitions.Add(new());Body.Children.Add(stage);
         var views=new StackPanel {Orientation=Orientation.Horizontal};views.Children.Add(ManagementVisuals.Action(resources,"Front",()=>ShowRear(false),register));var back=ManagementVisuals.Action(resources,"Back",()=>ShowRear(true),register);back.IsEnabled=true;views.Children.Add(back);stage.Children.Add(views);
-        var map=new Grid {Width=1536,Height=1024,Children={artwork,controls,positions}};var view=new Viewbox {Child=map,Stretch=Stretch.Uniform};Grid.SetRow(view,1);stage.Children.Add(view);
+        var map=new Grid {Width=1536,Height=1024,Children={artwork,controls,positions}};stageMap=map;var view=new Viewbox {Child=map,Stretch=Stretch.Uniform};Grid.SetRow(view,1);stage.Children.Add(view);
         var status=new StackPanel {VerticalAlignment=VerticalAlignment.Center,Margin=new(28,0,20,0)};Grid.SetColumn(status,1);Body.Children.Add(status);status.Children.Add(ManagementVisuals.Copy("GAMEPLAY SOURCE",14));status.Children.Add(SourceLabel);status.Children.Add(ownership);pressed.Margin=new(0,26,0,0);status.Children.Add(pressed);status.Children.Add(ManagementVisuals.Copy("Hardware configuration remains separate. Independent paddle input is shown only when exposed by the input source.",15));Exit=ManagementVisuals.Action(resources,"Exit Tester",exit,register);Exit.Width=190;Exit.HorizontalAlignment=HorizontalAlignment.Left;Exit.Margin=new(0,22,0,0);status.Children.Add(Exit);
         KeyboardMode=ManagementVisuals.Action(resources,"Keyboard Test",()=>SetKeyboardSimulation(!KeyboardTest.Enabled),register);KeyboardMode.HorizontalAlignment=HorizontalAlignment.Left;KeyboardMode.Margin=new(0,10,0,0);status.Children.Add(KeyboardMode);status.Children.Add(ManagementVisuals.Copy("WASD · Left stick    Arrows · Right stick\nQ · Hold LT    E · Hold RT",14));
         Shelf.ColumnDefinitions.Add(new(){Width=new GridLength(1,GridUnitType.Star)});Shelf.ColumnDefinitions.Add(new(){Width=new GridLength(1,GridUnitType.Star)});Shelf.ColumnDefinitions.Add(new(){Width=new GridLength(.65,GridUnitType.Star)});Shelf.ColumnDefinitions.Add(new(){Width=new GridLength(.65,GridUnitType.Star)});
@@ -148,7 +179,8 @@ public sealed class TesterWorkbench
         foreach(var region in layout.Controls.Where(r=>r.Role!="axis" && (r.View==(rear?"back":"front") || rear&&r.View=="shoulder")))
         {var light=new PhysicalHotspot(region,animate){IsHitTestVisible=false,Focusable=false};Canvas.SetLeft(light,region.Bounds.X*1536);Canvas.SetTop(light,region.Bounds.Y*1024);controls.Children.Add(light);lights.Add(region.Key,light);}Update();
     }
-    private void Update()
+    private void Update(){UpdateCore();Updated?.Invoke();}
+    private void UpdateCore()
     {
         var frame=State.Frame;SourceLabel.Text=KeyboardTest.Enabled?"KEYBOARD SIMULATION":frame==null?"Gameplay input unavailable":frame.IsSimulation?"SIMULATION · "+frame.Source:frame.Source;SourceLabel.Foreground=frame==null?Brushes.White:frame.IsSimulation?Brushes.SandyBrown:Brushes.LightSkyBlue;pressed.Text=KeyboardTest.Enabled?(KeyboardTest.Held.Count==0?"Neutral · No keys held":"Held: "+string.Join(" + ",KeyboardTest.Held)):frame==null?"Waiting for native gameplay input":string.Join(" + ",frame.ButtonsDown.Where(State.Pressed).Select(k=>k switch {"DPAD_UP"=>"D-pad ↑","DPAD_DOWN"=>"D-pad ↓","DPAD_LEFT"=>"D-pad ←","DPAD_RIGHT"=>"D-pad →",_=>k}));if(frame!=null&&pressed.Text.Length==0)pressed.Text="No buttons held";
         foreach(var (key,light) in lights){bool active=State.Pressed(key) || frame!=null && (key=="LT"&&frame.LT>0 || key=="RT"&&frame.RT>0 || key=="L3"&&(frame.LeftX!=0||frame.LeftY!=0) || key=="R3"&&(frame.RightX!=0||frame.RightY!=0));light.Illuminate(active,false);}
@@ -163,8 +195,8 @@ public sealed class TesterWorkbench
         protected override void OnRender(DrawingContext dc)
         {
             double width=ActualWidth,height=ActualHeight;var text=new FormattedText(label,System.Globalization.CultureInfo.CurrentCulture,FlowDirection.LeftToRight,new Typeface("Segoe UI"),17,Brushes.White,VisualTreeHelper.GetDpi(this).PixelsPerDip);dc.DrawText(text,new(12,4));double size=Math.Min(height-50,width*.55),cx=12+size/2,cy=30+size/2;
-            if(stick){dc.DrawEllipse(new SolidColorBrush(Color.FromRgb(13,26,44)),new Pen(Brushes.SlateGray,1),new(cx,cy),size/2,size/2);dc.DrawLine(new Pen(Brushes.SlateGray,1),new(cx-size/2,cy),new(cx+size/2,cy));dc.DrawLine(new Pen(Brushes.SlateGray,1),new(cx,cy-size/2),new(cx,cy+size/2));if(x.HasValue)dc.DrawEllipse(Brushes.LightSkyBlue,new Pen(Brushes.White,1.5),new(cx+x.Value*size*.4,cy-(y??0)*size*.4),6,6);}
-            else {dc.DrawRoundedRectangle(new SolidColorBrush(Color.FromRgb(16,30,48)),null,new Rect(12,40,width-28,28),14,14);if(x.HasValue)dc.DrawRoundedRectangle(Brushes.LightSkyBlue,null,new Rect(12,40,(width-28)*x.Value,28),14,14);}
+            if(stick){dc.DrawEllipse(new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(13,26,44))),new Pen(Brushes.SlateGray,1),new(cx,cy),size/2,size/2);dc.DrawLine(new Pen(Brushes.SlateGray,1),new(cx-size/2,cy),new(cx+size/2,cy));dc.DrawLine(new Pen(Brushes.SlateGray,1),new(cx,cy-size/2),new(cx,cy+size/2));if(x.HasValue)dc.DrawEllipse(Brushes.LightSkyBlue,new Pen(Brushes.White,1.5),new(cx+x.Value*size*.4,cy-(y??0)*size*.4),6,6);}
+            else {dc.DrawRoundedRectangle(new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(16,30,48))),null,new Rect(12,40,width-28,28),14,14);if(x.HasValue)dc.DrawRoundedRectangle(Brushes.LightSkyBlue,null,new Rect(12,40,(width-28)*x.Value,28),14,14);}
             string value=stick?(x.HasValue?$"X {x:0.00}   Y {y:0.00}":"X —   Y —"):(x.HasValue?$"{x*100:0}%":"Unavailable");var values=new FormattedText(value,System.Globalization.CultureInfo.CurrentCulture,FlowDirection.LeftToRight,new Typeface("Segoe UI"),14,Brushes.LightSteelBlue,VisualTreeHelper.GetDpi(this).PixelsPerDip);dc.DrawText(values,stick?new(Math.Min(width-150,size+28),48):new(12,82));
         }
     }
