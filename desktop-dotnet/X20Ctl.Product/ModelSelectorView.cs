@@ -52,7 +52,7 @@ public sealed class ModelSelectorView : Grid
         body.RowDefinitions.Add(new() { Height = GridLength.Auto }); body.RowDefinitions.Add(new()); body.RowDefinitions.Add(new() { Height = new(56) });
         Children.Add(body);
         var header = new DockPanel { Margin = new(9, 0, 9, 26) };
-        var back = new Button { Content = "Back", Style = (Style)FindResource("ActionButton"), MinHeight = 38, Height = 38, Padding = new(18, 0, 18, 0), FontSize = 14.5, VerticalAlignment = VerticalAlignment.Center };
+        var back = new Button { Content = "Back", Style = (Style)FindResource("ActionButton"), MinHeight = 38, Height = 38, Padding = new(18, 0, 18, 0), FontSize = 14.5, VerticalAlignment = VerticalAlignment.Center }; UiSound.SetCue(back, UiSound.Cue.Back);
         back.Click += (_, _) => Cancelled?.Invoke(); DockPanel.SetDock(back, Dock.Right); header.Children.Add(back);
         var title = new StackPanel();
         title.Children.Add(new Border { CornerRadius = new(11), Height = 30, Padding = new(10, 0, 10, 0), HorizontalAlignment = HorizontalAlignment.Left, Background = new SolidColorBrush(Color.FromArgb(28, 255, 255, 255)), BorderBrush = new SolidColorBrush(Color.FromArgb(38, 255, 255, 255)), BorderThickness = new(1), Child = new TextBlock { Text = $"PLAYER {player + 1}", FontFamily = DS.Display, FontSize = 17, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(184, 198, 217)), VerticalAlignment = VerticalAlignment.Center } });
@@ -156,7 +156,7 @@ public sealed class ModelSelectorView : Grid
             lift.BeginAnimation(ScaleTransform.ScaleXProperty,null);lift.BeginAnimation(ScaleTransform.ScaleYProperty,null);lift.ScaleX=lift.ScaleY=1;
 
         }
-        UiSound.SetCue(button, UiSound.Cue.Pick); UiSound.Hover(button, UiSound.Cue.HoverController);
+        UiSound.SetCue(button, UiSound.Cue.Pick);
         button.GotKeyboardFocus += (_, _) => Light(); button.LostKeyboardFocus += (_, _) => Light(); button.MouseEnter += (_, _) => Light(); button.MouseLeave += (_, _) => Light();
         return button;
     }
