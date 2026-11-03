@@ -13,10 +13,10 @@ namespace X20Ctl.Product;
 internal static class LightingBleClient
 {
     static SemaphoreSlim Gate => NativeBleClient.ConfigurationGate;
-    public static async Task<byte[]> RunAsync(byte[]? colour = null, byte? mode = null)
+    public static async Task<byte[]> RunAsync(byte[]? colour = null, byte? mode = null, byte? brightnessByte = null)
     {
         await Gate.WaitAsync();
-        try { return await ConnectedAsync(colour, mode); }
+        try { return await ConnectedAsync(colour, mode, brightnessByte); }
         finally { Gate.Release(); }
     }
 
@@ -166,49 +166,9 @@ internal static class LightingBleClient
 
     delegate Task<byte[]> Exchange(byte op, byte[] payload, byte serial, byte length);
 
-    static Task<byte[]> ConnectedAsync(byte[]? colour, byte? mode) => SessionAsync(async (exchange, next) =>
-    {
-        async Task<byte[]> Read()
-        {
-            var first = await exchange(0xb7, [0], next(), 6);
-            if (first.Length != 15 || first[0] != 24) throw new IOException("Unexpected lighting record header.");
-            var last = await exchange(0xb7, [1], next(), 6);
-            if (last.Length != 10) throw new IOException("Incomplete lighting record.");
-            return [..first[1..], ..last];
-        }
-        var original = await Read();
-        if (colour is null && mode is null) return original;
-        if (colour is not null && colour.Length != 3) throw new ArgumentException("Expected RGB bytes.");
-        var target = colour is not null && mode.HasValue ? LightingRecord.WithSelection(original,colour[0],colour[1],colour[2],mode.Value)
-            : mode.HasValue ? LightingRecord.WithMode(original, mode.Value)
-            : LightingRecord.WithColour(original, colour![0], colour[1], colour[2]);
-        if (original.SequenceEqual(target)) return original;
-        var folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "x20ctl", "lighting");
-        Directory.CreateDirectory(folder);
-        var checkpoint = Path.Combine(folder, $"{DateTime.UtcNow:yyyyMMddTHHmmssfff}-before.txt");
-        await File.WriteAllTextAsync(checkpoint, Convert.ToHexString(original));
-        byte[] payload = [24, ..target];
-        try
-        {
-            for (int index = 0; index < 2; index++)
-            {
-                int counter = index + 1;
-                byte[] chunk = payload.Skip(index * 15).Take(15).ToArray();
-                byte serial = (byte)(((counter & 1) << 7) | (index << 3) | (counter & 7));
-                byte length = (byte)(((counter & 7) << 5) | (chunk.Length + 5));
-                var ack = await exchange(0x37, chunk, serial, length);
-                if (!ack.SequenceEqual(new byte[]{2,0xdf,0xaa})) throw new IOException("Unexpected lighting acknowledgement.");
-                await Task.Delay(150);
-            }
-            var observed = await Read();
-            if (!observed.SequenceEqual(target)) throw new IOException("Lighting read-back differs from the requested record.");
-            return observed;
-        }
-        catch (Exception ex)
-        {
-            throw new IOException($"Lighting state may be partially changed. No retry was sent. Original record: {checkpoint}. {ex.Message}", ex);
-        }
-    });
+    static Task<byte[]> ConnectedAsync(byte[]? colour, byte? mode, byte? brightnessByte) => SessionAsync((exchange, next) =>
+        LightingTransaction.RunAsync((o, p, s, l) => exchange(o, p, s, l), next, colour, mode, brightnessByte,
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "x20ctl", "lighting"), TimeSpan.FromMilliseconds(150)));
 
     /// <summary>One connection: finds the pad, checks it is an X20 Pro on firmware 1.44, runs the work, then lets go.</summary>
     static async Task<T> SessionAsync<T>(Func<Exchange, Func<byte>, Task<T>> work)

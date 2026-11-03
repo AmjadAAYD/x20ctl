@@ -27,4 +27,18 @@ public static class LightingRecord
         result[0] = red; result[1] = green; result[2] = blue;
         return result;
     }
+
+    /// <summary>Offset 5 is stored and read back, and the owner saw brightness change when it went 0x50 to 0xFF and 0x10 (2 Nov 2026,
+    /// tested in a batch). Brightness is inferred, not isolated; no other byte is touched.</summary>
+    public const byte MinBrightnessByte = 0x10, MaxBrightnessByte = 0xff;
+    /// <summary>0 to 100 % over the tested range 0x10 to 0xFF; lower values were never tried on the pad.</summary>
+    public static byte BrightnessByteFor(double percent) => (byte)(MinBrightnessByte + Math.Round(Math.Clamp(percent, 0, 100) / 100 * (MaxBrightnessByte - MinBrightnessByte)));
+    public static double BrightnessPercentFor(byte level) => Math.Clamp((level - MinBrightnessByte) * 100d / (MaxBrightnessByte - MinBrightnessByte), 0, 100);
+    public static byte[] WithBrightnessByte(byte[] record, byte level)
+    {
+        if (record.Length != 24) throw new ArgumentException("Expected a 24-byte lighting record.", nameof(record));
+        var result = (byte[])record.Clone();
+        result[5] = level;
+        return result;
+    }
 }

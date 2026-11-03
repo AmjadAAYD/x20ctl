@@ -13,6 +13,9 @@ internal sealed class LightingWindow : Window
     readonly Border preview=new(){BorderBrush=DS.Brush("DS.Hairline"),BorderThickness=new(1),Height=180,CornerRadius=new(12),Margin=new(0,0,0,18)};
     readonly Button read=ActionButton("Read controller"),apply=ActionButton("Apply");
     readonly ComboBox modes=new(){ItemsSource=new[]{"Solid","Breathe","Cycle","Off","Battery"},SelectedIndex=0,MinWidth=115,Margin=new(0,0,8,0)};
+    readonly Slider brightness=new(){Minimum=0,Maximum=100,Value=100,SmallChange=1,LargeChange=10,TickFrequency=1,IsSnapToTickEnabled=true,MinHeight=28,Margin=new(0,4,0,4),ToolTip="Controller brightness."};
+    readonly TextBlock brightnessValue=new(){Text="100%",HorizontalAlignment=HorizontalAlignment.Right};
+    bool syncingBrightness;
     readonly ColourField square=new(false),hueStrip=new(true);
     readonly List<(Button Button,int Rgb)> swatches=[];
     readonly StackPanel batteryPanel=new(){Visibility=Visibility.Collapsed,Margin=new(0,0,0,24)};
@@ -20,7 +23,7 @@ internal sealed class LightingWindow : Window
     readonly int[] levelColours=(int[])BatteryLightingService.Load().Colours.Clone();
     static readonly byte[] ModeValues=[2,3,4,0];
     const int BatteryMode=4;
-    int selected=0xff0000,editingLevel=3; double hue,saturation=1,value=1; bool busy,loadingLevel;
+    int selected=0xff0000,editingLevel=3; double hue,saturation=1,value=1; bool busy,loadingLevel; byte level=0x50;
     bool BatterySelected=>modes.SelectedIndex==BatteryMode;
     static Button ActionButton(string text)=>new(){Content=text,Style=DS.Style("ActionButton"),Padding=new(20,10,20,10),MinWidth=130};
     public LightingWindow()
@@ -40,6 +43,11 @@ internal sealed class LightingWindow : Window
         square.Margin=new(0,0,14,0);square.ToolTip="Saturation and brightness · arrow keys adjust";hueStrip.ToolTip="Hue · up/down keys adjust";
         Grid.SetColumn(hueStrip,1);picker.Children.Add(square);picker.Children.Add(hueStrip);panel.Children.Add(picker);
         detail.Children.Add(preview);detail.Children.Add(Kit.Text("Hex colour",13,"DS.TextSoft").Also(t=>t.Margin=new(0,0,0,8)));detail.Children.Add(hex);detail.Children.Add(rgb);
+        var brightnessHeader=new Grid{Margin=new(0,20,0,2)};brightnessHeader.ColumnDefinitions.Add(new());brightnessHeader.ColumnDefinitions.Add(new(){Width=GridLength.Auto});
+        brightnessHeader.Children.Add(Kit.Text("Brightness",13,"DS.TextSoft"));brightnessValue.Foreground=DS.Brush("DS.TextSoft");Grid.SetColumn(brightnessValue,1);brightnessHeader.Children.Add(brightnessValue);
+        System.Windows.Automation.AutomationProperties.SetName(brightness,"RGB brightness");
+        detail.Children.Add(brightnessHeader);detail.Children.Add(brightness);
+        brightness.ValueChanged+=(_,_)=>{if(syncingBrightness||busy)return;level=LightingRecord.BrightnessByteFor(brightness.Value);brightnessValue.Text=$"{Math.Round(brightness.Value):0}%";};
         square.Changed+=(x,y)=>{saturation=x;value=1-y;Refresh();};hueStrip.Changed+=(_,y)=>{hue=y*360;Refresh();};
         hex.LostFocus+=(_,_)=>CommitHex();hex.KeyDown+=(_,e)=>{if(e.Key==Key.Enter){CommitHex();e.Handled=true;}};
         var palette=new System.Windows.Controls.Primitives.UniformGrid{Columns=12,Margin=new(-3,10,-3,0)};
@@ -72,7 +80,7 @@ internal sealed class LightingWindow : Window
         var actionPanel=Kit.Panel(null,null,null,footer,new Thickness(20,14,20,14));actionPanel.Margin=new(0,16,0,0);Grid.SetRow(actionPanel,1);root.Children.Add(actionPanel);
         read.Click+=async(_,_)=>await Run(false);apply.Click+=async(_,_)=>{if(!CommitHex()||modes.SelectedIndex<0)return;if(BatterySelected)await ApplyBattery();else await Run(true,ModeValues[modes.SelectedIndex]);};
         modes.SelectionChanged+=(_,_)=>{apply.IsEnabled=!busy&&modes.SelectedIndex>=0;batteryPanel.Visibility=BatterySelected?Visibility.Visible:Visibility.Collapsed;if(BatterySelected)EditLevel(editingLevel);};
-        SetColour(0xff0000);
+        SetColour(0xff0000);ShowLevel(0x50);
         if(BatteryLightingService.Load().Enabled)modes.SelectedIndex=BatteryMode;
     }
     internal FrameworkElement DetachBody(){var body=(FrameworkElement)Content;Content=null;body.HorizontalAlignment=HorizontalAlignment.Stretch;return body;}
@@ -105,7 +113,7 @@ internal sealed class LightingWindow : Window
     {
         var c=ToColour(colour);double r=c.R/255d,g=c.G/255d,b=c.B/255d,max=Math.Max(r,Math.Max(g,b)),min=Math.Min(r,Math.Min(g,b)),delta=max-min;
         if(delta>0)hue=((max==r?(g-b)/delta:max==g?(b-r)/delta+2:(r-g)/delta+4)*60+360)%360;
-        saturation=max==0?0:delta/max;value=max;Refresh();
+        if(delta>0||max>0)saturation=max==0?saturation:delta/max;value=max;Refresh();
     }
     void Refresh()
     {
@@ -116,7 +124,7 @@ internal sealed class LightingWindow : Window
     }
     void Lock(bool locked)
     {
-        busy=locked;read.IsEnabled=modes.IsEnabled=batteryPanel.IsEnabled=!locked;apply.IsEnabled=!locked&&modes.SelectedIndex>=0;
+        busy=locked;read.IsEnabled=modes.IsEnabled=batteryPanel.IsEnabled=brightness.IsEnabled=!locked;apply.IsEnabled=!locked&&modes.SelectedIndex>=0;
         foreach(var(button,_)in swatches)button.IsEnabled=!locked;
     }
     async Task Run(bool write,byte? mode=null)
@@ -127,12 +135,17 @@ internal sealed class LightingWindow : Window
         try
         {
             if(write)BatteryLightingService.Disable();
-            var record=await LightingBleClient.RunAsync(write?colour:null,mode);
-            if(!BatterySelected){SetColour((record[0]<<16)|(record[1]<<8)|record[2]);modes.SelectedIndex=Array.IndexOf(ModeValues,record[6]);}
+            var record=await LightingBleClient.RunAsync(write?colour:null,mode,write?level:null);
+            ShowLevel(record[5]);if(!BatterySelected){SetColour((record[0]<<16)|(record[1]<<8)|record[2]);modes.SelectedIndex=Array.IndexOf(ModeValues,record[6]);}
             status.Text=write||mode.HasValue?"Applied. Controller read-back matches.":"Stored colour read. The active effect may change its appearance.";
         }
         catch(Exception ex){status.Text=ex.Message;}
         finally{Lock(false);}
+    }
+    void ShowLevel(byte stored)
+    {
+        level=stored;syncingBrightness=true;try{brightness.Value=Math.Round(LightingRecord.BrightnessPercentFor(stored));}finally{syncingBrightness=false;}
+        brightnessValue.Text=$"{brightness.Value:0}%";
     }
     async Task ApplyBattery()
     {

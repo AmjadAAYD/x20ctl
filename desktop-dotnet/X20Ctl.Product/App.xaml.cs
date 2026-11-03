@@ -22,10 +22,10 @@ public partial class App : Application
                 catch(Exception failure){Directory.CreateDirectory(e.Args[1]);File.WriteAllText(Path.Combine(e.Args[1],"failure.txt"),failure.ToString());Shutdown(1);}
                 return;
             }
-            if(e.Args.Length==3 && e.Args[0]=="--review-feature-tabs")
+            if(e.Args.Length==3 && e.Args[0] is "--review-feature-tabs" or "--review-rgb-brightness")
             {
                 ShutdownMode=ShutdownMode.OnExplicitShutdown;
-                try{await Development.FeatureTabsReview.Run(e.Args[1],e.Args[2]);Shutdown(0);}
+                try{await Development.FeatureTabsReview.Run(e.Args[1],e.Args[2],e.Args[0]=="--review-rgb-brightness");Shutdown(0);}
                 catch(Exception failure){Directory.CreateDirectory(e.Args[1]);File.WriteAllText(Path.Combine(e.Args[1],"failure.txt"),failure.ToString());Shutdown(1);}
                 return;
             }
