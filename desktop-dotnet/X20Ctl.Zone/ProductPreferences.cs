@@ -15,20 +15,29 @@ public sealed class ProductPreferences(string path)
     public bool IntroOnLaunch {get;private set;}=true;
     /// <summary>The intro's sound: on unless the player mutes it, from the intro itself or from Tools.</summary>
     public bool IntroSound {get;private set;}=true;
+    /// <summary>Set by the copy that installs an update, just before it swaps the exe: the version the next start should show "What's new" for. Cleared once shown.</summary>
+    public string? WhatsNewPending {get;private set;}
+    /// <summary>"Never remind me again" on the What's new screen.</summary>
+    public bool WhatsNewOff {get;private set;}
     /// <summary>Tools → Themes: the look the app starts in; null is Default.</summary>
     public string? Theme {get;private set;}
     /// <summary>Tools: the language of the app text, applied at launch; null is English.</summary>
     public string? Language {get;private set;}
-    public void Load(){loaded=false;if(File.Exists(path)){byte[] bytes=File.ReadAllBytes(path);data=JsonSerializer.Deserialize<Dictionary<string,JsonElement>>(bytes)??throw new InvalidDataException("Empty preferences.");if(!data.TryGetValue("version",out var version)||version.GetInt32()!=1)throw new InvalidDataException("Unsupported preferences version.");IntroSeen=data.TryGetValue("introSeen",out var seen)&&seen.GetBoolean();AutoUpdate=!(data.TryGetValue("autoUpdate",out var auto)&&auto.ValueKind==JsonValueKind.False);PcMode=!(data.TryGetValue("pcMode",out var pc)&&pc.ValueKind==JsonValueKind.False);PcModeNoticeSeen=data.TryGetValue("pcModeNoticeSeen",out var seenNotice)&&seenNotice.ValueKind==JsonValueKind.True;IntroOnLaunch=!(data.TryGetValue("introOnLaunch",out var launch)&&launch.ValueKind==JsonValueKind.False);IntroSound=!(data.TryGetValue("introSound",out var sound)&&sound.ValueKind==JsonValueKind.False);Theme=data.TryGetValue("theme",out var theme)&&theme.ValueKind==JsonValueKind.String?theme.GetString():null;Language=data.TryGetValue("language",out var language)&&language.ValueKind==JsonValueKind.String?language.GetString():null;baseline=Convert.ToHexString(SHA256.HashData(bytes));}loaded=true;}
+    public void Load(){loaded=false;if(File.Exists(path)){byte[] bytes=File.ReadAllBytes(path);data=JsonSerializer.Deserialize<Dictionary<string,JsonElement>>(bytes)??throw new InvalidDataException("Empty preferences.");if(!data.TryGetValue("version",out var version)||version.GetInt32()!=1)throw new InvalidDataException("Unsupported preferences version.");IntroSeen=data.TryGetValue("introSeen",out var seen)&&seen.GetBoolean();AutoUpdate=!(data.TryGetValue("autoUpdate",out var auto)&&auto.ValueKind==JsonValueKind.False);PcMode=!(data.TryGetValue("pcMode",out var pc)&&pc.ValueKind==JsonValueKind.False);PcModeNoticeSeen=data.TryGetValue("pcModeNoticeSeen",out var seenNotice)&&seenNotice.ValueKind==JsonValueKind.True;IntroOnLaunch=!(data.TryGetValue("introOnLaunch",out var launch)&&launch.ValueKind==JsonValueKind.False);IntroSound=!(data.TryGetValue("introSound",out var sound)&&sound.ValueKind==JsonValueKind.False);Theme=data.TryGetValue("theme",out var theme)&&theme.ValueKind==JsonValueKind.String?theme.GetString():null;Language=data.TryGetValue("language",out var language)&&language.ValueKind==JsonValueKind.String?language.GetString():null;WhatsNewPending=data.TryGetValue("whatsNewPending",out var pending)&&pending.ValueKind==JsonValueKind.String?pending.GetString():null;WhatsNewOff=data.TryGetValue("whatsNewOff",out var off)&&off.ValueKind==JsonValueKind.True;baseline=Convert.ToHexString(SHA256.HashData(bytes));}loaded=true;}
     public void MarkIntroSeen(){if(!loaded)throw new InvalidOperationException("Preferences were not validated.");if(IntroSeen)return;Write("introSeen",true);IntroSeen=true;}
     public void SetAutoUpdate(bool on){if(!loaded)throw new InvalidOperationException("Preferences were not validated.");if(AutoUpdate==on)return;Write("autoUpdate",on);AutoUpdate=on;}
     public void SetPcMode(bool on){if(!loaded)throw new InvalidOperationException("Preferences were not validated.");if(PcMode==on)return;Write("pcMode",on);PcMode=on;}
     public void MarkPcModeNoticeSeen(){if(!loaded)throw new InvalidOperationException("Preferences were not validated.");if(PcModeNoticeSeen)return;Write("pcModeNoticeSeen",true);PcModeNoticeSeen=true;}
     public void SetIntroOnLaunch(bool on){if(!loaded)throw new InvalidOperationException("Preferences were not validated.");if(IntroOnLaunch==on)return;Write("introOnLaunch",on);IntroOnLaunch=on;}
     public void SetIntroSound(bool on){if(!loaded)throw new InvalidOperationException("Preferences were not validated.");if(IntroSound==on)return;Write("introSound",on);IntroSound=on;}
+    public void SetWhatsNewPending(string? version){if(!loaded)throw new InvalidOperationException("Preferences were not validated.");if(WhatsNewPending==version)return;Write("whatsNewPending",version);WhatsNewPending=version;}
+    public void SetWhatsNewOff(){if(!loaded)throw new InvalidOperationException("Preferences were not validated.");if(WhatsNewOff)return;Write("whatsNewOff",true);WhatsNewOff=true;}
+    /// <summary>Whether this start is the first one after a self-update to <paramref name="runningVersion"/>, and the screen has not been turned off for good.</summary>
+    public bool ShouldShowWhatsNew(string runningVersion)=>!WhatsNewOff&&WhatsNewPending!=null&&ReleaseVersions.Compare(WhatsNewPending,runningVersion)==0;
+    private void Write(string key,bool value)=>Write(key,(object?)value);
     public void SetLanguage(string code){if(!loaded)throw new InvalidOperationException("Preferences were not validated.");if(Language==code)return;Write("language",code);Language=code;}
     public void SetTheme(string id){if(!loaded)throw new InvalidOperationException("Preferences were not validated.");if(Theme==id)return;Write("theme",id);Theme=id;}
-    private void Write(string key,object value)
+    private void Write(string key,object? value)
     {
         string absolute=Path.GetFullPath(path),directory=Path.GetDirectoryName(absolute)!;Directory.CreateDirectory(directory);
         using var transaction=new FileStream(absolute+".lock",FileMode.OpenOrCreate,FileAccess.ReadWrite,FileShare.None);byte[]? previous=File.Exists(absolute)?File.ReadAllBytes(absolute):null;

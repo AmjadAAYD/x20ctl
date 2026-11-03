@@ -269,7 +269,7 @@ public sealed partial class ProductHost : Grid
     }
     // every launch opens with the intro, like Steam Big Picture (owner direction 10 Oct 2026), unless the player turned it
     // off in Tools (owner request 12 Oct 2026); Replay Intro still plays it
-    public void Startup(){if(preferencesHealthy&&!preferences.IntroOnLaunch){IntroView.DiscardPreload();return;}StartIntro();}
+    public void Startup(){if(preferencesHealthy&&!preferences.IntroOnLaunch){IntroView.DiscardPreload();ShowWhatsNewIfDue();return;}StartIntro();}
     internal static string PreferencesPath=>Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),"x20ctl","native","preferences.v1.json");
     /// <summary>Whether this launch opens with the intro film, read before the window exists so the film can start opening early.
     /// The same rule as <see cref="Startup"/>: on unless the player turned it off, and never with reduced motion.</summary>
@@ -444,7 +444,7 @@ public sealed partial class ProductHost : Grid
     }
     private void CompleteIntro()
     {
-        if(Intro!=null){Children.Remove(Intro);Intro=null;}Zone.Opacity=1;Zone.IsEnabled=true;if(updateText!=null)ShowUpdateNotice();
+        if(Intro!=null){Children.Remove(Intro);Intro=null;}Zone.Opacity=1;Zone.IsEnabled=true;if(updateText!=null)ShowUpdateNotice();ShowWhatsNewIfDue();
         if(preferencesHealthy)try{preferences.MarkIntroSeen();}catch(Exception error) when(error is IOException or InvalidOperationException){Zone.FeedbackText.Text="Startup preference could not be saved; original file preserved. "+error.Message;}
     }
     private void OpenSupport(){try{support(ProductLinks.Support);}catch(Exception error){Zone.FeedbackText.Text="Could not open your browser. Support X20CTL: "+ProductLinks.Support+" · "+error.Message;}}
@@ -481,14 +481,13 @@ public sealed partial class ProductHost : Grid
     {
         await Task.Delay(4000);
         try{if(install)await Updater.AutoRun();else Updater.Ready=await Updater.Latest();}catch(Exception){return;}
+        if(Updater.Installed is {} installedVersion)RememberWhatsNew(installedVersion);
         if(Updater.Ready is not {} release)return;
         updateText=Updater.Installed is {} installed?$"{X20Ctl.Zone.ReleaseVersions.Display(installed)} is installed. It starts the next time you open X20CTL.":$"{release.Title} is out. You have {Updater.Shown}.";
         if(Intro==null)ShowUpdateNotice();
     }
-    /// <summary>Non-modal header notice, after the intro and only for a newer release. "Update to version V0.0xx": one click downloads, checks and
-    /// installs it, then restarts into it. Click again while downloading to cancel. If it can't (a folder build, a failed or mismatched download)
-    /// the current install is untouched and the release page opens.</summary>
-    internal static Button CreateUpdateNoticeButton(TextBlock label, string? tooltip) => new() { Style=DS.Style("Zone.Utility"),MinHeight=38,Padding=new(18,0,18,0),Content=label,ToolTip=tooltip,MaxWidth=460 };
+    /// <summary>Non-modal header notice, after the intro and only for a newer release: "Update to version V0.0xx". A click asks first (in the app), then
+    /// downloads, checks, installs and restarts, all inside X20CTL. Nothing here opens a web page.</summary>
     private void ShowUpdateNotice()
     {
         if(updateShown||updateText==null||Updater.Ready is not {} release)return;updateShown=true;
@@ -498,24 +497,63 @@ public sealed partial class ProductHost : Grid
         label.Foreground=DS.Brush("Zone.TextSecondary");
         var go=CreateUpdateNoticeButton(label,updateText);
         Zone.UpdateNotice.Content=go;
-        void OpenPage(){if(!ReviewSandbox.Active)try{System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(release.Page){UseShellExecute=true});}catch(Exception error) when(error is System.ComponentModel.Win32Exception or InvalidOperationException){}}
-        System.Threading.CancellationTokenSource? running=null;bool failed=false;
-        go.Click+=async(_,_)=>
+        go.Click+=(_,_)=>{if(Updater.Installed!=null){if(Updater.Restart())Application.Current.Shutdown();return;}OpenUpdateFlow(release);};
+    }
+    internal static Button CreateUpdateNoticeButton(TextBlock label, string? tooltip) => new() { Style=DS.Style("Zone.Utility"),MinHeight=38,Padding=new(18,0,18,0),Content=label,ToolTip=tooltip,MaxWidth=460 };
+    private UpdateFlowView? updateLayer;
+    /// <summary>Confirm, download with progress and Cancel, restart; or the plain reason it failed. The current install is untouched on any failure.</summary>
+    private void OpenUpdateFlow(Updater.Release release)
+    {
+        if(updateLayer!=null)return;
+        var flow=new X20Ctl.Zone.UpdateFlow(X20Ctl.Zone.ReleaseVersions.Display(release.Version),Updater.CanInstall);flow.Open();
+        if(flow.Step==X20Ctl.Zone.UpdateStep.Hidden)return;
+        var view=new UpdateFlowView(flow);updateLayer=view;
+        System.Threading.CancellationTokenSource? run=null;
+        void Show(){view.Render();view.FocusFirst();}
+        void Dismiss(){if(updateLayer!=view)return;updateLayer=null;Zone.IsEnabled=Selector==null&&Settings==null&&Intro==null;Fx.Leave(view,()=>Children.Remove(view),1.03,180);}
+        async Task Start()
         {
-            if(running!=null){running.Cancel();return;}
-            if(Updater.Installed!=null){if(Updater.Restart())Application.Current.Shutdown();return;}
-            if(failed||!Updater.CanInstall){OpenPage();return;}
-            running=new();label.Text=X20Ctl.Zone.UpdateKit.Label(name,true,0);go.ToolTip="Click to cancel";
-            var progress=new Progress<double>(p=>label.Text=X20Ctl.Zone.UpdateKit.Label(name,true,p));
+            run=new();var token=run.Token;Show();
+            var progress=new Progress<double>(p=>{flow.Report(p);view.Render();});
             (bool Done,string Message) result;
-            try{result=await Updater.Install(release,progress,running.Token);}
-            catch(Exception error) when(error is InvalidOperationException or NotSupportedException){result=(false,error.Message);}
-            bool cancelled=running.IsCancellationRequested;running.Dispose();running=null;
-            if(result.Done){label.Text="Restarting…";go.IsEnabled=false;if(Updater.Restart()){Application.Current.Shutdown();return;}go.IsEnabled=true;label.Text="Update installed · restart to finish";go.ToolTip="It starts the next time you open X20CTL.";return;}
-            go.ToolTip=result.Message;
-            if(cancelled){label.Text=X20Ctl.Zone.UpdateKit.Label(name,false);return;}
-            failed=true;label.Text=X20Ctl.Zone.UpdateKit.Label(name,false,0,true);OpenPage();
-        };
+            try{result=await Updater.Install(release,progress,token);}
+            catch(Exception error) when(error is InvalidOperationException or NotSupportedException or IOException or UnauthorizedAccessException or System.Net.Http.HttpRequestException){result=(false,error.Message);}
+            run?.Dispose();run=null;
+            if(token.IsCancellationRequested||flow.Step!=X20Ctl.Zone.UpdateStep.Downloading)return;
+            if(!result.Done){flow.Fail(result.Message);Show();return;}
+            flow.Installed();Show();RememberWhatsNew(release.Version);
+            await Task.Delay(800);
+            if(Updater.Restart())Application.Current.Shutdown();else{flow.RestartFailed();Show();}
+        }
+        view.Yes+=()=>{if(flow.Yes())_=Start();};
+        view.No+=()=>{flow.No();Dismiss();};
+        view.Cancel+=()=>{run?.Cancel();flow.Cancel();Dismiss();};
+        view.Retry+=()=>{if(flow.Retry())_=Start();};
+        view.Close+=()=>{flow.Close();Dismiss();};
+        Zone.IsEnabled=false;Panel.SetZIndex(view,37);Children.Add(view);Fx.Appear(view,.96,220);Show();
+    }
+    /// <summary>The copy that installs an update leaves a note for the next start: show What's new for this version, once.</summary>
+    private void RememberWhatsNew(string version)
+    {
+        if(!preferencesHealthy||ReviewSandbox.Active)return;
+        try{preferences.SetWhatsNewPending(version);}catch(Exception error) when(error is IOException or InvalidOperationException){}
+    }
+    private bool whatsNewChecked;
+    /// <summary>First start after a self-update only: the new version's changelog entry (from the changelog this exe carries, so it works offline), OK or Never remind me again.</summary>
+    private void ShowWhatsNewIfDue()
+    {
+        if(whatsNewChecked||!preferencesHealthy||ReviewSandbox.Active||updateLayer!=null)return;whatsNewChecked=true;
+        if(!preferences.ShouldShowWhatsNew(Updater.Current))return;
+        string name=X20Ctl.Zone.ReleaseVersions.Display(Updater.Current);
+        string? entry=null;
+        try{using var stream=typeof(ProductHost).Assembly.GetManifestResourceStream("CHANGELOG.md");if(stream!=null){using var reader=new StreamReader(stream);entry=X20Ctl.Zone.Changelog.Entry(reader.ReadToEnd(),Updater.Current);}}
+        catch(Exception error) when(error is IOException or InvalidOperationException){}
+        try{preferences.SetWhatsNewPending(null);}catch(Exception error) when(error is IOException or InvalidOperationException){}
+        var view=UpdateFlowView.WhatsNew(name,entry);updateLayer=view;
+        void Dismiss(){if(updateLayer!=view)return;updateLayer=null;Zone.IsEnabled=Selector==null&&Settings==null&&Intro==null;Fx.Leave(view,()=>Children.Remove(view),1.03,180);}
+        view.Ok+=Dismiss;
+        view.NeverRemind+=()=>{try{preferences.SetWhatsNewOff();}catch(Exception error) when(error is IOException or InvalidOperationException){}Dismiss();};
+        Zone.IsEnabled=false;Panel.SetZIndex(view,37);Children.Add(view);Fx.Appear(view,.96,220);view.FocusFirst();
     }
     public void CloseSettings(){if(Settings!=null){var leaving=Settings;Settings=null;Fx.Leave(leaving,()=>Children.Remove(leaving),1.03,220);}if(Studio!=null){Studio.IsEnabled=true;Studio.Visibility=Visibility.Visible;Zone.Visibility=Visibility.Collapsed;Zone.IsEnabled=false;}else{Zone.IsEnabled=true;Zone.Visibility=Visibility.Visible;}_=UpdateNativeContext();}
     public void ResetTransientInput(){nativeArmed=false;Zone.SuspendNavigation();Studio?.Tester?.ClearKeyboardKeys();Studio?.ReleaseTransientInput();}
@@ -528,6 +566,7 @@ public sealed partial class ProductHost : Grid
         if(ActivePulseNotice!=null){if(HandlePulseNoticeKey(e))return;}
         if(ActiveRebelNotice is {} notice){if(key is Key.Escape or Key.B)notice.Resolve(false);else if(key is Key.A or Key.Enter && !e.IsRepeat && Keyboard.FocusedElement is Button action && notice.IsKeyboardFocusWithin)action.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));else if(key is Key.Left or Key.Right or Key.Up or Key.Down && Keyboard.FocusedElement is UIElement focused)focused.MoveFocus(new(key is Key.Left ? FocusNavigationDirection.Left : key is Key.Right ? FocusNavigationDirection.Right : key is Key.Up ? FocusNavigationDirection.Up : FocusNavigationDirection.Down));if(key != Key.Tab)e.Handled=true;return;}
         // the identity scan popup: Esc / B backs out, A / Enter presses the focused button, nothing behind it moves
+        if(updateLayer!=null){updateLayer.HandleKey(key);e.Handled=true;return;}
         if(verifyLayer!=null)
         {
             var verifyView = verifyLayer.Children.OfType<ControllerVerifyView>().FirstOrDefault();

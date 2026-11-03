@@ -59,7 +59,7 @@ public static class Updater
     /// <summary>Downloads, verifies (size and checksum) and swaps in the new exe. Returns false (with the reason) when it can't, and the running exe is then untouched.</summary>
     public static async Task<(bool Done, string Message)> Install(Release release, IProgress<double>? progress = null, CancellationToken cancel = default)
     {
-        if (!CanInstall) return (false, "This copy is a folder build, so it can't update itself. Download the new version from GitHub.");
+        if (!CanInstall) return (false, "This copy runs from a folder, so it can't update itself.");
         string exe = Environment.ProcessPath!, folder = Path.GetDirectoryName(exe)!, download = exe + ".download", old = exe + ".old";
         var package = new X20Ctl.Zone.UpdatePackage(new(release.ExeName, release.ExeUrl, release.ExeSize), new("SHA256SUMS.txt", release.SumsUrl, 0));
         var fetched = await X20Ctl.Zone.UpdateKit.Fetch(package, download, progress, cancel);
@@ -73,7 +73,7 @@ public static class Updater
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {
             try { if (File.Exists(download)) File.Delete(download); } catch (IOException) { }
-            return (false, $"Couldn't replace the exe in {folder} ({error.Message}). Download the new version from GitHub instead.");
+            return (false, $"Couldn't replace the exe in {folder} ({error.Message}).");
         }
         Installed = release.Version;
         return (true, $"{release.Title} is installed. It starts the next time you open X20CTL.");
