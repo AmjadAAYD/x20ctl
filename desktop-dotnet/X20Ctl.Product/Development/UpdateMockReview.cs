@@ -131,6 +131,49 @@ internal static class UpdateMockReview
                 Check("...and its content is still the old bytes", File.ReadAllBytes(target).SequenceEqual(oldBytes));
             }
 
+            // 6c. the swap fails half way (old exe already moved aside): rolled back, install still has its exe
+            {
+                string target = Target("h.exe"); Updater.TestHandler = new FakeGitHub(newBytes, $"{good}  {ExeName}\n");
+                int calls = 0; Updater.TestMove = (from, to) => { calls++; if (calls == 2) throw new IOException("simulated disk failure"); File.Move(from, to); };
+                var (done, message) = await Updater.Install(Release(), null, default); Updater.TestMove = null;
+                Check("a swap that fails after the old exe was moved aside fails with a reason", !done && message.Contains("simulated disk failure"));
+                Check("...the old exe was rolled back into place, content unchanged", File.ReadAllBytes(target).SequenceEqual(oldBytes));
+                Check("...no .old and no .download left", !File.Exists(target + ".old") && !File.Exists(target + ".download"));
+            }
+
+            // 6d. replacing an exe while it is RUNNING (a real process, hidden)
+            {
+                string target = Path.Combine(work, "running.exe"); File.Copy(Path.Combine(Environment.SystemDirectory, "ping.exe"), target);
+                byte[] runningBytes = File.ReadAllBytes(target), replacement = File.ReadAllBytes(Path.Combine(Environment.SystemDirectory, "whoami.exe"));
+                Updater.TestTarget = target; Updater.TestHandler = new FakeGitHub(replacement, $"{Hex(replacement)}  {ExeName}\n");
+                using var running = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(target, "-n 60 127.0.0.1") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true })!;
+                await Task.Delay(600);
+                Check("the exe is really running before the update", !running.HasExited);
+                var (done, message) = await Updater.Install(Release(size: replacement.Length), null, default);
+                Check("a running exe is replaced: new bytes under the original name", done && File.ReadAllBytes(target).SequenceEqual(replacement));
+                Check("...the running copy was kept as .old, byte for byte", File.ReadAllBytes(target + ".old").SequenceEqual(runningBytes));
+                Check("...and the running process carried on undisturbed", !running.HasExited);
+                running.Kill(); running.WaitForExit();
+                bool cleaned = false; try { File.Delete(target + ".old"); cleaned = !File.Exists(target + ".old"); } catch (IOException) { }
+                Check("...once it exits the .old can be deleted (the clean-up the next launch does)", cleaned);
+            }
+
+            // 6e. the REAL X20CTL exe: swap it in a copy of this build and restart it through Restart()
+            {
+                string app = Path.Combine(work, "app"); CopyFolder(AppContext.BaseDirectory, app);
+                string target = Path.Combine(app, "X20Ctl.exe"); byte[] before = File.ReadAllBytes(target);
+                byte[] next = [.. before, .. Encoding.ASCII.GetBytes("--NEW-VERSION-OVERLAY--")];
+                Updater.TestTarget = target; Updater.TestHandler = new FakeGitHub(next, $"{Hex(next)}  {ExeName}\n");
+                var (done, message) = await Updater.Install(Release(size: next.Length), null, default);
+                Check("the real exe was swapped: new bytes in place, old kept as .old", done && Hex(File.ReadAllBytes(target)) == Hex(next) && Hex(File.ReadAllBytes(target + ".old")) == Hex(before));
+                Updater.TestRestartArgs = "--warm-up";   // the app's own windowless start-and-exit mode, so no window opens
+                bool started = Updater.Restart(); var launched = Updater.LastLaunched;
+                bool exited = launched != null && launched.WaitForExit(40000);
+                Check("Restart() started the swapped-in exe", started && launched != null);
+                Check("...it ran and exited cleanly (exit code 0)", exited && launched!.ExitCode == 0);
+                Updater.TestRestartArgs = null;
+            }
+
             // 7. keys on the real view: A answers, B/Esc are No/Cancel/Close, nothing else moves
             {
                 var flow = new UpdateFlow("V0.099", true); flow.Open();
@@ -181,7 +224,7 @@ internal static class UpdateMockReview
         }
         finally
         {
-            Updater.TestTarget = null; Updater.TestHandler = null;
+            Updater.TestTarget = null; Updater.TestHandler = null; Updater.TestMove = null; Updater.TestRestartArgs = null;
             try { Directory.Delete(work, true); } catch (IOException) { }
         }
         log.Add("Info: this review process is " + (new System.Security.Principal.WindowsPrincipal(System.Security.Principal.WindowsIdentity.GetCurrent()).IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator) ? "elevated" : "not elevated") + " (the release exe is built to require administrator, so it is always elevated).");
@@ -192,6 +235,12 @@ internal static class UpdateMockReview
     }
 
     sealed class SyncProgress(Action<double> sink) : IProgress<double> { public void Report(double v) => sink(v); }
+    static void CopyFolder(string from, string to)
+    {
+        Directory.CreateDirectory(to);
+        foreach (var f in Directory.GetFiles(from)) File.Copy(f, Path.Combine(to, Path.GetFileName(f)), true);
+        foreach (var d in Directory.GetDirectories(from)) CopyFolder(d, Path.Combine(to, Path.GetFileName(d)));
+    }
     static string Hex(byte[] b) => Convert.ToHexString(SHA256.HashData(b)).ToLowerInvariant();
     static readonly List<Grid> hosts = [];
     static void Host(UpdateFlowView view) { var g = new Grid { Width = 1100, Height = 640, Background = DS.Brush("Ink") }; g.Children.Add(view); g.Measure(new Size(1100, 640)); g.Arrange(new Rect(0, 0, 1100, 640)); g.UpdateLayout(); hosts.Add(g); }
