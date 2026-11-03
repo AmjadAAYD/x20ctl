@@ -39,3 +39,18 @@ After an independently authorized push, dispatch Release on that branch with a v
 5. Test system installation, absent runtimes, spaces in home path, host failure and restart failure.
 
 No real Flatpak bundle exists as an outcome of the Windows-only checks in this task.
+
+## Existing sandbox grants (unchanged by the input batch)
+
+| Grant | Purpose and limit |
+|---|---|
+| --share=ipc | Existing desktop/X11 IPC compatibility |
+| --socket=wayland | Wayland window presentation; not global application-focus access |
+| --socket=fallback-x11 | X11 presentation where Wayland is unavailable |
+| --device=all | evdev/uinput/controller node exposure; host ACLs still apply; broad device access |
+| --filesystem=xdg-config/x20ctl:create | Existing configuration storage allowance; not arbitrary host game-library access |
+| --talk-name=org.freedesktop.portal.Desktop | Existing desktop portal integration |
+| --share=network | GitHub update requests/downloads and explicitly submitted feedback/reports |
+| --talk-name=org.freedesktop.Flatpak | Host install/restart commands for the existing one-click updater; broad host execution |
+
+Amjad retained these exact existing grants for this batch. No new grants or audio socket are added. Linux intentionally ships no audio and the intro stays silent. Real sandbox/device/update behavior is still unverified.

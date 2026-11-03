@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Linux (local, not yet runtime-verified)
+
+- Explicit per-player input sources, neutral/release capture barriers, foreground/context ownership and reader restart/cleanup. Physical Linux/controller behavior remains unverified.
+- Linux intentionally has no sound effects or packaged audio; the intro is silent.
+
 ### Added
 
 - **Interface sounds.** Switching tabs, clicking, choosing a controller, going back and typing each make a quiet, soft sound, and each kind has several variants so repeating an action does not repeat the sound. Hover is silent. The sounds follow the Sound switch and stay off in the background. Every theme uses the same sounds.

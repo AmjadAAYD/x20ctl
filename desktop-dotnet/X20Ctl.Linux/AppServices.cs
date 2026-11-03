@@ -12,7 +12,6 @@ internal sealed class AppSettings
     static string PathOf => Path.Combine(Path.GetDirectoryName(X20Ctl.Zone.PcMode.PcModeStore.DefaultPath)!, "app-settings.json");
     public bool AutoUpdate { get; set; } = true;
     public bool IntroOnLaunch { get; set; } = true;
-    public bool IntroSound { get; set; } = true;
 
     static AppSettings Load()
     {

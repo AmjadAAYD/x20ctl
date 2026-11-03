@@ -5,6 +5,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Controls.Shapes;
 using X20Ctl.Zone;
+using X20Ctl.Zone.Input;
 namespace X20Ctl.Linux;
 
 /// <summary>Pick a control on the pad, then pick what it sends. The showcase below holds every output a control can send.</summary>
@@ -16,12 +17,36 @@ internal sealed class ButtonsPage : UserControl
         ["Face"] = ["A", "B", "X", "Y"], ["D-pad"] = ["DPAD_UP", "DPAD_DOWN", "DPAD_LEFT", "DPAD_RIGHT"], ["Shoulders"] = ["LB", "RB", "LT", "RT"], ["Sticks"] = ["L3", "R3"], ["System"] = ["SELECT", "START"]
     };
 
+    public event Action? OwnershipChanged;
+    readonly ButtonCapture capture = new();
+    string captureNote = "";
+    public bool OwnsInput => capture.Active || tester != null;
+    public void CancelInput() { capture.Cancel(); StopTest(); captureNote = ""; OwnershipChanged?.Invoke(); }
+    public void CaptureFrame(PadFrame frame)
+    {
+        if (!capture.Active) return;
+        if (frame.Down.SetEquals(new[] { "START", "SELECT" })) { CancelInput(); Build(); return; }
+        if (Math.Abs(frame.LX) > .2 || Math.Abs(frame.LY) > .2 || Math.Abs(frame.RX) > .2 || Math.Abs(frame.RY) > .2) { captureNote = "Release both sticks."; return; }
+        if (capture.Source == null && frame.Down.Count == 1 && !ButtonDraft.Sources.Contains(frame.Down.Single())) return;
+        if (frame.Down.Any(k => !ButtonDraft.Targets.Contains(k) && !ButtonDraft.Sources.Contains(k))) { captureNote = "Input unavailable for remapping."; return; }
+        var before = (capture.Active, capture.WaitingForRelease, capture.Source, capture.Target);
+        capture.Feed(frame.Down);
+        if (before == (capture.Active, capture.WaitingForRelease, capture.Source, capture.Target)) return;
+        if (capture.Source != null) selected = capture.Source;
+        if (capture.Target != null && selected != null) { state.Buttons.Set(selected, capture.Target); captureNote = "Draft mapping updated."; }
+        else captureNote = capture.WaitingForRelease ? "Release all controls." : capture.Source == null ? "Press one source button." : "Press one target button.";
+        OwnershipChanged?.Invoke(); Build();
+    }
+    void BeginCapture(bool target) {
+        var source = InputSources.Source(state.Slot);
+        if (source == null || PadLayoutStore.Shared.Resolve(source).State == "needs-check") { captureNote = "Select and check an input source in PC mode first."; Build(); return; }
+        capture.Begin(target ? selected : null); captureNote = "Release all controls. Esc, View + Menu or Cancel stops listening."; OwnershipChanged?.Invoke(); Build(); }
     readonly StudioState state; string? selected; bool rear, listing; string group = "All";
     GamepadReader? tester; readonly TextBlock testLine = T.Label("", 14, T.AccentHi);
     public ButtonsPage(StudioState state)
     {
         this.state = state; Build();
-        DetachedFromVisualTree += (_, _) => StopTest();
+        DetachedFromVisualTree += (_, _) => CancelInput();
     }
 
     void StopTest() { tester?.Dispose(); tester = null; }
@@ -30,8 +55,8 @@ internal sealed class ButtonsPage : UserControl
     void ToggleTest()
     {
         if (tester != null) { StopTest(); testLine.Text = ""; Build(); return; }
-        var r = new GamepadReader(); r.Start();
-        if (!r.Connected) { r.Dispose(); testLine.Text = "No controller to test with."; Build(); return; }
+        var r = new GamepadReader(); r.Start(state.Slot);
+        if (InputSources.Source(state.Slot) == null || !InputSources.UiActive) { r.Dispose(); testLine.Text = "No controller to test with."; Build(); return; }
         tester = r; testLine.Text = "Press a button on the controller.";
         r.Frame += f =>
         {
@@ -81,7 +106,7 @@ internal sealed class ButtonsPage : UserControl
         };
         if (name is "LB" or "RB" or "LT" or "RT") ring.Width = ring.Height = on ? 34 : 30;
         string key = name;
-        ring.PointerPressed += (_, _) => { selected = key; listing = false; Build(); };
+        ring.PointerPressed += (_, _) => { CancelInput(); selected = key; listing = false; Build(); };
         ring.PointerEntered += (_, _) => { if (selected != key && !changed) ring.BorderBrush = T.B("#7DB6FF"); }; ring.PointerExited += (_, _) => { if (selected != key && !changed) ring.BorderBrush = T.B("#14FFFFFF"); };
         if (changed) ring.Child = Parts.Center(T.Label(Names.Of(state.Buttons.Target(name)), 12, T.Text, FontWeight.SemiBold));
         ControllerArt.SetAnchor(ring, new Point(p.X, p.Y));
@@ -115,13 +140,15 @@ internal sealed class ButtonsPage : UserControl
             col.Children.Add(T.Label("Assign " + Names.Of(from) + " to:", 14, T.Soft));
             col.Children.Add(Segmented.Make(Groups, group, v => { group = v; Build(); }, 13));
             var wrap = new WrapPanel();
-            foreach (string t in Targets()) { string target = t; var chip = new Pill(Names.Of(target), to == target ? Pill.Kinds.Primary : Pill.Kinds.Ghost, () => { state.Buttons.Set(from, target); Build(); }) { Padding = new Thickness(16, 8), Margin = new Thickness(0, 0, 8, 8) }; wrap.Children.Add(chip); }
+            foreach (string t in Targets()) { string target = t; var chip = new Pill(Names.Of(target), to == target ? Pill.Kinds.Primary : Pill.Kinds.Ghost, () => { state.Buttons.Set(from, target); CancelInput(); Build(); }) { Padding = new Thickness(16, 8), Margin = new Thickness(0, 0, 8, 8) }; wrap.Children.Add(chip); }
             col.Children.Add(wrap);
         }
+        col.Children.Add(T.Wrap(8, new Pill("Listen for source", Pill.Kinds.Ghost, () => BeginCapture(false)), new Pill("Listen for target", Pill.Kinds.Ghost, () => BeginCapture(true)), new Pill("Cancel listening", Pill.Kinds.Ghost, () => { capture.Cancel(); captureNote = ""; OwnershipChanged?.Invoke(); Build(); }) { IsVisible = capture.Active }));
+        if (captureNote.Length > 0) col.Children.Add(T.Label(captureNote, 14, T.Soft));
         var actions = new Grid { ColumnDefinitions = new("*,*,Auto"), Margin = new Thickness(0, 6, 0, 0) };
         var test = new Pill(tester == null ? "▷  Test mapping" : "■  Stop test", tester == null ? Pill.Kinds.Ghost : Pill.Kinds.Light, ToggleTest) { Padding = new Thickness(0, 12), Margin = new Thickness(0, 0, 10, 0) };
         var all = new Pill("▦  All assignments", Pill.Kinds.Ghost, () => { listing = true; Build(); }) { Padding = new Thickness(0, 12), Margin = new Thickness(0, 0, 10, 0) }; Grid.SetColumn(all, 1);
-        var more = new Pill("···", Pill.Kinds.Ghost, () => { state.Buttons.ResetAll(); selected = null; Build(); }) { Padding = new Thickness(18, 12) }; Grid.SetColumn(more, 2);
+        var more = new Pill("···", Pill.Kinds.Ghost, () => { CancelInput(); state.Buttons.ResetAll(); selected = null; Build(); }) { Padding = new Thickness(18, 12) }; Grid.SetColumn(more, 2);
         actions.Children.Add(test); actions.Children.Add(all); actions.Children.Add(more);
         if (testLine.Text.Length > 0) { (testLine.Parent as Panel)?.Children.Remove(testLine); col.Children.Add(testLine); }
         col.Children.Add(actions);
@@ -172,7 +199,7 @@ internal sealed class ButtonsPage : UserControl
         {
             bool current = to == key; var c = make(current);
             c.Cursor = new Cursor(StandardCursorType.Hand);
-            c.PointerPressed += (_, _) => { if (selected == null) return; if (key == "DEFAULT") state.Buttons.Reset(selected); else state.Buttons.Set(selected, key); Build(); };
+            c.PointerPressed += (_, _) => { if (selected == null) return; if (key == "DEFAULT") state.Buttons.Reset(selected); else state.Buttons.Set(selected, key); CancelInput(); Build(); };
             c.PointerEntered += (_, _) => c.Opacity = .85; c.PointerExited += (_, _) => c.Opacity = 1;
             return c;
         }

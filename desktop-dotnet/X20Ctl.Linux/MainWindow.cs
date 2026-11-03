@@ -7,6 +7,8 @@ using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
 using X20Ctl.Zone;
+using X20Ctl.Zone.Input;
+using Avalonia.VisualTree;
 namespace X20Ctl.Linux;
 
 /// <summary>Four player slots and which controller each one holds. Everything else (Studio, chooser) hangs off this.</summary>
@@ -14,7 +16,8 @@ internal sealed class Session
 {
     public ControllerCatalog Catalog { get; }
     public ControllerModel?[] Players { get; } = new ControllerModel?[4];
-    public int Selected { get; set; }
+    int selected; public event Action? SelectionChanged;
+    public int Selected { get => selected; set { if (selected == value) return; selected = value; SelectionChanged?.Invoke(); } }
     public StudioState?[] Studios { get; } = new StudioState?[4];
     public Session()
     {
@@ -43,6 +46,69 @@ public sealed class MainWindow : Window, IIntroHandoff
     Control? brandTile, brandMark, brandWord, brandRule, brandLabel, headerActions;
     string screen = "zone";
     int choosing;
+    readonly GamepadReader input = new();
+    readonly NavigationGestures gestures = new();
+    readonly StickNavigation stickNavigation = new();
+    Action? sourceChanged;
+    readonly DispatcherTimer inputRepeat = new() { Interval = TimeSpan.FromMilliseconds(60) };
+    PadFrame navigationFrame = PadFrame.Empty;
+    string inputContext = "";
+    bool modalInput;
+    void ResetControllerInput()
+    { gestures.Reset(); stickNavigation.Reset(); studio?.ResetInput(); inputContext = ""; }
+    bool EditingField()
+    {
+        var focused = FocusManager?.GetFocusedElement() as Control;
+        return focused is TextBox or ComboBox || focused?.GetVisualAncestors().Any(c => c is TextBox or ComboBox) == true;
+    }
+    void RouteController(PadFrame frame)
+    {
+        navigationFrame = frame;
+        bool active = IsActive && IsVisible && WindowState != WindowState.Minimized;
+        string context = screen + "/" + studio?.CurrentPage + "/" + studio?.OwnsController + "/" + modalInput + "/" + EditingField() + "/" + (FocusManager?.GetFocusedElement() as ComboBox)?.IsDropDownOpen + "/" + MouseHub.Shared.Enabled;
+        if (context != inputContext) { gestures.Reset(); stickNavigation.Reset(); inputContext = context; }
+        if (!active || !input.Connected || modalInput || MouseHub.Shared.Enabled) { gestures.Reset(); return; }
+        if (screen == "studio" && studio?.OwnsController == true) { studio.ControllerFrame(frame); gestures.Reset(); return; }
+        if (FocusManager?.GetFocusedElement() is ComboBox { IsDropDownOpen: true } combo)
+        {
+            foreach (var key in gestures.Read(frame.Down, Environment.TickCount64))
+            {
+                if (key is "A" or "B") combo.IsDropDownOpen = false;
+                else if (key is "DPAD_UP" or "DPAD_DOWN") combo.SelectedIndex = Math.Clamp(combo.SelectedIndex + (key == "DPAD_UP" ? -1 : 1), 0, Math.Max(0, combo.ItemCount - 1));
+            }
+            return;
+        }
+        bool text = EditingField() && FocusManager?.GetFocusedElement() is not ComboBox;
+        if (!InputOwnership.CanNavigate(active, text, false, MouseHub.Shared.Enabled)) { gestures.Reset(); return; }
+        var down = frame.Down.ToHashSet();
+        // Stick directions join the D-pad owner. Neutral is required on every context transition.
+        if (stickNavigation.Read(frame.LX, frame.LY) is { } direction) down.Add(direction);
+        foreach (var button in gestures.Read(down, Environment.TickCount64)) DispatchController(button);
+    }
+    internal void DispatchController(string button)
+    {
+        if (button == "SELECT") { ShowZone(); return; }
+        if (button == "START") { ShowTools(); return; }
+        if (button == "HOME") { if (screen == "studio") studio?.ShowTab("Dashboard"); return; }
+        if (button is "LB" or "RB" && screen == "studio") { studio?.StepTab(button == "LB" ? -1 : 1); return; }
+        if (button == "B") { if (screen == "studio") { studio?.ResetInput(); ShowZone(); } else if (screen is "check" or "about" or "feedback") ShowTools(); else ShowZone(); return; }
+        if (button.StartsWith("DPAD_"))
+        {
+            int direction = button is "DPAD_LEFT" or "DPAD_UP" ? -1 : 1;
+            if (screen == "zone") { zone?.Select((session.Selected + direction + 4) % 4); return; }
+            var controls = body.GetVisualDescendants().OfType<Control>().Where(c => c.IsEffectivelyVisible && c.IsEnabled && (c is Pill { Enabled: true } || c is ComboBox or TextBox || c.Tag is Action)).ToList();
+            if (controls.Count == 0) return;
+            int at = controls.IndexOf(FocusManager?.GetFocusedElement() as Control ?? body);
+            controls[(at + direction + controls.Count) % controls.Count].Focus(); return;
+        }
+        if (button == "A")
+        {
+            if (FocusManager?.GetFocusedElement() is ComboBox combo) combo.IsDropDownOpen = true;
+            else if (FocusManager?.GetFocusedElement() is Pill p) p.Invoke();
+            else if (FocusManager?.GetFocusedElement() is Control { Tag: Action action }) action();
+            else body.GetVisualDescendants().OfType<Pill>().FirstOrDefault(p => p.Enabled && p.IsEffectivelyVisible)?.Focus();
+        }
+    }
 
     public MainWindow()
     {
@@ -52,7 +118,18 @@ public sealed class MainWindow : Window, IIntroHandoff
         root.Children.Add(header); Grid.SetRow(body, 1); root.Children.Add(body); Grid.SetRow(footer, 2); root.Children.Add(footer);
         var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) }; timer.Tick += (_, _) => { foreach (var c in clocks) c.Text = DateTime.Now.ToString("HH:mm"); }; timer.Start();
         KeyDown += OnKey; KeyUp += (_, e) => { if (screen == "studio") studio?.HandleKey(e, false); }; ShowZone(animate: false);
+        GotFocus += (_, _) => { if (EditingField()) ResetControllerInput(); };
+        input.Frame += RouteController;
+        inputRepeat.Tick += (_, _) => RouteController(navigationFrame);
         bool live = !ReviewMode.Headless && Environment.GetCommandLineArgs().All(a => a != "--shots");
+        if (live)
+        {
+            Activated += (_, _) => { InputSources.SetUiActive(true); PcModeHub.Shared.Engine.UiObserving = true; input.Start(session.Selected); inputRepeat.Start(); };
+            Deactivated += (_, _) => { ResetControllerInput(); inputRepeat.Stop(); InputSources.SetUiActive(false); PcModeHub.Shared.Engine.UiObserving = false; input.Stop(); };
+            Closed += (_, _) => { timer.Stop(); if (sourceChanged != null) InputSources.Changed -= sourceChanged; inputRepeat.Stop(); input.Dispose(); InputSources.SetUiActive(false); PcModeHub.Shared.Engine.UiObserving = false; };
+            session.SelectionChanged += () => { ResetControllerInput(); input.Start(session.Selected); };
+            sourceChanged = () => Dispatcher.UIThread.Post(ResetControllerInput); InputSources.Changed += sourceChanged;
+        }
         if (live) Opened += async (_, _) =>
         {
             if (AppSettings.Shared.IntroOnLaunch) { ShowIntro(); while (intro != null) await Task.Delay(100); }
@@ -67,6 +144,7 @@ public sealed class MainWindow : Window, IIntroHandoff
 
     void OnKey(object? sender, KeyEventArgs e)
     {
+        if (EditingField() || modalInput) return;
         if (screen == "zone")
         {
             if (e.Key >= Key.D1 && e.Key <= Key.D4) zone?.Select(e.Key - Key.D1);
@@ -74,7 +152,7 @@ public sealed class MainWindow : Window, IIntroHandoff
         }
         else if (screen is "choose" or "tools" && e.Key == Key.Escape) ShowZone();
         else if (screen is "about" or "feedback" or "check" && e.Key == Key.Escape) ShowTools();
-        else if (screen == "studio") { studio?.HandleKey(e); if (!e.Handled && e.Key == Key.Escape) ShowZone(); }
+        else if (screen == "studio") { studio?.HandleKey(e); if (!e.Handled && e.Key == Key.Escape) { studio?.ResetInput(); ShowZone(); } }
     }
 
     // ---- chrome -------------------------------------------------------------------------------------------------
@@ -155,7 +233,7 @@ public sealed class MainWindow : Window, IIntroHandoff
         // AppImage retains launch-time auto-install. Flatpak host installation is offered explicitly on click.
         string? installed = AppSettings.Shared.AutoUpdate && AppImageUpdater.CanInstall && (await AppImageUpdater.Install(r)).Done ? $"{r.Title} is installed." : null;
         Border? card = null; CancellationTokenSource? running = null; bool failed = false;
-        void Close() { if (card != null) stage.Children.Remove(card); }
+        void Close() { if (card != null) stage.Children.Remove(card); modalInput = false; ResetControllerInput(); }
         var status = T.Label(installed ?? $"{r.Title}  ·  you have {AppInfo.Shown}", 14, T.Soft);
         var heading = T.Label(installed != null ? "Update installed" : "A newer version is out", 18, null, FontWeight.Medium);
         Pill? go = null; Pill later = new(installed != null ? "OK" : "Later", Pill.Kinds.Ghost, Close);
@@ -182,7 +260,7 @@ public sealed class MainWindow : Window, IIntroHandoff
         var text = new StackPanel { Spacing = 12, Children = { heading, status, T.Line(10, go, later) } };
         card = new Border { Background = T.B("#F0101A33"), BorderBrush = T.Hairline, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(14), Padding = new Thickness(24), Child = text,
             HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-        stage.Children.Add(card);
+        modalInput = true; ResetControllerInput(); stage.Children.Add(card);
     }
     IntroView? intro;
     /// <summary>The opening, over the Controller Zone it hands over to (Replay Intro comes back to the Zone too, as on Windows).</summary>
