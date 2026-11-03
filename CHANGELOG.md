@@ -4,6 +4,8 @@
 
 ### Added
 
+- **Check over Bluetooth, no phone.** The Write scan's first screen can now ask an X20 or X20 Pro what it is, its firmware and which settings it exposes, over Bluetooth. Three read-only questions: nothing is written and no mode is entered. The phone recording is still there for anything the check can't answer.
+- **Write test: vibration.** After the check, an X20 (firmware 1.23) or X20 Pro (firmware 1.44) in its recorded mode can run one write test: both motors to a value you pick, read back, then put back and read back again. It needs a tick before it runs, and any other controller or firmware is refused before anything is sent.
 - **Artwork for the X20 Pro screen.** Preview a wallpaper or GIF, edit its crop and colors, save a project or binary, and try uploads in Simulate. A first-run check guides the owner through an explicit COM port, flash identity, dry run, test image and restore. Physical sends stay off until the owner enables them.
 - **One-click update.** The top-bar notice reads "Update to version <latest>". A click downloads the new exe from GitHub's latest release, checks its size and checksum, shows progress (click again to cancel), installs it and restarts. If anything fails the current install keeps working and the release page opens.
 - **Interface sounds.** Switching tabs, clicking, choosing a controller, going back and typing each make a quiet, soft sound, and each kind has several variants so repeating an action does not repeat the sound. Hover is silent. The sounds follow the Sound switch and stay off in the background. Every theme uses the same sounds.
