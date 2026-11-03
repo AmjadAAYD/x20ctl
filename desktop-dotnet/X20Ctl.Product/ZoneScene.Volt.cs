@@ -313,7 +313,8 @@ public partial class ZoneScene
             HorizontalAlignment = HorizontalAlignment.Center,
             Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 24, ShadowDepth = 6, Opacity = 0.6 }
         };
-        voltHeroLogoStack.Children.Add(voltHeroModelText);
+        // a long model name ("X20 PRO") shrinks to the column instead of being cut off
+        voltHeroLogoStack.Children.Add(new Viewbox { Stretch = Stretch.Uniform, StretchDirection = StretchDirection.DownOnly, Child = voltHeroModelText });
 
         voltHeroSubText = new TextBlock
         {

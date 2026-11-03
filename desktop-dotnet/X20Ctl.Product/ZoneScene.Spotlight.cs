@@ -318,7 +318,8 @@ public partial class ZoneScene
             Foreground = SpotlightKit.GildBrush,
             Margin = new Thickness(0, -10, 0, 0)
         };
-        heroStack.Children.Add(heroTitleShort);
+        // a long short name ("X20 PRO") shrinks to the column instead of being cut off
+        heroStack.Children.Add(new Viewbox { Stretch = Stretch.Uniform, StretchDirection = StretchDirection.DownOnly, HorizontalAlignment = HorizontalAlignment.Left, Child = heroTitleShort });
 
         // Full model name + finish
         heroModelLine = new TextBlock
