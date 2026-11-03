@@ -20,7 +20,7 @@ internal static class Switches
     }
 }
 
-internal sealed record ToolsActions(Action Check, Action WriteScan, Action PcMode, Action Replay, Action About, Action Feedback);
+internal sealed record ToolsActions(Action Check, Action WriteScan, Action PcMode, Action Replay, Action About, Action Feedback, Action<UpdateCheck.Release> OfferUpdate);
 
 /// <summary>Help, extras and everything about X20CTL: the Controller Check hero, five tiles, feedback, and the switches for updates and the opening intro.</summary>
 internal sealed class ToolsPage : UserControl
@@ -79,8 +79,7 @@ internal sealed class ToolsPage : UserControl
         {
             var r = await UpdateCheck.Latest();
             updateLine = r == null ? "You're up to date (" + AppInfo.Shown + ")." : $"{X20Ctl.Zone.ReleaseVersions.Display(r.Version)} is out. Open the releases page to download it.";
-            if (r != null && AppImageUpdater.CanInstall) { updateLine = "Updating…"; Build(); updateLine = (await AppImageUpdater.Install(r)).Message; }
-            else if (r != null) ExternalLinks.Open(r.Page);
+            if (r != null) go.OfferUpdate(r);
         }
         catch (Exception e) when (e is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException) { updateLine = "Couldn't check: " + e.Message; }
         checking = false; Build();

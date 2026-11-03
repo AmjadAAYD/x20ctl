@@ -1,5 +1,4 @@
 using System.Net.Http;
-using System.Security.Cryptography;
 namespace X20Ctl.Linux;
 
 /// <summary>Updates the AppImage from inside the app: downloads the new one from the project's GitHub release, checks it against that release's SHA256SUMS.txt,
@@ -12,31 +11,37 @@ internal static class AppImageUpdater
     /// <summary>Set after a successful install: the version waiting for the next launch.</summary>
     public static string? Installed { get; private set; }
 
-    public static async Task<(bool Done, string Message)> Install(UpdateCheck.Release release)
+    /// <summary>The install this copy is: an AppImage when $APPIMAGE points at one, a Flatpak when /.flatpak-info exists, otherwise a tarball or a package.</summary>
+    public static X20Ctl.Zone.InstallKind Kind => CanInstall ? X20Ctl.Zone.InstallKind.LinuxAppImage : File.Exists("/.flatpak-info") ? X20Ctl.Zone.InstallKind.LinuxFlatpak : X20Ctl.Zone.InstallKind.LinuxOther;
+
+    public static async Task<(bool Done, string Message)> Install(UpdateCheck.Release release, IProgress<double>? progress = null, CancellationToken cancel = default)
     {
         if (Path is not { } target) return (false, "This copy isn't an AppImage, so it can't update itself. Download the new version from GitHub.");
-        if (release.AppImageName == null || release.AppImageUrl == null || release.SumsUrl == null || !UpdateWire.Trusted(release.AppImageUrl) || !UpdateWire.Trusted(release.SumsUrl))
+        if (release.AppImageName == null || release.AppImageUrl == null || release.SumsUrl == null)
             return (false, "The release doesn't carry an AppImage with checksums, so the update was skipped.");
+        var package = X20Ctl.Zone.UpdateKit.Pick(Kind, [new(release.AppImageName, release.AppImageUrl, release.AppImageSize), new("SHA256SUMS.txt", release.SumsUrl, 0)]);
+        if (package == null) return (false, "The release doesn't carry an AppImage with checksums, so the update was skipped.");
         string download = target + ".download";
+        var fetched = await X20Ctl.Zone.UpdateKit.Fetch(package, download, progress, cancel);
+        if (fetched.Outcome != X20Ctl.Zone.UpdateKit.Outcome.Verified) return (false, fetched.Message);
         try
         {
-            using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
-            http.DefaultRequestHeaders.UserAgent.ParseAdd("X20CTL/" + AppInfo.Version.Replace('+', '.'));
-            string? expected = UpdateWire.Checksum(await http.GetStringAsync(release.SumsUrl), release.AppImageName);
-            if (expected == null) return (false, "The release's checksum list doesn't include the AppImage, so the update was skipped.");
-            await using (var source = await http.GetStreamAsync(release.AppImageUrl))
-            await using (var file = new FileStream(download, FileMode.Create, FileAccess.Write, FileShare.None)) await source.CopyToAsync(file);
-            string actual; await using (var check = File.OpenRead(download)) actual = Convert.ToHexString(await SHA256.HashDataAsync(check)).ToLowerInvariant();
-            if (actual != expected) { File.Delete(download); return (false, "The download didn't match the release's checksum, so it was thrown away."); }
             File.SetUnixFileMode(download, File.GetUnixFileMode(target) | UnixFileMode.UserExecute);
             File.Move(download, target, true);
         }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException or HttpRequestException or TaskCanceledException)
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             try { if (File.Exists(download)) File.Delete(download); } catch (IOException) { }
             return (false, $"Couldn't update the AppImage ({e.Message}). Download the new version from GitHub instead.");
         }
         Installed = release.Version;
         return (true, $"{release.Title} is installed. It starts the next time you open X20CTL.");
+    }
+
+    /// <summary>Starts the updated AppImage; the caller then closes this process.</summary>
+    public static bool Restart()
+    {
+        try { return Path is { } p && System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(p) { UseShellExecute = false }) != null; }
+        catch (Exception e) when (e is System.ComponentModel.Win32Exception or InvalidOperationException) { return false; }
     }
 }

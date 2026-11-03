@@ -142,22 +142,44 @@ public sealed class MainWindow : Window, IIntroHandoff
         Swap(ZoneHeader(section, pill), page, FootBar(Hints.Row(("A", "Select"), ("B", "Back"))), returning ? .96 : 1.04, returning ? 340 : 320);
     }
 
-    void ShowTools() => Tools("tools", "Tools", new ToolsPage(new ToolsActions(ShowCheck, ShowWriteScan, () => { session.Selected = Math.Max(0, Array.FindIndex(session.Players, p => p != null)); EnterStudio("PC mode"); }, ShowIntro, ShowAbout, ShowFeedback)));
+    void ShowTools() => Tools("tools", "Tools", new ToolsPage(new ToolsActions(ShowCheck, ShowWriteScan, () => { session.Selected = Math.Max(0, Array.FindIndex(session.Players, p => p != null)); EnterStudio("PC mode"); }, ShowIntro, ShowAbout, ShowFeedback, r => { _ = OfferUpdate(r); })));
     void ShowAbout() => Tools("about", "Tools", new AboutPage(ShowTools, icon));
     void ShowFeedback() => Tools("feedback", "Tools", new FeedbackPage(ShowTools, session.Catalog.Models.Select(m => m.Name)));
     void ShowCheck() => Tools("check", "Controller Check", new CheckPage(ShowTools, () => { session.Selected = Math.Max(0, Array.FindIndex(session.Players, p => p != null)); EnterStudio("Tester"); }), "Tools");
     void ShowWriteScan() => Tools("check", "Write scan", new WriteScanPage(), "Tools");
-    async Task OfferUpdate()
+    async Task OfferUpdate(UpdateCheck.Release? release = null)
     {
-        UpdateCheck.Release? r; try { r = await UpdateCheck.Latest(); } catch (Exception) { return; }
+        UpdateCheck.Release? r; try { r = release ?? await UpdateCheck.Latest(); } catch (Exception) { return; }
         if (r == null || Content is not Grid stage) return;
-        // an AppImage updates itself (checked against the release's checksums); everything else is pointed to the release
-        string? installed = null;
-        if (AppImageUpdater.CanInstall) { var (done, message) = await AppImageUpdater.Install(r); if (done) installed = message; }
-        Border? card = null;
+        string name = X20Ctl.Zone.ReleaseVersions.Display(r.Version);
+        // AppImage retains launch-time auto-install. Flatpak host installation is offered explicitly on click.
+        string? installed = AppSettings.Shared.AutoUpdate && AppImageUpdater.CanInstall && (await AppImageUpdater.Install(r)).Done ? $"{r.Title} is installed." : null;
+        Border? card = null; CancellationTokenSource? running = null; bool failed = false;
         void Close() { if (card != null) stage.Children.Remove(card); }
-        var text = new StackPanel { Spacing = 12, Children = { T.Label(installed != null ? "Update installed" : "A newer version is out", 18, null, FontWeight.Medium), T.Label(installed ?? $"{r.Title}  ·  you have {AppInfo.Shown}", 14, T.Soft),
-            T.Line(10, new Pill(installed != null ? "Release notes" : "View release", Pill.Kinds.Primary, () => { ExternalLinks.Open(r.Page); Close(); }), new Pill(installed != null ? "OK" : "Later", Pill.Kinds.Ghost, Close)) } };
+        var status = T.Label(installed ?? $"{r.Title}  ·  you have {AppInfo.Shown}", 14, T.Soft);
+        var heading = T.Label(installed != null ? "Update installed" : "A newer version is out", 18, null, FontWeight.Medium);
+        Pill? go = null; Pill later = new(installed != null ? "OK" : "Later", Pill.Kinds.Ghost, Close);
+        void Fall() { ExternalLinks.Open(r.Page); }
+        async void Restart() { if ((AppImageUpdater.Kind == X20Ctl.Zone.InstallKind.LinuxFlatpak ? await FlatpakUpdater.Restart() : AppImageUpdater.Restart()) && Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime d) d.Shutdown(); else { status.Text = "Restart failed. Open the release page or restart X20CTL manually."; Fall(); } }
+        bool CanInstall() => AppImageUpdater.CanInstall || AppImageUpdater.Kind == X20Ctl.Zone.InstallKind.LinuxFlatpak && r.Flatpak != null;
+        async void Go()
+        {
+            if (running != null) { running.Cancel(); return; }
+            if (installed != null) { Restart(); return; }
+            if (failed || !CanInstall()) { Fall(); return; }
+            running = new(); go!.Text = "Cancel"; later.Enabled = false; heading.Text = "Downloading"; status.Text = X20Ctl.Zone.UpdateKit.Label(name, true, 0);
+            var progress = new Progress<double>(p => status.Text = X20Ctl.Zone.UpdateKit.Label(name, true, p));
+            var (done, message) = AppImageUpdater.Kind == X20Ctl.Zone.InstallKind.LinuxFlatpak
+                ? await FlatpakUpdater.Install(r.Flatpak, progress, running.Token, () => { go.Enabled = false; go.Text = "Installing…"; heading.Text = "Installing update"; status.Text = "Completing the Flatpak installation…"; })
+                : await AppImageUpdater.Install(r, progress, running.Token);
+            bool cancelled = running.IsCancellationRequested; running.Dispose(); running = null; later.Enabled = true; go.Enabled = true;
+            if (done) { installed = message; heading.Text = "Update installed"; status.Text = message; go.Text = "Restart now"; if (AppImageUpdater.Kind == X20Ctl.Zone.InstallKind.LinuxFlatpak) Restart(); return; }
+            heading.Text = cancelled ? "A newer version is out" : "Update failed"; status.Text = cancelled ? $"{r.Title}  ·  you have {AppInfo.Shown}" : message;
+            go.Text = cancelled ? X20Ctl.Zone.UpdateKit.Label(name, false) : "Open release page"; failed = !cancelled;
+            if (failed) Fall();
+        }
+        go = new Pill(installed != null ? "Restart now" : CanInstall() ? X20Ctl.Zone.UpdateKit.Label(name, false) : "View release", Pill.Kinds.Primary, Go);
+        var text = new StackPanel { Spacing = 12, Children = { heading, status, T.Line(10, go, later) } };
         card = new Border { Background = T.B("#F0101A33"), BorderBrush = T.Hairline, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(14), Padding = new Thickness(24), Child = text,
             HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
         stage.Children.Add(card);
