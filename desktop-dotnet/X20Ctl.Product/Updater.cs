@@ -22,7 +22,11 @@ public static class Updater
     /// <summary>This copy's version as people see it: V0.016.</summary>
     public static string Shown => X20Ctl.Zone.ReleaseVersions.Display(Current);
     /// <summary>The one-file exe can replace itself; a folder build (the dev builds, the ZIP release) can't.</summary>
-    public static bool CanInstall => Setup.Installer.IsOneFileExe;
+    public static bool CanInstall => TestTarget != null || Setup.Installer.IsOneFileExe;
+    /// <summary>Review harness only (ignored unless <see cref="ReviewSandbox.Active"/>): a stand-in exe to replace and a fake GitHub, so the real download, check and swap can run against a temp folder.</summary>
+    internal static string? TestTarget { get => ReviewSandbox.Active ? testTarget : null; set => testTarget = value; }
+    internal static HttpMessageHandler? TestHandler { get => ReviewSandbox.Active ? testHandler : null; set => testHandler = value; }
+    static string? testTarget; static HttpMessageHandler? testHandler;
     public static Release? Ready { get; internal set; }
     public static string? Installed { get; private set; }
 
@@ -60,15 +64,13 @@ public static class Updater
     public static async Task<(bool Done, string Message)> Install(Release release, IProgress<double>? progress = null, CancellationToken cancel = default)
     {
         if (!CanInstall) return (false, "This copy runs from a folder, so it can't update itself.");
-        string exe = Environment.ProcessPath!, folder = Path.GetDirectoryName(exe)!, download = exe + ".download", old = exe + ".old";
+        string exe = TestTarget ?? Environment.ProcessPath!, folder = Path.GetDirectoryName(exe)!, download = exe + ".download", old = exe + ".old";
         var package = new X20Ctl.Zone.UpdatePackage(new(release.ExeName, release.ExeUrl, release.ExeSize), new("SHA256SUMS.txt", release.SumsUrl, 0));
-        var fetched = await X20Ctl.Zone.UpdateKit.Fetch(package, download, progress, cancel);
+        var fetched = await X20Ctl.Zone.UpdateKit.Fetch(package, download, progress, cancel, TestHandler);
         if (fetched.Outcome != X20Ctl.Zone.UpdateKit.Outcome.Verified) return (false, fetched.Message);
         try
         {
-            if (File.Exists(old)) File.Delete(old);
-            File.Move(exe, old);
-            try { File.Move(download, exe); } catch { File.Move(old, exe); throw; }
+            Swap(exe, download, old, TestMove);
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {
@@ -79,13 +81,34 @@ public static class Updater
         return (true, $"{release.Title} is installed. It starts the next time you open X20CTL.");
     }
 
-    /// <summary>Starts the freshly installed exe (this process is then closed by the caller). False when it couldn't start, so the caller keeps running.</summary>
+    /// <summary>Puts the verified download in place: the running exe is renamed aside (Windows allows that while it runs), the download takes its name,
+    /// and if that second step fails the old exe is put back so the install is never left without an exe.</summary>
+    internal static void Swap(string exe, string download, string old, Action<string, string>? move = null)
+    {
+        move ??= (from, to) => File.Move(from, to);
+        if (File.Exists(old)) File.Delete(old);
+        move(exe, old);
+        try { move(download, exe); } catch { move(old, exe); throw; }
+    }
+
+    /// <summary>Review harness only: replaces the file move, a stand-in exe's launch arguments and records the last launch.</summary>
+    internal static Action<string, string>? TestMove { get => ReviewSandbox.Active ? testMove : null; set => testMove = value; }
+    internal static string? TestRestartArgs { get => ReviewSandbox.Active ? testRestartArgs : null; set => testRestartArgs = value; }
+    internal static System.Diagnostics.Process? LastLaunched { get; private set; }
+    static Action<string, string>? testMove; static string? testRestartArgs;
+
+    /// <summary>Starts the freshly installed exe (this process is then closed by the caller). False when it couldn't start, so the caller keeps running.
+    /// The release exe asks for administrator permission at launch, so this process is already elevated and the new one starts without a second prompt.
+    /// The shell launch (not CreateProcess) is deliberate: if this process ever were not elevated, Windows asks the normal UAC question instead of the start failing.</summary>
     public static bool Restart()
     {
         try
         {
-            string exe = Environment.ProcessPath!;
-            using var next = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exe) { UseShellExecute = false, WorkingDirectory = Path.GetDirectoryName(exe)! });
+            string exe = TestTarget ?? Environment.ProcessPath!;
+            var info = new System.Diagnostics.ProcessStartInfo(exe) { UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(exe)! };
+            if (TestRestartArgs != null) info.Arguments = TestRestartArgs;
+            var next = System.Diagnostics.Process.Start(info);
+            LastLaunched = next;
             return next != null;
         }
         catch (Exception error) when (error is System.ComponentModel.Win32Exception or InvalidOperationException) { return false; }
