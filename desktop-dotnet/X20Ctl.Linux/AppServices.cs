@@ -12,7 +12,6 @@ internal sealed class AppSettings
     static string PathOf => Path.Combine(Path.GetDirectoryName(X20Ctl.Zone.PcMode.PcModeStore.DefaultPath)!, "app-settings.json");
     public bool AutoUpdate { get; set; } = true;
     public bool IntroOnLaunch { get; set; } = true;
-    public bool IntroSound { get; set; } = true;
 
     static AppSettings Load()
     {
@@ -55,7 +54,7 @@ internal static class AppInfo
 internal static class UpdateCheck
 {
     public const string Api = "https://api.github.com/repos/AmjadAAYD/x20ctl/releases?per_page=30";
-    public sealed record Release(string Version, string Title, string Page, string? AppImageName = null, string? AppImageUrl = null, string? SumsUrl = null);
+    public sealed record Release(string Version, string Title, string Page, string? AppImageName = null, string? AppImageUrl = null, string? SumsUrl = null, long AppImageSize = 0, X20Ctl.Zone.UpdatePackage? Flatpak = null);
 
     public static async Task<Release?> Latest()
     {
@@ -72,10 +71,12 @@ internal static class UpdateCheck
             // only releases that carry a Linux package count
             bool linux = r.GetProperty("assets").EnumerateArray().Any(a => (a.GetProperty("name").GetString() ?? "").Contains("linux-x"));
             if (!linux || Compare(version, AppInfo.Version) <= 0 || best != null && Compare(version, best.Version) <= 0) continue;
-            var assets = r.GetProperty("assets").EnumerateArray().Select(a => (Name: a.GetProperty("name").GetString() ?? "", Url: a.GetProperty("browser_download_url").GetString() ?? "")).ToList();
+            var assets = r.GetProperty("assets").EnumerateArray().Select(a => (Name: a.GetProperty("name").GetString() ?? "", Url: a.GetProperty("browser_download_url").GetString() ?? "", Size: a.TryGetProperty("size", out var size) ? size.GetInt64() : 0L)).ToList();
             string? image = UpdateWire.AppImageName(assets.Select(a => a.Name));
             best = new(version, r.GetProperty("name").GetString() ?? tag, r.GetProperty("html_url").GetString() ?? ExternalLinks.Releases,
-                image, image == null ? null : assets.First(a => a.Name == image).Url, assets.FirstOrDefault(a => a.Name == "SHA256SUMS.txt").Url);
+                image, image == null ? null : assets.First(a => a.Name == image).Url, assets.FirstOrDefault(a => a.Name == "SHA256SUMS.txt").Url,
+                image == null ? 0 : assets.First(a => a.Name == image).Size,
+                X20Ctl.Zone.UpdateKit.Pick(X20Ctl.Zone.InstallKind.LinuxFlatpak, assets.Select(a => new X20Ctl.Zone.UpdateAsset(a.Name, a.Url, a.Size))));
         }
         return best;
     }

@@ -15,6 +15,10 @@ on:
       tag:
         description: Existing tag to release, e.g. v0.017
         required: true
+      dry_run:
+        description: Build Linux Studio from this branch without publishing a release
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -28,6 +32,7 @@ env:
 
 jobs:
   windows:
+    if: ${{ github.event_name != 'workflow_dispatch' || !inputs.dry_run }}
     name: Windows exe
     runs-on: windows-2025
     steps:
@@ -126,6 +131,7 @@ jobs:
           if-no-files-found: error
 
   linux:
+    if: ${{ github.event_name != 'workflow_dispatch' || !inputs.dry_run }}
     name: Linux Controller Check
     runs-on: ubuntu-24.04
     steps:
@@ -153,14 +159,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ env.TAG }}
+          ref: ${{ inputs.dry_run && github.ref || env.TAG }}
           persist-credentials: false
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
       - name: Install the desktop-file validator appimagetool needs
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq desktop-file-utils
-      - name: Package it (tarball and AppImage)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq desktop-file-utils flatpak flatpak-builder
+      - name: Package it (tarballs, AppImage and Flatpak)
         run: |
           # NAME titles the files (V0.017); .NET gets 0.17.0 and the app reports 0.017. Old-style tags (the V0.016 bridge) keep their own number.
           name="$(python3 tools/version_name.py "$TAG")"
@@ -173,9 +179,11 @@ jobs:
           path: |
             out/*.tar.gz
             out/*.AppImage
+            out/*.flatpak
           if-no-files-found: error
 
   release:
+    if: ${{ github.event_name != 'workflow_dispatch' || !inputs.dry_run }}
     name: Publish the release
     needs: [windows, linux, linux-studio]
     runs-on: ubuntu-24.04
@@ -193,7 +201,7 @@ jobs:
           merge-multiple: true
       - name: Checksums and notes
         run: |
-          cd assets && sha256sum *.exe *.zip *.tar.gz *.AppImage > SHA256SUMS.txt && cat SHA256SUMS.txt && cd ..
+          cd assets && sha256sum *.exe *.zip *.tar.gz *.AppImage *.flatpak > SHA256SUMS.txt && cat SHA256SUMS.txt && cd ..
           python3 tools/release_notes.py "$TAG" > notes.md
       - name: Create, fill, then publish
         env:
@@ -203,5 +211,5 @@ jobs:
           # out by itself across the old numbering (4.1.0-preview.7) and the new (0.017)
           title="X20CTL $(python3 tools/version_name.py "$TAG")"
           gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft --latest --verify-tag --title "$title" --notes-file notes.md
-          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" assets/*.exe assets/*.zip assets/*.tar.gz assets/*.AppImage assets/SHA256SUMS.txt
+          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" assets/*.exe assets/*.zip assets/*.tar.gz assets/*.AppImage assets/*.flatpak assets/SHA256SUMS.txt
           gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false

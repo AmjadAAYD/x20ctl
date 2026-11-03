@@ -34,7 +34,7 @@ Turn the switch off to stop the check. This is new and has not run on a Linux ma
 
 ## Your controller
 
-The Studio finds any game controller the kernel exposes, whatever its make. Plug it in, or pair it in your system's Bluetooth settings first. Open the app, pick **Add controller** on a player slot, then **Enter Studio**.
+The Studio finds any game controller the kernel exposes, whatever its make. Plug it in, or pair it in your system's Bluetooth settings first. Open the app, pick **Add controller** on a player slot, then **Enter Studio**. In **PC mode**, choose that player's **input source** explicitly. Model artwork does not identify a connected device. Sources are session-only and must be selected again after reconnect; another pad is never chosen as a fallback.
 
 Most tabs (Buttons, Curves, Macros, Vibration, Setups) edit a draft on this computer. They do not write to the controller.
 
@@ -67,7 +67,7 @@ If your pad isn't standard, the check also saves a small report in `~/X20CTLInpu
 
 ### Turning it on
 
-Switch **PC mode** on. Up to four controllers are supported, one profile each. While it's on, the real controller is held exclusively, so games see only the virtual one. Hold **View + Menu** on the pad to turn your settings off and on without leaving the game.
+Choose an input source for each player, then switch **PC mode** on. Up to four explicit assignments are implemented, one profile each; a source cannot belong to two players. This routing has not been exercised on Linux. The engine is designed to grab the selected source while its software output is active. Output pauses while X20CTL owns input in the foreground or mouse mode owns it; it resumes in the background. Actual device hiding and game output still need Linux testing. Hold **View + Menu** on the pad to turn your settings off and on without leaving the game.
 
 ### Rumble
 
@@ -75,7 +75,7 @@ A game's rumble is passed on to your real controller's motors, when the controll
 
 ## Controller as mouse
 
-The **Mouse** tab turns a stick into the pointer. PC mode steps aside while the mouse is on. It uses the same `/dev/uinput` permission as PC mode. Hold the shortcut on the pad to switch it off and on.
+The **Mouse** tab turns a stick into the pointer. PC mode steps aside while the mouse is on. It uses the same `/dev/uinput` permission as PC mode. The player chosen in the Mouse page supplies its input. Hold the shortcut on the pad to switch it off and on.
 
 ## Where things are saved
 
@@ -106,3 +106,13 @@ The Device tab's **Read controller** asks the pad over Bluetooth by running the 
 - Verified: the app builds and packs for Linux (glibc and musl) from Windows, its screens render, and the controller-layout logic and rumble byte layouts pass unit tests. The kernel constants and struct sizes were checked against the Linux headers.
 - Not verified: running on a real Linux system, reading a real controller, the virtual controller being accepted by games, rumble, the AppImage launching, the Flatpak.
 - Not supported: pads Linux doesn't expose through evdev at all (no driver), and writing settings to a controller over Bluetooth.
+
+## Input ownership and sound policy (local implementation)
+
+LB/RB navigate the visible tabs while browsing. Buttons has explicit **Listen for source** and **Listen for target** actions. Release controls between stages; simultaneous presses do not choose arbitrary mappings. B/LB/RB are capture data while listening. Esc, Cancel, or View + Menu cancels single-button listening without applying a mapping. Apply is disabled while an exclusive input operation owns the page. Tester and macro recording consume gameplay input; Esc/mouse exits remain available.
+
+Focus loss, source changes and page departure clear transient input and stop recording without replacing the prior macro draft. A source is identified by its reported evdev path/identity and kernel instance when available, not a guaranteed physical model match. Basic controller focus/activation and tab routing are implemented; complete page-specific X/Y shortcuts and analog-widget engagement are separate parity work.
+
+**Linux is intentionally silent.** No UI sound effects or audio assets are packaged; the intro is picture-only. This is not a missing parity feature. No audio permission is requested.
+
+All of these input behaviors are source/fixture-verified on Windows only. Use LINUX-TEST-CHECKLIST.md from the audit notes for real Linux acceptance.

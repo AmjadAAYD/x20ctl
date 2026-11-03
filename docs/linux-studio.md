@@ -59,3 +59,11 @@ Not covered: a pad Linux doesn't expose through evdev at all (no driver), and a 
 - AppImage: `dotnet publish -r linux-x64 --self-contained`, then `appimagetool` over an AppDir.
 - Flatpak: manifest on the `org.freedesktop.Platform` runtime with the dotnet extension; needs `--device=all` for evdev and uinput.
 - `release.yml` gains an Ubuntu job for both.
+
+## Input/device ownership batch — 3 November 2026
+
+Local implementation now uses explicit, exclusive per-player evdev source assignments for UI reads, PC mode and mouse mode. UI consumers reuse the existing layout decoder read-only and non-grabbing, with bounded polling, ordered per-report delivery, stale-generation rejection and reconnect clearing. Output engines use the selected source lease rather than device-list order. PC output yields while the foreground UI or mouse owns input. Capture/test/recording contexts suppress navigation and neutral/release barriers prevent held activation presses from assigning mappings.
+
+The headless review includes an input-ownership fixture. Real evdev/uinput/rumble/focus/Flatpak behavior has not run on Linux. Source-level support is not hardware proof. Full page-specific controller shortcuts remain outside this foundation batch.
+
+Audio is intentional, not applicable: Linux has no UI sounds, no packaged audio and a silent intro. The existing Flatpak manifest permissions are retained unchanged; their purposes are documented in tools/linux-studio/FLATPAK.md. BlueZ, new dependencies, theme systems and unmerged Windows work are still excluded.

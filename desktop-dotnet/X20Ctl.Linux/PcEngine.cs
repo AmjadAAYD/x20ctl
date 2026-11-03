@@ -38,7 +38,7 @@ internal static partial class Native
 }
 
 /// <summary>One game controller the kernel exposes through evdev.</summary>
-internal sealed record EvDevice(string Path, string Name, ushort Vendor, ushort Product, PadCaps? Caps = null);
+internal sealed record EvDevice(string Path, string Name, ushort Vendor, ushort Product, PadCaps? Caps = null, string? Instance = null);
 
 /// <summary>PC mode on Linux. Reads the real pad through evdev and takes it exclusively (EVIOCGRAB), runs its state through the same
 /// <see cref="PadProcessor"/> as Windows, and feeds the result to a virtual Xbox 360 pad made with uinput. A port of the tested Python engine in
@@ -90,7 +90,7 @@ internal sealed class PcEngine
     public static IReadOnlyList<EvDevice> Controllers()
     {
         var found = new List<EvDevice>();
-        if (!Directory.Exists("/dev/input")) return found;
+        if (!OperatingSystem.IsLinux() || !Directory.Exists("/dev/input")) return found;
         foreach (string path in Directory.EnumerateFiles("/dev/input", "event*").OrderBy(p => int.TryParse(p[(p.LastIndexOf("event") + 5)..], out int n) ? n : 0))
         {
             int fd = Native.Open(path, Native.ReadOnly | Native.NonBlock); if (fd < 0) continue;
@@ -107,13 +107,18 @@ internal sealed class PcEngine
                     if (Native.IoctlBuf(fd, Native.Ioc(2, 'E', 0x40 + code, 24), info) == 0) axes[code] = new(BitConverter.ToInt32(info, 4), BitConverter.ToInt32(info, 8), BitConverter.ToInt32(info, 0));
                 }
                 var caps = new PadCaps(keys, axes);
-                if (PadLayouts.LooksLikeGamepad(caps)) found.Add(new(path, n, BitConverter.ToUInt16(id, 2), BitConverter.ToUInt16(id, 4), caps));
+                if (PadLayouts.LooksLikeGamepad(caps)) found.Add(new(path, n, BitConverter.ToUInt16(id, 2), BitConverter.ToUInt16(id, 4), caps, InstanceOf(path)));
             }
             finally { Native.Close(fd); }
         }
         return found;
     }
 
+    internal static string? InstanceOf(string path)
+    {
+        try { return File.ResolveLinkTarget("/sys/class/input/" + Path.GetFileName(path) + "/device", true)?.FullName; }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return null; }
+    }
     static HashSet<int> Bits(int fd, int ev, int count)
     {
         var buffer = new byte[(count + 7) / 8]; var set = new HashSet<int>();
@@ -126,7 +131,7 @@ internal sealed class PcEngine
 
     sealed class Slot
     {
-        public int Player; public EvDevice? Device; public RealPad? Real; public VirtualPad? Virtual; public PadProcessor? Processor; public PcModeProfile Profile = new(); public string Json = "";
+        public long Lease; public int Player; public EvDevice? Device; public RealPad? Real; public VirtualPad? Virtual; public PadProcessor? Processor; public PcModeProfile Profile = new(); public string Json = "";
         public readonly HoldCombo Combo = new(PadButtons.Back | PadButtons.Start, 1000); public bool Paused; public long Clock; public bool Reported;
     }
 
@@ -134,6 +139,7 @@ internal sealed class PcEngine
     public IReadOnlyList<(int Player, string Name, bool Active)> Routes => routes;
     volatile IReadOnlyList<(int, string, bool)> routes = [];
 
+    public volatile bool UiObserving;
     void Loop()
     {
         var slots = Enumerable.Range(0, 4).Select(i => new Slot { Player = i }).ToArray(); long lastLook = -10000, lastScan = -10000;
@@ -144,7 +150,7 @@ internal sealed class PcEngine
             while (!stop)
             {
                 long now = Environment.TickCount64;
-                if (Suspended) { foreach (var s in slots) Release(s); Set("Paused", "Paused while the controller is the mouse.", false); Thread.Sleep(150); continue; }
+                if (Suspended || UiObserving) { foreach (var s in slots) Release(s); Set("Paused", "Paused while the UI or mouse owns controller input.", false); Thread.Sleep(150); continue; }
                 if (reload || now - lastLook > 750)
                 {
                     reload = false; lastLook = now;
@@ -152,18 +158,18 @@ internal sealed class PcEngine
                         try { var p = ProfileFor(s.Player); string j = System.Text.Json.JsonSerializer.Serialize(p); if (j != s.Json) { s.Json = j; s.Profile = p; s.Processor = null; } }
                         catch (Exception e) when (e is InvalidDataException or IOException) { Set("Needs attention", "Settings couldn't be used: " + e.Message, false); }
                 }
-                if (now - lastScan > 500) { lastScan = now; devices = Controllers(); }
+                if (now - lastScan > 500) { lastScan = now; devices = Controllers(); InputSources.RemoveMissing(devices); }
                 bool any = false; var lines = new List<string>(); var report = new List<(int, string, bool)>();
                 for (int i = 0; i < slots.Length; i++)
                 {
-                    var s = slots[i]; var device = i < devices.Count ? devices[i] : null;
-                    if (s.Real != null && (device == null || device.Path != s.Device?.Path)) { s.Real.Dispose(); s.Real = null; s.Processor = null; }
+                    var s = slots[i]; var selection = InputSources.Snapshot(i); var selected = selection.Device; var device = selected == null ? null : devices.FirstOrDefault(d => InputSources.Key(d) == InputSources.Key(selected));
+                    if (s.Real != null && (device == null || InputSources.Revision(i) != s.Lease || InputSources.Key(device) != InputSources.Key(s.Device!))) Release(s);
                     if (device == null || s.Profile.IsNeutral) { if (s.Profile.IsNeutral) Release(s); continue; }
                     if (s.Real == null)
                     {
                         if (PadLayoutStore.Shared.Resolve(device).State == "needs-check")
                         { lines.Add($"Player {i + 1}: {device.Name} needs a quick button check first, so nothing gets mapped to the wrong button. Open the PC mode tab and press Check controller. Until then it goes straight to the game."); continue; }
-                        try { s.Real = new RealPad(device); s.Device = device; s.Virtual ??= new VirtualPad(); s.Processor = null; }
+                        try { s.Real = new RealPad(device); s.Device = device; s.Lease = selection.Revision; s.Virtual ??= new VirtualPad(); s.Processor = null; }
                         catch (IOException e) { lines.Add($"Player {i + 1}: couldn't take {device.Name}: {e.Message}. Is another program holding it?"); continue; }
                     }
                     any = true; lines.Add($"Player {i + 1}: {device.Name} is hidden from games; they see one Xbox controller with your settings."); report.Add((i, device.Name, true));
@@ -172,18 +178,20 @@ internal sealed class PcEngine
                 var open = slots.Where(s => s.Real != null).ToList();
                 if (open.Count == 0)
                 {
-                    string why = devices.Count == 0 ? "No controller found. Plug one in and it starts by itself." : "Nothing to apply yet. Set a remap, curve, turbo or macro and it starts by itself.";
+                    string why = devices.Count == 0 ? "No controller found. Select an input source in PC mode after connecting it." : "Select an input source for this player, then apply a software profile.";
                     Set(lines.Count > 0 ? "Needs attention" : "Ready", lines.Count > 0 ? string.Join("\n", lines) : why, false); Thread.Sleep(devices.Count == 0 ? 250 : 120); continue;
                 }
                 Wait(open, 4);
                 foreach (var s in open)
                 {
-                    if (!s.Real!.Read()) { s.Real.Dispose(); s.Real = null; s.Processor = null; continue; }
+                    if (!s.Real!.Read()) { InputSources.Lost(s.Player, s.Device!, s.Lease); Release(s); continue; }
                     if (s.Processor == null) { s.Processor = new PadProcessor(s.Profile); s.Clock = Environment.TickCount64; }
                     long t = Environment.TickCount64 - s.Clock; var state = s.Real.State();
                     if (s.Combo.Update(state.Buttons, t)) { s.Paused = !s.Paused; lines.Add(s.Paused ? $"Player {s.Player + 1}: your settings are off for now. Hold View + Menu again to switch them on." : $"Player {s.Player + 1}: your settings are back on."); }
-                    s.Virtual!.Update(s.Paused ? state : s.Processor.Process(state, t));
-                    if (s.Virtual.Feedback() is { } motors) s.Real.Rumble(motors.Strong, motors.Weak);
+                    if (!InputSources.UseLease(s.Player, s.Lease, () => {
+                        s.Virtual!.Update(s.Paused ? state : s.Processor.Process(state, t));
+                        if (s.Virtual.Feedback() is { } motors) s.Real.Rumble(motors.Strong, motors.Weak);
+                    })) Release(s);
                 }
                 Set("Active", string.Join("\n", lines), any);
             }
@@ -216,28 +224,36 @@ internal sealed class PcEngine
 
     internal sealed unsafe class RealPad : IDisposable
     {
-        readonly int fd; public int Fd => fd; readonly PadLayout layout; public PadLayout Layout => layout;
+        readonly int fd; bool grabbed; public int Fd => fd; readonly PadLayout layout; public PadLayout Layout => layout; public IReadOnlySet<string> Down => pressed.ToHashSet();
         readonly Dictionary<int, (int Lo, int Hi)> ranges = new(); readonly Dictionary<int, int> raw = new(); readonly HashSet<string> pressed = new();
         public RealPad(EvDevice device, bool grab = true)
         {
             path = device.Path; layout = PadLayoutStore.Shared.Resolve(device).Layout;
             fd = Native.Open(device.Path, Native.ReadOnly | Native.NonBlock);
             if (fd < 0) throw new IOException("open failed (" + Marshal.GetLastPInvokeError() + ")");
+            if (device.Instance != null && InstanceOf(device.Path) != device.Instance) { Native.Close(fd); throw new IOException("Input device changed; select it again."); }
             foreach (int code in layout.AxisCodes)
             {
                 var buffer = new byte[24];
                 if (Native.IoctlBuf(fd, Native.Ioc(2, 'E', 0x40 + code, 24), buffer) == 0) { ranges[code] = (BitConverter.ToInt32(buffer, 4), BitConverter.ToInt32(buffer, 8)); raw[code] = BitConverter.ToInt32(buffer, 0); }
             }
+            var initial = new byte[96];
+            if (Native.IoctlBuf(fd, Native.Ioc(2, 'E', 0x18, initial.Length), initial) == 0)
+                foreach (var (code, name) in layout.Buttons) if (code < initial.Length * 8 && (initial[code / 8] & (1 << (code % 8))) != 0) pressed.Add(name);
             if (grab && !Grab(true)) { int e = Marshal.GetLastPInvokeError(); Native.Close(fd); throw new IOException("the kernel refused exclusive access (" + e + ")"); }
         }
 
         /// <summary>Takes the pad exclusively (no other program gets its events) or gives it back.</summary>
-        public bool Grab(bool on) => Native.IoctlInt(fd, Native.Ioc(1, 'E', 0x90, 4), on ? 1 : 0) >= 0;
+        public bool Grab(bool on)
+        {
+            bool ok = Native.IoctlInt(fd, Native.Ioc(1, 'E', 0x90, 4), on ? 1 : 0) >= 0;
+            if (ok) grabbed = on; return ok;
+        }
 
         public void Wait(int ms) { var p = new Native.PollFd { Fd = fd, Events = Native.PollIn }; Native.Poll(ref p, 1, ms); }
 
         /// <summary>Drains pending events. False when the controller went away.</summary>
-        public bool Read()
+        public bool Read(Action<PadState, IReadOnlySet<string>>? report = null)
         {
             int size = Native.EventSize, time = IntPtr.Size * 2; var buffer = new byte[size * 64];
             while (true)
@@ -248,6 +264,8 @@ internal sealed class PcEngine
                 for (int o = 0; o + size <= n; o += size)
                 {
                     ushort type = BitConverter.ToUInt16(buffer, o + time), code = BitConverter.ToUInt16(buffer, o + time + 2); int value = BitConverter.ToInt32(buffer, o + time + 4);
+                    if (type == EvSyn && code == 3) return false; // SYN_DROPPED: stop instead of publishing an untrusted state.
+                    if (type == EvSyn && code == 0) report?.Invoke(State(), pressed.ToHashSet());
                     if (type == EvKey && layout.Buttons.TryGetValue(code, out var name)) { if (value != 0) pressed.Add(name); else pressed.Remove(name); }
                     else if (type == EvAbs) raw[code] = value;
                 }
@@ -312,7 +330,7 @@ internal sealed class PcEngine
         public void Dispose()
         {
             if (rumbleFd >= 0) { if (rumbleId >= 0) Native.WriteEvents(rumbleFd, [(EvFf, (ushort)rumbleId, 0)]); Native.Close(rumbleFd); rumbleFd = -1; }
-            Native.IoctlInt(fd, Native.Ioc(1, 'E', 0x90, 4), 0); Native.Close(fd);
+            if (grabbed) Grab(false); Native.Close(fd);
         }
     }
 

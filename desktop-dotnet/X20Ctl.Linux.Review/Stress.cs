@@ -112,7 +112,7 @@ internal static class Stress
         {
             ("Zone", () => new ZonePage(session, () => { }, _ => { }, _ => { })),
             ("Chooser", () => new ChooserPage(session, 1, new Border(), _ => { })),
-            ("Tools", () => new ToolsPage(new ToolsActions(() => { }, () => { }, () => { }, () => { }, () => { }, () => { }))),
+            ("Tools", () => new ToolsPage(new ToolsActions(() => { }, () => { }, () => { }, () => { }, () => { }, () => { }, _ => { }))),
             ("Studio (Dashboard)", () => new StudioView(studio, 0, () => { }, new TextBlock(), null)),
             ("Buttons", () => new ButtonsPage(studio)), ("Curves", () => new CurvesPage(studio)), ("Macros", () => new MacrosPage(studio)),
             ("Vibration", () => new VibrationPage(studio)), ("PC mode", () => new PcModePage(studio, _ => { })), ("Device", () => new DevicePage(studio)),
