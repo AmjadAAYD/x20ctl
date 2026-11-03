@@ -6,8 +6,8 @@ using System.Windows.Input;
 using System.Windows.Media;
 namespace X20Ctl.Product;
 
-/// <summary>The interface sounds: Brand/ui/&lt;theme&gt;/&lt;role&gt;.wav, made by tools/ui_sound_themes/build.py. Every theme has its own family in
-/// the same dark, dense, soft voice. A cue picks a pool of roles (several variants, never the same one twice in a row, so repeating an
+/// <summary>The interface sounds: Brand/ui/&lt;role&gt;.wav, made by tools/ui_sounds/build.py: one family in a dark, dense, soft voice, the same for
+/// every theme. A cue picks a pool of roles (several variants, never the same one twice in a row, so repeating an
 /// action does not wear on the ear): tab switches play navigation sounds, buttons and clicks play the button pool, choosing a controller
 /// plays an enter sound, back buttons play back, typing plays the key pool. Hover is silent. Every ButtonBase plays "Button" unless it
 /// names its own cue. Quiet by design, off with the intro's Sound switch, never in review runs, never while the app is in the background.</summary>
@@ -16,8 +16,6 @@ internal static class UiSound
     public enum Cue { Button, Tab, Click, Pick, Back, None }
     /// <summary>Asked before every sound; ProductHost points it at the player's Sound preference.</summary>
     public static Func<bool> Allowed { get; set; } = () => true;
-    /// <summary>The active theme's sound family; a theme without a folder falls back to "default". ThemeSelection drives it.</summary>
-    public static string Theme { get => theme; set { theme = string.IsNullOrWhiteSpace(value) ? "default" : value; } }
     public static readonly DependencyProperty CueProperty = DependencyProperty.RegisterAttached("Cue", typeof(Cue), typeof(UiSound), new PropertyMetadata(Cue.Button));
     public static void SetCue(DependencyObject element, Cue cue) => element.SetValue(CueProperty, cue);
 
@@ -33,14 +31,12 @@ internal static class UiSound
     private static readonly Dictionary<string, MediaPlayer> players = [];
     private static readonly Dictionary<string, int> lastIndex = [];
     private static readonly Random random = new();
-    private static string theme = "default";
     private static long lastKey;
     private static bool registered;
 
     public static void Register()
     {
         if (registered) return; registered = true;
-        Theme = ThemeSelection.Current; ThemeSelection.Changed += name => Theme = name;
         EventManager.RegisterClassHandler(typeof(ButtonBase), ButtonBase.ClickEvent, new RoutedEventHandler((s, _) => Play(((DependencyObject)s).GetValue(CueProperty) is Cue cue ? cue : Cue.Button)), true);
         EventManager.RegisterClassHandler(typeof(TextBoxBase), UIElement.PreviewTextInputEvent, new TextCompositionEventHandler((_, _) => PlayKey(KeyPool)), true);
         EventManager.RegisterClassHandler(typeof(TextBoxBase), UIElement.PreviewKeyDownEvent, new KeyEventHandler((_, e) => { if (e.Key is Key.Back or Key.Delete) PlayKey(["key-delete"]); }), true);
@@ -71,13 +67,10 @@ internal static class UiSound
         if (!IntroView.SoundEnabled || ReviewSandbox.Active || !Allowed() || !AppIsActive()) return;
         try
         {
-            string key = theme + "/" + role;
-            if (!players.TryGetValue(key, out var player))
+            if (!players.TryGetValue(role, out var player))
             {
-                string path = Path.Combine(AppContext.BaseDirectory, "Brand", "ui", theme, role + ".wav");
-                if (!File.Exists(path)) path = Path.Combine(AppContext.BaseDirectory, "Brand", "ui", "default", role + ".wav");
-                if (!File.Exists(path)) return;
-                player = new MediaPlayer { Volume = 1 }; player.Open(new Uri(path)); players[key] = player;
+                string path = Path.Combine(AppContext.BaseDirectory, "Brand", "ui", role + ".wav"); if (!File.Exists(path)) return;
+                player = new MediaPlayer { Volume = 1 }; player.Open(new Uri(path)); players[role] = player;
             }
             player.Position = TimeSpan.Zero; player.Play();
         }
