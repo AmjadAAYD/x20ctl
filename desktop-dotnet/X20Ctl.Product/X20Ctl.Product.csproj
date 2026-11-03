@@ -30,6 +30,7 @@
     <PackageReference Include="Nefarius.ViGEm.Client" Version="1.21.256" />
     <!-- the licence and notice the setup shows on its License page, carried in the exe -->
     <EmbeddedResource Include="../../LICENSE" LogicalName="LICENSE.txt" />
+    <EmbeddedResource Include="../../CHANGELOG.md" LogicalName="CHANGELOG.md" />
     <EmbeddedResource Include="../../NOTICE" LogicalName="NOTICE.txt" />
     <!-- the X20CTL logo (tools/build_brand_mark.py, from Brand/x20ctl-logo.png); the intro film ends on the same art -->
     <Resource Include="Brand/x20ctl-mark.png" Link="Assets/brand.png" />
