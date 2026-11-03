@@ -182,6 +182,11 @@ public partial class App : Application
                 ShutdownMode = ShutdownMode.OnExplicitShutdown;
                 await Development.ScannerReplay.Run(e.Args[1], e.Args[2]); Shutdown(0); return;
             }
+            if (e.Args.Length == 2 && e.Args[0] == "--review-update-states")
+            {
+                ShutdownMode = ShutdownMode.OnExplicitShutdown;
+                Development.UpdateStatesReview.Run(e.Args[1]); Shutdown(0); return;
+            }
             if (e.Args.Length == 2 && e.Args[0] == "--review-update")
             {
                 ShutdownMode = ShutdownMode.OnExplicitShutdown;

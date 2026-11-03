@@ -485,23 +485,36 @@ public sealed partial class ProductHost : Grid
         updateText=Updater.Installed is {} installed?$"{X20Ctl.Zone.ReleaseVersions.Display(installed)} is installed. It starts the next time you open X20CTL.":$"{release.Title} is out. You have {Updater.Shown}.";
         if(Intro==null)ShowUpdateNotice();
     }
-    /// <summary>Non-modal header notice, after the intro and only for a newer release.</summary>
+    /// <summary>Non-modal header notice, after the intro and only for a newer release. "Update to version V0.0xx": one click downloads, checks and
+    /// installs it, then restarts into it. Click again while downloading to cancel. If it can't (a folder build, a failed or mismatched download)
+    /// the current install is untouched and the release page opens.</summary>
+    internal static Button CreateUpdateNoticeButton(TextBlock label, string? tooltip) => new() { Style=DS.Style("Zone.Utility"),MinHeight=38,Padding=new(18,0,18,0),Content=label,ToolTip=tooltip,MaxWidth=460 };
     private void ShowUpdateNotice()
     {
         if(updateShown||updateText==null||Updater.Ready is not {} release)return;updateShown=true;
-        var label=Kit.Text(Updater.Installed!=null ? "Update installed · restart to finish" : "Update available · "+release.Title,14,"DS.Text",FontWeights.SemiBold);
+        string name=X20Ctl.Zone.ReleaseVersions.Display(release.Version);
+        var label=Kit.Text(Updater.Installed!=null ? "Update installed · restart to finish" : X20Ctl.Zone.UpdateKit.Label(name,false),14,"DS.Text",FontWeights.SemiBold);
         label.TextTrimming=TextTrimming.CharacterEllipsis;
         label.Foreground=DS.Brush("Zone.TextSecondary");
-        var go=new Button { Style=DS.Style("Zone.Utility"),MinHeight=38,Padding=new(18,0,18,0),Content=label,ToolTip=updateText,MaxWidth=460 };
+        var go=CreateUpdateNoticeButton(label,updateText);
         Zone.UpdateNotice.Content=go;
+        void OpenPage(){if(!ReviewSandbox.Active)try{System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(release.Page){UseShellExecute=true});}catch(Exception error) when(error is System.ComponentModel.Win32Exception or InvalidOperationException){}}
+        System.Threading.CancellationTokenSource? running=null;bool failed=false;
         go.Click+=async(_,_)=>
         {
-            if(Updater.Installed!=null)return;
-            if(!Updater.CanInstall) { if(!ReviewSandbox.Active)System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Updater.ReleasesPage){UseShellExecute=true});return; }
-            go.IsEnabled=false;label.Text="Downloading update…";
-            try { var(_,text)=await Updater.Install(release); label.Text=text; }
-            catch(Exception error) when(error is System.Net.Http.HttpRequestException or TaskCanceledException or IOException or UnauthorizedAccessException) { label.Text="Update failed · click to retry";go.ToolTip=error.Message; }
-            finally { go.IsEnabled=true; }
+            if(running!=null){running.Cancel();return;}
+            if(Updater.Installed!=null){if(Updater.Restart())Application.Current.Shutdown();return;}
+            if(failed||!Updater.CanInstall){OpenPage();return;}
+            running=new();label.Text=X20Ctl.Zone.UpdateKit.Label(name,true,0);go.ToolTip="Click to cancel";
+            var progress=new Progress<double>(p=>label.Text=X20Ctl.Zone.UpdateKit.Label(name,true,p));
+            (bool Done,string Message) result;
+            try{result=await Updater.Install(release,progress,running.Token);}
+            catch(Exception error) when(error is InvalidOperationException or NotSupportedException){result=(false,error.Message);}
+            bool cancelled=running.IsCancellationRequested;running.Dispose();running=null;
+            if(result.Done){label.Text="Restarting…";go.IsEnabled=false;if(Updater.Restart()){Application.Current.Shutdown();return;}go.IsEnabled=true;label.Text="Update installed · restart to finish";go.ToolTip="It starts the next time you open X20CTL.";return;}
+            go.ToolTip=result.Message;
+            if(cancelled){label.Text=X20Ctl.Zone.UpdateKit.Label(name,false);return;}
+            failed=true;label.Text=X20Ctl.Zone.UpdateKit.Label(name,false,0,true);OpenPage();
         };
     }
     public void CloseSettings(){if(Settings!=null){var leaving=Settings;Settings=null;Fx.Leave(leaving,()=>Children.Remove(leaving),1.03,220);}if(Studio!=null){Studio.IsEnabled=true;Studio.Visibility=Visibility.Visible;Zone.Visibility=Visibility.Collapsed;Zone.IsEnabled=false;}else{Zone.IsEnabled=true;Zone.Visibility=Visibility.Visible;}_=UpdateNativeContext();}
