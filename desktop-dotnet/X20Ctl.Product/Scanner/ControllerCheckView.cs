@@ -1,4 +1,4 @@
-﻿using System.Net.Http;
+using System.Net.Http;
 using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
@@ -22,7 +22,7 @@ namespace X20Ctl.Product.Scanner;
 /// that responds is picked for you while nothing is recorded yet, a progress strip, per-control result chips, plain
 /// "what to try" help when no slot responds, and a live stick-offset readout. Read-only throughout.
 /// </summary>
-public sealed class ControllerCheckView : Grid
+public sealed partial class ControllerCheckView : Grid
 {
     // M1–M6 have their own steps since 10 Oct 2026 (owner: "it must be tested"); a model with fewer paddles skips the rest
     private static readonly string[] AllActions = ["neutral", "A", "B", "X", "Y", "LB", "RB", "dpad_up", "dpad_right", "dpad_down", "dpad_left",
@@ -32,7 +32,7 @@ public sealed class ControllerCheckView : Grid
     private (string Name, string Model)? detected;
     internal static readonly string[] Models = ["Unknown", "X05 Pro", "X10", "X15", "D10", "Dune / D15", "X20 Pro", "X20"];
     private static readonly string[] Transports = ["Receiver", "USB cable", "Bluetooth", "Not sure"];
-    private static readonly Color Green = Color.FromRgb(52, 211, 153), Amber = Color.FromRgb(245, 180, 91), Blue = Kit.Blue;
+    private static readonly Color Green = ThemeCatalog.R(Color.FromRgb(52, 211, 153)), Amber = ThemeCatalog.R(Color.FromRgb(245, 180, 91)), Blue = Kit.Blue;
 
     // ---- the 2.0.0 engine state ----
     private readonly Action close;
@@ -78,7 +78,7 @@ public sealed class ControllerCheckView : Grid
     public ControllerCheckView(Action close)
     {
         this.close = close;
-        Background = new SolidColorBrush(Color.FromRgb(5, 9, 20)); ClipToBounds = true;
+        Background = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(5, 9, 20))); ClipToBounds = true;
         Children.Add(new FacetBackdrop());
         var page = new Grid { Margin = new(40, 0, 40, 28) }; Children.Add(page);
         page.RowDefinitions.Add(new() { Height = new(84) }); page.RowDefinitions.Add(new() { Height = new(64) }); page.RowDefinitions.Add(new()); page.RowDefinitions.Add(new() { Height = new(18) }); page.RowDefinitions.Add(new() { Height = GridLength.Auto });
@@ -90,7 +90,7 @@ public sealed class ControllerCheckView : Grid
             Child = new StackPanel { Orientation = Orientation.Horizontal, Children = { Kit.Icon("", 14, "DS.Success").Also(i => i.Margin = new(0, 0, 9, 0)), Kit.Text("Read-only · nothing is changed or uploaded", 13.5, "DS.Text", FontWeights.SemiBold) } } };
         DockPanel.SetDock(safe, Dock.Right); bar.Children.Add(safe);
         var mark = new Image { Source = LiveController.Bitmap("Assets/icon.png"), Width = 34, Height = 34, Margin = new(0, 0, 14, 0) }; RenderOptions.SetBitmapScalingMode(mark, BitmapScalingMode.HighQuality);
-        bar.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = { mark, Kit.Text("X20CTL", 22, "DS.Text", FontWeights.Bold), new Border { Width = 1, Height = 22, Background = new SolidColorBrush(Color.FromArgb(60, 255, 255, 255)), Margin = new(18, 0, 18, 0) },
+        bar.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = { mark, Kit.Text("X20CTL", 22, "DS.Text", FontWeights.Bold), new Border { Width = 1, Height = 22, Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(60, 255, 255, 255))), Margin = new(18, 0, 18, 0) },
             Kit.Text("Controller Check", 22, "DS.Text", FontWeights.SemiBold), Kit.Text("   Read scan · Scanner 2.2 engine", 14, "DS.TextMuted") } });
         page.Children.Add(bar);
         Grid.SetRow(steps, 1); page.Children.Add(steps);
@@ -111,9 +111,9 @@ public sealed class ControllerCheckView : Grid
         fresh = Action("", "New source", "ActionButton"); fresh.Click += (_, _) => NewSource(); fresh.ToolTip = "Save what was recorded, then start again with another slot or reader";
         var leftFoot = new StackPanel { Margin = new(0, 14, 0, 0), Children = {
             Kit.Text("WINDOWS READER", 12, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(2, 0, 0, 8)),
-            new Border { CornerRadius = new(12), Background = new SolidColorBrush(Color.FromArgb(30, 255, 255, 255)), BorderBrush = new SolidColorBrush(Color.FromArgb(34, 255, 255, 255)), BorderThickness = new(1), Padding = new(1), Child = readerRow },
+            new Border { CornerRadius = new(12), Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(30, 255, 255, 255))), BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(34, 255, 255, 255))), BorderThickness = new(1), Padding = new(1), Child = readerRow },
             new Grid { Margin = new(0, 14, 0, 0), ColumnDefinitions = { new(), new() { Width = new(10) }, new() { Width = GridLength.Auto } }, Children = { start, fresh.Also(f => Grid.SetColumn(f, 2)) } } } };
-        DockPanel.SetDock(leftFoot, Dock.Bottom); left.Children.Add(leftFoot); left.Children.Add(slotStack);
+        DockPanel.SetDock(leftFoot, Dock.Bottom); left.Children.Add(leftFoot); left.Children.Add(ThemeCatalog.Current.Id == "rebel" ? new ScrollViewer { Content = slotStack, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled } : slotStack);
         body.Children.Add(Kit.Panel("Player slots", "Press A: the slot that lights up is yours", null, left));
 
         // centre: the live diagram, the "no signal" help, or the Raw Input page
@@ -149,11 +149,16 @@ public sealed class ControllerCheckView : Grid
             Labelled("PRINTED MODEL (YOUR CLAIM)", model), Labelled("CONNECTED BY", transport).Also(s => s.Margin = new(16, 0, 0, 0)) } };
         var inv = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new(28, 0, 0, 0), Children = { detect, details.Also(d => d.Margin = new(10, 0, 0, 0)), new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new(16, 0, 0, 0), Children = { inventoryText, new StackPanel { Orientation = Orientation.Horizontal, Margin = new(0, 6, 0, 0), Children = { serial, Kit.Text("Include serial numbers (optional, private)", 12.5, "DS.TextMuted").Also(t => t.Margin = new(10, 0, 0, 0)) } } } } } };
         var savers = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Children = { rawToggle, open.Also(o => o.Margin = new(10, 0, 10, 0)), save } };
-        var foot = new DockPanel(); DockPanel.SetDock(savers, Dock.Right); foot.Children.Add(savers); foot.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = { claims, inv } });
+        var foot = new DockPanel();
+        if (ThemeCatalog.Current.Id == "rebel") { inv.Margin = new(16, 0, 0, 8); savers.Margin = new(0, 8, 0, 0); foot.Children.Add(new WrapPanel { Children = { claims, inv, savers } }); }
+        else { DockPanel.SetDock(savers, Dock.Right); foot.Children.Add(savers); foot.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = { claims, inv } }); }
         var footPanel = Kit.Panel(null, null, null, foot, new(22, 14, 22, 14)); Grid.SetRow(footPanel, 4); page.Children.Add(footPanel);
 
-        overlay.Background = new SolidColorBrush(Color.FromArgb(225, 3, 6, 14)); Children.Add(overlay);
+        overlay.Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(225, 3, 6, 14))); Children.Add(overlay);
         BuildWarning(); Children.Add(warning); Children.Add(resultsLayer);
+        if (ThemeCatalog.Current.Id == "pulse") BuildPulseReadFlow(page);
+        if (ThemeCatalog.Current.Id == "spotlight") BuildSpotlightReadFlow(page);
+        if (ThemeCatalog.Current.Id == "rebel") BuildRebelReadFlow(page);
 
         timer.Tick += (_, _) => TickInput();
         Loaded += (_, _) => { start.Focus(); if (DS.Motion) { Opacity = 0; BeginAnimation(OpacityProperty, DS.To(1, 240)); } };
@@ -379,11 +384,11 @@ public sealed class ControllerCheckView : Grid
 
     private void BuildWarning()
     {
-        warning.Background = new SolidColorBrush(Color.FromArgb(246, 5, 9, 20));
+        warning.Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(246, 5, 9, 20)));
         var cards = new UniformGrid { Columns = 2, Margin = new(-8, 22, -8, 0) };
         foreach (var (title, text) in ScanFlow.Expectations)
-            cards.Children.Add(new Border { CornerRadius = new(14), Margin = new(8), Padding = new(18, 14, 18, 14), BorderThickness = new(1), BorderBrush = new SolidColorBrush(Color.FromArgb(46, 140, 180, 255)),
-                Background = new LinearGradientBrush(Color.FromArgb(160, 20, 34, 70), Color.FromArgb(120, 10, 18, 40), 90),
+            cards.Children.Add(new Border { CornerRadius = new(14), Margin = new(8), Padding = new(18, 14, 18, 14), BorderThickness = new(1), BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(46, 140, 180, 255))),
+                Background = new LinearGradientBrush(ThemeCatalog.R(Color.FromArgb(160, 20, 34, 70)), ThemeCatalog.R(Color.FromArgb(120, 10, 18, 40)), 90),
                 Child = new StackPanel { Children = { Kit.Text(title, 16.5, "DS.Text", FontWeights.SemiBold), Wrap(text, 14, "DS.TextSoft").Also(t => t.Margin = new(0, 6, 0, 0)) } } });
         var send = Action("", "Scan and send the report", "PrimaryButton"); send.Click += (_, _) => StartScan(true);
         var local = Action("", "Scan, keep it on this PC", "ActionButton"); local.Click += (_, _) => StartScan(false);
@@ -400,16 +405,21 @@ public sealed class ControllerCheckView : Grid
             systems.Children.Add(r);
         }
         var systemRow = new StackPanel { Margin = new(0, 20, 0, 0), Children = { Kit.Text("WHICH SYSTEM IS THE CONTROLLER CONNECTED TO?", 12, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(2, 0, 0, 8)),
-            new Border { CornerRadius = new(12), Background = new SolidColorBrush(Color.FromArgb(30, 255, 255, 255)), BorderBrush = new SolidColorBrush(Color.FromArgb(34, 255, 255, 255)), BorderThickness = new(1), Padding = new(1), HorizontalAlignment = HorizontalAlignment.Left, Child = systems } } };
+            new Border { CornerRadius = new(12), Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(30, 255, 255, 255))), BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(34, 255, 255, 255))), BorderThickness = new(1), Padding = new(1), HorizontalAlignment = HorizontalAlignment.Left, Child = systems } } };
         var panel = new StackPanel { MaxWidth = 1180, HorizontalAlignment = HorizontalAlignment.Center, Margin = new(40, 36, 40, 30), Children = {
             Kit.Text("Before you scan", 40, "DS.Text", FontWeights.Bold),
             Wrap("This is a full controller scan: you'll be guided through every button, stick and trigger, one step at a time, while X20CTL records exactly what the controller reports. Here is what it does and what to expect.", 17, "DS.TextSoft").Also(t => t.Margin = new(0, 8, 0, 0)),
             systemRow,
             cards,
-            new Border { CornerRadius = new(14), Margin = new(0, 18, 0, 0), Padding = new(18, 14, 18, 14), BorderThickness = new(1), BorderBrush = new SolidColorBrush(Color.FromArgb(110, 61, 139, 255)), Background = new SolidColorBrush(Color.FromArgb(40, 61, 139, 255)),
+            new Border { CornerRadius = new(14), Margin = new(0, 18, 0, 0), Padding = new(18, 14, 18, 14), BorderThickness = new(1), BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(110, 61, 139, 255))), Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(40, 61, 139, 255))),
                 Child = Wrap("Your report: the full ZIP is always saved to Documents\\X20CTLInputReports. \"Scan and send\" also sends a compact summary (controller names, IDs and results, no personal files) to X20CTLADMIN, the X20CTL team's report site, when the scan ends. You can send the ZIP to @" + ScanFlow.Discord + " on Discord too.", 14.5, "DS.Text") },
             choices, linux } };
         warning.Child = new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+        if (ThemeCatalog.Current.Id == "pulse") BuildPulseReadWarning(cards, systemRow, choices, linux);
+        if (ThemeCatalog.Current.Id == "spotlight") BuildSpotlightReadWarning(cards, systemRow, choices, linux);
+        if (ThemeCatalog.Current.Id == "nexus") BuildNexusReadWarning(cards, systemRow, choices, linux);
+        if (ThemeCatalog.Current.Id == "tide") BuildTideReadWarning(cards, systemRow, choices, linux);
+        if (ThemeCatalog.Current.Id == "rebel") BuildRebelReadWarning(cards, systemRow, choices, linux);
     }
     /// <summary>For a controller on a Linux PC: the bundled Linux Controller Check (tools/linux_controller_check), the same
     /// steps and report in a terminal, for every distro with Python 3.</summary>
@@ -420,7 +430,7 @@ public sealed class ControllerCheckView : Grid
         var open = Action("\uE838", "Open the Linux scanner", "PrimaryButton"); open.Click += (_, _) => { if (ReviewSandbox.Active) return; try { Process.Start(new ProcessStartInfo("explorer.exe", "\"" + folder + "\"") { UseShellExecute = true }); } catch (System.ComponentModel.Win32Exception) { } };
         var copy = Action("\uE8C8", "Copy the command", "ActionButton"); copy.Click += (_, _) => { try { Clipboard.SetText(command); SetLabel(copy, "Copied"); } catch (System.Runtime.InteropServices.ExternalException) { } };
         var back = Action("\uE72B", "Back to Tools", "ActionButton"); back.Click += (_, _) => close();
-        Border Step(string n, string title, string text) => new() { CornerRadius = new(14), Margin = new(0, 0, 0, 10), Padding = new(18, 12, 18, 12), BorderThickness = new(1), BorderBrush = new SolidColorBrush(Color.FromArgb(46, 140, 180, 255)), Background = new SolidColorBrush(Color.FromArgb(70, 16, 28, 58)),
+        Border Step(string n, string title, string text) => new() { CornerRadius = new(14), Margin = new(0, 0, 0, 10), Padding = new(18, 12, 18, 12), BorderThickness = new(1), BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(46, 140, 180, 255))), Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(70, 16, 28, 58))),
             Child = new DockPanel { Children = { new Grid { Width = 30, Height = 30, Margin = new(0, 0, 14, 0), VerticalAlignment = VerticalAlignment.Top, Children = { new Ellipse { Fill = new SolidColorBrush(Kit.Blue) }, Kit.Text(n, 14, "DS.Text", FontWeights.Bold).Also(t => t.HorizontalAlignment = HorizontalAlignment.Center) } }.Also(g => DockPanel.SetDock(g, Dock.Left)),
                 new StackPanel { Children = { Kit.Text(title, 16.5, "DS.Text", FontWeights.SemiBold), Wrap(text, 14, "DS.TextSoft").Also(t => t.Margin = new(0, 4, 0, 0)) } } } } };
         return new StackPanel { Margin = new(0, 22, 0, 0), Children = {
@@ -522,12 +532,13 @@ public sealed class ControllerCheckView : Grid
     {
         var list = new StackPanel();
         foreach (var f in findings)
-            list.Children.Add(new Border { CornerRadius = new(12), Margin = new(0, 0, 0, 10), Padding = new(16, 12, 16, 12), BorderThickness = new(1), BorderBrush = new SolidColorBrush(Color.FromArgb(40, 140, 180, 255)), Background = new SolidColorBrush(Color.FromArgb(70, 16, 28, 58)),
+            list.Children.Add(new Border { CornerRadius = new(12), Margin = new(0, 0, 0, 10), Padding = new(16, 12, 16, 12), BorderThickness = new(1), BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(40, 140, 180, 255))), Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(70, 16, 28, 58))),
                 Child = new DockPanel { Children = {
                     Kit.Text(f.Confidence.ToUpperInvariant(), 11, "DS.TextMuted", FontWeights.SemiBold).Also(t => { DockPanel.SetDock(t, Dock.Right); t.VerticalAlignment = VerticalAlignment.Top; }),
                     new StackPanel { Children = { Kit.Text(f.Area, 13, "DS.TextSoft", FontWeights.SemiBold), Wrap(f.Value, 17, "DS.Text"), Wrap(f.Detail, 13, "DS.TextMuted").Also(t => t.Margin = new(0, 3, 0, 0)) } } } } });
         string status = !saved ? "The report couldn't be saved: " + outcome.Text : "Saved: " + lastSaved;
-        string sent = receipt != null ? $"Sent to X20CTLADMIN · receipt {receipt}" : failure != null ? $"Not sent to X20CTLADMIN ({failure}). The ZIP is saved; you can share it by hand." : "Kept on this PC (not sent).";
+        bool describeAsSaved = saved || ThemeCatalog.Current.Id != "rebel";
+        string sent = receipt != null ? $"Sent to X20CTLADMIN · receipt {receipt}" : failure != null ? $"Not sent to X20CTLADMIN ({failure}). " + (describeAsSaved ? "The ZIP is saved; you can share it by hand." : "The ZIP could not be saved.") : describeAsSaved ? "Kept on this PC (not sent)." : "Not saved or sent.";
         var copy = Action("", "Copy @" + ScanFlow.Discord, "ActionButton"); copy.Click += (_, _) => { try { Clipboard.SetText(ScanFlow.Discord); SetLabel(copy, "Copied"); } catch (System.Runtime.InteropServices.ExternalException) { } };
         var open = Action("", "Open reports folder", "ActionButton"); open.Click += (_, _) => OpenReports();
         var done = Action("", "Done", "PrimaryButton"); done.Click += (_, _) => Fx.Leave(resultsLayer, () => resultsLayer.Visibility = Visibility.Collapsed, 1.02, 200);
@@ -539,7 +550,7 @@ public sealed class ControllerCheckView : Grid
         redo.Visibility = missed.Length > 0 && reader != null ? Visibility.Visible : Visibility.Collapsed;
         var side = new StackPanel { Width = 420, Margin = new(28, 0, 0, 0), Children = {
             Kit.Text("YOUR REPORT", 12, "DS.TextMuted", FontWeights.SemiBold), Wrap(status, 14, "DS.TextSoft").Also(t => t.Margin = new(0, 6, 0, 0)), Wrap(sent, 15, receipt != null ? "DS.Success" : "DS.Text").Also(t => t.Margin = new(0, 12, 0, 0)),
-            new Border { CornerRadius = new(14), Margin = new(0, 20, 0, 0), Padding = new(18, 16, 18, 16), Background = new SolidColorBrush(Color.FromArgb(50, 88, 101, 242)), BorderBrush = new SolidColorBrush(Color.FromArgb(150, 88, 101, 242)), BorderThickness = new(1),
+            new Border { CornerRadius = new(14), Margin = new(0, 20, 0, 0), Padding = new(18, 16, 18, 16), Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(50, 88, 101, 242))), BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(150, 88, 101, 242))), BorderThickness = new(1),
                 Child = new StackPanel { Children = { Kit.Text("Send it on Discord", 18, "DS.Text", FontWeights.SemiBold), Wrap($"Send the report ZIP to @{ScanFlow.Discord} on Discord. It helps add full support for your controller.", 14.5, "DS.TextSoft").Also(t => t.Margin = new(0, 6, 0, 12)), copy } } },
             redo.Also(r => { r.Margin = new(0, 20, 0, 0); r.HorizontalAlignment = HorizontalAlignment.Left; }),
             new StackPanel { Orientation = Orientation.Horizontal, Margin = new(0, 20, 0, 0), Children = { open, done.Also(d => d.Margin = new(10, 0, 0, 0)) } } } };
@@ -549,7 +560,7 @@ public sealed class ControllerCheckView : Grid
             var go = Action("", "Continue to the Write scan", "PrimaryButton"); go.HorizontalAlignment = HorizontalAlignment.Left; go.Margin = new(0, 14, 0, 0);
             go.Click += (_, _) => ContinueToWrite(report);
             side.Children.Insert(3, new Border { CornerRadius = new(14), Margin = new(0, 20, 0, 0), Padding = new(18, 16, 18, 16), BorderThickness = new(1),
-                Background = new SolidColorBrush(Color.FromArgb(46, 61, 139, 255)), BorderBrush = new SolidColorBrush(Color.FromArgb(150, 61, 139, 255)),
+                Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(46, 61, 139, 255))), BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(150, 61, 139, 255))),
                 Child = new StackPanel { Children = { Kit.Text("Next: the Write scan", 18, "DS.Text", FontWeights.SemiBold),
                     Wrap("Learn what KeyLinker writes to this controller. This Read scan report goes along automatically, and you send both online together at the end.", 14.5, "DS.TextSoft").Also(t => t.Margin = new(0, 6, 0, 0)), go } } });
         }
@@ -557,8 +568,8 @@ public sealed class ControllerCheckView : Grid
         DockPanel.SetDock(side, Dock.Right); body.Children.Add(side);
         body.Children.Add(new DockPanel { Children = { new StackPanel { Margin = new(0, 0, 0, 16), Children = { Kit.Text("Scan complete", 40, "DS.Text", FontWeights.Bold), Wrap("Everything X20CTL could read from this controller, and how sure each reading is.", 16, "DS.TextSoft") } }.Also(s => DockPanel.SetDock(s, Dock.Top)),
             new ScrollViewer { Content = list, VerticalScrollBarVisibility = ScrollBarVisibility.Auto } } });
-        resultsLayer.Background = new SolidColorBrush(Color.FromArgb(248, 5, 9, 20)); resultsLayer.Child = body; resultsLayer.Visibility = Visibility.Visible; Fx.Appear(resultsLayer, 1.03, 320);
-        big.Text = "All done"; prompt.Text = "The scan is complete. The results are on screen and the report is saved."; scanMode = false; done.Focus();
+        resultsLayer.Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(248, 5, 9, 20))); resultsLayer.Child = ThemeCatalog.Current.Id == "rebel" ? RebelReadResults(body) : body; resultsLayer.Visibility = Visibility.Visible; Fx.Appear(resultsLayer, 1.03, 320);
+        big.Text = "All done"; prompt.Text = describeAsSaved ? "The scan is complete. The results are on screen and the report is saved." : "The scan is complete. The results are on screen, but the report could not be saved."; scanMode = false; done.Focus();
     }
 
     /// <summary>Runs just the steps that weren't seen, then saves (and, if chosen, sends) a new report with every result.</summary>
@@ -609,7 +620,7 @@ public sealed class ControllerCheckView : Grid
     // ================= Raw Input fallback (focused, explicitly started, separate stream) =================
     private void BuildRawPage()
     {
-        rawPage.Background = new SolidColorBrush(Color.FromArgb(235, 8, 14, 32));
+        rawPage.Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(235, 8, 14, 32)));
         rawStart = Action("", "Start Raw Input check", "PrimaryButton"); rawStart.HorizontalAlignment = HorizontalAlignment.Left;
         rawStart.Click += (_, _) => StartRaw();
         var shut = Action("", "Back to live input", "ActionButton"); shut.HorizontalAlignment = HorizontalAlignment.Left; shut.Click += (_, _) => ToggleRaw();
@@ -670,7 +681,7 @@ public sealed class ControllerCheckView : Grid
     // ================= help when nothing responds =================
     private void BuildNoSignal()
     {
-        noSignal.Background = new SolidColorBrush(Color.FromArgb(252, 9, 16, 36));
+        noSignal.Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(252, 9, 16, 36)));
         var list = new StackPanel { Margin = new(36, 30, 36, 24), VerticalAlignment = VerticalAlignment.Center };
         list.Children.Add(new Grid { Width = 74, Height = 74, HorizontalAlignment = HorizontalAlignment.Left, Margin = new(0, 0, 0, 16), Children = {
             new Ellipse { Fill = new RadialGradientBrush(Color.FromArgb(80, Amber.R, Amber.G, Amber.B), Color.FromArgb(0, Amber.R, Amber.G, Amber.B)), Margin = new(-18) },
@@ -701,7 +712,7 @@ public sealed class ControllerCheckView : Grid
     private static Border Chip(string text) => new() { CornerRadius = new(14), Padding = new(12, 6, 12, 6), Margin = new(0, 0, 8, 8), BorderThickness = new(1), Child = Kit.Text(text, 13, "DS.Text", FontWeights.SemiBold) };
     private static void Paint(Border chip, string state)
     {
-        var c = state switch { "observed" => Green, "inconclusive" => Amber, "active" => Blue, "next" => Kit.Ice, _ => Color.FromRgb(150, 165, 192) };
+        var c = state switch { "observed" => Green, "inconclusive" => Amber, "active" => Blue, "next" => Kit.Ice, _ => ThemeCatalog.R(Color.FromRgb(150, 165, 192)) };
         byte fill = state switch { "observed" or "active" => 70, "inconclusive" => 55, "next" => 40, "skipped" => 10, _ => 18 };
         chip.Background = new SolidColorBrush(Color.FromArgb(fill, c.R, c.G, c.B));
         chip.BorderBrush = new SolidColorBrush(Color.FromArgb(state is "pending" or "skipped" ? (byte)40 : (byte)170, c.R, c.G, c.B));
@@ -747,16 +758,26 @@ public sealed class ControllerCheckView : Grid
         }
         private void Paint()
         {
+            if (ThemeCatalog.Current.Id == "rebel")
+            {
+                bool lit = selected || IsKeyboardFocused || IsMouseOver;
+                face.CornerRadius = new(0); face.Background = Rebel.Ink.B(lit ? Rebel.Ink.White : Rebel.Ink.Panel);
+                face.BorderBrush = Rebel.Ink.B(lit ? Rebel.Ink.Red : Rebel.Ink.A(Rebel.Ink.White, .3));
+                face.Effect = lit ? Rebel.Ink.Shadow(5, 5, 0, Rebel.Ink.Red, 1) : null;
+                Rebel.RebelToolFrame.InkText(face, lit ? Rebel.Ink.Black : Rebel.Ink.White);
+                dot.Fill = Rebel.Ink.B(input ? Rebel.Ink.Red : present ? Rebel.Ink.White : Rebel.Ink.Grey); dot.Effect = null;
+                Opacity = IsEnabled || selected ? 1 : .7; return;
+            }
             var accent = input ? Green : Kit.Blue;
             face.Background = input ? new SolidColorBrush(Color.FromArgb(60, Green.R, Green.G, Green.B)) : new SolidColorBrush(Color.FromArgb(selected ? (byte)40 : (byte)18, 120, 160, 230));
-            face.BorderBrush = IsKeyboardFocused || IsMouseOver ? Brushes.White : selected ? new SolidColorBrush(Color.FromArgb(220, accent.R, accent.G, accent.B)) : new SolidColorBrush(Color.FromArgb(36, 255, 255, 255));
+            face.BorderBrush = IsKeyboardFocused || IsMouseOver ? Brushes.White : selected ? new SolidColorBrush(Color.FromArgb(220, accent.R, accent.G, accent.B)) : new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(36, 255, 255, 255)));
             face.Effect = selected ? new DropShadowEffect { Color = accent, BlurRadius = 20, ShadowDepth = 0, Opacity = .55 } : null;
-            dot.Fill = new SolidColorBrush(!present ? Color.FromRgb(90, 100, 122) : input ? Green : Color.FromRgb(120, 175, 255));
+            dot.Fill = new SolidColorBrush(!present ? ThemeCatalog.R(Color.FromRgb(90, 100, 122)) : input ? Green : ThemeCatalog.R(Color.FromRgb(120, 175, 255)));
             dot.Effect = present ? new DropShadowEffect { Color = input ? Green : Kit.Blue, BlurRadius = 12, ShadowDepth = 0, Opacity = .9 } : null;
             Opacity = IsEnabled || selected ? 1 : .7;
         }
-        private static Border Bar() => new() { Height = 6, CornerRadius = new(3), HorizontalAlignment = HorizontalAlignment.Left, Background = new LinearGradientBrush(Color.FromRgb(90, 165, 255), Color.FromRgb(52, 211, 153), 0) };
-        private static StackPanel Track(string label, Border bar) => new() { Children = { Kit.Text(label, 11, "DS.TextMuted", FontWeights.SemiBold), new Grid { Width = 120, HorizontalAlignment = HorizontalAlignment.Left, Margin = new(0, 4, 0, 0), Children = { new Border { Height = 6, CornerRadius = new(3), Background = new SolidColorBrush(Color.FromArgb(40, 255, 255, 255)) }, bar } } } };
+        private static Border Bar() => new() { Height = 6, CornerRadius = new(3), HorizontalAlignment = HorizontalAlignment.Left, Background = new LinearGradientBrush(ThemeCatalog.R(Color.FromRgb(90, 165, 255)), ThemeCatalog.R(Color.FromRgb(52, 211, 153)), 0) };
+        private static StackPanel Track(string label, Border bar) => new() { Children = { Kit.Text(label, 11, "DS.TextMuted", FontWeights.SemiBold), new Grid { Width = 120, HorizontalAlignment = HorizontalAlignment.Left, Margin = new(0, 4, 0, 0), Children = { new Border { Height = 6, CornerRadius = new(3), Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(40, 255, 255, 255))) }, bar } } } };
     }
 
     /// <summary>The five stages, lit as the check moves along.</summary>
@@ -773,7 +794,7 @@ public sealed class ControllerCheckView : Grid
                 var disc = new Grid { Width = 30, Height = 30, Children = { new Ellipse(), number } };
                 var label = Kit.Text(names[i], 15, "DS.TextSoft", FontWeights.SemiBold); label.Margin = new(10, 0, 0, 0);
                 Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = { disc, label } });
-                if (i < names.Length - 1) Children.Add(new Border { Width = 46, Height = 2, CornerRadius = new(1), Margin = new(16, 0, 16, 0), Background = new SolidColorBrush(Color.FromArgb(50, 255, 255, 255)), VerticalAlignment = VerticalAlignment.Center });
+                if (i < names.Length - 1) Children.Add(new Border { Width = 46, Height = 2, CornerRadius = new(1), Margin = new(16, 0, 16, 0), Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(50, 255, 255, 255))), VerticalAlignment = VerticalAlignment.Center });
                 items.Add((disc, number, label));
             }
         }
@@ -784,8 +805,8 @@ public sealed class ControllerCheckView : Grid
                 bool done = i < current || saved && i == 4, now = i == current && !done;
                 var (disc, number, label) = items[i];
                 var ring = (Ellipse)disc.Children[0];
-                ring.Fill = new SolidColorBrush(done ? Color.FromArgb(200, Green.R, Green.G, Green.B) : now ? Kit.Blue : Color.FromArgb(30, 255, 255, 255));
-                ring.Stroke = new SolidColorBrush(done ? Green : now ? Color.FromRgb(160, 200, 255) : Color.FromArgb(70, 255, 255, 255)); ring.StrokeThickness = 1.4;
+                ring.Fill = new SolidColorBrush(done ? Color.FromArgb(200, Green.R, Green.G, Green.B) : now ? Kit.Blue : ThemeCatalog.R(Color.FromArgb(30, 255, 255, 255)));
+                ring.Stroke = new SolidColorBrush(done ? Green : now ? ThemeCatalog.R(Color.FromRgb(160, 200, 255)) : ThemeCatalog.R(Color.FromArgb(70, 255, 255, 255))); ring.StrokeThickness = 1.4;
                 ring.Effect = now ? new DropShadowEffect { Color = Kit.Blue, BlurRadius = 16, ShadowDepth = 0, Opacity = .8 } : null;
                 number.Text = done ? "✓" : (i + 1).ToString();
                 label.Foreground = DS.Brush(now || done ? "DS.Text" : "DS.TextMuted");
@@ -798,7 +819,7 @@ public sealed class ControllerCheckView : Grid
     private sealed class Diagram : Canvas
     {
         private readonly Dictionary<string, Shape> lights = new();
-        private readonly Dictionary<string, Color> tone = new() { ["A"] = Color.FromRgb(70, 220, 150), ["B"] = Color.FromRgb(255, 100, 125), ["X"] = Color.FromRgb(70, 170, 255), ["Y"] = Color.FromRgb(245, 205, 80) };
+        private readonly Dictionary<string, Color> tone = new() { ["A"] = ThemeCatalog.R(Color.FromRgb(70, 220, 150)), ["B"] = ThemeCatalog.R(Color.FromRgb(255, 100, 125)), ["X"] = ThemeCatalog.R(Color.FromRgb(70, 170, 255)), ["Y"] = ThemeCatalog.R(Color.FromRgb(245, 205, 80)) };
         private readonly Ellipse leftDot = Dot(), rightDot = Dot();
         private readonly TextBlock leftText = Small(), rightText = Small(), ltText = Small(), rtText = Small(), heldText = Small(), lastText = Small();
         private readonly Rectangle ltFill = new() { Height = 14, RadiusX = 7, RadiusY = 7 }, rtFill = new() { Height = 14, RadiusX = 7, RadiusY = 7 };
@@ -809,7 +830,7 @@ public sealed class ControllerCheckView : Grid
             Width = 760; Height = 470;
             // a soft pad silhouette behind everything
             Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse("M150,96 C210,70 300,74 380,80 C460,74 550,70 610,96 C690,128 735,270 740,360 C745,430 700,462 655,452 C610,442 585,392 552,350 C520,320 470,318 380,318 C290,318 240,320 208,350 C175,392 150,442 105,452 C60,462 15,430 20,360 C25,270 70,128 150,96 Z"),
-                Fill = new LinearGradientBrush(Color.FromArgb(70, 40, 60, 110), Color.FromArgb(25, 20, 30, 60), 90), Stroke = new SolidColorBrush(Color.FromArgb(70, 125, 182, 255)), StrokeThickness = 1.5 });
+                Fill = new LinearGradientBrush(ThemeCatalog.R(Color.FromArgb(70, 40, 60, 110)), ThemeCatalog.R(Color.FromArgb(25, 20, 30, 60)), 90), Stroke = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(70, 125, 182, 255))), StrokeThickness = 1.5 });
             Trigger("LT", 70, 10, ltFill, ltText); Trigger("RT", 470, 10, rtFill, rtText);
             Pill("LB", 120, 62, 120); Pill("RB", 520, 62, 120);
             Pill("Back", 300, 150, 70, "View"); Pill("Start", 390, 150, 70, "Menu");
@@ -817,7 +838,7 @@ public sealed class ControllerCheckView : Grid
             // D-pad: arms light for straight and diagonal presses
             foreach (var (key, x, y, w, h) in new[] { ("dpad_up", 274.0, 276.0, 32.0, 40.0), ("dpad_down", 274, 344, 32, 40), ("dpad_left", 236, 314, 40, 32), ("dpad_right", 304, 314, 40, 32) })
                 Add(key, new Rectangle { Width = w, Height = h, RadiusX = 7, RadiusY = 7 }, x, y, Glyph(key));
-            Add("dpad_center", new Rectangle { Width = 32, Height = 32, Fill = new SolidColorBrush(Color.FromArgb(40, 255, 255, 255)) }, 274, 314, null);
+            Add("dpad_center", new Rectangle { Width = 32, Height = 32, Fill = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(40, 255, 255, 255))) }, 274, 314, null);
             foreach (var (key, x, y) in new[] { ("Y", 575.0, 150.0), ("X", 525, 200), ("B", 625, 200), ("A", 575, 250) }) Add(key, new Ellipse { Width = 46, Height = 46, StrokeThickness = 2 }, x - 23, y - 23, key);
             Put(heldText, 40, 420); Put(lastText, 40, 442);
             foreach (var key in lights.Keys) Paint(key, false);
@@ -840,7 +861,7 @@ public sealed class ControllerCheckView : Grid
         {
             double nx = x / 32768.0, ny = y / 32768.0;
             SetLeft(dot, cx + nx * Travel - 9); SetTop(dot, cy - ny * Travel - 9);
-            ring.Stroke = new SolidColorBrush(click ? Green : Color.FromArgb(150, 125, 182, 255)); ring.StrokeThickness = click ? 3 : 1.6;
+            ring.Stroke = new SolidColorBrush(click ? Green : ThemeCatalog.R(Color.FromArgb(150, 125, 182, 255))); ring.StrokeThickness = click ? 3 : 1.6;
             ring.Effect = click ? new DropShadowEffect { Color = Green, BlurRadius = 18, ShadowDepth = 0, Opacity = .9 } : null;
             double offset = Math.Min(100, Math.Sqrt(nx * nx + ny * ny) * 100);
             text.Text = $"{side} {x}, {y}\n{nx:0.00}, {ny:0.00} · {offset:0.0}% from centre";
@@ -852,19 +873,19 @@ public sealed class ControllerCheckView : Grid
         }
         private void Trigger(string key, double x, double y, Rectangle fill, TextBlock text)
         {
-            Children.Add(new Rectangle { Width = 220, Height = 14, RadiusX = 7, RadiusY = 7, Fill = new SolidColorBrush(Color.FromArgb(40, 255, 255, 255)) }.Also(r => { SetLeft(r, x); SetTop(r, y + 22); }));
-            fill.Fill = new LinearGradientBrush(Color.FromRgb(90, 165, 255), Color.FromRgb(52, 211, 153), 0); SetLeft(fill, x); SetTop(fill, y + 22); Children.Add(fill);
+            Children.Add(new Rectangle { Width = 220, Height = 14, RadiusX = 7, RadiusY = 7, Fill = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(40, 255, 255, 255))) }.Also(r => { SetLeft(r, x); SetTop(r, y + 22); }));
+            fill.Fill = new LinearGradientBrush(ThemeCatalog.R(Color.FromRgb(90, 165, 255)), ThemeCatalog.R(Color.FromRgb(52, 211, 153)), 0); SetLeft(fill, x); SetTop(fill, y + 22); Children.Add(fill);
             Put(text, x, y);
         }
         private void Pill(string key, double x, double y, double w, string? label = null) => Add(key, new Rectangle { Width = w, Height = 34, RadiusX = 17, RadiusY = 17, StrokeThickness = 1.5 }, x, y, label ?? key);
         private void Stick(string key, double cx, double cy, Ellipse ring, Ellipse dot, TextBlock text)
         {
-            ring.Width = ring.Height = StickR * 2; ring.Fill = new SolidColorBrush(Color.FromArgb(30, 20, 40, 90)); SetLeft(ring, cx - StickR); SetTop(ring, cy - StickR); Children.Add(ring);
+            ring.Width = ring.Height = StickR * 2; ring.Fill = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(30, 20, 40, 90))); SetLeft(ring, cx - StickR); SetTop(ring, cy - StickR); Children.Add(ring);
             // the Windows SDK deadzone, so a resting offset can be read against it
             double dz = Travel * 7849 / 32768.0;
-            Children.Add(new Ellipse { Width = dz * 2, Height = dz * 2, Stroke = new SolidColorBrush(Color.FromArgb(70, 255, 255, 255)), StrokeDashArray = new() { 2, 3 }, ToolTip = "Windows default deadzone" }.Also(e => { SetLeft(e, cx - dz); SetTop(e, cy - dz); }));
-            Children.Add(new Line { X1 = cx - StickR + 8, X2 = cx + StickR - 8, Y1 = cy, Y2 = cy, Stroke = new SolidColorBrush(Color.FromArgb(46, 140, 175, 255)) });
-            Children.Add(new Line { X1 = cx, X2 = cx, Y1 = cy - StickR + 8, Y2 = cy + StickR - 8, Stroke = new SolidColorBrush(Color.FromArgb(46, 140, 175, 255)) });
+            Children.Add(new Ellipse { Width = dz * 2, Height = dz * 2, Stroke = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(70, 255, 255, 255))), StrokeDashArray = new() { 2, 3 }, ToolTip = "Windows default deadzone" }.Also(e => { SetLeft(e, cx - dz); SetTop(e, cy - dz); }));
+            Children.Add(new Line { X1 = cx - StickR + 8, X2 = cx + StickR - 8, Y1 = cy, Y2 = cy, Stroke = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(46, 140, 175, 255))) });
+            Children.Add(new Line { X1 = cx, X2 = cx, Y1 = cy - StickR + 8, Y2 = cy + StickR - 8, Stroke = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(46, 140, 175, 255))) });
             Children.Add(dot); Put(text, cx - 90, cy + StickR + 6); text.Width = 200; text.TextAlignment = TextAlignment.Center;
         }
         private void Add(string key, Shape shape, double x, double y, string? label)
@@ -872,14 +893,14 @@ public sealed class ControllerCheckView : Grid
             SetLeft(shape, x); SetTop(shape, y); Children.Add(shape); lights[key] = shape;
             if (label == null) return;
             var t = new TextBlock { Text = label, FontFamily = DS.Display, FontSize = label.Length > 2 ? 13 : 16, FontWeight = FontWeights.Bold, Width = shape.Width, Height = shape.Height, TextAlignment = TextAlignment.Center, IsHitTestVisible = false,
-                Padding = new(0, (shape.Height - (label.Length > 2 ? 17 : 21)) / 2, 0, 0), Foreground = new SolidColorBrush(tone.TryGetValue(key, out var c) ? c : Color.FromRgb(225, 232, 245)) };
+                Padding = new(0, (shape.Height - (label.Length > 2 ? 17 : 21)) / 2, 0, 0), Foreground = new SolidColorBrush(tone.TryGetValue(key, out var c) ? c : ThemeCatalog.R(Color.FromRgb(225, 232, 245))) };
             SetLeft(t, x); SetTop(t, y); Children.Add(t);
         }
         private void Paint(string key, bool on)
         {
             if (!lights.TryGetValue(key, out var shape) || key == "dpad_center") return;
-            var c = tone.TryGetValue(key, out var face) ? face : Color.FromRgb(90, 165, 255);
-            shape.Fill = on ? new SolidColorBrush(Color.FromArgb(220, c.R, c.G, c.B)) : new SolidColorBrush(Color.FromArgb(34, 255, 255, 255));
+            var c = tone.TryGetValue(key, out var face) ? face : ThemeCatalog.R(Color.FromRgb(90, 165, 255));
+            shape.Fill = on ? new SolidColorBrush(Color.FromArgb(220, c.R, c.G, c.B)) : new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(34, 255, 255, 255)));
             shape.Stroke = new SolidColorBrush(on ? Colors.White : Color.FromArgb(tone.ContainsKey(key) ? (byte)170 : (byte)60, c.R, c.G, c.B));
             shape.Effect = on ? new DropShadowEffect { Color = c, BlurRadius = 20, ShadowDepth = 0, Opacity = .95 } : null;
         }

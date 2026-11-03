@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
@@ -18,7 +18,7 @@ namespace X20Ctl.Product.Diagnostics;
 /// with chatter (bounce) flags; and the real report rate from Raw Input next to how often XInput's state changes.
 /// Works for every model because it only reads what Windows reports. Nothing is ever written to the controller.
 /// </summary>
-public sealed class DiagnosticsWorkbench
+public sealed partial class DiagnosticsWorkbench
 {
     static readonly (string Name, ushort Mask)[] ReportedButtons =
     [
@@ -80,7 +80,7 @@ public sealed class DiagnosticsWorkbench
         Reset = Pill("Clear measurements"); Reset.Margin = new(16, 0, 0, 0); Reset.Click += (_, _) => Clear(); register(Reset); actions.Children.Add(Reset);
         var copy = Pill("Copy report"); copy.Margin = new(8, 0, 0, 0); copy.ToolTip = "Copies these readings as text, to paste into a bug report or a chat";
         copy.Click += (_, _) => { try { Clipboard.SetText(Report()); source!.Text = "Copied. Paste it wherever you need it."; } catch (System.Runtime.InteropServices.ExternalException) { source!.Text = "The clipboard is busy. Try again."; } };
-        register(copy); actions.Children.Add(copy);
+        copyButton = copy; register(copy); actions.Children.Add(copy);
         head.Children.Add(new StackPanel { Children = {
             Kit.Text("Diagnostics", 30, "DS.Text", FontWeights.Bold),
             Wrap("Roll each stick slowly around its edge a few times, squeeze both triggers all the way and press every button. X20CTL only listens; nothing is sent to the controller. All controller buttons are captured for testing. Use Esc or the mouse to leave.", 15, "DS.TextSoft", 6) } });
@@ -88,7 +88,7 @@ public sealed class DiagnosticsWorkbench
         source = Wrap("", 14, "DS.TextMuted", 8); page.Children.Add(source);
         page.Children.Add(Wrap($"Player {player+1} · {assignedModel} (assigned model) · Gameplay API: XInput · Transport and hardware identity unverified",13,"DS.TextSoft",6));
         var valuesToggle=Pill("Show integer XInput values");valuesToggle.Margin=new(0,8,0,0);valuesToggle.HorizontalAlignment=HorizontalAlignment.Left;valuesToggle.Click+=(_,_)=>{rawValues=!rawValues;valuesToggle.Content=rawValues?"Show normalized values":"Show integer XInput values";Refresh();};register(valuesToggle);page.Children.Add(valuesToggle);page.Children.Add(numericValues);
-        var measureCentre=Pill("Measure centre deviation");measureCentre.HorizontalAlignment=HorizontalAlignment.Left;measureCentre.Margin=new(0,8,0,0);register(measureCentre);
+        var measureCentre=Pill("Measure centre deviation");measureCentre.HorizontalAlignment=HorizontalAlignment.Left;measureCentre.Margin=new(0,8,0,0);register(measureCentre);measureButton=measureCentre;
         measureCentre.Click+=async(_,_)=>{measureCentre.IsEnabled=false;driftCancel?.Cancel();driftCancel=new();try{driftResult=await DriftCapture.Measure(chosen>=0?chosen:preferredSlot,new Progress<double>(v=>driftDetails.Text=$"Release both sticks · Sampling {v*5:0.0} / 5 seconds"),driftCancel.Token);driftDetails.Text=driftResult is {} d?$"Measured centre X/Y · Left {d.Left.X:0.00}% / {d.Left.Y:0.00}% · Right {d.Right.X:0.00}% / {d.Right.Y:0.00}% · Peak deviation {d.Left.Peak:0.00}% / {d.Right.Peak:0.00}%" : "Selected input unavailable · No centre samples";}catch(OperationCanceledException){}catch(Exception error)when(error is IOException or ArgumentException){driftDetails.Text=error.Message;}finally{measureCentre.IsEnabled=true;}};
         page.Children.Add(measureCentre);page.Children.Add(driftDetails);
 
@@ -109,7 +109,7 @@ public sealed class DiagnosticsWorkbench
         {
             var count = Kit.Text("not pressed", 12.5, "DS.TextMuted");
             var cell = new Border { Width = 118, Height = 64, Margin = new(0, 0, 10, 10), CornerRadius = new(12), BorderThickness = new(1), Padding = new(12, 8, 12, 8),
-                Background = new SolidColorBrush(Color.FromArgb(70, 4, 8, 20)), BorderBrush = new SolidColorBrush(Color.FromArgb(50, 140, 175, 255)),
+                Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(70, 4, 8, 20))), BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(50, 140, 175, 255))),
                 Child = new StackPanel { Children = { Kit.Text(name, 16, "DS.Text", FontWeights.SemiBold), count } } };
             cells[mask] = (cell, count); grid.Children.Add(cell);
         }
@@ -195,7 +195,8 @@ public sealed class DiagnosticsWorkbench
         return -1;
     }
 
-    void Refresh()
+    void Refresh() { RefreshCore(); Refreshed?.Invoke(); }
+    void RefreshCore()
     {
         double now = clock.Elapsed.TotalMilliseconds;
         int s = slot, c = chosen;
@@ -255,7 +256,7 @@ public sealed class DiagnosticsWorkbench
         return string.Join(Environment.NewLine, lines);
     }
 
-    static readonly Brush Dark = Freeze(new SolidColorBrush(Color.FromArgb(70, 4, 8, 20)));
+    static readonly Brush Dark = Freeze(new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(70, 4, 8, 20))));
     static Brush Blue(byte a) => Freeze(new SolidColorBrush(Color.FromArgb(a, 61, 139, 255)));
     static Brush Edge(byte a) => Freeze(new SolidColorBrush(Color.FromArgb(a, 140, 175, 255)));
     static Brush Freeze(Brush b) { b.Freeze(); return b; }

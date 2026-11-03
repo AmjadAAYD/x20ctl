@@ -37,8 +37,16 @@ public sealed class ButtonsConsolePage : Grid
     private readonly Canvas markers=new(){Width=1536,Height=1024,IsHitTestVisible=false};
     private readonly TextBlock mappingLabel=Kit.Text("",32,"DS.Text",FontWeights.SemiBold);
     private bool connected;
+    private readonly TextBlock controllerNote=Kit.Text("",13,"DS.TextSoft");
+    private readonly Button applyButton;
+    private Action? ApplyToController;
+    /// <summary>This controller stores its own mappings: shows the button that writes them.</summary>
+    public void UseController(Action apply){ApplyToController=apply;applyButton.Visibility=Visibility.Visible;controllerNote.Text="Apply to save this on the controller.";}
+    public void SayController(string text)=>controllerNote.Text=text;
     public void SetConnected(bool value){connected=value;RefreshMapping();}
-    public void SelectPhysical(string key){if(Listening!=Listen.None){Press(key);return;}if(layout.Controls.Any(r=>r.Key==key))Pick(key);}
+    /// <summary>One physical press with no release information (review harnesses). While listening it goes through the
+    /// capture rules, so a second call without a release in between is ignored.</summary>
+    public void SelectPhysical(string key){if(Listening!=Listen.None){Observe(new[]{key});return;}if(layout.Controls.Any(r=>r.Key==key))Pick(key);}
     private bool TargetAllowed(string key)=>ButtonDraft.Targets.Contains(key)||key=="NONE"&&draft.PcMode;
     private string TargetName(string key)=>key=="NONE"?"Disabled":label(key);
     public PhotoController Controller { get; private set; }
@@ -66,7 +74,7 @@ public sealed class ButtonsConsolePage : Grid
         foreach (var r in new[] { front, back }) { r.Style = DS.Style("DS.Segment"); r.GroupName = g; r.Width = 86; r.Height = 32; }
         front.IsChecked = true; back.IsEnabled = layout.Controls.Any(c => c.View is "back" or "shoulder");
         front.Checked += (_, _) => ShowView(false); back.Checked += (_, _) => ShowView(true);
-        var viewSwitch = new Border { CornerRadius = new(11), Background = new SolidColorBrush(Color.FromRgb(29,44,67)), BorderBrush = new SolidColorBrush(Color.FromArgb(34, 255, 255, 255)), BorderThickness = new(1), Padding = new(1), Child = new StackPanel { Orientation = Orientation.Horizontal, Children = { front, back } }, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new(0, -60, 0, 0) };
+        var viewSwitch = new Border { CornerRadius = new(11), Background = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(29,44,67))), BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(34, 255, 255, 255))), BorderThickness = new(1), Padding = new(1), Child = new StackPanel { Orientation = Orientation.Horizontal, Children = { front, back } }, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new(0, -60, 0, 0) };
         var visual = new Grid { Children = { new Viewbox { Child = stage }, viewSwitch } };
         top.Children.Add(Kit.Panel("Button Visualizer", "Select a control on the controller to remap it.", null, visual));
 
@@ -80,14 +88,15 @@ public sealed class ButtonsConsolePage : Grid
         }
         workspace.Children.Add(selectionTitle);
         workspace.Children.Add(BuildMappingCard());
-        workspace.Children.Add(Kit.Text(draft.PcMode?"PC MODE · Processed by X20CTL on this PC. Controller memory is unchanged.":"LOCAL DRAFT · Not written to controller memory.",13,"DS.TextSoft").Also(t=>{t.TextWrapping=TextWrapping.Wrap;t.Margin=new(0,10,0,12);}));
+        controllerNote.TextWrapping=TextWrapping.Wrap;controllerNote.Margin=new(0,10,0,12);controllerNote.Text=draft.PcMode?"PC MODE · Processed by X20CTL on this PC. Controller memory is unchanged.":"";workspace.Children.Add(controllerNote);
+        applyButton=ActionButton("","Apply to controller","ActionButton");applyButton.Margin=new(0,0,0,12);applyButton.HorizontalAlignment=HorizontalAlignment.Left;applyButton.Visibility=Visibility.Collapsed;applyButton.Click+=(_,_)=>ApplyToController?.Invoke();workspace.Children.Add(applyButton);
         outputPicker.Children.Add(outputsHint);
-        outputPicker.Children.Add(new Border{CornerRadius=new(12),Background=new SolidColorBrush(Color.FromArgb(20,255,255,255)),Padding=new(2),Child=seg,Margin=new(0,8,0,10)});
+        outputPicker.Children.Add(new Border{CornerRadius=new(12),Background=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(20,255,255,255))),Padding=new(2),Child=seg,Margin=new(0,8,0,10)});
         workspace.Children.Add(outputPicker);
         tryButton = ActionButton("", "Test mapping", "ActionButton"); tryButton.Click += (_, _) => this.toggleTry();
         allButton = ActionButton("", "All assignments", "ActionButton"); allButton.Click += (_, _) => ShowOverview(overview.Visibility != Visibility.Visible);
         var more = new Button { Content = "", Style = DS.Style("DS.ActionRound"), ToolTip = "Reset options" };
-        more.ContextMenu = new ContextMenu { Items = { Menu("Reset this control", () => { if (Source.Length > 0 && draft.CanEdit(Source)) { draft.Reset(Source); Changed?.Invoke(); } }), Menu("Reset all controls", () => { draft.ResetAll(); Changed?.Invoke(); }) } };
+        more.ContextMenu = new ContextMenu { Items = { Menu("Reset this control", () => { if (Source.Length > 0 && draft.CanEdit(Source)) { draft.Reset(Source); Changed?.Invoke(); ApplyToController?.Invoke(); } }), Menu("Reset all controls", () => { draft.ResetAll(); Changed?.Invoke(); ApplyToController?.Invoke(); }) } };
         more.Click += (_, _) => { more.ContextMenu.PlacementTarget = more; more.ContextMenu.IsOpen = true; };
         var actions = new Grid { Margin = new(0, 14, 0, 0) }; actions.ColumnDefinitions.Add(new()); actions.ColumnDefinitions.Add(new() { Width = new(12) }); actions.ColumnDefinitions.Add(new()); actions.ColumnDefinitions.Add(new() { Width = new(12) }); actions.ColumnDefinitions.Add(new() { Width = GridLength.Auto });
         actions.Children.Add(tryButton); Grid.SetColumn(allButton, 2); actions.Children.Add(allButton); Grid.SetColumn(more, 4); actions.Children.Add(more);
@@ -148,8 +157,28 @@ public sealed class ButtonsConsolePage : Grid
     public Listen Listening { get; private set; }
     /// <summary>The physical button on the left of the card ("you press"); empty until the player picks one.</summary>
     public string Source { get; private set; } = "";
-    public void BeginListening(Listen side) { if(!connected && side!=Listen.None){Listening=Listen.None;RefreshMapping();return;}Listening = side == Listen.Target && Source.Length == 0 ? Listen.Source : side; RefreshMapping(); }
-    public void CancelListening() { if (Listening == Listen.None) return; Listening = Listen.None; RefreshMapping(); }
+    /// <summary>The capture rules: neutral first, one fresh button per stage, a release between source and target.</summary>
+    public RemapCapture Capture { get; } = new();
+    /// <summary>Buttons held right now on the controller and its keyboard mirror; listening waits for them to be let go.</summary>
+    public Func<IReadOnlyCollection<string>> HeldInputs { get; set; } = () => Array.Empty<string>();
+    public event Action? ListeningChanged;
+    public void BeginListening(Listen side)
+    {
+        if(!connected && side!=Listen.None){Listening=Listen.None;Capture.Cancel();RefreshMapping();return;}
+        Listening = side == Listen.Target && Source.Length == 0 ? Listen.Source : side;
+        if (Listening == Listen.None) Capture.Cancel(); else Capture.Begin(Listening == Listen.Source ? RemapCapture.Side.Source : RemapCapture.Side.Target, HeldInputs());
+        RefreshMapping();
+    }
+    public void CancelListening() { if (Listening == Listen.None) return; Listening = Listen.None; Capture.Cancel(); RefreshMapping(); }
+    /// <summary>The full set of held buttons; a press that the capture rules accept fills the waiting side.</summary>
+    public void Observe(IReadOnlyCollection<string> held)
+    {
+        if (Listening == Listen.None) { Capture.Observe(held); return; }
+        bool waiting = Capture.WaitingForRelease, ambiguous = Capture.Ambiguous;
+        if (Capture.Observe(held) is { } button) Press(button);
+        else if (waiting != Capture.WaitingForRelease || ambiguous != Capture.Ambiguous) RefreshMapping();
+    }
+    public string CapturePrompt => Capture.Ambiguous ? "Press one button" : Capture.WaitingForRelease ? "Release all buttons" : Listening == Listen.Source ? "Press the button to change" : "Press what it should send";
     /// <summary>A press while listening: a controller button (from the controller or its keyboard mirror), a click on
     /// the picture, or a click in Outputs. The first fills "you press" and moves on; the second sets what it does.</summary>
     public void Press(string button)
@@ -158,17 +187,17 @@ public sealed class ButtonsConsolePage : Grid
         {
             if (!layout.Controls.Any(r => r.Key == button)) return;
             Source = button; select(button);
-            Listening = draft.CanEdit(button) ? Listen.Target : Listen.None; RefreshMapping(); return;
+            Listening = draft.CanEdit(button) ? Listen.Target : Listen.None; Capture.Continue(Listening == Listen.Target ? RemapCapture.Side.Target : RemapCapture.Side.None); RefreshMapping(); return;
         }
         if (Listening == Listen.Target && TargetAllowed(button) && draft.CanEdit(Source))
         {
-            Listening = Listen.None; draft.Set(Source, button); Changed?.Invoke(); RefreshMapping();
+            Listening = Listen.None; Capture.Continue(RemapCapture.Side.None); draft.Set(Source, button); Changed?.Invoke(); RefreshMapping();
         }
     }
     private void Pick(string key)
     {
         if (openMacro(key)) return;
-        Source = key; select(key); Listening = Listen.None; RefreshMapping();
+        Source = key; select(key); Listening = Listen.None; Capture.Cancel(); RefreshMapping();
     }
     private void RefreshMapping()
     {
@@ -178,19 +207,20 @@ public sealed class ButtonsConsolePage : Grid
         FillFace(pressedFace, waitSource ? "…" : has ? Short(Source) : "+", waitSource || !has ? null : Source, false, waitSource);
         FillFace(sendsFace, editable ? Short(target) : has ? "—" : "+", !editable ? null : target, changed, waitTarget);
         Pulse(pressedRing, waitSource); Pulse(sendsRing, waitTarget);
-        pressedName.Text = waitSource ? "Press a button…" : has ? Kind(Source) : "Click to choose";
-        sendsName.Text = waitTarget ? "Choose output below" : editable ? target=="NONE"?"Disabled":Kind(target) : has ? "Can't change" : "Then press its new job";
+        pressedName.Text = waitSource ? CapturePrompt : has ? Kind(Source) : "Click to choose";
+        sendsName.Text = waitTarget ? CapturePrompt : editable ? target=="NONE"?"Disabled":Kind(target) : has ? "Can't change" : "Then press its new job";
         selectionTitle.Text=has?label(Source):"Select a control";
-        sentence.Text=!has?(connected?"Select a control on the picture or press it on the controller.":"Select a control on the picture. Physical detection is unavailable while offline."):editable?$"Current mapping: {Short(Source)} → {Short(target)}":"This input can be inspected; remapping is unavailable.";
-        readOnly.Text = !has ? "" : model.Id != "x20" && !draft.PcMode ? "Remapping is not verified for this model yet, so it can only be inspected." : editable ? "" : $"{name} can't be remapped. It has no button role to swap.";
+        sentence.Text=!has?(connected?"Select a control on the picture, or press R3 and then the button.":"Select a control on the picture. Physical detection is unavailable while offline."):editable?$"Current mapping: {Short(Source)} → {Short(target)}":"This input can be inspected; remapping is unavailable.";
+        readOnly.Text = !has ? "" : model.Id is not ("x20" or "x20_pro") && !draft.PcMode ? "Remapping is not verified for this model yet, so it can only be inspected." : editable ? "" : $"{name} can't be remapped. It has no button role to swap.";
         readOnly.Visibility = readOnly.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed; sentence.Visibility = sentence.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         restore.Visibility = changed ? Visibility.Visible : Visibility.Collapsed;restore.Content=$"Restore {Short(Source)} → {Short(Source)}";
         outputPicker.Visibility=editable?Visibility.Visible:Visibility.Collapsed;tryButton.Visibility=changed?Visibility.Visible:Visibility.Collapsed;
         stepTwoHint.Text = waitTarget ? "Waiting for a press" : editable ? "Click GAME GETS, then press a button" : has ? "Not available for this button" : "Pick a button first";
-        mappingCard.BorderBrush = new SolidColorBrush(waitSource || waitTarget ? Color.FromArgb(200, 125, 182, 255) : changed ? Color.FromArgb(120, 125, 182, 255) : Color.FromArgb(38, 255, 255, 255));
+        mappingCard.BorderBrush = new SolidColorBrush(waitSource || waitTarget ? ThemeCatalog.R(Color.FromArgb(200, 125, 182, 255)) : changed ? ThemeCatalog.R(Color.FromArgb(120, 125, 182, 255)) : ThemeCatalog.R(Color.FromArgb(38, 255, 255, 255)));
         foreach (var pair in groups)pair.Value.IsChecked=pair.Key==outputGroup;showcaseHint.Text=editable?$"Assign {Short(Source)} to any output":has?"This control can't be reassigned":"Pick a control first";
         foreach (var (k,b) in outputs){Paint(b,k,editable&&k==target,editable||!has);b.Opacity=outputGroup=="All"||k=="NONE"||Groups.First(g=>g.Name==outputGroup).Keys.Contains(k)?1:.3;}
         RefreshMarkers();
+        ListeningChanged?.Invoke();
         outputsHint.Text=editable?$"Assign {Short(Source)} to:":"Select a control first";
     }
 
@@ -209,7 +239,7 @@ public sealed class ButtonsConsolePage : Grid
         return row;
     }
     private readonly System.Windows.Shapes.Ellipse pressedRing = Ring(), sendsRing = Ring();
-    private static System.Windows.Shapes.Ellipse Ring() => new() { Width = 84, Height = 84, Stroke = new SolidColorBrush(Color.FromRgb(125, 182, 255)), StrokeThickness = 2, Opacity = 0, IsHitTestVisible = false, RenderTransformOrigin = new(.5, .5), RenderTransform = new ScaleTransform(1, 1) };
+    private static System.Windows.Shapes.Ellipse Ring() => new() { Width = 84, Height = 84, Stroke = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(125, 182, 255))), StrokeThickness = 2, Opacity = 0, IsHitTestVisible = false, RenderTransformOrigin = new(.5, .5), RenderTransform = new ScaleTransform(1, 1) };
     private void Pulse(System.Windows.Shapes.Ellipse ring, bool on)
     {
         var s = (ScaleTransform)ring.RenderTransform;
@@ -239,23 +269,23 @@ public sealed class ButtonsConsolePage : Grid
         var arrow = Kit.Icon("\uE72A", 22, "DS.AccentHi"); arrow.Margin = new(18, 0, 18, 8); Grid.SetColumn(arrow, 1); g.Children.Add(arrow);
         var right = Side("GAME GETS", sendsFace, sendsRing, sendsName, Listen.Target, "Choose an output below, or capture a button when connected"); Grid.SetColumn(right, 2); g.Children.Add(right);
         restore.Style = DS.Style("ActionButton"); restore.Height = 42; restore.MinHeight = 42; restore.Padding = new(22, 0, 22, 0); restore.FontSize = 13.5;
-        restore.Click += (_, _) => { if (Source.Length > 0 && draft.CanEdit(Source)) { draft.Reset(Source); Changed?.Invoke(); RefreshMapping(); } };
+        restore.Click += (_, _) => { if (Source.Length > 0 && draft.CanEdit(Source)) { draft.Reset(Source); Changed?.Invoke(); ApplyToController?.Invoke(); RefreshMapping(); } };
         var foot = new DockPanel { Margin = new(2, 8, 0, 0) }; DockPanel.SetDock(restore, Dock.Right); foot.Children.Add(restore);
         readOnly.TextWrapping = TextWrapping.Wrap; readOnly.TextTrimming = TextTrimming.None; sentence.TextWrapping = TextWrapping.Wrap; sentence.TextTrimming = TextTrimming.None;
         foot.Children.Add(new StackPanel { VerticalAlignment = VerticalAlignment.Center, Children = { sentence, readOnly } });
         Grid.SetRow(foot, 1); Grid.SetColumnSpan(foot, 3); g.Children.Add(foot);
         mappingCard.CornerRadius = new(14); mappingCard.BorderThickness = new(1); mappingCard.Padding = new(16, 10, 16, 12); mappingCard.Margin = new(0, 12, 0, 0);
-        mappingCard.Background = new SolidColorBrush(Color.FromArgb(18, 255, 255, 255)); mappingCard.Child = g;
+        mappingCard.Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(18, 255, 255, 255))); mappingCard.Child = g;
         return mappingCard;
     }
     private static void FillFace(Border face, string text, string? key, bool on, bool waiting = false)
     {
-        var color = key switch { "Y" => Color.FromRgb(245, 205, 80), "X" => Color.FromRgb(70, 170, 255), "B" => Color.FromRgb(255, 100, 125), "A" => Color.FromRgb(70, 220, 150), _ => (Color?)null };
+        var color = key switch { "Y" => ThemeCatalog.R(Color.FromRgb(245, 205, 80)), "X" => ThemeCatalog.R(Color.FromRgb(70, 170, 255)), "B" => ThemeCatalog.R(Color.FromRgb(255, 100, 125)), "A" => ThemeCatalog.R(Color.FromRgb(70, 220, 150)), _ => (Color?)null };
         bool empty = key == null && !waiting && text == "+";
         var t = Kit.Text(text, text.Length > 2 ? 17 : empty ? 30 : 26, empty ? "DS.TextMuted" : "DS.Text", FontWeights.SemiBold); t.HorizontalAlignment = HorizontalAlignment.Center;
         if (!on && color != null) t.Foreground = new SolidColorBrush(color.Value);
         face.Child = t;
-        face.Background = on ? new SolidColorBrush(Color.FromRgb(43,115,222)) : waiting ? new SolidColorBrush(Color.FromArgb(60, 61, 139, 255)) : new SolidColorBrush(Color.FromArgb(empty ? (byte)14 : (byte)30, 255, 255, 255));
+        face.Background = on ? new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(43,115,222))) : waiting ? new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(60, 61, 139, 255))) : new SolidColorBrush(Color.FromArgb(empty ? (byte)14 : (byte)30, 255, 255, 255));
         face.BorderBrush = on || waiting ? Brushes.White : color != null ? new SolidColorBrush(Color.FromArgb(150, color.Value.R, color.Value.G, color.Value.B)) : new SolidColorBrush(Color.FromArgb(empty ? (byte)90 : (byte)46, 255, 255, 255));
         face.Effect = on || waiting ? new DropShadowEffect { Color = Kit.Blue, BlurRadius = 22, ShadowDepth = 0, Opacity = .9 } : null;
     }
@@ -279,13 +309,13 @@ public sealed class ButtonsConsolePage : Grid
             grid.ColumnDefinitions.Add(new() { Width = new(families[i].Weight, GridUnitType.Star) });
             var stage = new Grid { Height = 132, VerticalAlignment = VerticalAlignment.Center };
             var heading = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new(0, 0, 0, 8), Children = {
-                new Border { Width = 5, Height = 5, CornerRadius = new(2.5), Background = new SolidColorBrush(Color.FromRgb(125, 182, 255)), VerticalAlignment = VerticalAlignment.Center, Margin = new(0, 0, 8, 0) },
+                new Border { Width = 5, Height = 5, CornerRadius = new(2.5), Background = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(125, 182, 255))), VerticalAlignment = VerticalAlignment.Center, Margin = new(0, 0, 8, 0) },
                 Kit.Text(Spaced(families[i].Name), 11.5, "DS.TextSoft", FontWeights.SemiBold) } };
             var family = new Border
             {
                 CornerRadius = new(14), BorderThickness = new(1), Margin = new(6, 0, 6, 0), Padding = new(10, 12, 10, 12),
-                BorderBrush = new LinearGradientBrush(Color.FromArgb(70, 140, 180, 240), Color.FromArgb(22, 140, 180, 240), 90),
-                Background = new LinearGradientBrush(Color.FromArgb(150, 24, 39, 64), Color.FromArgb(150, 13, 23, 41), 90),
+                BorderBrush = new LinearGradientBrush(ThemeCatalog.R(Color.FromArgb(70, 140, 180, 240)), ThemeCatalog.R(Color.FromArgb(22, 140, 180, 240)), 90),
+                Background = new LinearGradientBrush(ThemeCatalog.R(Color.FromArgb(150, 24, 39, 64)), ThemeCatalog.R(Color.FromArgb(150, 13, 23, 41)), 90),
                 Child = new DockPanel { Children = { heading.Also(h => DockPanel.SetDock(h, Dock.Top)), stage } }
             };
             Grid.SetColumn(family, i); grid.Children.Add(family);
@@ -298,11 +328,11 @@ public sealed class ButtonsConsolePage : Grid
             {
                 var special = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Width = 168 };
                 var defaults = new Button { Template = Bare(), Cursor = System.Windows.Input.Cursors.Hand, FocusVisualStyle = null, Height = 40, Margin = new(0, 0, 0, 10), ToolTip = "Make the picked control send itself again",
-                    Content = new Border { CornerRadius = new(20), BorderThickness = new(1.2), BorderBrush = new SolidColorBrush(Color.FromArgb(60, 255, 255, 255)), Background = new LinearGradientBrush(Color.FromRgb(40, 58, 86), Color.FromRgb(26, 39, 60), 90),
+                    Content = new Border { CornerRadius = new(20), BorderThickness = new(1.2), BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(60, 255, 255, 255))), Background = new LinearGradientBrush(ThemeCatalog.R(Color.FromRgb(40, 58, 86)), ThemeCatalog.R(Color.FromRgb(26, 39, 60)), 90),
                         Child = IconLabel("", "Default") } };
-                defaults.MouseEnter += (_, _) => ((Border)defaults.Content).BorderBrush = new SolidColorBrush(Color.FromArgb(200, 125, 182, 255));
-                defaults.MouseLeave += (_, _) => ((Border)defaults.Content).BorderBrush = new SolidColorBrush(Color.FromArgb(60, 255, 255, 255));
-                defaults.Click += (_, _) => { if (Source.Length > 0 && draft.CanEdit(Source)) { draft.Reset(Source); Changed?.Invoke(); RefreshMapping(); } };
+                defaults.MouseEnter += (_, _) => ((Border)defaults.Content).BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(200, 125, 182, 255)));
+                defaults.MouseLeave += (_, _) => ((Border)defaults.Content).BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(60, 255, 255, 255)));
+                defaults.Click += (_, _) => { if (Source.Length > 0 && draft.CanEdit(Source)) { draft.Reset(Source); Changed?.Invoke(); ApplyToController?.Invoke(); RefreshMapping(); } };
                 special.Children.Add(defaults);
                 if (draft.PcMode) { var disabled = Output("NONE", "Disabled", 168, 40); special.Children.Add(disabled); }
                 stage.Children.Add(special);
@@ -314,7 +344,7 @@ public sealed class ButtonsConsolePage : Grid
         var body = new StackPanel { Children = { header, fit } };
         // fill the width; below 1180 px the whole shelf scales down instead of squeezing the parts
         body.SizeChanged += (_, e) => grid.Width = Math.Max(1180, e.NewSize.Width);
-        return new Border { CornerRadius = new(16), Padding = new(12, 14, 12, 14), BorderThickness = new(1), BorderBrush = new SolidColorBrush(Color.FromArgb(60, 125, 170, 230)), Background = new SolidColorBrush(Color.FromArgb(80, 8, 17, 38)), Child = body };
+        return new Border { CornerRadius = new(16), Padding = new(12, 14, 12, 14), BorderThickness = new(1), BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(60, 125, 170, 230))), Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(80, 8, 17, 38))), Child = body };
     }
     private static string Spaced(string text) => string.Join(" ", text.ToCharArray());
     private static StackPanel IconLabel(string icon, string text) => new()
@@ -336,7 +366,7 @@ public sealed class ButtonsConsolePage : Grid
         }
         if(regions.TryGetValue(Source,out var active)&&draft.CanEdit(Source))
         {
-            mappingLabel.Text=$"{Short(Source)} → {Short(draft.Target(Source))}";mappingLabel.Background=new SolidColorBrush(Color.FromArgb(210,9,22,45));mappingLabel.Padding=new(12,5,12,5);
+            mappingLabel.Text=$"{Short(Source)} → {Short(draft.Target(Source))}";mappingLabel.Background=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(210,9,22,45)));mappingLabel.Padding=new(12,5,12,5);
             Canvas.SetLeft(mappingLabel,Math.Clamp(Canvas.GetLeft(active)+active.Width+16,12,1280));Canvas.SetTop(mappingLabel,Math.Max(12,Canvas.GetTop(active)-20));markers.Children.Add(mappingLabel);
         }
     }
@@ -351,8 +381,8 @@ public sealed class ButtonsConsolePage : Grid
     private Canvas DpadCross()
     {
         double s = 42, gap = 2, w = 3 * s + 2 * gap, h = w; var c = new Canvas { Width = w, Height = h, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-        var hub = new Border { Width = s, Height = s, CornerRadius = new(4), Background = new SolidColorBrush(Color.FromRgb(22, 33, 52)), BorderBrush = new SolidColorBrush(Color.FromArgb(30, 255, 255, 255)), BorderThickness = new(1),
-            Child = new System.Windows.Shapes.Ellipse { Width = 16, Height = 16, Fill = new RadialGradientBrush(Color.FromArgb(0, 0, 0, 0), Color.FromArgb(90, 0, 0, 0)), Stroke = new SolidColorBrush(Color.FromArgb(24, 255, 255, 255)) } };
+        var hub = new Border { Width = s, Height = s, CornerRadius = new(4), Background = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(22, 33, 52))), BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(30, 255, 255, 255))), BorderThickness = new(1),
+            Child = new System.Windows.Shapes.Ellipse { Width = 16, Height = 16, Fill = new RadialGradientBrush(ThemeCatalog.R(Color.FromArgb(0, 0, 0, 0)), ThemeCatalog.R(Color.FromArgb(90, 0, 0, 0))), Stroke = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(24, 255, 255, 255))) } };
         Canvas.SetLeft(hub, s + gap); Canvas.SetTop(hub, s + gap); c.Children.Add(hub);
         void Put(string key, string text, double x, double y) { var o = Output(key, text, s, s); Canvas.SetLeft(o, x); Canvas.SetTop(o, y); c.Children.Add(o); }
         Put("DPAD_UP", "↑", s + gap, 0); Put("DPAD_LEFT", "←", 0, s + gap); Put("DPAD_RIGHT", "→", 2 * (s + gap), s + gap); Put("DPAD_DOWN", "↓", s + gap, 2 * (s + gap));
@@ -400,7 +430,7 @@ public sealed class ButtonsConsolePage : Grid
         if (TargetAllowed(key)) { b.Click += (_, _) => SetTarget(key); outputs[key] = b; }
         else b.IsEnabled = false;
         void Lift(bool on) { if (!b.IsEnabled) return; var to = on ? 1.06 : 1; var t = (ScaleTransform)b.RenderTransform; t.BeginAnimation(ScaleTransform.ScaleXProperty, animate ? DS.To(to, 120) : null); t.BeginAnimation(ScaleTransform.ScaleYProperty, animate ? DS.To(to, 120) : null); if (!animate) t.ScaleX = t.ScaleY = to; }
-        b.MouseEnter += (_, _) => { if (b.DataContext is not true) border.BorderBrush = new SolidColorBrush(Color.FromArgb(220, 160, 205, 255)); Lift(true); };
+        b.MouseEnter += (_, _) => { if (b.DataContext is not true) border.BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(220, 160, 205, 255))); Lift(true); };
         b.MouseLeave += (_, _) => { Paint(b, key, b.DataContext is true, b.IsEnabled); Lift(false); };
         b.GotKeyboardFocus += (_, _) => border.BorderBrush = Brushes.White; b.LostKeyboardFocus += (_, _) => Paint(b, key, b.DataContext is true, b.IsEnabled);
         Paint(b, key, false, b.IsEnabled);
@@ -410,14 +440,14 @@ public sealed class ButtonsConsolePage : Grid
     private static void Paint(Button b, string key, bool on, bool enabled)
     {
         var border = (Border)b.Content; var face = (TextBlock)border.Child; b.DataContext = on;
-        var color = key switch { "Y" => Color.FromRgb(245, 205, 80), "X" => Color.FromRgb(70, 170, 255), "B" => Color.FromRgb(255, 100, 125), "A" => Color.FromRgb(70, 220, 150), _ => (Color?)null };
+        var color = key switch { "Y" => ThemeCatalog.R(Color.FromRgb(245, 205, 80)), "X" => ThemeCatalog.R(Color.FromRgb(70, 170, 255)), "B" => ThemeCatalog.R(Color.FromRgb(255, 100, 125)), "A" => ThemeCatalog.R(Color.FromRgb(70, 220, 150)), _ => (Color?)null };
         bool stick = Shape(key) == "stick";
         b.IsEnabled = enabled;
         border.Opacity = enabled ? 1 : .45;
         border.BorderThickness = new(on ? 2 : stick ? 2.4 : 1.2);
-        border.Background = on ? new LinearGradientBrush(Color.FromRgb(70, 150, 250), Color.FromRgb(36, 100, 206), 90)
-            : stick ? new RadialGradientBrush(Color.FromRgb(22, 33, 52), Color.FromRgb(44, 62, 92)) { GradientOrigin = new(.5, .38), Center = new(.5, .45) }
-            : new LinearGradientBrush(Color.FromRgb(42, 60, 89), Color.FromRgb(25, 37, 58), 90);
+        border.Background = on ? new LinearGradientBrush(ThemeCatalog.R(Color.FromRgb(70, 150, 250)), ThemeCatalog.R(Color.FromRgb(36, 100, 206)), 90)
+            : stick ? new RadialGradientBrush(ThemeCatalog.R(Color.FromRgb(22, 33, 52)), ThemeCatalog.R(Color.FromRgb(44, 62, 92))) { GradientOrigin = new(.5, .38), Center = new(.5, .45) }
+            : new LinearGradientBrush(ThemeCatalog.R(Color.FromRgb(42, 60, 89)), ThemeCatalog.R(Color.FromRgb(25, 37, 58)), 90);
         border.BorderBrush = on ? Brushes.White : color != null ? new SolidColorBrush(Color.FromArgb(170, color.Value.R, color.Value.G, color.Value.B)) : new SolidColorBrush(Color.FromArgb(stick ? (byte)70 : (byte)52, 255, 255, 255));
         face.Foreground = on || color == null ? DS.Brush("DS.Text") : new SolidColorBrush(color.Value);
         border.Effect = on ? new DropShadowEffect { Color = Kit.Blue, BlurRadius = 20, ShadowDepth = 0, Opacity = .85 } : new DropShadowEffect { Color = Colors.Black, BlurRadius = 8, ShadowDepth = 2, Direction = 270, Opacity = .35 };
@@ -431,7 +461,7 @@ public sealed class ButtonsConsolePage : Grid
     private void BuildOverview()
     {
         overview.Children.Clear(); overview.Children.Add(Kit.Section("All assignments", 0));
-        if (model.Id != "x20" && !draft.PcMode) { overview.Children.Add(Kit.Info("No verified mappings for this model yet.")); return; }
+        if (model.Id is not ("x20" or "x20_pro") && !draft.PcMode) { overview.Children.Add(Kit.Info("No verified mappings for this model yet.")); return; }
         foreach (var (name, _, keys) in Groups.Take(4))
         {
             var rows = keys.Where(ButtonDraft.Sources.Contains).Select(k => (label(k), draft.Target(k) == k ? "Default" : "→ " + label(draft.Target(k)), draft.Target(k) == k ? (string?)null : "DS.AccentHi")).ToArray();

@@ -1,0 +1,63 @@
+{
+  "completed_date": "2026-11-02",
+  "baseline": {
+    "dotnet_passed": 698,
+    "python_passed": 28
+  },
+  "final_dotnet_passed": 718,
+  "failed": 0,
+  "build_errors": 0,
+  "build_warning_occurrences": 76,
+  "warning_codes": {
+    "CS0108": 2,
+    "CS8604": 4,
+    "CS8602": 22,
+    "CS8600": 2,
+    "CS0169": 12,
+    "CS0219": 4,
+    "CS0414": 4,
+    "CS8625": 20,
+    "CS0162": 2,
+    "CS4014": 2,
+    "WFO0003": 2
+  },
+  "build_output": "artifacts/screen-feature/build",
+  "review_themes": [
+    "default",
+    "rebel"
+  ],
+  "render_states": [
+    "empty",
+    "edit",
+    "preview",
+    "uploading",
+    "error",
+    "restored",
+    "simulate",
+    "first-run-check"
+  ],
+  "dpi": [
+    96,
+    144
+  ],
+  "render_count": 32,
+  "fidelity_cases": 24,
+  "fidelity_frames": 735,
+  "fidelity_max_mean_channel_error": 1.9852249649859943,
+  "fidelity_max_single_channel_error": 59,
+  "independent_derivation": "exact",
+  "physical_writes_enabled": false,
+  "physical_port_opened": false,
+  "vendor_vm_relaunched": false,
+  "git_diff_check": "passed",
+  "running_user_app": "left untouched",
+  "physical_checks": [
+    "identity and firmware/mode",
+    "native reply framing/timing",
+    "erase extent",
+    "on-pad colors/orientation/timing",
+    "persistence and reset fallback",
+    "safe cancellation/restoration",
+    "battery consumption"
+  ]
+}

@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
@@ -18,6 +18,12 @@ namespace X20Ctl.Product;
 /// </summary>
 public sealed class CurveWorkbench
 {
+    internal FrameworkElement TakeThemeGraph()
+    {
+        if (chart.Parent is Viewbox view) view.Child = null;
+        else if (chart.Parent is Panel panel) panel.Children.Remove(chart);
+        return chart;
+    }
     public Grid Inspector { get; } = new();
     public Grid Shelf { get; } = new();
     public WrapPanel Toolbar {get;}=new(){Margin=new(0,0,0,8)};
@@ -48,13 +54,13 @@ public sealed class CurveWorkbench
     // the plot: 408 x 240 inside a 480 x 300 canvas
     private const double L=38,T=16,PW=408,PH=240;
     private readonly Canvas chart = new() { Width=480, Height=300 };
-    private readonly Polyline response = new() { Stroke=new SolidColorBrush(Color.FromRgb(116,200,255)), StrokeThickness=3.5, StrokeLineJoin=PenLineJoin.Round, Effect=new DropShadowEffect{Color=Color.FromRgb(70,150,255),BlurRadius=12,ShadowDepth=0,Opacity=.7} };
-    private readonly Polygon area = new() { Fill=new LinearGradientBrush(Color.FromArgb(30,70,150,255),Color.FromArgb(0,70,150,255),90) };
-    private readonly Rectangle innerBand = new() { Fill=new SolidColorBrush(Color.FromArgb(46,232,54,79)) }, outerBand = new() { Fill=new SolidColorBrush(Color.FromArgb(40,61,214,140)) };
-    private readonly Line floorLine = Guide(Color.FromArgb(150,255,196,92)), ceilingLine = Guide(Color.FromArgb(150,255,196,92)), liveGuide = Guide(Color.FromArgb(90,169,207,255));
+    private readonly Polyline response = new() { Stroke=new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(116,200,255))), StrokeThickness=3.5, StrokeLineJoin=PenLineJoin.Round, Effect=new DropShadowEffect{Color=ThemeCatalog.R(Color.FromRgb(70,150,255)),BlurRadius=12,ShadowDepth=0,Opacity=.7} };
+    private readonly Polygon area = new() { Fill=new LinearGradientBrush(ThemeCatalog.R(Color.FromArgb(30,70,150,255)),ThemeCatalog.R(Color.FromArgb(0,70,150,255)),90) };
+    private readonly Rectangle innerBand = new() { Fill=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(46,232,54,79))) }, outerBand = new() { Fill=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(40,61,214,140))) };
+    private readonly Line floorLine = Guide(ThemeCatalog.R(Color.FromArgb(150,255,196,92))), ceilingLine = Guide(ThemeCatalog.R(Color.FromArgb(150,255,196,92))), liveGuide = Guide(ThemeCatalog.R(Color.FromArgb(90,169,207,255)));
     private readonly Thumb first = new(), second = new(), deadHandle = new(), fullHandle = new(), floorHandle = new(), ceilingHandle = new();
     private readonly TextBlock deadTag = Tag(), fullTag = Tag(), floorTag = Tag(), ceilingTag = Tag(), halfTag = Tag(), liveTag = Tag();
-    private readonly Ellipse halfDot = new() { Width=10,Height=10,Fill=Brushes.White,IsHitTestVisible=false }, liveDot = new() { Width=16,Height=16,Fill=new SolidColorBrush(Color.FromRgb(61,214,140)),IsHitTestVisible=false,Visibility=Visibility.Collapsed,Effect=new DropShadowEffect{Color=Color.FromRgb(61,214,140),BlurRadius=16,ShadowDepth=0,Opacity=1} };
+    private readonly Ellipse halfDot = new() { Width=10,Height=10,Fill=Brushes.White,IsHitTestVisible=false }, liveDot = new() { Width=16,Height=16,Fill=new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(61,214,140))),IsHitTestVisible=false,Visibility=Visibility.Collapsed,Effect=new DropShadowEffect{Color=ThemeCatalog.R(Color.FromRgb(61,214,140)),BlurRadius=16,ShadowDepth=0,Opacity=1} };
     private readonly TextBlock title = new() { FontSize=28,FontWeight=FontWeights.SemiBold }, summary = new() { FontSize=15, Foreground=Brushes.LightSteelBlue }, coordinates = new() { FontSize=14,Foreground=Brushes.LightSteelBlue };
     public Slider Inner { get; } = new() { Minimum=0,Maximum=40,TickFrequency=1,IsSnapToTickEnabled=true };
     public Slider Outer { get; } = new() { Minimum=60,Maximum=100,Value=100,TickFrequency=1,IsSnapToTickEnabled=true };
@@ -89,12 +95,12 @@ public sealed class CurveWorkbench
         foreach(int tick in new[]{0,25,50,75,100})
         {
             double x=X(tick),y=Y(tick);
-            chart.Children.Add(new Line {X1=x,X2=x,Y1=T,Y2=T+PH,Stroke=new SolidColorBrush(Color.FromArgb(42,132,160,202)),StrokeThickness=1});
-            chart.Children.Add(new Line {X1=L,X2=L+PW,Y1=y,Y2=y,Stroke=new SolidColorBrush(Color.FromArgb(42,132,160,202)),StrokeThickness=1});
+            chart.Children.Add(new Line {X1=x,X2=x,Y1=T,Y2=T+PH,Stroke=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(42,132,160,202))),StrokeThickness=1});
+            chart.Children.Add(new Line {X1=L,X2=L+PW,Y1=y,Y2=y,Stroke=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(42,132,160,202))),StrokeThickness=1});
             var horizontal=new TextBlock {Text=tick.ToString(),FontSize=13,Foreground=Brushes.LightSteelBlue};Canvas.SetLeft(horizontal,x-7);Canvas.SetTop(horizontal,T+PH+6);chart.Children.Add(horizontal);
             var vertical=new TextBlock {Text=tick.ToString(),FontSize=13,Foreground=Brushes.LightSteelBlue};Canvas.SetLeft(vertical,4);Canvas.SetTop(vertical,y-8);chart.Children.Add(vertical);
         }
-        chart.Children.Add(new Line {X1=L,Y1=T+PH,X2=L+PW,Y2=T,Stroke=new SolidColorBrush(Color.FromArgb(110,200,216,244)),StrokeDashArray=new(){4,4}});
+        chart.Children.Add(new Line {X1=L,Y1=T+PH,X2=L+PW,Y2=T,Stroke=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(110,200,216,244))),StrokeDashArray=new(){4,4}});
         chart.Children.Add(area);chart.Children.Add(floorLine);chart.Children.Add(ceilingLine);chart.Children.Add(liveGuide);chart.Children.Add(response);
         chart.Children.Add(halfDot);chart.Children.Add(halfTag);
         Canvas.SetLeft(OutputAxisLabel,L);Canvas.SetTop(OutputAxisLabel,0);chart.Children.Add(OutputAxisLabel);
@@ -104,7 +110,7 @@ public sealed class CurveWorkbench
         for(int index=0;index<2;index++)
         {
             Thumb thumb=index==0?first:second;thumb.Width=thumb.Height=18;thumb.Tag=index;thumb.Focusable=true;thumb.FocusVisualStyle=null;thumb.Cursor=Cursors.SizeAll;
-            thumb.Template=Knob(index==0?Brushes.LightSkyBlue:new SolidColorBrush(Color.FromRgb(232,238,248)),true);
+            thumb.Template=Knob(index==0?Brushes.LightSkyBlue:new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(232,238,248))),true);
             System.Windows.Automation.AutomationProperties.SetName(thumb,$"Curve point {index+1}, arrow keys adjust input and output");
             int pointIndex=index;
             thumb.GotKeyboardFocus+=(_,_)=>SelectPoint(pointIndex);
@@ -128,7 +134,7 @@ public sealed class CurveWorkbench
             void Say(bool on)=>said.Visibility=on||thumb.IsDragging||thumb.IsKeyboardFocused||thumb.IsMouseOver?Visibility.Visible:Visibility.Collapsed;
             thumb.MouseEnter+=(_,_)=>Say(true);thumb.MouseLeave+=(_,_)=>Say(false);thumb.GotKeyboardFocus+=(_,_)=>Say(true);thumb.LostKeyboardFocus+=(_,_)=>Say(false);
             thumb.DragStarted+=(_,_)=>Say(true);thumb.DragCompleted+=(_,_)=>Say(false);thumb.Focusable=true;thumb.FocusVisualStyle=null;thumb.Cursor=across?Cursors.SizeWE:Cursors.SizeNS;thumb.ToolTip=name;
-            thumb.Template=Knob(new SolidColorBrush(thumb==deadHandle?Color.FromRgb(232,54,79):thumb==fullHandle?Color.FromRgb(61,214,140):Color.FromRgb(255,196,92)),false);
+            thumb.Template=Knob(new SolidColorBrush(thumb==deadHandle?ThemeCatalog.R(Color.FromRgb(232,54,79)):thumb==fullHandle?ThemeCatalog.R(Color.FromRgb(61,214,140)):ThemeCatalog.R(Color.FromRgb(255,196,92))),false);
             System.Windows.Automation.AutomationProperties.SetName(thumb,name+", arrow keys adjust");
             var me=thumb;
             thumb.DragDelta+=(_,e)=>{var z=Zones();if(me==deadHandle)SetZone(0,z.Inner+e.HorizontalChange/PW*100);else if(me==fullHandle)SetZone(1,z.Outer+e.HorizontalChange/PW*100);else if(me==floorHandle)SetZone(2,z.Floor-e.VerticalChange/PH*100);else SetZone(3,z.Ceiling-e.VerticalChange/PH*100);};
@@ -310,8 +316,8 @@ public sealed class CurveWorkbench
         coordinates.ToolTip=$"Stored point 1: {setting.Point1.X}/255, {setting.Point1.Y}/255. Point 2: {setting.Point2.X}/255, {setting.Point2.Y}/255.";
         coordinates.TextWrapping=TextWrapping.Wrap;RefreshPointReadout();
         foreach(var button in channelButtons)button.Background=(CurveChannel)button.Tag==Channel?Brushes.White:DS.Brush("Control.ButtonFill");
-        foreach(var button in channelButtons)button.Foreground=(CurveChannel)button.Tag==Channel?new SolidColorBrush(Color.FromRgb(17,24,39)):Brushes.LightSteelBlue;
-        foreach(var button in presetButtons)button.Foreground=(string)button.Tag==setting.Preset?new SolidColorBrush(Color.FromRgb(17,24,39)):Brushes.LightSteelBlue;
+        foreach(var button in channelButtons)button.Foreground=(CurveChannel)button.Tag==Channel?new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(17,24,39))):Brushes.LightSteelBlue;
+        foreach(var button in presetButtons)button.Foreground=(string)button.Tag==setting.Preset?new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(17,24,39))):Brushes.LightSteelBlue;
         foreach(var button in presetButtons)button.Background=(string)button.Tag==setting.Preset?Brushes.White:DS.Brush("Control.ButtonFill");
         updating=false;
     }

@@ -12,7 +12,7 @@ using Microsoft.Win32;
 using X20Ctl.Zone;
 namespace X20Ctl.Product;
 
-public sealed class SetupsWorkbench
+public sealed partial class SetupsWorkbench
 {
     public Grid Body {get;}=new();
     public Grid Shelf {get;}=new();
@@ -163,7 +163,8 @@ public sealed class SetupsWorkbench
         var current=capture();var baseline=Store.NativeSnapshot(item.Id);
         return current.Vibration!=baseline.Vibration || current.Mappings.Any(p=>baseline.Mappings[p.Key]!=p.Value) || current.Curves.Any(p=>baseline.Curves[p.Key]!=p.Value) || current.Macros.Any(p=>JsonSerializer.Serialize(p.Value,SetupStore.JsonOptions)!=JsonSerializer.Serialize(baseline.Macros[p.Key],SetupStore.JsonOptions));
     }
-    private void RefreshDetails()
+    private void RefreshDetails(){RefreshDetailsCore();Rebuilt?.Invoke();}
+    private void RefreshDetailsCore()
     {
         bool selected=SelectedId!=null && Store.Items.Any(s=>s.Id==SelectedId);
         foreach(var action in new[]{OpenButton,duplicate,RenameButton,export,MoreButton})action.IsEnabled=selected&&healthy;

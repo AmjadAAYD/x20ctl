@@ -15,7 +15,7 @@ namespace X20Ctl.Product;
 /// stick and trigger readouts. Sizes follow the concepts' proportions.</summary>
 internal static class Kit
 {
-    public static readonly Color Ice = Color.FromRgb(125, 182, 255), Blue = Color.FromRgb(61, 139, 255), Line = Color.FromArgb(46, 140, 175, 255), Green = Color.FromRgb(52, 211, 153);
+    public static readonly Color Ice = ThemeCatalog.R(Color.FromRgb(125, 182, 255)), Blue = ThemeCatalog.R(Color.FromRgb(61, 139, 255)), Line = ThemeCatalog.R(Color.FromArgb(46, 140, 175, 255)), Green = ThemeCatalog.R(Color.FromRgb(52, 211, 153));
     static Brush B(Color c) { var b = new SolidColorBrush(c); b.Freeze(); return b; }
     static Brush B(byte a, byte r, byte g, byte b) => B(Color.FromArgb(a, r, g, b));
     static readonly FontFamily Icons = new("Segoe Fluent Icons, Segoe MDL2 Assets");
@@ -40,8 +40,8 @@ internal static class Kit
         return new Border
         {
             CornerRadius = new(16), BorderThickness = new(1), Padding = pad ?? new(20, 16, 20, 16), Child = dock,
-            Background = new SolidColorBrush(Color.FromRgb(12,22,43)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(42,61,89))
+            Background = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(12,22,43))),
+            BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(42,61,89)))
         };
     }
 
@@ -159,7 +159,7 @@ internal static class Kit
     /// <summary>The big status card: glowing check ring and a large green word.</summary>
     public static Border StatusHero(string caption, string word, string detail, bool ok = true)
     {
-        var c = ok ? Green : Color.FromRgb(245, 180, 91);
+        var c = ok ? Green : ThemeCatalog.R(Color.FromRgb(245, 180, 91));
         var ring = new Grid { Width = 92, Height = 92, Margin = new(0, 0, 26, 0) };
         ring.Children.Add(new Ellipse { Fill = new RadialGradientBrush(Color.FromArgb(70, c.R, c.G, c.B), Color.FromArgb(0, c.R, c.G, c.B)), Margin = new(-14) });
         ring.Children.Add(new Ellipse { Stroke = B(c), StrokeThickness = 5, Fill = B(70, c.R, c.G, c.B), Effect = new DropShadowEffect { Color = c, BlurRadius = 24, ShadowDepth = 0, Opacity = .9 } });
@@ -241,12 +241,12 @@ internal static class Kit
     static Border Tile(string key, string label, string selected, bool round, double size)
     {
         bool on = key == selected;
-        var face = key switch { "Y" => Color.FromRgb(245, 205, 80), "X" => Color.FromRgb(70, 170, 255), "B" => Color.FromRgb(255, 100, 125), "A" => Color.FromRgb(70, 220, 150), _ => (Color?)null };
+        var face = key switch { "Y" => ThemeCatalog.R(Color.FromRgb(245, 205, 80)), "X" => ThemeCatalog.R(Color.FromRgb(70, 170, 255)), "B" => ThemeCatalog.R(Color.FromRgb(255, 100, 125)), "A" => ThemeCatalog.R(Color.FromRgb(70, 220, 150)), _ => (Color?)null };
         var text = Text(label, round ? 20 : 18, "DS.Text", FontWeights.SemiBold).Center(); if (face != null && !on) text.Foreground = B(face.Value);
         var t = new Border
         {
             Child = text, BorderThickness = new(on ? 2 : 1.2), CornerRadius = new(round ? size / 2 : 12),
-            Background = on ? new LinearGradientBrush(Color.FromRgb(70, 150, 255), Color.FromRgb(31, 104, 240), 90) : B(30, 255, 255, 255),
+            Background = on ? new LinearGradientBrush(ThemeCatalog.R(Color.FromRgb(70, 150, 255)), ThemeCatalog.R(Color.FromRgb(31, 104, 240)), 90) : B(30, 255, 255, 255),
             BorderBrush = on ? Brushes.White : face != null ? B(150, face.Value.R, face.Value.G, face.Value.B) : B(46, 255, 255, 255),
             Effect = on ? new DropShadowEffect { Color = Blue, BlurRadius = 22, ShadowDepth = 0, Opacity = .9 } : null
         };
@@ -297,7 +297,7 @@ internal static class Kit
     {
         var track = new Grid { Width = 20, Height = height };
         track.Children.Add(new Border { CornerRadius = new(10), Background = B(60, 70, 90, 140), BorderBrush = B(70, 125, 182, 255), BorderThickness = new(1) });
-        track.Children.Add(new Border { CornerRadius = new(10), Height = Math.Max(20, height * value), VerticalAlignment = VerticalAlignment.Bottom, Background = new LinearGradientBrush(Color.FromRgb(90, 165, 255), Color.FromRgb(40, 110, 255), 90), Effect = new DropShadowEffect { Color = Blue, BlurRadius = 14, ShadowDepth = 0, Opacity = .8 } });
+        track.Children.Add(new Border { CornerRadius = new(10), Height = Math.Max(20, height * value), VerticalAlignment = VerticalAlignment.Bottom, Background = new LinearGradientBrush(ThemeCatalog.R(Color.FromRgb(90, 165, 255)), ThemeCatalog.R(Color.FromRgb(40, 110, 255)), 90), Effect = new DropShadowEffect { Color = Blue, BlurRadius = 14, ShadowDepth = 0, Opacity = .8 } });
         return new StackPanel { Children = { track, Text($"{label} {value * 100:0}%", 14).Center() } };
     }
 }
@@ -318,8 +318,8 @@ public sealed class HologramController : Grid
         foreach (var c in view.EnumerateObject())
         {
             if (c.Name is "CAPTURE" or "TURBO") continue;
-            var face = c.Name switch { "Y" => Color.FromRgb(245, 205, 80), "X" => Color.FromRgb(60, 170, 255), "B" => Color.FromRgb(255, 92, 120), "A" => Color.FromRgb(60, 220, 150), _ => (Color?)null };
-            var path = new Path { Data = Geometry.Parse(c.Value.GetProperty("path").GetString()!), StrokeThickness = face != null ? 5 : 2.5, Stroke = new SolidColorBrush(face ?? Color.FromArgb(150, 125, 190, 255)), Fill = new SolidColorBrush(Color.FromArgb(face != null ? (byte)30 : (byte)10, (face ?? Kit.Ice).R, (face ?? Kit.Ice).G, (face ?? Kit.Ice).B)) };
+            var face = c.Name switch { "Y" => ThemeCatalog.R(Color.FromRgb(245, 205, 80)), "X" => ThemeCatalog.R(Color.FromRgb(60, 170, 255)), "B" => ThemeCatalog.R(Color.FromRgb(255, 92, 120)), "A" => ThemeCatalog.R(Color.FromRgb(60, 220, 150)), _ => (Color?)null };
+            var path = new Path { Data = Geometry.Parse(c.Value.GetProperty("path").GetString()!), StrokeThickness = face != null ? 5 : 2.5, Stroke = new SolidColorBrush(face ?? ThemeCatalog.R(Color.FromArgb(150, 125, 190, 255))), Fill = new SolidColorBrush(Color.FromArgb(face != null ? (byte)30 : (byte)10, (face ?? Kit.Ice).R, (face ?? Kit.Ice).G, (face ?? Kit.Ice).B)) };
             if (face != null) { path.Effect = new DropShadowEffect { Color = face.Value, BlurRadius = 18, ShadowDepth = 0, Opacity = .9 }; overlay.Children.Add(Letter(c.Name, path.Data.Bounds, face.Value)); }
             overlay.Children.Insert(0, path); shapes[c.Name] = path;
         }
@@ -332,8 +332,8 @@ public sealed class HologramController : Grid
     /// <summary>Light one control the way the concepts light the triggers: bright fill and glow.</summary>
     public void Select(string key)
     {
-        foreach (var (name, p) in shapes) if (name is not ("A" or "B" or "X" or "Y")) { p.Stroke = new SolidColorBrush(Color.FromArgb(150, 125, 190, 255)); p.Fill = new SolidColorBrush(Color.FromArgb(10, 125, 182, 255)); p.Effect = null; }
-        if (shapes.TryGetValue(key, out var s)) { s.Stroke = Brushes.White; s.Fill = new SolidColorBrush(Color.FromArgb(150, 61, 139, 255)); s.Effect = new DropShadowEffect { Color = Kit.Blue, BlurRadius = 30, ShadowDepth = 0, Opacity = 1 }; }
+        foreach (var (name, p) in shapes) if (name is not ("A" or "B" or "X" or "Y")) { p.Stroke = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(150, 125, 190, 255))); p.Fill = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(10, 125, 182, 255))); p.Effect = null; }
+        if (shapes.TryGetValue(key, out var s)) { s.Stroke = Brushes.White; s.Fill = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(150, 61, 139, 255))); s.Effect = new DropShadowEffect { Color = Kit.Blue, BlurRadius = 30, ShadowDepth = 0, Opacity = 1 }; }
     }
 }
 
@@ -347,7 +347,7 @@ public sealed class PhotoController : Grid
     public PhotoController(string model, bool rear = false)
     {
         Width = 1536; Height = 1024;
-        Children.Add(new Ellipse { Width = 980, Height = 80, VerticalAlignment = VerticalAlignment.Bottom, Margin = new(0, 0, 0, 30), Fill = new RadialGradientBrush(Color.FromArgb(170, 0, 3, 10), Color.FromArgb(0, 0, 3, 10)) });
+        Children.Add(new Ellipse { Width = 980, Height = 80, VerticalAlignment = VerticalAlignment.Bottom, Margin = new(0, 0, 0, 30), Fill = new RadialGradientBrush(ThemeCatalog.R(Color.FromArgb(170, 0, 3, 10)), ThemeCatalog.R(Color.FromArgb(0, 0, 3, 10))) });
         Live.Show(model, rear); Children.Add(Live); Children.Add(overlay);
         using var doc = JsonDocument.Parse(File.ReadAllText(System.IO.Path.Combine(AppContext.BaseDirectory, "Data/control-shapes.json")));
         if (!doc.RootElement.GetProperty("models").TryGetProperty(model, out var m) || !m.TryGetProperty(rear ? "back" : "front", out var view)) return;
@@ -362,7 +362,7 @@ public sealed class PhotoController : Grid
     {
         foreach (var p in shapes.Values) p.Visibility = Visibility.Collapsed;
         if (!shapes.TryGetValue(key, out var s)) return;
-        s.Visibility = Visibility.Visible; s.Stroke = new SolidColorBrush(Color.FromRgb(150, 200, 255)); s.Fill = new SolidColorBrush(Color.FromArgb(90, 61, 139, 255));
+        s.Visibility = Visibility.Visible; s.Stroke = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(150, 200, 255))); s.Fill = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(90, 61, 139, 255)));
         s.Effect = new DropShadowEffect { Color = Kit.Blue, BlurRadius = 26, ShadowDepth = 0, Opacity = 1 };
     }
 }

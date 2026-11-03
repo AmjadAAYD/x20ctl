@@ -24,11 +24,13 @@ public static class ProductLinks
 /// </summary>
 public sealed class IntroView:Grid
 {
-    private const double FilmEnd=7.1, CoverAt=6.45, FlyAt=6.6, FlyFor=.8, Total=FlyAt+FlyFor, ReducedFor=.4, OpenWithin=2.5;
-    // the logo's ink in the film's 1920x1080 frame (layout.ts: 660 px wide about (960, 470), then FINAL_PUSH 1.035)
-    private static readonly Rect FilmLogo=new(622.42,235.10,674.90,469.80);
-    // the logo's ink inside Brand/x20ctl-mark.png (512 px): its alpha box
-    private static readonly Rect MarkInk=new(10,85,492,342);
+    private const double FlyFor=.8, ReducedFor=.4, OpenWithin=2.5;
+    // the shipped film: the logo's ink in its 1920x1080 frame (layout.ts: 660 px wide about (960, 470), then FINAL_PUSH 1.035),
+    // and the logo's ink inside Brand/x20ctl-mark.png (512 px): its alpha box. A theme's film brings its own (ThemeCatalog).
+    private static readonly IntroSpec Shipped=new("",7.1,6.45,6.6,new(622.42,235.10,674.90,469.80),new(512,512),new(10,85,492,342));
+    private readonly IntroSpec spec;
+    private double FilmEnd=>spec.FilmEnd; private double CoverAt=>spec.CoverAt; private double FlyAt=>spec.FlyAt; private double Total=>FlyAt+FlyFor;
+    private Rect FilmLogo=>spec.FilmLogo; private Rect MarkInk=>spec.Ink;
     public IntroView Visual=>this;
     public Button Skip {get;} public Button Mute {get;}
     /// <summary>The player muted the intro (from its button, M or Y). The host remembers it.</summary>
@@ -36,14 +38,18 @@ public sealed class IntroView:Grid
     public event Action? Completed; public event Action<double>? ZoneReveal;
     public static bool SoundEnabled {get;set;}=true;
     /// <summary>The film carries the sound, so "has a score" means the film is installed beside the app.</summary>
-    public static bool HasIntroScore => System.IO.File.Exists(FilmPath);
-    private static string FilmPath => System.IO.Path.Combine(AppContext.BaseDirectory,"Brand","intro.mp4");
+    public static bool HasIntroScore => Themed==null&&System.IO.File.Exists(FilmPath);
+    /// <summary>A film is installed to play, the shipped one or the theme's own.</summary>
+    public static bool HasFilm => System.IO.File.Exists(FilmPath);
+    /// <summary>The theme in use brings its own film and logo when both are installed; its film has no sound.</summary>
+    private static IntroSpec? Themed => ThemeCatalog.Current.Intro is { } own && System.IO.File.Exists(own.FilmPath) && System.IO.File.Exists(own.LogoPath) ? own : null;
+    private static string FilmPath => Themed?.FilmPath ?? System.IO.Path.Combine(AppContext.BaseDirectory,"Brand","intro.mp4");
 
     private readonly MediaPlayer? film;
     // the film's picture: its 1920x1080 frame drawn by the player, filling the view and centred (cropping the edges)
     private readonly Image? filmView;
     private readonly Image cover=new(){IsHitTestVisible=false,Opacity=0,Stretch=Stretch.Fill,HorizontalAlignment=HorizontalAlignment.Left,VerticalAlignment=VerticalAlignment.Top};
-    private readonly System.Windows.Shapes.Rectangle backdrop=new(){Fill=new SolidColorBrush(Color.FromRgb(2,4,10)),IsHitTestVisible=false};
+    private readonly System.Windows.Shapes.Rectangle backdrop=new(){Fill=new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(2,4,10))),IsHitTestVisible=false};
     private readonly IIntroHandoff? handoff;
     private readonly System.Windows.Threading.DispatcherTimer clock=new(System.Windows.Threading.DispatcherPriority.Render){Interval=TimeSpan.FromMilliseconds(15)};
     private bool finished,startRequested,began,opened,failed,handing,targetsRead;
@@ -51,10 +57,10 @@ public sealed class IntroView:Grid
 
     public IntroView(bool reduced,bool muted=false,IIntroHandoff? handoff=null)
     {
-        Reduced=reduced;Muted=muted;this.handoff=handoff;
+        Reduced=reduced;Muted=muted;this.handoff=handoff;var themed=Themed;spec=themed??Shipped;
         Children.Add(backdrop);
         var early=preloaded;bool earlyOpened=preloadOpened,earlyFailed=preloadFailed;preloaded=null;preloadOpened=preloadFailed=false;
-        if(!reduced&&HasIntroScore)
+        if(!reduced&&HasFilm)
         {
             film=early??NewPlayer();
             ApplyMute();
@@ -68,11 +74,11 @@ public sealed class IntroView:Grid
             Unloaded+=(_,_)=>film.Close();
         }
         else early?.Close();
-        cover.Source=new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/X20Ctl;component/Assets/brand.png"));
+        cover.Source=themed==null?new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/X20Ctl;component/Assets/brand.png")):LoadLogo(themed.LogoPath);
         Children.Add(cover);
         Skip=new Button{Content="Skip · Esc / B",HorizontalAlignment=HorizontalAlignment.Right,VerticalAlignment=VerticalAlignment.Bottom,Margin=new(0,0,36,36),Style=DS.Style("DS.Secondary"),Opacity=.8};Skip.Click+=(_,_)=>Finish();
         // mute (owner request 12 Oct 2026): beside Skip, remembered for the next launch; reduced motion has no sound to mute
-        Mute=new Button{HorizontalAlignment=HorizontalAlignment.Right,VerticalAlignment=VerticalAlignment.Bottom,Margin=new(0,0,36,36),Style=DS.Style("DS.Secondary"),Opacity=.8,Visibility=reduced||!HasIntroScore?Visibility.Collapsed:Visibility.Visible};
+        Mute=new Button{HorizontalAlignment=HorizontalAlignment.Right,VerticalAlignment=VerticalAlignment.Bottom,Margin=new(0,0,36,36),Style=DS.Style("DS.Secondary"),Opacity=.8,Visibility=reduced||!HasIntroScore||themed!=null?Visibility.Collapsed:Visibility.Visible};
         Mute.Click+=(_,_)=>ToggleMute();ShowMute();
         Children.Add(new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,VerticalAlignment=VerticalAlignment.Bottom,Children={Mute,Skip}});
         PreviewMouseDown+=(_,e)=>{if(e.ChangedButton==MouseButton.Left&&!Skip.IsMouseOver&&!Mute.IsMouseOver)Finish();};
@@ -80,6 +86,10 @@ public sealed class IntroView:Grid
         Loaded+=(_,_)=>{if(startRequested)Begin();};
     }
 
+    private static System.Windows.Media.Imaging.BitmapImage LoadLogo(string path)
+    {
+        var image=new System.Windows.Media.Imaging.BitmapImage();image.BeginInit();image.CacheOption=System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;image.UriSource=new Uri(path);image.EndInit();image.Freeze();return image;
+    }
     /// <summary>The film has opened (timing review).</summary>
     public bool FilmOpened=>opened;
     // the film starts opening at launch, while the window is still being built (App calls PreloadFilm), so it plays from
@@ -88,7 +98,7 @@ public sealed class IntroView:Grid
     private static MediaPlayer NewPlayer()=>new(){ScrubbingEnabled=true,Volume=.8,IsMuted=true};
     public static void PreloadFilm()
     {
-        if(preloaded!=null||!HasIntroScore)return;
+        if(preloaded!=null||!HasFilm)return;
         var player=NewPlayer();preloaded=player;
         player.MediaOpened+=(_,_)=>{if(preloaded==player)preloadOpened=true;};
         player.MediaFailed+=(_,_)=>{if(preloaded==player)preloadFailed=true;};
@@ -142,9 +152,9 @@ public sealed class IntroView:Grid
 
         // the cover: the film's logo, laid exactly over it, then the film fades out from under it
         var logo=OnScreen(FilmLogo);
-        cover.Width=logo.Width*512/MarkInk.Width;cover.Height=cover.Width;
+        cover.Width=logo.Width*spec.Image.Width/MarkInk.Width;cover.Height=cover.Width*spec.Image.Height/spec.Image.Width;
         // centred on the film's logo: the ink's centre in the image lands on the logo's centre
-        double k=cover.Width/512;var at=new Point(logo.X+logo.Width/2-(MarkInk.X+MarkInk.Width/2)*k,logo.Y+logo.Height/2-(MarkInk.Y+MarkInk.Height/2)*k);
+        double k=cover.Width/spec.Image.Width;var at=new Point(logo.X+logo.Width/2-(MarkInk.X+MarkInk.Width/2)*k,logo.Y+logo.Height/2-(MarkInk.Y+MarkInk.Height/2)*k);
         double shown=t>=CoverAt?1:0;
         if(filmView!=null)filmView.Opacity=1-Smooth(Win(t,CoverAt+.01,FlyAt));
 

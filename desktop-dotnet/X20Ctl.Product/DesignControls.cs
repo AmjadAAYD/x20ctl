@@ -40,32 +40,32 @@ public class GalaxyBackdrop : Grid
         if (navy)
         {
             // Steam's restraint, still alive: a navy field, deep-blue and steel-blue clouds drifting, stars on the move
-            Background = new LinearGradientBrush(new GradientStopCollection { new(Color.FromRgb(16, 24, 38), 0), new(Color.FromRgb(11, 17, 28), .6), new(Color.FromRgb(7, 11, 18), 1) }, 90);
-            Children.Add(Nebula(Color.FromArgb(150, 34, 82, 168), .18, .3, .7, .8, 18, 60, 0));
-            Children.Add(Nebula(Color.FromArgb(110, 52, 96, 150), .84, .24, .55, .7, 21, -70, 5));
-            Children.Add(Nebula(Color.FromArgb(90, 40, 64, 140), .62, .82, .5, .5, 24, 55, 9));
-            Children.Add(Nebula(Color.FromArgb(70, 30, 120, 170), .06, .9, .45, .45, 16, -50, 3));
+            Background = new LinearGradientBrush(new GradientStopCollection { new(ThemeCatalog.R(Color.FromRgb(16, 24, 38)), 0), new(ThemeCatalog.R(Color.FromRgb(11, 17, 28)), .6), new(ThemeCatalog.R(Color.FromRgb(7, 11, 18)), 1) }, 90);
+            Children.Add(Nebula(ThemeCatalog.R(Color.FromArgb(150, 34, 82, 168)), .18, .3, .7, .8, 18, 60, 0));
+            Children.Add(Nebula(ThemeCatalog.R(Color.FromArgb(110, 52, 96, 150)), .84, .24, .55, .7, 21, -70, 5));
+            Children.Add(Nebula(ThemeCatalog.R(Color.FromArgb(90, 40, 64, 140)), .62, .82, .5, .5, 24, 55, 9));
+            Children.Add(Nebula(ThemeCatalog.R(Color.FromArgb(70, 30, 120, 170)), .06, .9, .45, .45, 16, -50, 3));
         }
         else
         {
-            Background = new LinearGradientBrush(Color.FromRgb(5, 8, 20), Color.FromRgb(9, 15, 36), 90);
+            Background = new LinearGradientBrush(ThemeCatalog.R(Color.FromRgb(5, 8, 20)), ThemeCatalog.R(Color.FromRgb(9, 15, 36)), 90);
             // colourful, visibly moving nebulae: blue, violet, magenta and cyan clouds on 14-22 s cycles
-            Children.Add(Nebula(Color.FromArgb(165, 40, 86, 210), .2, .38, .72, .85, 16, 60, 0));
-            Children.Add(Nebula(Color.FromArgb(135, 128, 64, 220), .82, .22, .55, .7, 19, -70, 5));
-            Children.Add(Nebula(Color.FromArgb(105, 205, 60, 170), .62, .78, .48, .5, 22, 55, 9));
-            Children.Add(Nebula(Color.FromArgb(95, 30, 175, 205), .1, .92, .5, .45, 14, -50, 3));
-            Children.Add(Nebula(Color.FromArgb(60, 255, 120, 80), .98, .62, .32, .4, 18, 40, 11));
+            Children.Add(Nebula(ThemeCatalog.R(Color.FromArgb(165, 40, 86, 210)), .2, .38, .72, .85, 16, 60, 0));
+            Children.Add(Nebula(ThemeCatalog.R(Color.FromArgb(135, 128, 64, 220)), .82, .22, .55, .7, 19, -70, 5));
+            Children.Add(Nebula(ThemeCatalog.R(Color.FromArgb(105, 205, 60, 170)), .62, .78, .48, .5, 22, 55, 9));
+            Children.Add(Nebula(ThemeCatalog.R(Color.FromArgb(95, 30, 175, 205)), .1, .92, .5, .45, 14, -50, 3));
+            Children.Add(Nebula(ThemeCatalog.R(Color.FromArgb(60, 255, 120, 80)), .98, .62, .32, .4, 18, 40, 11));
         }
         var rng = new Random(20261010);
         Children.Add(Stars(rng, 260, .5, 1.1, .55, 26, 24));
         Children.Add(Stars(rng, 110, .9, 1.7, .8, 18, 40));
         Children.Add(Stars(rng, 34, 1.4, 2.6, 1, 12, 64));
-        var vignette = new Rectangle { Fill = new RadialGradientBrush(Color.FromArgb(0, 0, 0, 0), Color.FromArgb(150, 2, 4, 10)) { RadiusX = .8, RadiusY = .85 } };
+        var vignette = new Rectangle { Fill = new RadialGradientBrush(ThemeCatalog.R(Color.FromArgb(0, 0, 0, 0)), ThemeCatalog.R(Color.FromArgb(150, 2, 4, 10))) { RadiusX = .8, RadiusY = .85 } };
         vignette.CacheMode = new BitmapCache(.5); Children.Add(vignette);
     }
     private FrameworkElement Nebula(Color color, double cx, double cy, double rx, double ry, double seconds, double drift, double delay)
     {
-        var shape = new Rectangle { Fill = new RadialGradientBrush(new GradientStopCollection { new(color, 0), new(Color.FromArgb((byte)(color.A / 3), color.R, color.G, color.B), .45), new(Color.FromArgb(0, color.R, color.G, color.B), 1) }) { Center = new(cx, cy), GradientOrigin = new(cx, cy), RadiusX = rx, RadiusY = ry }, Margin = new(-120) };
+        var shape = new Rectangle { Fill = new RadialGradientBrush(new GradientStopCollection { new(color, 0), new(Color.FromArgb((byte)(color.A / 3), color.R, color.G, color.B), .45), new(ThemeCatalog.R(Color.FromArgb(0, color.R, color.G, color.B)), 1) }) { Center = new(cx, cy), GradientOrigin = new(cx, cy), RadiusX = rx, RadiusY = ry }, Margin = new(-120) };
         shape.CacheMode = new BitmapCache(.5); // soft gradient: half resolution is invisible, and it is drawn once
         var move = new TranslateTransform(); shape.RenderTransform = move;
         if (motion)
@@ -139,7 +139,7 @@ public sealed class StatusChip : Border
     {
         // crisp like the concept: uppercase label, dark tinted fill, bright clean border, sharp dot
         label.Text = text.ToUpperInvariant();
-        var c = kind switch { ChipKind.Success => Color.FromRgb(70, 225, 150), ChipKind.Warn => Color.FromRgb(255, 190, 92), ChipKind.Neutral => Color.FromRgb(160, 172, 198), _ => Color.FromRgb(125, 182, 255) };
+        var c = kind switch { ChipKind.Success => ThemeCatalog.R(Color.FromRgb(70, 225, 150)), ChipKind.Warn => ThemeCatalog.R(Color.FromRgb(255, 190, 92)), ChipKind.Neutral => ThemeCatalog.R(Color.FromRgb(160, 172, 198)), _ => ThemeCatalog.R(Color.FromRgb(125, 182, 255)) };
         label.Foreground = new SolidColorBrush(c); dot.Fill = new SolidColorBrush(c);
         Background = new SolidColorBrush(Color.FromArgb(235, (byte)(6 + c.R / 14), (byte)(12 + c.G / 14), (byte)(22 + c.B / 14)));
         BorderBrush = new SolidColorBrush(Color.FromArgb(200, c.R, c.G, c.B));
@@ -157,7 +157,7 @@ public sealed class GlyphHint : StackPanel
         Orientation = Orientation.Horizontal; Margin = new(0, 0, 26, 0); VerticalAlignment = VerticalAlignment.Center;
         bool round = glyph.Length == 1;
         // A/B/X/Y wear their controller colours (owner direction 10 Oct 2026); every other glyph stays a quiet grey
-        var face = glyph switch { "A" => Color.FromRgb(70, 220, 150), "B" => Color.FromRgb(255, 100, 125), "X" => Color.FromRgb(70, 170, 255), "Y" => Color.FromRgb(245, 205, 80), _ => Color.FromRgb(214, 222, 234) };
+        var face = glyph switch { "A" => ThemeCatalog.R(Color.FromRgb(70, 220, 150)), "B" => ThemeCatalog.R(Color.FromRgb(255, 100, 125)), "X" => ThemeCatalog.R(Color.FromRgb(70, 170, 255)), "Y" => ThemeCatalog.R(Color.FromRgb(245, 205, 80)), _ => ThemeCatalog.R(Color.FromRgb(214, 222, 234)) };
         Children.Add(new Border
         {
             MinWidth = round ? 28 : 40, Height = 28, CornerRadius = new(round ? 14 : 5), Padding = new(round ? 0 : 8, 0, round ? 0 : 8, 0),
@@ -194,7 +194,7 @@ public sealed class StatTile : Border
 public sealed class PopupHost : Grid
 {
     private readonly UIElement behind;
-    private readonly Rectangle scrim = new() { Fill = new SolidColorBrush(Color.FromArgb(168, 3, 6, 17)), Opacity = 0 };
+    private readonly Rectangle scrim = new() { Fill = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(168, 3, 6, 17))), Opacity = 0 };
     private readonly Grid layer = new() { Visibility = Visibility.Collapsed };
     private readonly Image frozen = new() { Stretch = Stretch.Fill, Opacity = 0, IsHitTestVisible = false, Effect = new BlurEffect { Radius = 9, RenderingBias = RenderingBias.Performance }, CacheMode = new BitmapCache(1) };
     private readonly ScaleTransform recede = new(1, 1);
@@ -205,7 +205,7 @@ public sealed class PopupHost : Grid
 
     public PopupHost(UIElement content)
     {
-        behind = content; Children.Add(new Rectangle { Fill = new SolidColorBrush(Color.FromRgb(4, 7, 15)) }); Children.Add(content); Children.Add(frozen); ClipToBounds = true;
+        behind = content; Children.Add(new Rectangle { Fill = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(4, 7, 15))) }); Children.Add(content); Children.Add(frozen); ClipToBounds = true;
         frozen.RenderTransformOrigin = new(.5, .5); frozen.RenderTransform = recede;
 
         layer.Children.Add(scrim); Children.Add(layer);
@@ -290,9 +290,9 @@ public sealed class BumperBadge : Grid
     {
         Width = 58; Height = 30; VerticalAlignment = VerticalAlignment.Center;
         shape.Data = Geometry.Parse("M7,29 L51,29 C53.5,29 54.5,27 53.5,24.5 L47,9 C45,5 41.5,3 37,3 L21,3 C11,3 4,10 3.5,20 L3,25 C3,27.5 4.5,29 7,29 Z");
-        shape.Fill = new LinearGradientBrush(Color.FromArgb(90, 160, 190, 235), Color.FromArgb(30, 120, 150, 210), 90);
-        shape.Stroke = new LinearGradientBrush(Color.FromArgb(220, 205, 222, 250), Color.FromArgb(90, 160, 185, 230), 90);
-        shape.Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = Color.FromRgb(61, 139, 255), BlurRadius = 10, ShadowDepth = 0, Opacity = .45 };
+        shape.Fill = new LinearGradientBrush(ThemeCatalog.R(Color.FromArgb(90, 160, 190, 235)), ThemeCatalog.R(Color.FromArgb(30, 120, 150, 210)), 90);
+        shape.Stroke = new LinearGradientBrush(ThemeCatalog.R(Color.FromArgb(220, 205, 222, 250)), ThemeCatalog.R(Color.FromArgb(90, 160, 185, 230)), 90);
+        shape.Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = ThemeCatalog.R(Color.FromRgb(61, 139, 255)), BlurRadius = 10, ShadowDepth = 0, Opacity = .45 };
         Children.Add(shape); Children.Add(text);
     }
     public string Label
@@ -329,17 +329,18 @@ public sealed class HeaderBattery : Button
         Template = new ControlTemplate(typeof(Button)) { VisualTree = new FrameworkElementFactory(typeof(ContentPresenter)) };
         var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new(2, 0, 0, 0) };
         for (int i = 0; i < 4; i++) { cells[i] = new Border { Width = 5, Height = 9, CornerRadius = new(1.2), Margin = new(i == 0 ? 0 : 1.6, 0, 0, 0) }; row.Children.Add(cells[i]); }
-        var body = new Border { Width = 32, Height = 15, CornerRadius = new(4), BorderThickness = new(1.4), BorderBrush = new SolidColorBrush(Color.FromArgb(210, 214, 226, 244)), Padding = new(1.6, 1.4, 1.6, 1.4), Child = new Grid { Children = { row, plug } } };
-        var tip = new Border { Width = 2.6, Height = 6, CornerRadius = new(0, 1.5, 1.5, 0), Background = new SolidColorBrush(Color.FromArgb(210, 214, 226, 244)), VerticalAlignment = VerticalAlignment.Center, Margin = new(1, 0, 0, 0) };
-        pill = new Border { CornerRadius = new(18), Height = 34, Padding = new(14, 0, 16, 0), BorderThickness = new(1), BorderBrush = new SolidColorBrush(Color.FromArgb(70, 125, 182, 255)), Background = new SolidColorBrush(Color.FromArgb(46, 30, 60, 130)),
+        var body = new Border { Width = 32, Height = 15, CornerRadius = new(4), BorderThickness = new(1.4), BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(210, 214, 226, 244))), Padding = new(1.6, 1.4, 1.6, 1.4), Child = new Grid { Children = { row, plug } } };
+        var tip = new Border { Width = 2.6, Height = 6, CornerRadius = new(0, 1.5, 1.5, 0), Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(210, 214, 226, 244))), VerticalAlignment = VerticalAlignment.Center, Margin = new(1, 0, 0, 0) };
+        pill = new Border { CornerRadius = new(18), Height = 34, Padding = new(14, 0, 16, 0), BorderThickness = new(1), BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(70, 125, 182, 255))), Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(46, 30, 60, 130))),
             Child = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Children = { body, tip, new TextBlock { Text = "Battery", FontFamily = DS.Display, FontSize = 14, Foreground = DS.Brush("DS.TextSoft"), VerticalAlignment = VerticalAlignment.Center, Margin = new(12, 0, 8, 0) }, level } } };
         Content = pill; ToolTip = "Battery, as the controller reports it · opens Device";
-        MouseEnter += (_, _) => pill.BorderBrush = new SolidColorBrush(Color.FromArgb(170, 125, 182, 255)); MouseLeave += (_, _) => pill.BorderBrush = new SolidColorBrush(Color.FromArgb(70, 125, 182, 255));
+        MouseEnter += (_, _) => pill.BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(170, 125, 182, 255))); MouseLeave += (_, _) => pill.BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(70, 125, 182, 255)));
         Show(null);
     }
     /// <summary>full, medium, low, empty or wired; anything else is "not reported".</summary>
     public void Show(string? reported)
     {
+        if(reported=="receiver")reported=null;
         int lit = reported switch { "full" => 4, "medium" => 2, "low" => 1, _ => 0 };
         if (lit == 0 && reported != null)
         {
@@ -349,8 +350,8 @@ public sealed class HeaderBattery : Button
             else if (reported.StartsWith("1/4") || reported.StartsWith("25%")) lit = 1;
         }
         bool warn = reported is "low" or "empty" || (reported != null && reported.StartsWith("1/4")), wired = reported == "wired" || (reported != null && reported.Contains("charging", StringComparison.OrdinalIgnoreCase));
-        var on = new SolidColorBrush(warn ? Color.FromRgb(240, 178, 92) : Color.FromRgb(232, 240, 252));
-        var off = new SolidColorBrush(Color.FromArgb(34, 214, 226, 244));
+        var on = new SolidColorBrush(warn ? ThemeCatalog.R(Color.FromRgb(240, 178, 92)) : ThemeCatalog.R(Color.FromRgb(232, 240, 252)));
+        var off = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(34, 214, 226, 244)));
         for (int i = 0; i < 4; i++) { cells[i].Background = i < lit ? on : off; cells[i].Visibility = wired ? Visibility.Hidden : Visibility.Visible; }
         plug.Visibility = wired ? Visibility.Visible : Visibility.Collapsed;
         level.Text = reported switch { "full" => "Full", "medium" => "Medium", "low" => "Low", "empty" => "Empty", "wired" => "Wired", null => "—", _ => reported };
