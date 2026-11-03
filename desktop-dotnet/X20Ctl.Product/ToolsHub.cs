@@ -440,7 +440,7 @@ public sealed partial class ProductSettings : Grid
         var button = new Button { Content = face, Tag = theme.Id, Cursor = Cursors.Hand, FocusVisualStyle = null, RenderTransform = lift, Template = BareTemplate() };
         System.Windows.Automation.AutomationProperties.SetName(button, theme.Name);
         void Lift(bool on) { if (DS.Motion) lift.BeginAnimation(TranslateTransform.YProperty, DS.To(on ? -3 : 0, 150)); else lift.Y = on ? -3 : 0; }
-        UiSound.SetCue(button, UiSound.Cue.Click); UiSound.Hover(button, UiSound.Cue.HoverTool);
+        UiSound.SetCue(button, UiSound.Cue.Click);
         button.MouseEnter += (_, _) => Lift(true); button.MouseLeave += (_, _) => Lift(button.IsKeyboardFocused);
         button.GotKeyboardFocus += (_, _) => Lift(true); button.LostKeyboardFocus += (_, _) => Lift(button.IsMouseOver);
         return button;
