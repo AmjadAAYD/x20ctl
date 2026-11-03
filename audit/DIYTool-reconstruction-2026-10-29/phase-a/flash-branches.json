@@ -1,0 +1,310 @@
+{
+  "source_zip_member": "Flash.ini",
+  "sha256": "0f60bc133049d95d1ed58d04cb1b8331a893640b7a9e662fa660dd9ed785fed5",
+  "rows": [
+    {
+      "id": "0xEF4013",
+      "page_column": "256",
+      "capacity_column": "2048",
+      "name": "W25Q40CLE",
+      "flag_column": "",
+      "app_supported": false
+    },
+    {
+      "id": "0xEF4014",
+      "page_column": "256",
+      "capacity_column": "4096",
+      "name": "W25Q80DV",
+      "flag_column": "",
+      "app_supported": false
+    },
+    {
+      "id": "0xEF4015",
+      "page_column": "256",
+      "capacity_column": "8192",
+      "name": "W25Q16DV",
+      "flag_column": "",
+      "app_supported": false
+    },
+    {
+      "id": "0xBA6015",
+      "page_column": "256",
+      "capacity_column": "8192",
+      "name": "W25Q16DV",
+      "flag_column": "",
+      "app_supported": false
+    },
+    {
+      "id": "0xEF4016",
+      "page_column": "256",
+      "capacity_column": "16384",
+      "name": "W25Q32FV",
+      "flag_column": "",
+      "app_supported": false
+    },
+    {
+      "id": "0x856015",
+      "page_column": "256",
+      "capacity_column": "8192",
+      "name": "P25Q32H",
+      "flag_column": "",
+      "app_supported": false
+    },
+    {
+      "id": "0x856016",
+      "page_column": "256",
+      "capacity_column": "16384",
+      "name": "P25Q32H",
+      "flag_column": "",
+      "app_supported": false
+    },
+    {
+      "id": "0x221752",
+      "page_column": "256",
+      "capacity_column": "16384",
+      "name": "T25S64",
+      "flag_column": "",
+      "app_supported": false
+    },
+    {
+      "id": "0xEF4017",
+      "page_column": "256",
+      "capacity_column": "32768",
+      "name": "W25Q64FV",
+      "flag_column": "",
+      "app_supported": false
+    },
+    {
+      "id": "0xBA3217",
+      "page_column": "256",
+      "capacity_column": "32768",
+      "name": "ZD25Q64B",
+      "flag_column": "",
+      "app_supported": false
+    },
+    {
+      "id": "0xF83217",
+      "page_column": "256",
+      "capacity_column": "32768",
+      "name": "FM25Q64B",
+      "flag_column": "",
+      "app_supported": false
+    },
+    {
+      "id": "0xEF6017",
+      "page_column": "256",
+      "capacity_column": "32768",
+      "name": "W25Q64",
+      "flag_column": "",
+      "app_supported": false
+    },
+    {
+      "id": "0x856017",
+      "page_column": "256",
+      "capacity_column": "32768",
+      "name": "P25Q64H",
+      "flag_column": "",
+      "app_supported": false
+    },
+    {
+      "id": "0x5E4017",
+      "page_column": "256",
+      "capacity_column": "32768",
+      "name": "ZB25VQ64",
+      "flag_column": "",
+      "app_supported": false
+    },
+    {
+      "id": "0x684017",
+      "page_column": "256",
+      "capacity_column": "32768",
+      "name": "ZB25VQ64",
+      "flag_column": "",
+      "app_supported": false
+    },
+    {
+      "id": "0xEF4018",
+      "page_column": "256",
+      "capacity_column": "65536",
+      "name": "W25Q128FV",
+      "flag_column": "",
+      "app_supported": true
+    },
+    {
+      "id": "0xEF6018",
+      "page_column": "256",
+      "capacity_column": "65536",
+      "name": "W25Q128JW",
+      "flag_column": "",
+      "app_supported": false
+    },
+    {
+      "id": "0x856018",
+      "page_column": "256",
+      "capacity_column": "65536",
+      "name": "W25Q128JW",
+      "flag_column": "",
+      "app_supported": false
+    },
+    {
+      "id": "0x5E4018",
+      "page_column": "256",
+      "capacity_column": "65536",
+      "name": "ZB25VQ128",
+      "flag_column": "",
+      "app_supported": false
+    },
+    {
+      "id": "0xC84018",
+      "page_column": "256",
+      "capacity_column": "65536",
+      "name": "GD25VQ128",
+      "flag_column": "",
+      "app_supported": false
+    },
+    {
+      "id": "0x0B4018",
+      "page_column": "256",
+      "capacity_column": "65536",
+      "name": "XT25VQ128",
+      "flag_column": "",
+      "app_supported": false
+    },
+    {
+      "id": "0x852018",
+      "page_column": "256",
+      "capacity_column": "65536",
+      "name": "ZB25VQ128",
+      "flag_column": "",
+      "app_supported": false
+    },
+    {
+      "id": "0x201985",
+      "page_column": "256",
+      "capacity_column": "131072",
+      "name": "PY25Q256HB",
+      "flag_column": "",
+      "app_supported": false
+    },
+    {
+      "id": "0x684018",
+      "page_column": "256",
+      "capacity_column": "65536",
+      "name": "BY25Q128AS",
+      "flag_column": "",
+      "app_supported": false
+    },
+    {
+      "id": "0x522217",
+      "page_column": "256",
+      "capacity_column": "32768",
+      "name": "NM25Q64",
+      "flag_column": "",
+      "app_supported": false
+    },
+    {
+      "id": "0x522118",
+      "page_column": "256",
+      "capacity_column": "65536",
+      "name": "NM25Q128",
+      "flag_column": "",
+      "app_supported": false
+    },
+    {
+      "id": "0x1C7018",
+      "page_column": "256",
+      "capacity_column": "65536",
+      "name": "EN25QH128",
+      "flag_column": "",
+      "app_supported": false
+    },
+    {
+      "id": "0xEF4019",
+      "page_column": "256",
+      "capacity_column": "131072",
+      "name": "W25Q256FV",
+      "flag_column": "",
+      "app_supported": false
+    },
+    {
+      "id": "0xC84019",
+      "page_column": "256",
+      "capacity_column": "131072",
+      "name": "GD25Q256",
+      "flag_column": "",
+      "app_supported": false
+    },
+    {
+      "id": "0xEF4020",
+      "page_column": "256",
+      "capacity_column": "262144",
+      "name": "W25Q512JV",
+      "flag_column": "",
+      "app_supported": false
+    },
+    {
+      "id": "0x0B4019",
+      "page_column": "256",
+      "capacity_column": "131072",
+      "name": "XT25Q256",
+      "flag_column": "",
+      "app_supported": false
+    },
+    {
+      "id": "0xC22019",
+      "page_column": "256",
+      "capacity_column": "131072",
+      "name": "MX25Q256",
+      "flag_column": "",
+      "app_supported": false
+    },
+    {
+      "id": "0xEFAA21",
+      "page_column": "2048",
+      "capacity_column": "65536",
+      "name": "W25N01GV",
+      "flag_column": "",
+      "app_supported": false
+    },
+    {
+      "id": "0xEFAB21",
+      "page_column": "2048",
+      "capacity_column": "131072",
+      "name": "W25N02GV",
+      "flag_column": "",
+      "app_supported": false
+    },
+    {
+      "id": "0xEFAA23",
+      "page_column": "2048",
+      "capacity_column": "262144",
+      "name": "W25N04GV",
+      "flag_column": "",
+      "app_supported": false
+    },
+    {
+      "id": "0xC891C8",
+      "page_column": "2048",
+      "capacity_column": "65536",
+      "name": "W25N01GV",
+      "flag_column": "",
+      "app_supported": false
+    },
+    {
+      "id": "0xC892C8",
+      "page_column": "2048",
+      "capacity_column": "131072",
+      "name": "W25N02GV",
+      "flag_column": "",
+      "app_supported": false
+    },
+    {
+      "id": "0xC895C8",
+      "page_column": "2048",
+      "capacity_column": "262144",
+      "name": "GD25F4G",
+      "flag_column": "",
+      "app_supported": false
+    }
+  ]
+}

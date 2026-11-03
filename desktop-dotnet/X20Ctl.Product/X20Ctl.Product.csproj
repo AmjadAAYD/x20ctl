@@ -32,17 +32,28 @@
     <EmbeddedResource Include="../../LICENSE" LogicalName="LICENSE.txt" />
     <EmbeddedResource Include="../../NOTICE" LogicalName="NOTICE.txt" />
     <!-- the X20CTL logo (tools/build_brand_mark.py, from Brand/x20ctl-logo.png); the intro film ends on the same art -->
+    <!-- the shared dictionaries again as text, so a theme can recolour them before they are read (ThemeCatalog.Load) -->
+    <EmbeddedResource Include="Themes/Colors.xaml;Themes/Typography.xaml;Themes/Controls.xaml;Themes/Design.xaml;Themes/ZoneSurfaces.xaml" LogicalName="ThemeSource/%(Filename)%(Extension)" />
     <Resource Include="Brand/x20ctl-mark.png" Link="Assets/brand.png" />
     <Resource Include="Agent/agent-shell.png" />
+    <Resource Include="Assets/art/*.png" Exclude="Assets/art/*-line.png;Assets/art/*-rim.png;Assets/art/*-sil.png" />
     <!-- the app icon (the logo on its white tile) as an image, for the setup -->
     <Resource Include="Brand/x20ctl-icon.png" Link="Assets/icon.png" />
+    <Content Include="Languages/*.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../x20ctl/controllers/catalog.json" Link="Data/catalog.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../src/assets/controllers/x20/rear-geometry.json" Link="Data/x20-rear.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../src/assets/controllers/control-shapes.json" Link="Data/control-shapes.json" CopyToOutputDirectory="PreserveNewest" />
     <Resource Include="../../src/assets/controllers/**/native/*.png" Link="Assets/native/%(RecursiveDir)%(Filename)%(Extension)" />
+    <!-- the other colours each model comes in (tools/import_finish_packs.py), picked per player in the Zone -->
+    <Resource Include="../../src/assets/controllers/**/finishes/**/*.png" Link="Assets/native/%(RecursiveDir)%(Filename)%(Extension)" />
+    <Content Include="../../src/assets/controllers/finishes.json" Link="Data/finishes.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../src/assets/controllers/native-layers.json" Link="Data/native-layers.json" CopyToOutputDirectory="PreserveNewest" />
     <!-- the opening film with its sound (logo-preview/intro-remotion); see Brand/intro-audio-provenance.md -->
     <Content Include="Brand/intro.mp4;Brand/intro-audio-provenance.md" CopyToOutputDirectory="PreserveNewest" />
+    <!-- each theme's opening film and the logo laid over its last frame (previews/console-concepts/themes/app_films.py) -->
+    <Content Include="Brand/themes/**/intro.mp4;Brand/themes/**/logo.png;Brand/themes/**/ransom.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- the interface sounds (tools/ui_sounds/build.py); see Brand/ui-audio-provenance.md -->
+    <Content Include="Brand/ui/*.wav;Brand/ui-audio-provenance.md" CopyToOutputDirectory="PreserveNewest" />
     <!-- the guides Agent XCTL answers app questions from (M5) -->
     <Content Include="../../README.md;../../README.plain.md;../../IF-YOUR-CONTROLLER-ISNT-WORKING.md;../../PRIVACY.md" Link="Help/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <!-- PC mode's two installers (ViGEmBus, HidHide; see vendor/drivers/README.md), carried inside the exe when present -->
@@ -56,4 +67,5 @@
   <Target Name="RequireLiveInputEngine" BeforeTargets="PrepareForBuild">
     <Error Condition="!Exists('../../artifacts/product-engine-phase/native-build/Release/x20ctl-engine.exe')" Text="Live input engine is missing. Build native-core with CMake into artifacts/product-engine-phase/native-build (Release, target x20ctl-engine) before building the app. A build without live input must not ship." />
   </Target>
+  <ItemGroup><PackageReference Include="System.IO.Ports" Version="10.0.0" /></ItemGroup>
 </Project>

@@ -32,7 +32,7 @@ internal static class SetupReview
             window.Close();
         }
         await Shots(SetupMode.Install, "setup-",
-            ("1-welcome", w => w.Preview(0)), ("1-welcome-x20", w => w.Preview(0, art: 1)), ("1-welcome-x05", w => w.Preview(0, art: 5)), ("2-license", w => w.Preview(1)), ("2-license-accepted", w => w.Preview(1, accept: true)), ("2-notice", w => w.Preview(1, accept: true, tab: "Notice")),
+            ("1-welcome", w => w.Preview(0)), ("1-welcome-x20", w => w.Preview(0, art: 1)), ("2-license", w => w.Preview(1)), ("2-license-accepted", w => w.Preview(1, accept: true)), ("2-notice", w => w.Preview(1, accept: true, tab: "Notice")),
             ("3-options", w => w.Preview(2)), ("4-installing", w => w.Preview(3, .62)), ("5-finish", w => w.Preview(4)), ("5-failed", w => w.Preview(4, fail: "Access to the path is denied.")));
         // the welcome page slides on by itself: wait past one turn and see that it moved on from the X20 Pro to the X20
         {

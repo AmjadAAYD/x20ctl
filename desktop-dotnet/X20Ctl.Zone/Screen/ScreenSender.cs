@@ -1,0 +1,91 @@
+using System.Buffers.Binary;
+namespace X20Ctl.Zone.Screen;
+public interface IScreenTransport
+{
+ bool IsEmulated {get;}
+ /// <summary>The chip ID the handshake carries and the reply is signed with.</summary>
+ uint Magic=>ScreenProtocol.ModelMagic;
+ ValueTask<byte[]> ExchangeAsync(ReadOnlyMemory<byte> request,CancellationToken cancellationToken);
+}
+public enum ScreenTransferState { Idle,Connecting,Uploading,Checking,Completed,Cancelled,Failed }
+public sealed record ScreenProgress(ScreenTransferState State,int Sent,int Total);
+public static class ScreenHardwareEvidence
+{
+ // X20 Pro, 3 Nov 2026: handshake signed as LT165, flash 0x5E4017, every data packet acknowledged, both CRCs read back
+ // on the same and a fresh connection, and the owner saw the uploaded GIF on the pad. Review turns it off.
+ public static bool VerifiedDevice {get;set;}=true;
+}
+public sealed class ScreenSender(IScreenTransport transport)
+{
+ public ScreenTransferState State {get;private set;}=ScreenTransferState.Idle;
+ private readonly SemaphoreSlim transaction=new(1,1);
+ public Task UploadAsync(byte[] asset,bool animation,int delayMs,IProgress<ScreenProgress>? progress,CancellationToken cancellationToken,uint? nonce=null)
+ {
+  var stable=asset.ToArray();var metadata=ScreenCodec.Metadata(stable,animation,delayMs);
+  return TransferAsync(stable,metadata,progress,cancellationToken,false,nonce);
+ }
+ /// <summary>Vendor reset blanks screen content. It does not restore factory artwork.</summary>
+ public Task ResetAsync(IProgress<ScreenProgress>? progress,CancellationToken cancellationToken)=>!transport.IsEmulated?throw new InvalidOperationException("Restore stock is not verified on this pad."):TransferAsync([255,255,255,255],Enumerable.Repeat((byte)255,4096).ToArray(),progress,cancellationToken,true);
+ public async Task<uint> ProbeAsync(CancellationToken token)
+ {
+  if(!transport.IsEmulated&&!ScreenHardwareEvidence.VerifiedDevice)throw new InvalidOperationException("Screen writes are disabled.");
+  var request=ScreenProtocol.Handshake(0x30,ScreenProtocol.Nonce(DateTime.Now),magic:transport.Magic);ScreenProtocol.ValidateHandshake(request,await Exchange(request,token),transport.Magic);
+  var reply=await Exchange(ScreenProtocol.FlashQuery(),token);if(reply.Length<5||reply[0]!=0x7d)throw new InvalidDataException("Invalid flash identity reply.");return BinaryPrimitives.ReadUInt32LittleEndian(reply.AsSpan(1));
+ }
+ public static void RequireSupportedFlash(uint id){if(!ScreenProtocol.SupportedFlash.Contains(id))throw new InvalidDataException($"Flash 0x{id:X6} is unsupported.");}
+ public async Task<bool> VerifyAsync(byte[] asset,bool animation,int delay,CancellationToken token)
+ {
+  if(!await transaction.WaitAsync(0,token))throw new InvalidOperationException("A screen transfer is already running.");
+  try
+  {
+   RequireSupportedFlash(await ProbeAsync(token));bool match=true;
+   foreach(var (address,data) in new[]{(ScreenProtocol.AssetAddress,asset),(ScreenProtocol.MetadataAddress,ScreenCodec.Metadata(asset,animation,delay))})
+   {
+    var reply=await Exchange(ScreenProtocol.CrcQuery(address,data),token);
+    if(reply.Length<6||reply[0]!=0x7e||reply[1] is not (0x31 or 0x32))throw new InvalidDataException("Invalid readback reply.");
+    match &= BinaryPrimitives.ReadUInt32LittleEndian(reply.AsSpan(2))==ScreenCodec.Crc(data);
+   }
+   return match;
+  }
+  finally{transaction.Release();}
+ }
+ async Task TransferAsync(byte[] asset,byte[] metadata,IProgress<ScreenProgress>? progress,CancellationToken cancellationToken,bool vendorReset,uint? nonce=null)
+ {
+  if(!transport.IsEmulated&&!ScreenHardwareEvidence.VerifiedDevice)throw new InvalidOperationException("Screen writes await device verification.");
+  if(!await transaction.WaitAsync(0,CancellationToken.None))throw new InvalidOperationException("A screen transfer is already running.");
+  try
+  {
+   cancellationToken.ThrowIfCancellationRequested();int sent=0,total=asset.Length+metadata.Length;
+   foreach(var (address,data) in new[]{(ScreenProtocol.AssetAddress,asset),(ScreenProtocol.MetadataAddress,metadata)})
+   {
+    State=ScreenTransferState.Connecting;progress?.Report(new(State,sent,total));
+    foreach(byte command in new byte[]{0x30,0x32}){var request=ScreenProtocol.Handshake(command,nonce??ScreenProtocol.Nonce(DateTime.Now),magic:transport.Magic);ScreenProtocol.ValidateHandshake(request,await Exchange(request,cancellationToken),transport.Magic);}
+    var identity=await Exchange(ScreenProtocol.FlashQuery(),cancellationToken);
+    if(identity.Length<5||identity[0]!=0x7d)throw new InvalidDataException("Invalid flash identity reply.");RequireSupportedFlash(BinaryPrimitives.ReadUInt32LittleEndian(identity.AsSpan(1)));
+    State=ScreenTransferState.Uploading;
+    for(int offset=0;offset<data.Length;offset+=2048)
+    {
+     int n=Math.Min(2048,data.Length-offset);byte mode=(byte)((offset%4096)==0?0:1);
+     var reply=await Exchange(ScreenProtocol.Data(address+(uint)offset,data.AsSpan(offset,n),mode),cancellationToken);
+     // DIYTool treats status 0 and 1 as written and anything above as a CRC error; the X20 Pro answers 1 on odd packets.
+     if(reply.Length<2||reply[0]!=0x7c||reply[1]>1)throw new InvalidDataException("Screen write was rejected.");sent+=n;progress?.Report(new(State,sent,total));
+    }
+    State=ScreenTransferState.Checking;progress?.Report(new(State,sent,total));
+    // Captured vendor reset retains the four-byte content CRC in its metadata query.
+    uint? requestedCrc=vendorReset&&address==ScreenProtocol.MetadataAddress?ScreenCodec.Crc(asset):null;
+    var crc=await Exchange(ScreenProtocol.CrcQuery(address,data,requestedCrc),cancellationToken);
+    if(crc.Length<6||crc[0]!=0x7e||crc[1] is not (0x31 or 0x32)||BinaryPrimitives.ReadUInt32LittleEndian(crc.AsSpan(2))!=ScreenCodec.Crc(data))throw new InvalidDataException("Screen readback CRC mismatch.");
+   }
+   State=ScreenTransferState.Completed;progress?.Report(new(State,total,total));
+  }
+  catch(OperationCanceledException){State=ScreenTransferState.Cancelled;throw;}
+  catch{State=ScreenTransferState.Failed;throw;}
+  finally{transaction.Release();}
+ }
+ async ValueTask<byte[]> Exchange(byte[] request,CancellationToken cancellationToken)
+ {
+  cancellationToken.ThrowIfCancellationRequested();using var timeout=CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);double seconds=request[0]==0x6e?25*Math.Ceiling(System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(request.AsSpan(5))/1000000d):5;timeout.CancelAfter(TimeSpan.FromSeconds(Math.Max(5,seconds)));
+  try{return await transport.ExchangeAsync(request,timeout.Token).AsTask().WaitAsync(timeout.Token);}
+  catch(OperationCanceledException) when(!cancellationToken.IsCancellationRequested){throw new TimeoutException("Screen device reply timed out.");}
+ }
+}

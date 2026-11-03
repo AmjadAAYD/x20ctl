@@ -53,7 +53,8 @@ public sealed class ControllerShowcase : Grid
     public void Show(string model, bool reducedMotion = false)
     {
         ModelId = model; motion = !reducedMotion && DS.Motion; IsHologram = false;
-        string dir = $"Assets/native/{model}/native/";
+        // the body in the pad's colour; the hologram is drawn from the model's shape, so it is the same for every colour
+        string dir = ControllerArt.Folder(model, PadColours.Active(model)), holoDir = $"Assets/native/{model}/native/";
         var outline = Silhouette(model);
         var group = new Model3DGroup();
         group.Children.Add(new AmbientLight(Color.FromRgb(196, 200, 212)));
@@ -68,7 +69,7 @@ public sealed class ControllerShowcase : Grid
         var transform = new Transform3DGroup(); transform.Children.Add(new RotateTransform3D(pitch)); transform.Children.Add(new RotateTransform3D(yaw)); transform.Children.Add(bob);
         group.Transform = transform;
         view.Children.Clear(); view.Children.Add(new ModelVisual3D { Content = group });
-        holo.Source = LiveController.Bitmap(dir + "holo-front.png");
+        holo.Source = LiveController.Bitmap(holoDir + "holo-front.png");
         SetSweep(0); holo.Opacity = 0; scan.Opacity = 0;
         swaying = true; if (IsLoaded) StartSway();
     }

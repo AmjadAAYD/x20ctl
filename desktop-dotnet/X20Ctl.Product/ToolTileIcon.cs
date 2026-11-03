@@ -93,7 +93,24 @@ internal sealed class ToolTileIcon : FrameworkElement
             case "PC mode": Link(d, t, true); break;
             case "Support X20CTL": Heartbeat(d, t); break;
             case "Star on GitHub": Shine(d, t); break;
+            case "Themes": Themes(d, t); break;
             default: About(d, t); break;
+        }
+        d.Pop();
+    }
+
+    // Three colour cards fan out from the stack, the front one turns to the next themes, and they gather again.
+    static void Themes(DrawingContext d, double t)
+    {
+        double fade = Fade(t), fan = Back(Step(t, .1, .5)) * (1 - Ease(Step(t, 2.6, .55)));
+        var accents = ThemeCatalog.All.Skip(1).Select(x => x.Accent).ToArray(); int turn = (int)(Step(t, .9, 1.5) * 3);
+        d.PushOpacity(fade);
+        foreach (int i in new[] { 0, 2, 1 })
+        {
+            var colour = accents[(i * 3 + turn) % accents.Length]; var face = new SolidColorBrush(colour); face.Freeze();
+            d.PushTransform(new RotateTransform((i - 1) * 24 * fan, 24, 40));
+            d.DrawRoundedRectangle(face, Stroke(Dark, 1.8), new Rect(17, 7, 14, 31), 3.5, 3.5);
+            d.DrawEllipse(Dark, null, P(24, 32), 2.2, 2.2); d.Pop();
         }
         d.Pop();
     }

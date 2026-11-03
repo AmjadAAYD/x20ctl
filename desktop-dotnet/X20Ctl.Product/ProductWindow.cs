@@ -25,7 +25,7 @@ public sealed class ProductWindow : Window
         StartsMaximized=startMaximized;Fullscreen=fullscreen;Title="X20CTL · Controller Studio";
         // a fixed design (1600 x 900, scaled to the window) and a fixed window: it cannot be resized, only made fullscreen
         Width=1440;Height=810;WindowStyle=WindowStyle.None;ResizeMode=ResizeMode.CanMinimize;WindowStartupLocation=WindowStartupLocation.Manual;
-        Fx.RegisterPressFeedback();Background=(System.Windows.Media.Brush)Application.Current.FindResource("Ink");Scene=new ZoneScene(reducedMotion);Host=new ProductHost(Scene,assignmentPath,openSupport);
+        Fx.RegisterPressFeedback();UiSound.Register();Background=(System.Windows.Media.Brush)Application.Current.FindResource("Ink");Scene=new ZoneScene(reducedMotion);Host=new ProductHost(Scene,assignmentPath,openSupport);
         Stage.Child=Host;Content=Stage;Stage.ScaleChanged+=scale=>chrome.CaptionHeight=58*scale; // the title bar drag area scales with the design
         if(firstRun)Host.Startup(); // before the window ever shows: starting on Loaded (after the first render) flashed the zone
         WindowChrome.SetWindowChrome(this,chrome);
@@ -44,7 +44,7 @@ public sealed class ProductWindow : Window
         Host.HomeRequested+=BringHome;PreviewKeyUp+=Host.OnKeyUp;Deactivated+=(_,_)=>Host.ResetTransientInput();
         StateChanged+=(_,_)=>{if(Fullscreen)MarkFullscreen(WindowState==WindowState.Maximized&&IsActive);Scene.OuterFrame.CornerRadius=new(WindowState==WindowState.Maximized?0:16);if(WindowState==WindowState.Maximized)Dispatcher.BeginInvoke(DispatcherPriority.Loaded,new Action(ApplyWorkArea));else if(WindowState==WindowState.Normal)Dispatcher.BeginInvoke(DispatcherPriority.Loaded,new Action(ApplyWindowedSize));};
         // it always opens fullscreen (F11 or the restore button still give a window for those who want one)
-        Loaded+=(_,_)=>{if(StartsMaximized&&WindowState!=WindowState.Maximized)WindowState=WindowState.Maximized;if(WindowState==WindowState.Maximized)ApplyWorkArea();if(nativeEngine)_=Host.InitializeNativeEngineAsync();};
+        Loaded+=(_,_)=>{if(StartsMaximized&&WindowState!=WindowState.Maximized)WindowState=WindowState.Maximized;if(WindowState==WindowState.Maximized)ApplyWorkArea();if(nativeEngine)_=Host.InitializeNativeEngineAsync();Host.RequestAutomaticTelemetryRefresh();};
         // hidden in the tray or minimized, nothing is drawn: the stage leaves the render tree, so its endless background
         // motion stops costing CPU while PC mode runs for hours (its animations keep their place and resume on return)
         void Rest(){Stage.Visibility=IsVisible&&WindowState!=WindowState.Minimized?Visibility.Visible:Visibility.Hidden;}
@@ -96,6 +96,7 @@ public sealed class ProductWindow : Window
             tray?.SetBattery(text);
             if(low&&!batteryWarned){batteryWarned=true;tray?.Notify("Controller battery low","Charge it soon. Windows reports the level as "+text[8..]+".");}else if(!low)batteryWarned=false;
         }
+        Host.TelemetryRefreshed+=Read;
         batteryTimer=new(System.Windows.Threading.DispatcherPriority.Background){Interval=TimeSpan.FromMinutes(1)};batteryTimer.Tick+=(_,_)=>Read();batteryTimer.Start();Read();
     }
     /// <summary>Home / Guide: show X20CTL fullscreen in front of everything (from the tray too), then go to the Dashboard.</summary>

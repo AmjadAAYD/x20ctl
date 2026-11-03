@@ -38,17 +38,17 @@ public sealed class AgentTour
         DockPanel.SetDock(skipButton, Dock.Right); head.Children.Add(skipButton);
         DockPanel.SetDock(mark, Dock.Left); head.Children.Add(mark);
         head.Children.Add(new StackPanel { VerticalAlignment = VerticalAlignment.Center, Children = { Kit.Text("Agent XCTL", 17, "DS.Text", FontWeights.SemiBold), counter } });
-        var track = new Border { Height = 3, CornerRadius = new(1.5), Margin = new(0, 16, 0, 0), Background = new SolidColorBrush(Color.FromArgb(40, 255, 255, 255)), Child = progress };
+        var track = new Border { Height = 3, CornerRadius = new(1.5), Margin = new(0, 16, 0, 0), Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(40, 255, 255, 255))), Child = progress };
         Card = new Border
         {
             Width = 680, CornerRadius = new(24), BorderThickness = new(1), Padding = new(30, 24, 30, 24),
             HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Margin = new(0, 40, 0, 0),
-            Background = new LinearGradientBrush(Color.FromArgb(250, 14, 24, 52), Color.FromArgb(250, 7, 12, 30), 90),
-            BorderBrush = new LinearGradientBrush(Color.FromArgb(150, 120, 170, 255), Color.FromArgb(40, 120, 170, 255), 90),
+            Background = new LinearGradientBrush(ThemeCatalog.R(Color.FromArgb(250, 14, 24, 52)), ThemeCatalog.R(Color.FromArgb(250, 7, 12, 30)), 90),
+            BorderBrush = new LinearGradientBrush(ThemeCatalog.R(Color.FromArgb(150, 120, 170, 255)), ThemeCatalog.R(Color.FromArgb(40, 120, 170, 255)), 90),
             Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 40, ShadowDepth = 10, Opacity = .55 },
             Child = new StackPanel { Children = { head, body, track } },
         };
-        Layer = new Grid { Background = new SolidColorBrush(Color.FromArgb(200, 3, 6, 16)), Children = { Card } };
+        Layer = new Grid { Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(200, 3, 6, 16))), Children = { Card } };
     }
 
     public void Skip() => skip.Cancel();
@@ -119,7 +119,7 @@ public sealed class AgentTour
     UIElement Response(TourStep step, PcModeProfile before, PcModeProfile after, StickDrift? drift, out Action<int> play)
     {
         var canvas = new Canvas { Width = W, Height = H, ClipToBounds = false, Margin = new(0, 0, 0, 22) };
-        var grid = new SolidColorBrush(Color.FromArgb(30, 255, 255, 255));
+        var grid = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(30, 255, 255, 255)));
         for (int i = 0; i <= 4; i++)
         {
             canvas.Children.Add(new Line { X1 = i * W / 4, X2 = i * W / 4, Y1 = 0, Y2 = H, Stroke = grid, StrokeThickness = 1 });
@@ -133,8 +133,8 @@ public sealed class AgentTour
         PointCollection Line(SetupCurve? c, StickTuning? t) => new(Enumerable.Range(0, 101).Select(i => new Point(i / 100.0 * W, H - At(c, t, i / 100.0) * H)));
         double fromInner = page ? 0 : fromTuning?.Inner ?? fromCurve?.Inner ?? 0, toInner = page ? 0 : toTuning?.Inner ?? toCurve?.Inner ?? 0;
         double fromOuter = page ? 100 : fromTuning?.Outer ?? fromCurve?.Outer ?? 100, toOuter = page ? 100 : toTuning?.Outer ?? toCurve?.Outer ?? 100;
-        var dead = new Rectangle { Height = H, Width = fromInner / 100 * W, Fill = new SolidColorBrush(Color.FromArgb(46, 232, 54, 79)) };
-        var full = new Rectangle { Height = H, Width = (100 - fromOuter) / 100 * W, Fill = new SolidColorBrush(Color.FromArgb(40, 61, 214, 140)) };
+        var dead = new Rectangle { Height = H, Width = fromInner / 100 * W, Fill = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(46, 232, 54, 79))) };
+        var full = new Rectangle { Height = H, Width = (100 - fromOuter) / 100 * W, Fill = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(40, 61, 214, 140))) };
         Canvas.SetLeft(full, fromOuter / 100 * W);
         canvas.Children.Add(dead); canvas.Children.Add(full);
         // the measured drift, as a line the dead zone grows past
@@ -146,8 +146,8 @@ public sealed class AgentTour
             Canvas.SetLeft(said, x + 6); Canvas.SetTop(said, H - 40); canvas.Children.Add(said);
         }
         var was = Line(fromCurve, fromTuning); var now = Line(toCurve, toTuning);
-        canvas.Children.Add(new Polyline { Points = was, Stroke = new SolidColorBrush(Color.FromArgb(120, 200, 215, 240)), StrokeThickness = 2, StrokeDashArray = [3, 3] });
-        var line = new Polyline { Points = was, Stroke = DS.Brush("DS.AccentHi"), StrokeThickness = 3.5, StrokeLineJoin = PenLineJoin.Round, Effect = new DropShadowEffect { Color = Color.FromRgb(70, 150, 255), BlurRadius = 14, ShadowDepth = 0, Opacity = .8 } };
+        canvas.Children.Add(new Polyline { Points = was, Stroke = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(120, 200, 215, 240))), StrokeThickness = 2, StrokeDashArray = [3, 3] });
+        var line = new Polyline { Points = was, Stroke = DS.Brush("DS.AccentHi"), StrokeThickness = 3.5, StrokeLineJoin = PenLineJoin.Round, Effect = new DropShadowEffect { Color = ThemeCatalog.R(Color.FromRgb(70, 150, 255)), BlurRadius = 14, ShadowDepth = 0, Opacity = .8 } };
         canvas.Children.Add(line);
         // a marker at half a push, riding the curve, with what it gives
         double fromHalf = At(fromCurve, fromTuning, .5) * 100, toHalf = At(toCurve, toTuning, .5) * 100;
@@ -173,7 +173,7 @@ public sealed class AgentTour
         var tag = Kit.Text("", 15, "DS.Text", FontWeights.SemiBold);
         void Mark(double half) { Canvas.SetLeft(dot, W / 2 - 6); Canvas.SetTop(dot, H - half / 100 * H - 6); Canvas.SetLeft(tag, W / 2 + 12); Canvas.SetTop(tag, H - half / 100 * H - 22); tag.Text = $"half a push → {half:0}%"; }
         Mark(fromHalf);
-        canvas.Children.Add(new Line { X1 = W / 2, X2 = W / 2, Y1 = 0, Y2 = H, Stroke = new SolidColorBrush(Color.FromArgb(70, 169, 207, 255)), StrokeThickness = 1, StrokeDashArray = [2, 4] });
+        canvas.Children.Add(new Line { X1 = W / 2, X2 = W / 2, Y1 = 0, Y2 = H, Stroke = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(70, 169, 207, 255))), StrokeThickness = 1, StrokeDashArray = [2, 4] });
         canvas.Children.Add(dot); canvas.Children.Add(tag);
         var axisX = Kit.Text(step.Kind == TourKind.Stick ? "PUSH →" : "PULL →", 12.5, "DS.TextMuted"); Canvas.SetLeft(axisX, W - 50); Canvas.SetTop(axisX, H + 4); canvas.Children.Add(axisX);
         var axisY = Kit.Text("↑ OUTPUT", 12.5, "DS.TextMuted"); Canvas.SetLeft(axisY, 4); Canvas.SetTop(axisY, 2); canvas.Children.Add(axisY);
@@ -201,12 +201,12 @@ public sealed class AgentTour
         var canvas = new Canvas { Width = S, Height = S, HorizontalAlignment = HorizontalAlignment.Center, Margin = new(0, 0, 0, 8) };
         UIElement Ring(double radius, Brush stroke, Brush? fill, double thickness, DoubleCollection? dash = null)
         { var e = new Ellipse { Width = radius * 2, Height = radius * 2, Stroke = stroke, Fill = fill, StrokeThickness = thickness, StrokeDashArray = dash }; Canvas.SetLeft(e, S / 2 - radius); Canvas.SetTop(e, S / 2 - radius); return e; }
-        var faint = new SolidColorBrush(Color.FromArgb(40, 255, 255, 255));
-        canvas.Children.Add(Ring(R, faint, new SolidColorBrush(Color.FromArgb(60, 4, 10, 26)), 1));
+        var faint = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(40, 255, 255, 255)));
+        canvas.Children.Add(Ring(R, faint, new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(60, 4, 10, 26))), 1));
         canvas.Children.Add(new Line { X1 = S / 2, X2 = S / 2, Y1 = 4, Y2 = S - 4, Stroke = faint });
         canvas.Children.Add(new Line { Y1 = S / 2, Y2 = S / 2, X1 = 4, X2 = S - 4, Stroke = faint });
         // the dead zone: everything inside it is ignored
-        var zone = new Ellipse { Fill = new SolidColorBrush(Color.FromArgb(90, 70, 150, 255)), Stroke = DS.Brush("DS.AccentHi"), StrokeThickness = 2 };
+        var zone = new Ellipse { Fill = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(90, 70, 150, 255))), Stroke = DS.Brush("DS.AccentHi"), StrokeThickness = 2 };
         void Zone(double pct) { zone.Width = zone.Height = Math.Max(0, pct * scale * 2); Canvas.SetLeft(zone, S / 2 - pct * scale); Canvas.SetTop(zone, S / 2 - pct * scale); }
         Zone(from); canvas.Children.Add(zone);
         // what was measured: where it rests, and how far it wandered
@@ -278,9 +278,9 @@ public sealed class AgentTour
             new Border
             {
                 CornerRadius = new(60), BorderThickness = new(2),
-                Background = new RadialGradientBrush(Color.FromArgb(255, 40, 70, 130), Color.FromArgb(255, 14, 24, 52)),
-                BorderBrush = output ? DS.Brush("DS.AccentHi") : new SolidColorBrush(Color.FromArgb(160, 200, 215, 240)),
-                Effect = new DropShadowEffect { Color = output ? Color.FromRgb(70, 150, 255) : Colors.Black, BlurRadius = 18, ShadowDepth = 0, Opacity = .7 },
+                Background = new RadialGradientBrush(ThemeCatalog.R(Color.FromArgb(255, 40, 70, 130)), ThemeCatalog.R(Color.FromArgb(255, 14, 24, 52))),
+                BorderBrush = output ? DS.Brush("DS.AccentHi") : new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(160, 200, 215, 240))),
+                Effect = new DropShadowEffect { Color = output ? ThemeCatalog.R(Color.FromRgb(70, 150, 255)) : Colors.Black, BlurRadius = 18, ShadowDepth = 0, Opacity = .7 },
                 Child = Kit.Text(text, text.Length > 3 ? 19 : 32, "DS.Text", FontWeights.SemiBold).Also(t => t.HorizontalAlignment = HorizontalAlignment.Center),
             },
         },

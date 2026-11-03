@@ -2,7 +2,7 @@
 
 import re
 
-INPUT_MODELS = frozenset({"d10", "x15", "x05", "x10"})
+INPUT_MODELS = frozenset({"d10", "x15", "x10"})
 
 
 def known_other_model_name(name):

@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 
 namespace X20Ctl.Product;
 
-public sealed record TelemetryData(string? Controller, string? Firmware, string? Battery, bool Charging, string? Address, string RawText);
+public sealed record TelemetryData(string? Controller, string? Firmware, string? Battery, bool Charging, string? Address, string RawText, string? HardwareId = null);
 
 /// <summary>
 /// Hardware telemetry reader for supported KeyLinker controllers over Bluetooth LE.

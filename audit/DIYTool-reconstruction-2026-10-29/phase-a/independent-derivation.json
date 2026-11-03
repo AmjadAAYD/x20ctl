@@ -1,0 +1,10 @@
+{
+  "method": "Fresh MSB polynomial long division 0x04C11DB7, input LSB first, reverse final register; no imports from reconstructed encoders",
+  "vector": "123456789 -> 2dfd2d88",
+  "metadata_exact": true,
+  "first_data_packet_exact": true,
+  "crc_query_packet_exact": true,
+  "handshake_checksums_exact": true,
+  "capture": "ground-truth/outputs/gradient/serial-writes.jsonl",
+  "capture_sha256": "97e6d1cc65a61b04e4926e47471592db78f643fb1bfa48cfe99715e4d2d78840"
+}

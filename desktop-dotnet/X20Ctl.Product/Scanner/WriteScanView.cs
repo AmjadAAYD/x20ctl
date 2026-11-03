@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -16,7 +16,7 @@ namespace X20Ctl.Product.Scanner;
 /// any point: it reads the recording, decodes KeyLinker frames when they are there, and shows the controller's identity,
 /// what it says it offers, how that compares with the recorded X20, and the bytes the app changed.
 /// </summary>
-public sealed class WriteScanView : Grid
+public sealed partial class WriteScanView : Grid
 {
     private static readonly string[] StepNames = ["What you'll test", "Prepare the phone", "Do the test", "Bring the recording", "Results"];
     private static readonly string Folder = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "X20CTLWriteScans");
@@ -53,7 +53,7 @@ public sealed class WriteScanView : Grid
     private bool unsaved, closeArmed, busy;
     private readonly TextBlock recordingStatus = Wrap("", 15, "DS.TextSoft"), resultStatus = Wrap("", 14.5, "DS.TextSoft");
     private readonly CheckBox keepRaw = new() { Style = DS.Style("DS.Toggle"), VerticalAlignment = VerticalAlignment.Center };
-    private readonly TextBox summary = new() { IsReadOnly = true, FontFamily = new FontFamily("Consolas"), FontSize = 13.5, TextWrapping = TextWrapping.Wrap, VerticalContentAlignment = VerticalAlignment.Top, Padding = new(16), VerticalScrollBarVisibility = ScrollBarVisibility.Auto, BorderThickness = new(0), Background = new SolidColorBrush(Color.FromArgb(70, 0, 0, 0)), Foreground = DS.Brush("DS.Text") };
+    private readonly TextBox summary = new() { IsReadOnly = true, FontFamily = new FontFamily("Consolas"), FontSize = 13.5, TextWrapping = TextWrapping.Wrap, VerticalContentAlignment = VerticalAlignment.Top, Padding = new(16), VerticalScrollBarVisibility = ScrollBarVisibility.Auto, BorderThickness = new(0), Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(70, 0, 0, 0))), Foreground = DS.Brush("DS.Text") };
     private readonly UniformGrid headline = new() { Rows = 1, Margin = new(-8, 0, -8, 14) };
 
     private readonly Border checkView = new() { Visibility = Visibility.Collapsed };
@@ -71,7 +71,7 @@ public sealed class WriteScanView : Grid
     public WriteScanView(Action close, ReadReport? read = null)
     {
         this.close = close; this.read = read;
-        Background = new SolidColorBrush(Color.FromRgb(5, 9, 20)); ClipToBounds = true; AllowDrop = true;
+        Background = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(5, 9, 20))); ClipToBounds = true; AllowDrop = true;
         Children.Add(new FacetBackdrop());
         var page = new Grid { Margin = new(40, 0, 40, 28) }; Children.Add(page);
         page.RowDefinitions.Add(new() { Height = new(84) }); page.RowDefinitions.Add(new() { Height = new(64) }); page.RowDefinitions.Add(new());
@@ -83,7 +83,7 @@ public sealed class WriteScanView : Grid
             Child = new StackPanel { Orientation = Orientation.Horizontal, Children = { Kit.Icon("", 14, "DS.AccentHi").Also(i => i.Margin = new(0, 0, 9, 0)), Kit.Text("X20CTL never writes · you change one setting in KeyLinker", 13.5, "DS.Text", FontWeights.SemiBold) } } };
         DockPanel.SetDock(badge, Dock.Right); bar.Children.Add(badge);
         var mark = new Image { Source = LiveController.Bitmap("Assets/icon.png"), Width = 34, Height = 34, Margin = new(0, 0, 14, 0) }; RenderOptions.SetBitmapScalingMode(mark, BitmapScalingMode.HighQuality);
-        bar.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = { mark, Kit.Text("X20CTL", 22, "DS.Text", FontWeights.Bold), new Border { Width = 1, Height = 22, Background = new SolidColorBrush(Color.FromArgb(60, 255, 255, 255)), Margin = new(18, 0, 18, 0) },
+        bar.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = { mark, Kit.Text("X20CTL", 22, "DS.Text", FontWeights.Bold), new Border { Width = 1, Height = 22, Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(60, 255, 255, 255))), Margin = new(18, 0, 18, 0) },
             Kit.Text(WriteScanReport.Name, 22, "DS.Text", FontWeights.SemiBold), Kit.Text("   learns what KeyLinker writes", 14, "DS.TextMuted") } });
         page.Children.Add(bar);
         Grid.SetRow(strip, 1); page.Children.Add(strip);
@@ -92,6 +92,9 @@ public sealed class WriteScanView : Grid
         setting.TextChanged += (_, _) => Gate(); undoable.Checked += (_, _) => Gate(); undoable.Unchecked += (_, _) => Gate(); Gate();
         planNext.Click += (_, _) => Show(1);
         BuildWarning(); Children.Add(warning); BuildCheck(); Children.Add(checkView);
+        if (ThemeCatalog.Current.Id == "pulse") BuildPulseWriteFlow(page);
+        if (ThemeCatalog.Current.Id == "spotlight") BuildSpotlightWriteFlow(page);
+        if (ThemeCatalog.Current.Id == "rebel") BuildRebelWriteFlow(page);
         timer.Tick += (_, _) => Tick();
         Drop += async (_, e) => { if (e.Data.GetData(DataFormats.FileDrop) is string[] { Length: > 0 } files && warning.Visibility != Visibility.Visible && checkView.Visibility != Visibility.Visible) await Read(files[0]); };
         Loaded += (_, _) => { if (DS.Motion) { Opacity = 0; BeginAnimation(OpacityProperty, DS.To(1, 240)); } };
@@ -101,7 +104,7 @@ public sealed class WriteScanView : Grid
     // ================= the warning: this is slow, and needs a phone =================
     private void BuildWarning()
     {
-        warning.Background = new SolidColorBrush(Color.FromArgb(246, 5, 9, 20));
+        warning.Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(246, 5, 9, 20)));
         var cards = new UniformGrid { Columns = 2, Margin = new(-8, 22, -8, 0) };
         foreach (var (title, text) in new[]
         {
@@ -124,6 +127,11 @@ public sealed class WriteScanView : Grid
             Note("No phone? Check over Bluetooth instead. It only reads, and changes nothing."),
             new WrapPanel { Margin = new(0, 22, 0, 0), Children = { check, go.Also(b => b.Margin = new(12, 0, 0, 0)), leave.Also(b => b.Margin = new(12, 0, 0, 0)) } } } };
         warning.Child = new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+        if (ThemeCatalog.Current.Id == "pulse") BuildPulseWriteWarning(cards, go, leave);
+        if (ThemeCatalog.Current.Id == "spotlight") BuildSpotlightWriteWarning(cards, go, leave);
+        if (ThemeCatalog.Current.Id == "nexus") BuildNexusWriteWarning(cards, go, leave);
+        if (ThemeCatalog.Current.Id == "tide") BuildTideWriteWarning(cards, go, leave);
+        if (ThemeCatalog.Current.Id == "rebel") BuildRebelWriteWarning(cards, go, leave);
     }
 
     // ================= the controller check: Bluetooth, read-only, no phone =================
@@ -208,10 +216,11 @@ public sealed class WriteScanView : Grid
     {
         step = n; timer.Stop(); handsOff.Reset();
         strip.Children.Clear();
-        for (int i = 0; i < StepNames.Length; i++)
+        if (ThemeCatalog.Current.Id == "rebel") BuildRebelWriteSteps();
+        else for (int i = 0; i < StepNames.Length; i++)
         {
             bool done = i < step, current = i == step;
-            var c = current ? Kit.Blue : done ? Color.FromRgb(150, 175, 215) : Color.FromRgb(90, 104, 130);
+            var c = current ? Kit.Blue : done ? ThemeCatalog.R(Color.FromRgb(150, 175, 215)) : ThemeCatalog.R(Color.FromRgb(90, 104, 130));
             strip.Children.Add(new Border { CornerRadius = new(15), Padding = new(12, 6, 14, 6), Margin = new(0, 0, 10, 0), BorderThickness = new(1),
                 BorderBrush = new SolidColorBrush(Color.FromArgb(current ? (byte)170 : (byte)60, c.R, c.G, c.B)), Background = new SolidColorBrush(Color.FromArgb(current ? (byte)60 : (byte)20, c.R, c.G, c.B)),
                 Child = new StackPanel { Orientation = Orientation.Horizontal, Children = {
@@ -219,7 +228,9 @@ public sealed class WriteScanView : Grid
                     Kit.Text(StepNames[i], 14, current ? "DS.Text" : "DS.TextSoft", current ? FontWeights.SemiBold : FontWeights.Normal) } } });
         }
         stage.Children.Clear();
-        stage.Children.Add(n switch { 0 => PlanPage(), 1 => PhonePage(), 2 => TestPage(), 3 => RecordingPage(), _ => ResultsPage() });
+        if (ThemeCatalog.Current.Id == "pulse") { BuildPulseWriteSteps(); stage.Children.Add(n switch { 0 => PulseWritePlan(), 1 => PhonePage(), 2 => PulseWriteTest(TestPage()), 3 => RecordingPage(), _ => PulseWriteResults(ResultsPage()) }); return; }
+        stage.Children.Add(n switch { 0 => ThemeCatalog.Current.Id == "rebel" ? RebelWritePlan() : PlanPage(), 1 => PhonePage(), 2 => TestPage(), 3 => RecordingPage(), _ => ResultsPage() });
+        if (ThemeCatalog.Current.Id == "rebel" && stage.Children[0] is FrameworkElement content) { content.MaxHeight = 560; content.VerticalAlignment = VerticalAlignment.Top; stage.ClipToBounds = true; }
     }
 
     private void Gate() => planNext.IsEnabled = setting.Text.Trim().Length > 0 && undoable.IsChecked == true;
@@ -252,7 +263,7 @@ public sealed class WriteScanView : Grid
             choice.Children.Add(r);
         }
         var picker = new StackPanel { Margin = new(0, 0, 0, 10), Children = { Kit.Text("WHICH PHONE HAS KEYLINKER?", 12, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(2, 0, 0, 8)),
-            new Border { CornerRadius = new(12), Background = new SolidColorBrush(Color.FromArgb(30, 255, 255, 255)), BorderBrush = new SolidColorBrush(Color.FromArgb(34, 255, 255, 255)), BorderThickness = new(1), Padding = new(1), HorizontalAlignment = HorizontalAlignment.Left, Child = choice },
+            new Border { CornerRadius = new(12), Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(30, 255, 255, 255))), BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(34, 255, 255, 255))), BorderThickness = new(1), Padding = new(1), HorizontalAlignment = HorizontalAlignment.Left, Child = choice },
             Wrap("It doesn't have to be your phone: a borrowed phone or a tablet with KeyLinker works too.", 13.5, "DS.TextMuted").Also(t => t.Margin = new(2, 8, 0, 6)) } };
         return new PhoneGuide("Prepare the phone", PhoneGuides.Prepare(phone), prepareAt, i => prepareAt = i,
             () => { notes.Clear(); notes.Add(new(PhoneGuides.Name(phone).ToLowerInvariant() + " ready", DateTime.UtcNow)); part = 0; Show(2); },
@@ -287,6 +298,7 @@ public sealed class WriteScanView : Grid
             ("I pressed the button too early", "Press Start the test again. The pauses keep each action apart, so the result is easier to read.")]);
         help.Visibility = Visibility.Collapsed;
         var stuck = Action("", "I'm stuck", "ActionButton"); stuck.Click += (_, _) => help.Visibility = help.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
+        if (ThemeCatalog.Current.Id == "rebel") { ShowPart(); return RebelWriteTest(restart, stuck, help); }
         var left = Kit.Panel("Do the test", "Follow each step on the phone, then confirm here", null, new StackPanel { Children = {
             Detach(partTitle), Detach(partSay).Also(t => t.Margin = new(0, 8, 0, 0)), Detach(partCount).Also(t => t.Margin = new(0, 14, 0, 0)),
             new WrapPanel { Margin = new(0, 22, 0, 0), Children = { partDone, restart.Also(b => b.Margin = new(12, 0, 0, 0)), stuck.Also(b => b.Margin = new(12, 0, 0, 0)) } }, help } });
@@ -429,6 +441,7 @@ public sealed class WriteScanView : Grid
         DockPanel.SetDock(headline, Dock.Top); dock.Children.Add(Detach(headline));
         DockPanel.SetDock(foot, Dock.Bottom); dock.Children.Add(foot);
         dock.Children.Add(new Border { CornerRadius = new(12), ClipToBounds = true, Child = Detach(summary) });
+        if (ThemeCatalog.Current.Id == "rebel") return RebelWriteResults(dock, report.Plan.Setting, report.Source);
         return Kit.Panel("Results", report.Plan.Setting.Length > 0 ? $"{report.Plan.Setting}, in {report.Source}" : report.Source, null, dock);
     }
 
@@ -436,7 +449,7 @@ public sealed class WriteScanView : Grid
     /// what to do differently with a way straight back to the step that fixes it.</summary>
     private FrameworkElement VerdictPanel(WriteScanVerdict v)
     {
-        var c = v.Level switch { "High" => Color.FromRgb(52, 211, 153), "Medium" => Color.FromRgb(245, 180, 91), _ => Color.FromRgb(232, 54, 79) };
+        var c = v.Level switch { "High" => ThemeCatalog.R(Color.FromRgb(52, 211, 153)), "Medium" => ThemeCatalog.R(Color.FromRgb(245, 180, 91)), _ => ThemeCatalog.R(Color.FromRgb(232, 54, 79)) };
         var pill = new Border { CornerRadius = new(12), Padding = new(12, 5, 12, 5), Margin = new(0, 0, 14, 0), VerticalAlignment = VerticalAlignment.Center, BorderThickness = new(1),
             Background = new SolidColorBrush(Color.FromArgb(48, c.R, c.G, c.B)), BorderBrush = new SolidColorBrush(Color.FromArgb(150, c.R, c.G, c.B)),
             Child = Kit.Text(v.Level == "None" ? "NOTHING LEARNED" : v.Level.ToUpperInvariant() + " CONFIDENCE", 12.5, "DS.Text", FontWeights.Bold).Also(t => t.Foreground = new SolidColorBrush(c)) };
@@ -445,7 +458,7 @@ public sealed class WriteScanView : Grid
         var checks = new StackPanel { Margin = new(0, 12, 0, 0) };
         foreach (var check in v.Checks.Take(7))
             checks.Children.Add(new DockPanel { Margin = new(0, 0, 0, 5), Children = {
-                Kit.Text(check.Passed ? "✓" : "✕", 14.5, "DS.Text", FontWeights.Bold).Also(t => { t.Width = 22; t.Foreground = new SolidColorBrush(check.Passed ? Color.FromRgb(52, 211, 153) : Color.FromRgb(245, 180, 91)); DockPanel.SetDock(t, Dock.Left); }),
+                Kit.Text(check.Passed ? "✓" : "✕", 14.5, "DS.Text", FontWeights.Bold).Also(t => { t.Width = 22; t.Foreground = new SolidColorBrush(check.Passed ? ThemeCatalog.R(Color.FromRgb(52, 211, 153)) : ThemeCatalog.R(Color.FromRgb(245, 180, 91))); DockPanel.SetDock(t, Dock.Left); }),
                 Wrap(check.Text, 14, check.Passed ? "DS.TextSoft" : "DS.Text") } });
         var body = new Grid(); body.ColumnDefinitions.Add(new() { Width = new(1.3, GridUnitType.Star) }); body.ColumnDefinitions.Add(new() { Width = new(24) }); body.ColumnDefinitions.Add(new());
         body.Children.Add(checks);
@@ -460,7 +473,7 @@ public sealed class WriteScanView : Grid
             Grid.SetColumn(fixes, 2); body.Children.Add(fixes);
         }
         return new Border { CornerRadius = new(14), Margin = new(0, 0, 0, 6), Padding = new(20, 16, 20, 14), BorderThickness = new(1),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(90, c.R, c.G, c.B)), Background = new LinearGradientBrush(Color.FromArgb(150, 20, 34, 70), Color.FromArgb(110, 10, 18, 40), 90),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(90, c.R, c.G, c.B)), Background = new LinearGradientBrush(ThemeCatalog.R(Color.FromArgb(150, 20, 34, 70)), ThemeCatalog.R(Color.FromArgb(110, 10, 18, 40)), 90),
             Child = new StackPanel { Children = { top, body } } };
     }
 
@@ -470,7 +483,7 @@ public sealed class WriteScanView : Grid
         sendGo = Action("\uE724", "Send", "PrimaryButton"); sendGo.IsEnabled = false; sendGo.Click += async (_, _) => await Send();
         agree.Checked += (_, _) => sendGo.IsEnabled = receipt is null && !sending; agree.Unchecked += (_, _) => sendGo.IsEnabled = false;
         sendPanel.CornerRadius = new(14); sendPanel.Margin = new(0, 14, 0, 0); sendPanel.Padding = new(18, 14, 18, 14); sendPanel.BorderThickness = new(1);
-        sendPanel.BorderBrush = new SolidColorBrush(Color.FromArgb(110, 61, 139, 255)); sendPanel.Background = new SolidColorBrush(Color.FromArgb(40, 61, 139, 255));
+        sendPanel.BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(110, 61, 139, 255))); sendPanel.Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(40, 61, 139, 255)));
         sendPanel.Child = new StackPanel { Children = {
             Kit.Text(read is null ? "Send these findings online" : "Send the Write scan and the Read scan online", 16.5, "DS.Text", FontWeights.SemiBold),
             Wrap("What goes to X20CTLADMIN, the X20CTL team's private report site: the summary above, the findings, the timeline and every decoded message (these can include the controller's name and an id). Nothing else from the phone.", 14, "DS.TextSoft").Also(t => t.Margin = new(0, 6, 0, 0)),
@@ -535,6 +548,14 @@ public sealed class WriteScanView : Grid
         if (plan != null) { model.Text = plan.Model; app.Text = plan.App; setting.Text = plan.Setting; original.Text = plan.OriginalValue; test.Text = plan.TestValue; undoable.IsChecked = true; }
         Show(n);
     }
+    internal void ReviewFixtureResults()
+    {
+        if (!ReviewSandbox.Active) throw new InvalidOperationException("Fixture results are only available in the review sandbox.");
+        report = new WriteScanReport { Plan = Plan, Source = "Review fixture" }; unsaved = true; Show(4);
+    }
+    internal bool ReviewConsentOpen => sendPanel.Visibility == Visibility.Visible;
+    internal bool ReviewSendEnabled => sendGo?.IsEnabled == true;
+    internal bool ReviewSaveFixture() { if (!ReviewSandbox.Active) throw new InvalidOperationException("Review sandbox required."); return Save(); }
     internal Task ReviewRead(string path) => Read(path);
     internal void ReviewPhone(bool onIphone) => phone = onIphone ? PhoneKind.IPhone : PhoneKind.Samsung;
     internal void ReviewPhone(PhoneKind kind) { phone = kind; prepareAt = bringAt = 0; }
@@ -570,18 +591,18 @@ public sealed class WriteScanView : Grid
     private static TextBlock Wrap(string text, double size, string brush) => new() { Text = text, FontFamily = DS.Body, FontSize = size, Foreground = DS.Brush(brush), TextWrapping = TextWrapping.Wrap, LineHeight = size * 1.45 };
     private static Border Card(string title, string text) => new()
     {
-        CornerRadius = new(14), Margin = new(8), Padding = new(18, 14, 18, 14), BorderThickness = new(1), BorderBrush = new SolidColorBrush(Color.FromArgb(46, 140, 180, 255)),
-        Background = new LinearGradientBrush(Color.FromArgb(160, 20, 34, 70), Color.FromArgb(120, 10, 18, 40), 90),
+        CornerRadius = new(14), Margin = new(8), Padding = new(18, 14, 18, 14), BorderThickness = new(1), BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(46, 140, 180, 255))),
+        Background = new LinearGradientBrush(ThemeCatalog.R(Color.FromArgb(160, 20, 34, 70)), ThemeCatalog.R(Color.FromArgb(120, 10, 18, 40)), 90),
         Child = new StackPanel { Children = { Kit.Text(title, 16.5, "DS.Text", FontWeights.SemiBold), Wrap(text, 14, "DS.TextSoft").Also(t => t.Margin = new(0, 6, 0, 0)) } },
     };
     private static Border Note(string text) => new()
     {
-        CornerRadius = new(14), Margin = new(0, 18, 0, 0), Padding = new(18, 14, 18, 14), BorderThickness = new(1), BorderBrush = new SolidColorBrush(Color.FromArgb(110, 61, 139, 255)), Background = new SolidColorBrush(Color.FromArgb(40, 61, 139, 255)),
+        CornerRadius = new(14), Margin = new(0, 18, 0, 0), Padding = new(18, 14, 18, 14), BorderThickness = new(1), BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(110, 61, 139, 255))), Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(40, 61, 139, 255))),
         Child = Wrap(text, 14.5, "DS.Text"),
     };
     private static Border Numbered(string n, string title, string text) => new()
     {
-        CornerRadius = new(14), Margin = new(0, 0, 0, 10), Padding = new(18, 12, 18, 12), BorderThickness = new(1), BorderBrush = new SolidColorBrush(Color.FromArgb(46, 140, 180, 255)), Background = new SolidColorBrush(Color.FromArgb(70, 16, 28, 58)),
+        CornerRadius = new(14), Margin = new(0, 0, 0, 10), Padding = new(18, 12, 18, 12), BorderThickness = new(1), BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(46, 140, 180, 255))), Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(70, 16, 28, 58))),
         Child = new DockPanel { Children = {
             Kit.Text(n, 22, "DS.AccentHi", FontWeights.Bold).Also(t => { t.Width = 34; t.VerticalAlignment = VerticalAlignment.Top; DockPanel.SetDock(t, Dock.Left); }),
             new StackPanel { Children = { Kit.Text(title, 16, "DS.Text", FontWeights.SemiBold), Wrap(text, 14.5, "DS.TextSoft").Also(t => t.Margin = new(0, 4, 0, 0)) } } } },

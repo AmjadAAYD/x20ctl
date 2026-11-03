@@ -1,3 +1,4 @@
+using X20Ctl.Zone.Telemetry;
 using System.IO;
 using System.Text;
 using Windows.Devices.Bluetooth;
@@ -15,6 +16,7 @@ namespace X20Ctl.Product;
 /// </summary>
 public static class NativeBleClient
 {
+    internal static readonly SemaphoreSlim ConfigurationGate=new(1,1);
     private static readonly Guid ServiceUuid = Guid.Parse("d7f010e0-660d-46e9-96c3-19c4148bdab5");
     private static readonly Guid WriteUuid   = Guid.Parse("d7f010e1-660d-46e9-96c3-19c4148bdab5");
     private static readonly Guid NotifyUuid  = Guid.Parse("d7f010e2-660d-46e9-96c3-19c4148bdab5");
@@ -24,9 +26,10 @@ public static class NativeBleClient
 
     public static async Task<PadBridge.Result> QueryAsync(string targetModel = "x20_pro", int timeoutSeconds = 6, bool check = false)
     {
+        await ConfigurationGate.WaitAsync();
         try
         {
-            var (address, error) = await FindDeviceAddressAsync(targetModel, timeoutSeconds);
+            var (address, error) = await FindDeviceAddressAsync(targetModel, timeoutSeconds, requireAdvertisedService: false);
             if (address == null)
             {
                 return new(true, false, error ?? "Controller not found over Bluetooth. Make sure Bluetooth is enabled and the controller is awake.");
@@ -39,9 +42,10 @@ public static class NativeBleClient
         {
             return new(true, false, $"Bluetooth query failed: {ex.Message}");
         }
+        finally { ConfigurationGate.Release(); }
     }
 
-    private static async Task<(ulong? Address, string? Error)> FindDeviceAddressAsync(string targetModel, int timeoutSeconds)
+    internal static async Task<(ulong? Address, string? Error)> FindDeviceAddressAsync(string targetModel, int timeoutSeconds, bool requireAdvertisedService = true)
     {
         ulong? cachedAddress = null;
         if (File.Exists(CachePath))
@@ -83,7 +87,7 @@ public static class NativeBleClient
             }
 
             // Connecting requires the KeyLinker service every time, not the name alone
-            if (!seenServices.Contains(addr))
+            if (requireAdvertisedService && !seenServices.Contains(addr))
             {
                 return;
             }
@@ -179,7 +183,8 @@ public static class NativeBleClient
             return new(true, false, "KeyLinker BLE configuration service not found on this device.");
         }
 
-        var service = gatt.Services[0];
+        // Disposed so the link drops and the pad advertises again for the next operation.
+        using var service = gatt.Services[0];
         var charResult = await service.GetCharacteristicsAsync(BluetoothCacheMode.Uncached);
         if (charResult.Status != GattCommunicationStatus.Success)
         {
@@ -212,15 +217,12 @@ public static class NativeBleClient
 
         TypedEventHandler<GattCharacteristic, GattValueChangedEventArgs> handler = (s, e) =>
         {
-            var reader = DataReader.FromBuffer(e.CharacteristicValue);
+            using var reader = DataReader.FromBuffer(e.CharacteristicValue);
             byte[] bytes = new byte[e.CharacteristicValue.Length];
             reader.ReadBytes(bytes);
 
-            var (op, len, ser, non, pay, crc) = X20Codec.Decode(bytes);
-            if (crc && ser == expectedSerial)
-            {
-                pendingReply?.TrySetResult(pay);
-            }
+            var payload=NativeTelemetry.Reply(bytes,expectedSerial);
+            if(payload!=null)pendingReply?.TrySetResult(payload);
         };
 
         notifyChar.ValueChanged += handler;
@@ -252,6 +254,8 @@ public static class NativeBleClient
         string? firmware = null;
         string? controller = null;
         string? battery = null;
+        string? hardwareId=null;
+        string? telemetryNote=null;
         bool charging = false;
         bool enteredMode = false;
         PadCheck.Raw? checkRaw = null;
@@ -282,7 +286,7 @@ public static class NativeBleClient
                 byte[]? menu = await SendQueryAsync(0xB0, 7, 4, [0, 1]);
                 checkRaw = new PadCheck.Raw(payInfo, menu, guid0, guid1);
             }
-            else if (payInfo != null && payInfo.Length >= 7)
+            else if (payInfo != null && payInfo.Length >= 7 && payInfo[0]==payInfo.Length-1)
             {
                 string vid = $"{payInfo[1]:x2}{payInfo[2]:x2}";
                 string pid = $"{payInfo[3]:x2}{payInfo[4]:x2}";
@@ -291,25 +295,40 @@ public static class NativeBleClient
                              (vid == "1013" && pid == "2009") ? "EasySMX X20" : "EasySMX Controller";
 
                 // Authorize step: only send the 0x1D live battery query if controller identity is validated
-                bool isAuthorized = (vid == "1020" && pid == "2006") || (vid == "1013" && pid == "2009");
+                bool isAuthorized = targetModel=="x20_pro" ? vid=="1020"&&pid=="2006" : targetModel=="x20"&&vid=="1013"&&pid=="2009";
                 if (isAuthorized)
                 {
+                    // Read the captured updater identifier without entering an update mode.
+                    var firstGuid=await SendQueryAsync(0x93,6,4,[0]);
+                    if(firstGuid is {Length:15} && firstGuid[0]==18)
+                    {
+                        var lastGuid=await SendQueryAsync(0x93,6,5,[1]);
+                        if(lastGuid is {Length:4})
+                        {
+                            var hardware=NativeTelemetry.ParseHardware([..firstGuid[1..],..lastGuid]);
+                            hardwareId=hardware.HardwareId;
+                            if(hardware.Firmware!=firmware)telemetryNote="Identity and updater firmware versions differ.";
+                        }
+                    }
                     // 2. Query Battery (Op 0x1D: SET_MODE with [0x02, 0xDF, 0xAB])
                     enteredMode = true;
                     var payBat = await SendQueryAsync(0x1D, 8, 2, [0x02, 0xDF, 0xAB]);
-                    if (payBat != null && payBat.Length >= 5)
+                    if(payBat!=null)
                     {
-                        byte status = payBat[4];
-                        charging = (status >> 4 & 1) != 0;
-                        int level = (status >> 7 & 1) != 0 ? 4 :
-                                    (status >> 6 & 1) != 0 ? 3 :
-                                    (status >> 5 & 1) != 0 ? 2 : 1;
-                        battery = $"{level}/4" + (charging ? " (Charging)" : "");
+                        try
+                        {
+                            var power=NativeTelemetry.ParsePower(payBat);
+                            charging=power.Charging;
+                            battery=$"{power.Level}/4"+(charging?" (Charging)":"");
+                            telemetryNote=$"Battery status 0x{power.RawStatus:X2}; four-level reading from BLE.";
+                        }
+                        catch(ArgumentException){telemetryNote="The controller returned an unrecognised battery reply.";}
                     }
+                    else telemetryNote="Battery query timed out; identity is still available.";
                 }
                 else
                 {
-                    battery = "Telemetry unauthorized for unproven device";
+                    return new(true,false,"Controller identity does not match the selected model.");
                 }
             }
         }
@@ -364,7 +383,10 @@ public static class NativeBleClient
         sb.AppendLine($"  battery         {battery ?? "Not reported"}{(battery != null ? (charging ? " · charging" : " · on battery") : "")}");
         sb.AppendLine("  transport       Bluetooth LE (read-only telemetry query)");
 
-        var telemetry = new TelemetryData(controller ?? "EasySMX Controller", firmware, battery, charging, addressStr, sb.ToString());
+        if(hardwareId!=null)sb.AppendLine($"  hardware id     {hardwareId}");
+        if(telemetryNote!=null)sb.AppendLine($"  note            {telemetryNote}");
+        if(firmware==null)return new(true,false,"No complete controller identity reply.");
+        var telemetry = new TelemetryData(controller ?? "EasySMX Controller", firmware, battery, charging, addressStr, sb.ToString(),hardwareId);
         return new PadBridge.Result(true, true, sb.ToString(), telemetry);
     }
 

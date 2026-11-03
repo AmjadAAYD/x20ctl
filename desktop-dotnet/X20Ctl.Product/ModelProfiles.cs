@@ -6,12 +6,13 @@ namespace X20Ctl.Product;
 /// <summary>
 /// What each controller is, for the placeholder pages (owner direction 10 Oct 2026: Curves, Macros, Vibration,
 /// Device and Setups for every controller, no exception). Facts come from the catalog plus the owner's research notes;
-/// anything the sources disagree on, or never state, says so instead of picking a number. Only the X20 is verified,
-/// so every other model's pages are read-only previews.
+/// anything the sources disagree on, or never state, says so instead of picking a number. Local draft editing is separate from native configuration availability. Hardware writes remain locked.
 /// </summary>
 public sealed record ModelProfile(string Id, string Sticks, string Triggers, string[] Paddles, string Motors, string Polling, string Motion, string Battery, int BatteryLevels, string Extras)
 {
-    public bool Verified => Id == "x20";
+    /// <summary>Models whose local editor formats are implemented; this does not authorize hardware writes.</summary>
+    public bool HasScreen => Id == "x20_pro";
+    public bool SupportsLocalDrafts => Id is "x20" or "x20_pro";
     /// <summary>One line naming what is known, for banners and the Device page.</summary>
     public string Summary => $"{Sticks} sticks · {Triggers} triggers · {(Paddles.Length == 0 ? "no back buttons" : string.Join("/", Paddles))} · {Motors}";
 }
@@ -22,7 +23,6 @@ public static class ModelProfiles
     {
         ["x20"] = new("x20", "Hall", "Hall", ["M1", "M2", "M3", "M4"], "2 grip motors", "Not published", "6-axis gyro", "4-level report", 4, "RGB stick rings · KeyLinker app"),
         ["x20_pro"] = new("x20_pro", "TMR, adjustable tension", "Hall / microswitch", ["M1", "M2", "M3", "M4", "M5", "M6"], "4 motors (grips + triggers), instant brake", "Not published", "Gyro", "1000–1200 mAh (sources disagree)", 0, "Smart display · RGB"),
-        ["x05"] = new("x05", "Hall", "Hall", [], "2 grip motors", "1000 / 250 / 125 Hz", "None", "Unknown", 0, "No back paddles (confirmed by an owner, 10 Oct 2026)"),
         ["x05_pro"] = new("x05_pro", "Hall", "Dual-stage Hall / microswitch", ["M1", "M2"], "2 grip motors", "1000 Hz wired and 2.4G", "Unconfirmed", "Unknown", 0, "RGB"),
         ["x10"] = new("x10", "Hall", "Hall", ["M1", "M2"], "2 grip motors", "Not published", "6-axis (Switch mode)", "Unknown", 0, "Mechanical ABXY · QMacro"),
         ["d10"] = new("d10", "TMR", "Hall / microswitch", ["M1", "M2"], "2 grip motors, 4 strength levels", "1000 Hz wired and 2.4G", "Gyro", "Unknown", 0, "Charging dock · no KeyLinker · receiver 2345:E062"),
@@ -34,7 +34,7 @@ public static class ModelProfiles
     /// <summary>Puts the banner on top of a page grid (a new Auto row above everything already there); verified models wear nothing.</summary>
     public static void Wear(Grid page, string id, string name, bool pcMode = false)
     {
-        if (For(id).Verified && !pcMode) return;
+        if (For(id).SupportsLocalDrafts && !pcMode) return;
         if (page.RowDefinitions.Count == 0) page.RowDefinitions.Add(new());
         foreach (UIElement child in page.Children) Grid.SetRow(child, Grid.GetRow(child) + 1);
         page.RowDefinitions.Insert(0, new RowDefinition { Height = GridLength.Auto });

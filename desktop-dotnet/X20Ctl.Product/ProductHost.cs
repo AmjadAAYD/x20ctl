@@ -8,19 +8,35 @@ using System.Text.Json;
 using X20Ctl.Zone;
 namespace X20Ctl.Product;
 
-public sealed class ProductHost : Grid
+public sealed partial class ProductHost : Grid
 {
     private string?[] batteryLevels=new string?[4];
+    private readonly string?[] measuredBatteryLevels=new string?[4];
+    private readonly X20Ctl.Zone.Telemetry.TelemetryRefreshPolicy telemetryRefresh=new();
+    private bool telemetryReading;
+    internal event Action? TelemetryRefreshed;
+    internal bool AutomaticTelemetryInReview {get;set;}
+    internal void RequestAutomaticTelemetryRefresh(bool? connected=null)
+    {
+        if(ReviewSandbox.Active&&!AutomaticTelemetryInReview)return;
+        int player=Studio?.Player??0;
+        string? model=Studio?.Model.Id??Zone.State.Players[player].ModelId;
+        if(model==null)return;
+        string target=$"{player}:{model}";
+        bool refresh=connected.HasValue?telemetryRefresh.OnConnection(target,connected.Value):telemetryRefresh.OnOpen(target);
+        if(refresh)_=RefreshBleTelemetryAsync();
+    }
     private string? currentTransport;
     public string?[] BatteryLevels => batteryLevels;
-    private string? currentFirmware;
-    private TelemetryData? latestTelemetry;
+    private readonly Dictionary<(int Player,string Model),TelemetryData> latestTelemetry=[];
+    private readonly string?[] measuredBatteryModels=new string?[4];
 
     public void RecordTelemetry(TelemetryData telemetry, int player = 0)
     {
-        latestTelemetry = telemetry;
-        if (telemetry.Firmware != null) currentFirmware = telemetry.Firmware;
-        if (telemetry.Battery != null && player < batteryLevels.Length) batteryLevels[player] = telemetry.Battery;
+        string? model=telemetry.Controller switch {"EasySMX X20 Pro"=>"x20_pro","EasySMX X20"=>"x20",_=>null};
+        if(model!=null){latestTelemetry[(player,model)]=telemetry;if(player>=0&&player<4)measuredBatteryModels[player]=model;}
+        if (telemetry.Battery != null && player >= 0 && player < batteryLevels.Length) measuredBatteryLevels[player]=batteryLevels[player] = telemetry.Battery;
+        TelemetryRefreshed?.Invoke();
     }
 
     public async Task RefreshBleTelemetryAsync()
@@ -28,28 +44,21 @@ public sealed class ProductHost : Grid
         string? modelId = Studio?.Model.Id ?? (Zone.State.Players.Count > 0 ? Zone.State.Players[0].ModelId ?? Catalog.Models.FirstOrDefault(m => m.Name == Zone.State.Players[0].Model)?.Id : null);
         if (modelId is not ("x20" or "x20_pro")) return;
 
+        if(telemetryReading)return;
+        int targetPlayer=Studio?.Player??0;
+        telemetryReading=true;
         try
         {
             var res = await PadBridge.Status(modelId);
             if (res.Ok && res.Telemetry != null)
             {
-                latestTelemetry = res.Telemetry;
-                if (res.Telemetry.Firmware != null) currentFirmware = res.Telemetry.Firmware;
-                if (res.Telemetry.Battery != null)
-                {
-                    int player = Studio?.Player ?? 0;
-                    if (player < batteryLevels.Length) batteryLevels[player] = res.Telemetry.Battery;
-                }
-                _ = Dispatcher.BeginInvoke(() =>
-                {
-                    if (Studio != null)
-                    {
-                        Studio.ApplyTelemetry(res.Telemetry);
-                    }
-                });
+                if(Studio is {} current && current.Player==targetPlayer && current.Model.Id==modelId)
+                    current.ApplyTelemetry(res.Telemetry);
+                else RecordTelemetry(res.Telemetry,targetPlayer);
             }
         }
         catch { }
+        finally{telemetryReading=false;}
     }
 
     public void UpdateBatteryLevels(string?[] levels, string? transport = null)
@@ -62,7 +71,7 @@ public sealed class ProductHost : Grid
             {
                 continue;
             }
-            batteryLevels[i] = levels[i];
+            batteryLevels[i] = X20Ctl.Zone.Telemetry.NativeTelemetry.PreferMeasuredBattery(measuredBatteryLevels[i],levels[i]);
         }
         if (transport != null) currentTransport = transport;
         if (Studio is { } studio)
@@ -83,9 +92,11 @@ public sealed class ProductHost : Grid
     public long InputPresentationCoalesced {get;private set;}
     private string? nativeEpoch,nativeSubscription;
     private readonly SemaphoreSlim nativeContextLock=new(1,1);
-    private readonly object nativeEventLock=new();private JsonElement? latestNativeEvent;private int nativeEventScheduled;
+    private readonly object nativeEventLock=new();private readonly EdgeQueue<JsonElement> nativeEvents=new();private int nativeEventScheduled;
     private HashSet<string> lastNativeButtons=new();private bool nativeArmed;private long lastNativeSequence=-1,lastNavigationUs;
-    private string ExpectedNativeContext=>Studio?.InputContext is InputOwner.TesterCapture or InputOwner.RemapCapture?"TESTER_CAPTURE":"UI_NAVIGATION";
+    internal string ExpectedNativeContext=>NativeInputStudio?.InputContext is InputOwner.TesterCapture or InputOwner.RemapCapture or InputOwner.MacroRecording?"TESTER_CAPTURE":"UI_NAVIGATION";
+    internal StudioScene? NativeInputStudio => Settings != null || Check != null || WriteScan != null || ActivePulseNotice != null || ActiveRebelNotice != null || ActiveThemeNotice != null ? null : Studio;
+    private int? studioPlayer;
     public bool IntroWasPlayed {get;private set;}
     private readonly ProductPreferences preferences;
     private readonly bool preferencesHealthy;
@@ -93,8 +104,7 @@ public sealed class ProductHost : Grid
     public PcModeService? PcMode { get; }
     /// <summary>Controller as mouse. A fixture window gets one that never listens to the controller.</summary>
     public MouseModeService? MouseMode { get; }
-    private readonly X20Ctl.Zone.PcMode.PcModeStore? pcModeStore;
-    private readonly Action<string> support;
+    private readonly X20Ctl.Zone.PcMode.PcModeStore? pcModeStore;    private readonly Action<string> support;
     private readonly AssignmentStore store;
     private readonly Dictionary<(int, string), ButtonDraft> drafts = new();
     private readonly Dictionary<(int, string), CurveDraft> curves = new();
@@ -109,7 +119,7 @@ public sealed class ProductHost : Grid
         Zone = zone; Children.Add(zone);
         support=openSupport??ProductLinks.OpenSupport;
         preferences=new(assignmentPath==null?PreferencesPath:Path.Combine(Path.GetDirectoryName(Path.GetFullPath(assignmentPath))!,"preferences-fixture.json"));
-        try{preferences.Load();preferencesHealthy=true;}catch(Exception error) when(error is IOException or System.Text.Json.JsonException or InvalidOperationException){Zone.FeedbackText.Text="Startup preferences unavailable; original file preserved. "+error.Message;}
+        UiSound.Allowed=()=>!preferencesHealthy||preferences.IntroSound;try{preferences.Load();preferencesHealthy=true;}catch(Exception error) when(error is IOException or System.Text.Json.JsonException or InvalidOperationException){Zone.FeedbackText.Text="Startup preferences unavailable; original file preserved. "+error.Message;}
         // every launch asks GitHub for a newer version (owner request, 13 Oct 2026); a popup follows the intro only when there is one.
         // Tools → "Keep X20CTL up to date" decides whether it also installs itself. Never for review fixtures.
         if(assignmentPath==null)_=CheckUpdatesAtLaunch(preferencesHealthy&&preferences.AutoUpdate);
@@ -117,10 +127,11 @@ public sealed class ProductHost : Grid
         pcModeStore=new(assignmentPath==null?X20Ctl.Zone.PcMode.PcModeStore.DefaultPath:Path.Combine(Path.GetDirectoryName(Path.GetFullPath(assignmentPath))!,"pc-mode-fixture.json"));pcModeStore.Load();
         PcMode=new(pcModeStore){Enabled=assignmentPath==null&&(!preferencesHealthy||preferences.PcMode)};
         MouseMode=new(assignmentPath==null?X20Ctl.Zone.Mouse.MouseProfile.DefaultPath:Path.Combine(Path.GetDirectoryName(Path.GetFullPath(assignmentPath))!,"mouse-fixture.json"),listen:assignmentPath==null){PcMode=PcMode};
-        Zone.SupportRequested+=OpenSupport;Zone.SettingsRequested+=ShowSettings;
+        Zone.SupportRequested+=OpenSupport;Zone.SettingsRequested+=ShowSettings;var languageMenu=new LanguageMenu(preferencesHealthy?preferences:null,zone);Children.Add(languageMenu);Panel.SetZIndex(languageMenu,9);
         Catalog = new ControllerCatalog(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Data", "catalog.json")));
         store = new(assignmentPath ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "x20ctl", "native", "player-assignments.v1.json"));
         string dataRoot=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),"x20ctl");
+        PadColours.Use(assignmentPath==null?Path.Combine(dataRoot,"native","pad-colours.v1.json"):Path.Combine(Path.GetDirectoryName(Path.GetFullPath(assignmentPath))!,"pad-colours-fixture.json"));
         setupStore=new(assignmentPath==null?Path.Combine(dataRoot,"native","setups.v1.json"):Path.Combine(Path.GetDirectoryName(Path.GetFullPath(assignmentPath))!,"setups-fixture-"+Guid.NewGuid().ToString("N")+".json"));
         var sources=new List<string>();if(assignmentPath==null){string desktop=Path.Combine(dataRoot,"desktop","profiles.json");if(File.Exists(desktop))sources.Add(desktop);string cli=Path.Combine(dataRoot,"profiles");if(Directory.Exists(cli))sources.AddRange(Directory.GetFiles(cli,"*.json",SearchOption.TopDirectoryOnly));}legacySources=sources.AsReadOnly();
         // every launch opens on an empty Zone (owner direction 10 Oct 2026); review fixtures still restore their files
@@ -128,6 +139,7 @@ public sealed class ProductHost : Grid
         catch (Exception error) when (error is IOException or System.Text.Json.JsonException or UnauthorizedAccessException)
         { Zone.FeedbackText.Text = "Saved assignments could not be read. Original file preserved; new choices will be session-only."; }
         Zone.ControllerRemoved += index => {try{store.Save(Zone.State.Players.Select(p=>p.ModelId).ToArray());}catch(Exception error)when(error is IOException or UnauthorizedAccessException or InvalidOperationException){Zone.FeedbackText.Text="Removed for this session; saved assignments could not be updated.";}};
+        Zone.StudioPageRequested += (index, page) => { if (Zone.State.Players[index].Model == null) return; pendingPage = page; VerifyThenEnter(index); };
         Zone.ControllerActionRequested += (index, change) => { if (change || Zone.State.Players[index].Model == null) OpenSelector(index); else VerifyThenEnter(index); };
     }
     public void OpenSelector(int player)
@@ -157,6 +169,7 @@ public sealed class ProductHost : Grid
     private async void VerifyThenEnter(int player)
     {
         var assigned = Zone.State.Players[player];
+        studioPlayer = player;
         var model = assigned.ModelId != null ? Catalog.Find(assigned.ModelId) : Catalog.Models.FirstOrDefault(m => m.Name == assigned.Model);
         if (model == null || ReviewSandbox.Active || verifyLayer != null) { EnterStudio(player); return; }
         int token = ++verifyToken;
@@ -188,12 +201,14 @@ public sealed class ProductHost : Grid
         }
         await Scan();
     }
+    private string? pendingPage;
     public void EnterStudio(int player)
     {
         var assigned = Zone.State.Players[player];
+        studioPlayer = player;
         var model = assigned.ModelId != null ? Catalog.Find(assigned.ModelId) : Catalog.Models.FirstOrDefault(m => m.Name == assigned.Model);
         if (model == null) { Zone.FeedbackText.Text = "Choose a known controller model before entering Studio."; return; }
-        if (Studio != null) { var old = Studio; Studio = null; Fx.Leave(old, () => Children.Remove(old), 1.02, 160); }
+        if (Studio != null) { var old = Studio; old.SuspendMacroActivity(); Studio = null; Fx.Leave(old, () => Children.Remove(old), 1.02, 160); }
         if (!drafts.TryGetValue((player, model.Id), out var draft)) drafts[(player, model.Id)] = draft = new(model.Id);
         if (!curves.TryGetValue((player, model.Id), out var curveDraft)) curves[(player, model.Id)] = curveDraft = new(model.Id);
         if (!macros.TryGetValue((player, model.Id), out var macroDraft)) macros[(player, model.Id)] = macroDraft = new(model.Id);
@@ -207,6 +222,7 @@ public sealed class ProductHost : Grid
         if(pc)PcModeSync.Prepare(pcModeStore!,draft,curveDraft,macroDraft);
         Studio = new(player, model, draft, Zone.ReducedMotion, curveDraft,macroDraft,vibrationDraft,setupStore,legacySources,activeSetup); if(PcMode!=null&&pcModeStore!=null)Studio.PcMode=new(pcModeStore,PcMode,preferencesHealthy?preferences:null);Studio.MouseService=MouseMode;Studio.PcModeSwitched+=()=>Dispatcher.BeginInvoke(()=>{EnterStudio(player);Studio?.ShowManagement("PcMode");});Studio.BackRequested += ReturnToZone;Studio.SupportRequested+=OpenSupport;Studio.ActiveSetupChanged+=id=>activeSetups[key]=id;Studio.TelemetryUpdated+=data=>RecordTelemetry(data,player);
         Studio.SetBatteryLevel(batteryLevels[player]);
+        Studio.ToolsRequested += ShowSettings;
         Studio.AgentScanRequested += page => { if (page == "ReadScan") OpenCheck(); else OpenWriteScan(); };
         Studio.AgentFeedbackRequested += draft =>
         {
@@ -221,9 +237,10 @@ public sealed class ProductHost : Grid
         };
 
         if (currentTransport != null) Studio.SetTransport(currentTransport);
-        if (currentFirmware != null) Studio.SetFirmware(currentFirmware);
-        if (latestTelemetry != null) Studio.ApplyTelemetry(latestTelemetry);
-        // BLE telemetry is strictly user-invoked and does not auto-query on launch.
+        if(latestTelemetry.TryGetValue((player,model.Id),out var rememberedTelemetry))Studio.ApplyTelemetry(rememberedTelemetry);
+        else if(measuredBatteryModels[player]!=model.Id){measuredBatteryLevels[player]=null;batteryLevels[player]=null;Studio.SetBatteryLevel(null);}
+        RequestAutomaticTelemetryRefresh();
+        // One session-opening read; subsequent reads follow reconnection or an explicit refresh.
         Studio.NativeEngineStatus=NativeEngineStatus;
         Studio.InputContextChanged+=()=>_=UpdateNativeContext();
         if(Engine!=null)_=RefreshNativeCapabilities(model.Id);
@@ -237,12 +254,14 @@ public sealed class ProductHost : Grid
         Children.Add(Studio);
         Studio.Opacity=1;Studio.IsHitTestVisible=true;Zone.Visibility=Visibility.Collapsed;
         Studio.Dashboard?.CompleteEntryTransition();
+        if (pendingPage != null) { var page = pendingPage; pendingPage = null; Studio?.ShowManagement(page); }
     }
 
     public void ReturnToZone()
     {
         bool back = Studio != null;
-        if (Studio != null) { var leaving = Studio; Studio = null; leaving.Diagnostics?.Stop(); Fx.Leave(leaving, () => Children.Remove(leaving), 1.06, 300); }
+        if (Studio != null) { var leaving = Studio; leaving.SuspendMacroActivity(); Studio = null; leaving.Diagnostics?.Stop(); Fx.Leave(leaving, () => Children.Remove(leaving), 1.06, 300); }
+        studioPlayer = null;
         Zone.BeginAnimation(OpacityProperty, null); Zone.Opacity = 1; Zone.IsHitTestVisible = true; Zone.IsEnabled = Selector == null && Settings == null && Intro == null;
         Zone.Visibility = Visibility.Visible;
         if (back) Fx.Appear(Zone, .94, 380);
@@ -251,7 +270,7 @@ public sealed class ProductHost : Grid
     // every launch opens with the intro, like Steam Big Picture (owner direction 10 Oct 2026), unless the player turned it
     // off in Tools (owner request 12 Oct 2026); Replay Intro still plays it
     public void Startup(){if(preferencesHealthy&&!preferences.IntroOnLaunch){IntroView.DiscardPreload();return;}StartIntro();}
-    private static string PreferencesPath=>Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),"x20ctl","native","preferences.v1.json");
+    internal static string PreferencesPath=>Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),"x20ctl","native","preferences.v1.json");
     /// <summary>Whether this launch opens with the intro film, read before the window exists so the film can start opening early.
     /// The same rule as <see cref="Startup"/>: on unless the player turned it off, and never with reduced motion.</summary>
     public static bool IntroAtLaunch(bool reducedMotion)
@@ -263,7 +282,7 @@ public sealed class ProductHost : Grid
     public async Task InitializeNativeEngineAsync()
     {
         if(Engine!=null)return;
-        try{Engine=new();Engine.EventReceived+=QueueNativeEvent;Engine.Disconnected+=reason=>Dispatcher.BeginInvoke(new Action(()=>{nativeSubscription=null;nativeArmed=false;NativeEngineStatus="Native core disconnected · Configuration unavailable";if(Studio!=null){Studio.NativeEngineStatus=NativeEngineStatus;Studio.Device?.UpdateEngineStatus(NativeEngineStatus);Studio.Tester?.ExitCapture();}}));var hello=await Engine.Request("handshake",new{});if(!hello.TryGetProperty("engineEpoch",out var epoch))throw new InvalidDataException("Native handshake omitted epoch.");nativeEpoch=epoch.GetString();NativeEngineStatus="Native C++ core running · Configuration locked";Zone.ProvenanceText.Text="LIVE INPUT";await RefreshNativeCapabilities(Studio?.Model.Id??"x20");await UpdateNativeContext();}
+        try{Engine=new();Engine.EventReceived+=QueueNativeEvent;Engine.Disconnected+=reason=>Dispatcher.BeginInvoke(new Action(()=>{nativeSubscription=null;nativeArmed=false;NativeEngineStatus="Native core disconnected · Configuration unavailable";if(Studio!=null){Studio.NativeEngineStatus=NativeEngineStatus;Studio.Device?.UpdateEngineStatus(NativeEngineStatus);Studio.Tester?.ExitCapture();Studio.CancelRemapCapture();}}));var hello=await Engine.Request("handshake",new{});if(!hello.TryGetProperty("engineEpoch",out var epoch))throw new InvalidDataException("Native handshake omitted epoch.");nativeEpoch=epoch.GetString();NativeEngineStatus="Native C++ core running · Configuration locked";Zone.ProvenanceText.Text="LIVE INPUT";await RefreshNativeCapabilities(Studio?.Model.Id??"x20");await UpdateNativeContext();}
         catch(Exception error){Zone.ProvenanceText.Text="INPUT UNAVAILABLE";NativeEngineStatus="Native core unavailable · "+error.Message;if(Studio!=null){Studio.NativeEngineStatus=NativeEngineStatus;Studio.Device?.UpdateEngineStatus(NativeEngineStatus);}Zone.FeedbackText.Text="Native connection unavailable; local previews remain available.";}
     }
     private async Task RefreshNativeCapabilities(string model)
@@ -285,41 +304,91 @@ public sealed class ProductHost : Grid
     }
     private void QueueNativeEvent(JsonElement message)
     {
-        lock(nativeEventLock){if(latestNativeEvent.HasValue)InputPresentationCoalesced++;latestNativeEvent=message;}
-        if(Interlocked.Exchange(ref nativeEventScheduled,1)==0)Dispatcher.BeginInvoke(new Action(ConsumeNativeEvent));
+        // only analog-only samples merge: a press and its release between two renders both reach the UI, in order
+        lock(nativeEventLock){nativeEvents.Offer(message,NativeEdgeKey(message));InputPresentationCoalesced=nativeEvents.Coalesced+nativeEvents.Dropped;}
+        if(Interlocked.Exchange(ref nativeEventScheduled,1)==0)Dispatcher.BeginInvoke(new Action(ConsumeNativeEvents));
     }
-    private void ConsumeNativeEvent()
+    /// <summary>The digital state a sample carries (buttons, triggers and stick past their thresholds); samples that share it may merge.</summary>
+    internal static string NativeEdgeKey(JsonElement message)
     {
-        JsonElement? message;lock(nativeEventLock){message=latestNativeEvent;latestNativeEvent=null;Interlocked.Exchange(ref nativeEventScheduled,0);}if(!message.HasValue)return;var value=message.Value;
+        try
+        {
+            var p=message.GetProperty("payload");double lx=p.GetProperty("leftX").GetDouble(),ly=p.GetProperty("leftY").GetDouble();
+            string stick=Math.Abs(lx)>.6&&Math.Abs(lx)>=Math.Abs(ly)?(lx>0?"R":"L"):Math.Abs(ly)>.6?(ly>0?"U":"D"):"";
+            return string.Join(",",p.GetProperty("buttons").EnumerateArray().Select(v=>v.GetString()))+"|"+p.GetProperty("connected").GetBoolean()+(p.GetProperty("lt").GetDouble()>.55?"|LT":"")+(p.GetProperty("rt").GetDouble()>.55?"|RT":"")+"|"+stick+"|"+(message.TryGetProperty("subscriptionId",out var id)?id.GetString():"");
+        }
+        catch(Exception error) when(error is InvalidOperationException or KeyNotFoundException or FormatException){return Guid.NewGuid().ToString("N");}
+    }
+    private void ConsumeNativeEvents()
+    {
+        List<JsonElement> messages;lock(nativeEventLock){messages=nativeEvents.Drain();Interlocked.Exchange(ref nativeEventScheduled,0);}
+        foreach(var message in messages)ConsumeNativeEvent(message);
+    }
+    private void ConsumeNativeEvent(JsonElement value)
+    {
         try{
             if(value.GetProperty("engineEpoch").GetString()!=nativeEpoch||value.GetProperty("subscriptionId").GetString()!=nativeSubscription||value.GetProperty("inputContext").GetString()!=ExpectedNativeContext)return;
             long sequence=value.GetProperty("sequence").GetInt64();if(sequence<=lastNativeSequence)return;lastNativeSequence=sequence;
             var payload=value.GetProperty("payload");bool connected=payload.GetProperty("connected").GetBoolean();Zone.ProvenanceText.Text=connected?"LIVE INPUT":"NO CONTROLLER";Zone.ScenarioHint.Text=connected?"XInput navigation · Model identity unverified · Configuration locked":"No gameplay source connected · Configuration locked";
-            Studio?.SetGameplayConnected(connected);
-            if(connected)Studio?.ObserveLiveInput(payload.GetProperty("leftX").GetDouble(),payload.GetProperty("leftY").GetDouble(),payload.GetProperty("rightX").GetDouble(),payload.GetProperty("rightY").GetDouble(),payload.GetProperty("lt").GetDouble(),payload.GetProperty("rt").GetDouble());
+            NativeInputStudio?.SetGameplayConnected(connected);
+            RequestAutomaticTelemetryRefresh(connected);
+            if(connected)NativeInputStudio?.ObserveLiveInput(payload.GetProperty("leftX").GetDouble(),payload.GetProperty("leftY").GetDouble(),payload.GetProperty("rightX").GetDouble(),payload.GetProperty("rightY").GetDouble(),payload.GetProperty("lt").GetDouble(),payload.GetProperty("rt").GetDouble());
             // virtual buttons: triggers and left stick become digital presses with a threshold
             var now=payload.GetProperty("buttons").EnumerateArray().Select(v=>v.GetString()!).ToHashSet();
             if(connected){if(payload.GetProperty("lt").GetDouble()>.55)now.Add("LT");if(payload.GetProperty("rt").GetDouble()>.55)now.Add("RT");
-                if(Studio?.IsCurves != true)
+                if(NativeInputStudio?.IsCurves != true)
                 {
                     double lx=payload.GetProperty("leftX").GetDouble(),ly=payload.GetProperty("leftY").GetDouble();if(Math.Abs(lx)>.6&&Math.Abs(lx)>=Math.Abs(ly))now.Add(lx>0?"LS_RIGHT":"LS_LEFT");else if(Math.Abs(ly)>.6)now.Add(ly>0?"LS_UP":"LS_DOWN");
                 }}
             var pressed=now.Except(lastNativeButtons).ToArray();lastNativeButtons=now;
+            if (ActiveThemeNotice is {} themedNotice)
+            {
+                if (!connected || Window.GetWindow(this)?.IsActive != true) { nativeArmed = false; return; }
+                if (!nativeArmed) { if (now.Count == 0) nativeArmed = true; return; }
+                if (pressed.Contains("B")) ThemeNoticeButton(themedNotice, "no")?.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                else if (pressed.Contains("A") && Keyboard.FocusedElement is Button action && themedNotice.IsKeyboardFocusWithin) action.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                else if (pressed.Contains("DPAD_LEFT") || pressed.Contains("DPAD_UP")) ThemeNoticeButton(themedNotice, "no")?.Focus();
+                else if (pressed.Contains("DPAD_RIGHT") || pressed.Contains("DPAD_DOWN")) ThemeNoticeButton(themedNotice, "yes")?.Focus();
+                return;
+            }
+            if(ActiveRebelNotice is {} notice){if(!connected||Window.GetWindow(this)?.IsActive!=true){nativeArmed=false;return;}if(!nativeArmed){if(now.Count==0)nativeArmed=true;return;}if(pressed.Contains("B"))notice.Resolve(false);else if(pressed.Contains("A") && Keyboard.FocusedElement is Button action && notice.IsKeyboardFocusWithin)action.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));else foreach(var direction in new[]{("DPAD_LEFT",FocusNavigationDirection.Left),("DPAD_RIGHT",FocusNavigationDirection.Right),("DPAD_UP",FocusNavigationDirection.Up),("DPAD_DOWN",FocusNavigationDirection.Down)})if(pressed.Contains(direction.Item1) && Keyboard.FocusedElement is UIElement focused)focused.MoveFocus(new(direction.Item2));return;}
             long time=value.GetProperty("timestampUs").GetInt64();
-            if(Studio?.CapturingButtonEditor==true){if(connected){foreach(var button in pressed.Where(b=>!b.StartsWith("LS_")))Studio.SelectPhysicalButton(button);}nativeArmed=false;return;}
-            if(connected&&Studio?.IsCurves==true){if(pressed.Contains("L3"))Studio.Curves.SelectChannel(X20Ctl.Zone.CurveChannel.LeftStick);else if(pressed.Contains("R3"))Studio.Curves.SelectChannel(X20Ctl.Zone.CurveChannel.RightStick);}
+            NativeInputStudio?.NoteControllerHeld(now);
+            // remap capture and macro recording own every press of the pad, but only while X20CTL is in front
+            if(NativeInputStudio is {} owner && (owner.CapturingRemap || owner.InputContext==InputOwner.MacroRecording))
+            {
+                nativeArmed=false;
+                var rule=InputOwnerRules.Resolve(new(Window.GetWindow(this)?.IsActive==true,connected,false,owner.InputContext==InputOwner.MacroRecording,owner.CapturingRemap,false,false));
+                if(rule==InputOwnerRules.Owner.Nobody)owner.CancelRemapCapture();
+                else if(rule==InputOwnerRules.Owner.RemapCapture)owner.ObserveCapture(now);
+                return;
+            }
+            if(connected&&NativeInputStudio?.IsCurves==true){if(pressed.Contains("L3"))NativeInputStudio!.Curves.SelectChannel(X20Ctl.Zone.CurveChannel.LeftStick);else if(pressed.Contains("R3"))NativeInputStudio!.Curves.SelectChannel(X20Ctl.Zone.CurveChannel.RightStick);}
             // Home / Guide: bring X20CTL forward from anywhere (tray, behind a game); in front it goes home
-            if(connected&&pressed.Contains("HOME")&&Studio?.ManagementPage is not ("Diagnostics" or "Mouse")){HomeRequested?.Invoke();return;}
+            if(connected&&pressed.Contains("HOME")&&NativeInputStudio?.ManagementPage is not ("Diagnostics" or "Mouse")){HomeRequested?.Invoke();return;}
             // the controller is the mouse: its buttons click and type, so they must not also move around X20CTL (Home still comes home)
             if(MouseMode?.Active==true){nativeArmed=false;return;}
-            if(Studio?.ManagementPage is "Tester" or "Diagnostics" or "Mouse")
+            if(NativeInputStudio?.ManagementPage is "Tester" or "Diagnostics" or "Mouse")
             {
                 // the Tester owns every input; only a deliberate one-second hold of B leaves it
-                if(Studio.ManagementPage=="Tester" && now.Contains("B")){if(bHeldSinceUs==0)bHeldSinceUs=time;else if(time-bHeldSinceUs>=1_000_000){bHeldSinceUs=0;Studio.ShowManagement("Device");nativeArmed=false;return;}}else bHeldSinceUs=0;
-                if(Studio.ManagementPage=="Tester")Studio.Tester?.ReceiveNative(value);nativeArmed=false;return;
+                if(NativeInputStudio!.ManagementPage=="Tester" && now.Contains("B")){if(bHeldSinceUs==0)bHeldSinceUs=time;else if(time-bHeldSinceUs>=1_000_000){bHeldSinceUs=0;NativeInputStudio!.ShowManagement("Device");nativeArmed=false;return;}}else bHeldSinceUs=0;
+                if(NativeInputStudio!.ManagementPage=="Tester")NativeInputStudio!.Tester?.ReceiveNative(value);nativeArmed=false;return;
             }
             if(!connected||Window.GetWindow(this)?.IsActive!=true){nativeArmed=false;return;}if(!nativeArmed){if(now.Count==0)nativeArmed=true;return;}
+            if(NativeInputStudio?.CanEngageRemap==true && Settings==null && pressed.Contains("R3")){NativeInputStudio.BeginRemapCapture();return;}
             if(Intro!=null){if(pressed.Contains("B"))Intro.Finish();else if(pressed.Contains("Y"))Intro.ToggleMute();return;}
+            if(ActivePulseNotice!=null)
+            {
+                if(pressed.Contains("B"))DismissPulseNotice(false);
+                else if(pressed.Contains("A"))
+                {
+                    var target = Keyboard.FocusedElement as Button ?? ActivePulseNotice.Primary;
+                    if(target.IsEnabled) target.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                }
+                else if(pressed.Contains("DPAD_LEFT")||pressed.Contains("DPAD_UP"))ActivePulseNotice.Secondary.Focus();
+                else if(pressed.Contains("DPAD_RIGHT")||pressed.Contains("DPAD_DOWN"))ActivePulseNotice.Primary.Focus();
+                return;
+            }
             if(Settings!=null)
             {
                 if(pressed.Contains("B"))CloseSettings();
@@ -348,7 +417,7 @@ public sealed class ProductHost : Grid
             if(activeNav.Count > 0)
             {
                 lastNavigationUs=time;
-                if(Studio!=null)Studio.EnableNativeNavigation();else Zone.EnableNativeNavigation();
+                if(NativeInputStudio!=null)NativeInputStudio.EnableNativeNavigation();else Zone.EnableNativeNavigation();
                 var hostWindow=Window.GetWindow(this);
                 if(hostWindow!=null)
                 {
@@ -379,18 +448,33 @@ public sealed class ProductHost : Grid
         if(preferencesHealthy)try{preferences.MarkIntroSeen();}catch(Exception error) when(error is IOException or InvalidOperationException){Zone.FeedbackText.Text="Startup preference could not be saved; original file preserved. "+error.Message;}
     }
     private void OpenSupport(){try{support(ProductLinks.Support);}catch(Exception error){Zone.FeedbackText.Text="Could not open your browser. Support X20CTL: "+ProductLinks.Support+" · "+error.Message;}}
-    public void ShowSettings(){ReturnToZone();CloseSettings();Zone.IsEnabled=false;Settings=new(OpenSupport,StartIntro,CloseSettings,OpenCheck,preferencesHealthy?preferences:null,PcMode,pcModeStore,OpenWriteScan);Children.Add(Settings);Panel.SetZIndex(Settings,20);Fx.Appear(Settings,1.04,320);Settings.FocusFirst();}
+    public void ShowSettings()
+    {
+        if (ThemeCatalog.Current.Id == "rebel") { ShowRebelSettings(); return; }
+        if (ThemeCatalog.Current.Id == "pulse") { ShowPulseSettings(); return; }
+        if (ThemeCatalog.Current.Id == "default") ReturnToZone();
+        CloseSelector(); CloseSettings(); Zone.IsEnabled = false;
+        if (Studio != null) { Studio.IsEnabled = false; Studio.Visibility = Visibility.Collapsed; }
+        Settings = new(OpenSupport, StartIntro, CloseSettings, OpenCheck, preferencesHealthy ? preferences : null, PcMode, pcModeStore, OpenWriteScan)
+        {
+            ThemeNavigate = NavigateThemePage, SpotlightNavigate = NavigateThemePage, NexusNavigate = NavigateThemePage,
+            RestartRequested = RequestCurrentThemeRestart
+        };
+        Children.Add(Settings); Panel.SetZIndex(Settings, 20); Fx.Appear(Settings, 1.04, 320); Settings.FocusFirst();
+        _ = UpdateNativeContext();
+    }
+
     /// <summary>"Controller not working?": the Controller Check (Scanner 2.0.0 engine) as its own full-window app over Tools.</summary>
     public Scanner.ControllerCheckView? Check {get;private set;}
-    public void OpenCheck(){if(Check!=null)return;if(Studio?.ManagementPage=="Diagnostics")Studio.ShowManagement("Device"); // both use Raw Input, one registration per process
-        if(PcMode!=null)PcMode.Paused=true;Check=new(CloseCheck){ContinueToWrite=read=>{CloseCheck();if(Check==null)OpenWriteScan(read);}};Children.Add(Check);Panel.SetZIndex(Check,40);Fx.Appear(Check,1.06,360);}
+    public void OpenCheck(){if(Check!=null)return;Studio?.SuspendMacroActivity();if(Studio?.ManagementPage=="Diagnostics")Studio.ShowManagement("Device"); // both use Raw Input, one registration per process
+        if(PcMode!=null)PcMode.Paused=true;Check=new(CloseCheck){ContinueToWrite=read=>{CloseCheck();if(Check==null)OpenWriteScan(read);},PulseNavigate=NavigatePulsePage};if(ThemeCatalog.Current.Id == "rebel")Check.RebelNavigate=key=>{CloseCheck();if(Check==null)NavigateRebelPage(key);};Children.Add(Check);Panel.SetZIndex(Check,40);Fx.Appear(Check,1.06,360);_=UpdateNativeContext();}
     /// <summary>A scan screen that lost its place (closed, but still drawn) is removed outright, so Back can never be dead.</summary>
     private bool RemoveOrphans(){var stale=Children.OfType<FrameworkElement>().Where(c=>c is Scanner.ControllerCheckView v&&v!=Check||c is Scanner.WriteScanView w&&w!=WriteScan).ToList();foreach(var c in stale)Children.Remove(c);return stale.Count>0;}
     public void CloseCheck(){if(Check==null){RemoveOrphans();return;}if(!Check.TryClose())return;var closing=Check;Check=null;closing.Shutdown();if(PcMode!=null)PcMode.Paused=false;Fx.Leave(closing,()=>Children.Remove(closing),1.05,240);Settings?.Check.Focus();}
     /// <summary>The Write scan: reads a phone's Bluetooth log of the official app changing one setting. It never talks to the controller.</summary>
     public Scanner.WriteScanView? WriteScan {get;private set;}
     public void OpenWriteScan()=>OpenWriteScan(null);
-    public void OpenWriteScan(Scanner.ReadReport? read){if(WriteScan!=null)return;WriteScan=new(CloseWriteScan,read);Children.Add(WriteScan);Panel.SetZIndex(WriteScan,40);Fx.Appear(WriteScan,1.06,360);}
+    public void OpenWriteScan(Scanner.ReadReport? read){if(WriteScan!=null)return;Studio?.SuspendMacroActivity();WriteScan=new(CloseWriteScan,read){PulseNavigate=NavigatePulsePage};if(ThemeCatalog.Current.Id == "rebel")WriteScan.RebelNavigate=key=>{CloseWriteScan();if(WriteScan==null)NavigateRebelPage(key);};Children.Add(WriteScan);Panel.SetZIndex(WriteScan,40);Fx.Appear(WriteScan,1.06,360);_=UpdateNativeContext();}
     public void CloseWriteScan(){if(WriteScan==null){RemoveOrphans();return;}if(!WriteScan.TryClose())return;var closing=WriteScan;WriteScan=null;closing.Shutdown();Fx.Leave(closing,()=>Children.Remove(closing),1.05,240);Settings?.WriteScan.Focus();}
     private string? updateText;private bool updateShown;
     private async Task CheckUpdatesAtLaunch(bool install)
@@ -401,32 +485,48 @@ public sealed class ProductHost : Grid
         updateText=Updater.Installed is {} installed?$"{X20Ctl.Zone.ReleaseVersions.Display(installed)} is installed. It starts the next time you open X20CTL.":$"{release.Title} is out. You have {Updater.Shown}.";
         if(Intro==null)ShowUpdateNotice();
     }
-    /// <summary>Non-modal header notice, after the intro and only for a newer release.</summary>
+    /// <summary>Non-modal header notice, after the intro and only for a newer release. "Update to version V0.0xx": one click downloads, checks and
+    /// installs it, then restarts into it. Click again while downloading to cancel. If it can't (a folder build, a failed or mismatched download)
+    /// the current install is untouched and the release page opens.</summary>
+    internal static Button CreateUpdateNoticeButton(TextBlock label, string? tooltip) => new() { Style=DS.Style("Zone.Utility"),MinHeight=38,Padding=new(18,0,18,0),Content=label,ToolTip=tooltip,MaxWidth=460 };
     private void ShowUpdateNotice()
     {
         if(updateShown||updateText==null||Updater.Ready is not {} release)return;updateShown=true;
-        var label=Kit.Text(Updater.Installed!=null ? "Update installed · restart to finish" : "Update available · "+release.Title,14,"DS.Text",FontWeights.SemiBold);
+        string name=X20Ctl.Zone.ReleaseVersions.Display(release.Version);
+        var label=Kit.Text(Updater.Installed!=null ? "Update installed · restart to finish" : X20Ctl.Zone.UpdateKit.Label(name,false),14,"DS.Text",FontWeights.SemiBold);
         label.TextTrimming=TextTrimming.CharacterEllipsis;
         label.Foreground=DS.Brush("Zone.TextSecondary");
-        var go=new Button { Style=DS.Style("Zone.Utility"),MinHeight=38,Padding=new(18,0,18,0),Content=label,ToolTip=updateText,MaxWidth=460 };
+        var go=CreateUpdateNoticeButton(label,updateText);
         Zone.UpdateNotice.Content=go;
+        void OpenPage(){if(!ReviewSandbox.Active)try{System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(release.Page){UseShellExecute=true});}catch(Exception error) when(error is System.ComponentModel.Win32Exception or InvalidOperationException){}}
+        System.Threading.CancellationTokenSource? running=null;bool failed=false;
         go.Click+=async(_,_)=>
         {
-            if(Updater.Installed!=null)return;
-            if(!Updater.CanInstall) { if(!ReviewSandbox.Active)System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Updater.ReleasesPage){UseShellExecute=true});return; }
-            go.IsEnabled=false;label.Text="Downloading update…";
-            try { var(_,text)=await Updater.Install(release); label.Text=text; }
-            catch(Exception error) when(error is System.Net.Http.HttpRequestException or TaskCanceledException or IOException or UnauthorizedAccessException) { label.Text="Update failed · click to retry";go.ToolTip=error.Message; }
-            finally { go.IsEnabled=true; }
+            if(running!=null){running.Cancel();return;}
+            if(Updater.Installed!=null){if(Updater.Restart())Application.Current.Shutdown();return;}
+            if(failed||!Updater.CanInstall){OpenPage();return;}
+            running=new();label.Text=X20Ctl.Zone.UpdateKit.Label(name,true,0);go.ToolTip="Click to cancel";
+            var progress=new Progress<double>(p=>label.Text=X20Ctl.Zone.UpdateKit.Label(name,true,p));
+            (bool Done,string Message) result;
+            try{result=await Updater.Install(release,progress,running.Token);}
+            catch(Exception error) when(error is InvalidOperationException or NotSupportedException){result=(false,error.Message);}
+            bool cancelled=running.IsCancellationRequested;running.Dispose();running=null;
+            if(result.Done){label.Text="Restarting…";go.IsEnabled=false;if(Updater.Restart()){Application.Current.Shutdown();return;}go.IsEnabled=true;label.Text="Update installed · restart to finish";go.ToolTip="It starts the next time you open X20CTL.";return;}
+            go.ToolTip=result.Message;
+            if(cancelled){label.Text=X20Ctl.Zone.UpdateKit.Label(name,false);return;}
+            failed=true;label.Text=X20Ctl.Zone.UpdateKit.Label(name,false,0,true);OpenPage();
         };
     }
-    public void CloseSettings(){if(Settings!=null){var leaving=Settings;Settings=null;Fx.Leave(leaving,()=>Children.Remove(leaving),1.03,220);}Zone.IsEnabled=true;}
+    public void CloseSettings(){if(Settings!=null){var leaving=Settings;Settings=null;Fx.Leave(leaving,()=>Children.Remove(leaving),1.03,220);}if(Studio!=null){Studio.IsEnabled=true;Studio.Visibility=Visibility.Visible;Zone.Visibility=Visibility.Collapsed;Zone.IsEnabled=false;}else{Zone.IsEnabled=true;Zone.Visibility=Visibility.Visible;}_=UpdateNativeContext();}
     public void ResetTransientInput(){nativeArmed=false;Zone.SuspendNavigation();Studio?.Tester?.ClearKeyboardKeys();Studio?.ReleaseTransientInput();}
     public event Action? HomeRequested;
     private long bHeldSinceUs;
     public void OnKeyDown(object sender, KeyEventArgs e)
     {
         var key=e.Key==Key.System?e.SystemKey:e.Key;
+        if (HandleThemeNoticeKey(e)) return;
+        if(ActivePulseNotice!=null){if(HandlePulseNoticeKey(e))return;}
+        if(ActiveRebelNotice is {} notice){if(key is Key.Escape or Key.B)notice.Resolve(false);else if(key is Key.A or Key.Enter && !e.IsRepeat && Keyboard.FocusedElement is Button action && notice.IsKeyboardFocusWithin)action.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));else if(key is Key.Left or Key.Right or Key.Up or Key.Down && Keyboard.FocusedElement is UIElement focused)focused.MoveFocus(new(key is Key.Left ? FocusNavigationDirection.Left : key is Key.Right ? FocusNavigationDirection.Right : key is Key.Up ? FocusNavigationDirection.Up : FocusNavigationDirection.Down));if(key != Key.Tab)e.Handled=true;return;}
         // the identity scan popup: Esc / B backs out, A / Enter presses the focused button, nothing behind it moves
         if(verifyLayer!=null)
         {
@@ -445,7 +545,7 @@ public sealed class ProductHost : Grid
         // the Write scan is typed into and clicked; the keyboard's Esc leaves, nothing else navigates behind it
         if(WriteScan!=null){if(sender is not ProductHost && e.Key==Key.Escape){CloseWriteScan();e.Handled=true;}return;}
         // remapping on the Buttons page: Menu, View and B are buttons being assigned, not navigation
-        if(Studio?.CapturingRemap==true && Intro==null && Settings==null){Studio.OnKeyDown(sender,e);return;}
+        if(Studio?.OwnsAllInput==true && Intro==null && Settings==null){Studio.OnKeyDown(sender,e);return;}
         if(key==InputMap.Settings && Intro==null){if(Settings!=null)CloseSettings();else ShowSettings();e.Handled=true;return;}
         if(key==InputMap.ControllerZone && Intro==null && Settings==null && Studio!=null && Studio.ManagementPage is not ("Tester" or "Diagnostics")){ReturnToZone();e.Handled=true;return;}
         if(Intro!=null){if(e.Key is Key.Escape or Key.B)Intro.Finish();else if(e.Key==Key.M&&!e.IsRepeat)Intro.ToggleMute();e.Handled=true;return;}
@@ -492,5 +592,5 @@ public sealed class ProductHost : Grid
         }
         if (Studio != null) Studio.OnKeyDown(sender, e); else Zone.OnKeyDown(sender, e);
     }
-    public void OnKeyUp(object sender, KeyEventArgs e) { if(Intro!=null||Settings!=null||Check!=null||WriteScan!=null)return;if(Studio!=null)Studio.OnKeyUp(sender,e);else if (Selector == null) Zone.OnKeyUp(sender, e); }
+    public void OnKeyUp(object sender, KeyEventArgs e) { if(Studio?.OwnsAllInput==true && Intro==null && Settings==null){Studio.OnKeyUp(sender,e);return;}if(Intro!=null||Settings!=null||Check!=null||WriteScan!=null)return;if(Studio!=null)Studio.OnKeyUp(sender,e);else if (Selector == null) Zone.OnKeyUp(sender, e); }
 }

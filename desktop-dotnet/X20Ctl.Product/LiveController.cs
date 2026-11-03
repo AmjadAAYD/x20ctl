@@ -22,6 +22,7 @@ public sealed class LiveController : Grid
 
     private readonly Image body = Layer(), capLeft = Layer(), capRight = Layer(), triggerLeft = Layer(), triggerRight = Layer();
     private readonly ControllerOutline outline = new();
+    private readonly Canvas paddles = new() { Width = 1536, Height = 1024, IsHitTestVisible = false };
     private readonly TranslateTransform leftMove = new(), rightMove = new();
     private readonly SkewTransform leftTilt = new(), rightTilt = new();
     private readonly DropShadowEffect leftShadow = CapShadow(), rightShadow = CapShadow();
@@ -40,7 +41,7 @@ public sealed class LiveController : Grid
     {
         Width = 1536; Height = 1024; IsHitTestVisible = false;
         foreach (var image in new[] { body, triggerLeft, triggerRight, capLeft, capRight }) Children.Add(image);
-        Children.Add(outline);
+        Children.Add(outline); Children.Add(paddles);
         capLeft.RenderTransform = new TransformGroup { Children = { leftTilt, leftMove } };
         capRight.RenderTransform = new TransformGroup { Children = { rightTilt, rightMove } };
         capLeft.Effect = leftShadow; capRight.Effect = rightShadow; capLeft.CacheMode = new BitmapCache(1); capRight.CacheMode = new BitmapCache(1);
@@ -62,14 +63,85 @@ public sealed class LiveController : Grid
         return new(region.Bounds.X * 1536, region.Bounds.Y * 1024);
     }
 
-    public void Show(string model, bool showRear)
+    /// <summary>Without a colour, the pad is shown in the colour picked for the player whose Studio is open.</summary>
+    public void Show(string model, bool showRear, string? finish = null)
     {
-        ModelId = model; rear = showRear; info = Manifest().GetValueOrDefault(model); outline.Show(model, showRear); ControllerOutline.Trim(body, model, showRear);
-        string dir = $"Assets/native/{model}/native/";
+        finish ??= PadColours.Active(model);
+        ModelId = model; rear = showRear; info = Manifest().GetValueOrDefault(model); outline.Show(model, showRear, finish); ControllerOutline.Trim(body, model, showRear, finish);
+        string dir = ControllerArt.Folder(model, finish);
         body.Source = Bitmap(dir + (rear ? "rear-body.png" : "front-body.png"));
         capLeft.Source = rear ? null : Bitmap(dir + "stick-l.png"); capRight.Source = rear ? null : Bitmap(dir + "stick-r.png");
         triggerLeft.Source = rear ? Bitmap(dir + "trigger-l.png") : null; triggerRight.Source = rear ? Bitmap(dir + "trigger-r.png") : null;
+        LabelPaddles();
         Apply();
+    }
+
+    /// <summary>Whether the back carries its paddle names; a page that makes them clickable draws its own, above its controls.</summary>
+    public bool ShowLabels { get => showLabels; set { showLabels = value; LabelPaddles(); } }
+    private bool showLabels = true;
+
+    /// <summary>The back shows each macro paddle's name on it, only the ones this model has (catalog macroSlots):
+    /// M1 to M6 on the X20 Pro, M1 to M4 on the X20 and Dune, M1 and M2 on the two-paddle pads.</summary>
+    private void LabelPaddles()
+    {
+        paddles.Children.Clear();
+        if (!rear || !showLabels) return;
+        foreach (var label in Pills(ModelId, null)) paddles.Children.Add(label);
+    }
+
+    /// <summary>A layer of paddle names for a model's back, in the 1536x1024 art space; with <paramref name="chosen"/> each is
+    /// a button that opens its slot (owner, 25 Oct 2026: clicking M3 goes to Macros).</summary>
+    public static Canvas PaddleLabels(string model, Action<string>? chosen)
+    {
+        var layer = new Canvas { Width = 1536, Height = 1024 };
+        foreach (var label in Pills(model, chosen)) layer.Children.Add(label);
+        return layer;
+    }
+
+    /// <summary>One name per paddle, sized to its own shape so it never spills past a slim paddle, in the app's display type.</summary>
+    private static IEnumerable<Border> Pills(string model, Action<string>? chosen)
+    {
+        foreach (var (slot, centre, size) in Paddles(model))
+        {
+            double fontSize = Math.Clamp(Math.Min(size.Width * .4, size.Height * .46), 17, 25);
+            var text = new TextBlock { Text = slot, FontFamily = DS.Display, FontSize = fontSize, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(242, 246, 252))), VerticalAlignment = VerticalAlignment.Center };
+            var idle = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(228, 12, 18, 30))); var edge = new SolidColorBrush(Color.FromArgb(235, Kit.Blue.R, Kit.Blue.G, Kit.Blue.B));
+            var label = new Border
+            {
+                CornerRadius = new(fontSize), Padding = new(fontSize * .5, fontSize * .08, fontSize * .5, fontSize * .16), BorderThickness = new(Math.Max(1.5, fontSize * .08)),
+                Background = idle, BorderBrush = edge, Child = text, IsHitTestVisible = chosen != null
+            };
+            if (chosen != null)
+            {
+                label.Cursor = System.Windows.Input.Cursors.Hand; label.ToolTip = $"Open {slot} in Macros";
+                label.MouseEnter += (_, _) => { label.Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(245, 28, 54, 96))); label.BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(214, 232, 255))); };
+                label.MouseLeave += (_, _) => { label.Background = idle; label.BorderBrush = edge; };
+                label.MouseLeftButtonUp += (_, e) => { chosen(slot); e.Handled = true; };
+            }
+            label.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            Canvas.SetLeft(label, centre.X - label.DesiredSize.Width / 2); Canvas.SetTop(label, centre.Y - label.DesiredSize.Height / 2);
+            yield return label;
+        }
+    }
+    private static readonly Dictionary<string, List<(string, Point, Size)>> paddleCentres = new();
+    /// <summary>Each paddle the model has, with the centre of its shape in control-shapes.json (macros), in M order.</summary>
+    public static IReadOnlyList<(string Slot, Point Centre, Size Size)> Paddles(string model)
+    {
+        if (paddleCentres.TryGetValue(model, out var known)) return known;
+        var list = new List<(string, Point, Size)>();
+        try
+        {
+            using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Data", "control-shapes.json")));
+            if (doc.RootElement.GetProperty("models").TryGetProperty(model, out var m) && m.TryGetProperty("macros", out var shapes))
+                foreach (string slot in X20Ctl.Zone.MacroDraft.PhysicalSlotsFor(model))
+                    if (shapes.TryGetProperty(slot, out var shape) && shape.GetProperty("path").GetString() is { } path)
+                    {
+                        var bounds = Geometry.Parse(path).Bounds;
+                        list.Add((slot, new Point(bounds.X + bounds.Width / 2, bounds.Y + bounds.Height / 2), new Size(bounds.Width, bounds.Height)));
+                    }
+        }
+        catch (Exception e) when (e is IOException or JsonException or KeyNotFoundException or InvalidOperationException or FormatException) { }
+        return paddleCentres[model] = list;
     }
 
     /// <summary>Sticks are -1..1 with +Y up; triggers 0..1.</summary>
@@ -148,6 +220,6 @@ public sealed class LiveController : Grid
     }
     private static Image Layer() { var image = new Image { Width = 1536, Height = 1024, Stretch = Stretch.Fill }; RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.HighQuality); return image; }
     private static DropShadowEffect CapShadow() => new() { Color = Colors.Black, BlurRadius = 18, ShadowDepth = 4, Direction = 270, Opacity = .55, RenderingBias = RenderingBias.Performance };
-    private static DropShadowEffect TriggerGlow() => new() { Color = Color.FromRgb(96, 170, 255), BlurRadius = 10, ShadowDepth = 0, Opacity = 0, RenderingBias = RenderingBias.Performance };
+    private static DropShadowEffect TriggerGlow() => new() { Color = ThemeCatalog.R(Color.FromRgb(96, 170, 255)), BlurRadius = 10, ShadowDepth = 0, Opacity = 0, RenderingBias = RenderingBias.Performance };
     private static double Clamp(double v, double lo, double hi) => double.IsNaN(v) ? 0 : Math.Clamp(v, lo, hi);
 }
