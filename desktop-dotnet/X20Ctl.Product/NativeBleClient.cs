@@ -144,7 +144,7 @@ public static class NativeBleClient
             return (null, scanError);
         }
 
-        return (null, "Controller not found over Bluetooth. Make sure Bluetooth is enabled and the controller is awake.");
+        return (null, "Controller not found over Bluetooth. Make sure Bluetooth is enabled and the controller is awake. If it still isn't found, switch the controller to Bluetooth mode and try again: some pads only answer settings there.");
     }
 
     /// <summary>The Part B write test: vibration only, on a proven pad, put back and read back afterwards (see VibrationTest).</summary>
