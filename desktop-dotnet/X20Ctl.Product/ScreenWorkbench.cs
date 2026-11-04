@@ -20,7 +20,7 @@ public sealed class ScreenWorkbench
  internal Button Retry=>retry;internal Button Cancel=>cancel;internal bool IsBusy=>busy;internal string StatusText=>status.Text;
  public byte[]? EncodedAsset=>asset?.ToArray();
  readonly Image image=new(){Width=480,Height=240,Stretch=Stretch.Fill};
- readonly TextBlock details=ManagementVisuals.Copy("Choose an image or wallpaper",14),status=ManagementVisuals.Copy("Controller",14),sizeText=ManagementVisuals.Copy("Input 0 / 2 MiB · Upload 0 / 3 MiB",13),notice=ManagementVisuals.Copy("",13);
+ readonly TextBlock details=ManagementVisuals.Copy("Choose an image or wallpaper",14),status=ManagementVisuals.Copy("Controller",14),sizeText=ManagementVisuals.Copy("Upload 0 / 3 MiB",13),notice=ManagementVisuals.Copy("",13);
  readonly TextBox portName=new(){Width=150,HorizontalAlignment=HorizontalAlignment.Left};
  readonly ProgressBar transferProgress=new(){Minimum=0,Maximum=100,Height=6,Margin=new(0,8,0,6)};
  readonly CheckBox animation=new(){Content="Animation",Foreground=Brushes.White},simulate=new(){Content="Simulate",IsChecked=false,Foreground=Brushes.White},confirmReset=new(){Content="Confirm reset",Foreground=Brushes.White};
@@ -78,7 +78,7 @@ public sealed class ScreenWorkbench
  }
  void LoadImageBytes(byte[] bytes,string name)
  {
-  if(bytes.Length>ScreenCodec.InputLimit)throw new ArgumentException("Choose a file up to 2 MiB.");using var stream=new MemoryStream(bytes);var decoder=BitmapDecoder.Create(stream,BitmapCreateOptions.PreservePixelFormat,BitmapCacheOption.OnLoad);if(decoder.Frames.Count>512)throw new ArgumentException("Use 512 frames or fewer.");var decoded=ScreenMedia.Decode(decoder);ResetEdits();frames.Clear();frames.AddRange(decoded.Frames);sourceBytes=bytes;sourceAsset=null;sourceBuiltin=-1;sourceName=name;inputBytes=bytes.Length;FinishLoad();notice.Text=frames.Count>1?"GIF delays normalized · transparency on black":"Transparency on black";
+  if(bytes.Length>ScreenCodec.InputLimit)throw new ArgumentException("Choose a file up to 64 MiB.");using var stream=new MemoryStream(bytes);var decoder=BitmapDecoder.Create(stream,BitmapCreateOptions.PreservePixelFormat,BitmapCacheOption.OnLoad);if(decoder.Frames.Count>512)throw new ArgumentException("Use 512 frames or fewer.");var decoded=ScreenMedia.Decode(decoder);ResetEdits();frames.Clear();frames.AddRange(decoded.Frames);sourceBytes=bytes;sourceAsset=null;sourceBuiltin=-1;sourceName=name;inputBytes=bytes.Length;FinishLoad();notice.Text=frames.Count>1?"GIF delays normalized · transparency on black":"Transparency on black";
  }
  public void LoadWallpaper(int index){ResetEdits();frames.Clear();frames.Add(Bitmap(ScreenArtwork.Wallpaper(index)));sourceBytes=sourceAsset=null;sourceBuiltin=index;sourceName=ScreenArtwork.WallpaperNames[index];inputBytes=0;FinishLoad();}
  void LoadEncoded(byte[] bytes,int playbackDelay)
@@ -110,8 +110,8 @@ public sealed class ScreenWorkbench
   {
    int version=revision;bool animated=animation.IsChecked==true;delay=(int)Math.Clamp(Math.Round(100d/fps.Value)*10,10,2550);previewClock.Interval=TimeSpan.FromMilliseconds(delay);
    var pixels=(animated?frames.Take((int)frameLimit.Value):frames.Take(1)).Select(f=>ScreenArtwork.Adjust(Rgba(Crop(f)),brightness.Value,contrast.Value)).ToArray();
-   var built=await Task.Run(()=>animated?ScreenCodec.EncodeAnimation(pixels):ScreenCodec.EncodeStill(pixels[0]));if(version!=revision)return;asset=built;encodedFrames.Clear();encodedFrames.AddRange(ScreenCodec.DecodeAsset(asset,animated).Select(Bitmap));image.Source=encodedFrames[0];if(encodedFrames.Count>1){previewUntil=DateTime.UtcNow.AddSeconds(30);previewClock.Start();}
-   sizeText.Text=$"Input {inputBytes:N0} / 2,097,152 · Upload {asset.Length:N0} / 3,145,728";status.Text=$"{(animated?$"{encodedFrames.Count} frames · {1000d/delay:0.#} FPS":"Static wallpaper")} · {(simulate.IsChecked==true?"Simulate":"Controller")}";
+   int usedFrames=pixels.Length,usedDelay=delay;var built=await Task.Run(()=>animated?ScreenCodec.EncodeAnimationFitting(pixels,delay,out usedFrames,out usedDelay):ScreenCodec.EncodeStill(pixels[0]));if(animated&&usedDelay!=delay){delay=usedDelay;previewClock.Interval=TimeSpan.FromMilliseconds(delay);}if(version!=revision)return;asset=built;encodedFrames.Clear();encodedFrames.AddRange(ScreenCodec.DecodeAsset(asset,animated).Select(Bitmap));image.Source=encodedFrames[0];if(encodedFrames.Count>1){previewUntil=DateTime.UtcNow.AddSeconds(30);previewClock.Start();}
+   sizeText.Text=$"Upload {asset.Length:N0} / 3,145,728";status.Text=$"{(animated?$"{encodedFrames.Count} frames{(encodedFrames.Count<pixels.Length?$" (every {(pixels.Length+encodedFrames.Count-1)/encodedFrames.Count}th kept to fit)":"")} · {1000d/delay:0.#} FPS":"Static wallpaper")} · {(simulate.IsChecked==true?"Simulate":"Controller")}";
   }
   catch(ArgumentException e){asset=null;status.Text=e.Message;}
   finally{busy=false;UpdateWriteGates();if(asset==null&&frames.Count>0&&revision>0)sizeText.Text="Upload unavailable · reduce frames or size";}

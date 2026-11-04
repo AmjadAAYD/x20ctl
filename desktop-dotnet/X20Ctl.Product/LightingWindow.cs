@@ -84,6 +84,8 @@ internal sealed class LightingWindow : Window
         if(BatteryLightingService.Load().Enabled)modes.SelectedIndex=BatteryMode;
     }
     internal FrameworkElement DetachBody(){var body=(FrameworkElement)Content;Content=null;body.HorizontalAlignment=HorizontalAlignment.Stretch;return body;}
+    /// <summary>Shows what the pad holds as soon as the page opens, so editing starts from the real colour. Read only; a failure just says so.</summary>
+    internal void ReadOnOpen(){if(!ReviewSandbox.Active)_=Run(false);}
     internal void ShowBattery()=>modes.SelectedIndex=BatteryMode;
     static Color ToColour(int colour)=>Color.FromRgb((byte)(colour>>16),(byte)(colour>>8),(byte)colour);
     static ControlTemplate SwatchTemplate()

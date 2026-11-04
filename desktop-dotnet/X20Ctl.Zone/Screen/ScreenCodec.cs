@@ -4,7 +4,7 @@ namespace X20Ctl.Zone.Screen;
 /// <summary>Independent format implementation. Inputs are already decoded/cropped RGBA pixels.</summary>
 public static partial class ScreenCodec
 {
- public const int Width=160,Height=80,InputLimit=2*1024*1024,AssetLimit=3*1024*1024;
+ public const int Width=160,Height=80,InputLimit=64*1024*1024,AssetLimit=3*1024*1024;
  public static uint Crc(ReadOnlySpan<byte> data)
  {
   uint crc=0;foreach(byte b in data){crc^=b;for(int bit=0;bit<8;bit++)crc=(crc>>1)^((crc&1)!=0?0xedb88320u:0);}return crc;
@@ -27,9 +27,29 @@ public static partial class ScreenCodec
   if(frames.Count is <1 or >65535)throw new ArgumentException("Animation must contain 1 to 65535 frames.");
   var parts=new List<(byte[] Data,byte Kind)>();int payloadSize=0;
   foreach(var frame in frames){cancellationToken.ThrowIfCancellationRequested();var part=Compress(Words(frame,width,height),height,width,diagnostic);if(truncateToLimit&&2+16*parts.Count+payloadSize+part.Data.Length>AssetLimit)break;parts.Add(part);payloadSize=checked(payloadSize+part.Data.Length);if(!truncateToLimit&&2+16*parts.Count+payloadSize>AssetLimit)throw new ArgumentException("Animation exceeds 3 MiB. Reduce its frames.");}
-  if(parts.Count==0)throw new ArgumentException("No animation frame fits.");int offset=2+parts.Count*16+payloadSize;
+  if(parts.Count==0)throw new ArgumentException("No animation frame fits.");
+  return Assemble(parts,width,height);
+ }
+ static byte[] Assemble(List<(byte[] Data,byte Kind)> parts,int width,int height)
+ {
+  int payloadSize=parts.Sum(p=>p.Data.Length),offset=2+parts.Count*16+payloadSize;
   var result=new byte[offset];Put16(result,0,parts.Count);offset=2+parts.Count*16;
   for(int i=0;i<parts.Count;i++){int row=2+i*16;var part=parts[i];Put32(result,row,(uint)offset);Put16(result,row+8,height);Put16(result,row+10,width);Put24(result,row+12,part.Data.Length);result[row+15]=part.Kind;part.Data.CopyTo(result,offset);offset+=part.Data.Length;}return result;
+ }
+ /// <summary>The whole animation when it fits the 3 MiB limit; otherwise every second, third, … frame (the first is always kept),
+ /// with the delay stretched by the same step so the loop keeps its speed and length. Returns how many frames were used.</summary>
+ public static byte[] EncodeAnimationFitting(IReadOnlyList<byte[]> frames,int delayMs,out int used,out int delayUsed,int width=Width,int height=Height,CancellationToken cancellationToken=default)
+ {
+  if(frames.Count is <1 or >65535)throw new ArgumentException("Animation must contain 1 to 65535 frames.");
+  var compressed=new (byte[] Data,byte Kind)[frames.Count];
+  foreach(var i in Enumerable.Range(0,frames.Count)){cancellationToken.ThrowIfCancellationRequested();compressed[i]=Compress(Words(frames[i],width,height),height,width,null);}
+  for(int step=1;step<=frames.Count;step++)
+  {
+   var kept=Enumerable.Range(0,(frames.Count+step-1)/step).Select(n=>compressed[n*step]).ToList();
+   if(2+16*kept.Count+kept.Sum(p=>p.Data.Length)>AssetLimit)continue;
+   used=kept.Count;delayUsed=Math.Clamp(delayMs*step,10,2550);return Assemble(kept,width,height);
+  }
+  throw new ArgumentException("Not even one frame fits. Use a simpler image.");
  }
  static (byte[] Data,byte Kind) Compress(ushort[] words,int width,int height,Action<string>? diagnostic)
  {

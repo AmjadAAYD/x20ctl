@@ -215,7 +215,8 @@ public sealed partial class ProductHost : Grid
         if (!vibrations.TryGetValue((player, model.Id), out var vibrationDraft)) vibrations[(player, model.Id)] = vibrationDraft = new(model.Id);
         var key=(player,model.Id);activeSetups.TryGetValue(key,out var activeSetup);
         // with PC mode on, the Buttons, Curves and Macros tabs edit PC mode's settings, for any model
-        bool pc=PcMode is {Enabled:true}&&pcModeStore!=null;
+        // an X20 Pro keeps these settings on the pad itself (Apply to controller), so its tabs never edit a virtual pad, whatever the PC mode switch says
+        bool pc=PcMode is {Enabled:true}&&pcModeStore!=null&&model.Id!="x20_pro";
         if(draft.PcMode&&!pc&&model.Id!="x20")PcModeSync.Clear(draft,curveDraft,macroDraft); // while still unlocked
         draft.PcMode=curveDraft.PcMode=macroDraft.PcMode=pc;
         if(pcModeStore!=null)PcModePage.UsePlayer(player,pcModeStore); // each controller has its own PC mode settings
