@@ -92,6 +92,22 @@ public partial class App : Application
                 catch (Exception error) { File.AppendAllText(logFile, $"{DateTime.Now:HH:mm:ss} FAILED {error.GetType().Name}: {error.Message}\r\n"); Environment.ExitCode = 1; }
                 Shutdown(); return;
             }
+            if (e.Args.Length == 2 && e.Args[0] == "--review-curve-read")
+            {
+                // Real pad, read only: the stick and trigger curve records as the pad holds them.
+                ShutdownMode = ShutdownMode.OnExplicitShutdown;
+                Directory.CreateDirectory(e.Args[1]);
+                try
+                {
+                    var held = await LightingBleClient.ReadConfigAsync(); var text = new System.Text.StringBuilder();
+                    text.AppendLine("sticks " + Convert.ToHexString(held.Sticks)); text.AppendLine("triggers " + Convert.ToHexString(held.Triggers));
+                    foreach (var (name, record, trigger) in new[] { ("sticks", held.Sticks, false), ("triggers", held.Triggers, true) })
+                        for (int c = 0; c < 2; c++) { var s = X20Ctl.Zone.ControllerRecords.ParseChannel(record, c, trigger); text.AppendLine($"{name}[{c}] preset {s.Preset} inner {s.Inner} outer {s.Outer} p1 {s.Point1} p2 {s.Point2}"); }
+                    File.WriteAllText(Path.Combine(e.Args[1], "curve-read.txt"), text.ToString()); Shutdown(0);
+                }
+                catch (Exception failure) { File.WriteAllText(Path.Combine(e.Args[1], "failure.txt"), failure.ToString()); Shutdown(1); }
+                return;
+            }
             if (e.Args.Length == 3 && e.Args[0] == "--review-curve-write")
             {
                 // Real pad, one pass: raise the left stick's inner dead zone through the same path as Apply, hold it, then put the exact old record back.
