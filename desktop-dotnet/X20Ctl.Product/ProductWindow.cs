@@ -52,7 +52,7 @@ public sealed class ProductWindow : Window
         // fullscreen follows the focus: covering the monitor (and telling the shell so, which is what makes it hide the
         // taskbar for sure) only while this window is the active one; otherwise it sits above the taskbar
         Activated+=(_,_)=>FitToFocus();Deactivated+=(_,_)=>FitToFocus();
-        Closed+=async(_,_)=>{tray?.Dispose();batteryTimer?.Stop();Host.MouseMode?.Dispose();Host.PcMode?.Dispose();await Host.StopNativeEngineAsync();};
+        Closed+=async(_,_)=>{tray?.Dispose();batteryTimer?.Stop();liveBatteryTimer?.Stop();Host.MouseMode?.Dispose();Host.PcMode?.Dispose();await Host.StopNativeEngineAsync();};
         // the tray icon (WinForms, about 0.1 s to start) comes once the window has drawn, so it never holds back the first frame
         if(trayIcon){Closing+=(_,e)=>{if(tray==null||tray.Quitting)return;e.Cancel=true;tray.HideToTray();};ContentRendered+=(_,_)=>Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle,new Action(()=>{
             if(tray!=null)return;tray=new TrayIcon(this);
@@ -61,6 +61,16 @@ public sealed class ProductWindow : Window
             WatchBattery();}));}
     }
     private System.Windows.Threading.DispatcherTimer? batteryTimer; private bool batteryWarned;
+    private System.Windows.Threading.DispatcherTimer? liveBatteryTimer;
+    /// <summary>Keeps an X20 / X20 Pro's own battery reading current while X20CTL is on screen: one Bluetooth read a minute. It is
+    /// skipped while the window is hidden or minimised, so nothing is asked of the controller during a game.</summary>
+    private void WatchLiveBattery()
+    {
+        if(ReviewSandbox.Active)return;
+        liveBatteryTimer=new(System.Windows.Threading.DispatcherPriority.Background){Interval=TimeSpan.FromSeconds(60)};
+        liveBatteryTimer.Tick+=(_,_)=>{if(IsVisible&&WindowState!=WindowState.Minimized)_=Host.RefreshBleTelemetryAsync();};
+        liveBatteryTimer.Start();
+    }
     /// <summary>The controller's battery in the tray tooltip, read once a minute from what Windows reports (XInput's
     /// documented battery call, read only); a notification once when it turns low. Wired pads and pads that don't
     /// report a level show nothing rather than a guess.</summary>
@@ -96,7 +106,7 @@ public sealed class ProductWindow : Window
             tray?.SetBattery(text);
             if(low&&!batteryWarned){batteryWarned=true;tray?.Notify("Controller battery low","Charge it soon. Windows reports the level as "+text[8..]+".");}else if(!low)batteryWarned=false;
         }
-        Host.TelemetryRefreshed+=Read;
+        Host.TelemetryRefreshed+=Read;WatchLiveBattery();
         batteryTimer=new(System.Windows.Threading.DispatcherPriority.Background){Interval=TimeSpan.FromMinutes(2)};batteryTimer.Tick+=(_,_)=>Read();batteryTimer.Start();Read();
     }
     /// <summary>Home / Guide: show X20CTL fullscreen in front of everything (from the tray too), then go to the Dashboard.</summary>

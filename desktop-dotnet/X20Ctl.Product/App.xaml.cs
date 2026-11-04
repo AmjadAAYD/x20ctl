@@ -92,6 +92,29 @@ public partial class App : Application
                 catch (Exception error) { File.AppendAllText(logFile, $"{DateTime.Now:HH:mm:ss} FAILED {error.GetType().Name}: {error.Message}\r\n"); Environment.ExitCode = 1; }
                 Shutdown(); return;
             }
+            if (e.Args.Length == 3 && e.Args[0] == "--review-curve-write")
+            {
+                // Real pad, one pass: raise the left stick's inner dead zone through the same path as Apply, hold it, then put the exact old record back.
+                ShutdownMode = ShutdownMode.OnExplicitShutdown;
+                Directory.CreateDirectory(e.Args[1]);
+                var log = new System.Text.StringBuilder();
+                try
+                {
+                    int inner = int.Parse(e.Args[2]);
+                    var before = await LightingBleClient.ReadConfigAsync(); log.AppendLine("before sticks " + Convert.ToHexString(before.Sticks));
+                    var left = X20Ctl.Zone.ControllerRecords.ParseChannel(before.Sticks, 0, false); var right = X20Ctl.Zone.ControllerRecords.ParseChannel(before.Sticks, 1, false);
+                    log.AppendLine($"left inner {left.Inner} outer {left.Outer}; right inner {right.Inner} outer {right.Outer}");
+                    int changed = await LightingBleClient.WriteConfigAsync(held => held with { Sticks = X20Ctl.Zone.ControllerRecords.BuildCurves(held.Sticks, left with { Inner = inner }, right, false) });
+                    var during = await LightingBleClient.ReadConfigAsync(); log.AppendLine($"wrote inner {inner}, changed {changed}, now {Convert.ToHexString(during.Sticks)} left inner {X20Ctl.Zone.ControllerRecords.ParseChannel(during.Sticks, 0, false).Inner}");
+                    await Task.Delay(15000);
+                    int back = await LightingBleClient.WriteConfigAsync(held => held with { Sticks = before.Sticks }); var after = await LightingBleClient.ReadConfigAsync();
+                    log.AppendLine($"restored changed {back}, now {Convert.ToHexString(after.Sticks)} matches {after.Sticks.SequenceEqual(before.Sticks)}");
+                    File.WriteAllText(Path.Combine(e.Args[1], "curve-write.txt"), log.ToString());
+                    Shutdown(after.Sticks.SequenceEqual(before.Sticks) ? 0 : 1);
+                }
+                catch (Exception failure) { File.WriteAllText(Path.Combine(e.Args[1], "failure.txt"), log + failure.ToString()); Shutdown(1); }
+                return;
+            }
             if (e.Args.Length == 2 && e.Args[0] == "--review-macro-read")
             {
                 // Real pad, reads only: every stored macro through the same path as the Read controller button.
