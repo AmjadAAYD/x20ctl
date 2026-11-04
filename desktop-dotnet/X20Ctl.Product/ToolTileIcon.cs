@@ -103,7 +103,7 @@ internal sealed class ToolTileIcon : FrameworkElement
     static void Themes(DrawingContext d, double t)
     {
         double fade = Fade(t), fan = Back(Step(t, .1, .5)) * (1 - Ease(Step(t, 2.6, .55)));
-        var accents = ThemeCatalog.All.Skip(1).Select(x => x.Accent).ToArray(); int turn = (int)(Step(t, .9, 1.5) * 3);
+        var accents = ThemeCatalog.All.Skip(1).Select(x => x.Accent).ToArray(); if (accents.Length == 0) accents = new[] { ThemeCatalog.Default.Accent, Color.FromRgb(0x6C, 0xC6, 0x44), Color.FromRgb(0xF8, 0x7B, 0x09) }; int turn = (int)(Step(t, .9, 1.5) * 3);
         d.PushOpacity(fade);
         foreach (int i in new[] { 0, 2, 1 })
         {

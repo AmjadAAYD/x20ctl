@@ -371,6 +371,16 @@ public sealed partial class ProductSettings : Grid
     }
     private UIElement BuildThemes()
     {
+        // Themes are paused: the page says so, and keeps the language row.
+        {
+            var page = new Grid(); page.RowDefinitions.Add(new() { Height = GridLength.Auto }); page.RowDefinitions.Add(new() { Height = GridLength.Auto }); page.RowDefinitions.Add(new());
+            var leave = Pill("", "Back to Tools"); leave.Click += (_, _) => ShowThemes(false); DockPanel.SetDock(leave, Dock.Right);
+            page.Children.Add(new DockPanel { Margin = new(0, 0, 0, 22), Children = { leave, Kit.Text("Themes", 26, "DS.Text", FontWeights.SemiBold) } });
+            var langs = BuildLanguages(); Grid.SetRow(langs, 1); page.Children.Add(langs);
+            var sorry = Kit.Text("Sorry, currently on maintenance :(", 22, "DS.Text", FontWeights.SemiBold); sorry.HorizontalAlignment = HorizontalAlignment.Center; sorry.VerticalAlignment = VerticalAlignment.Center;
+            Grid.SetRow(sorry, 2); page.Children.Add(sorry);
+            return page;
+        }
         var root = new Grid(); root.RowDefinitions.Add(new() { Height = GridLength.Auto }); root.RowDefinitions.Add(new() { Height = GridLength.Auto }); root.RowDefinitions.Add(new());
         var status = Kit.Text("", 15, "DS.TextSoft");
         var back = Pill("", "Back to Tools"); back.Click += (_, _) => ShowThemes(false);
