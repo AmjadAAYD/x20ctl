@@ -173,13 +173,31 @@ internal static class LightingBleClient
     /// <summary>One connection: finds the pad, checks it is an X20 Pro on firmware 1.44, runs the work, then lets go.</summary>
     static async Task<T> SessionAsync<T>(Func<Exchange, Func<byte>, Task<T>> work)
     {
-        var (address, error) = await NativeBleClient.FindDeviceAddressAsync("x20_pro", 8, requireAdvertisedService: false);
-        if (address is null) throw new IOException(error);
-        using var device = await BluetoothLEDevice.FromBluetoothAddressAsync(address.Value)
-            ?? throw new IOException("Cannot connect to the controller.");
-        var services = await device.GetGattServicesForUuidAsync(Guid.Parse("d7f010e0-660d-46e9-96c3-19c4148bdab5"), BluetoothCacheMode.Uncached);
-        if (services.Status != GattCommunicationStatus.Success || services.Services.Count != 1)
+        // The last address that answered is tried first, so an Apply doesn't wait for a scan; a miss falls back to scanning.
+        BluetoothLEDevice? opened = null; GattDeviceServicesResult? services = null; ulong used = 0;
+        if (NativeBleClient.CachedAddress() is ulong cached)
+        {
+            try
+            {
+                opened = await BluetoothLEDevice.FromBluetoothAddressAsync(cached);
+                services = opened == null ? null : await opened.GetGattServicesForUuidAsync(Guid.Parse("d7f010e0-660d-46e9-96c3-19c4148bdab5"), BluetoothCacheMode.Uncached);
+                used = cached;
+            }
+            catch (Exception ex) when (ex is System.Runtime.InteropServices.COMException or IOException) { }
+            if (services is not { Status: GattCommunicationStatus.Success, Services.Count: 1 }) { opened?.Dispose(); opened = null; services = null; }
+        }
+        if (opened is null)
+        {
+            var (address, error) = await NativeBleClient.FindDeviceAddressAsync("x20_pro", 8, requireAdvertisedService: false);
+            if (address is null) throw new IOException(error);
+            opened = await BluetoothLEDevice.FromBluetoothAddressAsync(address.Value) ?? throw new IOException("Cannot connect to the controller.");
+            services = await opened.GetGattServicesForUuidAsync(Guid.Parse("d7f010e0-660d-46e9-96c3-19c4148bdab5"), BluetoothCacheMode.Uncached);
+            used = address.Value;
+        }
+        using var device = opened;
+        if (services!.Status != GattCommunicationStatus.Success || services.Services.Count != 1)
             throw new IOException("Expected one KeyLinker configuration service.");
+        NativeBleClient.RememberAddress(used);
         using var service = services.Services[0];
         var chars = await service.GetCharacteristicsAsync(BluetoothCacheMode.Uncached);
         if (chars.Status != GattCommunicationStatus.Success) throw new IOException("Cannot discover lighting connection.");
