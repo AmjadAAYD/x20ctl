@@ -45,6 +45,18 @@ public static class NativeBleClient
         finally { ConfigurationGate.Release(); }
     }
 
+    /// <summary>The address of the pad last reached here, so a repeat operation can connect at once instead of scanning first.</summary>
+    internal static ulong? CachedAddress()
+    {
+        try { return File.Exists(CachePath) && ulong.TryParse(File.ReadAllText(CachePath).Trim(), System.Globalization.NumberStyles.HexNumber, null, out ulong a) && a != 0 ? a : null; }
+        catch (IOException) { return null; }
+    }
+    internal static void ForgetCachedAddress() => ClearCache();
+    internal static void RememberAddress(ulong address)
+    {
+        try { Directory.CreateDirectory(Path.GetDirectoryName(CachePath)!); File.WriteAllText(CachePath, address.ToString("X")); } catch (IOException) { }
+    }
+
     internal static async Task<(ulong? Address, string? Error)> FindDeviceAddressAsync(string targetModel, int timeoutSeconds, bool requireAdvertisedService = true)
     {
         ulong? cachedAddress = null;
