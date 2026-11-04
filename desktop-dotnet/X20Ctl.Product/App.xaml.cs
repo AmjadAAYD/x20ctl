@@ -142,6 +142,27 @@ public partial class App : Application
                 Line("stopped");
                 Shutdown(0); return;
             }
+            if (e.Args.Length is 3 or 4 && e.Args[0] == "--review-custom-colour")
+            {
+                // Real pad, one pass: write one non-stock colour in Solid, hold it, put the exact old record back and read it back.
+                ShutdownMode = ShutdownMode.OnExplicitShutdown;
+                Directory.CreateDirectory(e.Args[1]);
+                var log = new System.Text.StringBuilder();
+                try
+                {
+                    int rgb = Convert.ToInt32(e.Args[2], 16);
+                    var before = await LightingBleClient.RunAsync(); log.AppendLine("before " + Convert.ToHexString(before));
+                    byte mode = e.Args.Length == 4 ? byte.Parse(e.Args[3]) : (byte)2;
+                    if (mode != 2) { var lead = await LightingBleClient.RunAsync(before[..3], mode); log.AppendLine("effect " + Convert.ToHexString(lead)); await Task.Delay(5000); }
+                    var written = await LightingBleClient.RunAsync([(byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb], mode); log.AppendLine("written " + Convert.ToHexString(written));
+                    await Task.Delay(8000);
+                    var restored = await LightingBleClient.RunAsync(before[..3], before[6]); log.AppendLine("restored " + Convert.ToHexString(restored)); log.AppendLine("matches " + restored.SequenceEqual(before));
+                    File.WriteAllText(Path.Combine(e.Args[1], "custom-colour.txt"), log.ToString());
+                    Shutdown(restored.SequenceEqual(before) ? 0 : 1);
+                }
+                catch (Exception failure) { File.WriteAllText(Path.Combine(e.Args[1], "failure.txt"), log + failure.ToString()); Shutdown(1); }
+                return;
+            }
             if (e.Args.Length == 2 && e.Args[0] == "--review-battery-lighting")
             {
                 // Real pad, one pass: read the level, write the default colour for it, read back, put the old colour and effect back.
