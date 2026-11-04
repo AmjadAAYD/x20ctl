@@ -1,5 +1,12 @@
 # Changelog
 
+## [V0.019.1] - 2026-11-04
+
+### Changed
+
+- **Themes are paused.** Default is the only look for now. The Themes page in Tools shows that it is under maintenance and keeps the language choice. A saved theme from before opens as Default.
+- **The old theme art is gone** from the app: the theme intro films, logos and previews.
+
 ## [V0.019] - 2026-11-03
 
 ### Added

@@ -35,42 +35,7 @@ public static class ThemeCatalog
         C(0xF4F7FD), C(0xB4C0D8), C(0x76839F), C(0x26375A), C(0x2453C2), C(0x143587),
         "Segoe UI Variable Display, Segoe UI", "Segoe UI Variable Text, Segoe UI", 16);
 
-    public static readonly IReadOnlyList<AppTheme> All = new[]
-    {
-        Default,
-        new AppTheme("pulse", "Pulse", "Harmonic chamber, cyan & prism",
-            C(0x03050A), C(0x070D19), C(0x0E1B32), C(0x56B8FF), C(0xA8E0FF), C(0x060E1C),
-            C(0xF2F6FC), C(0xC8D8EC), C(0x88A0C0), C(0x2E4870), C(0x56B8FF), C(0xFF78B4),
-            "Segoe UI Variable Display, Segoe UI", "Segoe UI Variable Text, Segoe UI", 22),
-        new AppTheme("spotlight", "Spotlight", "Velvet, brass and a follow spot",
-            C(0x070405), C(0x120908), C(0x1C0F0D), C(0xE8A990), C(0xF5CDB8), C(0x1A0C08),
-            C(0xEFE6D8), C(0xC4B6A2), C(0x9B8C7A), C(0x5A4630), C(0x86202E), C(0x6A4A2A),
-            "Garamond, Georgia", "Garamond, Georgia", 4),
-        new AppTheme("nexus", "Nexus", "Graphite tiles, green light",
-            C(0x101113), C(0x17191C), C(0x1D1F23), C(0x6CC644), C(0x9BE07A), C(0x101113),
-            C(0xFFFFFF), C(0xC8CACD), C(0x8F9296), C(0x3A3D44), C(0x107C10), C(0x2A2D33),
-            "Segoe UI Variable Display, Segoe UI", "Segoe UI Variable Text, Segoe UI", 8),
-        new AppTheme("rebel", "Rebel", "Black, bone and red, cut sharp",
-            C(0x0B0A0C), C(0x121012), C(0x1A1618), C(0xE3122D), C(0xFF4A5E), C(0xFFFFFF),
-            C(0xF7F3EE), C(0xCFC7C9), C(0xA39B9E), C(0x4A4043), C(0x8E0A1C), C(0x2A1418),
-            "Franklin Gothic Heavy, Franklin Gothic Medium, Bahnschrift", "Bahnschrift, Segoe UI", 0),
-        new AppTheme("tide", "Tide", "Deep blue water, white and red",
-            C(0x0A1A7A), C(0x10249E), C(0x1430C8), C(0xFF1F3D), C(0xFF6A7D), C(0xFFFFFF),
-            C(0xFFFFFF), C(0xD6DCFF), C(0xA9B4F0), C(0x4D63E0), C(0x3B5BFF), C(0x0B1D8E),
-            "Arial Black, Segoe UI Black", "Segoe UI Variable Text, Segoe UI", 0),
-        new AppTheme("dusk", "Dusk", "Slate after sunset, blue",
-            C(0x0E1218), C(0x171D26), C(0x232A33), C(0x1A9FFF), C(0x66C0FF), C(0xFFFFFF),
-            C(0xFFFFFF), C(0xC3C8CF), C(0x8B929A), C(0x3D4450), C(0x1A6FC0), C(0x6A4A2A),
-            "Bahnschrift, Segoe UI", "Segoe UI Variable Text, Segoe UI", 6),
-        new AppTheme("volt", "Volt", "Black and charged amber",
-            C(0x000000), C(0x0E0E0E), C(0x1D1D1D), C(0xFFAD0A), C(0xFFC95A), C(0x111111),
-            C(0xFFFFFF), C(0xCFCFCF), C(0xAAAAAA), C(0x3B3B3B), C(0xB06A00), C(0x2A2A2A),
-            "Segoe UI Variable Display, Segoe UI", "Segoe UI Variable Text, Segoe UI", 12),
-        new AppTheme("blossom", "Yozakura", "Blossoms at night, lantern light",
-            C(0x160A16), C(0x200D1E), C(0x2C1328), C(0xFFB56B), C(0xFFD2A0), C(0x4A140F),
-            C(0xF6E9EC), C(0xD7C1C8), C(0xA8909B), C(0x5A3550), C(0xC24A7E), C(0x5A2458),
-            "Sitka Heading, Georgia", "Sitka Text, Georgia", 8),
-    };
+    public static readonly IReadOnlyList<AppTheme> All = new[] { Default };
 
     /// <summary>Written by previews/console-concepts/themes/app_films.py: where each film's logo settles.</summary>
     internal static readonly Dictionary<string, IntroSpec> Intros = new()
