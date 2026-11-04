@@ -92,6 +92,45 @@ public partial class App : Application
                 catch (Exception error) { File.AppendAllText(logFile, $"{DateTime.Now:HH:mm:ss} FAILED {error.GetType().Name}: {error.Message}\r\n"); Environment.ExitCode = 1; }
                 Shutdown(); return;
             }
+            if (e.Args.Length == 2 && e.Args[0] == "--review-curve-read")
+            {
+                // Real pad, read only: the stick and trigger curve records as the pad holds them.
+                ShutdownMode = ShutdownMode.OnExplicitShutdown;
+                Directory.CreateDirectory(e.Args[1]);
+                try
+                {
+                    var held = await LightingBleClient.ReadConfigAsync(); var text = new System.Text.StringBuilder();
+                    text.AppendLine("sticks " + Convert.ToHexString(held.Sticks)); text.AppendLine("triggers " + Convert.ToHexString(held.Triggers));
+                    foreach (var (name, record, trigger) in new[] { ("sticks", held.Sticks, false), ("triggers", held.Triggers, true) })
+                        for (int c = 0; c < 2; c++) { var s = X20Ctl.Zone.ControllerRecords.ParseChannel(record, c, trigger); text.AppendLine($"{name}[{c}] preset {s.Preset} inner {s.Inner} outer {s.Outer} p1 {s.Point1} p2 {s.Point2}"); }
+                    File.WriteAllText(Path.Combine(e.Args[1], "curve-read.txt"), text.ToString()); Shutdown(0);
+                }
+                catch (Exception failure) { File.WriteAllText(Path.Combine(e.Args[1], "failure.txt"), failure.ToString()); Shutdown(1); }
+                return;
+            }
+            if (e.Args.Length == 3 && e.Args[0] == "--review-curve-write")
+            {
+                // Real pad, one pass: raise the left stick's inner dead zone through the same path as Apply, hold it, then put the exact old record back.
+                ShutdownMode = ShutdownMode.OnExplicitShutdown;
+                Directory.CreateDirectory(e.Args[1]);
+                var log = new System.Text.StringBuilder();
+                try
+                {
+                    int inner = int.Parse(e.Args[2]);
+                    var before = await LightingBleClient.ReadConfigAsync(); log.AppendLine("before sticks " + Convert.ToHexString(before.Sticks));
+                    var left = X20Ctl.Zone.ControllerRecords.ParseChannel(before.Sticks, 0, false); var right = X20Ctl.Zone.ControllerRecords.ParseChannel(before.Sticks, 1, false);
+                    log.AppendLine($"left inner {left.Inner} outer {left.Outer}; right inner {right.Inner} outer {right.Outer}");
+                    int changed = await LightingBleClient.WriteConfigAsync(held => held with { Sticks = X20Ctl.Zone.ControllerRecords.BuildCurves(held.Sticks, left with { Inner = inner }, right, false) });
+                    var during = await LightingBleClient.ReadConfigAsync(); log.AppendLine($"wrote inner {inner}, changed {changed}, now {Convert.ToHexString(during.Sticks)} left inner {X20Ctl.Zone.ControllerRecords.ParseChannel(during.Sticks, 0, false).Inner}");
+                    await Task.Delay(15000);
+                    int back = await LightingBleClient.WriteConfigAsync(held => held with { Sticks = before.Sticks }); var after = await LightingBleClient.ReadConfigAsync();
+                    log.AppendLine($"restored changed {back}, now {Convert.ToHexString(after.Sticks)} matches {after.Sticks.SequenceEqual(before.Sticks)}");
+                    File.WriteAllText(Path.Combine(e.Args[1], "curve-write.txt"), log.ToString());
+                    Shutdown(after.Sticks.SequenceEqual(before.Sticks) ? 0 : 1);
+                }
+                catch (Exception failure) { File.WriteAllText(Path.Combine(e.Args[1], "failure.txt"), log + failure.ToString()); Shutdown(1); }
+                return;
+            }
             if (e.Args.Length == 2 && e.Args[0] == "--review-macro-read")
             {
                 // Real pad, reads only: every stored macro through the same path as the Read controller button.
@@ -141,6 +180,27 @@ public partial class App : Application
                 await Task.Run(service.Dispose);
                 Line("stopped");
                 Shutdown(0); return;
+            }
+            if (e.Args.Length is 3 or 4 && e.Args[0] == "--review-custom-colour")
+            {
+                // Real pad, one pass: write one non-stock colour in Solid, hold it, put the exact old record back and read it back.
+                ShutdownMode = ShutdownMode.OnExplicitShutdown;
+                Directory.CreateDirectory(e.Args[1]);
+                var log = new System.Text.StringBuilder();
+                try
+                {
+                    int rgb = Convert.ToInt32(e.Args[2], 16);
+                    var before = await LightingBleClient.RunAsync(); log.AppendLine("before " + Convert.ToHexString(before));
+                    byte mode = e.Args.Length == 4 ? byte.Parse(e.Args[3]) : (byte)2;
+                    if (mode != 2) { var lead = await LightingBleClient.RunAsync(before[..3], mode); log.AppendLine("effect " + Convert.ToHexString(lead)); await Task.Delay(5000); }
+                    var written = await LightingBleClient.RunAsync([(byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb], mode); log.AppendLine("written " + Convert.ToHexString(written));
+                    await Task.Delay(8000);
+                    var restored = await LightingBleClient.RunAsync(before[..3], before[6]); log.AppendLine("restored " + Convert.ToHexString(restored)); log.AppendLine("matches " + restored.SequenceEqual(before));
+                    File.WriteAllText(Path.Combine(e.Args[1], "custom-colour.txt"), log.ToString());
+                    Shutdown(restored.SequenceEqual(before) ? 0 : 1);
+                }
+                catch (Exception failure) { File.WriteAllText(Path.Combine(e.Args[1], "failure.txt"), log + failure.ToString()); Shutdown(1); }
+                return;
             }
             if (e.Args.Length == 2 && e.Args[0] == "--review-battery-lighting")
             {

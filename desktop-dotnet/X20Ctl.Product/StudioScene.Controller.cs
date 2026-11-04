@@ -21,6 +21,13 @@ public partial class StudioScene
         var curveApply = new Button { Content = "Apply to controller", Style = DS.Style("ActionButton"), Height = 44, MinHeight = 0, Padding = new(18, 0, 20, 0), Margin = new(0, 0, 8, 0) };
         curveApply.Click += (_, _) => _ = ApplyToController(text => ChangeCount.Text = text);
         RegisterFocus(curveApply); Curves.Toolbar.Children.Add(curveApply);
+        // The themed Curves pages have no Apply button of their own, so a curve edit there is saved to the pad once it has settled for two seconds.
+        if (ThemeCatalog.Current != ThemeCatalog.Default)
+        {
+            var settle = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+            settle.Tick += (_, _) => { settle.Stop(); if (controllerBusy) settle.Start(); else _ = ApplyToController(text => ChangeCount.Text = text); };
+            Curves.Changed += () => { if (filledFromController.Contains(Draft)) { settle.Stop(); settle.Start(); } };
+        }
         Loaded += (_, _) => _ = LoadFromController(buttonsPage.SayController);
     }
     void UseControllerWrites(MacroWorkbench macros)

@@ -1,11 +1,21 @@
 # Changelog
 
-## [V0.019.1] - 2026-11-04
+## [V0.020] - 2026-11-04
 
 ### Changed
 
-- **Themes are paused.** Default is the only look for now. The Themes page in Tools shows that it is under maintenance and keeps the language choice. A saved theme from before opens as Default.
-- **The old theme art is gone** from the app: the theme intro films, logos and previews.
+- **Themes are paused.** Default is the only look for now. The Themes page in Tools says it is under maintenance and keeps the language choice. A saved theme from before opens as Default. The old theme intro films, logos and previews are gone.
+- **The pad's battery refreshes every minute** while the window is open.
+- **X20 Pro settings stay off the virtual pad.** PC mode no longer treats them as part of the virtual controller.
+- **Curve edits are saved to the pad** on every theme, not only some.
+- **The app connects straight to the last pad** before it scans.
+- **A GIF of any size fits the X20 Pro screen.**
+
+### Added
+
+- **A note when settings may need Bluetooth mode.**
+- **Pad checks that change nothing lasting:** a reversible custom-colour check, a curve write check and a read-only curve record check.
+- **The RGB settings are read when the page opens.**
 
 ## [V0.019] - 2026-11-03
 

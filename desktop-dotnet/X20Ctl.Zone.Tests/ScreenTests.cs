@@ -37,6 +37,18 @@ public class ScreenTests
  {
   var encoded=ScreenCodec.EncodeAnimation(new[]{Data("large-first.rgba")});Assert.Equal(Data("large-first.lt"),encoded.AsSpan(18).ToArray());
  }
+ [Fact] public void FittingKeepsEveryFrameWhenTheyAlreadyFit()
+ {
+  var raw=Data("uniform.rgba");var frames=Enumerable.Range(0,3).Select(n=>raw.AsMemory(n*51200,51200).ToArray()).ToArray();
+  Assert.Equal(ScreenCodec.EncodeAnimation(frames,160,80),ScreenCodec.EncodeAnimationFitting(frames,40,out int used,out int delay,160,80));Assert.Equal((3,40),(used,delay));
+ }
+ [Fact] public void FittingThinsFramesAndStretchesTheDelayInsteadOfRefusing()
+ {
+  var random=new Random(7);var frames=Enumerable.Range(0,400).Select(_=>{var f=new byte[51200];random.NextBytes(f);return f;}).ToArray();
+  Assert.Throws<ArgumentException>(()=>ScreenCodec.EncodeAnimation(frames,160,80));
+  var asset=ScreenCodec.EncodeAnimationFitting(frames,50,out int used,out int delay,160,80);
+  Assert.InRange(asset.Length,1,ScreenCodec.AssetLimit);Assert.InRange(used,1,399);Assert.True(delay>50);
+ }
  [Fact] public void VendorLimitTruncationIsExplicitAndDefaultDoesNotSilentlyDropFrames()
  {
   var frames=Enumerable.Repeat(Data("large-first.rgba"),236).ToArray();Assert.Throws<ArgumentException>(()=>ScreenCodec.EncodeAnimation(frames));
