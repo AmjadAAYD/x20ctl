@@ -28,6 +28,7 @@ public static class ScanFlow
         (0x0079, 0x181C, "Seen with the EasySMX X20 in DInput mode."),
         (0x1D57, 0xFA60, "A Xenta wireless keyboard and mouse receiver. It is not an EasySMX receiver; the X20's own dongle shows the pad's identity instead."),
         (0x1A34, 0xF517, "Reported for the EasySMX X15's 2.4 GHz receiver. The vendor's X20 receiver tool also opens this id (found in its code, not yet seen here)."),
+        (0x2345, 0xE084, "Reported for the EasySMX X05 Pro in D-Input mode (SalimKr, issue #64, not yet seen here): a USB device with a vendor channel on usage page 0xFFA0 and 64-byte reports 0x04 (input) and 0x05 (output)."),
         (0x2345, 0xE062, "Reported for the EasySMX D10's receiver, a vendor-defined HID device (research notes, not yet seen here)."),
         (0x413D, 0x2131, "Seen with the EasySMX Dune 8K (D15) in XInput mode: two Controller Check scans by an owner, 10 Oct 2026. Also confirmed with the EasySMX X20 Pro retail unit, Oct 2026. It shows two vendor channels, 0xFF70 and 0xFF10."),
     ];

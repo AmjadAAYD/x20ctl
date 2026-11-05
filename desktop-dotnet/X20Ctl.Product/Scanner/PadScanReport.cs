@@ -15,6 +15,7 @@ public sealed class PadScanSession
     public List<PadRecord> Records { get; } = [];
     public WriteBackResult? WriteBack { get; set; }
     public List<VisualResult> Visual { get; } = [];
+    public X05Result? X05 { get; set; }
     public string? Failure { get; set; }
 }
 
@@ -45,6 +46,7 @@ public static class PadScanReport
         }
         else t.AppendLine("  write test     not run");
         foreach (var v in s.Visual) t.AppendLine($"  visual · {v.Test}: {v.Outcome}" + (v.Note.Length > 0 ? " — " + v.Note : ""));
+        if (s.X05 is { } x) t.AppendLine($"  X05 channel    {x.Status}; {x.After.Count} reports after the command, {x.ChangedBytes.Count} byte positions changed");
         if (s.Failure is not null) t.AppendLine("  stopped        " + s.Failure);
         return t.ToString();
     }
@@ -56,7 +58,7 @@ public static class PadScanReport
         object device = new { claimedModel = s.ChosenModel, answer = s.Verdict?.Answer.ToString(), modelDetected = s.Verdict is { Answer: PadAnswer.LikeX20 or PadAnswer.LikeX20Pro }, keyLinker = s.Raw?.Identity is not null,
             identity = H(s.Raw?.Identity), capabilityMenu = H(s.Raw?.Menu), updaterId = H(s.Raw?.Guid0), updaterIdContinued = H(s.Raw?.Guid1) };
         object findings = new { verdict = s.Verdict?.Headline, reasons = s.Verdict?.Reasons, records = s.Records.Select(r => new { r.Name, readOp = r.ReadOp, writeOp = r.WriteOp, length = r.Bytes.Length, hex = PadScan.Hex(r.Bytes) }),
-            writeTest = s.WriteBack is { } w ? new { w.Summary, acknowledged = w.AllAcknowledged, identical = w.AllIdentical, persisted = w.Persisted, items = w.Items } : null, failure = s.Failure };
+            writeTest = s.WriteBack is { } w ? new { w.Summary, acknowledged = w.AllAcknowledged, identical = w.AllIdentical, persisted = w.Persisted, items = w.Items } : null, failure = s.Failure, x05Probe = s.X05 };
         return
         [
             ("SUMMARY.txt", Encoding.UTF8.GetBytes(Summary(s))),

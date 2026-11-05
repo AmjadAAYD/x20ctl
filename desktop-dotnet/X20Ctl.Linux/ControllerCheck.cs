@@ -93,6 +93,7 @@ internal static class CheckEngine
         [(0x0079, 0x181C)] = "Seen with the EasySMX X20 in DInput mode.",
         [(0x1D57, 0xFA60)] = "Seen with the EasySMX X20's 2.4 GHz receiver (Xenta chip).",
         [(0x1A34, 0xF517)] = "Reported for the EasySMX X15's 2.4 GHz receiver (research notes, not yet seen here).",
+        [(0x2345, 0xE084)] = "Reported for the EasySMX X05 Pro in D-Input mode (SalimKr, issue #64, not yet seen here): a USB device with a vendor channel on usage page 0xFFA0 and 64-byte reports 0x04 (input) and 0x05 (output).",
         [(0x2345, 0xE062)] = "Reported for the EasySMX D10's receiver, a vendor-defined HID device (research notes, not yet seen here)."
     };
 

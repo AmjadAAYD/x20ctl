@@ -7,6 +7,21 @@ namespace X20Ctl.Zone.Tests;
 /// <summary>The Write scan's logic against a fake pad: no Bluetooth is used. What the real pad does is not tested here.</summary>
 public class PadScanTests
 {
+    [Fact]
+    public void X05Probe_sends_only_the_reported_command_and_diffs_the_stream()
+    {
+        var cmd = X20Ctl.Product.Scanner.X05Report.Command();
+        Assert.Equal(64, cmd.Length); Assert.Equal(0x05, cmd[0]); Assert.Equal(0x01, cmd[1]); Assert.All(cmd.Skip(2), b => Assert.Equal(0, b));
+        var a = new byte[64]; a[0] = 4; var b2 = (byte[])a.Clone(); b2[9] = 7; b2[40] = 1;
+        var r = X20Ctl.Product.Scanner.X05Report.Summarize([a], [a, b2], "sent once");
+        Assert.Equal([9, 40], r.ChangedBytes); Assert.Equal(2, r.After.Count);
+        Assert.Empty(X20Ctl.Product.Scanner.X05Report.Changed(null, [b2]));
+        var session = new PadScanSession { ChosenModel = "X05 Pro", X05 = r };
+        Assert.Contains("X05 channel", PadScanReport.Summary(session));
+        var json = System.Text.Encoding.UTF8.GetString(PadScanReport.Files(session, "t").First(f => f.Path.EndsWith("findings.json")).Data);
+        Assert.Contains("x05Probe", json);
+    }
+
     // ---------- a fake pad that keeps records and answers in 15-byte chunks ----------
     sealed class FakePad
     {

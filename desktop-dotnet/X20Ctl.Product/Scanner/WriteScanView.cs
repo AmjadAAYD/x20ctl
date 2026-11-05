@@ -110,9 +110,19 @@ public sealed class WriteScanView : Grid
         });
         nextIdentify = Action("", "Next: Read-back", "PrimaryButton"); nextIdentify.IsEnabled = false; nextIdentify.Click += (_, _) => Show(2);
         var skip = Action("", "Skip to Send", "ActionButton"); skip.Click += (_, _) => Show(5);
+        var x05 = Action("", "X05 Pro: probe D-Input channel", "ActionButton");
+        x05.Click += async (_, _) => await Run(x05, async () =>
+        {
+            if (session.ChosenModel != "X05 Pro") { identifyText.Text = "This probe is only for the X05 Pro. Choose it in step 1."; return; }
+            if (MessageBox.Show("This sends ONE command to the pad's D-Input channel (output report 05 01 00…), the one another owner reported. What it does is not known. Put the pad in D-Input mode first (hold Back + Start) and connect it by USB. Continue?", "This sends a command", MessageBoxButton.OKCancel, MessageBoxImage.Warning) != MessageBoxResult.OK) return;
+            identifyText.Text = "Listing devices and probing…";
+            var inventory = await Task.Run(() => WindowsInventory.Read(false));
+            var r = session.X05 = await X05Probe.RunAsync(inventory);
+            identifyText.Text = $"X05 channel: {r.Status}.\nReports before: {r.Before.Count}, after: {r.After.Count}. Byte positions that changed: {(r.ChangedBytes.Count == 0 ? "none" : string.Join(", ", r.ChangedBytes))}.\nThis shows the pad listens, not what the command means. It is saved in the report.";
+        });
         return Scroll(Kit.Text("Identify", 36, "DS.Text", FontWeights.Bold),
             Wrap("One click. The scan asks the pad three questions — who it is (0x91), what it reports (0xB0) and its updater id (0x93) — and reads the answers. It sends nothing else.", 16, "DS.TextSoft").Also(t => t.Margin = new(0, 8, 0, 18)),
-            Row(identifyGo, nextIdentify, skip), identifyText.Also(t => t.Margin = new(0, 18, 0, 0)));
+            Row(identifyGo, nextIdentify, skip, x05), identifyText.Also(t => t.Margin = new(0, 18, 0, 0)));
     }
     Button nextIdentify = null!;
 
