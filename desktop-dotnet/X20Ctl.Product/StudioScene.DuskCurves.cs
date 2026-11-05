@@ -79,7 +79,7 @@ public partial class StudioScene
             Margin = new Thickness(0, 0, 0, 14)
         });
 
-        foreach (var (name, source) in RebelCurveRows)
+        foreach (var (name, source) in CurveRows)
         {
             var row = new Grid { Height = 60 };
             row.ColumnDefinitions.Add(new() { Width = new GridLength(260) }); row.ColumnDefinitions.Add(new() { Width = new GridLength(380) }); row.ColumnDefinitions.Add(new() { Width = new GridLength(84) });
@@ -89,7 +89,7 @@ public partial class StudioScene
             value.SetBinding(TextBlock.TextProperty, new Binding("Value") { Source = source, StringFormat = "{0:0}%" }); Grid.SetColumn(value, 2); row.Children.Add(value);
             leftStack.Children.Add(row);
         }
-        foreach (var (text, tag, action) in new (string, string, Action)[] { ("Next response preset", "preset", () => { int index = Array.IndexOf(RebelPresets, Curves.Draft[Curves.Channel].Preset); Curves.SetPreset(RebelPresets[(index + 1) % RebelPresets.Length]); }), ("Reset curve", "reset", Curves.Reset), ("Advanced", "advanced", OpenStickTools) })
+        foreach (var (text, tag, action) in new (string, string, Action)[] { ("Next response preset", "preset", () => { int index = Array.IndexOf(CurvePresets, Curves.Draft[Curves.Channel].Preset); Curves.SetPreset(CurvePresets[(index + 1) % CurvePresets.Length]); }), ("Reset curve", "reset", Curves.Reset), ("Advanced", "advanced", OpenStickTools) })
         {
             var face = new Border { Height = 46, Margin = new(0,8,0,0), Background = DuskKit.SlateItemBrush, Child = new TextBlock { Text = text, FontFamily = DuskKit.Display, FontSize = 18, Foreground = DuskKit.WhiteBrush, VerticalAlignment = VerticalAlignment.Center, Margin = new(16,0,0,0) } };
             leftStack.Children.Add(ThemeAction(face, "theme:curve:" + tag, action, tag == "advanced" || Curves.Draft.CanEdit));

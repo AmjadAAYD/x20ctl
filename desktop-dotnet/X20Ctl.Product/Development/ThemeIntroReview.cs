@@ -13,6 +13,7 @@ internal static class ThemeIntroReview
 {
     internal static async Task Run(string directory, string id)
     {
+        if(IllustratedThemeSpec.Find(id)!=null){await RunIllustrated(directory,id);return;}
         Directory.CreateDirectory(directory); ReviewSandbox.Active = true; ReviewSandbox.HideLibrary = true;
         var theme = ThemeCatalog.Find(id);
         if (theme.Id != id || theme.Intro is not {} spec) throw new InvalidOperationException("A registered themed film is required: " + id);
@@ -71,6 +72,37 @@ internal static class ThemeIntroReview
         }
     }
     private static bool Near(Rect a, Rect b) => Math.Abs(a.X-b.X)<.15 && Math.Abs(a.Y-b.Y)<.15 && Math.Abs(a.Width-b.Width)<.15 && Math.Abs(a.Height-b.Height)<.15;
+    private static async Task RunIllustrated(string directory,string id)
+    {
+        Directory.CreateDirectory(directory);ReviewSandbox.Active=true;ReviewSandbox.HideLibrary=true;
+        ThemeCatalog.Apply(ThemeCatalog.Find(id));
+        var host=new ProductHost(new ZoneScene(true),Path.Combine(directory,"assignments.json"));
+        var stage=new DesignStage{Child=host};
+        using var source=new HwndSource(new HwndSourceParameters("illustrated intro review"){WindowStyle=unchecked((int)0x80000000),Width=1600,Height=900,PositionX=-32000,PositionY=-32000}){RootVisual=stage};
+        async Task Layout(){await host.Dispatcher.InvokeAsync(()=>{},DispatcherPriority.ContextIdle);stage.Measure(new Size(1600,900));stage.Arrange(new Rect(0,0,1600,900));stage.UpdateLayout();IllustratedThemeUI.Skin(host);await Task.Delay(40);}
+        await Layout();Rect? target=host.Zone.MarkTarget(host);
+        var intro=new IntroView(false,true,host.Zone);host.Children.Add(intro);Panel.SetZIndex(intro,50);int completed=0;intro.Completed+=()=>completed++;
+        try
+        {
+            foreach(double time in new[]{0d,.4,.9,1.5,2.2,2.6})
+            {
+                intro.Seek(time);await Layout();
+                var bitmap=new RenderTargetBitmap(1600,900,96,96,PixelFormats.Pbgra32);bitmap.Render(stage);
+                var png=new PngBitmapEncoder();png.Frames.Add(BitmapFrame.Create(bitmap));using var f=File.Create(Path.Combine(directory,$"story-{time:0.0}.png"));png.Save(f);
+            }
+            var cover=Walk(intro).OfType<Image>().Single(i=>i.Source is BitmapSource);
+            var ink=IllustratedThemeUI.LogoInk(IllustratedThemeSpec.Find(id)!);double scale=cover.ActualWidth/512;
+            Rect landed=cover.TransformToAncestor(host).TransformBounds(new Rect(ink.X*scale,ink.Y*scale,ink.Width*scale,ink.Height*scale));
+            if(target is {} box&&!Near(landed,box))throw new InvalidOperationException("Illustrated logo did not land on header: "+landed+" versus "+box);
+            if(intro.FilmOpened||intro.Mute.Visibility!=Visibility.Collapsed||IntroView.HasIntroScore)throw new InvalidOperationException("Illustrated intro must be silent and use no shipped film.");
+            intro.Skip.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));intro.Finish();if(completed!=1)throw new InvalidOperationException("Skip did not finish exactly once.");
+            host.Children.Remove(intro);var reduced=new IntroView(true,true,host.Zone);host.Children.Add(reduced);int reducedDone=0;reduced.Completed+=()=>reducedDone++;
+            reduced.Seek(.1);if(reducedDone!=1||reduced.Opacity!=0||reduced.FilmOpened)throw new InvalidOperationException("Illustrated reduced-motion intro did not crossfade in 100ms.");
+            reduced.Finish();host.Children.Remove(reduced);
+            File.WriteAllText(Path.Combine(directory,"intro.json"),JsonSerializer.Serialize(new{theme=id,windowShown=false,nativeVectorStory=true,headerAligned=true,skipCompletesOnce=true,silent=true,reducedMotionMilliseconds=100,storySeconds=2.75}));
+        }
+        finally{intro.Finish();host.Children.Remove(intro);}
+    }
     private static IEnumerable<DependencyObject> Walk(DependencyObject root)
     {
         for (int i=0; i<VisualTreeHelper.GetChildrenCount(root); i++)

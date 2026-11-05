@@ -21,7 +21,7 @@ public partial class ZoneScene : UserControl
     private Point pointer;
     public IReadOnlyList<DockView> Docks => docks;
     public event Action<int, bool>? ControllerActionRequested;
-    /// <summary>A Studio page asked for by name (Rebel's hero: Tester, Setups, Device).</summary>
+    /// <summary>A Studio page asked for by name (a theme's hero: Tester, Setups, Device).</summary>
     public event Action<int, string>? StudioPageRequested;
     public event Action<int>? ControllerRemoved;
     public event Action? SupportRequested;
@@ -37,13 +37,12 @@ public partial class ZoneScene : UserControl
     public ZoneScene(bool reducedMotion)
     {
         ReducedMotion = reducedMotion || !SystemParameters.ClientAreaAnimation;
-        InitializeComponent(); EnvironmentBackdrop.ReducedMotion=ReducedMotion; Loaded += (_, _) => UpdateOverviewPill(); ZoneHints.Children.Add(GlyphHint.Footer(("A", "Select player"), ("B", "Back"), ("☰", "Tools")));
+        InitializeComponent(); EnvironmentBackdrop.ReducedMotion=ReducedMotion; Loaded += (_, _) => {UpdateOverviewPill();IllustratedThemeUI.QueueSkin(this);}; ZoneHints.Children.Add(GlyphHint.Footer(("A", "Select player"), ("B", "Back"), ("☰", "Tools")));
         // in a narrow window the developer notes in the footer give way to the controls
         Surface.SizeChanged += (_, _) => { var notes = Surface.ActualWidth < 1300 ? Visibility.Collapsed : Visibility.Visible; ScenarioHint.Visibility = MotionHint.Visibility = notes; };
         Surface.SizeChanged += (_, _) => Surface.Clip = new RectangleGeometry(new Rect(0, 0, Surface.ActualWidth, Surface.ActualHeight), OuterFrame.CornerRadius.TopLeft, OuterFrame.CornerRadius.TopLeft);
         if (ReducedMotion) MotionHint.Text = "F8 Demo assignments · Reduced motion";
         LoadScenario(ZoneScenario.Empty);
-        if (ThemeCatalog.Current.Id == "rebel") BuildRebel(); else if (ThemeCatalog.Current.Id == "pulse") BuildPulse(); else if (ThemeCatalog.Current.Id == "spotlight") BuildSpotlight(); else if (ThemeCatalog.Current.Id == "nexus") BuildNexus(); else if (ThemeCatalog.Current.Id == "tide") BuildTide(); else if (ThemeCatalog.Current.Id == "dusk") BuildDusk(); else if (ThemeCatalog.Current.Id == "volt") BuildVolt(); else if (ThemeCatalog.Current.Id == "blossom") BuildBlossom();
     }
     public void LoadScenario(ZoneScenario value)
     {
@@ -61,26 +60,26 @@ public partial class ZoneScene : UserControl
         ProvenanceText.Text = value == ZoneScenario.Empty ? "LIVE INPUT" : "DEMO";
         ScenarioHint.Text = value switch { ZoneScenario.OneController => "One mock assignment · F9 changes fixture", ZoneScenario.MultipleControllers => "Three mock assignments · F9 changes fixture", _ => "Waiting for controller input" };
         FeedbackText.Text = "Select any player. All four docks begin equal.";
-        if (IsRebel) { foreach (var d in docks) HookRebelDock(d); RebelSync(); } else if (IsPulse) { foreach (var d in docks) HookPulseDock(d); PulseSync(); } else if (IsSpotlight) { SpotlightSync(); } else if (IsNexus) { NexusSync(); } else if (IsTide) { TideSync(); } else if (IsDusk) { DuskSync(); } else if (IsVolt) { VoltSync(); } else if (IsBlossom) { BlossomSync(); } else SnapLayout();
+        if (IsNexus) { NexusSync(); } else if (IsDusk) { DuskSync(); } else if (IsHollow) { HollowSync(); } else if (IsNocturne) { NocturneSync(); } else if (IsSunrise) { SunriseSync(); } else SnapLayout();
     }
     public void RestoreAssignments(IReadOnlyList<string?> ids, ControllerCatalog catalog)
     {
         State.Restore(ids, catalog);
         for (int i = 0; i < 4; i++) docks[i].RefreshPlayer(State.Players[i]);
-        SnapLayout(); RebelSync(); PulseSync(); SpotlightSync(); NexusSync(); TideSync(); DuskSync(); VoltSync(); BlossomSync();
+        SnapLayout(); NexusSync(); DuskSync(); HollowSync(); NocturneSync(); SunriseSync();
         ScenarioHint.Text = "Saved models · connection checked separately";
     }
     public void AssignController(int index, ControllerModel model)
     {
         State.Assign(index, model);
         docks[index].RefreshPlayer(State.Players[index]);
-        SnapLayout(); RebelSync(); PulseSync(); SpotlightSync(); NexusSync(); TideSync(); DuskSync(); VoltSync(); BlossomSync();
+        SnapLayout(); NexusSync(); DuskSync(); HollowSync(); NocturneSync(); SunriseSync();
         FeedbackText.Text = $"{model.Name} assigned to Player {index + 1}. Hardware connection is separate.";
         ScenarioHint.Text = "Assigned models · connection checked separately";
     }
     public void RemoveController(int index)
     {
-        transition?.Cancel();State.Clear(index);docks[index].RefreshPlayer(State.Players[index]);SnapLayout();UpdateOverviewPill();RebelSync();PulseSync();SpotlightSync(); NexusSync(); TideSync(); DuskSync();
+        transition?.Cancel();State.Clear(index);docks[index].RefreshPlayer(State.Players[index]);SnapLayout();UpdateOverviewPill();NexusSync(); DuskSync();
         FeedbackText.Text=$"Player {index+1} controller removed. Saved setups retained.";
         ControllerRemoved?.Invoke(index);
     }
@@ -97,6 +96,7 @@ public partial class ZoneScene : UserControl
     }
     private void SnapLayout()
     {
+        RefreshIllustratedZone();
         // Assignment/resize snaps also invalidate an awaiting transition's old destination.
         transition?.Cancel(); CompositionTarget.Rendering -= MoveFrame; moveClock.Stop();
         if (DockStage.ActualWidth <= 48 || DockStage.ActualHeight <= 48)
@@ -119,7 +119,7 @@ public partial class ZoneScene : UserControl
     /// (the "fwoosh": fast through the middle, soft at both ends), each one's content reflowing at its in-between size.</summary>
     private void PlaceViews(int duration)
     {
-        var bounds = IsPulse ? PulseBounds() : (IsSpotlight ? SpotlightBounds() : (IsNexus ? NexusBounds() : (IsDusk ? DuskBounds() : (IsVolt ? VoltBounds() : (IsBlossom ? BlossomBounds() : Bounds())))));
+        var bounds = (IsNexus ? NexusBounds() : (IsDusk ? DuskBounds() : Bounds()));
         CompositionTarget.Rendering -= MoveFrame;
         if (duration <= 0) { for (int i = 0; i < 4; i++) { docks[i].SetMoving(false); docks[i].SetBounds(bounds[i], Role(i).hero, Role(i).secondary); } return; }
         moveFrom = docks.Select(d => d.RenderedBounds.Width > 0 ? d.RenderedBounds : bounds[d.Index]).ToArray(); moveTo = bounds; moveMs = duration;
@@ -144,7 +144,7 @@ public partial class ZoneScene : UserControl
     public async Task FocusPlayerAsync(int? index)
     {
         if (index == State.FocusedPlayer) return;
-        if (IsRebel) { await RebelFocus(index); return; } if (IsPulse) { await PulseFocus(index); return; } if (IsSpotlight) { await SpotlightFocus(index); return; } if (IsNexus) { await NexusFocus(index); return; } if (IsTide) { await TideFocus(index); return; } if (IsDusk) { await DuskFocus(index); return; } if (IsVolt) { await VoltFocus(index); return; } if (IsBlossom) { await BlossomFocus(index); return; }
+        if (IsNexus) { await NexusFocus(index); return; } if (IsDusk) { await DuskFocus(index); return; } if (IsHollow) { await HollowFocus(index); return; } if (IsNocturne) { await NocturneFocus(index); return; } if (IsSunrise) { await SunriseFocus(index); return; }
         transition?.Cancel();
         // Freeze the displayed rectangles before retracting for a new selection.
         CompositionTarget.Rendering -= MoveFrame; moveClock.Stop();
@@ -191,7 +191,7 @@ public partial class ZoneScene : UserControl
     private void LightFocus(DockBounds start, int milliseconds)
     {
         // a soft accent-blue bloom travels with the chosen card and settles behind the hero
-        var target = (IsPulse ? PulseBounds() : Bounds())[State.FocusedPlayer!.Value];
+        var target = Bounds()[State.FocusedPlayer!.Value];
         FocusBloom.Width = target.Width * 1.15; FocusBloom.Height = target.Height * .95;
         FocusBloom.Fill = new RadialGradientBrush(Color.FromArgb(40, DockView.Accent.R, DockView.Accent.G, DockView.Accent.B), Color.FromArgb(0, DockView.Accent.R, DockView.Accent.G, DockView.Accent.B));
         double endX = target.X + target.Width / 2 - FocusBloom.Width / 2;
@@ -201,7 +201,7 @@ public partial class ZoneScene : UserControl
         FocusBloom.BeginAnimation(Canvas.TopProperty, milliseconds == 0 ? null : new DoubleAnimation(start.Y + start.Height / 2 - FocusBloom.Height / 2, endY, TimeSpan.FromMilliseconds(milliseconds)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut } });
         FocusBloom.BeginAnimation(OpacityProperty, new DoubleAnimation(1, TimeSpan.FromMilliseconds(milliseconds)));
     }
-    public void FocusDock(int index) => docks[index].FocusButton.Focus();
+    public void FocusDock(int index) {if(matchedPlayerButtons.TryGetValue(index,out var native))native.Focus();else docks[index].FocusButton.Focus();}
     public void SetSimulationNavigation(bool enabled) => SetSimulationNavigation(enabled, false);
     public void SetSimulationNavigation(bool enabled, bool preserveExistingFocus)
     {
@@ -212,7 +212,7 @@ public partial class ZoneScene : UserControl
         if (enabled)
         {
             pointerMode.EnterDemo(pointer.X, pointer.Y);
-            bool hasValidFocus = Array.FindIndex(docks, d => d.IsKeyboardFocusWithin) >= 0 || ReferenceEquals(Keyboard.FocusedElement, SupportButton) || ReferenceEquals(Keyboard.FocusedElement, ToolsButton);
+            bool hasValidFocus = FocusedDockIndex() >= 0 || ReferenceEquals(Keyboard.FocusedElement, SupportButton) || ReferenceEquals(Keyboard.FocusedElement, ToolsButton);
             if (!preserveExistingFocus || !hasValidFocus)
             {
                 FocusDock(State.FocusedPlayer ?? 0);
@@ -224,16 +224,18 @@ public partial class ZoneScene : UserControl
     private InputFrame Frame(Buttons buttons) => new(0, true, "simulation:zone-keys", clock.Elapsed.TotalMilliseconds, buttons);
     public async void OnKeyDown(object sender, KeyEventArgs e)
     {
+        if(matchedZone!=null&&Keyboard.FocusedElement is Button native&&(e.Key==Key.Enter||e.Key==Key.A))
+        {if(!e.IsRepeat)native.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));e.Handled=true;return;}
         if(Keyboard.FocusedElement is System.Windows.Controls.Button shell && (ReferenceEquals(shell,SupportButton)||ReferenceEquals(shell,ToolsButton)))
         {
             if(e.Key==Key.Enter || e.Key==Key.A){if(!e.IsRepeat)shell.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));e.Handled=true;return;}
             if(e.Key==Key.Down){FocusDock(State.FocusedPlayer??0);e.Handled=true;return;}
             if(e.Key is Key.Left or Key.Right){shell.MoveFocus(new(e.Key==Key.Left?FocusNavigationDirection.Left:FocusNavigationDirection.Right));e.Handled=true;return;}
         }
-        if ((IsRebel || IsPulse || IsSpotlight) && e.Key is Key.X or Key.Y)
+        if (false && e.Key is Key.X or Key.Y)
         {   // the command cluster: X tests, Y manages setups; on the wall, Y changes the card's controller
             e.Handled = true; if (e.IsRepeat) return;
-            int card = Array.FindIndex(docks, d => d.IsKeyboardFocusWithin);
+            int card = FocusedDockIndex();
             if (State.FocusedPlayer is int p) StudioPageRequested?.Invoke(p, e.Key == Key.X ? "Tester" : "Setups");
             else if (e.Key == Key.Y && card >= 0) ControllerActionRequested?.Invoke(card, true);
             return;
@@ -247,7 +249,7 @@ public partial class ZoneScene : UserControl
             else if (SimulationNavigation) SetSimulationNavigation(false);
             return;
         }
-        int selected = Array.FindIndex(docks, d => d.IsKeyboardFocusWithin);
+        int selected = FocusedDockIndex();
         if(selected>=0 && e.Key==Key.Up && !State.FocusedPlayer.HasValue){ToolsButton.Focus();e.Handled=true;return;}
         if (selected < 0) selected = State.FocusedPlayer ?? 0;
         var direction = e.Key switch { Key.Up => NavigationAction.Up, Key.Down => NavigationAction.Down, Key.Left => NavigationAction.Left, Key.Right => NavigationAction.Right, _ => NavigationAction.None };
@@ -285,6 +287,12 @@ public partial class ZoneScene : UserControl
     }
     private void MoveFocusToDock(int selected, NavigationAction action)
     {
+        if(matchedZone!=null)
+        {
+            if(action==NavigationAction.Left||action==NavigationAction.Right)FocusDock(Math.Clamp(selected+(action==NavigationAction.Left?-1:1),0,3));
+            else if(matchedPlayerButtons.TryGetValue(selected,out var native))native.MoveFocus(new(action==NavigationAction.Up?FocusNavigationDirection.Up:FocusNavigationDirection.Down));
+            return;
+        }
         if (State.FocusedPlayer.HasValue)
         {
             // the hero on the left, the other three in a column on the right
@@ -298,12 +306,7 @@ public partial class ZoneScene : UserControl
                 NavigationAction.Down when position >= 0 => others[Math.Min(2, position + 1)],
                 _ => selected };
         }
-        else if (IsRebel || IsPulse || IsSpotlight)
-        {   // one row of cards, then the Add card
-            if (action == NavigationAction.Right && selected == 3 && (IsPulse ? pulseAddCard : (IsSpotlight ? spotlightAddCard : addCard))!.IsVisible) { (IsPulse ? pulseAddCard : (IsSpotlight ? spotlightAddCard : addCard))!.Focus(); return; }
-            selected = action switch { NavigationAction.Left => Math.Max(0, selected - 1), NavigationAction.Right => Math.Min(3, selected + 1), _ => selected };
-        }
-        else selected = action switch {
+                else selected = action switch {
             // the two-by-two grid
             NavigationAction.Left when selected % 2 == 1 => selected - 1,
             NavigationAction.Right when selected % 2 == 0 => selected + 1,
@@ -336,4 +339,6 @@ public partial class ZoneScene : UserControl
     private void Minimize(object sender, RoutedEventArgs e) { if (Window.GetWindow(this) is Window w) SystemCommands.MinimizeWindow(w); }
     private void Maximize(object sender, RoutedEventArgs e) { if (Window.GetWindow(this) is Window w) w.WindowState = w.WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized; } // fullscreen or the fixed window
     private void Close(object sender, RoutedEventArgs e) => Window.GetWindow(this)?.Close();
+    /// <summary>Marks each player's card connected or not from real evidence the host holds (scan and live input).</summary>
+    public void SetLiveConnections(Func<int,bool> live){for(int i=0;i<docks.Length;i++)docks[i].SetLiveConnected(State.Players[i].Model!=null&&live(i));}
 }

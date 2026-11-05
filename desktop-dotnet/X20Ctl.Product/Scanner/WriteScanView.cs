@@ -92,9 +92,6 @@ public sealed partial class WriteScanView : Grid
         setting.TextChanged += (_, _) => Gate(); undoable.Checked += (_, _) => Gate(); undoable.Unchecked += (_, _) => Gate(); Gate();
         planNext.Click += (_, _) => Show(1);
         BuildWarning(); Children.Add(warning); BuildCheck(); Children.Add(checkView);
-        if (ThemeCatalog.Current.Id == "pulse") BuildPulseWriteFlow(page);
-        if (ThemeCatalog.Current.Id == "spotlight") BuildSpotlightWriteFlow(page);
-        if (ThemeCatalog.Current.Id == "rebel") BuildRebelWriteFlow(page);
         timer.Tick += (_, _) => Tick();
         Drop += async (_, e) => { if (e.Data.GetData(DataFormats.FileDrop) is string[] { Length: > 0 } files && warning.Visibility != Visibility.Visible && checkView.Visibility != Visibility.Visible) await Read(files[0]); };
         Loaded += (_, _) => { if (DS.Motion) { Opacity = 0; BeginAnimation(OpacityProperty, DS.To(1, 240)); } };
@@ -127,11 +124,10 @@ public sealed partial class WriteScanView : Grid
             Note("No phone? Check over Bluetooth instead. It only reads, and changes nothing."),
             new WrapPanel { Margin = new(0, 22, 0, 0), Children = { check, go.Also(b => b.Margin = new(12, 0, 0, 0)), leave.Also(b => b.Margin = new(12, 0, 0, 0)) } } } };
         warning.Child = new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
-        if (ThemeCatalog.Current.Id == "pulse") BuildPulseWriteWarning(cards, go, leave);
-        if (ThemeCatalog.Current.Id == "spotlight") BuildSpotlightWriteWarning(cards, go, leave);
         if (ThemeCatalog.Current.Id == "nexus") BuildNexusWriteWarning(cards, go, leave);
-        if (ThemeCatalog.Current.Id == "tide") BuildTideWriteWarning(cards, go, leave);
-        if (ThemeCatalog.Current.Id == "rebel") BuildRebelWriteWarning(cards, go, leave);
+        if (ThemeCatalog.Current.Id == "hollow") BuildHollowWriteWarning(cards, go, leave);
+        if (ThemeCatalog.Current.Id == "nocturne") BuildNocturneWriteWarning(cards, go, leave);
+        if (ThemeCatalog.Current.Id == "sunrise") BuildSunriseWriteWarning(cards, go, leave);
     }
 
     // ================= the controller check: Bluetooth, read-only, no phone =================
@@ -216,8 +212,7 @@ public sealed partial class WriteScanView : Grid
     {
         step = n; timer.Stop(); handsOff.Reset();
         strip.Children.Clear();
-        if (ThemeCatalog.Current.Id == "rebel") BuildRebelWriteSteps();
-        else for (int i = 0; i < StepNames.Length; i++)
+        for (int i = 0; i < StepNames.Length; i++)
         {
             bool done = i < step, current = i == step;
             var c = current ? Kit.Blue : done ? ThemeCatalog.R(Color.FromRgb(150, 175, 215)) : ThemeCatalog.R(Color.FromRgb(90, 104, 130));
@@ -228,9 +223,7 @@ public sealed partial class WriteScanView : Grid
                     Kit.Text(StepNames[i], 14, current ? "DS.Text" : "DS.TextSoft", current ? FontWeights.SemiBold : FontWeights.Normal) } } });
         }
         stage.Children.Clear();
-        if (ThemeCatalog.Current.Id == "pulse") { BuildPulseWriteSteps(); stage.Children.Add(n switch { 0 => PulseWritePlan(), 1 => PhonePage(), 2 => PulseWriteTest(TestPage()), 3 => RecordingPage(), _ => PulseWriteResults(ResultsPage()) }); return; }
-        stage.Children.Add(n switch { 0 => ThemeCatalog.Current.Id == "rebel" ? RebelWritePlan() : PlanPage(), 1 => PhonePage(), 2 => TestPage(), 3 => RecordingPage(), _ => ResultsPage() });
-        if (ThemeCatalog.Current.Id == "rebel" && stage.Children[0] is FrameworkElement content) { content.MaxHeight = 560; content.VerticalAlignment = VerticalAlignment.Top; stage.ClipToBounds = true; }
+        stage.Children.Add(n switch { 0 => PlanPage(), 1 => PhonePage(), 2 => TestPage(), 3 => RecordingPage(), _ => ResultsPage() });
     }
 
     private void Gate() => planNext.IsEnabled = setting.Text.Trim().Length > 0 && undoable.IsChecked == true;
@@ -298,8 +291,7 @@ public sealed partial class WriteScanView : Grid
             ("I pressed the button too early", "Press Start the test again. The pauses keep each action apart, so the result is easier to read.")]);
         help.Visibility = Visibility.Collapsed;
         var stuck = Action("", "I'm stuck", "ActionButton"); stuck.Click += (_, _) => help.Visibility = help.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
-        if (ThemeCatalog.Current.Id == "rebel") { ShowPart(); return RebelWriteTest(restart, stuck, help); }
-        var left = Kit.Panel("Do the test", "Follow each step on the phone, then confirm here", null, new StackPanel { Children = {
+                var left = Kit.Panel("Do the test", "Follow each step on the phone, then confirm here", null, new StackPanel { Children = {
             Detach(partTitle), Detach(partSay).Also(t => t.Margin = new(0, 8, 0, 0)), Detach(partCount).Also(t => t.Margin = new(0, 14, 0, 0)),
             new WrapPanel { Margin = new(0, 22, 0, 0), Children = { partDone, restart.Also(b => b.Margin = new(12, 0, 0, 0)), stuck.Also(b => b.Margin = new(12, 0, 0, 0)) } }, help } });
         var list = new StackPanel();
@@ -441,7 +433,6 @@ public sealed partial class WriteScanView : Grid
         DockPanel.SetDock(headline, Dock.Top); dock.Children.Add(Detach(headline));
         DockPanel.SetDock(foot, Dock.Bottom); dock.Children.Add(foot);
         dock.Children.Add(new Border { CornerRadius = new(12), ClipToBounds = true, Child = Detach(summary) });
-        if (ThemeCatalog.Current.Id == "rebel") return RebelWriteResults(dock, report.Plan.Setting, report.Source);
         return Kit.Panel("Results", report.Plan.Setting.Length > 0 ? $"{report.Plan.Setting}, in {report.Source}" : report.Source, null, dock);
     }
 

@@ -7,6 +7,8 @@ namespace X20Ctl.Product;
 /// <summary>The Zone's environment: soft moving illumination below opaque device surfaces.</summary>
 public sealed class ZoneBackdrop : FrameworkElement
 {
+    private string artworkPage="Controller Zone";
+    public string ArtworkPage {get=>artworkPage;set{if(artworkPage==value)return;artworkPage=value;InvalidateVisual();}}
     private readonly Stopwatch clock=new();
     private bool reduced;
     private readonly bool manual;
@@ -25,7 +27,7 @@ public sealed class ZoneBackdrop : FrameworkElement
     }
     private static Brush Pool(Color c,byte alpha){var b=new RadialGradientBrush(new GradientStopCollection{new(Color.FromArgb(alpha,c.R,c.G,c.B),0),new(Color.FromArgb((byte)(alpha/3),c.R,c.G,c.B),.45),new(Color.FromArgb(0,c.R,c.G,c.B),1)});b.Freeze();return b;}
     private void WindowChanged(object? sender,EventArgs e)=>Refresh();
-    private void Refresh(){if(manual||reduced||!IsLoaded||!IsVisible||owner?.WindowState==WindowState.Minimized){Stop();return;}if(listening)return;listening=true;clock.Start();CompositionTarget.Rendering+=Tick;}
+    private void Refresh(){if(IllustratedThemeUI.Current!=null||manual||reduced||!IsLoaded||!IsVisible||owner?.WindowState==WindowState.Minimized){Stop();return;}if(listening)return;listening=true;clock.Start();CompositionTarget.Rendering+=Tick;}
     private void Tick(object? sender,EventArgs e){double now=clock.Elapsed.TotalSeconds;if(now-last<1d/15)return;last=now;SetTime(now);}
     public void Stop(){if(listening)CompositionTarget.Rendering-=Tick;listening=false;clock.Stop();}
     public bool ReducedMotion {get=>reduced;set{reduced=value||!SystemParameters.ClientAreaAnimation;if(reduced)SetTime(0);Refresh();}}
@@ -33,6 +35,12 @@ public sealed class ZoneBackdrop : FrameworkElement
     protected override void OnRender(DrawingContext dc)
     {
         double w=ActualWidth,h=ActualHeight;if(w<=0||h<=0)return;
+        if(IllustratedThemeUI.Current is {} theme)
+        {
+            if(IllustratedThemeUI.Image(theme.Wallpaper(ArtworkPage)) is {} image)dc.DrawImage(image,new Rect(0,0,w,h));
+            else dc.DrawRectangle(IllustratedThemeUI.Brush(ThemeCatalog.Current.Void),null,new Rect(0,0,w,h));
+            return;
+        }
         dc.DrawRectangle(backdrop,null,new Rect(0,0,w,h));
         double drift=Math.Sin(time*.065)*.025;
         dc.DrawEllipse(cool,null,new Point(w*(.91+drift),h*.08),w*.66,h*.82);

@@ -67,6 +67,12 @@ public sealed class PhysicalHotspot : Button
             new(Color.FromArgb((byte)(strength * 50), 20, 95, 188), 1)
         }) { RadiusX = .72, RadiusY = .72 } : new SolidColorBrush(Color.FromArgb((byte)(strength * 70 + (IsMouseOver ? 22 : 0)), 39, 117, 222));
         var line = new SolidColorBrush(Color.FromArgb((byte)(45 + strength * 210), 191, 222, 255));
+        if(IllustratedThemeUI.Current!=null)
+        {
+            var accent=ThemeCatalog.Current.Accent;
+            fill=new SolidColorBrush(ThemeCatalog.Alpha(accent,(byte)(strength*90+(IsMouseOver?24:0))));
+            line=new SolidColorBrush(ThemeCatalog.Alpha(accent,(byte)(strength>0?255:IsMouseOver?160:0)));
+        }
         dc.DrawGeometry(fill, new Pen(line, strength > .05 ? Region.Role == "macro" ? compact?6:3 : 3.5 : 1.25), geometry);
         if (navigationFocus && IsKeyboardFocused) dc.DrawGeometry(null, new Pen(Brushes.White, 4), geometry);
         if (Region.Role == "macro")

@@ -73,15 +73,8 @@ public sealed partial class ProductSettings : Grid
         this.pcModeService = pcModeService;
         this.pcModeStore = pcModeStore;
         Background = new SolidColorBrush(ThemeCatalog.Tone(ThemeCatalog.R(Color.FromRgb(5, 9, 20)), t => t.Void));
-        if (ThemeCatalog.Current.Id == "pulse")
-        {
-            var cymatic = Pulse.PulseKit.VoidBackdrop(hero: false);
-            var wave = Pulse.PulseKit.WaveformRibbon(785, [320, 800, 1280], [true, true, true], 1, 1.45);
-            wave.Opacity = 0.55;
-            cymatic.Children.Add(wave);
-            Children.Add(new Viewbox { Child = cymatic, Stretch = Stretch.Fill, IsHitTestVisible = false });
-        }
-        else Children.Add(new FacetBackdrop());
+        Children.Add(new FacetBackdrop());
+        IllustratedThemeUI.Surface(this,"Tools");
         Children.Add(new Border { Background = new RadialGradientBrush(ThemeCatalog.Tone(ThemeCatalog.R(Color.FromArgb(0, 5, 9, 20)), t => ThemeCatalog.Alpha(t.Void, 0)), ThemeCatalog.Tone(ThemeCatalog.R(Color.FromArgb(170, 3, 6, 14)), t => ThemeCatalog.Alpha(t.Void, 170))) { RadiusX = .8, RadiusY = .8 }, IsHitTestVisible = false });
         var page = pageGrid = new Grid { Margin = new(64, 40, 64, 40) };
         page.RowDefinitions.Add(new() { Height = GridLength.Auto }); page.RowDefinitions.Add(new()); page.RowDefinitions.Add(new() { Height = GridLength.Auto });
@@ -91,7 +84,7 @@ public sealed partial class ProductSettings : Grid
         var header = new DockPanel { Margin = new(0, 0, 0, 30) };
         Back = Pill("", "Controller Zone"); Back.Click += (_, _) => close();
         DockPanel.SetDock(Back, Dock.Right); header.Children.Add(Back);
-        var mark = ThemeCatalog.Current.Id == "pulse" ? Pulse.PulseKit.LogoMark(64).Also(m => m.Margin = new(0, 0, 18, 0)) : new Image { Source = new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/Assets/icon.png")), Width = 44, Height = 44, Margin = new(0, 0, 18, 0) };
+        var mark = new Image { Source = new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/Assets/icon.png")), Width = 44, Height = 44, Margin = new(0, 0, 18, 0) };
         RenderOptions.SetBitmapScalingMode(mark, BitmapScalingMode.HighQuality);
         header.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = { mark, new StackPanel { VerticalAlignment = VerticalAlignment.Center, Children = {
             Kit.Text("Tools", 44, "DS.Text", FontWeights.Bold), Kit.Text("Help, extras and everything about X20CTL", 17, "DS.TextSoft") } } } });
@@ -163,7 +156,6 @@ public sealed partial class ProductSettings : Grid
             bar.CornerRadius = ThemeCatalog.Round(16); bar.Padding = new(22, 14, 18, 14); bar.BorderThickness = new(1);
             bar.Background = new SolidColorBrush(ThemeCatalog.Tone(ThemeCatalog.R(Color.FromArgb(200, 14, 23, 48)), t => ThemeCatalog.Alpha(ThemeCatalog.Mix(t.Night, t.Text, .04), 210)));
             bar.BorderBrush = new SolidColorBrush(ThemeCatalog.Tone(ThemeCatalog.R(Color.FromArgb(58, 120, 160, 230)), t => ThemeCatalog.Alpha(ThemeCatalog.Mix(t.Rule, t.Text, .3), 110)));
-            if (ThemeCatalog.Current.Id == "pulse") { bar.Background = Pulse.PulseInk.PearlCardBg; bar.BorderBrush = Pulse.PulseInk.B(Pulse.PulseInk.A(Pulse.PulseInk.C("#88c8ff"), 0.34)); }
         }
         footer.ColumnDefinitions.Add(new() { Width = new(1.3, GridUnitType.Star) }); footer.ColumnDefinitions.Add(new() { Width = new(24) }); footer.ColumnDefinitions.Add(new() { Width = new(1, GridUnitType.Star) });
         footer.Children.Add(updates); Grid.SetColumn(introBar, 2); footer.Children.Add(introBar);
@@ -184,23 +176,21 @@ public sealed partial class ProductSettings : Grid
         aboutBack = Pill("", "Back to Tools"); aboutBack.Click += (_, _) => ShowAbout(false);
         about.Children.Add(BuildAbout());
 
-        if (ThemeCatalog.Current.Id == "rebel") BuildRebel();
         if (DS.Motion) Loaded += (_, _) => Enter(hub);
-        if (ThemeCatalog.Current.Id == "pulse") BuildPulse();
-        if (ThemeCatalog.Current.Id == "spotlight") BuildSpotlight();
         if (ThemeCatalog.Current.Id == "nexus") BuildNexus();
-        if (ThemeCatalog.Current.Id == "tide") BuildTide();
         if (ThemeCatalog.Current.Id == "dusk") BuildDusk();
-        if (ThemeCatalog.Current.Id == "volt") BuildVolt();
-        if (ThemeCatalog.Current.Id == "blossom") BuildBlossom();
+        if (ThemeCatalog.Current.Id == "hollow") BuildHollow();
+        if (ThemeCatalog.Current.Id == "nocturne") BuildNocturne();
+        if (ThemeCatalog.Current.Id == "sunrise") BuildSunrise();
+        BuildIllustratedTools();
     }
 
     public void ShowAbout(bool on)
     {
-        hub.Visibility = on ? Visibility.Collapsed : Visibility.Visible; about.Visibility = on ? Visibility.Visible : Visibility.Collapsed; footer.Visibility = hub.Visibility; RebelSync();
+        hub.Visibility = on ? Visibility.Collapsed : Visibility.Visible; about.Visibility = on ? Visibility.Visible : Visibility.Collapsed; footer.Visibility = hub.Visibility; 
         if (DS.Motion) Enter(on ? about : hub);
         (on ? aboutBack : About).Focus();
-        PulseSync(); SpotlightSync(); NexusSync(); TideSync(); DuskSync(); VoltSync(); BlossomSync();
+        NexusSync(); DuskSync(); HollowSync(); NocturneSync(); SunriseSync();
     }
     /// <summary>B / Esc: from About back to the hub, from the hub back to the Zone.</summary>
     private FeedbackPage BuildFeedback()
@@ -227,27 +217,27 @@ public sealed partial class ProductSettings : Grid
     public void ShowFeedback(bool on)
     {
         if (on) _ = FeedbackForm;
-        hub.Visibility = on ? Visibility.Collapsed : Visibility.Visible; feedback.Visibility = on ? Visibility.Visible : Visibility.Collapsed; footer.Visibility = hub.Visibility; RebelSync();
+        hub.Visibility = on ? Visibility.Collapsed : Visibility.Visible; feedback.Visibility = on ? Visibility.Visible : Visibility.Collapsed; footer.Visibility = hub.Visibility; 
         if (DS.Motion) Enter(on ? feedback : hub);
         if (on) FeedbackForm.Message.Focus(); else Feedback.Focus();
-        PulseSync(); SpotlightSync(); NexusSync(); TideSync(); DuskSync(); VoltSync(); BlossomSync();
+        NexusSync(); DuskSync(); 
     }
     public void ShowPcMode(bool on)
     {
         if (on && pcMode.Children.Count == 0 && buildPcMode != null)
             pcMode.Children.Add(new ScrollViewer { Content = buildPcMode(), VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled });
-        hub.Visibility = on ? Visibility.Collapsed : Visibility.Visible; pcMode.Visibility = on ? Visibility.Visible : Visibility.Collapsed; footer.Visibility = hub.Visibility; RebelSync();
+        hub.Visibility = on ? Visibility.Collapsed : Visibility.Visible; pcMode.Visibility = on ? Visibility.Visible : Visibility.Collapsed; footer.Visibility = hub.Visibility; 
         if (DS.Motion) Enter(on ? pcMode : hub);
         if (!on) PcMode.Focus();
-        PulseSync(); SpotlightSync(); NexusSync(); TideSync(); DuskSync(); VoltSync(); BlossomSync();
+        NexusSync(); DuskSync(); 
     }
     public void ShowThemes(bool on)
     {
-        if (on && themes.Children.Count == 0) themes.Children.Add(BuildThemes());
-        hub.Visibility = on ? Visibility.Collapsed : Visibility.Visible; themes.Visibility = on ? Visibility.Visible : Visibility.Collapsed; footer.Visibility = hub.Visibility; RebelSync();
+        if(on&&themes.Children.Count==0){catalogPage??=(FrameworkElement)BuildThemes();FeedbackPage.Detach(catalogPage);themes.Children.Add(catalogPage);}
+        hub.Visibility = on ? Visibility.Collapsed : Visibility.Visible; themes.Visibility = on ? Visibility.Visible : Visibility.Collapsed; footer.Visibility = hub.Visibility; 
         if (DS.Motion) Enter(on ? themes : hub);
         if (on) themeCards.FirstOrDefault(c => c.Tag as string == ChosenTheme)?.Focus(); else Themes.Focus();
-        PulseSync(); SpotlightSync(); NexusSync(); TideSync(); DuskSync(); VoltSync(); BlossomSync();
+        NexusSync(); DuskSync(); 
     }
 
     public bool StepBack()
@@ -257,7 +247,7 @@ public sealed partial class ProductSettings : Grid
         if (ShowingFeedback) { ShowFeedback(false); return true; }
         if (!ShowingAbout) return false; ShowAbout(false); return true;
     }
-    public void FocusFirst() { if (rebelRoot != null && rebelRoot.IsVisible) RebelFocus("t:pcmode"); else (pulseRoot != null && pulseRoot.IsVisible && pulseTiles.Count > 0 ? pulseTiles[0] : Check).Focus(); }
+    public void FocusFirst() { Check.Focus(); }
 
     private void SetAuto(bool on)
     {
@@ -309,8 +299,7 @@ public sealed partial class ProductSettings : Grid
         };
         var stack = new StackPanel(); panel.Child = stack;
         stack.Children.Add(Kit.Text("Credits · Desktop-control layout inspired by Gopher360 — Tylemagne, GPL-3.0. See the distributed open-source license notices.",13,"DS.TextMuted").Also(t=>{t.TextWrapping=TextWrapping.Wrap;t.Margin=new(0,12,0,16);}));
-        var mark = ThemeCatalog.Current.Id == "pulse" ? Pulse.PulseKit.LogoMark(92).Also(m => m.Margin = new(0, 0, 24, 0)) : new Image { Source = new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/Assets/icon.png")), Width = 72, Height = 72, Margin = new(0, 0, 24, 0) };
-        if (ThemeCatalog.Current.Id == "pulse") { panel.Background = Pulse.PulseInk.PearlCardBg; stack.Children.Add(Pulse.PulseKit.PrismTopBar(0).Also(b => b.Margin = new(0, -40, 0, 16))); stack.Children.Add(Pulse.PulseKit.MiniEcgStrip("432 Hz · HARMONIC STUDIO ARCHITECTURE")); }
+        var mark = new Image { Source = new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/Assets/icon.png")), Width = 72, Height = 72, Margin = new(0, 0, 24, 0) };
         RenderOptions.SetBitmapScalingMode(mark, BitmapScalingMode.HighQuality);
         stack.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = { mark, new StackPanel { VerticalAlignment = VerticalAlignment.Center, Children = {
             Kit.Text("X20CTL", 38, "DS.Text", FontWeights.Bold), Kit.Text($"Native Controller Studio · {X20Ctl.Zone.ReleaseVersions.Display(version)}", 16, "DS.TextSoft") } } } });
@@ -371,16 +360,6 @@ public sealed partial class ProductSettings : Grid
     }
     private UIElement BuildThemes()
     {
-        // Themes are paused: the page says so, and keeps the language row.
-        {
-            var page = new Grid(); page.RowDefinitions.Add(new() { Height = GridLength.Auto }); page.RowDefinitions.Add(new() { Height = GridLength.Auto }); page.RowDefinitions.Add(new());
-            var leave = Pill("", "Back to Tools"); leave.Click += (_, _) => ShowThemes(false); DockPanel.SetDock(leave, Dock.Right);
-            page.Children.Add(new DockPanel { Margin = new(0, 0, 0, 22), Children = { leave, Kit.Text("Themes", 26, "DS.Text", FontWeights.SemiBold) } });
-            var langs = BuildLanguages(); Grid.SetRow(langs, 1); page.Children.Add(langs);
-            var sorry = Kit.Text("Sorry, currently on maintenance :(", 22, "DS.Text", FontWeights.SemiBold); sorry.HorizontalAlignment = HorizontalAlignment.Center; sorry.VerticalAlignment = VerticalAlignment.Center;
-            Grid.SetRow(sorry, 2); page.Children.Add(sorry);
-            return page;
-        }
         var root = new Grid(); root.RowDefinitions.Add(new() { Height = GridLength.Auto }); root.RowDefinitions.Add(new() { Height = GridLength.Auto }); root.RowDefinitions.Add(new());
         var status = Kit.Text("", 15, "DS.TextSoft");
         var back = Pill("", "Back to Tools"); back.Click += (_, _) => ShowThemes(false);
@@ -389,7 +368,8 @@ public sealed partial class ProductSettings : Grid
         DockPanel.SetDock(actions, Dock.Right);
         root.Children.Add(new DockPanel { Margin = new(0, 0, 0, 22), Children = { actions, new StackPanel { VerticalAlignment = VerticalAlignment.Center, Children = { Kit.Text("Themes", 26, "DS.Text", FontWeights.SemiBold), status } } } });
         var languageRow = BuildLanguages(); Grid.SetRow(languageRow, 1); root.Children.Add(languageRow);
-        var grid = new System.Windows.Controls.Primitives.UniformGrid { Columns = 5, Rows = 2 }; Grid.SetRow(grid, 2); root.Children.Add(grid);
+        var grid = new System.Windows.Controls.Primitives.UniformGrid { Columns = 4 };
+        var scroll=new ScrollViewer{Content=grid,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled};Grid.SetRow(scroll,2);root.Children.Add(scroll);
         void Show()
         {
             string chosen = ChosenTheme; var next = ThemeCatalog.Find(chosen);
@@ -405,7 +385,7 @@ public sealed partial class ProductSettings : Grid
         }
         foreach (var theme in ThemeCatalog.All)
         {
-            var card = ThemeCard(theme); card.Margin = new(0, 0, 18, 18); card.IsEnabled = preferences != null; themeCards.Add(card); grid.Children.Add(card);
+            var card = ThemeCard(theme); card.Height=230; card.Margin = new(0, 0, 18, 18); card.IsEnabled = preferences != null; themeCards.Add(card); grid.Children.Add(card);
             card.Click += (_, _) =>
             {
                 try { preferences?.SetTheme(theme.Id); Show(); }
@@ -413,6 +393,15 @@ public sealed partial class ProductSettings : Grid
             };
         }
         Show(); return root;
+    }
+    private FrameworkElement? catalogPage;
+    private void RenderCatalogThemes(Canvas board)
+    {
+        catalogPage??=themes.Children.OfType<FrameworkElement>().FirstOrDefault()??(FrameworkElement)BuildThemes();
+        FeedbackPage.Detach(catalogPage);
+        catalogPage.Width=1472;catalogPage.Height=764;
+        board.Background=new SolidColorBrush(ThemeCatalog.Current.Void);
+        Canvas.SetLeft(catalogPage,64);Canvas.SetTop(catalogPage,68);board.Children.Add(catalogPage);
     }
     /// <summary>A small picture of the theme: its night, a pool of its light, its logo, a panel and its accent, and its name in its own type.</summary>
     private static Button ThemeCard(AppTheme theme)
@@ -422,6 +411,7 @@ public sealed partial class ProductSettings : Grid
         swatch.Children.Add(new Border { CornerRadius = corner, Background = new LinearGradientBrush(theme.Night, theme.Void, 90) });
         swatch.Children.Add(new Border { CornerRadius = corner, Background = new RadialGradientBrush(ThemeCatalog.Alpha(theme.PoolA, 150), ThemeCatalog.Alpha(theme.PoolA, 0)) { Center = new(.95, .1), GradientOrigin = new(.95, .1), RadiusX = .8, RadiusY = .9 } });
         swatch.Children.Add(new Border { CornerRadius = corner, Background = new RadialGradientBrush(ThemeCatalog.Alpha(theme.PoolB, 120), ThemeCatalog.Alpha(theme.PoolB, 0)) { Center = new(.05, .9), GradientOrigin = new(.05, .9), RadiusX = .7, RadiusY = .8 } });
+        if(IllustratedThemeSpec.Find(theme.Id) is {} art&&IllustratedThemeUI.Image(art.Wallpaper("Dashboard")) is {} preview)swatch.Children.Add(new Image{Source=preview,Stretch=Stretch.UniformToFill});
         if (ThemeLogo(theme) is { } logo) swatch.Children.Add(new Image { Source = logo, Height = 58, Margin = new(14, 14, 0, 0), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top }.Also(i => RenderOptions.SetBitmapScalingMode(i, BitmapScalingMode.HighQuality)));
         var accentChip = new Border { Width = 50, Height = 22, CornerRadius = new(theme.Radius == 0 ? 0 : 11), Background = new SolidColorBrush(theme.Accent), Margin = new(10, 0, 0, 0),
             Child = new Border { Width = 24, Height = 4, CornerRadius = new(2), Background = new SolidColorBrush(theme.OnAccent), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center } };
@@ -457,6 +447,7 @@ public sealed partial class ProductSettings : Grid
     }
     private static ImageSource? ThemeLogo(AppTheme theme)
     {
+        if(IllustratedThemeSpec.Find(theme.Id) is {} art)return IllustratedThemeUI.Image(art.Logo());
         try
         {
             if (theme.Intro is { } intro && System.IO.File.Exists(intro.LogoPath))
@@ -486,7 +477,6 @@ public sealed partial class ProductSettings : Grid
         if (hero)
         {   // the Controller Check card shows a computer running a scan (owner request 13 Oct 2026), not a controller
             var computer = new Scanner.PcScanArt();
-            if (ThemeCatalog.Current.Id == "pulse") { var halo = Pulse.PulseKit.ControllerChamberHalo(showRipples: true, opacity: 0.55); halo.Width = 420; halo.HorizontalAlignment = HorizontalAlignment.Right; halo.VerticalAlignment = VerticalAlignment.Top; halo.Margin = new(0, -12, 12, 0); art.Children.Add(halo); }
             art.Children.Add(new Viewbox { Child = computer, Width = 470, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new(0, 6, 0, 0), IsHitTestVisible = false, Opacity = .95 });
         }
         double chipSize = hero ? 60 : 48;
@@ -505,12 +495,6 @@ public sealed partial class ProductSettings : Grid
         var arrowMove = new TranslateTransform();
         var arrow = new TextBlock { Text = "", FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"), FontSize = 15, Foreground = DS.Brush("DS.TextMuted"), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = hero ? VerticalAlignment.Bottom : VerticalAlignment.Center, RenderTransform = arrowMove };
         art.Children.Add(arrow);
-        if (ThemeCatalog.Current.Id == "pulse")
-        {
-            var topBar = Pulse.PulseKit.PrismTopBar(hero ? 16 : 8);
-            topBar.Margin = new(0, hero ? -32 : -18, 0, 0);
-            art.Children.Add(topBar);
-        }
         var face = new Border
         {
             CornerRadius = ThemeCatalog.Round(hero ? 22 : 18), BorderThickness = new(1), Padding = hero ? new(34, 32, 30, 30) : new(22, 18, 20, 18), ClipToBounds = true, Child = art,

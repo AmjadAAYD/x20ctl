@@ -38,14 +38,15 @@ public sealed class IntroView:Grid
     public event Action? Completed; public event Action<double>? ZoneReveal;
     public static bool SoundEnabled {get;set;}=true;
     /// <summary>The film carries the sound, so "has a score" means the film is installed beside the app.</summary>
-    public static bool HasIntroScore => Themed==null&&System.IO.File.Exists(FilmPath);
+    public static bool HasIntroScore => !IllustratedThemeUI.Matched&&Themed==null&&System.IO.File.Exists(FilmPath);
     /// <summary>A film is installed to play, the shipped one or the theme's own.</summary>
-    public static bool HasFilm => System.IO.File.Exists(FilmPath);
+    public static bool HasFilm => !IllustratedThemeUI.Matched&&System.IO.File.Exists(FilmPath);
     /// <summary>The theme in use brings its own film and logo when both are installed; its film has no sound.</summary>
     private static IntroSpec? Themed => ThemeCatalog.Current.Intro is { } own && System.IO.File.Exists(own.FilmPath) && System.IO.File.Exists(own.LogoPath) ? own : null;
     private static string FilmPath => Themed?.FilmPath ?? System.IO.Path.Combine(AppContext.BaseDirectory,"Brand","intro.mp4");
 
     private readonly MediaPlayer? film;
+    private readonly IllustratedIntroArt? illustrated;
     // the film's picture: its 1920x1080 frame drawn by the player, filling the view and centred (cropping the edges)
     private readonly Image? filmView;
     private readonly Image cover=new(){IsHitTestVisible=false,Opacity=0,Stretch=Stretch.Fill,HorizontalAlignment=HorizontalAlignment.Left,VerticalAlignment=VerticalAlignment.Top};
@@ -57,8 +58,9 @@ public sealed class IntroView:Grid
 
     public IntroView(bool reduced,bool muted=false,IIntroHandoff? handoff=null)
     {
-        Reduced=reduced;Muted=muted;this.handoff=handoff;var themed=Themed;spec=themed??Shipped;
+        Reduced=reduced;Muted=muted;this.handoff=handoff;var themed=Themed;spec=IllustratedThemeUI.Current is {Native:false} own?IllustratedIntroArt.CreateSpec(own):themed??Shipped;
         Children.Add(backdrop);
+        if(IllustratedThemeUI.Matched){illustrated=new IllustratedIntroArt{IsHitTestVisible=false,Time=reduced?1.25:0};Children.Add(illustrated);}
         var early=preloaded;bool earlyOpened=preloadOpened,earlyFailed=preloadFailed;preloaded=null;preloadOpened=preloadFailed=false;
         if(!reduced&&HasFilm)
         {
@@ -74,7 +76,7 @@ public sealed class IntroView:Grid
             Unloaded+=(_,_)=>film.Close();
         }
         else early?.Close();
-        cover.Source=themed==null?new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/X20Ctl;component/Assets/brand.png")):LoadLogo(themed.LogoPath);
+        cover.Source=IllustratedThemeUI.Current is {Native:false} art?IllustratedThemeUI.Image(art.Logo()):themed==null?new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/X20Ctl;component/Assets/brand.png")):LoadLogo(themed.LogoPath);
         Children.Add(cover);
         Skip=new Button{Content="Skip · Esc / B",HorizontalAlignment=HorizontalAlignment.Right,VerticalAlignment=VerticalAlignment.Bottom,Margin=new(0,0,36,36),Style=DS.Style("DS.Secondary"),Opacity=.8};Skip.Click+=(_,_)=>Finish();
         // mute (owner request 12 Oct 2026): beside Skip, remembered for the next launch; reduced motion has no sound to mute
@@ -84,6 +86,7 @@ public sealed class IntroView:Grid
         PreviewMouseDown+=(_,e)=>{if(e.ChangedButton==MouseButton.Left&&!Skip.IsMouseOver&&!Mute.IsMouseOver)Finish();};
         clock.Tick+=(_,_)=>Frame(Elapsed);
         Loaded+=(_,_)=>{if(startRequested)Begin();};
+        Unloaded+=(_,_)=>clock.Stop();
     }
 
     private static System.Windows.Media.Imaging.BitmapImage LoadLogo(string path)
@@ -142,13 +145,15 @@ public sealed class IntroView:Grid
         if(finished)return;
         if(Reduced)
         {
-            double amount=Smooth(Win(t,0,ReducedFor));
+            double duration=illustrated!=null?.1:ReducedFor;
+            double amount=Smooth(Win(t,0,duration));
             Opacity=1-amount;ZoneReveal?.Invoke(amount);handoff?.Handoff(1,1,1,1);Skip.Opacity=Mute.Opacity=.8*(1-amount);
-            if(t>=ReducedFor)Finish();return;
+            if(t>=duration)Finish();return;
         }
         // a film that never opens (a missing codec) must not hold the app behind a black screen
         if(film!=null&&!opened&&frozenAt==null&&t>OpenWithin){Finish();return;}
-        if(film==null&&t<CoverAt)t=CoverAt; // no film installed: start at the logo and hand over at once
+        if(illustrated!=null)illustrated.Time=t;
+        if(film==null&&illustrated==null&&t<CoverAt)t=CoverAt; // no film installed: start at the logo and hand over at once
 
         // the cover: the film's logo, laid exactly over it, then the film fades out from under it
         var logo=OnScreen(FilmLogo);
@@ -168,6 +173,7 @@ public sealed class IntroView:Grid
         double brand=markTarget==null?Smooth(Win(t,FlyAt,FlyAt+.5)):Smooth(Win(q,.85,1));
         cover.Opacity=shown*(1-brand);
         backdrop.Opacity=1-Smooth(Win(t,FlyAt+.05,FlyAt+.7));
+        if(illustrated!=null)illustrated.Opacity=backdrop.Opacity;
         double landed=Win(t,FlyAt+FlyFor,FlyAt+FlyFor+.14);
         if(handing)handoff?.Handoff(Win(t,FlyAt,FlyAt+FlyFor+.1),brand,1,landed>0&&landed<1?1+.03*Math.Sin(Math.PI*landed):1);
         Skip.Opacity=Mute.Opacity=.8*(1-Smooth(Win(t,FlyAt,FlyAt+.3)));

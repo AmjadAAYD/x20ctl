@@ -952,7 +952,6 @@ public static class NexusKit
     public static FrameworkElement ThemeThumb(string themeKey, double width, double height)
     {
         string safeKey = themeKey.ToLowerInvariant();
-        if (safeKey == "yozakura") safeKey = "blossom";
 
         string appDir = AppContext.BaseDirectory;
         string? foundPath = null;

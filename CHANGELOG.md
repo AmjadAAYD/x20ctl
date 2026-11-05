@@ -1,5 +1,17 @@
 # Changelog
 
+## [V0.021] - 2026-11-05
+
+### Added
+
+- **Themes are back, with five new looks.** Channel, Undertow, Alert, Slate and Multiverse sit beside Default in Tools > Themes. Each one keeps Default's layout and controls, and gives every page its own background, buttons, panels and colours: the Dashboard, Buttons, Curves, Macros, Vibration, PC mode, Device, Mouse, Setups, Tester, Diagnostics, Tools, Agent and the scans.
+
+### Fixed
+
+- **A pad is scanned once per session.** After a controller passes the check, going back to the Controller Zone and in again no longer asks for a new scan. It is remembered until X20CTL is closed.
+- **The Controller Zone shows a checked pad as Connected.** It said "Not connected" even while the pad was working.
+- **Selected buttons stay readable in every theme.** Highlighted choices such as "L Stick" and "Default" on Curves no longer lose their label.
+
 ## [V0.020] - 2026-11-04
 
 ### Changed

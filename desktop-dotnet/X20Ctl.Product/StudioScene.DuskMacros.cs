@@ -180,7 +180,7 @@ public partial class StudioScene
         // Sequence blocks with luminous dropshadows
         var blockRow = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 0, 16) };
         var events = macro.Draft[macro.Slot];
-        var seqBlocks = events.Select((entry, index) => (RebelPresses(entry), index == macro.SelectedIndex ? DuskKit.GreenOnline : DuskKit.CyanNeon)).ToArray();
+        var seqBlocks = events.Select((entry, index) => (MacroPresses(entry), index == macro.SelectedIndex ? DuskKit.GreenOnline : DuskKit.CyanNeon)).ToArray();
         for (int i = 0; i < seqBlocks.Length; i++)
         {
             var (bName, bCol) = seqBlocks[i];
@@ -280,7 +280,7 @@ public partial class StudioScene
                 detailStack.Children.Add(new TextBlock { Text = label, Foreground = DuskKit.LightBrush, Margin = new(0,8,0,6) });
                 var directions = new System.Windows.Controls.Primitives.UniformGrid { Columns = 3, Width = 210, HorizontalAlignment = HorizontalAlignment.Left };
                 StickHeading[] order = [StickHeading.UpLeft, StickHeading.Up, StickHeading.UpRight, StickHeading.Left, StickHeading.Neutral, StickHeading.Right, StickHeading.DownLeft, StickHeading.Down, StickHeading.DownRight];
-                foreach (var direction in order) directions.Children.Add(DuskMacroAction(RebelArrow(direction), "stick:" + label + ":" + direction, () => macro.Update(left ? entry with { Left = direction } : entry with { Right = direction }), macro.Draft.CanEdit));
+                foreach (var direction in order) directions.Children.Add(DuskMacroAction(StickArrow(direction), "stick:" + label + ":" + direction, () => macro.Update(left ? entry with { Left = direction } : entry with { Right = direction }), macro.Draft.CanEdit));
                 detailStack.Children.Add(directions);
             }
             var editActions = new WrapPanel();

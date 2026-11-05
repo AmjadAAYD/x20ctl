@@ -53,6 +53,7 @@
     <Content Include="Brand/intro.mp4;Brand/intro-audio-provenance.md" CopyToOutputDirectory="PreserveNewest" />
     <!-- each theme's opening film and the logo laid over its last frame (previews/console-concepts/themes/app_films.py) -->
     <Content Include="Brand/themes/**/intro.mp4;Brand/themes/**/logo.png;Brand/themes/**/ransom.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Brand/illustrated/**/*" CopyToOutputDirectory="PreserveNewest" />
     <!-- the interface sounds (tools/ui_sounds/build.py); see Brand/ui-audio-provenance.md -->
     <Content Include="Brand/ui/*.wav;Brand/ui-audio-provenance.md" CopyToOutputDirectory="PreserveNewest" />
     <!-- the guides Agent XCTL answers app questions from (M5) -->

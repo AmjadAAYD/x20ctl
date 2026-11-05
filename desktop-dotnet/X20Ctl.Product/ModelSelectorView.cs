@@ -79,10 +79,10 @@ public sealed partial class ModelSelectorView : Grid
         footer.Margin = new(9, 0, 0, 0); Grid.SetRow(footer, 2); body.Children.Add(footer);
 
         Unloaded += (_, _) => turn.Stop();
-        if (ThemeCatalog.Current.Id == "pulse") BuildPulseSelector(catalog, facts);
-        if (ThemeCatalog.Current.Id == "spotlight") BuildSpotlightSelector(catalog, facts);
         if (ThemeCatalog.Current.Id == "nexus") BuildNexusSelector(catalog, facts);
-        if (ThemeCatalog.Current.Id == "tide") BuildTideSelector(catalog, facts);
+        if (ThemeCatalog.Current.Id == "hollow") BuildHollowSelector(catalog, facts);
+        if (ThemeCatalog.Current.Id == "nocturne") BuildNocturneSelector(catalog, facts);
+        if (ThemeCatalog.Current.Id == "sunrise") BuildSunriseSelector(catalog, facts);
         Loaded += (_, _) =>
         {
             if (cards.Count > 0) cards[0].Focus();
@@ -98,7 +98,6 @@ public sealed partial class ModelSelectorView : Grid
                 shift.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(18, 0, TimeSpan.FromMilliseconds(320)) { BeginTime = at, EasingFunction = ease });
             }
         };
-        if (ThemeCatalog.Current.Id == "rebel") BuildRebelSelector(catalog, facts);
     }
 
     // every model that comes in more than one colour turns to its next colour at the same moment, then holds it (owner

@@ -327,12 +327,12 @@ public sealed partial class AgentPanel
             Background = Brushes.Transparent, Child = new Viewbox { Stretch = Stretch.Uniform, Child = pad },
             RenderTransform = new TransformGroup { Children = { pop, offset } }, RenderTransformOrigin = new(1, 1),
         };
-        if (ThemeCatalog.Current.Id == "rebel") BuildRebelAgent();
+        if(IllustratedThemeUI.Matched)BuildIllustratedAgent(screen);
         blink.Tick += (_, _) => Blink();
-        if (ThemeCatalog.Current.Id == "pulse") BuildPulseAgent();
-        if (ThemeCatalog.Current.Id == "spotlight") BuildSpotlightAgent();
         if (ThemeCatalog.Current.Id == "nexus") BuildNexusAgent();
-        if (ThemeCatalog.Current.Id == "tide") BuildTideAgent();
+        if (ThemeCatalog.Current.Id == "hollow") BuildHollowAgent();
+        if (ThemeCatalog.Current.Id == "nocturne") BuildNocturneAgent();
+        if (ThemeCatalog.Current.Id == "sunrise") BuildSunriseAgent();
         Say(greeting, null);
         ShowSettings(new HashSet<string>());
         Body.Unloaded += (_, _) => StopCharacterMotion();
@@ -823,7 +823,7 @@ public sealed partial class AgentPanel
     bool Motion => !reducedMotion && DS.Motion;
     public void Show()
     {
-        Body.Visibility = Visibility.Visible; Body.IsHitTestVisible = true; if(Motion) blink.Start();
+        Body.Visibility = Visibility.Visible; Body.IsHitTestVisible = true; if(Motion&&!IllustratedThemeUI.Matched) blink.Start();
         if (live.Count > 0) StartLive();
         if (!Motion) { Body.Opacity = 1; pop.ScaleX = pop.ScaleY = 1; return; }
         Body.BeginAnimation(UIElement.OpacityProperty, DS.To(1, 180));
@@ -977,8 +977,6 @@ public sealed partial class AgentPanel
             BorderBrush = new SolidColorBrush(mine ? ThemeCatalog.R(Color.FromRgb(58, 64, 74)) : Line),
             Child = Wrap(text, 14, "DS.Text"),
         };
-        if (ThemeCatalog.Current.Id == "rebel") bubble = RebelBubble(text, mine);
-        else if (ThemeCatalog.Current.Id == "pulse") bubble = PulseBubble(text, mine);
         transcript.Children.Add(bubble); Fx.Appear(bubble, .97, 200); scroller.ScrollToEnd(); return bubble;
     }
 
@@ -1076,9 +1074,7 @@ public sealed partial class AgentPanel
         var verdictText = Wrap(verdict, 14, failure != null || !v.Valid || turn.Outcome.Error != null ? "DS.Danger" : turn.Outcome.Changes.Count > 0 ? "DS.Success" : "DS.TextMuted").Also(t => { t.FontWeight = FontWeights.SemiBold; t.VerticalAlignment = VerticalAlignment.Center; });
         stack.Children.Add(Footer(verdictText, failure == null && turn.Outcome.Next != null && turn.Outcome.Changes.Count > 0 ? step : null));
 
-        var bubble = Bubble("", false); bubble.Child = stack; bubble.HorizontalAlignment = ThemeCatalog.Current.Id is "pulse" or "rebel" ? HorizontalAlignment.Left : HorizontalAlignment.Stretch;
-        if (ThemeCatalog.Current.Id == "pulse" && verdictText.Text == "No changes") PulseNoChangesFooter(stack);
-        if (ThemeCatalog.Current.Id == "rebel" && verdictText.Text == "No changes") RebelNoChangesFooter(stack);
+        var bubble = Bubble("", false); bubble.Child = stack; bubble.HorizontalAlignment = HorizontalAlignment.Stretch;
         if (hero) { bubble.Background = Brushes.Transparent; bubble.BorderBrush = Brushes.Transparent; bubble.Margin = new(0, 10, 12, 6); }
         scroller.ScrollToEnd();
     }
@@ -1213,8 +1209,7 @@ public sealed partial class AgentPanel
         foreach (var c in changes) stack.Children.Add(Wrap($"{c.What}   {c.Before} → {c.After}", 14, "DS.AccentHi", 6));
         var verdictText = Wrap($"Applied · {changes.Count} change{(changes.Count == 1 ? "" : "s")}{(link == null ? " · preview only" : "")}", 14, "DS.Success").Also(t => { t.FontWeight = FontWeights.SemiBold; t.VerticalAlignment = VerticalAlignment.Center; });
         stack.Children.Add(Footer(verdictText, step));
-        var bubble = Bubble("", false); bubble.Child = stack; bubble.HorizontalAlignment = ThemeCatalog.Current.Id is "pulse" or "rebel" ? HorizontalAlignment.Left : HorizontalAlignment.Stretch;
-        if (ThemeCatalog.Current.Id == "pulse" && verdictText.Text == "No changes") PulseNoChangesFooter(stack);
+        var bubble = Bubble("", false); bubble.Child = stack; bubble.HorizontalAlignment = HorizontalAlignment.Stretch;
         ShowSettings(changes.Select(c => c.What).ToHashSet()); scroller.ScrollToEnd(); _ = Lights(AgentMood.Good);
     }
 
@@ -1367,8 +1362,6 @@ public sealed partial class AgentPanel
             settings.Children.Add(Row(load, setup.Name, $"{ModelName(setup.Model)} · saved {setup.Saved.ToLocalTime():d MMM, HH:mm}"));
         }
         if (!setups.Healthy) settings.Children.Add(Wrap("The setups file couldn't be read, so nothing is saved over it.", 12.5, "DS.Warn", 6));
-        if (ThemeCatalog.Current.Id == "pulse") StylePulseAgentSettings(settingsBox);
-        if (ThemeCatalog.Current.Id == "rebel") StyleRebelAgentSettings(settingsBox);
 
         void Section(string title) => settings.Children.Add(Kit.Text(title, 12, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(0, 18, 0, 8)));
         static DockPanel Row(Button action, string title, string detail)

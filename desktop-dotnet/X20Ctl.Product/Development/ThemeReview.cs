@@ -44,7 +44,20 @@ internal static class ThemeReview
             host.EnterStudio(0); await Shot("3-dashboard", 1400);
             var studio = host.Studio!;
             studio.ShowButtons(); studio.SelectControl("A"); await Shot("4-buttons");
-            if (id is "dusk" or "volt" or "blossom" or "nexus" or "tide" or "spotlight")
+            if(IllustratedThemeUI.Matched)
+            {
+                var page=Descendants(studio).OfType<ButtonsConsolePage>().Single();
+                var output=Descendants(page).OfType<System.Windows.Controls.Button>().First(b=>b.GetType()==typeof(System.Windows.Controls.Button)&&b.IsVisible&&b.Tag as string=="B");
+                output.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));await Idle();
+                if(studio.Draft.Target("A")!="B"||studio.Draft.CanApplyHardware)throw new InvalidOperationException("Illustrated output button did not stage A:B safely.");
+                var displayed=Descendants(page).OfType<IllustratedDesignPage>().Single();
+                if(displayed.DisplayedText("output")!="B"||id=="tokyo-night"&&displayed.DisplayedText("assignment:A")!="B")throw new InvalidOperationException("Native mapping readout did not follow the draft.");
+                host.ShowSettings();await Idle();host.NavigateThemePage("Buttons");await Idle();
+                if(!ReferenceEquals(host.Studio,studio)||!studio.IsEnabled||studio.Draft.Target("A")!="B")throw new InvalidOperationException("Illustrated Tools navigation lost the live editor draft.");
+                await Shot("4b-buttons-staged");
+                File.WriteAllText(Path.Combine(directory,"mapping-regression.json"),JsonSerializer.Serialize(new{theme=id,localMapping="A:B",toolsPreservesStudio=true,hardwareWrites=false}));
+            }
+            if (id is "dusk" or "nexus" or "hollow" or "nocturne" or "sunrise")
             {
                 var row = Descendants(studio).OfType<System.Windows.Controls.Button>().First(b => b.Tag as string == "theme:input:A");
                 row.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
@@ -63,28 +76,38 @@ internal static class ThemeReview
             }
 
             studio.ShowCurves(true); await Shot("5-curves");
-            if (id is "dusk" or "volt" or "blossom" or "nexus" or "spotlight")
+            if(IllustratedThemeUI.Matched)
+            {
+                var slider=studio.Curves.Inner;
+                var preset=studio.Curves.Buttons.First(b=>b.Tag as string=="quick");
+                preset.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));await Idle();
+                slider.Value=12;await Idle();
+                if(!ReferenceEquals(slider,studio.Curves.Inner)||studio.Curves.Inner.Value!=12||studio.Curves.Draft.CanApplyHardware)
+                    throw new InvalidOperationException("Illustrated curve composition lost the real slider or hardware lock.");
+                if(!Descendants(studio).Contains(slider)||!slider.IsVisible)
+                    throw new InvalidOperationException("Illustrated curve slider was detached or hidden.");
+                if(Descendants(studio).OfType<IllustratedDesignPage>().First(p=>p.IsVisible&&p.DisplayedText("deadzone")!=null).DisplayedText("deadzone")!="12%")throw new InvalidOperationException("Native curve readout is stale.");
+                // Select the actual native tab, then return: the editor must retain its draft and controls.
+                var nativeButtons=Descendants(studio).OfType<System.Windows.Controls.RadioButton>().First(b=>b.IsVisible&&b.Tag as string=="illustrated:nav:Buttons");
+                nativeButtons.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.RadioButton.ClickEvent));await Idle();
+                if(studio.CurrentPage!="Buttons")throw new InvalidOperationException("Illustrated navigation did not open Buttons.");
+                studio.ShowCurves(true);await Idle();
+                if(studio.Curves.Inner.Value!=12)throw new InvalidOperationException("Illustrated navigation lost curve draft.");
+                File.WriteAllText(Path.Combine(directory,"curve-regression.json"),JsonSerializer.Serialize(new{theme=id,preset="quick",inner=12,retainedSlider=true,nativeTabRoutes=true,hardwareWrites=false}));
+            }
+            if (id is "dusk" or "nexus")
             {
                 var slider = Descendants(studio).OfType<System.Windows.Controls.Slider>().First(control => control.Tag as string == "theme:curve:Inner dead zone"); slider.Value = 12;
                 await Idle();
                 var retainedSlider = Descendants(studio).OfType<System.Windows.Controls.Slider>().First(control => control.Tag as string == "theme:curve:Inner dead zone");
                 if (!ReferenceEquals(slider, retainedSlider)) throw new InvalidOperationException(id + " replaced its curve slider during a value change, losing drag capture.");
                 if (studio.Curves.Inner.Value != 12 || studio.Curves.Draft.CanApplyHardware) throw new InvalidOperationException("Dusk curve slider is not bound to the real local workbench.");
-                if (id == "spotlight")
-                {
-                    slider.ApplyTemplate();
-                    if (slider.Template.FindName("PART_Track", slider) is not System.Windows.Controls.Primitives.Track { Thumb: {} thumb }) throw new InvalidOperationException("Spotlight fader has no native drag track.");
-                    thumb.RaiseEvent(new System.Windows.Controls.Primitives.DragStartedEventArgs(0,0) { RoutedEvent = System.Windows.Controls.Primitives.Thumb.DragStartedEvent });
-                    thumb.RaiseEvent(new System.Windows.Controls.Primitives.DragDeltaEventArgs(0,-20) { RoutedEvent = System.Windows.Controls.Primitives.Thumb.DragDeltaEvent });
-                    thumb.RaiseEvent(new System.Windows.Controls.Primitives.DragCompletedEventArgs(0,-20,false) { RoutedEvent = System.Windows.Controls.Primitives.Thumb.DragCompletedEvent });
-                    if (studio.Curves.Inner.Value <= 12) throw new InvalidOperationException("Dragging a Spotlight fader upward did not increase its real value.");
-                }
-                ClickTag("theme:curve:channel:RightTrigger"); await Idle();
+                                ClickTag("theme:curve:channel:RightTrigger"); await Idle();
                 if (studio.Curves.Channel != X20Ctl.Zone.CurveChannel.RightTrigger) throw new InvalidOperationException("Dusk trigger channel was not selected.");
                 ClickTag("theme:curve:channel:LeftStick"); await Idle();
             }
             studio.ShowMacros(true); if (studio.Macros is { } macros && macros.Draft.CanEdit && macros.Draft[macros.Slot].Count == 0) { for (int i = 0; i < 3; i++) macros.Add(); macros.Select(1); } await Shot("6-macros");
-            if (id is "dusk" or "blossom" or "volt")
+            if (id is "dusk")
             {
                 var macro = studio.Macros!; int count = macro.Draft[macro.Slot].Count;
                 ClickTag("theme:macro:add"); await Idle();
@@ -93,13 +116,7 @@ internal static class ThemeReview
                 if (!macro.Draft[macro.Slot][macro.SelectedIndex].Buttons.Contains("X")) throw new InvalidOperationException("Dusk macro chord was not saved in the selected event.");
                 ClickTag("theme:macro:time:Hold:5"); await Idle();
                 if (macro.Draft[macro.Slot][macro.SelectedIndex].HoldMs != 45) throw new InvalidOperationException("Dusk macro timing did not reach the real event.");
-                if (id == "blossom")
-                {
-                    var heading = Descendants(studio).OfType<System.Windows.Controls.ComboBox>().First(control => control.Tag as string == "theme:macro:stick:left");
-                    heading.SelectedItem = X20Ctl.Zone.StickHeading.Up; await Idle();
-                    if (macro.Draft[macro.Slot][macro.SelectedIndex].Left != X20Ctl.Zone.StickHeading.Up) throw new InvalidOperationException("Yozakura stick heading was not saved.");
-                }
-                ClickTag("theme:macro:record"); await Idle();
+                                ClickTag("theme:macro:record"); await Idle();
                 if (!macro.IsRecording) throw new InvalidOperationException("Dusk Record button did not start the countdown.");
                 host.ShowSettings(); await Idle();
                 bool hiddenRecording = macro.IsRecording;
@@ -111,13 +128,13 @@ internal static class ThemeReview
                 if (id == "dusk" && recordButton.Content is not System.Windows.Controls.Border { Child: System.Windows.Controls.TextBlock { Text: "Record" } }) throw new InvalidOperationException("Dusk recording action retained a stale Stop label after cancellation.");
             }
             studio.ShowVibration(true); await Shot("7-vibration");
-            if (id is "dusk" or "volt" or "blossom")
+            if (id is "dusk")
             {
                 var slider = Descendants(studio).OfType<System.Windows.Controls.Slider>().First(control => control.Tag as string == "theme:vibration:strength"); slider.Value = 35;
                 if (studio.Vibration!.Strength.Value != 35 || studio.Vibration.Draft.Strength != 35) throw new InvalidOperationException("Dusk linked strength was not saved to the local draft.");
             }
             studio.ShowManagement("Device"); await Shot("8-device");
-            if (id is "dusk" or "volt" or "blossom" or "nexus" or "spotlight")
+            if (id is "dusk" or "nexus")
             {
                 studio.Device!.SetFirmware("fixture-fw"); await Idle();
                 if (!Descendants(studio).OfType<System.Windows.Controls.TextBlock>().Any(text => text.Text == "fixture-fw")) throw new InvalidOperationException(id + " Device page did not display reported firmware.");
@@ -128,73 +145,6 @@ internal static class ThemeReview
                 studio.ShowManagement(page);
                 if (page == "Setups" && studio.Setups is { } setups && setups.Cards.Count == 0) { for (int i = 0; i < 3; i++) setups.Create(false); setups.Select(setups.Store.Items[0].Id); }
                 await Shot(shot);
-                if (id is "volt" or "blossom" && page == "PcMode")
-                {
-                    foreach (var rk in new[] { "switch", "profile", "turbo", "games", "share", "reset", "notice" })
-                    {
-                        ClickTag("theme:pc:row:" + rk); await Idle();
-                    }
-                    ClickTag("theme:pc:agree"); await Idle();
-                }
-                if (id is "volt" or "blossom" && page == "Mouse")
-                {
-                    var mouse = studio.Mouse ?? throw new InvalidOperationException(id + " missing Mouse workbench");
-                    if (mouse.Inputs.Count < 17)
-                        throw new InvalidOperationException($"{id} Mouse workbench must expose all inputs (expected >= 17, got {mouse.Inputs.Count})");
-
-                    string pickKey = mouse.Inputs.ElementAt(10);
-                    ClickTag("theme:mouse:in:" + pickKey); await Idle();
-                    if (mouse.SelectedKey != pickKey)
-                        throw new InvalidOperationException($"{id} Mouse picking input {pickKey} failed.");
-
-                    var testAction = X20Ctl.Zone.Mouse.MouseAction.MiddleClick;
-                    ClickTag("theme:mouse:assign:" + testAction); await Idle();
-                    if (mouse.CurrentAction != testAction)
-                        throw new InvalidOperationException($"{id} Mouse failed to assign {testAction} to {pickKey}");
-
-                    ClickTag("theme:mouse:tab:sensitivity"); await Idle();
-                    var speedSlider = Descendants(studio).OfType<System.Windows.Controls.Slider>().FirstOrDefault(s => s.Tag as string == "theme:mouse:Pointer speed");
-                    if (speedSlider != null)
-                    {
-                        double oldVal = speedSlider.Value;
-                        speedSlider.Value = oldVal + 1.0; await Idle();
-                        var retainedSlider = Descendants(studio).OfType<System.Windows.Controls.Slider>().FirstOrDefault(s => s.Tag as string == "theme:mouse:Pointer speed");
-                        if (!ReferenceEquals(speedSlider, retainedSlider))
-                            throw new InvalidOperationException($"{id} replaced pointer speed slider during ValueChanged.");
-                    }
-                }
-                if (id is "volt" or "blossom" && page == "Setups")
-                {
-                    var setupBench = studio.Setups ?? throw new InvalidOperationException(id + " missing Setups workbench");
-
-                    ClickTag("theme:setup:save"); await Idle();
-
-                    int countBeforeDup = setupBench.Cards.Count;
-                    ClickTag("theme:setup:duplicate"); await Idle();
-                    if (setupBench.Cards.Count != countBeforeDup + 1)
-                        throw new InvalidOperationException($"{id} duplicate action failed (expected {countBeforeDup + 1}, got {setupBench.Cards.Count})");
-
-                    ClickTag("theme:setup:rename"); await Idle();
-                    if (!setupBench.RenameActive)
-                        throw new InvalidOperationException($"{id} rename action did not activate rename mode");
-                    ClickTag("theme:setup:cancel-rename"); await Idle();
-                    if (setupBench.RenameActive)
-                        throw new InvalidOperationException($"{id} cancel-rename failed to clear rename mode");
-
-                    ClickTag("theme:setup:rename"); await Idle();
-                    setupBench.TakeNameField().Text = "Verified Setup";
-                    ClickTag("theme:setup:save-name"); await Idle();
-                    if (setupBench.RenameActive)
-                        throw new InvalidOperationException($"{id} save-name failed to complete rename");
-
-                    int countBeforeDel = setupBench.Cards.Count;
-                    ClickTag("theme:setup:delete"); await Idle();
-                    if (!setupBench.DeletePending)
-                        throw new InvalidOperationException($"{id} delete must require confirmation");
-                    ClickTag("theme:setup:keep"); await Idle();
-                    if (setupBench.DeletePending || setupBench.Cards.Count != countBeforeDel)
-                        throw new InvalidOperationException($"{id} keep setup failed to preserve library");
-                }
                 if (id == "dusk" && page == "Setups")
                 {
                     ClickTag("theme:setup:duplicate"); await Idle();
@@ -213,16 +163,7 @@ internal static class ThemeReview
                 }
             }
             studio.ShowCurves(true); studio.OpenStickTools(); await Shot("8g-advanced");
-            if (id == "spotlight")
-            {
-                var fader = Descendants(studio).OfType<FrameworkElement>().FirstOrDefault(e => e.Tag as string == "theme:stick:fader");
-                if (fader != null)
-                {
-                    fader.RaiseEvent(new System.Windows.Input.KeyEventArgs(System.Windows.Input.Keyboard.PrimaryDevice, source, 0, System.Windows.Input.Key.Up) { RoutedEvent = UIElement.KeyDownEvent });
-                    await Idle();
-                }
-            }
-            else if (id == "nexus")
+                        if (id == "nexus")
             {
                 var nexusSlider = Descendants(studio).OfType<System.Windows.Controls.Slider>().FirstOrDefault(s => (s.Tag as string)?.StartsWith("theme:stick:") == true);
                 if (nexusSlider != null)
@@ -235,16 +176,7 @@ internal static class ThemeReview
                         throw new InvalidOperationException("Nexus stick tools destroyed and recreated slider on value change.");
                 }
             }
-            else if (id == "tide")
-            {
-                var tideRow = Descendants(studio).OfType<FrameworkElement>().FirstOrDefault(e => (e.Tag as string)?.StartsWith("theme:stick:") == true);
-                if (tideRow != null)
-                {
-                    tideRow.RaiseEvent(new System.Windows.Input.KeyEventArgs(System.Windows.Input.Keyboard.PrimaryDevice, source, 0, System.Windows.Input.Key.Right) { RoutedEvent = UIElement.KeyDownEvent });
-                    await Idle();
-                }
-            }
-            studio.CloseStickTools();
+                        studio.CloseStickTools();
             studio.OpenAgent(); await Shot("8h-agent-empty");
             await studio.AgentWindow!.Ask("what does the dead zone do"); await Shot("8i-agent-answer");
             studio.AgentWindow.ShowSettingsPage(true); await Shot("8j-agent-settings"); studio.AgentWindow.ShowSettingsPage(false);
@@ -268,25 +200,7 @@ internal static class ThemeReview
             host.WriteScan!.ReviewOpen(1, new X20Ctl.Zone.Capture.TestPlan("X20", "KeyLinker", "Vibration strength", "20", "30")); await Shot("12c-writescan-plan");
             host.CloseWriteScan();
 
-            if (id == "pulse")
-            {
-                host.ShowPulseThemeRestartNotice("Pulse");
-                await Shot("13-notice-restart");
-                host.DismissPulseNotice();
-                host.ShowPulseDriverNotice(new[] { "ViGEmBus", "HidHide" });
-                await Shot("14-notice-drivers");
-                host.DismissPulseNotice();
-            }
-            if (id == "spotlight")
-            {
-                host.ShowSpotlightThemeRestartNotice("Spotlight");
-                await Shot("13-notice-restart");
-                host.DismissSpotlightNotice();
-                host.ShowSpotlightDriverNotice(new[] { "ViGEmBus", "HidHide" });
-                await Shot("14-notice-drivers");
-                host.DismissSpotlightNotice();
-            }
-            if (id == "nexus")
+                        if (id == "nexus")
             {
                 host.ShowNexusThemeRestartNotice("Nexus");
                 await Shot("13-notice-restart");
@@ -295,16 +209,7 @@ internal static class ThemeReview
                 await Shot("14-notice-drivers");
                 host.DismissNexusNotice();
             }
-            if (id == "tide")
-            {
-                host.ShowTideThemeRestartNotice("Tide");
-                await Shot("13-notice-restart");
-                host.DismissTideNotice();
-                host.ShowTideDriverNotice(new[] { "ViGEmBus", "HidHide" });
-                await Shot("14-notice-drivers");
-                host.DismissTideNotice();
-            }
-            if (id == "dusk")
+                        if (id == "dusk")
             {
                 host.ShowDuskThemeRestartNotice("Dusk");
                 await Shot("13-notice-restart");
@@ -313,27 +218,44 @@ internal static class ThemeReview
                 await Shot("14-notice-drivers");
                 host.DismissDuskNotice();
             }
-            if (id == "volt")
+                        if (id == "hollow")
             {
-                host.ShowVoltThemeRestartNotice("Volt");
+                host.ShowHollowThemeRestartNotice("Hollow");
                 await Shot("13-notice-restart");
-                host.DismissVoltNotice();
-                host.ShowVoltDriverNotice(new[] { "ViGEmBus", "HidHide" });
+                host.DismissHollowNotice();
+                host.ShowHollowDriverNotice(new[] { "ViGEmBus", "HidHide" });
                 await Shot("14-notice-drivers");
-                host.DismissVoltNotice();
+                host.DismissHollowNotice();
             }
-            if (id is "spotlight" or "nexus" or "tide" or "dusk" or "volt" or "blossom")
+            if (id == "nocturne")
+            {
+                host.ShowNocturneThemeRestartNotice("Nocturne");
+                await Shot("13-notice-restart");
+                host.DismissNocturneNotice();
+                host.ShowNocturneDriverNotice(new[] { "ViGEmBus", "HidHide" });
+                await Shot("14-notice-drivers");
+                host.DismissNocturneNotice();
+            }
+            if (id == "sunrise")
+            {
+                host.ShowSunriseThemeRestartNotice("Sunrise");
+                await Shot("13-notice-restart");
+                host.DismissSunriseNotice();
+                host.ShowSunriseDriverNotice(new[] { "ViGEmBus", "HidHide" });
+                await Shot("14-notice-drivers");
+                host.DismissSunriseNotice();
+            }
+            if (id is "nexus" or "dusk" or "hollow" or "nocturne" or "sunrise")
             {
                 bool? consent = null;
                 void Answer(bool value) => consent = value;
                 switch (id)
                 {
-                    case "spotlight": host.ShowSpotlightDriverNotice(["ViGEmBus"], Answer); break;
                     case "nexus": host.ShowNexusDriverNotice(["ViGEmBus"], Answer); break;
-                    case "tide": host.ShowTideDriverNotice(["ViGEmBus"], Answer); break;
                     case "dusk": host.ShowDuskDriverNotice(["ViGEmBus"], Answer); break;
-                    case "volt": host.ShowVoltDriverNotice(["ViGEmBus"], Answer); break;
-                    case "blossom": host.ShowBlossomDriverNotice(["ViGEmBus"], Answer); break;
+                    case "hollow": host.ShowHollowDriverNotice(["ViGEmBus"], Answer); break;
+                    case "nocturne": host.ShowNocturneDriverNotice(["ViGEmBus"], Answer); break;
+                    case "sunrise": host.ShowSunriseDriverNotice(["ViGEmBus"], Answer); break;
                 }
                 await host.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
                 var notice = host.ActiveThemeNotice ?? throw new InvalidOperationException("Driver consent notice is missing.");
@@ -343,16 +265,6 @@ internal static class ThemeReview
                 host.OnKeyDown(host, new System.Windows.Input.KeyEventArgs(System.Windows.Input.Keyboard.PrimaryDevice, source, 0, System.Windows.Input.Key.Escape) { RoutedEvent = UIElement.PreviewKeyDownEvent });
                 if (host.ActiveThemeNotice != null || consent != false) throw new InvalidOperationException("Escape must decline the driver action and close the notice.");
                 File.WriteAllText(Path.Combine(directory, "notice-regression.json"), JsonSerializer.Serialize(new { theme = id, nativeActions = 2, escapeDeclines = true, installsStarted = false }));
-            }
-            if (id is "pulse" or "spotlight")
-            {
-                host.EnterStudio(0); var before = host.Studio!; before.ShowManagement("Device"); await Idle();
-                host.OpenWriteScan(); host.WriteScan!.ReviewFixtureResults(); await Idle(); var pending = host.WriteScan;
-                if (id == "pulse") host.NavigatePulsePage("Buttons"); else host.NavigateSpotlightPage("Buttons"); await Idle();
-                if (!ReferenceEquals(host.WriteScan, pending) || !ReferenceEquals(host.Studio, before) || before.CurrentPage != "Device") throw new InvalidOperationException("Navigation continued behind Write Scan after its unsaved-findings close guard refused to leave.");
-                host.CloseWriteScan();
-                if (host.WriteScan != null) throw new InvalidOperationException("Second explicit Back should permit discarding unsaved fixture findings.");
-                File.WriteAllText(Path.Combine(directory, "scan-close-regression.json"), JsonSerializer.Serialize(new { navigationBlocked = true, explicitSecondBackCloses = true }));
             }
             if (id == "default")
             {
@@ -371,6 +283,13 @@ internal static class ThemeReview
         }
         finally { PresentationTraceSources.DataBindingSource.Listeners.Remove(listener); }
         listener.Flush(); File.WriteAllText(Path.Combine(directory, "bindings.txt"), bindings.ToString());
+        if(id=="tokyo-night")
+        {
+            host.ReturnToZone();host.Zone.AssignController(2,host.Catalog.Get("x15"));host.EnterStudio(2);host.Studio!.ShowButtons();await Idle();
+            var context=Descendants(host.Studio).OfType<IllustratedDesignPage>().Single(p=>p.IsVisible&&p.DisplayedText("player-name")!=null);
+            if(context.DisplayedText("player-name")!="Player 3"||context.DisplayedText("controller-state")?.StartsWith("X15")!=true)throw new InvalidOperationException("Native sidebar retained fixture player/model metadata.");
+            File.WriteAllText(Path.Combine(directory,"player-context.json"),JsonSerializer.Serialize(new{player=3,model="x15",fixtureMetadata=false}));
+        }
         string Hex(string key) => DS.Brush(key) is SolidColorBrush b ? b.Color.ToString() : DS.Brush(key).GetType().Name;
         File.WriteAllText(Path.Combine(directory, "review.json"), JsonSerializer.Serialize(new
         {
@@ -398,20 +317,52 @@ internal static class ThemeReview
         async Task Shot(string name, int settle = 700)
         {
             await host.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
+            IllustratedThemeUI.Skin(host);
             var filter = Environment.GetEnvironmentVariable("X20CTL_REVIEW_SHOTS");
             if (!string.IsNullOrEmpty(filter) && !filter.Split(',').Contains(name))
             { stage.Measure(new Size(1600, 900)); stage.Arrange(new Rect(0, 0, 1600, 900)); stage.UpdateLayout(); await Task.Delay(60); return; }
             await Task.Delay(settle);
             var variants = new[] { (1600, 900, 96, ""), (1040, 700, 96, "-minimum"), (1600, 900, 120, "-dpi125"), (1600, 900, 144, "-dpi150") };
             if (Environment.GetEnvironmentVariable("X20CTL_REVIEW_BASE_ONLY") == "1") variants = variants.Take(1).ToArray();
+            if(IllustratedThemeUI.Matched&&Environment.GetEnvironmentVariable("X20CTL_REVIEW_EXTENDED")=="1"&&name is not ("1-zone" or "2-zone-player" or "4-buttons" or "5-curves" or "9-tools"))variants=variants.Where(v=>v.Item3==96).ToArray();
             foreach (var (width, height, dpi, suffix) in variants)
             {
                 stage.Measure(new Size(width, height)); stage.Arrange(new Rect(0, 0, width, height)); stage.UpdateLayout();
+                if(IllustratedThemeUI.Matched)
+                {
+                    var geometry=Descendants(stage).OfType<FrameworkElement>()
+                        .Where(e=>e.IsVisible&&e.Tag is string tag&&tag.StartsWith("illustrated:")&&e.ActualWidth>0&&e.ActualHeight>0)
+                        .Select(e=>new{tag=e.Tag,bounds=e.TransformToAncestor(stage).TransformBounds(new Rect(0,0,e.ActualWidth,e.ActualHeight))}).ToArray();
+                    foreach(var part in geometry)
+                        if(part.bounds.Left< -2||part.bounds.Top< -2||part.bounds.Right>width+2||part.bounds.Bottom>height+2)
+                            throw new InvalidOperationException($"Illustrated panel outside viewport: {part.tag} {part.bounds} at {width}x{height}");
+                    File.WriteAllText(Path.Combine(directory,name+suffix+"-layout.json"),JsonSerializer.Serialize(geometry));
+                    if(name is "1-zone" or "2-zone-player" or "4-buttons" or "5-curves" or "9-tools")
+                    {
+                        foreach(var button in Descendants(stage).OfType<System.Windows.Controls.Primitives.ButtonBase>().Where(b=>b.IsVisible&&b.IsEnabled&&IllustratedDesignPage.IsDesignControl(b)))
+                        {
+                            var center=button.TransformToAncestor(stage).Transform(new Point(button.ActualWidth/2,button.ActualHeight/2));
+                            var hit=stage.InputHitTest(center) as DependencyObject;
+                            if(hit==null||!ReferenceEquals(button,hit)&&!button.IsAncestorOf(hit))throw new InvalidOperationException("Native design control is obscured: "+button.Tag+" at "+center);
+                        }
+                    }
+                }
                 var image = new RenderTargetBitmap(width * dpi / 96, height * dpi / 96, dpi, dpi, PixelFormats.Pbgra32); image.Render(stage);
                 var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(image));
                 using var stream = File.Create(Path.Combine(directory, name + suffix + ".png")); encoder.Save(stream);
             }
             stage.Measure(new Size(1600, 900)); stage.Arrange(new Rect(0, 0, 1600, 900)); stage.UpdateLayout();
+            if(IllustratedThemeUI.Current is {} art)
+            {
+                foreach(var page in IllustratedThemeSpec.Pages)
+                    if(IllustratedThemeUI.Image(art.Wallpaper(page.Name))==null)throw new FileNotFoundException("Missing illustrated page "+page.Name);
+                if(host.Studio is {} editor&&host.Settings==null&&host.Selector==null)
+                {
+                    string expected=editor.AgentOpen?"Agent XCTL":editor.CurrentPage;
+                    if(((ZoneBackdrop)editor.FindName("StudioBackdrop")).ArtworkPage!=expected)throw new InvalidOperationException("Wrong illustrated backdrop for "+expected);
+                }
+                if(!Descendants(host).OfType<IllustratedControlFace>().Any())throw new InvalidOperationException("Native themed controls were not applied.");
+            }
             shots.Add(name);
         }
     }

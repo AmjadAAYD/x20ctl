@@ -19,11 +19,21 @@ internal static class FeatureTabsReview
         using var source=new HwndSource(new HwndSourceParameters("Feature tabs offscreen review"){WindowStyle=unchecked((int)0x80000000),Width=1600,Height=900,PositionX=-32000,PositionY=-32000}){RootVisual=stage};
         host.Zone.AssignController(0,host.Catalog.Get("x20_pro"));host.EnterStudio(0);
         var studio=host.Studio!;
+        await studio.Dispatcher.InvokeAsync(()=>{},DispatcherPriority.ContextIdle);
+        stage.Measure(new Size(1600,900));stage.Arrange(new Rect(0,0,1600,900));stage.UpdateLayout();
         foreach(var page in rgbOnly?new[]{"RGB"}:new[]{"RGB","Screen","Device","RGB"})
         {
             if(page=="Device")studio.ShowManagement(page);
+            else if(IllustratedThemeUI.Matched)
+            {
+                var more=Descendants(studio).OfType<Button>().First(b=>b.IsVisible&&Convert.ToString(b.Content)=="More pages…");
+                var destination=more.ContextMenu!.Items.OfType<MenuItem>().Single(i=>Convert.ToString(i.Header)==page);
+                if(!destination.IsEnabled)throw new InvalidOperationException(page+" is unavailable from the native menu.");
+                destination.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            }
             else ((RadioButton)studio.FindName(page=="RGB"?"RgbNav":"ScreenNav")).RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
             await studio.Dispatcher.InvokeAsync(()=>{},DispatcherPriority.ContextIdle);await Task.Delay(100);
+            IllustratedThemeUI.Skin(host);
             stage.Measure(new Size(1600,900));stage.Arrange(new Rect(0,0,1600,900));stage.UpdateLayout();
             if(studio.ManagementPage!=page)throw new InvalidOperationException("Wrong page: "+page);
             if(page is "RGB" or "Screen")

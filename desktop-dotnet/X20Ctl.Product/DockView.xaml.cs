@@ -12,6 +12,9 @@ public partial class DockView : UserControl
     public FrameworkElement ControllerArtwork => Art;
     public PlayerDock Player { get; private set; }
     private bool isHero, isSecondary;
+    /// <summary>A real controller for this player: its scan passed this session and live input has not reported it gone.</summary>
+    public bool LiveConnected { get; private set; }
+    public void SetLiveConnected(bool live) { if (LiveConnected == live) return; LiveConnected = live; if (!double.IsNaN(Width)) Present(isHero, isSecondary); }
     private readonly bool reducedMotion;
     // The card and its artwork share the Zone's transition progress, including interrupted moves.
     private Rect artShown = Rect.Empty, artTarget = Rect.Empty;
@@ -98,7 +101,7 @@ public partial class DockView : UserControl
         ColourButton = new Button { Content = "Change color", Style = (Style)FindResource("ActionButton"), Height = 38, Width = 150, Visibility = Visibility.Collapsed };
         ColourButton.Click += (_, e) => { e.Handled = true; ChangeColour(); }; ActionCanvas.Children.Add(ColourButton);
         FocusButton.TabIndex = index;
-        InitRebel(); InitPulse(); InitSpotlight(); InitNexus(); InitTide(); InitDusk(); InitVolt(); InitBlossom();
+        InitNexus(); InitDusk(); InitHollow(); InitNocturne(); InitSunrise();
         RefreshPlayer(player);
     }
     public void RefreshPlayer(PlayerDock player)
@@ -138,9 +141,10 @@ public partial class DockView : UserControl
         ModelName.Text = Player.Model ?? "";
         ConnectionBadge.Visibility=empty?Visibility.Collapsed:Visibility.Visible;
         ModelName.TextTrimming = TextTrimming.CharacterEllipsis;
-        Connection.Text = empty ? (hero ? "Assign a controller to this player" : "Empty") : Player.IsMockConnected ? "Connected · mock" : "Not connected";
-        StatusDot.Fill = DS.Brush(!empty && Player.IsMockConnected ? "Zone.SemanticSuccess" : "Zone.SemanticWarning");
-        Connection.Foreground=StatusDot.Fill;ConnectionBadge.Background=new SolidColorBrush(Player.IsMockConnected?ThemeCatalog.R(Color.FromArgb(30,120,195,157)):ThemeCatalog.R(Color.FromArgb(30,217,182,117)));
+        bool linked = Player.IsMockConnected || LiveConnected;
+        Connection.Text = empty ? (hero ? "Assign a controller to this player" : "Empty") : Player.IsMockConnected ? "Connected · mock" : LiveConnected ? "Connected" : "Not connected";
+        StatusDot.Fill = DS.Brush(!empty && linked ? "Zone.SemanticSuccess" : "Zone.SemanticWarning");
+        Connection.Foreground=StatusDot.Fill;ConnectionBadge.Background=new SolidColorBrush(linked?ThemeCatalog.R(Color.FromArgb(30,120,195,157)):ThemeCatalog.R(Color.FromArgb(30,217,182,117)));
         double artWidth, artX, artY, detailsX, detailsY, detailsWidth;
         if (hero)
         {
@@ -217,7 +221,7 @@ public partial class DockView : UserControl
         System.Windows.Automation.AutomationProperties.SetName(ColourButton, $"Player {Player.Number}, Change color");
         System.Windows.Automation.AutomationProperties.SetName(Primary, $"Player {Player.Number}, {(empty ? "Choose Controller" : "Enter Studio")}");
         System.Windows.Automation.AutomationProperties.SetName(Switch, $"Player {Player.Number}, Switch Controller");
-        if (rebel) PresentRebel(hero); else if (pulse) PresentPulse(hero); else if (spotlight) PresentSpotlight(hero); else if (nexus) PresentNexus(hero); else if (tide) PresentTide(hero); else if (dusk) PresentDusk(hero); else if (volt) PresentVolt(hero); else if (blossom) PresentBlossom(hero);
+        if (nexus) PresentNexus(hero); else if (dusk) PresentDusk(hero); else if (hollow) PresentHollow(hero); else if (nocturne) PresentNocturne(hero); else if (sunrise) PresentSunrise(hero);
     }
     /// <summary>The chosen controller is lit in the accent blue with a soft glow; focus adds a white edge and a small lift.</summary>
     private void UpdateCard()

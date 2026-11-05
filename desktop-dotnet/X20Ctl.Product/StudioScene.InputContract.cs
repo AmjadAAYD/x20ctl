@@ -47,7 +47,6 @@ public partial class StudioScene
     internal void StepTab(int step) { if (StudioTabs.Step(TabOrder, CurrentPage, step) is { } page) GoToTab(page); }
     internal void GoToTab(string page)
     {
-        if (IsPulse && pulseLayer != null) { PulseSelectPage(page); return; }
         navigation.FirstOrDefault(t => PageOfTab(t) == page)?.RaiseEvent(new RoutedEventArgs(RadioButton.ClickEvent));
     }
 
@@ -90,6 +89,5 @@ public partial class StudioScene
         else captureTimeout?.Stop();
         bool changed = prompt != lastCapturePrompt; lastCapturePrompt = prompt;
         NotifyInputOwner();
-        if (changed && IsPulse) PulseLater();
     }
 }
