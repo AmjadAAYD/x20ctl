@@ -1,607 +1,322 @@
-using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
-using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Shapes;
+using Path = System.IO.Path;
 using System.Windows.Threading;
-using X20Ctl.Zone.Capture;
+using X20Ctl.Zone;
 namespace X20Ctl.Product.Scanner;
 
 /// <summary>
-/// The Write scan (Tools), the Read scan's partner. The Read scan watches what a controller reports; the Write scan
-/// learns what KeyLinker writes to one. The owner changes one setting in KeyLinker on an Android phone
-/// while the phone's own Bluetooth log records, then brings the log here. X20CTL sends nothing to the controller at
-/// any point: it reads the recording, decodes KeyLinker frames when they are there, and shows the controller's identity,
-/// what it says it offers, how that compares with the recorded X20, and the bytes the app changed.
+/// The Write scan (Tools). It talks to the pad itself over Bluetooth, no phone and no KeyLinker log: choose the controller,
+/// read what will happen, Identify (reads only), Read-back (reads only), the Write test (writes back the bytes just read,
+/// after a visible confirmation), visual tests the tester judges, then a zip that stays local until it is reviewed and sent.
 /// </summary>
-public sealed partial class WriteScanView : Grid
+public sealed class WriteScanView : Grid
 {
-    private static readonly string[] StepNames = ["What you'll test", "Prepare the phone", "Do the test", "Bring the recording", "Results"];
-    private static readonly string Folder = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "X20CTLWriteScans");
+    public const string Title = "Write scan";
+    static readonly string[] StepNames = ["Controller", "Identify", "Read-back", "Write test", "Visual tests", "Send"];
+    static readonly string Folder = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "X20CTLWriteScans");
 
-    private readonly Action close;
-    private readonly Grid stage = new();
-    private readonly StackPanel strip = new() { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-    private readonly Border warning = new();
-    private int step;
-
-    // what the owner plans to test
-    private readonly TextBox model = Field("X20"), app = Field("KeyLinker"), setting = Field(""), original = Field(""), test = Field("");
-    private readonly CheckBox undoable = new() { Style = DS.Style("DS.Toggle"), VerticalAlignment = VerticalAlignment.Center };
-    private readonly List<StepNote> notes = new();
-    private readonly Button planNext = Action("", "Next: prepare the phone", "PrimaryButton");
-
-    // the guided test
-    private readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromMilliseconds(100) };
-    private readonly Stopwatch handsOff = new();
-    private double handsOffSeconds; private int part;
-    private readonly TextBlock partTitle = new() { FontFamily = DS.Display, FontSize = 40, FontWeight = FontWeights.Bold, Foreground = DS.Brush("DS.Text"), TextWrapping = TextWrapping.Wrap };
-    private readonly TextBlock partSay = Wrap("", 17, "DS.TextSoft"), partCount = Wrap("", 15, "DS.TextMuted");
-    private Button partDone = null!;
-
-    // the recording and what came of it
-    private WriteScanReport? report; private byte[]? log; private string? secondText, savedTo;
-    private PhoneKind phone = PhoneKind.Samsung; private int prepareAt, bringAt; private string logExtension = "btsnoop";
-    private bool iphone => phone == PhoneKind.IPhone;
-    // sending: only after the owner reviewed the summary and agreed
-    private readonly CheckBox sendTrace = new() { Style = DS.Style("DS.Toggle"), VerticalAlignment = VerticalAlignment.Center }, agree = new() { Style = DS.Style("DS.Toggle"), VerticalAlignment = VerticalAlignment.Center };
-    private readonly Border sendPanel = new() { Visibility = Visibility.Collapsed };
-    private readonly TextBlock sendStatus = Wrap("", 14, "DS.TextSoft");
-    private Button? sendGo; private bool sending; private string? receipt;
-    private bool unsaved, closeArmed, busy;
-    private readonly TextBlock recordingStatus = Wrap("", 15, "DS.TextSoft"), resultStatus = Wrap("", 14.5, "DS.TextSoft");
-    private readonly CheckBox keepRaw = new() { Style = DS.Style("DS.Toggle"), VerticalAlignment = VerticalAlignment.Center };
-    private readonly TextBox summary = new() { IsReadOnly = true, FontFamily = new FontFamily("Consolas"), FontSize = 13.5, TextWrapping = TextWrapping.Wrap, VerticalContentAlignment = VerticalAlignment.Top, Padding = new(16), VerticalScrollBarVisibility = ScrollBarVisibility.Auto, BorderThickness = new(0), Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(70, 0, 0, 0))), Foreground = DS.Brush("DS.Text") };
-    private readonly UniformGrid headline = new() { Rows = 1, Margin = new(-8, 0, -8, 14) };
-
-    private readonly Border checkView = new() { Visibility = Visibility.Collapsed };
-    private readonly TextBox checkText = new() { IsReadOnly = true, FontFamily = new FontFamily("Consolas"), FontSize = 13.5, TextWrapping = TextWrapping.Wrap, Padding = new(16), BorderThickness = new(0), MinHeight = 220, Background = new SolidColorBrush(Color.FromArgb(70, 0, 0, 0)), Foreground = DS.Brush("DS.Text"), Visibility = Visibility.Collapsed };
-    private readonly TextBlock checkStatus = Wrap("", 14.5, "DS.TextSoft");
-    private readonly Button checkSave = Action("\uE74E", "Save", "ActionButton").Also(b => b.Visibility = Visibility.Collapsed);
-    private bool checking;
-    private string? checkedModel; // the write test is offered only for the model that just passed the check
-    private readonly StackPanel testPanel = new() { Visibility = Visibility.Collapsed, Margin = new(0, 26, 0, 0) };
-    private readonly TextBox testPercent = Field("80");
-    private readonly CheckBox testAgree = new() { Style = DS.Style("DS.Toggle"), VerticalAlignment = VerticalAlignment.Center };
-    private readonly Button testGo = Action("", "Run the write test", "PrimaryButton").Also(b => b.IsEnabled = false);
-    private readonly ReadReport? read; // the Read scan that came just before, when the player went on from it
+    readonly Action close;
+    readonly ReadReport? read;
+    readonly PadScanSession session = new();
+    readonly Grid stage = new();
+    readonly StackPanel strip = new() { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+    readonly UIElement[] pages = new UIElement[6];
+    readonly TextBox otherName = new() { Width = 300, MinHeight = 40, FontSize = 14.5, Padding = new(12, 8, 12, 8), MaxLength = 60, Visibility = Visibility.Collapsed };
+    readonly ComboBox model = new() { Width = 220, MinHeight = 40, FontSize = 14.5, Padding = new(12, 8, 12, 8) };
+    readonly TextBlock identifyText = Wrap("", 15, "DS.TextSoft"), readText = Wrap("", 14, "DS.TextSoft"), writeText = Wrap("", 14.5, "DS.TextSoft"), sendText = Wrap("", 14.5, "DS.TextSoft");
+    readonly TextBox summary = new() { IsReadOnly = true, FontFamily = new FontFamily("Consolas"), FontSize = 13, TextWrapping = TextWrapping.Wrap, Padding = new(14), MinHeight = 180, MaxHeight = 320, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, BorderThickness = new(0) };
+    readonly CheckBox sendsWrite = new() { Style = DS.Style("DS.Toggle"), VerticalAlignment = VerticalAlignment.Center }, reviewed = new() { Style = DS.Style("DS.Toggle"), VerticalAlignment = VerticalAlignment.Center };
+    Button identifyGo = null!, readGo = null!, writeGo = null!, sendGo = null!, saveGo = null!;
+    int step; bool busy; List<PadRecord>? original; string? mapRestoreNote; PadRecord? mapped; string? savedTo;
 
     public WriteScanView(Action close, ReadReport? read = null)
     {
         this.close = close; this.read = read;
-        Background = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(5, 9, 20))); ClipToBounds = true; AllowDrop = true;
+        Background = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(5, 9, 20))); ClipToBounds = true;
         Children.Add(new FacetBackdrop());
         var page = new Grid { Margin = new(40, 0, 40, 28) }; Children.Add(page);
         page.RowDefinitions.Add(new() { Height = new(84) }); page.RowDefinitions.Add(new() { Height = new(64) }); page.RowDefinitions.Add(new());
-
         var bar = new DockPanel { VerticalAlignment = VerticalAlignment.Center };
-        var back = Action("", "Back to Tools", "ActionButton"); back.Click += (_, _) => close(); DockPanel.SetDock(back, Dock.Right); bar.Children.Add(back);
-        var blue = Kit.Blue;
-        var badge = new Border { CornerRadius = new(16), Padding = new(14, 7, 16, 7), Margin = new(0, 0, 16, 0), VerticalAlignment = VerticalAlignment.Center, Background = new SolidColorBrush(Color.FromArgb(40, blue.R, blue.G, blue.B)), BorderBrush = new SolidColorBrush(Color.FromArgb(120, blue.R, blue.G, blue.B)), BorderThickness = new(1),
-            Child = new StackPanel { Orientation = Orientation.Horizontal, Children = { Kit.Icon("", 14, "DS.AccentHi").Also(i => i.Margin = new(0, 0, 9, 0)), Kit.Text("X20CTL never writes · you change one setting in KeyLinker", 13.5, "DS.Text", FontWeights.SemiBold) } } };
-        DockPanel.SetDock(badge, Dock.Right); bar.Children.Add(badge);
-        var mark = new Image { Source = LiveController.Bitmap("Assets/icon.png"), Width = 34, Height = 34, Margin = new(0, 0, 14, 0) }; RenderOptions.SetBitmapScalingMode(mark, BitmapScalingMode.HighQuality);
-        bar.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = { mark, Kit.Text("X20CTL", 22, "DS.Text", FontWeights.Bold), new Border { Width = 1, Height = 22, Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(60, 255, 255, 255))), Margin = new(18, 0, 18, 0) },
-            Kit.Text(WriteScanReport.Name, 22, "DS.Text", FontWeights.SemiBold), Kit.Text("   learns what KeyLinker writes", 14, "DS.TextMuted") } });
-        page.Children.Add(bar);
-        Grid.SetRow(strip, 1); page.Children.Add(strip);
-        Grid.SetRow(stage, 2); page.Children.Add(stage);
-
-        setting.TextChanged += (_, _) => Gate(); undoable.Checked += (_, _) => Gate(); undoable.Unchecked += (_, _) => Gate(); Gate();
-        planNext.Click += (_, _) => Show(1);
-        BuildWarning(); Children.Add(warning); BuildCheck(); Children.Add(checkView);
-        timer.Tick += (_, _) => Tick();
-        Drop += async (_, e) => { if (e.Data.GetData(DataFormats.FileDrop) is string[] { Length: > 0 } files && warning.Visibility != Visibility.Visible && checkView.Visibility != Visibility.Visible) await Read(files[0]); };
-        Loaded += (_, _) => { if (DS.Motion) { Opacity = 0; BeginAnimation(OpacityProperty, DS.To(1, 240)); } };
+        var back = Action("", "Back to Tools", "ActionButton"); back.Click += (_, _) => close(); DockPanel.SetDock(back, Dock.Right); bar.Children.Add(back);
+        bar.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = { Kit.Text("X20CTL", 22, "DS.Text", FontWeights.Bold), Kit.Text("   " + Title, 22, "DS.Text", FontWeights.SemiBold), Kit.Text("   asks the pad itself", 14, "DS.TextMuted") } });
+        page.Children.Add(bar); Grid.SetRow(strip, 1); page.Children.Add(strip); Grid.SetRow(stage, 2); page.Children.Add(stage);
+        foreach (var m in ControllerCheckView.Models) model.Items.Add(m);
+        model.SelectedItem = ControllerCheckView.Pick;
+        pages[0] = ChoosePage(); pages[1] = IdentifyPage(); pages[2] = ReadPage(); pages[3] = WritePage(); pages[4] = VisualPage(); pages[5] = SendPage();
+        foreach (var p in pages) { p.Visibility = Visibility.Collapsed; stage.Children.Add(p); }
+        model.SelectionChanged += (_, _) => otherName.Visibility = model.SelectedItem is ControllerCheckView.OtherModel ? Visibility.Visible : Visibility.Collapsed;
+        poll.Tick += (_, _) => Poll();
         Show(0);
     }
 
-    // ================= the warning: this is slow, and needs a phone =================
-    private void BuildWarning()
-    {
-        warning.Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(246, 5, 9, 20)));
-        var cards = new UniformGrid { Columns = 2, Margin = new(-8, 22, -8, 0) };
-        foreach (var (title, text) in new[]
-        {
-            ("This can take a long time", "Plan on 20 to 40 minutes the first time: turning on a hidden phone setting, one small test, then getting a file from the phone to this PC. A bug report alone can take a few minutes to make."),
-            ("You need a phone", "Android or iPhone, with KeyLinker and the controller connected to it by Bluetooth. Both can record Bluetooth: Android takes about five minutes to set up, an iPhone about fifteen."),
-            ("X20CTL sends nothing", "X20CTL never talks to the controller here. You change one setting in KeyLinker yourself; the phone's own Bluetooth log records it, and X20CTL only reads that log."),
-            read is null
-                ? ("Read scan or Write scan?", "The Read scan (Controller not working?) watches what the controller reports to this PC. The Write scan learns what an app writes to the controller, so X20CTL can learn to change it too.")
-                : ("Your Read scan comes along", "The Read scan you just finished (" + read.Describe() + ") is added to this report automatically. At the end you review both and press Send online, once."),
-        })
-            cards.Children.Add(Card(title, text));
-        var check = Action("\uE702", "Check over Bluetooth, no phone", "PrimaryButton"); check.Click += (_, _) => Fx.Leave(warning, () => { warning.Visibility = Visibility.Collapsed; checkView.Visibility = Visibility.Visible; }, 1.02, 200);
-        var go = Action("", "I have the time, use the phone", "ActionButton"); go.Click += (_, _) => Fx.Leave(warning, () => warning.Visibility = Visibility.Collapsed, 1.02, 200);
-        var leave = Action("", "Back to Tools", "ActionButton"); leave.Click += (_, _) => close();
-        var panel = new StackPanel { MaxWidth = 1180, HorizontalAlignment = HorizontalAlignment.Center, Margin = new(40, 36, 40, 30), Children = {
-            Kit.Text("Before you start the " + WriteScanReport.Name, 40, "DS.Text", FontWeights.Bold),
-            Wrap("You'll change one setting in KeyLinker while your phone records its Bluetooth traffic. X20CTL then shows which bytes the app sent for that change. One recording teaches one setting.", 17, "DS.TextSoft").Also(t => t.Margin = new(0, 8, 0, 0)),
-            cards,
-            Note("Nothing leaves this PC until you press Send online at the end, and you see what goes first. The findings are saved to Documents\\X20CTLWriteScans only when you press Save."),
-            Note("No phone? Check over Bluetooth instead. It only reads, and changes nothing."),
-            new WrapPanel { Margin = new(0, 22, 0, 0), Children = { check, go.Also(b => b.Margin = new(12, 0, 0, 0)), leave.Also(b => b.Margin = new(12, 0, 0, 0)) } } } };
-        warning.Child = new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
-        if (ThemeCatalog.Current.Id == "nexus") BuildNexusWriteWarning(cards, go, leave);
-        if (ThemeCatalog.Current.Id == "hollow") BuildHollowWriteWarning(cards, go, leave);
-        if (ThemeCatalog.Current.Id == "nocturne") BuildNocturneWriteWarning(cards, go, leave);
-        if (ThemeCatalog.Current.Id == "sunrise") BuildSunriseWriteWarning(cards, go, leave);
-    }
+    internal void ReviewOpen(int n) => Show(n);
 
-    // ================= the controller check: Bluetooth, read-only, no phone =================
-    private void BuildCheck()
-    {
-        checkView.Background = new SolidColorBrush(Color.FromArgb(246, 5, 9, 20));
-        var askPro = Action("\uE702", "Check an X20 Pro", "PrimaryButton"); askPro.Click += async (_, _) => await RunCheck("x20_pro");
-        var askX20 = Action("\uE702", "Check an X20", "ActionButton"); askX20.Click += async (_, _) => await RunCheck("x20");
-        checkSave.Click += (_, _) => SaveCheck();
-        var phoneRoute = Action("\uE8EA", "Use the phone recording instead", "ActionButton"); phoneRoute.Click += (_, _) => { checkView.Visibility = Visibility.Collapsed; Show(0); };
-        var leave = Action("\uE72B", "Back to Tools", "ActionButton"); leave.Click += (_, _) => close();
-        testAgree.Checked += (_, _) => testGo.IsEnabled = !checking; testAgree.Unchecked += (_, _) => testGo.IsEnabled = false;
-        testGo.Click += async (_, _) => await RunWriteTest();
-        testPercent.Width = 90;
-        testPanel.Children.Add(Kit.Text("Write test: vibration", 24, "DS.Text", FontWeights.Bold));
-        testPanel.Children.Add(Wrap("Sets both motors to one value, reads it back, then puts the old value back and reads again. Nothing else is changed.", 15.5, "DS.TextSoft").Also(t => t.Margin = new(0, 6, 0, 12)));
-        testPanel.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = { Kit.Text("Vibration %", 15, "DS.Text").Also(t => { t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new(0, 0, 12, 0); }), testPercent } });
-        testPanel.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Margin = new(0, 12, 0, 0), Children = { testAgree, Wrap("Change vibration on my controller, then put it back", 15, "DS.Text").Also(t => { t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new(10, 0, 0, 0); }) } });
-        testPanel.Children.Add(new WrapPanel { Margin = new(0, 14, 0, 0), Children = { testGo } });
-        var panel = new StackPanel { MaxWidth = 1180, HorizontalAlignment = HorizontalAlignment.Center, Margin = new(40, 36, 40, 30), Children = {
-            Kit.Text("Check over Bluetooth", 40, "DS.Text", FontWeights.Bold),
-            Wrap("Three read-only questions: what the controller is, its firmware, and which settings it exposes. Nothing is written.", 17, "DS.TextSoft").Also(t => t.Margin = new(0, 8, 0, 0)),
-            Note("Turn the controller on with Bluetooth. Disconnect it from KeyLinker on any phone first. On a recorded X20 or X20 Pro, a vibration write test is offered afterwards."),
-            new WrapPanel { Margin = new(0, 22, 0, 0), Children = { askPro, askX20.Also(b => b.Margin = new(12, 0, 0, 0)) } },
-            checkStatus.Also(t => t.Margin = new(0, 18, 0, 10)),
-            checkText,
-            testPanel,
-            new WrapPanel { Margin = new(0, 18, 0, 0), Children = { checkSave, phoneRoute.Also(b => b.Margin = new(12, 0, 0, 0)), leave.Also(b => b.Margin = new(12, 0, 0, 0)) } } } };
-        checkView.Child = new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
-    }
+    /// <summary>Close is refused while a test mapping is still on the pad: restore it first.</summary>
+    public bool TryClose() => !busy && mapped is null;
+    public void Shutdown() { poll.Stop(); ControllerRumble.Set(0, 0, 0); }
 
-    private async Task RunCheck(string modelId)
+    // ---------------- steps ----------------
+    void Show(int n)
     {
-        if (checking) return;
-        checking = true; checkSave.Visibility = Visibility.Collapsed; testPanel.Visibility = Visibility.Collapsed; testAgree.IsChecked = false; checkedModel = null;
-        checkStatus.Text = "Asking the controller. Keep it awake and near this PC.";
-        try
-        {
-            var result = await PadBridge.Check(modelId);
-            checkText.Text = result.Text; checkText.Visibility = Visibility.Visible;
-            checkStatus.Text = result.Ok ? "Done. Nothing was changed on the controller." : "The check couldn't finish. Try again, or use the phone recording.";
-            if (result.Ok) checkSave.Visibility = Visibility.Visible;
-            // the write test only for an exactly proven controller, mode and firmware with motors (VibrationTest.MayRun)
-            if (result is { Ok: true, Check: { } raw } && VibrationTest.MayRun(PadCheck.ParseIdentity(raw.Identity), PadCheck.ParseCapabilities(raw.Menu)))
-            {
-                checkedModel = modelId; testPanel.Visibility = Visibility.Visible;
-            }
-        }
-        finally { checking = false; }
-    }
-
-    private async Task RunWriteTest()
-    {
-        if (checking || checkedModel is null || testAgree.IsChecked != true) return;
-        if (!int.TryParse(testPercent.Text.Trim().TrimEnd('%'), out int percent) || percent is < 0 or > 100) { checkStatus.Text = "Pick a value from 0 to 100."; return; }
-        checking = true; testGo.IsEnabled = false;
-        checkStatus.Text = "Running the write test. Keep the controller awake and near this PC.";
-        try
-        {
-            var result = await PadBridge.TestVibration(checkedModel, percent);
-            checkText.Text += Environment.NewLine + result.Text;
-            checkStatus.Text = result.Ok ? "Passed. Vibration is back as it was." : "Not passed. The last lines say whether vibration is back as it was.";
-            checkSave.Visibility = Visibility.Visible;
-        }
-        finally { checking = false; testAgree.IsChecked = false; }
-    }
-
-    private void SaveCheck()
-    {
-        try
-        {
-            Directory.CreateDirectory(Folder);
-            string path = System.IO.Path.Combine(Folder, $"check-{DateTime.Now:yyyyMMdd-HHmmss}.txt");
-            File.WriteAllText(path, checkText.Text);
-            checkStatus.Text = "Saved to " + path;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { checkStatus.Text = "Couldn't save: " + ex.Message; }
-    }
-
-    // ================= the five steps =================
-    private void Show(int n)
-    {
-        step = n; timer.Stop(); handsOff.Reset();
+        step = n;
+        for (int i = 0; i < pages.Length; i++) pages[i].Visibility = i == n ? Visibility.Visible : Visibility.Collapsed;
         strip.Children.Clear();
         for (int i = 0; i < StepNames.Length; i++)
         {
-            bool done = i < step, current = i == step;
-            var c = current ? Kit.Blue : done ? ThemeCatalog.R(Color.FromRgb(150, 175, 215)) : ThemeCatalog.R(Color.FromRgb(90, 104, 130));
-            strip.Children.Add(new Border { CornerRadius = new(15), Padding = new(12, 6, 14, 6), Margin = new(0, 0, 10, 0), BorderThickness = new(1),
-                BorderBrush = new SolidColorBrush(Color.FromArgb(current ? (byte)170 : (byte)60, c.R, c.G, c.B)), Background = new SolidColorBrush(Color.FromArgb(current ? (byte)60 : (byte)20, c.R, c.G, c.B)),
-                Child = new StackPanel { Orientation = Orientation.Horizontal, Children = {
-                    Kit.Text(done ? "✓" : (i + 1).ToString(), 13.5, current ? "DS.Text" : "DS.TextMuted", FontWeights.Bold).Also(t => t.Margin = new(0, 0, 8, 0)),
-                    Kit.Text(StepNames[i], 14, current ? "DS.Text" : "DS.TextSoft", current ? FontWeights.SemiBold : FontWeights.Normal) } } });
+            bool on = i == n, done = i < n;
+            strip.Children.Add(new Border { CornerRadius = new(15), Padding = new(14, 6, 14, 6), Margin = new(0, 0, 8, 0), Background = new SolidColorBrush(Color.FromArgb(on ? (byte)90 : done ? (byte)40 : (byte)16, 110, 160, 235)), Child = Kit.Text($"{i + 1}  {StepNames[i]}", 13, on ? "DS.Text" : "DS.TextSoft", on ? FontWeights.Bold : FontWeights.Normal) });
         }
-        stage.Children.Clear();
-        stage.Children.Add(n switch { 0 => PlanPage(), 1 => PhonePage(), 2 => TestPage(), 3 => RecordingPage(), _ => ResultsPage() });
+        if (n == 4) poll.Start(); else poll.Stop();
+        if (n == 5) RefreshSummary();
     }
 
-    private void Gate() => planNext.IsEnabled = setting.Text.Trim().Length > 0 && undoable.IsChecked == true;
-    private TestPlan Plan => new(model.Text.Trim(), app.Text.Trim(), setting.Text.Trim(), original.Text.Trim(), test.Text.Trim());
-
-    private FrameworkElement PlanPage()
+    UIElement Scroll(params UIElement[] items)
     {
-        var form = new Grid { Margin = new(0, 6, 0, 0) };
-        form.ColumnDefinitions.Add(new()); form.ColumnDefinitions.Add(new() { Width = new(20) }); form.ColumnDefinitions.Add(new());
-        for (int i = 0; i < 5; i++) form.RowDefinitions.Add(new() { Height = GridLength.Auto });
-        Put(form, Labelled("CONTROLLER (YOUR CLAIM: MODEL, OR BRAND AND MODEL)", Detach(model)), 0, 0); Put(form, Labelled("APP", Detach(app)), 0, 2);
-        Put(form, Labelled("THE ONE SETTING YOU'LL CHANGE (for example: left motor strength)", Detach(setting)).Also(s => Grid.SetColumnSpan(s, 3)), 1, 0);
-        Put(form, Labelled("ITS VALUE NOW", Detach(original)), 2, 0); Put(form, Labelled("WHAT YOU'LL CHANGE IT TO", Detach(test)), 2, 2);
-        Put(form, new StackPanel { Orientation = Orientation.Horizontal, Margin = new(0, 18, 0, 0), Children = { Detach(undoable), Kit.Text("I know how to put it back to its value now afterwards", 14.5, "DS.Text").Also(t => t.Margin = new(12, 0, 0, 0)) } }.Also(s => Grid.SetColumnSpan(s, 3)), 3, 0);
-        var left = Kit.Panel("What you'll test", "One small setting you can undo", null, new StackPanel { Children = { form, new WrapPanel { Margin = new(0, 24, 0, 0), Children = { Detach(planNext) } } } });
-        var right = Kit.Panel("Picking a good first test", null, null, new StackPanel { Children = {
-            Wrap("Good choices: a vibration strength, a trigger or stick dead zone, one button remap, the auto-off timer.", 15, "DS.Text"),
-            Wrap("Avoid: firmware updates, factory reset, calibration, pairing and mode switches. Those can't be undone by setting the value back, and they're not settings.", 15, "DS.TextSoft").Also(t => t.Margin = new(0, 12, 0, 0)),
-            Wrap("Write down the value before you change it. One change per recording keeps the result readable.", 15, "DS.TextSoft").Also(t => t.Margin = new(0, 12, 0, 0)) } });
-        return Columns(left, right);
+        var panel = new StackPanel { MaxWidth = 1100, HorizontalAlignment = HorizontalAlignment.Center, Margin = new(0, 8, 0, 24) };
+        foreach (var i in items) panel.Children.Add(i);
+        return new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
     }
 
-    private FrameworkElement PhonePage()
+    UIElement ChoosePage()
     {
-        var choice = new UniformGrid { Rows = 1, Width = 480 }; string group = "phone" + Guid.NewGuid().ToString("N");
-        foreach (var kind in new[] { PhoneKind.Samsung, PhoneKind.Android, PhoneKind.IPhone })
+        var go = Action("", "Next: Identify", "PrimaryButton"); go.IsEnabled = false; model.SelectionChanged += (_, _) => go.IsEnabled = model.SelectedItem is string m && m != ControllerCheckView.Pick && (m != ControllerCheckView.OtherModel || otherName.Text.Trim().Length >= 2); otherName.TextChanged += (_, _) => go.IsEnabled = otherName.Text.Trim().Length >= 2 || model.SelectedItem is string m2 && m2 != ControllerCheckView.OtherModel && m2 != ControllerCheckView.Pick;
+        go.Click += (_, _) => { session.ChosenModel = model.SelectedItem is ControllerCheckView.OtherModel ? "Other: " + otherName.Text.Trim() : (string)model.SelectedItem; Show(1); };
+        return Scroll(
+            Kit.Text("Which controller are you testing?", 36, "DS.Text", FontWeights.Bold),
+            Wrap("Pick the pad that is connected over Bluetooth. This is only a label for the report: the scan learns what the pad is from how it answers.", 16, "DS.TextSoft").Also(t => t.Margin = new(0, 8, 0, 18)),
+            Kit.Text("Required: your report states this controller.", 13, "DS.TextMuted").Also(t => t.Margin = new(0, 0, 0, 6)),
+            new StackPanel { Orientation = Orientation.Horizontal, Children = { model, otherName.Also(o => o.Margin = new(12, 0, 0, 0)) } },
+            Card("What is going to happen", "1  Identify: the scan asks the pad who it is and what it reports. It only reads.\n2  Read-back: if the pad answers like an X20, it reads its button, curve and macro records and saves them to a file you can send.\n3  Write test: only if you confirm, it writes each record back exactly as read, then reads it again. Nothing should change.\n4  Visual tests: you check buttons, curves, triggers, vibration and macros on screen.\n5  A zip is made. It stays on this PC until you review it and press Send."),
+            Card("Before you start", "Wake the pad and connect it by Bluetooth. Close KeyLinker on your phone: the pad talks to one app at a time. Nothing is sent online until the last step."),
+            read is null ? new Border() : Card("Your Read scan comes along", "The Read scan you just finished (" + read.Describe() + ") is added to the report."),
+            go.Also(b => { b.Margin = new(0, 18, 0, 0); b.HorizontalAlignment = HorizontalAlignment.Left; }));
+    }
+
+    UIElement IdentifyPage()
+    {
+        identifyGo = Action("", "Identify (reads only)", "PrimaryButton");
+        identifyGo.Click += async (_, _) => await Run(identifyGo, async () =>
         {
-            var r = new RadioButton { Content = PhoneGuides.Name(kind), Style = DS.Style("DS.Segment"), GroupName = group, IsChecked = phone == kind };
-            r.Checked += (_, _) => { if (phone != kind) { phone = kind; prepareAt = bringAt = 0; Show(1); } };
-            choice.Children.Add(r);
+            identifyText.Text = "Asking the pad…";
+            var (raw, problem) = await PadScanBle.RunAsync(session.ChosenModel, ScanStage.Identify, (x, next) => PadScan.Identify(x, next));
+            session.Raw = raw; session.Verdict = raw is null ? new(PadAnswer.Silent, "Your pad doesn't answer.", [problem ?? "No connection."]) : PadScan.Classify(raw);
+            identifyText.Text = session.Verdict.Headline + "\n\n" + string.Join("\n", session.Verdict.Reasons.Select(r => "· " + r));
+            nextIdentify.IsEnabled = session.Verdict.CanReadBack;
+        });
+        nextIdentify = Action("", "Next: Read-back", "PrimaryButton"); nextIdentify.IsEnabled = false; nextIdentify.Click += (_, _) => Show(2);
+        var skip = Action("", "Skip to Send", "ActionButton"); skip.Click += (_, _) => Show(5);
+        return Scroll(Kit.Text("Identify", 36, "DS.Text", FontWeights.Bold),
+            Wrap("One click. The scan asks the pad three questions — who it is (0x91), what it reports (0xB0) and its updater id (0x93) — and reads the answers. It sends nothing else.", 16, "DS.TextSoft").Also(t => t.Margin = new(0, 8, 0, 18)),
+            Row(identifyGo, nextIdentify, skip), identifyText.Also(t => t.Margin = new(0, 18, 0, 0)));
+    }
+    Button nextIdentify = null!;
+
+    UIElement ReadPage()
+    {
+        readGo = Action("", "Read the records (reads only)", "PrimaryButton");
+        readGo.Click += async (_, _) => await Run(readGo, async () =>
+        {
+            readText.Text = "Reading remap, curves and macros…";
+            int slots = Math.Min(6, PadCheck.ParseCapabilities(session.Raw?.Menu)?.MacroSlots.Count(s => s.Length == 2 && s[0] == 'M' && char.IsDigit(s[1])) ?? 4);
+            var (records, problem) = await PadScanBle.RunAsync(session.ChosenModel, ScanStage.ReadBack, (x, next) => PadScan.ReadAll(x, next, slots));
+            session.Records.Clear();
+            if (records is null) { readText.Text = problem ?? "The read failed."; session.Failure = problem; return; }
+            session.Records.AddRange(records); original = [.. records];
+            savedTo = SaveNow();
+            readText.Text = $"{records.Count} records read.\n\n{PadScan.Describe(records)}\nSaved to {savedTo}";
+            nextRead.IsEnabled = true;
+        });
+        nextRead = Action("", "Next: Write test", "PrimaryButton"); nextRead.IsEnabled = false; nextRead.Click += (_, _) => Show(3);
+        var skip = Action("", "Skip to Visual tests", "ActionButton"); skip.Click += (_, _) => Show(4);
+        return Scroll(Kit.Text("Read-back", 36, "DS.Text", FontWeights.Bold),
+            Wrap("Reads the pad's button, curve and macro records and shows them. This proves the read path on your model. Every record is saved to a file you can send us.", 16, "DS.TextSoft").Also(t => t.Margin = new(0, 8, 0, 18)),
+            Row(readGo, nextRead, skip), readText.Also(t => { t.Margin = new(0, 18, 0, 0); t.FontFamily = new FontFamily("Consolas"); }));
+    }
+    Button nextRead = null!;
+
+    UIElement WritePage()
+    {
+        writeGo = Action("", "Run the write test", "PrimaryButton"); writeGo.IsEnabled = false;
+        sendsWrite.Checked += (_, _) => writeGo.IsEnabled = session.Records.Count > 0 && !busy; sendsWrite.Unchecked += (_, _) => writeGo.IsEnabled = false;
+        writeGo.Click += async (_, _) => await Run(writeGo, async () =>
+        {
+            if (sendsWrite.IsChecked != true || session.Records.Count == 0) return;
+            writeText.Text = "Writing each record back and reading it again…";
+            var before = session.Records.ToList();
+            var (result, problem) = await PadScanBle.RunAsync(session.ChosenModel, ScanStage.WriteBack, (x, next) => PadScan.WriteBack(x, next, before));
+            if (result is null) { writeText.Text = problem ?? "The write test could not run."; session.Failure = problem; return; }
+            // a fresh connection: does the pad still hold it?
+            var (after, p2) = await PadScanBle.RunAsync(session.ChosenModel, ScanStage.ReadBack, (x, next) => PadScan.ReadAll(x, next, before.Count(r => r.Name.StartsWith("macro"))));
+            bool persisted = after is not null && !result.Stopped && PadScan.Persists(before, after);
+            session.WriteBack = result with { Persisted = persisted };
+            writeText.Text = result.Summary + "\n" + string.Join("\n", result.Items.Select(i => $"· {i.Name}: {i.Detail}")) + "\n\n"
+                + $"Acknowledged: {(result.AllAcknowledged ? "yes" : "not every record")}  ·  Identical: {(result.AllIdentical ? "yes" : "no")}  ·  After reconnecting: {(persisted ? "still identical" : p2 ?? "not confirmed")}\n"
+                + (result.AllAcknowledged ? "The pad accepts the X20's write command." : "The pad did not acknowledge every write: its commands may differ from the X20's.");
+        });
+        var next = Action("", "Next: Visual tests", "PrimaryButton"); next.Click += (_, _) => Show(4);
+        return Scroll(Kit.Text("Write test", 36, "DS.Text", FontWeights.Bold),
+            Wrap("For each record the scan writes back exactly the bytes it just read, then reads again. Nothing changes if it works. We learn whether the pad acknowledges the write, whether it keeps it after a reconnect, and whether it accepts the X20's command at all. If a record reads back different, the scan stops and puts that record back.", 16, "DS.TextSoft").Also(t => t.Margin = new(0, 8, 0, 18)),
+            Card("This sends a write", "The write goes to the pad's own memory. It is the same bytes the pad just gave, but it is still a write. Only continue if you agree."),
+            new StackPanel { Orientation = Orientation.Horizontal, Margin = new(0, 14, 0, 0), Children = { sendsWrite, Kit.Text("   I understand this sends a write to my controller", 15, "DS.Text") } },
+            Row(writeGo, next).Also(r => r.Margin = new(0, 16, 0, 0)), writeText.Also(t => t.Margin = new(0, 18, 0, 0)));
+    }
+
+    // ---------------- visual tests ----------------
+    [StructLayout(LayoutKind.Sequential)] struct XState { public uint Packet; public ushort Buttons; public byte LT, RT; public short LX, LY, RX, RY; }
+    [DllImport("xinput1_4.dll")] static extern uint XInputGetState(uint slot, out XState state);
+    readonly DispatcherTimer poll = new() { Interval = TimeSpan.FromMilliseconds(40) };
+    readonly Dictionary<string, Ellipse> faceDots = new();
+    readonly Dictionary<string, Border> faceChips = new();
+    readonly Border ltBar = new() { Height = 10, Width = 0, Background = Brushes.SteelBlue, HorizontalAlignment = HorizontalAlignment.Left, CornerRadius = new(5) }, rtBar = new() { Height = 10, Width = 0, Background = Brushes.SteelBlue, HorizontalAlignment = HorizontalAlignment.Left, CornerRadius = new(5) };
+    readonly Ellipse stickDot = new() { Width = 12, Height = 12, Fill = Brushes.Orange };
+    readonly Canvas curveCanvas = new() { Width = 260, Height = 260, Background = new SolidColorBrush(Color.FromArgb(40, 255, 255, 255)) };
+    string? src, dst; readonly TextBlock mapText = Wrap("Pick the button you press, then the button the game should get.", 14.5, "DS.TextSoft"), macroText = Wrap("", 14, "DS.TextSoft"), vibText = Wrap("", 14.5, "DS.TextSoft"), resultsText = Wrap("", 13, "DS.TextMuted");
+    static readonly (string Name, double X, double Y, Color C)[] Face = [("Y", 50, 0, Colors.Goldenrod), ("X", 0, 50, Colors.SteelBlue), ("B", 100, 50, Colors.IndianRed), ("A", 50, 100, Colors.SeaGreen)];
+
+    UIElement VisualPage()
+    {
+        var face = new Canvas { Width = 170, Height = 170, Margin = new(0, 8, 28, 0) };
+        foreach (var (name, x, y, color) in Face)
+        {
+            var dot = new Ellipse { Width = 50, Height = 50, Fill = new SolidColorBrush(Color.FromArgb(60, color.R, color.G, color.B)), Stroke = new SolidColorBrush(color), StrokeThickness = 2 };
+            var chip = new Border { Width = 50, Height = 50, CornerRadius = new(25), Background = Brushes.Transparent, Cursor = System.Windows.Input.Cursors.Hand, Child = new TextBlock { Text = name, FontSize = 20, FontWeight = FontWeights.Bold, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center } };
+            string n = name; chip.MouseLeftButtonUp += (_, _) => PickFace(n);
+            Canvas.SetLeft(dot, x * 1.2); Canvas.SetTop(dot, y * 1.2); Canvas.SetLeft(chip, x * 1.2); Canvas.SetTop(chip, y * 1.2);
+            face.Children.Add(dot); face.Children.Add(chip); faceDots[name] = dot; faceChips[name] = chip;
         }
-        var picker = new StackPanel { Margin = new(0, 0, 0, 10), Children = { Kit.Text("WHICH PHONE HAS KEYLINKER?", 12, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(2, 0, 0, 8)),
-            new Border { CornerRadius = new(12), Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(30, 255, 255, 255))), BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(34, 255, 255, 255))), BorderThickness = new(1), Padding = new(1), HorizontalAlignment = HorizontalAlignment.Left, Child = choice },
-            Wrap("It doesn't have to be your phone: a borrowed phone or a tablet with KeyLinker works too.", 13.5, "DS.TextMuted").Also(t => t.Margin = new(2, 8, 0, 6)) } };
-        return new PhoneGuide("Prepare the phone", PhoneGuides.Prepare(phone), prepareAt, i => prepareAt = i,
-            () => { notes.Clear(); notes.Add(new(PhoneGuides.Name(phone).ToLowerInvariant() + " ready", DateTime.UtcNow)); part = 0; Show(2); },
-            "The phone is ready", above: picker, backOut: () => Show(0));
+        var applyMap = Action("", "Put this test mapping on the pad", "ActionButton"); var restoreMap = Action("", "Restore my mapping", "PrimaryButton");
+        applyMap.Click += async (_, _) => await Run(applyMap, ApplyMap); restoreMap.Click += async (_, _) => await Run(restoreMap, RestoreMap);
+        var buttonTest = TestBox("Map this button to this button",
+            "Click the button you will press, then the button it should become. Putting it on the pad is a write: it needs the write test to have passed, and the scan restores your mapping afterwards. Then press the source on the pad: the target should light here.",
+            new StackPanel { Orientation = Orientation.Horizontal, Children = { face, new StackPanel { VerticalAlignment = VerticalAlignment.Center, Children = { mapText, Row(applyMap, restoreMap).Also(r => r.Margin = new(0, 12, 0, 0)) } } } }, "Button map");
+
+        var curveTest = TestBox("Curves", "The sticks' stored curve drawn from the record, with your stick moving live on it. Move the left stick slowly: the orange dot should follow the line.",
+            new StackPanel { Orientation = Orientation.Horizontal, Children = { curveCanvas, new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new(24, 0, 0, 0), Children = { Wrap("Drawn from the stored record, not measured from the pad.", 13, "DS.TextMuted") } } } }, "Curves");
+        var triggerTest = TestBox("Triggers", "Pull each trigger slowly. The bars should follow your finger from 0 to full.",
+            new StackPanel { Width = 360, Children = { Kit.Text("LT", 12, "DS.TextMuted"), ltBar, Kit.Text("RT", 12, "DS.TextMuted"), rtBar } }, "Triggers");
+        var buzz = Action("", "Buzz both motors", "ActionButton"); buzz.Click += async (_, _) => { vibText.Text = await ControllerRumble.Test(true, true, 60) ? "Did you feel both motors?" : "No controller took the vibration command."; };
+        var vibTest = TestBox("Vibration", "Plays a short buzz through Windows' own vibration call. It writes nothing to the pad's memory.", new StackPanel { Children = { buzz, vibText.Also(t => t.Margin = new(0, 8, 0, 0)) } }, "Vibration");
+        var macroTest = TestBox("Macro reading", "The macro slots the scan read, as the pad holds them. Compare the step counts with what you saved in KeyLinker.", macroText, "Macro reading");
+        return Scroll(Kit.Text("Visual tests", 36, "DS.Text", FontWeights.Bold),
+            Wrap("Judge each one yourself and press the verdict. Skip anything that does not apply.", 16, "DS.TextSoft").Also(t => t.Margin = new(0, 8, 0, 14)),
+            buttonTest, curveTest, triggerTest, vibTest, macroTest, resultsText.Also(t => t.Margin = new(0, 8, 0, 0)),
+            Action("", "Next: Send", "PrimaryButton").Also(b => { b.Margin = new(0, 14, 0, 0); b.HorizontalAlignment = HorizontalAlignment.Left; b.Click += (_, _) => Show(5); }));
     }
 
-    /// <summary>The test, one action at a time. After each one the phone is left alone for a few seconds, so the change
-    /// stands apart from what comes next in the recording.</summary>
-    private (string Title, string Say, string Button, double HandsOff)[] Parts()
+    Border TestBox(string title, string help, UIElement body, string key)
     {
-        var p = Plan;
-        string a = p.App.Length > 0 ? p.App : "KeyLinker", s = p.Setting, from = p.OriginalValue.Length > 0 ? p.OriginalValue : "its value now", to = p.TestValue.Length > 0 ? p.TestValue : "the new value";
-        return [
-            ("Open the app", $"Open {a} on the phone and connect the controller the way you always do. Wait until the app shows it.", "It's connected", 5),
-            ("Go to the page", $"Open the page with {s}. Don't change anything yet.", "I'm on that page", 5),
-            ("Make the change", $"Change {s} from {from} to {to}. If the app has a Save or Apply button, press it.", "I changed it", 5),
-            ("Change it back", $"Set {s} back to {from}, and save again if the app needs it.", "I changed it back", 5),
-            ("Close the app", $"Close {a} completely. The recording now holds the whole test.", "I closed it", 0),
-        ];
+        var pass = Action("", "Works", "PrimaryButton"); var fail = Action("", "Doesn't match", "ActionButton"); var skip = Action("", "Skip", "ActionButton");
+        pass.Click += (_, _) => Record(key, "pass"); fail.Click += (_, _) => Record(key, "fail"); skip.Click += (_, _) => Record(key, "skipped");
+        return new Border { CornerRadius = new(14), Padding = new(20), Margin = new(0, 0, 0, 14), Background = new SolidColorBrush(Color.FromArgb(24, 255, 255, 255)), Child = new StackPanel { Children = {
+            Kit.Text(title, 20, "DS.Text", FontWeights.Bold), Wrap(help, 14, "DS.TextSoft").Also(t => t.Margin = new(0, 4, 0, 12)), body, Row(pass, fail, skip).Also(r => r.Margin = new(0, 14, 0, 0)) } } };
+    }
+    void Record(string test, string outcome)
+    {
+        session.Visual.RemoveAll(v => v.Test == test); session.Visual.Add(new(test, outcome, ""));
+        resultsText.Text = "Recorded: " + string.Join("  ·  ", session.Visual.Select(v => $"{v.Test} {v.Outcome}"));
     }
 
-    private FrameworkElement TestPage()
+    void PickFace(string name)
     {
-        if (part == 0) { bringAt = 0; recordingStatus.Text = ""; }   // a new test: its recording is made from the first step
-        partDone = Action("", "", "PrimaryButton"); partDone.Click += (_, _) => DonePart();
-        var restart = Action("", "Start the test again", "ActionButton"); restart.Click += (_, _) => { notes.RemoveAll(n => !n.Event.EndsWith(" ready")); part = 0; Show(2); };
-        var help = PhoneGuide.HelpPanel([
-            ("The app doesn't find the controller", "Turn the controller off and on, in the mode you always use with the app. Check Bluetooth is on: you restarted it while preparing the phone."),
-            ("I changed something else by mistake", "Press Start the test again and begin from the top. One recording should hold one change."),
-            ("The app has no Save or Apply button", "That's fine: many apps save as soon as you change something."),
-            ("The controller was already paired", "That's fine. Leave it paired."),
-            ("I pressed the button too early", "Press Start the test again. The pauses keep each action apart, so the result is easier to read.")]);
-        help.Visibility = Visibility.Collapsed;
-        var stuck = Action("", "I'm stuck", "ActionButton"); stuck.Click += (_, _) => help.Visibility = help.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
-                var left = Kit.Panel("Do the test", "Follow each step on the phone, then confirm here", null, new StackPanel { Children = {
-            Detach(partTitle), Detach(partSay).Also(t => t.Margin = new(0, 8, 0, 0)), Detach(partCount).Also(t => t.Margin = new(0, 14, 0, 0)),
-            new WrapPanel { Margin = new(0, 22, 0, 0), Children = { partDone, restart.Also(b => b.Margin = new(12, 0, 0, 0)), stuck.Also(b => b.Margin = new(12, 0, 0, 0)) } }, help } });
-        var list = new StackPanel();
-        var parts = Parts();
-        for (int i = 0; i < parts.Length; i++)
-            list.Children.Add(Kit.Text((i < part ? "✓  " : i == part ? "▶  " : "     ") + parts[i].Title, 15.5, i == part ? "DS.Text" : i < part ? "DS.TextSoft" : "DS.TextMuted", i == part ? FontWeights.SemiBold : FontWeights.Normal).Also(t => t.Margin = new(0, 0, 0, 10)));
-        var right = Kit.Panel("The test", "Five steps", null, new StackPanel { Children = { list,
-            Wrap("The pauses matter: they keep each action apart in the recording, so the change can be told from the app's own background traffic.", 14, "DS.TextSoft").Also(t => t.Margin = new(0, 8, 0, 0)) } });
-        ShowPart();
-        return Columns(left, right);
+        if (src is null || dst is not null) { src = name; dst = null; } else dst = name;
+        mapText.Text = dst is null ? $"You press {src}. Now choose what the game should get." : src == dst ? "Pick a different button." : $"{src} → {dst}. Put it on the pad, then press {src}.";
+        foreach (var (n, chip) in faceChips) chip.BorderBrush = n == src || n == dst ? Brushes.White : null; foreach (var chip in faceChips.Values) chip.BorderThickness = new Thickness(chip.BorderBrush is null ? 0 : 2);
     }
 
-    private void ShowPart()
+    async Task ApplyMap()
     {
-        var parts = Parts();
-        if (part >= parts.Length) return;
-        partTitle.Text = parts[part].Title; partSay.Text = parts[part].Say; SetLabel(partDone, parts[part].Button);
-        partDone.IsEnabled = true; partCount.Text = $"Step {part + 1} of {parts.Length}";
+        if (src is null || dst is null || src == dst) { mapText.Text = "Pick two different buttons first."; return; }
+        if (session.WriteBack is not { Stopped: false, AllAcknowledged: true } || original?.FirstOrDefault(r => r.WriteOp == 0x36) is not { } remap) { mapText.Text = "The write test has to pass first: this is a write."; return; }
+        if (MessageBox.Show($"This writes a test mapping ({src} → {dst}) to your controller. The scan restores your mapping afterwards. Continue?", "This sends a write", MessageBoxButton.OKCancel, MessageBoxImage.Warning) != MessageBoxResult.OK) return;
+        var bytes = ControllerRecords.BuildRemap(new Dictionary<string, string> { [src] = dst });
+        mapped = remap;
+        var (ok, problem) = await PadScanBle.RunAsync(session.ChosenModel, ScanStage.WriteBack, async (x, next) => await PadScan.Put(x, remap, bytes) && (await PadScan.Reread(x, next, remap)).SequenceEqual(bytes));
+        mapText.Text = ok ? $"On the pad now: {src} → {dst}. Press {src} on the pad and watch {dst} light. Then restore." : (problem ?? "The pad did not take the test mapping.") + " Restore to be safe.";
+    }
+    async Task RestoreMap()
+    {
+        if (mapped is null) { mapText.Text = "Nothing to restore."; return; }
+        var remap = mapped;
+        var (ok, problem) = await PadScanBle.RunAsync(session.ChosenModel, ScanStage.WriteBack, async (x, next) => { await PadScan.Put(x, remap, remap.Bytes); return X20Ctl.Zone.ControllerRecords.SameRemap(await PadScan.Reread(x, next, remap), remap.Bytes); });
+        if (ok) { mapped = null; mapRestoreNote = "restored and verified"; mapText.Text = "Your mapping is back and verified."; }
+        else mapText.Text = (problem ?? "The pad does not show your mapping yet.") + " Try Restore again.";
     }
 
-    private void DonePart()
+    void Poll()
     {
-        var parts = Parts();
-        if (part >= parts.Length || handsOff.IsRunning) return;
-        notes.Add(new(parts[part].Title.ToLowerInvariant(), DateTime.UtcNow));
-        handsOffSeconds = parts[part].HandsOff;
-        if (handsOffSeconds <= 0) { part++; Show(part >= parts.Length ? 3 : 2); return; }
-        partDone.IsEnabled = false; partTitle.Text = "Hands off"; partSay.Text = "Leave the phone and the controller alone for a moment.";
-        handsOff.Restart(); timer.Start(); Tick();
+        XState s = default; bool found = false;
+        for (uint i = 0; i < 4 && !found; i++) found = XInputGetState(i, out s) == 0;
+        if (!found) return;
+        var held = new Dictionary<string, bool> { ["A"] = (s.Buttons & 0x1000) != 0, ["B"] = (s.Buttons & 0x2000) != 0, ["X"] = (s.Buttons & 0x4000) != 0, ["Y"] = (s.Buttons & 0x8000) != 0 };
+        foreach (var (name, dot) in faceDots) dot.Opacity = held[name] ? 1 : .55;
+        ltBar.Width = s.LT / 255.0 * 360; rtBar.Width = s.RT / 255.0 * 360;
+        DrawCurve(s.LX / 32767.0, s.LY / 32767.0);
     }
 
-    private void Tick()
+    void DrawCurve(double lx, double ly)
     {
-        if (!handsOff.IsRunning) { timer.Stop(); return; }
-        double left = handsOffSeconds - handsOff.Elapsed.TotalSeconds;
-        if (left > 0) { partCount.Text = $"Next step in {Math.Ceiling(left):0} s"; return; }
-        handsOff.Reset(); timer.Stop(); part++;
-        Show(part >= Parts().Length ? 3 : 2);   // redraws the list with this step ticked, and shows the next
-    }
-
-    private FrameworkElement RecordingPage()
-    {
-        if (recordingStatus.Text.Length == 0) recordingStatus.Text = "Waiting for the recording. You can also drop the file on this window.";
-        string archive = iphone ? "sysdiagnose" : "bug report";
-        var extra = new StackPanel { Margin = new(0, 16, 0, 0), Children = { Detach(recordingStatus),
-            Wrap($"Privacy: a {archive} holds a lot about the phone. X20CTL takes only the Bluetooth log out of it and keeps nothing unless you press Save; nothing is uploaded unless you press Send. Delete the {archive} from the phone and this PC when you're done.", 13.5, "DS.TextMuted").Also(t => t.Margin = new(0, 12, 0, 0)) } };
-        return new PhoneGuide("Bring the recording", PhoneGuides.Bring(phone), bringAt, i => bringAt = i, async () => await Choose(false), "Choose the recording",
-            extra, backOut: () => { part = 0; Show(2); }, backOutLabel: "Back to the test");
-    }
-
-    private async Task Choose(bool second)
-    {
-        if (busy) return;
-        var dialog = new Microsoft.Win32.OpenFileDialog { Title = second ? "Choose a second recording to compare" : "Choose the recording", Filter = "Bluetooth recordings (*.zip;*.log;*.cfa;*.gz;*.tar;*.pklg)|*.zip;*.log;*.cfa;*.gz;*.tar;*.pklg|All files (*.*)|*.*" };
-        if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
-        if (second) await Compare(dialog.FileName); else await Read(dialog.FileName);
-    }
-
-    private async Task Read(string path)
-    {
-        if (busy) return;
-        busy = true; var plan = Plan; var steps = notes.ToList();
-        // the status line lives on the guide's last step: go there, wherever the file was dropped
-        int open = PhoneGuides.Bring(phone).Length - 1;
-        if (step != 3 || bringAt != open) { bringAt = open; Show(3); }
-        recordingStatus.Text = "Reading the recording. A bug report can take a minute.";
-        try
+        curveCanvas.Children.Clear();
+        const double Size = 260;
+        if (session.Records.FirstOrDefault(r => r.Name == "sticks") is not { } rec) return;
+        CurveSetting c; try { c = ControllerRecords.ParseChannel(rec.Bytes, 0, false); } catch (FormatException) { return; }
+        double Out(double t)
         {
-            var (built, raw, extension) = await Task.Run(() => { var r = BtSnoop.LoadAny(path); return (WriteScanReport.Build(plan, steps, r.Records, r.Source), r.Log, r.Extension); });
-            report = built; log = raw; logExtension = extension; secondText = null; savedTo = null; unsaved = true; closeArmed = false;
-            receipt = null; agree.IsChecked = false; sendTrace.IsChecked = false; sendStatus.Text = ""; sendPanel.Visibility = Visibility.Collapsed;
-            recordingStatus.Text = ""; resultStatus.Text = "Not saved yet.";
-            Show(4);
+            double inner = c.Inner / 100.0, outer = c.Outer / 100.0;
+            if (t <= inner) return 0; if (t >= outer) return 1; double u = (t - inner) / (outer - inner);
+            double p1x = c.Point1.X / 255.0, p1y = c.Point1.Y / 255.0, p2x = c.Point2.X / 255.0, p2y = c.Point2.Y / 255.0;
+            double best = 0, bestD = 9; for (double v = 0; v <= 1.0001; v += .01) { double x = 3 * (1 - v) * (1 - v) * v * p1x + 3 * (1 - v) * v * v * p2x + v * v * v; if (Math.Abs(x - u) < bestD) { bestD = Math.Abs(x - u); best = 3 * (1 - v) * (1 - v) * v * p1y + 3 * (1 - v) * v * v * p2y + v * v * v; } }
+            return best;
         }
-        catch (Exception e) when (e is InvalidDataException or IOException or UnauthorizedAccessException)
-        {
-            recordingStatus.Text = "That file couldn't be used: " + e.Message;
-        }
-        finally { busy = false; }
+        var line = new Polyline { Stroke = Brushes.LightSkyBlue, StrokeThickness = 2 };
+        for (int i = 0; i <= 100; i++) { double t = i / 100.0; line.Points.Add(new Point(t * Size, Size - Out(t) * Size)); }
+        curveCanvas.Children.Add(line);
+        double mag = Math.Min(1, Math.Sqrt(lx * lx + ly * ly));
+        Canvas.SetLeft(stickDot, mag * Size - 6); Canvas.SetTop(stickDot, Size - Out(mag) * Size - 6); curveCanvas.Children.Add(stickDot);
+        var rows = session.Records.Where(r => r.Name.StartsWith("macro")).Select(r => $"{r.Name}: {(r.Bytes[0] == 0 ? "empty" : r.Bytes[0] + " steps")}");
+        macroText.Text = rows.Any() ? string.Join("\n", rows) : "No macro records were read.";
     }
 
-    private async Task Compare(string path)
+    // ---------------- send ----------------
+    UIElement SendPage()
     {
-        if (busy || report is null) return;
-        busy = true; resultStatus.Text = "Reading the second recording.";
-        try
+        saveGo = Action("", "Save the zip on this PC", "ActionButton"); saveGo.Click += (_, _) => { savedTo = SaveNow(); sendText.Text = "Saved to " + savedTo; };
+        sendGo = Action("", "Send to X20CTLADMIN", "PrimaryButton"); sendGo.IsEnabled = false;
+        reviewed.Checked += (_, _) => sendGo.IsEnabled = !busy; reviewed.Unchecked += (_, _) => sendGo.IsEnabled = false;
+        sendGo.Click += async (_, _) => await Run(sendGo, async () =>
         {
-            var other = await Task.Run(() => { var (records, source, _) = BtSnoop.Load(path); return WriteScanReport.Build(report.Plan, [], records, source); });
-            var (onlyA, onlyB) = WriteScanReport.CompareRecordings(report.KeyLinker, other.KeyLinker);
-            var s = new System.Text.StringBuilder();
-            s.AppendLine("COMPARED WITH A SECOND RECORDING (" + other.Source + ")");
-            if (!report.IsKeyLinker || !other.IsKeyLinker) s.AppendLine("  Both recordings need KeyLinker frames to compare them message by message.");
-            else if (onlyA.Count == 0 && onlyB.Count == 0) s.AppendLine("  The two recordings hold the same messages.");
-            else
+            try
             {
-                s.AppendLine("  Only in this recording:"); foreach (var m in onlyA) s.AppendLine("    " + m);
-                if (onlyA.Count == 0) s.AppendLine("    nothing");
-                s.AppendLine("  Only in the second one:"); foreach (var m in onlyB) s.AppendLine("    " + m);
-                if (onlyB.Count == 0) s.AppendLine("    nothing");
+                var attachments = read is null ? null : (IReadOnlyList<(string, byte[])>)[("input/read-scan.txt", System.Text.Encoding.UTF8.GetBytes(read.Describe()))];
+                var zip = PadScanReport.Zip(session, ScanFlow.AppVersion, attachments?.Select(a => (a.Item1, a.Item2)).ToList());
+                string receipt = await WriteScanUpload.Send(zip, session.ChosenModel);
+                sendText.Text = "Sent. Your receipt is " + receipt + ".";
             }
-            secondText = s.ToString(); unsaved = true;
-            summary.Text = report.Summary() + "\n" + secondText;
-            resultStatus.Text = "The comparison is added to the findings.";
-        }
-        catch (Exception e) when (e is InvalidDataException or IOException or UnauthorizedAccessException) { resultStatus.Text = "That file couldn't be used: " + e.Message; }
-        finally { busy = false; }
+            catch (Exception e) when (e is WriteScanUpload.NotReady or System.Net.Http.HttpRequestException or InvalidDataException or TaskCanceledException) { sendText.Text = e.Message + "\nThe zip is still saved on this PC."; }
+        });
+        return Scroll(Kit.Text("Send", 36, "DS.Text", FontWeights.Bold),
+            Wrap("This is everything that would go to X20CTLADMIN. It holds the replies and records above, your test verdicts and the app version. No Bluetooth address, no PC name, no account.", 16, "DS.TextSoft").Also(t => t.Margin = new(0, 8, 0, 14)),
+            new Border { Child = summary, CornerRadius = new(12), Background = new SolidColorBrush(Color.FromArgb(40, 0, 0, 0)) },
+            new StackPanel { Orientation = Orientation.Horizontal, Margin = new(0, 16, 0, 0), Children = { reviewed, Kit.Text("   I reviewed this and agree to send it", 15, "DS.Text") } },
+            Row(saveGo, sendGo).Also(r => r.Margin = new(0, 14, 0, 0)), sendText.Also(t => t.Margin = new(0, 14, 0, 0)));
     }
+    void RefreshSummary() => summary.Text = PadScanReport.Summary(session);
+    string SaveNow() => PadScanReport.Save(session, Folder, ScanFlow.AppVersion);
 
-    static string Count(int n, string noun) => $"{n} {noun}{(n == 1 ? "" : "s")}";
-
-    private FrameworkElement ResultsPage()
+    // ---------------- helpers ----------------
+    async Task Run(Button b, Func<Task> work)
     {
-        if (report is null) return RecordingPage();
-        headline.Children.Clear();
-        var id = report.Fingerprint.Identity;
-        headline.Children.Add(Card("Protocol", report.IsKeyLinker ? $"KeyLinker: {report.KeyLinker.Frames.Count} frames decoded" : report.Filtered ? "Unreadable: the Filtered log cuts every message short"
-            : "No KeyLinker frames. Inconclusive: another protocol, or a partial log; the raw writes are grouped below."));
-        headline.Children.Add(Card("Controller says", id is null ? "No identity reply in this recording" : $"vendor {id.Vid}, product {id.Pid}, firmware {id.Version}"));
-        headline.Children.Add(Card("Versus the X20", report.Differences.Count == 0 ? (id is null && report.KeyLinker.Descriptor is null ? "Not enough to compare" : "The same as the recorded X20 in all it reports") : $"{report.Differences.Count} differences"));
-        headline.Children.Add(Card("Changes found", report.IsKeyLinker ? $"{Count(report.KeyLinker.Changes.Count, "write")}, {Count(report.KeyLinker.Changes.Sum(c => c.Bytes.Count), "byte")} changed, {report.KeyLinker.Changes.Count(c => c.ReadBack == "matches")} read back as stored" : $"{report.Shapes.Count} kinds of write"));
-        summary.Text = report.Summary() + (secondText is null ? "" : "\n" + secondText);
-
-        var save = Action("", "Save the findings", "PrimaryButton"); save.Click += (_, _) => Save();
-        var open = Action("", "Open the folder", "ActionButton"); open.Click += (_, _) => OpenFolder();
-        var compare = Action("", "Compare with a second recording", "ActionButton"); compare.Click += async (_, _) => await Choose(true);
-        compare.ToolTip = "The same test recorded twice, or the same change on a second controller: lists the messages only one recording holds";
-        var again = Action("", "Test another setting", "ActionButton"); again.Click += (_, _) => { if (unsaved && !closeArmed) { closeArmed = true; resultStatus.Text = "These findings aren't saved. Press again to start over without them."; return; } report = null; log = null; secondText = null; closeArmed = false; unsaved = false; resultStatus.Text = ""; Show(0); };
-        var send = Action("\uE724", "Send online", "ActionButton"); send.Click += (_, _) => { sendPanel.Visibility = sendPanel.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible; };
-        send.ToolTip = read is null ? "Send these findings to the X20CTL team, so your controller can be supported" : "Send these findings and the Read scan report to the X20CTL team in one go";
-        BuildSendPanel();
-        var actions = new WrapPanel { Children = { save, send.Also(b => b.Margin = new(12, 0, 0, 0)), open.Also(b => b.Margin = new(12, 0, 0, 0)), compare.Also(b => b.Margin = new(12, 0, 0, 0)), again.Also(b => b.Margin = new(12, 0, 0, 0)) } };
-        var keep = new StackPanel { Orientation = Orientation.Horizontal, Margin = new(0, 14, 0, 0), Children = { Detach(keepRaw), Kit.Text("Also save a copy of the Bluetooth log (it can hold other devices' names and addresses)", 13.5, "DS.TextSoft").Also(t => t.Margin = new(12, 0, 0, 0)) } };
-        var foot = new StackPanel { Margin = new(0, 14, 0, 0), Children = { actions, Detach(sendPanel), keep, Detach(resultStatus).Also(t => t.Margin = new(0, 12, 0, 0)),
-            Wrap(iphone ? "When you're done: remove Apple's Bluetooth profile in Settings, General, VPN & Device Management."
-                : "When you're done: in Developer options, turn \"Enable Bluetooth HCI snoop log\" off again.", 13.5, "DS.TextMuted").Also(t => t.Margin = new(0, 8, 0, 0)) } };
-        var dock = new DockPanel();
-        var verdict = VerdictPanel(report.Verdict());
-        DockPanel.SetDock(verdict, Dock.Top); dock.Children.Add(verdict);
-        DockPanel.SetDock(headline, Dock.Top); dock.Children.Add(Detach(headline));
-        DockPanel.SetDock(foot, Dock.Bottom); dock.Children.Add(foot);
-        dock.Children.Add(new Border { CornerRadius = new(12), ClipToBounds = true, Child = Detach(summary) });
-        return Kit.Panel("Results", report.Plan.Setting.Length > 0 ? $"{report.Plan.Setting}, in {report.Source}" : report.Source, null, dock);
+        if (busy) return; busy = true; b.IsEnabled = false;
+        try { await work(); } catch (Exception e) when (e is IOException or InvalidOperationException or TimeoutException) { session.Failure = e.Message; sendText.Text = e.Message; }
+        finally { busy = false; b.IsEnabled = true; if (b == writeGo) b.IsEnabled = sendsWrite.IsChecked == true; if (b == sendGo) b.IsEnabled = reviewed.IsChecked == true; }
     }
-
-    /// <summary>The verdict first: how sure the scan is, what it learned, what that rests on, and, when it falls short,
-    /// what to do differently with a way straight back to the step that fixes it.</summary>
-    private FrameworkElement VerdictPanel(WriteScanVerdict v)
-    {
-        var c = v.Level switch { "High" => ThemeCatalog.R(Color.FromRgb(52, 211, 153)), "Medium" => ThemeCatalog.R(Color.FromRgb(245, 180, 91)), _ => ThemeCatalog.R(Color.FromRgb(232, 54, 79)) };
-        var pill = new Border { CornerRadius = new(12), Padding = new(12, 5, 12, 5), Margin = new(0, 0, 14, 0), VerticalAlignment = VerticalAlignment.Center, BorderThickness = new(1),
-            Background = new SolidColorBrush(Color.FromArgb(48, c.R, c.G, c.B)), BorderBrush = new SolidColorBrush(Color.FromArgb(150, c.R, c.G, c.B)),
-            Child = Kit.Text(v.Level == "None" ? "NOTHING LEARNED" : v.Level.ToUpperInvariant() + " CONFIDENCE", 12.5, "DS.Text", FontWeights.Bold).Also(t => t.Foreground = new SolidColorBrush(c)) };
-        var top = new DockPanel { Children = { pill, Kit.Text(v.Headline, 21, "DS.Text", FontWeights.Bold).Also(t => { t.TextWrapping = TextWrapping.Wrap; t.VerticalAlignment = VerticalAlignment.Center; }) } };
-        DockPanel.SetDock(pill, Dock.Left);
-        var checks = new StackPanel { Margin = new(0, 12, 0, 0) };
-        foreach (var check in v.Checks.Take(7))
-            checks.Children.Add(new DockPanel { Margin = new(0, 0, 0, 5), Children = {
-                Kit.Text(check.Passed ? "✓" : "✕", 14.5, "DS.Text", FontWeights.Bold).Also(t => { t.Width = 22; t.Foreground = new SolidColorBrush(check.Passed ? ThemeCatalog.R(Color.FromRgb(52, 211, 153)) : ThemeCatalog.R(Color.FromRgb(245, 180, 91))); DockPanel.SetDock(t, Dock.Left); }),
-                Wrap(check.Text, 14, check.Passed ? "DS.TextSoft" : "DS.Text") } });
-        var body = new Grid(); body.ColumnDefinitions.Add(new() { Width = new(1.3, GridUnitType.Star) }); body.ColumnDefinitions.Add(new() { Width = new(24) }); body.ColumnDefinitions.Add(new());
-        body.Children.Add(checks);
-        if (v.Fixes.Count > 0)
-        {
-            bool phoneFix = report?.Filtered == true || report?.Messages == 0;
-            var again = Action("", phoneFix ? "Set up the phone again" : "Do the test again", "ActionButton");
-            again.Click += (_, _) => { notes.RemoveAll(n => !n.Event.EndsWith(" ready")); part = 0; if (phoneFix) { prepareAt = 0; Show(1); } else Show(2); };
-            var fixes = new StackPanel { Margin = new(0, 12, 0, 0), Children = { Kit.Text("FOR A BETTER RECORDING", 12, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(0, 0, 0, 6)) } };
-            foreach (var f in v.Fixes.Take(4)) fixes.Children.Add(Wrap("•  " + f, 14, "DS.Text").Also(t => t.Margin = new(0, 0, 0, 5)));
-            fixes.Children.Add(new WrapPanel { Margin = new(0, 6, 0, 0), Children = { again } });
-            Grid.SetColumn(fixes, 2); body.Children.Add(fixes);
-        }
-        return new Border { CornerRadius = new(14), Margin = new(0, 0, 0, 6), Padding = new(20, 16, 20, 14), BorderThickness = new(1),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(90, c.R, c.G, c.B)), Background = new LinearGradientBrush(ThemeCatalog.R(Color.FromArgb(150, 20, 34, 70)), ThemeCatalog.R(Color.FromArgb(110, 10, 18, 40)), 90),
-            Child = new StackPanel { Children = { top, body } } };
-    }
-
-    private void BuildSendPanel()
-    {
-        if (sendGo != null) return;
-        sendGo = Action("\uE724", "Send", "PrimaryButton"); sendGo.IsEnabled = false; sendGo.Click += async (_, _) => await Send();
-        agree.Checked += (_, _) => sendGo.IsEnabled = receipt is null && !sending; agree.Unchecked += (_, _) => sendGo.IsEnabled = false;
-        sendPanel.CornerRadius = new(14); sendPanel.Margin = new(0, 14, 0, 0); sendPanel.Padding = new(18, 14, 18, 14); sendPanel.BorderThickness = new(1);
-        sendPanel.BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(110, 61, 139, 255))); sendPanel.Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(40, 61, 139, 255)));
-        sendPanel.Child = new StackPanel { Children = {
-            Kit.Text(read is null ? "Send these findings online" : "Send the Write scan and the Read scan online", 16.5, "DS.Text", FontWeights.SemiBold),
-            Wrap("What goes to X20CTLADMIN, the X20CTL team's private report site: the summary above, the findings, the timeline and every decoded message (these can include the controller's name and an id). Nothing else from the phone.", 14, "DS.TextSoft").Also(t => t.Margin = new(0, 6, 0, 0)),
-            new StackPanel { Orientation = Orientation.Horizontal, Margin = new(0, 12, 0, 0), Children = { sendTrace, Kit.Text("Also send the Bluetooth data packets: the controller's connection only, around the test, without Bluetooth's own messages (where device names and addresses travel)", 13.5, "DS.Text").Also(t => t.Margin = new(12, 0, 0, 0)) } },
-            new StackPanel { Orientation = Orientation.Horizontal, Margin = new(0, 10, 0, 0), Children = { agree, Kit.Text("I've read the summary above and I'm happy to send it", 13.5, "DS.Text").Also(t => t.Margin = new(12, 0, 0, 0)) } },
-            new WrapPanel { Margin = new(0, 12, 0, 0), Children = { sendGo } },
-            sendStatus.Also(t => t.Margin = new(0, 10, 0, 0)),
-            Wrap("You can also send the saved folder to @" + ScanFlow.Discord + " on Discord.", 13, "DS.TextMuted").Also(t => t.Margin = new(0, 8, 0, 0)) } };
-    }
-
-    private async Task Send()
-    {
-        if (report is null || sending || agree.IsChecked != true || receipt != null) return;
-        sending = true; sendGo!.IsEnabled = false; sendStatus.Text = "Sending to X20CTLADMIN…";
-        try
-        {
-            var attached = read?.Files(X20Ctl.Zone.Capture.WriteScanReport.MaxResearchFileBytes) ?? [];
-            var zip = report.ResearchZip(sendTrace.IsChecked == true, ScanFlow.AppVersion,
-                (secondText ?? "") + (attached.Count > 0 ? $"\nRead scan included: {read!.Describe()} ({attached.Count} files under input/read-scan/)\n" : ""), attached);
-            receipt = await WriteScanUpload.Send(zip, report.Plan.Model);
-            sendStatus.Text = $"Sent to X20CTLADMIN · receipt {receipt}. Keep the receipt if you want to ask about it.";
-        }
-        catch (WriteScanUpload.NotReady e) { sendStatus.Text = e.Message; }
-        catch (Exception e) when (e is System.Net.Http.HttpRequestException or TaskCanceledException or InvalidDataException or IOException or System.Text.Json.JsonException) { sendStatus.Text = "Not sent: " + e.Message; }
-        finally { sending = false; sendGo.IsEnabled = receipt is null && agree.IsChecked == true; }
-    }
-
-    private bool Save()
-    {
-        if (report is null) return true;
-        if (ReviewSandbox.Active) { unsaved = false; resultStatus.Text = "Review sandbox: findings not written."; return true; }
-        try
-        {
-            savedTo = report.Save(Folder, keepRaw.IsChecked == true ? log : null, secondText, logExtension);
-            unsaved = false; closeArmed = false;
-            resultStatus.Text = "Saved to " + savedTo + ". Read README.txt before sharing: the message list can include the controller's name and an id.";
-            return true;
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { resultStatus.Text = "Couldn't save: " + e.Message; return false; }
-    }
-
-    private void OpenFolder()
-    {
-        if (ReviewSandbox.Active) return;
-        try { Directory.CreateDirectory(Folder); Process.Start(new ProcessStartInfo("explorer.exe", "\"" + (savedTo ?? Folder) + "\"") { UseShellExecute = true }); }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception) { resultStatus.Text = "Couldn't open the folder: " + e.Message; }
-    }
-
-    /// <summary>Unsaved findings: the first Back says so, the second leaves anyway.</summary>
-    public bool TryClose()
-    {
-        if (busy) return false;
-        if (unsaved && !closeArmed) { closeArmed = true; resultStatus.Text = "These findings aren't saved. Press Back again to leave without them."; return false; }
-        return true;
-    }
-    public void Shutdown() { timer.Stop(); handsOff.Reset(); }
-
-    // review captures (--review-probe): render each page without a phone
-    internal void ReviewOpen(int n, TestPlan? plan = null)
-    {
-        warning.Visibility = Visibility.Collapsed;
-        if (plan != null) { model.Text = plan.Model; app.Text = plan.App; setting.Text = plan.Setting; original.Text = plan.OriginalValue; test.Text = plan.TestValue; undoable.IsChecked = true; }
-        Show(n);
-    }
-    internal void ReviewFixtureResults()
-    {
-        if (!ReviewSandbox.Active) throw new InvalidOperationException("Fixture results are only available in the review sandbox.");
-        report = new WriteScanReport { Plan = Plan, Source = "Review fixture" }; unsaved = true; Show(4);
-    }
-    internal bool ReviewConsentOpen => sendPanel.Visibility == Visibility.Visible;
-    internal bool ReviewSendEnabled => sendGo?.IsEnabled == true;
-    internal bool ReviewSaveFixture() { if (!ReviewSandbox.Active) throw new InvalidOperationException("Review sandbox required."); return Save(); }
-    internal Task ReviewRead(string path) => Read(path);
-    internal void ReviewPhone(bool onIphone) => phone = onIphone ? PhoneKind.IPhone : PhoneKind.Samsung;
-    internal void ReviewPhone(PhoneKind kind) { phone = kind; prepareAt = bringAt = 0; }
-    internal void ReviewGuide(int prepare, int bring) { prepareAt = prepare; bringAt = bring; }
-    internal (string Text, bool Shown, int Guide) ReviewStatus() => (recordingStatus.Text, recordingStatus.IsVisible, stage.Children.Count > 0 && stage.Children[0] is PhoneGuide g ? g.Index : -1);
-    internal void ReviewStuck() { if (stage.Children.Count > 0 && stage.Children[0] is PhoneGuide g) g.Stuck(true); }
-    /// <summary>Confirms every step of the guided test with short pauses; returns the step it ends on (3 when it reaches the recording).</summary>
-    internal async Task<int> ReviewWalkTest()
-    {
-        part = 0; Show(2);
-        for (int i = 0; i < Parts().Length; i++) { DonePart(); if (handsOff.IsRunning) handsOffSeconds = 0.2; await Task.Delay(500); }
-        return step;
-    }
-    internal async Task ReviewSend() { sendPanel.Visibility = Visibility.Visible; agree.IsChecked = true; sendTrace.IsChecked = true; await Send(); }
-
-    // ================= small pieces =================
-    private static FrameworkElement Columns(UIElement left, UIElement right)
-    {
-        var g = new Grid();
-        g.ColumnDefinitions.Add(new() { Width = new(1.6, GridUnitType.Star) }); g.ColumnDefinitions.Add(new() { Width = new(20) }); g.ColumnDefinitions.Add(new());
-        g.Children.Add(left); Grid.SetColumn(right, 2); g.Children.Add(right);
-        return new ScrollViewer { Content = g, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
-    }
-    /// <summary>Controls kept across steps are moved into each new page; take them out of the old one first.</summary>
-    private static T Detach<T>(T e) where T : FrameworkElement
-    {
-        switch (e.Parent) { case Panel p: p.Children.Remove(e); break; case Decorator d: d.Child = null; break; case ContentControl c: c.Content = null; break; }
-        return e;
-    }
-    private static void Put(Grid g, UIElement e, int row, int column) { Grid.SetRow(e, row); Grid.SetColumn(e, column); g.Children.Add(e); }
-    private static TextBox Field(string text) => new() { Text = text, MinHeight = 40, FontSize = 14.5, Padding = new(12, 8, 12, 8), MaxLength = 120, VerticalContentAlignment = VerticalAlignment.Center };
-    private static StackPanel Labelled(string label, FrameworkElement control) => new() { Margin = new(0, 0, 0, 14), Children = { Kit.Text(label, 11.5, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(2, 0, 0, 6)), control } };
-    private static TextBlock Wrap(string text, double size, string brush) => new() { Text = text, FontFamily = DS.Body, FontSize = size, Foreground = DS.Brush(brush), TextWrapping = TextWrapping.Wrap, LineHeight = size * 1.45 };
-    private static Border Card(string title, string text) => new()
-    {
-        CornerRadius = new(14), Margin = new(8), Padding = new(18, 14, 18, 14), BorderThickness = new(1), BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(46, 140, 180, 255))),
-        Background = new LinearGradientBrush(ThemeCatalog.R(Color.FromArgb(160, 20, 34, 70)), ThemeCatalog.R(Color.FromArgb(120, 10, 18, 40)), 90),
-        Child = new StackPanel { Children = { Kit.Text(title, 16.5, "DS.Text", FontWeights.SemiBold), Wrap(text, 14, "DS.TextSoft").Also(t => t.Margin = new(0, 6, 0, 0)) } },
-    };
-    private static Border Note(string text) => new()
-    {
-        CornerRadius = new(14), Margin = new(0, 18, 0, 0), Padding = new(18, 14, 18, 14), BorderThickness = new(1), BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(110, 61, 139, 255))), Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(40, 61, 139, 255))),
-        Child = Wrap(text, 14.5, "DS.Text"),
-    };
-    private static Border Numbered(string n, string title, string text) => new()
-    {
-        CornerRadius = new(14), Margin = new(0, 0, 0, 10), Padding = new(18, 12, 18, 12), BorderThickness = new(1), BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(46, 140, 180, 255))), Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(70, 16, 28, 58))),
-        Child = new DockPanel { Children = {
-            Kit.Text(n, 22, "DS.AccentHi", FontWeights.Bold).Also(t => { t.Width = 34; t.VerticalAlignment = VerticalAlignment.Top; DockPanel.SetDock(t, Dock.Left); }),
-            new StackPanel { Children = { Kit.Text(title, 16, "DS.Text", FontWeights.SemiBold), Wrap(text, 14.5, "DS.TextSoft").Also(t => t.Margin = new(0, 4, 0, 0)) } } } },
-    };
-    private static Button Action(string icon, string text, string style) => new()
-    {
-        Style = DS.Style(style), Height = 44, MinHeight = 0, Padding = new(20, 0, 22, 0), FontSize = 15,
-        Content = new StackPanel { Orientation = Orientation.Horizontal, Children = { Kit.Icon(icon, 14, "DS.Text").Also(i => i.Margin = new(0, 0, 10, 0)), Kit.Text(text, 15, "DS.Text", FontWeights.SemiBold) } },
-    };
-    private static void SetLabel(Button b, string text) { if (b.Content is StackPanel { Children.Count: 2 } s && s.Children[1] is TextBlock t) t.Text = text; }
+    static StackPanel Row(params UIElement[] items) { var p = new StackPanel { Orientation = Orientation.Horizontal }; foreach (var i in items) { if (i is FrameworkElement f) f.Margin = new(p.Children.Count == 0 ? 0 : 12, 0, 0, 0); p.Children.Add(i); } return p; }
+    static Border Card(string title, string text) => new() { CornerRadius = new(14), Padding = new(20), Margin = new(0, 14, 0, 0), Background = new SolidColorBrush(Color.FromArgb(24, 255, 255, 255)), Child = new StackPanel { Children = { Kit.Text(title, 18, "DS.Text", FontWeights.Bold), Wrap(text, 14.5, "DS.TextSoft").Also(t => t.Margin = new(0, 6, 0, 0)) } } };
+    static TextBlock Wrap(string text, double size, string brush) => new() { Text = text, FontFamily = DS.Body, FontSize = size, Foreground = DS.Brush(brush), TextWrapping = TextWrapping.Wrap, LineHeight = size * 1.45 };
+    static Button Action(string icon, string text, string style) => new() { Style = DS.Style(style), Height = 44, MinHeight = 0, Padding = new(20, 0, 22, 0), FontSize = 15,
+        Content = new StackPanel { Orientation = Orientation.Horizontal, Children = { Kit.Icon(icon, 14, "DS.Text").Also(i => i.Margin = new(0, 0, 10, 0)), Kit.Text(text, 15, "DS.Text", FontWeights.SemiBold) } } };
 }

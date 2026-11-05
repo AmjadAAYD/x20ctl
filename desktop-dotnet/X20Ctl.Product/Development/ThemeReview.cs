@@ -197,7 +197,7 @@ internal static class ThemeReview
             host.OpenSelector(2); await Shot("11c-choose"); host.CloseSelector();
             host.OpenCheck(); await Shot("11d-check"); host.CloseCheck();
             host.OpenWriteScan(); await Shot("11e-writescan");
-            host.WriteScan!.ReviewOpen(1, new X20Ctl.Zone.Capture.TestPlan("X20", "KeyLinker", "Vibration strength", "20", "30")); await Shot("12c-writescan-plan");
+            host.WriteScan!.ReviewOpen(1); await Shot("12c-writescan-plan");
             host.CloseWriteScan();
 
                         if (id == "nexus")

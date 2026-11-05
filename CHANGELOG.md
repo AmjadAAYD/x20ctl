@@ -1,5 +1,16 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **The Write scan talks to the pad itself.** The phone recording and KeyLinker log are gone. Choose your controller, read what will happen, then Identify (reads only: the pad says whether it answers like an X20, like an X20 Pro, differently, or not at all), Read-back (button, curve and macro records, saved to a file), a Write test that writes each record back exactly as read and reads it again (only after a visible "this sends a write" confirmation, and it puts a record back if it reads back different), and visual tests for the button map, curves, triggers, vibration and macros. The result is a zip that stays on this PC until you review it and press Send.
+- **The Read scan is slower and clearer.** You must choose your controller (or type its name) before it starts, so every report says what it is. A five-second countdown comes before each step, each hold is five seconds, and the last three seconds say "Release in 3, 2, 1" with a pulse. The control being asked for lights up on a plain layout (triggers 0 to 100 on top, bumpers under them, left stick and D-pad on the left, the four buttons and right stick on the right, Back and Start in the middle). The four-step bar reads Choose your controller, Press A to find it, Follow the prompts, Results.
+
+### Removed
+
+- The M1 to M6 paddle steps in the Read scan: no tested pad reports them to Windows.
+
 ## [V0.021] - 2026-11-05
 
 ### Added

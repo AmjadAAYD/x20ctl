@@ -12,14 +12,14 @@ namespace X20Ctl.Product.Scanner;
 public static class WriteScanUpload
 {
     const string Route = "https://x20-admin.vercel.app/api/controller-report";
-    public const string ScannerVersion = "write-scan-1";
+    public const string ScannerVersion = "write-scan-2";
 
     public sealed class NotReady(string message) : Exception(message);
 
     public static async Task<string> Send(byte[] zip, string controllerName)
     {
         if (ReviewSandbox.Active) return "CR-SANDBOX";
-        if (zip.Length > X20Ctl.Zone.Capture.WriteScanReport.MaxResearchZipBytes) throw new InvalidDataException("The report is over the receiver's 4 MB limit.");
+        if (zip.Length > PadScanReport.MaxZipBytes) throw new InvalidDataException("The report is over the receiver's 4 MB limit.");
         using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
         // does the receiver take research reports yet? An older one answers 405 to GET
         using (var probe = await http.GetAsync(Route))
@@ -37,7 +37,7 @@ public static class WriteScanUpload
         var metadata = JsonSerializer.Serialize(new
         {
             controllerName = string.IsNullOrWhiteSpace(controllerName) ? "Unknown controller" : controllerName.Trim()[..Math.Min(120, controllerName.Trim().Length)],
-            appVersion = ScanFlow.AppVersion, scannerVersion = ScannerVersion, clientTimestamp = DateTime.UtcNow.ToString("o"), connectionType = "Bluetooth (phone)", reportSchemaVersion = 2,
+            appVersion = ScanFlow.AppVersion, scannerVersion = ScannerVersion, clientTimestamp = DateTime.UtcNow.ToString("o"), connectionType = "Bluetooth", reportSchemaVersion = 2,
         });
         using var form = new MultipartFormDataContent("x20ctl-" + Guid.NewGuid().ToString("N"))
         {

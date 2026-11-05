@@ -20,7 +20,7 @@ internal static class Switches
     }
 }
 
-internal sealed record ToolsActions(Action Check, Action WriteScan, Action PcMode, Action Replay, Action About, Action Feedback);
+internal sealed record ToolsActions(Action Check, Action PcMode, Action Replay, Action About, Action Feedback);
 
 /// <summary>Help, extras and everything about X20CTL: the Controller Check hero, five tiles, feedback, and the switches for updates and the opening intro.</summary>
 internal sealed class ToolsPage : UserControl
@@ -42,7 +42,7 @@ internal sealed class ToolsPage : UserControl
         hub.Children.Add(Hero());
         var tiles = new Grid { ColumnDefinitions = new("*,24,*"), RowDefinitions = new("*,24,*,24,*,24,*") }; Grid.SetColumn(tiles, 2);
         Place(tiles, Tile(Pad, "PC mode", "Remaps, turbo and macros for any pad.", "#34D399", go.PcMode), 0, 0);
-        Place(tiles, Tile(Blue, "Write scan", "What an app writes. 20 to 40 min.", "#6EA0EB", go.WriteScan), 0, 2);
+        Place(tiles, Tile(Blue, "Write scan", "Windows only for now.", "#6EA0EB", () => { }), 0, 2);
         Place(tiles, Tile(Play, "Replay Intro", "Watch the X20CTL opening again.", "#3D8BFF", go.Replay), 2, 0);
         Place(tiles, Tile(Info, "About", "What X20CTL is, who made it, and credits.", "#96AFD7", go.About, true), 2, 2);
         Place(tiles, Tile(Heart, "Support X20CTL", "Help keep it going on Ko-fi.", "#FF5C7A", () => ExternalLinks.Open(ExternalLinks.Support)), 4, 0);
@@ -112,13 +112,13 @@ internal sealed class ToolsPage : UserControl
 
     Control Hero()
     {
-        var steps = T.Line(8, new[] { "1  Read scan", "2  Write scan", "3  Send online" }.Select(s => (Control)new Border { Background = T.B("#33FFFFFF"), CornerRadius = new CornerRadius(14), Padding = new Thickness(13, 5), Child = T.Label(s, 12.5, T.Text) }).ToArray());
+        var steps = T.Line(8, new[] { "1  Read scan", "2  Send online" }.Select(s => (Control)new Border { Background = T.B("#33FFFFFF"), CornerRadius = new CornerRadius(14), Padding = new Thickness(13, 5), Child = T.Label(s, 12.5, T.Text) }).ToArray());
         var screen = Monitor();
         var g = new Grid { RowDefinitions = new("*,Auto,Auto,Auto") };
         var top = new Grid(); top.Children.Add(Icon(Tool, "#3D8BFF", 64)); ((Control)top.Children[0]).HorizontalAlignment = HorizontalAlignment.Left; ((Control)top.Children[0]).VerticalAlignment = VerticalAlignment.Top;
         screen.HorizontalAlignment = HorizontalAlignment.Center; top.Children.Add(screen); g.Children.Add(top);
         var title = T.Label("Controller not working?", 38, null, FontWeight.Bold); title.Margin = new Thickness(0, 14, 0, 4); Grid.SetRow(title, 1); g.Children.Add(title);
-        var sub = T.Label("Read scan, then Write scan, then send both reports online together.", 16.5, T.Soft); Grid.SetRow(sub, 2); g.Children.Add(sub);
+        var sub = T.Label("Read scan, then send the report online.", 16.5, T.Soft); Grid.SetRow(sub, 2); g.Children.Add(sub);
         var foot = new Grid { Margin = new Thickness(0, 14, 0, 0), ColumnDefinitions = new("*,Auto") }; foot.Children.Add(steps); var arrow = Arrow(); Grid.SetColumn(arrow, 1); foot.Children.Add(arrow); Grid.SetRow(foot, 3); g.Children.Add(foot);
         var card = T.Card(g, 28, 22, raised: true); card.BorderBrush = T.B("#7FA5E0FF"); card.BorderThickness = new Thickness(1.6); card.Cursor = new Cursor(StandardCursorType.Hand); card.PointerPressed += (_, _) => go.Check(); return card;
     }

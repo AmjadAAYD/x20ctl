@@ -44,35 +44,7 @@ internal static class StressProbe
             await Task.Delay(800); log.Add("after back: Check is " + (window.Host.Check == null ? "null" : "still open")); ReviewSandbox.Active = true; if (window.Host.Check != null) log.Add("outcome: " + string.Join(" / ", Texts(window.Host.Check).Where(t => t.Contains("Back") || t.Contains("ave") || t.Contains("Scan")).Distinct().Take(12))); Shot("12b-after-back");
             if (window.Host.Check != null) { window.Host.CloseCheck(); await Task.Delay(800); log.Add("after second back: " + (window.Host.Check == null ? "null" : "still open")); }
             window.Host.OpenWriteScan(); await Task.Delay(800); Shot("13-write-warning");
-            var w = window.Host.WriteScan!; var plan = new X20Ctl.Zone.Capture.TestPlan("X20", "KeyLinker", "Left motor strength", "50", "80");
-            w.ReviewOpen(0, plan); await Task.Delay(400); Shot("14-write-plan");
-            w.ReviewOpen(1); await Task.Delay(400); Shot("15-write-phone");
-            w.ReviewOpen(2); await Task.Delay(400); Shot("16-write-test");
-            log.Add("guided test ends on step " + await w.ReviewWalkTest() + " (3 is the recording)");
-            w.ReviewOpen(3); await Task.Delay(400); w.ReviewOpen(2); w.ReviewOpen(3); await Task.Delay(400); Shot("17-write-recording");
-            var sample = Path.Combine(directory, "write-sample.btsnoop");
-            if (File.Exists(sample)) { await w.ReviewRead(sample); await Task.Delay(600); Shot("18-write-results"); await w.ReviewSend(); await Task.Delay(400); Shot("19-write-sent"); await w.ReviewRead(sample); await Task.Delay(400); log.Add("results shown twice without a crash"); } else log.Add("no sample recording");
-            // a Filtered log: nothing learned, and the way back to setting up the phone
-            var filtered = Path.Combine(directory, "write-filtered.btsnoop");
-            if (File.Exists(filtered)) { await w.ReviewRead(filtered); await Task.Delay(600); Shot("18b-write-filtered"); }
-            w.ReviewPhone(true); w.ReviewOpen(1); await Task.Delay(400); Shot("20-write-iphone-phone");
-            w.ReviewOpen(3); await Task.Delay(400); Shot("21-write-iphone-recording");
-            // the step-by-step guides: every Samsung step, the help panel, and the other phones' odd ones out
-            w.ReviewPhone(X20Ctl.Product.Scanner.PhoneKind.Samsung);
-            for (int i = 0; i < X20Ctl.Product.Scanner.PhoneGuides.Prepare(X20Ctl.Product.Scanner.PhoneKind.Samsung).Length; i++) { w.ReviewGuide(i, 0); w.ReviewOpen(1); await Task.Delay(300); Shot($"30-samsung-prepare-{i + 1}"); }
-            w.ReviewGuide(1, 0); w.ReviewOpen(1); w.ReviewStuck(); await Task.Delay(300); Shot("31-samsung-prepare-2-stuck");
-            for (int i = 0; i < X20Ctl.Product.Scanner.PhoneGuides.Bring(X20Ctl.Product.Scanner.PhoneKind.Samsung).Length; i++) { w.ReviewGuide(0, i); w.ReviewOpen(3); await Task.Delay(300); Shot($"32-samsung-bring-{i + 1}"); }
-            w.ReviewPhone(X20Ctl.Product.Scanner.PhoneKind.IPhone); w.ReviewGuide(0, 0); w.ReviewOpen(3); await Task.Delay(300); Shot("33-iphone-bring-1");
-            w.ReviewPhone(X20Ctl.Product.Scanner.PhoneKind.Android); w.ReviewGuide(2, 0); w.ReviewOpen(1); await Task.Delay(300); Shot("34-android-prepare-3");
-            w.ReviewOpen(2); await Task.Delay(300); Shot("35-test");
-            log.Add("guides drawn");
-            // a bad file dropped on the recording guide's first step: its error must be on screen
-            var junk = Path.Combine(directory, "not-a-recording.bin"); File.WriteAllBytes(junk, new byte[64]);
-            w.ReviewPhone(X20Ctl.Product.Scanner.PhoneKind.Samsung); w.ReviewGuide(0, 0); w.ReviewOpen(3); await Task.Delay(300);
-            await w.ReviewRead(junk); await Task.Delay(300); window.UpdateLayout();
-            var st = w.ReviewStatus(); log.Add($"bad drop on step 1: guide at {st.Guide}, status shown {st.Shown}: {st.Text}"); Shot("36-bad-drop");
-            // a second test starts the recording guide from its first step again
-            await w.ReviewWalkTest(); await Task.Delay(300); log.Add($"after a new test the recording guide is at step {w.ReviewStatus().Guide + 1}, status '{w.ReviewStatus().Text}'");
+            var w = window.Host.WriteScan!; for (int i = 1; i < 6; i++) { w.ReviewOpen(i); await Task.Delay(300); Shot($"14-write-step{i}"); }
         }
         catch (Exception e) { log.Add(e.ToString()); }
         finally { File.WriteAllLines(Path.Combine(directory, "probe.txt"), log); ReviewSandbox.Active = false; window.Close(); }

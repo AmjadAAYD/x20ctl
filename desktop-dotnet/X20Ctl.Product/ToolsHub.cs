@@ -110,7 +110,7 @@ public sealed partial class ProductSettings : Grid
         PcMode.Click += (_, _) => ShowPcMode(true);
         Place(tiles, PcMode, 0, 0);
         // the Read scan's partner: learns what an official app writes, from a phone's Bluetooth log
-        WriteScan = Card("", "Write scan", "What an app writes. 20 to 40 min.", ThemeCatalog.R(Color.FromRgb(110, 160, 235)));
+        WriteScan = Card("", "Write scan", "Asks the pad itself. Safe to start.", ThemeCatalog.R(Color.FromRgb(110, 160, 235)));
         WriteScan.Click += (_, _) => writeScan?.Invoke();
         Place(tiles, WriteScan, 0, 2);
         Place(tiles, Replay, 2, 0); Place(tiles, About, 2, 2); Place(tiles, Support, 4, 0); Place(tiles, Star, 4, 2);
