@@ -55,7 +55,7 @@ public sealed class MacroWorkbench
     private readonly ScrollViewer sequenceViewport = new() { HorizontalScrollBarVisibility=ScrollBarVisibility.Hidden,VerticalScrollBarVisibility=ScrollBarVisibility.Disabled };
     private readonly List<(Rectangle Shape,int Event,int Lane,Brush Normal)> laneBlocks=new();
     private readonly StackPanel sequence = new() { Orientation=Orientation.Horizontal,Margin=new(0,8,0,8) };
-    private readonly TextBlock heading = new() { FontFamily=DS.Display,FontSize=26,FontWeight=FontWeights.SemiBold }, summary = new() { FontSize=14,Foreground=DS.Brush("DS.TextSoft") }, notice = new() { FontSize=13.5,Foreground=DS.Brush("DS.TextSoft"),TextTrimming=TextTrimming.CharacterEllipsis,VerticalAlignment=VerticalAlignment.Center };
+    private readonly TextBlock heading = new() { FontFamily=DS.Display,FontSize=26,FontWeight=FontWeights.SemiBold,TextTrimming=TextTrimming.CharacterEllipsis }, summary = new() { FontSize=14,Foreground=DS.Brush("DS.TextSoft"),TextTrimming=TextTrimming.CharacterEllipsis }, notice = new() { FontSize=13.5,Foreground=DS.Brush("DS.TextSoft"),TextTrimming=TextTrimming.CharacterEllipsis,VerticalAlignment=VerticalAlignment.Center };
     private readonly TextBlock eventTitle = new() { FontFamily=DS.Display,FontSize=19,FontWeight=FontWeights.SemiBold };
     private readonly StackPanel empty = new() { VerticalAlignment=VerticalAlignment.Center,HorizontalAlignment=HorizontalAlignment.Center };
     private readonly Border noEvent;
@@ -408,10 +408,10 @@ public sealed class MacroWorkbench
         timelineCanvas.Children.Clear();laneLabels.Children.Clear();laneBlocks.Clear();double viewport=Math.Max(400,timeline.ActualWidth-132),width=Math.Max(viewport,Draft[Slot].Count*68*zoom),height=Math.Max(76,timeline.ActualHeight-(timeline.ComputedHorizontalScrollBarVisibility==Visibility.Visible?12:0)-4);timelineCanvas.Width=width+132;timelineCanvas.Height=height;laneLabels.Height=height;scale=width/Math.Max(250,Draft.Duration(Slot));double lane=(height-24)/4;
         foreach(var (label,row,tone) in new[]{("Buttons",0,Kit.Blue),("Left stick",1,Kit.Ice),("Right stick",2,Kit.Ice),("Pause",3,PauseTone)})
         {
-            double chip=Math.Min(32,Math.Max(22,lane-10));
+            double chip=Math.Min(32,Math.Max(10,lane-6));
             var name=new Border {Width=110,Height=chip,CornerRadius=new(chip/2),Padding=new(12,0,10,0),BorderThickness=new(1),BorderBrush=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(36,255,255,255))),Background=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(24,255,255,255))),
                 Child=new StackPanel {Orientation=Orientation.Horizontal,VerticalAlignment=VerticalAlignment.Center,Children={new Ellipse {Width=7,Height=7,Fill=new SolidColorBrush(tone),Margin=new(0,0,9,0),VerticalAlignment=VerticalAlignment.Center},new TextBlock {Text=label,FontSize=13,FontWeight=FontWeights.SemiBold,Foreground=DS.Brush("DS.Text"),VerticalAlignment=VerticalAlignment.Center}}}};
-            Canvas.SetLeft(name,8);Canvas.SetTop(name,24+row*lane+(lane-chip)/2);laneLabels.Children.Add(name);
+            Canvas.SetLeft(name,8);Canvas.SetTop(name,24+row*lane+(lane-chip)/2);if(chip>=20)laneLabels.Children.Add(name);
             timelineCanvas.Children.Add(new Line {X1=124,X2=width+132,Y1=24+row*lane,Y2=24+row*lane,Stroke=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(40,119,151,202)))});
         }
         double range=Math.Max(250,Draft.Duration(Slot)),interval=Math.Max(5,Math.Ceiling(viewport/scale/4/5)*5);for(double time=0;time<=range;time+=interval){double x=132+time*scale;timelineCanvas.Children.Add(new Line {X1=x,X2=x,Y1=20,Y2=height,Stroke=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(30,119,151,202)))});var tick=new TextBlock {Text=$"{time:0} ms",FontSize=12,Foreground=DS.Brush("DS.TextSoft")};Canvas.SetLeft(tick,time==0?x+4:Math.Min(x-12,width+132-65));Canvas.SetTop(tick,0);timelineCanvas.Children.Add(tick);}

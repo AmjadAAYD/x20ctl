@@ -68,7 +68,7 @@ public sealed class DashboardConsolePage : Grid
     private readonly TextBlock workingSetup = Kit.Text("Current working settings", 20, "DS.Text", FontWeights.SemiBold);
     private readonly TextBlock changesLabel = Kit.Text("", 14, "DS.TextSoft");
     private readonly Button setupAction = new() { Style=DS.Style("ActionButton"),HorizontalAlignment=HorizontalAlignment.Left,Margin=new(0,12,0,0) };
-    internal TextBlock RebelSetup => workingSetup; internal TextBlock RebelConnection => connectionValue; internal TextBlock RebelBattery => batteryValue; internal TextBlock RebelChanges => changesLabel;
+    internal TextBlock ThemeSetup => workingSetup; internal TextBlock ThemeConnection => connectionValue; internal TextBlock ThemeBattery => batteryValue; internal TextBlock ThemeChanges => changesLabel;
     public void SetWorkingState(int changes, string? setup, bool pcMode)
     {
         changesCount.Text = changes==0?"0":$"{changes} unsaved";

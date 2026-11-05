@@ -30,7 +30,7 @@ public partial class StudioScene
 
     private string[] ThemeMappingKeys()
     {
-        var groups = RebelAvailableGroups();
+        var groups = AvailableGroups();
         return groups.FirstOrDefault(group => group.keys.Contains(SelectedControl)).keys ?? groups.FirstOrDefault().keys ?? Array.Empty<string>();
     }
     internal static Button ThemeAction(FrameworkElement face, string tag, Action action, bool enabled = true)
@@ -85,7 +85,7 @@ public partial class StudioScene
     private void ThemeInputMenu(FrameworkElement anchor)
     {
         var menu = new ContextMenu { PlacementTarget = anchor, Placement = PlacementMode.Bottom };
-        foreach (var (name, keys) in RebelAvailableGroups())
+        foreach (var (name, keys) in AvailableGroups())
         {
             var group = new MenuItem { Header = name };
             foreach (string key in keys) { var item = new MenuItem { Header = Label(key), Tag = "theme:choose:" + key }; item.Click += (_, _) => ThemeSelectInput(key); group.Items.Add(item); }

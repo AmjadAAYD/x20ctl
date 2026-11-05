@@ -23,7 +23,7 @@ public partial class StudioScene
         Brush? previousBackground=null;
         LayoutUpdated+=(_,_)=>
         {
-            bool themed=ThemeCatalog.Current.Id is "rebel" or "pulse" or "spotlight" or "nexus" or "tide" or "dusk" or "volt" or "blossom";
+            bool themed=ThemeCatalog.Current.Id is "nexus" or "dusk" or "hollow" or "nocturne" or "sunrise";
             bool feature=ManagementPage is "RGB" or "Screen";
             var target=themed&&!feature&&tabs.Children.Count>0?Visibility.Visible:Visibility.Collapsed;
             if(tabs.Visibility!=target)tabs.Visibility=target;

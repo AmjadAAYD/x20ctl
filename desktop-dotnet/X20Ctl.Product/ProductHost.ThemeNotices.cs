@@ -8,7 +8,7 @@ namespace X20Ctl.Product;
 
 public sealed partial class ProductHost
 {
-    internal FrameworkElement? ActiveThemeNotice => (FrameworkElement?)ActiveSpotlightNotice ?? (FrameworkElement?)ActiveNexusNotice ?? (FrameworkElement?)ActiveTideNotice ?? (FrameworkElement?)ActiveDuskNotice ?? (FrameworkElement?)ActiveVoltNotice ?? ActiveBlossomNotice;
+    internal FrameworkElement? ActiveThemeNotice => (FrameworkElement?)ActiveNexusNotice ?? (FrameworkElement?)ActiveDuskNotice ?? (FrameworkElement?)ActiveHollowNotice ?? (FrameworkElement?)ActiveNocturneNotice ?? ActiveSunriseNotice;
     private IInputElement? themeNoticePreviousFocus;
     private static IEnumerable<DependencyObject> NoticeChildren(DependencyObject root)
     {
@@ -42,18 +42,16 @@ public sealed partial class ProductHost
     }
     internal bool ConfirmThemeDrivers(IReadOnlyList<string> names)
     {
-        if (ActiveThemeNotice != null || ActivePulseNotice != null) return false;
+        if (ActiveThemeNotice != null) return false;
         bool accepted = false; var frame = new DispatcherFrame();
         void Answer(bool yes) { accepted = yes; frame.Continue = false; }
         switch (ThemeCatalog.Current.Id)
         {
-            case "pulse": return ConfirmPulseDrivers(names);
-            case "spotlight": ShowSpotlightDriverNotice(names, Answer); break;
             case "nexus": ShowNexusDriverNotice(names, Answer); break;
-            case "tide": ShowTideDriverNotice(names, Answer); break;
             case "dusk": ShowDuskDriverNotice(names, Answer); break;
-            case "volt": ShowVoltDriverNotice(names, Answer); break;
-            case "blossom": ShowBlossomDriverNotice(names, Answer); break;
+            case "hollow": ShowHollowDriverNotice(names, Answer); break;
+            case "nocturne": ShowNocturneDriverNotice(names, Answer); break;
+            case "sunrise": ShowSunriseDriverNotice(names, Answer); break;
             default: return false;
         }
         if (ReviewSandbox.Active) { ThemeNoticeButton(ActiveThemeNotice!, "no")?.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); return false; }

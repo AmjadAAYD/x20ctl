@@ -30,8 +30,8 @@ public class ProductExperienceTests
     {
         string directory=Path.Combine(AppContext.BaseDirectory,"experience-fixtures",Guid.NewGuid().ToString("N"));Directory.CreateDirectory(directory);string path=Path.Combine(directory,"preferences.json");
         var store=new ProductPreferences(path);store.Load();Assert.Null(store.Theme);
-        store.SetIntroSound(false);store.SetTheme("rebel");
-        var second=new ProductPreferences(path);second.Load();Assert.Equal("rebel",second.Theme);Assert.False(second.IntroSound);
+        store.SetIntroSound(false);store.SetTheme("nexus");
+        var second=new ProductPreferences(path);second.Load();Assert.Equal("nexus",second.Theme);Assert.False(second.IntroSound);
         second.SetTheme("default");var third=new ProductPreferences(path);third.Load();Assert.Equal("default",third.Theme);
         File.WriteAllText(path,"{\"version\":1,\"theme\":7}");var odd=new ProductPreferences(path);odd.Load();Assert.Null(odd.Theme);
     }
@@ -39,8 +39,8 @@ public class ProductExperienceTests
     {
         string directory=Path.Combine(AppContext.BaseDirectory,"experience-fixtures",Guid.NewGuid().ToString("N"));Directory.CreateDirectory(directory);string path=Path.Combine(directory,"preferences.json");
         var store=new ProductPreferences(path);store.Load();Assert.Null(store.Language);
-        store.SetTheme("rebel");store.SetLanguage("ja");
-        var second=new ProductPreferences(path);second.Load();Assert.Equal("ja",second.Language);Assert.Equal("rebel",second.Theme);
+        store.SetTheme("nexus");store.SetLanguage("ja");
+        var second=new ProductPreferences(path);second.Load();Assert.Equal("ja",second.Language);Assert.Equal("nexus",second.Theme);
         File.WriteAllText(path,"{\"version\":1,\"language\":7}");var odd=new ProductPreferences(path);odd.Load();Assert.Null(odd.Language);
     }
 }

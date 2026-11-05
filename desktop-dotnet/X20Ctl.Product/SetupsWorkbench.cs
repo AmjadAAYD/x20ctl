@@ -48,9 +48,9 @@ public sealed partial class SetupsWorkbench
     private readonly TextBlock heading=ManagementVisuals.Copy("My setups",30,true),libraryState=ManagementVisuals.Copy("",15),notice=ManagementVisuals.Copy("Stored on this computer",15);
     private readonly TextBlock detailName=ManagementVisuals.Copy("",30,true),detailModel=ManagementVisuals.Copy("",16),detailState=ManagementVisuals.Copy("",14,true);
     private readonly TextBlock[] metricValues=new TextBlock[4];
-    private readonly TextBox name=new(){FontSize=20,Height=40,MaxLength=100,Foreground=Brushes.White,Background=new SolidColorBrush(Color.FromRgb(17,31,50)),BorderBrush=Brushes.SlateGray,Padding=new Thickness(8,4,8,4),Width=380};
+    private readonly TextBox name=new(){FontSize=20,Height=40,MaxLength=100,Foreground=Brushes.White,Background=new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(17,31,50))),BorderBrush=Brushes.SlateGray,Padding=new Thickness(8,4,8,4),Width=380};
     private readonly WrapPanel renameEditor=new(){Visibility=Visibility.Collapsed,Margin=new(0,12,0,0)};
-    private readonly Grid confirmation=new(){Background=new SolidColorBrush(Color.FromArgb(246,7,14,28)),Visibility=Visibility.Collapsed};
+    private readonly Grid confirmation=new(){Background=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(246,7,14,28))),Visibility=Visibility.Collapsed};
     private readonly TextBlock deleteText=ManagementVisuals.Copy("",24,true);
     private readonly Button keepSetup,confirmRemoval,duplicate,export;
     private readonly MenuItem deleteAction;
@@ -81,12 +81,12 @@ public sealed partial class SetupsWorkbench
         if(legacySources.Count>0)headerActions.Children.Add(Action("Copy legacy setups",CopyKnownLegacy));
         foreach(Button action in headerActions.Children){action.Height=42;action.VerticalAlignment=VerticalAlignment.Center;}
         var workspace=new StackPanel {Margin=new(0,2,10,16)};LibraryViewport.Content=cards;LibraryViewport.PreviewMouseWheel+=(_,e)=>{LibraryViewport.ScrollToVerticalOffset(Math.Round(LibraryViewport.VerticalOffset/rowStride)*rowStride-Math.Sign(e.Delta)*rowStride);e.Handled=true;};workspace.Children.Add(LibraryViewport);WorkspaceViewport.Content=workspace;Grid.SetRow(WorkspaceViewport,1);Body.Children.Add(WorkspaceViewport);
-        DetailWorkspace.BorderBrush=new SolidColorBrush(Color.FromArgb(80,125,172,222));DetailWorkspace.BorderThickness=new(0,1,0,0);DetailWorkspace.Padding=new(16,18,16,18);DetailWorkspace.Margin=new(4,20,6,0);DetailWorkspace.Background=new SolidColorBrush(Color.FromArgb(65,12,24,43));workspace.Children.Add(DetailWorkspace);
+        DetailWorkspace.BorderBrush=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(80,125,172,222)));DetailWorkspace.BorderThickness=new(0,1,0,0);DetailWorkspace.Padding=new(16,18,16,18);DetailWorkspace.Margin=new(4,20,6,0);DetailWorkspace.Background=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(65,12,24,43)));workspace.Children.Add(DetailWorkspace);
         var detail=new StackPanel();DetailWorkspace.Child=detail;
         var detailTop=new DockPanel();detailState.HorizontalAlignment=HorizontalAlignment.Right;detailState.Margin=new(24,12,0,0);DockPanel.SetDock(detailState,Dock.Right);detailTop.Children.Add(detailState);var identity=new StackPanel();identity.Children.Add(ManagementVisuals.Copy("SELECTED SETUP",13));identity.Children.Add(detailName);identity.Children.Add(detailModel);detailTop.Children.Add(identity);detail.Children.Add(detailTop);
         var metrics=new System.Windows.Controls.Primitives.UniformGrid {Columns=4,Margin=new(0,20,0,14)};detail.Children.Add(metrics);int index=0;
         foreach(string label in new[]{"Buttons","Curves","Macros","Vibration"}){var group=new StackPanel();group.Children.Add(ManagementVisuals.Copy(label,14));metricValues[index]=ManagementVisuals.Copy("—",24,true);group.Children.Add(metricValues[index++]);metrics.Children.Add(group);}
-        var actions=new WrapPanel();detail.Children.Add(actions);OpenButton=Action("Open",OpenSelected);OpenButton.Background=new SolidColorBrush(Color.FromRgb(35,75,123));OpenButton.FontWeight=FontWeights.SemiBold;OpenButton.MinWidth=110;
+        var actions=new WrapPanel();detail.Children.Add(actions);OpenButton=Action("Open",OpenSelected);OpenButton.Background=new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(35,75,123)));OpenButton.FontWeight=FontWeights.SemiBold;OpenButton.MinWidth=110;
         duplicate=Action("Duplicate",DuplicateSelected);RenameButton=Action("Rename",()=>{renameEditor.Visibility=Visibility.Visible;name.Text=Store.Find(SelectedId!).Name;name.Focus();name.SelectAll();name.BringIntoView();});export=Action("Export Setup",ExportDialog);MoreButton=Action("More ···",()=>{MoreButton!.ContextMenu!.PlacementTarget=MoreButton;MoreButton.ContextMenu.IsOpen=true;});MoreButton.ToolTip="More actions: delete this setup";
         foreach(var action in new[]{OpenButton,duplicate,RenameButton,export,MoreButton}){action.Height=42;actions.Children.Add(action);}
         deleteAction=new MenuItem {Header="Delete setup…",Foreground=(Brush)resources.FindResource("DS.Danger")};deleteAction.Click+=(_,_)=>Guard(()=>{MoreButton.ContextMenu!.IsOpen=false;if(SelectedId!=null)RequestDelete(SelectedId);});MoreButton.ContextMenu=new ContextMenu();MoreButton.ContextMenu.Items.Add(deleteAction);
@@ -183,7 +183,7 @@ public sealed partial class SetupsWorkbench
         foreach(var (id,card) in setupCards)
         {
             var item=Store.Find(id);bool selected=id==SelectedId,current=id==ActiveId,modified=EditorModified(item);
-            card.Button.Background=new SolidColorBrush(selected?Color.FromRgb(24,53,91):Color.FromArgb(155,16,31,53));card.Button.BorderBrush=selected?Brushes.LightSkyBlue:new SolidColorBrush(Color.FromArgb(38,125,165,218));card.Button.BorderThickness=new(selected?1.5:1);
+            card.Button.Background=new SolidColorBrush(ThemeCatalog.R(selected?Color.FromRgb(24,53,91):Color.FromArgb(155,16,31,53)));card.Button.BorderBrush=selected?DS.Brush("DS.AccentHi"):new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(38,125,165,218)));card.Button.BorderThickness=new(selected?1.5:1);
             card.State.Text=current?(modified?"CURRENT · LOCAL CHANGES":"CURRENT · LOCAL EDITOR"):item.ModelId!=model?"OTHER MODEL":item.LegacyPayload.HasValue?"PRESERVED COPY":"LOCAL";
             card.State.Foreground=modified?Brushes.SandyBrown:current?Brushes.LightSkyBlue:Brushes.LightSteelBlue;
         }

@@ -87,11 +87,10 @@ public sealed partial class FeedbackPage : Border
         stack.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Margin = new(0, 18, 0, 0), Children = { back, SendButton } });
         status = Kit.Text("", 15, "DS.TextSoft"); status.TextWrapping = TextWrapping.Wrap; status.Margin = new(0, 16, 0, 0); stack.Children.Add(status);
         stack.Children.Add(Kit.Text("What's sent: your message, what it's about, the controller and connection if you pick them, the X20CTL version and the Windows version. No account, files or personal details.", 13, "DS.TextMuted").Also(t => { t.TextWrapping = TextWrapping.Wrap; t.Margin = new(0, 18, 0, 0); }));
-        if (ThemeCatalog.Current.Id == "pulse") BuildPulseFeedback(back, kinds);
-        if (ThemeCatalog.Current.Id == "spotlight") BuildSpotlightFeedback(back, kinds);
         if (ThemeCatalog.Current.Id == "nexus") BuildNexusFeedback(back, kinds);
-        if (ThemeCatalog.Current.Id == "tide") BuildTideFeedback(back, kinds);
-        if (ThemeCatalog.Current.Id == "rebel") BuildRebelFeedback(back, kinds);
+        if (ThemeCatalog.Current.Id == "hollow") BuildHollowFeedback(back, kinds);
+        if (ThemeCatalog.Current.Id == "nocturne") BuildNocturneFeedback(back, kinds);
+        if (ThemeCatalog.Current.Id == "sunrise") BuildSunriseFeedback(back, kinds);
     }
 
     private static TextBlock Label(string text, double top) => Kit.Text(text, 12, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(2, top, 0, 8));

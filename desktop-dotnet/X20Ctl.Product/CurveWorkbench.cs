@@ -167,6 +167,24 @@ public sealed class CurveWorkbench
             kind++;
         }
         editHint.Visibility=Visibility.Collapsed;
+        if(IllustratedThemeUI.Current!=null){response.Effect=null;liveDot.Effect=null;}
+        if(IllustratedThemeUI.Matched)
+        {
+            Shelf.ColumnDefinitions.Clear();Shelf.ColumnDefinitions.Add(new());
+            Shelf.RowDefinitions.Add(new(){Height=GridLength.Auto});
+            Grid.SetColumn(note,0);Grid.SetRow(note,2);note.Margin=new(10,8,10,0);
+            liveReadout.TextWrapping=TextWrapping.Wrap;
+            zones.SizeChanged+=(_,_)=>
+            {
+                bool narrow=zones.ActualWidth<480;
+                if(zones.ColumnDefinitions.Count==(narrow?1:2))return;
+                zones.ColumnDefinitions.Clear();zones.RowDefinitions.Clear();
+                for(int i=0;i<(narrow?1:2);i++)zones.ColumnDefinitions.Add(new());
+                for(int i=0;i<(narrow?4:2);i++)zones.RowDefinitions.Add(new());
+                int index=0;foreach(FrameworkElement panel in zones.Children)
+                {Grid.SetColumn(panel,narrow?0:index%2);Grid.SetRow(panel,narrow?index:index/2);index++;}
+            };
+        }
         Refresh();
     }
 
@@ -318,6 +336,8 @@ public sealed class CurveWorkbench
         foreach(var button in channelButtons)button.Background=(CurveChannel)button.Tag==Channel?Brushes.White:DS.Brush("Control.ButtonFill");
         foreach(var button in channelButtons)button.Foreground=(CurveChannel)button.Tag==Channel?new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(17,24,39))):Brushes.LightSteelBlue;
         foreach(var button in presetButtons)button.Foreground=(string)button.Tag==setting.Preset?new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(17,24,39))):Brushes.LightSteelBlue;
+        foreach(var button in channelButtons)if(IllustratedDesignPage.IsDesignControl(button))button.DataContext=(CurveChannel)button.Tag==Channel;
+        foreach(var button in presetButtons)if(IllustratedDesignPage.IsDesignControl(button))button.DataContext=(string)button.Tag==setting.Preset;
         foreach(var button in presetButtons)button.Background=(string)button.Tag==setting.Preset?Brushes.White:DS.Brush("Control.ButtonFill");
         updating=false;
     }

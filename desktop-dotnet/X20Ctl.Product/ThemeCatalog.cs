@@ -35,19 +35,16 @@ public static class ThemeCatalog
         C(0xF4F7FD), C(0xB4C0D8), C(0x76839F), C(0x26375A), C(0x2453C2), C(0x143587),
         "Segoe UI Variable Display, Segoe UI", "Segoe UI Variable Text, Segoe UI", 16);
 
-    public static readonly IReadOnlyList<AppTheme> All = new[] { Default };
+    public static readonly IReadOnlyList<AppTheme> All = new[] { Default }.Concat(IllustratedThemeUI.Catalog()).ToArray();
 
     /// <summary>Written by previews/console-concepts/themes/app_films.py: where each film's logo settles.</summary>
     internal static readonly Dictionary<string, IntroSpec> Intros = new()
     {
-        ["rebel"] = new("rebel", 2.56, 2.51, 2.66, new(624.0, 225.89, 672.0, 452.17), new(752, 523), new(0, 4, 752, 506)),
-        ["pulse"] = new("pulse", 2.74, 2.69, 2.84, new(624.0, 303.77, 672.0, 428.04), new(752, 523), new(0, 24, 752, 479)),
-        ["spotlight"] = new("spotlight", 2.7, 2.65, 2.8, new(660.0, 240.15, 600.0, 409.31), new(752, 523), new(0, 3, 752, 513)),
         ["nexus"] = new("nexus", 2.67, 2.62, 2.77, new(624.0, 273.0, 672.0, 453.06), new(752, 523), new(0, 3, 752, 507)),
-        ["tide"] = new("tide", 2.67, 2.62, 2.77, new(600.0, 229.63, 720.0, 489.26), new(752, 523), new(0, 0, 752, 511)),
         ["dusk"] = new("dusk", 2.80, 2.74, 2.89, new(624.0, 272.68, 672.0, 459.32), new(752, 523), new(0, 0, 752, 514)),
-        ["volt"] = new("volt", 2.67, 2.62, 2.77, new(600.0, 289.63, 720.0, 477.77), new(752, 523), new(0, 0, 752, 499)),
-        ["blossom"] = new("blossom", 2.67, 2.62, 2.77, new(600.0, 265.63, 720.0, 488.3), new(752, 523), new(0, 0, 752, 510)),
+        ["hollow"] = new("hollow", 2.67, 2.62, 2.77, new(806.81, 366.35, 307.34, 294.89), new(752, 523), new(216, 80, 321, 308)),
+        ["nocturne"] = new("nocturne", 2.67, 2.62, 2.77, new(806.81, 366.35, 307.34, 294.89), new(752, 523), new(216, 80, 321, 308)),
+        ["sunrise"] = new("sunrise", 2.67, 2.62, 2.77, new(806.81, 366.35, 307.34, 294.89), new(752, 523), new(216, 80, 321, 308)),
     };
 
     /// <summary>The theme in use for this run (set once at startup).</summary>
@@ -73,6 +70,7 @@ public static class ThemeCatalog
         foreach (string name in new[] { "Colors", "Typography", "Controls", "Design", "ZoneSurfaces" })
             fresh.Add(Load(name));
         merged.Clear(); foreach (var dictionary in fresh) merged.Add(dictionary);
+        IllustratedThemeUI.Install();
     }
 
     /// <summary>One theme dictionary, read from the app's own XAML with the theme applied to its text.</summary>

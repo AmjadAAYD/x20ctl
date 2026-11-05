@@ -28,6 +28,7 @@ public partial class StudioScene
     }
     private void UpdateNavigation()
     {
+        if(illustratedShell){EnforceIllustratedShell();return;}
         if(arrangingNavigation||navigation.Length==0||NavigationLayer.ActualWidth<=0)return;arrangingNavigation=true;
         try
         {

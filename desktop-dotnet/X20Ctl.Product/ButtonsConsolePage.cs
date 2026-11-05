@@ -11,7 +11,7 @@ namespace X20Ctl.Product;
 /// (layered photo + exact-shape hotspots) on the left, the remap workspace on the right, and the
 /// full-width outputs shelf underneath. It only edits the local ButtonDraft; it never writes hardware.
 /// </summary>
-public sealed class ButtonsConsolePage : Grid
+public sealed partial class ButtonsConsolePage : Grid
 {
     private readonly ControllerModel model; private readonly ControllerLayout layout; private readonly ButtonDraft draft;
     private readonly Func<string, string> label; private readonly bool animate;
@@ -40,9 +40,10 @@ public sealed class ButtonsConsolePage : Grid
     private readonly TextBlock controllerNote=Kit.Text("",13,"DS.TextSoft");
     private readonly Button applyButton;
     private Action? ApplyToController;
+    private readonly Func<string,FrameworkElement?>? illustratedControl;
     /// <summary>This controller stores its own mappings: shows the button that writes them.</summary>
     public void UseController(Action apply){ApplyToController=apply;applyButton.Visibility=Visibility.Visible;controllerNote.Text="Apply to save this on the controller.";}
-    public void SayController(string text)=>controllerNote.Text=text;
+    public void SayController(string text){controllerNote.Text=text;matchedButtons?.ShowNotice(text);}
     public void SetConnected(bool value){connected=value;RefreshMapping();}
     /// <summary>One physical press with no release information (review harnesses). While listening it goes through the
     /// capture rules, so a second call without a release in between is ignored.</summary>
@@ -60,9 +61,9 @@ public sealed class ButtonsConsolePage : Grid
     ];
 
     public ButtonsConsolePage(ControllerModel model, ControllerLayout layout, ButtonDraft draft, Func<string, string> label, bool animate,
-        Action<string> select, Func<string, bool> openMacro, Action toggleTry)
+        Action<string> select, Func<string, bool> openMacro, Action toggleTry,Func<string,FrameworkElement?>? illustratedControl=null)
     {
-        this.model = model; this.layout = layout; this.draft = draft; this.label = label; this.animate = animate; this.select = select; this.openMacro = openMacro; this.toggleTry = toggleTry;
+        this.model = model; this.layout = layout; this.draft = draft; this.label = label; this.animate = animate; this.select = select; this.openMacro = openMacro; this.toggleTry = toggleTry;this.illustratedControl=illustratedControl;
         Controller = new PhotoController(model.Id); stage.Children.Add(Controller); stage.Children.Add(hotspots);stage.Children.Add(markers);stage.Children.Add(paddleNames);
         RowDefinitions.Add(new()); RowDefinitions.Add(new() { Height = new(14) }); RowDefinitions.Add(new() { Height = GridLength.Auto });
         var top = new Grid(); top.ColumnDefinitions.Add(new() { Width = new(1.12, GridUnitType.Star) }); top.ColumnDefinitions.Add(new() { Width = new(16) }); top.ColumnDefinitions.Add(new() { Width = new(1, GridUnitType.Star), MinWidth = 390 });
@@ -79,7 +80,7 @@ public sealed class ButtonsConsolePage : Grid
         top.Children.Add(Kit.Panel("Button Visualizer", "Select a control on the controller to remap it.", null, visual));
 
         // right: two steps around a "you press → game gets" card, then the actions
-        var seg = new UniformGrid { Rows = 1 }; string sg = "grp" + Guid.NewGuid().ToString("N");
+        Panel seg = IllustratedThemeUI.Matched?new WrapPanel():new UniformGrid { Rows = 1 }; string sg = "grp" + Guid.NewGuid().ToString("N");
         var allCategory=new RadioButton{Content="All",Style=DS.Style("DS.Segment"),GroupName=sg};allCategory.Click+=(_,_)=>{outputGroup="All";RefreshMapping();};groups["All"]=allCategory;seg.Children.Add(allCategory);
         foreach (var (name, first, keys) in Groups)
         {
@@ -106,6 +107,7 @@ public sealed class ButtonsConsolePage : Grid
         // bottom: outputs shelf (interactive)
 
         var showcase=BuildShowcase();Grid.SetRow(showcase,2);Children.Add(showcase);
+        ComposeIllustrated(visual,body,actions);
         ShowView(false);
     }
 
@@ -222,6 +224,7 @@ public sealed class ButtonsConsolePage : Grid
         RefreshMarkers();
         ListeningChanged?.Invoke();
         outputsHint.Text=editable?$"Assign {Short(Source)} to:":"Select a control first";
+        RefreshIllustratedBindings();
     }
 
     public void ToggleOverview() => ShowOverview(overview.Visibility != Visibility.Visible);
@@ -364,7 +367,7 @@ public sealed class ButtonsConsolePage : Grid
             var dot=new System.Windows.Shapes.Ellipse{Width=16,Height=16,Fill=Brushes.LightSkyBlue,Stroke=Brushes.White,StrokeThickness=2};
             Canvas.SetLeft(dot,Canvas.GetLeft(hot)+hot.Width-10);Canvas.SetTop(dot,Canvas.GetTop(hot)-5);markers.Children.Add(dot);
         }
-        if(regions.TryGetValue(Source,out var active)&&draft.CanEdit(Source))
+        if(!IllustratedThemeUI.Matched&&regions.TryGetValue(Source,out var active)&&draft.CanEdit(Source))
         {
             mappingLabel.Text=$"{Short(Source)} → {Short(draft.Target(Source))}";mappingLabel.Background=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(210,9,22,45)));mappingLabel.Padding=new(12,5,12,5);
             Canvas.SetLeft(mappingLabel,Math.Clamp(Canvas.GetLeft(active)+active.Width+16,12,1280));Canvas.SetTop(mappingLabel,Math.Max(12,Canvas.GetTop(active)-20));markers.Children.Add(mappingLabel);
@@ -439,6 +442,7 @@ public sealed class ButtonsConsolePage : Grid
     /// <summary>A keycap: a soft top light over the body, the face colour on the rim and letter, blue and glowing when it is the current output.</summary>
     private static void Paint(Button b, string key, bool on, bool enabled)
     {
+        if(IllustratedDesignPage.IsDesignControl(b)){b.DataContext=on;b.IsEnabled=enabled;return;}
         var border = (Border)b.Content; var face = (TextBlock)border.Child; b.DataContext = on;
         var color = key switch { "Y" => ThemeCatalog.R(Color.FromRgb(245, 205, 80)), "X" => ThemeCatalog.R(Color.FromRgb(70, 170, 255)), "B" => ThemeCatalog.R(Color.FromRgb(255, 100, 125)), "A" => ThemeCatalog.R(Color.FromRgb(70, 220, 150)), _ => (Color?)null };
         bool stick = Shape(key) == "stick";

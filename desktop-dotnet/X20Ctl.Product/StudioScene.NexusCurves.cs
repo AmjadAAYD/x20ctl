@@ -201,7 +201,7 @@ public partial class StudioScene
         };
         var fStack = new StackPanel();
 
-        var fields = RebelCurveRows;
+        var fields = CurveRows;
         for (int i = 0; i < fields.Length; i++)
         {
             var f = (Name: fields[i].label, Source: fields[i].slider);
@@ -266,7 +266,7 @@ public partial class StudioScene
         };
         fStack.Children.Add(connectNote);
         var actions = new WrapPanel { Margin = new Thickness(0,12,0,0) };
-        foreach(var (label,tag,action) in new (string,string,Action)[] { ("Keyboard test","keyboard",StartTry), ("Reset","reset",()=>Curves.Reset()), ("Preset","preset",()=>Curves.SetPreset(RebelPresets[(Array.IndexOf(RebelPresets,Curves.Draft[Curves.Channel].Preset)+1)%RebelPresets.Length])) })
+        foreach(var (label,tag,action) in new (string,string,Action)[] { ("Keyboard test","keyboard",StartTry), ("Reset","reset",()=>Curves.Reset()), ("Preset","preset",()=>Curves.SetPreset(CurvePresets[(Array.IndexOf(CurvePresets,Curves.Draft[Curves.Channel].Preset)+1)%CurvePresets.Length])) })
         {
             var face = new Border { Padding=new Thickness(12,8,12,8), Margin=new Thickness(0,0,8,0), Background=NexusKit.TileBrush, Child=new TextBlock { Text=label, Foreground=NexusKit.WhiteBrush } };
             actions.Children.Add(ThemeAction(face,"theme:curve:"+tag,action,tag=="keyboard"||Curves.Draft.CanEdit));

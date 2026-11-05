@@ -47,12 +47,11 @@ public sealed partial class ProductHost
     {
         switch (ThemeCatalog.Current.Id)
         {
-            case "spotlight": ShowSpotlightThemeRestartNotice(); break;
             case "nexus": ShowNexusThemeRestartNotice(); break;
-            case "tide": ShowTideThemeRestartNotice(); break;
             case "dusk": ShowDuskThemeRestartNotice(); break;
-            case "volt": ShowVoltThemeRestartNotice(); break;
-            case "blossom": ShowBlossomThemeRestartNotice(); break;
+            case "hollow": ShowHollowThemeRestartNotice(); break;
+            case "nocturne": ShowNocturneThemeRestartNotice(); break;
+            case "sunrise": ShowSunriseThemeRestartNotice(); break;
             default: if (!ReviewSandbox.Active) ThemeCatalog.Restart(); break;
         }
     }

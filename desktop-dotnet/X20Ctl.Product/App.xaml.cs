@@ -293,12 +293,6 @@ public partial class App : Application
                 catch (Exception failure) { Directory.CreateDirectory(e.Args[1]); File.WriteAllText(Path.Combine(e.Args[1], "failure.txt"), failure.ToString()); Shutdown(1); return; }
                 Shutdown(0); return;
             }
-            if (e.Args.Length == 3 && e.Args[0] == "--review-functional-themes")
-            {
-                try { await Development.FunctionalThemeReview.Run(e.Args[1], e.Args[2]); }
-                catch (Exception failure) { Directory.CreateDirectory(e.Args[1]); File.WriteAllText(Path.Combine(e.Args[1], "failure.txt"), failure.ToString()); Shutdown(1); return; }
-                Shutdown(); return;
-            }
             if (e.Args.Length == 3 && e.Args[0] == "--review-themes")
             {
                 // windowless: the pages are hosted in a hidden HwndSource and rendered off screen

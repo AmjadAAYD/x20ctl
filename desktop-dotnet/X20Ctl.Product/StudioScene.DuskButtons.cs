@@ -31,7 +31,7 @@ public partial class StudioScene
 
         listStack.Children.Add(new TextBlock
         {
-            Text = RebelAvailableGroups().FirstOrDefault(group => group.keys.Contains(SelectedControl)).name?.ToUpperInvariant() ?? "FACE BUTTONS",
+            Text = AvailableGroups().FirstOrDefault(group => group.keys.Contains(SelectedControl)).name?.ToUpperInvariant() ?? "FACE BUTTONS",
             FontFamily = DuskKit.Display,
             FontSize = 18,
             FontWeight = FontWeights.ExtraBold,
