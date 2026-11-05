@@ -28,6 +28,7 @@ public static class ScanFlow
         (0x0079, 0x181C, "Seen with the EasySMX X20 in DInput mode."),
         (0x1D57, 0xFA60, "A Xenta wireless keyboard and mouse receiver. It is not an EasySMX receiver; the X20's own dongle shows the pad's identity instead."),
         (0x1A34, 0xF517, "Reported for the EasySMX X15's 2.4 GHz receiver. The vendor's X20 receiver tool also opens this id (found in its code, not yet seen here)."),
+        (0x2345, 0xE084, "Reported for the EasySMX X05 Pro in D-Input mode (SalimKr, issue #64, not yet seen here): a USB device with a vendor channel on usage page 0xFFA0 and 64-byte reports 0x04 (input) and 0x05 (output)."),
         (0x2345, 0xE062, "Reported for the EasySMX D10's receiver, a vendor-defined HID device (research notes, not yet seen here)."),
         (0x413D, 0x2131, "Seen with the EasySMX Dune 8K (D15) in XInput mode: two Controller Check scans by an owner, 10 Oct 2026. Also confirmed with the EasySMX X20 Pro retail unit, Oct 2026. It shows two vendor channels, 0xFF70 and 0xFF10."),
     ];
@@ -42,9 +43,8 @@ public static class ScanFlow
         ("Battery", "Read every way Windows allows: the controller driver, the level Windows keeps for paired devices, Windows' game-controller battery report, and anything the controller sends on its own over its vendor channels during the scan. Nothing is ever sent to it."),
         ("Stick resolution and report rate", "The controller's own description says how many bits each stick uses, and the scan measures how often Windows receives reports. That is a measured rate, not a promise of polling speed."),
         ("Lighting (RGB)", "Expected to be unreadable. Lighting is set inside the controller's firmware and isn't exposed to Windows, so this will most likely say \"not readable\"."),
-        ("Macro paddles (M buttons)", "Each paddle gets its own step: press it when asked, and the scan records which button it sends (A, B and so on) and whether anything arrives at all. If your controller has fewer paddles, leave that step alone."),
-        ("Home, M and turbo", "Home is read too. The M button gets a step that records whether anything reaches Windows. For turbo you turn it on for A and hold A, and the scan measures how fast it fires; then you turn it off again."),
-        ("Every step tells you what to do", "Each step shows what to press and a countdown: hold, let go, hold again, let go. Follow the timer; the scan does the rest. Gyro is left out: it isn't exposed this way."),
+        ("Home and the M button", "Home is read too. The M button gets a step that records whether anything reaches Windows."),
+        ("Every step tells you what to do", "Each control is shown on a layout and lights up where it is on the pad. A five-second countdown comes first, then you hold it, and a \"Release in 3, 2, 1\" warning tells you when to let go. There is no rush. Gyro is left out: it isn't exposed this way."),
     ];
 
     /// <summary>The model a controller names itself as, from the product and manufacturer strings Windows lists (the Dune 8K
@@ -138,10 +138,6 @@ public static class ScanFlow
         var held = steps.Where(s => s.Status.EndsWith("_held_past_step")).Select(s => s.Key).ToList();
         if (held.Count > 0) f.Add(new("Held past the step", string.Join(", ", held), "Pressed, but still held when the step ended. They count as seen; their hold time isn't measured.", "measured"));
         if (holdError >= 0) f.Add(new("Hold timing", $"±{holdError:0} ms", "How far the measured hold times were from the 2-second holds asked for (includes your own timing).", "measured"));
-        var paddles = evidence.Records.Where(r => Analysis.IsPaddle(r.Key)).OrderBy(r => r.Key).Select(r => r.Key + " → " + (Analysis.Fired(r.Value) is { Count: > 0 } o ? string.Join(" + ", o) : "no input seen")).ToList();
-        f.Add(paddles.Count > 0
-            ? new("Macro paddles", string.Join(" · ", paddles), "What Windows received when each paddle was pressed: the button it is set to send. Windows can't tell a paddle from that button, so this shows the paddle works and how it's set, not that it's a separate key. \"No input seen\" means nothing arrived, or the controller has no such paddle.", "measured")
-            : new("Macro paddles", "not tested", "No paddle step was run.", "none"));
         if (evidence.Records.TryGetValue("M", out var mRows))
             f.Add(Analysis.Fired(mRows) is { Count: > 0 } mOut
                 ? new("M button", "sends " + string.Join(" + ", mOut), "Windows received this when the M button was tapped.", "measured")
@@ -172,7 +168,7 @@ public static class ScanFlow
         var first = inventory.interfaces.FirstOrDefault(i => i.usagePage == 1 && i.usage is 4 or 5 or 8) ?? inventory.interfaces.FirstOrDefault();
         var files = new Dictionary<string, object>
         {
-            ["device.json"] = new { controllerName = claimedModel == "Unknown" ? (first?.product is { Length: > 0 } p ? p : "Unknown controller") : "EasySMX " + claimedModel, claimedModel, connection = transport, vid = first?.vid, pid = first?.pid,
+            ["device.json"] = new { controllerName = claimedModel == "Unknown" ? (first?.product is { Length: > 0 } p ? p : "Unknown controller") : claimedModel.StartsWith("Other: ") ? claimedModel[7..] : "EasySMX " + claimedModel, claimedModel, connection = transport, vid = first?.vid, pid = first?.pid,
                 interfaces = inventory.interfaces.Select(i => new { i.kind, i.vid, i.pid, i.product, i.manufacturer, i.usagePage, i.usage, i.inputLength, i.outputLength, i.featureLength, i.vendorDefined, i.axes }).ToList(), batteryProbe = evidence.BatteryProbe },
             ["input-captures.json"] = evidence.Records.Select(r => r.Key == "turbo" && evidence.Turbo != null ? evidence.Turbo : Analysis.Summary(r.Key, r.Value)).ToList(),
             ["input-mapping.json"] = findings,

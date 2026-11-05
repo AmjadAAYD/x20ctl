@@ -142,11 +142,10 @@ public sealed class MainWindow : Window, IIntroHandoff
         Swap(ZoneHeader(section, pill), page, FootBar(Hints.Row(("A", "Select"), ("B", "Back"))), returning ? .96 : 1.04, returning ? 340 : 320);
     }
 
-    void ShowTools() => Tools("tools", "Tools", new ToolsPage(new ToolsActions(ShowCheck, ShowWriteScan, () => { session.Selected = Math.Max(0, Array.FindIndex(session.Players, p => p != null)); EnterStudio("PC mode"); }, ShowIntro, ShowAbout, ShowFeedback)));
+    void ShowTools() => Tools("tools", "Tools", new ToolsPage(new ToolsActions(ShowCheck, () => { session.Selected = Math.Max(0, Array.FindIndex(session.Players, p => p != null)); EnterStudio("PC mode"); }, ShowIntro, ShowAbout, ShowFeedback)));
     void ShowAbout() => Tools("about", "Tools", new AboutPage(ShowTools, icon));
     void ShowFeedback() => Tools("feedback", "Tools", new FeedbackPage(ShowTools, session.Catalog.Models.Select(m => m.Name)));
     void ShowCheck() => Tools("check", "Controller Check", new CheckPage(ShowTools, () => { session.Selected = Math.Max(0, Array.FindIndex(session.Players, p => p != null)); EnterStudio("Tester"); }), "Tools");
-    void ShowWriteScan() => Tools("check", "Write scan", new WriteScanPage(), "Tools");
     async Task OfferUpdate()
     {
         UpdateCheck.Release? r; try { r = await UpdateCheck.Latest(); } catch (Exception) { return; }

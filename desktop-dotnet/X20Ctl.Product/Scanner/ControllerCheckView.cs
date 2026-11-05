@@ -26,11 +26,27 @@ public sealed partial class ControllerCheckView : Grid
 {
     // M1–M6 have their own steps since 10 Oct 2026 (owner: "it must be tested"); a model with fewer paddles skips the rest
     private static readonly string[] AllActions = ["neutral", "A", "B", "X", "Y", "LB", "RB", "dpad_up", "dpad_right", "dpad_down", "dpad_left",
-        "dpad_up_right", "dpad_down_right", "dpad_down_left", "dpad_up_left", "Start", "Back", "Home", "L3", "R3", "LT", "RT", "left_stick", "right_stick", "M1", "M2", "M3", "M4", "M5", "M6", "M", "turbo"];
+        "dpad_up_right", "dpad_down_right", "dpad_down_left", "dpad_up_left", "Start", "Back", "Home", "L3", "R3", "LT", "RT", "left_stick", "right_stick", "M", "turbo"];
     /// <summary>The steps being run: every step, or after a scan just the ones that weren't seen.</summary>
     private string[] Actions = AllActions;
     private (string Name, string Model)? detected;
-    internal static readonly string[] Models = ["Unknown", "X05 Pro", "X10", "X15", "D10", "Dune / D15", "X20 Pro", "X20"];
+    private readonly TextBox otherName = new() { MinHeight = 40, FontSize = 14.5, Padding = new(12, 8, 12, 8), MaxLength = 60, Width = 300, Visibility = Visibility.Collapsed };
+    private readonly TextBlock modelHint = Kit.Text("Choose your controller to start. The report states it so the team knows what was tested.", 13.5, "DS.TextSoft");
+    private readonly TextBlock modelLabel = Kit.Text("not chosen", 15, "DS.Text", FontWeights.SemiBold);
+    private readonly List<Button> needsModel = new();
+    /// <summary>What the tester says they have. The scan buttons stay off until it is chosen.</summary>
+    private string ChosenModel => model.SelectedItem is not string m || m == Pick ? "Unknown" : m == OtherModel ? "Other: " + (otherName.Text.Trim().Length > 0 ? otherName.Text.Trim() : "unnamed") : m;
+    private bool ModelChosen => model.SelectedItem is string m && m != Pick && (m != OtherModel || otherName.Text.Trim().Length >= 2);
+    private void ModelChanged()
+    {
+        evidence.Model = ChosenModel; modelLabel.Text = ModelChosen ? ChosenModel : "not chosen";
+        modelHint.Text = ModelChosen ? "Chosen: " + ChosenModel + ". The report states it." : model.SelectedItem is OtherModel ? "Type the name or model printed on your controller." : "Choose your controller to start. The report states it so the team knows what was tested.";
+        otherName.Visibility = model.SelectedItem is OtherModel ? Visibility.Visible : Visibility.Collapsed;
+        foreach (var b in needsModel) b.IsEnabled = ModelChosen;
+    }
+    internal static readonly string[] Models = [Pick, "X05 Pro", "X10", "X15", "D10", "Dune / D15", "X20 Pro", "X20", OtherModel];
+    internal const string Pick = "Choose your controller…";
+    internal const string OtherModel = "Another controller (type its name)";
     private static readonly string[] Transports = ["Receiver", "USB cable", "Bluetooth", "Not sure"];
     private static readonly Color Green = ThemeCatalog.R(Color.FromRgb(52, 211, 153)), Amber = ThemeCatalog.R(Color.FromRgb(245, 180, 91)), Blue = Kit.Blue;
 
@@ -53,11 +69,11 @@ public sealed partial class ControllerCheckView : Grid
     private readonly SlotCard[] slots = new SlotCard[4];
     private readonly List<RadioButton> readers = new();
     private readonly Button start, fresh, verify, record, skip, save, detect, details, rawToggle;
-    private readonly ComboBox model = Combo(Models, "Unknown"), transport = Combo(Transports, "Not sure");
+    private readonly ComboBox model = Combo(Models, Pick), transport = Combo(Transports, "Not sure");
     private readonly CheckBox serial = new() { Style = DS.Style("DS.Toggle"), VerticalAlignment = VerticalAlignment.Center, ToolTip = "Serial numbers are private identifiers; they are only read if you turn this on" };
     private readonly TextBlock liveTitle = Kit.Text("Live input", 18.5, "DS.Text", FontWeights.SemiBold), liveSubtitle = Kit.Text("Start the live check to read your controller", 14, "DS.TextSoft");
     private readonly TextBlock big = new() { FontFamily = DS.Display, FontSize = 40, FontWeight = FontWeights.Bold, Foreground = DS.Brush("DS.Text"), TextWrapping = TextWrapping.Wrap };
-    private readonly TextBlock prompt = Wrap("", 16, "DS.TextSoft"), outcome = Wrap("Read-only input. No settings, vibration, firmware changes or uploads. Sampling begins after READY and a three-second countdown.", 13.5, "DS.TextSoft");
+    private readonly TextBlock prompt = Wrap("", 16, "DS.TextSoft"), outcome = Wrap("Read-only input. No settings, vibration, firmware changes or uploads. Each step starts after a five-second countdown.", 13.5, "DS.TextSoft");
     private readonly TextBlock inventoryText = Kit.Text("Windows devices not listed yet", 13.5, "DS.TextSoft");
     private readonly WrapPanel chips = new();
     private readonly Dictionary<string, Border> chipFor = new();
@@ -144,9 +160,9 @@ public sealed partial class ControllerCheckView : Grid
         rawToggle = Action("", "Raw Input fallback", "ActionButton"); rawToggle.Click += (_, _) => ToggleRaw(); rawToggle.ToolTip = "If no player slot responds: read the controller through Windows Raw Input instead";
         save = Action("", "Save report", "PrimaryButton"); save.Click += (_, _) => Save();
         var open = Action("", "Open reports", "ActionButton"); open.Click += (_, _) => OpenReports();
-        model.SelectionChanged += (_, _) => evidence.Model = (string)model.SelectedItem; transport.SelectionChanged += (_, _) => evidence.Transport = (string)transport.SelectedItem;
+        model.SelectionChanged += (_, _) => ModelChanged(); otherName.TextChanged += (_, _) => ModelChanged(); transport.SelectionChanged += (_, _) => evidence.Transport = (string)transport.SelectedItem;
         var claims = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Children = {
-            Labelled("PRINTED MODEL (YOUR CLAIM)", model), Labelled("CONNECTED BY", transport).Also(s => s.Margin = new(16, 0, 0, 0)) } };
+            Labelled("CONTROLLER", modelLabel), Labelled("CONNECTED BY", transport).Also(s => s.Margin = new(16, 0, 0, 0)) } };
         var inv = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new(28, 0, 0, 0), Children = { detect, details.Also(d => d.Margin = new(10, 0, 0, 0)), new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new(16, 0, 0, 0), Children = { inventoryText, new StackPanel { Orientation = Orientation.Horizontal, Margin = new(0, 6, 0, 0), Children = { serial, Kit.Text("Include serial numbers (optional, private)", 12.5, "DS.TextMuted").Also(t => t.Margin = new(10, 0, 0, 0)) } } } } } };
         var savers = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Children = { rawToggle, open.Also(o => o.Margin = new(10, 0, 10, 0)), save } };
         var foot = new DockPanel();
@@ -181,13 +197,13 @@ public sealed partial class ControllerCheckView : Grid
     {
         if (reader == null || active != null) return;
         if (!reader.Read(slot, out _)) { outcome.Text = "Selected slot is disconnected. Choose a responsive slot first."; return; }
-        active = action; evidence.Slot = slot; evidence.Model = (string)model.SelectedItem; evidence.Transport = (string)transport.SelectedItem;
+        active = action; evidence.Slot = slot; evidence.Model = ChosenModel; evidence.Transport = (string)transport.SelectedItem;
         if (action == "preflight") evidence.Verified = false;
         evidence.Records[action] = new(); dirty = true;
         clock.Restart(); UpdateControls();
         // a sampler left by an interrupted turbo step is stopped first, or its 1 ms thread would run until the window closes
         turbo?.Finish(TurboOn, TurboOff, 0); turbo = null;
-        if (action == "turbo") turbo = new TurboSampler(reader, slot, () => clock.Elapsed.TotalSeconds - 3);
+        if (action == "turbo") turbo = new TurboSampler(reader, slot, () => clock.Elapsed.TotalSeconds - Lead);
         if (scanMode) StartListening();
     }
     private void TickInput()
@@ -203,11 +219,10 @@ public sealed partial class ControllerCheckView : Grid
                 if (!present) trackers[i].Disconnect();
                 // a release under 15 ms is faster than a finger: a worn switch chattering (triggers rest noisily, so not them)
                 if (i == slot) foreach (var edge in edges) if (!edge.down && edge.duration_ms < X20Ctl.Zone.Diagnostics.ButtonStats.BounceMs && edge.control is not ("LT" or "RT")) chatter[edge.control] = chatter.GetValueOrDefault(edge.control) + 1;
-                if (i == slot && active != null && clock.Elapsed.TotalSeconds >= 3)
+                if (i == slot && active != null && clock.Elapsed.TotalSeconds >= Lead)
                     foreach (var edge in edges)
                     {
                         evidence.Events.Add(new { timestamp = DateTime.UtcNow.ToString("o"), slot = i, action = active, control = edge.control, down = edge.down, duration_ms = edge.duration_ms });
-                        if (scanMode && !edge.down && edge.control == active) holdErrors.Add(Math.Abs(edge.duration_ms - 2000));
                     }
                 bool input = present && (state.Pad.Buttons != 0 || state.Pad.LT > 0 || state.Pad.RT > 0);
                 slots[i].Show(present, input, trackers[i].HeldText, state, i == slot);
@@ -225,23 +240,13 @@ public sealed partial class ControllerCheckView : Grid
                 if (active != null) { evidence.Event("disconnected", active); results[active] = "inconclusive"; active = null; dirty = true; outcome.Text = "Source disconnected. Partial results retained; use New source and verify again."; }
                 UpdateControls(); return;
             }
-            if (active == null) { if (scanMode) ScanWaiting(); return; }
+            if (active == null) { diagram.Targets = []; diagram.Callout = ""; if (scanMode) ScanWaiting(); return; }
             // owner direction 10 Oct 2026: every step says exactly what to do and for how long, with a countdown
             double seconds = clock.Elapsed.TotalSeconds; var phases = Phases(active);
-            int stepNumber = Array.IndexOf(Actions, active) + 1, stepCount = Actions.Count(a => !Excluded(a));
-            string stepText = active == "preflight" || stepNumber == 0 ? "" : $"Step {stepNumber} of {stepCount} · ";
-            if (seconds < 3)
-            {
-                big.Text = "Get ready · " + Math.Ceiling(3 - seconds); big.Foreground = new SolidColorBrush(Amber);
-                prompt.Text = stepText + "First: " + phases[0].Say + "."; return;
-            }
-            double t = seconds - 3, end = phases[0].Seconds; int p = 0;
-            while (p < phases.Length - 1 && t >= end) { p++; end += phases[p].Seconds; }
-            var phase = phases[p];
-            big.Text = $"{phase.Big} · {Math.Ceiling(Math.Max(0.01, end - t))}"; big.Foreground = new SolidColorBrush(phase.Hold ? Green : Kit.Ice);
-            prompt.Text = stepText + phase.Say + "." + (p + 1 < phases.Length ? "   Next: " + phases[p + 1].Say.ToLowerInvariant() + "." : "");
+            if (Pose(active, seconds)) return;
+            double t = seconds - Lead;
             if ((Analysis.Masks.ContainsKey(active) || active is "LT" or "RT") && trackers[slot].HeldFor(active, liveClock.Elapsed.TotalMilliseconds) is { } held)
-                prompt.Text += $"\nHolding {Friendly(active)} · {held / 1000:0.0} s";
+                prompt.Text += $"\nHeld for {held / 1000:0.0} s";
             evidence.Add(active, new Sample(active, evidence.Slot, selected, t * 1000));
             if (t < phases.Sum(x => x.Seconds)) return;
             string completed = active; active = null; clock.Stop();
@@ -300,7 +305,7 @@ public sealed partial class ControllerCheckView : Grid
             string state = a == active ? "active" : results.GetValueOrDefault(a, evidence.Verified && index < Actions.Length && Actions[index] == a ? "next" : "pending");
             Paint(chip, state);
         }
-        steps.Show(reader == null ? 0 : !connected[slot] ? 1 : !evidence.Verified ? 2 : index < Actions.Length ? 3 : 4, lastSaved != null && !dirty);
+        steps.Show(reader == null ? 0 : !connected[slot] || !evidence.Verified && index == 0 ? 1 : index < Actions.Length ? 2 : 3, lastSaved != null && !dirty);
     }
     private bool Save()
     {
@@ -341,6 +346,8 @@ public sealed partial class ControllerCheckView : Grid
     // ================= the full step-by-step scan (owner direction 10 Oct 2026) =================
     private bool scanMode, sendReport, scanQueued, finishing, probing, probeOwnsRaw;
     private readonly List<double> holdErrors = new();
+    /// <summary>The countdown before every step, and how long before a release the warning starts ("Release in 3, 2, 1").</summary>
+    private const double Lead = 5, Warn = 3;
     private readonly Dictionary<string, int> chatter = new();
     private readonly Dictionary<string, double> reportRates = new();
     private readonly Dictionary<string, Queue<double>> rateWindow = new();
@@ -348,35 +355,96 @@ public sealed partial class ControllerCheckView : Grid
     private readonly Border warning = new(), resultsLayer = new() { Visibility = Visibility.Collapsed };
     public bool ScanRunning => scanMode && !finishing;
     /// <summary>Paddles past the model's count don't exist on it; Home needs a Windows reader that reports it.</summary>
-    private bool Excluded(string action) => action == "Home" && reader is { HomeReadable: false } || Analysis.IsPaddle(action) && action[1] - '0' > PaddleCount(ScanModel);
+    private bool Excluded(string action) => action == "Home" && reader is { HomeReadable: false };
     private TurboSampler? turbo;
     private VendorListener? listener;
     /// <summary>The turbo step's two hold windows (step seconds): turbo on, then turbo off. They follow its Phases.</summary>
     private static readonly (double From, double To) TurboOn = (8, 13), TurboOff = (22.5, 25.5);
-    private static int PaddleCount(string model) => model switch { "X20 Pro" => 6, "X20" or "Dune / D15" or "Unknown" => 4, _ => 2 };
-    private string ScanModel => (string)model.SelectedItem == "Unknown" && detected is { } d ? d.Model : (string)model.SelectedItem;
+    private string ScanModel => ChosenModel;
+    /// <summary>What the screen says for a step <paramref name="seconds"/> in: the countdown, the warning, the prompt and the control to light. True while still in the lead-in.</summary>
+    private bool Pose(string active, double seconds)
+    {
+        var phases = Phases(active);
+            int stepNumber = Array.IndexOf(Actions, active) + 1, stepCount = Actions.Count(a => !Excluded(a));
+            string stepText = active == "preflight" || stepNumber == 0 ? "" : $"Step {stepNumber} of {stepCount} · ";
+            if (seconds < Lead)
+            {
+                int left = (int)Math.Ceiling(Lead - seconds);
+                SetBig($"Get ready · {left}", Amber, true);
+                prompt.Text = stepText + "Next: " + phases[0].Say.TrimEnd('.') + ".";
+                diagram.Targets = TargetsFor(active, 0); diagram.Callout = "GET READY"; return true;
+            }
+            double t = seconds - Lead, end = phases[0].Seconds; int p = 0;
+            while (p < phases.Length - 1 && t >= end) { p++; end += phases[p].Seconds; }
+            var phase = phases[p]; double remaining = Math.Max(0.01, end - t); int whole = (int)Math.Ceiling(remaining);
+            if (phase.Hold && remaining <= Warn) SetBig($"Release in {whole}", Amber, true);
+            else if (!phase.Hold && phases.Length == 1) SetBig($"{phase.Big} · {whole}", Kit.Ice, false);
+            else if (!phase.Hold && remaining <= Warn && active != "turbo") SetBig(p + 1 < phases.Length ? $"{phases[p + 1].Big} in {whole}" : $"Next control in {whole}", Kit.Ice, true);
+            else SetBig(phase.Big, phase.Hold ? Green : Kit.Ice, false);
+            prompt.Text = stepText + phase.Say.TrimEnd('.') + "." + (p + 1 < phases.Length ? "   Then: " + phases[p + 1].Say.TrimEnd('.') + "." : "");
+            diagram.Targets = phase.Hold ? TargetsFor(active, p) : []; diagram.Callout = phase.Hold ? (remaining <= Warn ? "RELEASE" : "HOLD") : "";
+            return false;
+    }
+
+    /// <summary>For the offscreen review: show the step as it looks <paramref name="seconds"/> in, with no controller.</summary>
+    internal void ReviewPose(string action, double seconds) { noSignal.Visibility = Visibility.Collapsed; Pose(action, seconds); diagram.Show(default, true, trackers[0], seconds * 1000); }
+    internal void ReviewChoose(string? choice, string other = "") { model.SelectedItem = choice ?? Pick; otherName.Text = other; }
+    internal bool ReviewCanStart => ModelChosen;
+    internal void ReviewHideWarning() => warning.Visibility = Visibility.Collapsed;
+    internal string ReviewBig => big.Text;
+    internal string ReviewPrompt() => prompt.Text;
+    private string? lastBig;
+    /// <summary>The big line. A new number pulses so a countdown can be followed without reading.</summary>
+    private void SetBig(string text, Color color, bool pulse)
+    {
+        big.Foreground = new SolidColorBrush(color);
+        if (text == lastBig) return;
+        lastBig = text; big.Text = text;
+        if (!pulse || !DS.Motion) return;
+        big.RenderTransformOrigin = new(0, .5);
+        var scale = big.RenderTransform as ScaleTransform ?? (ScaleTransform)(big.RenderTransform = new ScaleTransform(1, 1));
+        var grow = new DoubleAnimation(1.16, 1, TimeSpan.FromMilliseconds(600)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, grow); scale.BeginAnimation(ScaleTransform.ScaleYProperty, grow);
+    }
+    /// <summary>The controls to light on the pad drawing while a step asks for them.</summary>
+    private static string[] TargetsFor(string a, int phase) => a switch
+    {
+        "preflight" => phase switch { 0 => ["A"], 2 => ["LT"], 4 => ["RT"], _ => [] },
+        "dpad_up_right" => ["dpad_up", "dpad_right"], "dpad_down_right" => ["dpad_down", "dpad_right"], "dpad_down_left" => ["dpad_down", "dpad_left"], "dpad_up_left" => ["dpad_up", "dpad_left"],
+        "left_stick" or "L3" => ["left_stick"], "right_stick" or "R3" => ["right_stick"],
+        "neutral" or "M" => [],
+        "turbo" => ["A"],
+        _ => [a],
+    };
     /// <summary>What each step asks, phase by phase, each with its own countdown. Holds are 2 seconds, matching the hold-timing finding.</summary>
     private static (string Big, string Say, double Seconds, bool Hold)[] Phases(string a)
     {
         string n = Friendly(a);
-        if (a == "preflight") return [("Verify", "Release everything, press and release A, pull and release LT, then pull and release RT", 20, true)];
+        if (a == "preflight") return [("Hold A", "Press and hold A (the bottom one of the four on the right)", 5, true), ("Let go", "Let go of A", 4, false),
+            ("Pull LT", "Pull the left trigger (LT, top left) all the way and hold it", 5, true), ("Let go", "Let go of LT", 4, false),
+            ("Pull RT", "Pull the right trigger (RT, top right) all the way and hold it", 5, true), ("Let go", "Let go of RT", 4, false)];
         if (a == "neutral") return [("Hands off", "Put the controller down and don't touch it", 8, false)];
-        if (a == "M") return [("Tap M", "Tap the M button on the front once, quickly. Don't hold it. If its light starts blinking, tap M once more to leave that mode", 5, true), ("Hands off", "Let go of everything", 1.5, false)];
+        if (a == "M") return [("Tap M", "Tap the M button on the front once, quickly. Don't hold it. If its light starts blinking, tap M once more to leave that mode", 8, false), ("Hands off", "Let go of everything", 3, false)];
         if (a == "turbo")
             return [("Turbo on", "Turn turbo on for A: hold the Turbo button and press A, then let go (your manual may say a different way)", 8, false),
                     ("Hold A", "Press and hold A. Keep holding: with turbo on, it fires by itself", 5, true), ("Let go", "Let go of A", 1.5, false),
                     ("Turbo off", "Turn turbo off for A the same way (on some pads it takes two goes)", 8, false),
                     ("Hold A", "Press and hold A again: with turbo off it should stay steady", 3, true), ("Let go", "Let go of A", 1.5, false)];
-        if (a == "Home")
-            return [("Hold Home", "Press and hold Home (the logo button). If Xbox Game Bar opens, close it after the step", 2, true), ("Let go", "Let go of Home", 1.5, false),
-                    ("Hold Home", "Press and hold Home again", 2, true), ("Let go", "Let go of Home", 1.5, false)];
+        if (a == "Home") return [("Hold Home", "Press and hold Home (the logo button). If Xbox Game Bar opens, close it after the step", 5, true), ("Let go", "Let go of Home", 4, false)];
         if (a is "left_stick" or "right_stick")
-            return [("Roll it", $"Roll the {n.ToLowerInvariant()} slowly all the way round its edge", 4, true), ("Let go", "Let it spring back to the centre", 1.5, false),
-                    ("Roll again", "Roll it round its edge once more", 4, true), ("Let go", "Let go of the stick", 1.5, false)];
-        string verb = a is "LT" or "RT" ? "Pull" : "Press", what = Analysis.IsPaddle(a) ? $"{a} (the paddle on the back)" : n;
-        return [($"Hold {n}", $"{verb} and hold {what}", 2, true), ("Let go", $"Let go of {n}", 1.5, false),
-                ($"Hold {n}", $"{verb} and hold {what} again", 2, true), ("Let go", $"Let go of {n}", 1.5, false)];
+            return [("Roll it", $"Roll the {n.ToLowerInvariant()} slowly all the way round its edge", 8, true), ("Let go", "Let it spring back to the centre", 4, false)];
+        string verb = a is "LT" or "RT" ? "Pull" : "Press";
+        return [($"Hold {n}", $"{verb} and hold {n}. {Where(a)}", 5, true), ("Let go", $"Let go of {n}", 4, false)];
     }
+    /// <summary>Where the control is on the pad, in the same words the drawing uses.</summary>
+    private static string Where(string a) => a switch
+    {
+        "LT" => "Top left, the trigger.", "RT" => "Top right, the trigger.", "LB" => "Left side, the bumper under LT.", "RB" => "Right side, the bumper under RT.",
+        "A" or "B" or "X" or "Y" => "The four on the right: Y top, A bottom, X left, B right.",
+        "Back" => "The small button in the middle, left (−).", "Start" => "The small button in the middle, right (+).",
+        "L3" => "Press the left stick straight down.", "R3" => "Press the right stick straight down.",
+        _ when a.StartsWith("dpad_") => "The D-pad, bottom left.", _ => "",
+    };
 
     private void BuildWarning()
     {
@@ -386,8 +454,8 @@ public sealed partial class ControllerCheckView : Grid
             cards.Children.Add(new Border { CornerRadius = new(14), Margin = new(8), Padding = new(18, 14, 18, 14), BorderThickness = new(1), BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(46, 140, 180, 255))),
                 Background = new LinearGradientBrush(ThemeCatalog.R(Color.FromArgb(160, 20, 34, 70)), ThemeCatalog.R(Color.FromArgb(120, 10, 18, 40)), 90),
                 Child = new StackPanel { Children = { Kit.Text(title, 16.5, "DS.Text", FontWeights.SemiBold), Wrap(text, 14, "DS.TextSoft").Also(t => t.Margin = new(0, 6, 0, 0)) } } });
-        var send = Action("", "Scan and send the report", "PrimaryButton"); send.Click += (_, _) => StartScan(true);
-        var local = Action("", "Scan, keep it on this PC", "ActionButton"); local.Click += (_, _) => StartScan(false);
+        var send = Action("", "Scan and send the report", "PrimaryButton"); send.Click += (_, _) => { if (ModelChosen) StartScan(true); }; needsModel.Add(send);
+        var local = Action("", "Scan, keep it on this PC", "ActionButton"); local.Click += (_, _) => { if (ModelChosen) StartScan(false); }; needsModel.Add(local); send.IsEnabled = local.IsEnabled = false;
         var watch = Action("", "Just watch live input", "ActionButton"); watch.Click += (_, _) => Fx.Leave(warning, () => warning.Visibility = Visibility.Collapsed, 1.02, 200);
         var leave = Action("", "Back to Tools", "ActionButton"); leave.Click += (_, _) => close();
         // which system is the controller on? This app scans on Windows; a Linux PC gets the Linux Controller Check
@@ -400,7 +468,11 @@ public sealed partial class ControllerCheckView : Grid
             r.Checked += (_, _) => { linux.Visibility = isLinux ? Visibility.Visible : Visibility.Collapsed; choices.Visibility = isLinux ? Visibility.Collapsed : Visibility.Visible; };
             systems.Children.Add(r);
         }
-        var systemRow = new StackPanel { Margin = new(0, 20, 0, 0), Children = { Kit.Text("WHICH SYSTEM IS THE CONTROLLER CONNECTED TO?", 12, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(2, 0, 0, 8)),
+        var systemRow = new StackPanel { Margin = new(0, 20, 0, 0), Children = {
+            Kit.Text("1  WHICH CONTROLLER DO YOU HAVE? (REQUIRED)", 12, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(2, 0, 0, 8)),
+            new StackPanel { Orientation = Orientation.Horizontal, Margin = new(0, 0, 0, 6), Children = { model.Also(m => m.Width = 330), otherName.Also(o => o.Margin = new(12, 0, 0, 0)) } },
+            modelHint.Also(h => h.Margin = new(2, 0, 0, 18)),
+            Kit.Text("2  WHICH SYSTEM IS THE CONTROLLER CONNECTED TO?", 12, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(2, 0, 0, 8)),
             new Border { CornerRadius = new(12), Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(30, 255, 255, 255))), BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(34, 255, 255, 255))), BorderThickness = new(1), Padding = new(1), HorizontalAlignment = HorizontalAlignment.Left, Child = systems } } };
         var panel = new StackPanel { MaxWidth = 1180, HorizontalAlignment = HorizontalAlignment.Center, Margin = new(40, 36, 40, 30), Children = {
             Kit.Text("Before you scan", 40, "DS.Text", FontWeights.Bold),
@@ -538,9 +610,6 @@ public sealed partial class ControllerCheckView : Grid
         var open = Action("", "Open reports folder", "ActionButton"); open.Click += (_, _) => OpenReports();
         var done = Action("", "Done", "PrimaryButton"); done.Click += (_, _) => Fx.Leave(resultsLayer, () => resultsLayer.Visibility = Visibility.Collapsed, 1.02, 200);
         var missed = AllActions.Where(a => results.GetValueOrDefault(a) == "inconclusive").ToArray();
-        // every paddle step came back empty: the pad most likely has none, so asking again would only repeat it
-        var paddleSteps = AllActions.Where(a => Analysis.IsPaddle(a) && results.ContainsKey(a)).ToArray();
-        if (paddleSteps.Length > 0 && paddleSteps.All(a => results[a] == "inconclusive")) missed = missed.Where(a => !Analysis.IsPaddle(a)).ToArray();
         var redo = Action("", $"Redo the {missed.Length} not seen", "PrimaryButton"); redo.Click += (_, _) => RedoMissed(missed);
         redo.Visibility = missed.Length > 0 && reader != null ? Visibility.Visible : Visibility.Collapsed;
         var side = new StackPanel { Width = 420, Margin = new(28, 0, 0, 0), Children = {
@@ -588,7 +657,6 @@ public sealed partial class ControllerCheckView : Grid
         evidence.Inventory = inventory; inventoryRead = true; detect.IsEnabled = serial.IsEnabled = true; details.IsEnabled = true;
         // the controller's own name fills the model when the player left it on Unknown; Bluetooth shows in its interface path
         detected = ScanFlow.DetectModel(inventory);
-        if (detected is { } d && (string)model.SelectedItem == "Unknown") model.SelectedItem = d.Model;
         if ((string)transport.SelectedItem == "Not sure" && ScanFlow.DetectTransport(inventory) is { } via) transport.SelectedItem = via;
         var groups = Inventory.Group(inventory.interfaces);
         var names = groups.Select(g => (g.FirstOrDefault(x => x.usagePage == 1 && new[] { 4, 5, 8 }.Contains(x.usage)) ?? g[0]).product).Where(p => !string.IsNullOrWhiteSpace(p)).Distinct().Take(2).ToList();
@@ -632,7 +700,7 @@ public sealed partial class ControllerCheckView : Grid
         if (!on) StopRaw();
         rawPage.Visibility = on ? Visibility.Visible : Visibility.Collapsed; noSignal.Visibility = Visibility.Collapsed;
         SetLabel(rawToggle, on ? "Back to live input" : "Raw Input fallback");
-        if (on) { evidence.Model = (string)model.SelectedItem; evidence.Transport = (string)transport.SelectedItem; rawStart.Focus(); }
+        if (on) { evidence.Model = ChosenModel; evidence.Transport = (string)transport.SelectedItem; rawStart.Focus(); }
     }
     private void StartRaw()
     {
@@ -715,7 +783,7 @@ public sealed partial class ControllerCheckView : Grid
         chip.Effect = state == "active" ? new DropShadowEffect { Color = Blue, BlurRadius = 16, ShadowDepth = 0, Opacity = .8 } : null;
     }
     private static TextBlock Wrap(string text, double size, string brush) => new() { Text = text, FontFamily = DS.Body, FontSize = size, Foreground = DS.Brush(brush), TextWrapping = TextWrapping.Wrap, LineHeight = size * 1.45 };
-    private static ComboBox Combo(string[] items, string selected) { var c = new ComboBox { Width = 170, MinHeight = 40, FontSize = 14.5, Padding = new(12, 8, 12, 8) }; foreach (var i in items) c.Items.Add(i); c.SelectedItem = selected; return c; }
+    private static ComboBox Combo(string[] items, string? selected) { var c = new ComboBox { Width = 170, MinHeight = 40, FontSize = 14.5, Padding = new(12, 8, 12, 8) }; foreach (var i in items) c.Items.Add(i); if (selected != null) c.SelectedItem = selected; return c; }
     private static StackPanel Labelled(string label, FrameworkElement control) => new() { Children = { Kit.Text(label, 11.5, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(2, 0, 0, 6)), control } };
     private static Button Action(string icon, string text, string style)
     {
@@ -772,7 +840,7 @@ public sealed partial class ControllerCheckView : Grid
         public StepStrip()
         {
             Orientation = Orientation.Horizontal; VerticalAlignment = VerticalAlignment.Center;
-            string[] names = ["Start the check", "Find your slot", "Confirm it's yours", "Test every control", "Save the report"];
+            string[] names = ["Choose your controller", "Press A to find it", "Follow the prompts", "Results"];
             for (int i = 0; i < names.Length; i++)
             {
                 var number = Kit.Text((i + 1).ToString(), 14, "DS.Text", FontWeights.Bold).Also(t => t.HorizontalAlignment = HorizontalAlignment.Center);
@@ -787,7 +855,7 @@ public sealed partial class ControllerCheckView : Grid
         {
             for (int i = 0; i < items.Count; i++)
             {
-                bool done = i < current || saved && i == 4, now = i == current && !done;
+                bool done = i < current || saved && i == 3, now = i == current && !done;
                 var (disc, number, label) = items[i];
                 var ring = (Ellipse)disc.Children[0];
                 ring.Fill = new SolidColorBrush(done ? Color.FromArgb(200, Green.R, Green.G, Green.B) : now ? Kit.Blue : ThemeCatalog.R(Color.FromArgb(30, 255, 255, 255)));
@@ -799,33 +867,36 @@ public sealed partial class ControllerCheckView : Grid
         }
     }
 
-    /// <summary>The selected slot drawn like a pad: triggers, bumpers, Back/Start, both sticks with their raw values and
-    /// offset from centre, the D-pad and the face buttons. Every value is the raw XInput state; nothing is smoothed away.</summary>
+    /// <summary>The selected slot as a plain layout, not a drawing of the pad: triggers (0 to 100) and bumpers on top, the left stick
+    /// with the D-pad under it, Back and Start in the middle, the four face buttons with the right stick under them. A step lights
+    /// the control it asks for and says what to do next to it. Every value is the raw XInput state.</summary>
     private sealed class Diagram : Canvas
     {
-        private readonly Dictionary<string, Shape> lights = new();
+        private readonly Dictionary<string, Shape> lights = new(), tracks = new();
         private readonly Dictionary<string, Color> tone = new() { ["A"] = ThemeCatalog.R(Color.FromRgb(70, 220, 150)), ["B"] = ThemeCatalog.R(Color.FromRgb(255, 100, 125)), ["X"] = ThemeCatalog.R(Color.FromRgb(70, 170, 255)), ["Y"] = ThemeCatalog.R(Color.FromRgb(245, 205, 80)) };
         private readonly Ellipse leftDot = Dot(), rightDot = Dot();
         private readonly TextBlock leftText = Small(), rightText = Small(), ltText = Small(), rtText = Small(), heldText = Small(), lastText = Small();
+        private readonly TextBlock callout = new() { FontFamily = DS.Display, FontSize = 17, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush(Amber), IsHitTestVisible = false, Visibility = Visibility.Collapsed };
         private readonly Rectangle ltFill = new() { Height = 14, RadiusX = 7, RadiusY = 7 }, rtFill = new() { Height = 14, RadiusX = 7, RadiusY = 7 };
         private readonly Ellipse leftRing = new(), rightRing = new();
         private const double StickR = 62, Travel = 52;
+        /// <summary>The controls the current step asks for (a key of the pad, "left_stick" or "right_stick"), and the word next to them.</summary>
+        public IReadOnlyList<string> Targets { get; set; } = [];
+        public string Callout { get; set; } = "";
         public Diagram()
         {
-            Width = 760; Height = 470;
-            // a soft pad silhouette behind everything
-            Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse("M150,96 C210,70 300,74 380,80 C460,74 550,70 610,96 C690,128 735,270 740,360 C745,430 700,462 655,452 C610,442 585,392 552,350 C520,320 470,318 380,318 C290,318 240,320 208,350 C175,392 150,442 105,452 C60,462 15,430 20,360 C25,270 70,128 150,96 Z"),
-                Fill = new LinearGradientBrush(ThemeCatalog.R(Color.FromArgb(70, 40, 60, 110)), ThemeCatalog.R(Color.FromArgb(25, 20, 30, 60)), 90), Stroke = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(70, 125, 182, 255))), StrokeThickness = 1.5 });
-            Trigger("LT", 70, 10, ltFill, ltText); Trigger("RT", 470, 10, rtFill, rtText);
-            Pill("LB", 120, 62, 120); Pill("RB", 520, 62, 120);
-            Pill("Back", 300, 150, 70, "View"); Pill("Start", 390, 150, 70, "Menu");
-            Stick("L3", 190, 205, leftRing, leftDot, leftText); Stick("R3", 470, 330, rightRing, rightDot, rightText);
-            // D-pad: arms light for straight and diagonal presses
-            foreach (var (key, x, y, w, h) in new[] { ("dpad_up", 274.0, 276.0, 32.0, 40.0), ("dpad_down", 274, 344, 32, 40), ("dpad_left", 236, 314, 40, 32), ("dpad_right", 304, 314, 40, 32) })
+            Width = 760; Height = 540;
+            Trigger("LT", 40, 30, ltFill, ltText); Trigger("RT", 500, 30, rtFill, rtText);
+            Pill("LB", 40, 100, 120); Pill("RB", 600, 100, 120);
+            Pill("Back", 295, 110, 80, "Back  −"); Pill("Start", 385, 110, 80, "Start  +"); Pill("Home", 340, 160, 80, "Home");
+            Stick("L3", 130, 250, leftRing, leftDot, leftText); Stick("R3", 600, 405, rightRing, rightDot, rightText);
+            // D-pad, bottom left: arms light for straight and diagonal presses
+            foreach (var (key, x, y, w, h) in new[] { ("dpad_up", 114.0, 374.0, 32.0, 40.0), ("dpad_down", 114, 446, 32, 40), ("dpad_left", 74, 414, 40, 32), ("dpad_right", 146, 414, 40, 32) })
                 Add(key, new Rectangle { Width = w, Height = h, RadiusX = 7, RadiusY = 7 }, x, y, Glyph(key));
-            Add("dpad_center", new Rectangle { Width = 32, Height = 32, Fill = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(40, 255, 255, 255))) }, 274, 314, null);
-            foreach (var (key, x, y) in new[] { ("Y", 575.0, 150.0), ("X", 525, 200), ("B", 625, 200), ("A", 575, 250) }) Add(key, new Ellipse { Width = 46, Height = 46, StrokeThickness = 2 }, x - 23, y - 23, key);
-            Put(heldText, 40, 420); Put(lastText, 40, 442);
+            Add("dpad_center", new Rectangle { Width = 32, Height = 32, Fill = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(40, 255, 255, 255))) }, 114, 414, null);
+            // the four on the right: Y top, X left, B right, A bottom
+            foreach (var (key, x, y) in new[] { ("Y", 600.0, 185.0), ("X", 550, 235), ("B", 650, 235), ("A", 600, 285) }) Add(key, new Ellipse { Width = 46, Height = 46, StrokeThickness = 2 }, x - 23, y - 23, key);
+            Put(heldText, 230, 440); Put(lastText, 230, 462); Put(callout, 0, 0);
             foreach (var key in lights.Keys) Paint(key, false);
         }
         public void Show(State s, bool present, PressTracker tracker, double now)
@@ -836,11 +907,30 @@ public sealed partial class ControllerCheckView : Grid
                 Paint(key, present && (s.Pad.Buttons & mask) == mask);
             }
             Paint("LB", present && (s.Pad.Buttons & 256) != 0);
-            StickShow(leftDot, leftRing, leftText, present ? s.Pad.LX : (short)0, present ? s.Pad.LY : (short)0, 190, 205, present && (s.Pad.Buttons & 64) != 0, "Left");
-            StickShow(rightDot, rightRing, rightText, present ? s.Pad.RX : (short)0, present ? s.Pad.RY : (short)0, 470, 330, present && (s.Pad.Buttons & 128) != 0, "Right");
+            StickShow(leftDot, leftRing, leftText, present ? s.Pad.LX : (short)0, present ? s.Pad.LY : (short)0, 130, 250, present && (s.Pad.Buttons & 64) != 0, "Left stick");
+            StickShow(rightDot, rightRing, rightText, present ? s.Pad.RX : (short)0, present ? s.Pad.RY : (short)0, 600, 405, present && (s.Pad.Buttons & 128) != 0, "Right stick");
             TriggerShow(ltFill, ltText, present ? s.Pad.LT : (byte)0, "LT", tracker, now, present); TriggerShow(rtFill, rtText, present ? s.Pad.RT : (byte)0, "RT", tracker, now, present);
+            foreach (var track in tracks.Values) { track.Stroke = null; track.Effect = null; }
+            Highlight(now);
             heldText.Text = present ? "Held: " + tracker.HeldText : "No signal";
             lastText.Text = present ? tracker.LastRelease : "";
+        }
+        /// <summary>The asked-for control pulses amber; the word next to it says hold, release or get ready.</summary>
+        private void Highlight(double now)
+        {
+            Shape? first = null; double pulse = .5 + .5 * Math.Sin(now / 200);
+            foreach (var key in Targets)
+            {
+                Shape? shape = key switch { "left_stick" => leftRing, "right_stick" => rightRing, "LT" or "RT" => tracks.GetValueOrDefault(key), _ => lights.GetValueOrDefault(key) };
+                if (shape == null) continue;
+                first ??= shape;
+                shape.Stroke = new SolidColorBrush(Amber); shape.StrokeThickness = 3 + 2 * pulse;
+                shape.Effect = new DropShadowEffect { Color = Amber, BlurRadius = 14 + 10 * pulse, ShadowDepth = 0, Opacity = .9 };
+                if (lights.ContainsKey(key) && shape.Fill is not SolidColorBrush { Color.A: > 150 }) shape.Fill = new SolidColorBrush(Color.FromArgb((byte)(50 + 90 * pulse), Amber.R, Amber.G, Amber.B));
+            }
+            if (first == null || Callout.Length == 0) { callout.Visibility = Visibility.Collapsed; return; }
+            callout.Text = Callout; callout.Visibility = Visibility.Visible;
+            SetLeft(callout, Math.Max(0, GetLeft(first))); SetTop(callout, Math.Max(0, GetTop(first) - 28));
         }
         private void StickShow(Ellipse dot, Ellipse ring, TextBlock text, short x, short y, double cx, double cy, bool click, string side)
         {
@@ -849,16 +939,17 @@ public sealed partial class ControllerCheckView : Grid
             ring.Stroke = new SolidColorBrush(click ? Green : ThemeCatalog.R(Color.FromArgb(150, 125, 182, 255))); ring.StrokeThickness = click ? 3 : 1.6;
             ring.Effect = click ? new DropShadowEffect { Color = Green, BlurRadius = 18, ShadowDepth = 0, Opacity = .9 } : null;
             double offset = Math.Min(100, Math.Sqrt(nx * nx + ny * ny) * 100);
-            text.Text = $"{side} {x}, {y}\n{nx:0.00}, {ny:0.00} · {offset:0.0}% from centre";
+            text.Text = $"{side}\n{offset:0}% from centre{(click ? " · pressed" : "")}";
         }
         private static void TriggerShow(Rectangle fill, TextBlock text, byte value, string key, PressTracker tracker, double now, bool present)
         {
             fill.Width = Math.Max(0, 220 * value / 255.0);
-            text.Text = $"{key}  {value} / 255 · {100 * value / 255}%   {(present ? tracker.Duration(key, now) : "No signal")}";
+            text.Text = $"{key}  {100 * value / 255}%";
         }
         private void Trigger(string key, double x, double y, Rectangle fill, TextBlock text)
         {
-            Children.Add(new Rectangle { Width = 220, Height = 14, RadiusX = 7, RadiusY = 7, Fill = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(40, 255, 255, 255))) }.Also(r => { SetLeft(r, x); SetTop(r, y + 22); }));
+            var track = new Rectangle { Width = 220, Height = 14, RadiusX = 7, RadiusY = 7, Fill = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(40, 255, 255, 255))) };
+            SetLeft(track, x); SetTop(track, y + 22); Children.Add(track); tracks[key] = track;
             fill.Fill = new LinearGradientBrush(ThemeCatalog.R(Color.FromRgb(90, 165, 255)), ThemeCatalog.R(Color.FromRgb(52, 211, 153)), 0); SetLeft(fill, x); SetTop(fill, y + 22); Children.Add(fill);
             Put(text, x, y);
         }
@@ -871,7 +962,7 @@ public sealed partial class ControllerCheckView : Grid
             Children.Add(new Ellipse { Width = dz * 2, Height = dz * 2, Stroke = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(70, 255, 255, 255))), StrokeDashArray = new() { 2, 3 }, ToolTip = "Windows default deadzone" }.Also(e => { SetLeft(e, cx - dz); SetTop(e, cy - dz); }));
             Children.Add(new Line { X1 = cx - StickR + 8, X2 = cx + StickR - 8, Y1 = cy, Y2 = cy, Stroke = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(46, 140, 175, 255))) });
             Children.Add(new Line { X1 = cx, X2 = cx, Y1 = cy - StickR + 8, Y2 = cy + StickR - 8, Stroke = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(46, 140, 175, 255))) });
-            Children.Add(dot); Put(text, cx - 90, cy + StickR + 6); text.Width = 200; text.TextAlignment = TextAlignment.Center;
+            Children.Add(dot); Put(text, cx - 100, cy + StickR + 6); text.Width = 200; text.TextAlignment = TextAlignment.Center;
         }
         private void Add(string key, Shape shape, double x, double y, string? label)
         {
@@ -887,6 +978,7 @@ public sealed partial class ControllerCheckView : Grid
             var c = tone.TryGetValue(key, out var face) ? face : ThemeCatalog.R(Color.FromRgb(90, 165, 255));
             shape.Fill = on ? new SolidColorBrush(Color.FromArgb(220, c.R, c.G, c.B)) : new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(34, 255, 255, 255)));
             shape.Stroke = new SolidColorBrush(on ? Colors.White : Color.FromArgb(tone.ContainsKey(key) ? (byte)170 : (byte)60, c.R, c.G, c.B));
+            shape.StrokeThickness = tone.ContainsKey(key) ? 2 : 1.5;
             shape.Effect = on ? new DropShadowEffect { Color = c, BlurRadius = 20, ShadowDepth = 0, Opacity = .95 } : null;
         }
         private static string Glyph(string key) => key switch { "dpad_up" => "↑", "dpad_down" => "↓", "dpad_left" => "←", _ => "→" };
