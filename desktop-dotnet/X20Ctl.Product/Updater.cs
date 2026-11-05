@@ -38,19 +38,19 @@ public static class Updater
         return http;
     }
 
-    /// <summary>The newest release above this version that carries a Windows exe and checksums. Pre-releases count
-    /// while the running version is itself a pre-release.</summary>
+    /// <summary>The newest release above this version that carries a Windows exe and checksums. Pre-releases are never offered or installed.
+    /// </summary>
     public static async Task<Release?> Latest()
     {
         if (ReviewSandbox.Active) return null;
         using var http = Client();
         using var doc = JsonDocument.Parse(await http.GetStringAsync(Api));
-        bool takePre = Current.Contains('-');
+        // pre-releases are skipped below
         Release? best = null;
         foreach (var r in doc.RootElement.EnumerateArray())
         {
             if (r.GetProperty("draft").GetBoolean()) continue;
-            bool pre = r.GetProperty("prerelease").GetBoolean(); if (pre && !takePre) continue;
+            bool pre = r.GetProperty("prerelease").GetBoolean(); if (pre) continue;
             string tag = r.GetProperty("tag_name").GetString() ?? "", version = Regex.Replace(tag.TrimStart('v'), "-exe$", "");
             if (Compare(version, Current) <= 0 || best != null && Compare(version, best.Version) <= 0) continue;
             var assets = r.GetProperty("assets").EnumerateArray().Select(a => new X20Ctl.Zone.UpdateAsset(a.GetProperty("name").GetString() ?? "", a.GetProperty("browser_download_url").GetString() ?? "", a.TryGetProperty("size", out var size) ? size.GetInt64() : 0)).ToList();
