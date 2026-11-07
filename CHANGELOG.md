@@ -2,45 +2,73 @@
 
 ## [V0.022] - 2026-11-07 · Pre-release
 
-A pre-release for testing. X20CTL's update check doesn't offer it, so download it from the releases page. Nothing in it has been tried on every controller yet; please report what works and what doesn't through Send feedback.
+This is a test build. X20CTL won't offer it as an update, so grab it from the releases page if you want to try it early. It hasn't been tried on every controller yet. Tell us what works and what doesn't with **Send feedback** in Tools.
 
-### Added
+### At a glance
 
-- **Controller to keyboard input (the Keyboard tab).** With PC mode on, the Keyboard tab turns any controller button into a keyboard key or a mouse button.
-  - The page shows your controller on top, a full keyboard below it and a list of every mapping at the bottom. Pick a button on the controller, then click the key it should press.
-  - Every key on a full-size keyboard is there: letters, numbers, F1 to F12, Esc, Tab, Caps, both Shift, Ctrl, Alt and Windows keys, Menu, Space, Enter, Backspace, the arrow keys, Insert, Delete, Home, End, Page Up and Page Down, Print Screen, Scroll Lock, Pause, and the whole number pad.
-  - Mouse buttons M1 to M7 are offered too: left, right and middle click, back, forward, and wheel tilt left and right.
-  - A mapped key turns green on the keyboard and carries the name of the controller button that presses it.
-  - The key is held for as long as the button is held. Keys are sent the way a real keyboard sends them, so games that ignore simulated keys still see them.
-  - A mapped button no longer reaches the game as a controller button. Clear this button gives it back.
-  - **Custom: several keys.** One button press plays a list of keys in order, up to 64 of them. Each key has its own hold time (20 to 1000 ms) and a pause before the next one (0 to 1000 ms). A warning on the page says that some games treat this as a macro and may ban you for it.
-  - The list at the bottom shows every button that presses a key, every custom button, and the controller macros and combos saved before this version, each with Remove.
-- **New Mouse page.** Your controller sits on the left and a drawn mouse on the right, so you can see what each button does.
-  - The mouse shows M1 to M7. A mapped mouse button lights green and names the controller button behind it ("From X").
-  - The D-pad moves the pointer by default. M6 and M7 are the wheel's tilt left and right, because Windows only has five real mouse buttons.
-  - **Turbo** repeats a click or key 2 to 30 times a second while the button is held, set per button.
-  - Pointer speed, dead zone, scrolling and the on/off shortcut are on the same page. Nothing is folded away.
-- **Mouse mode works while PC mode is on.**
-- **Full PC Mode Configuration on every controller card** in Choose a controller.
-- **Choosing a controller scans for it straight away,** over USB, a 2.4 GHz receiver or Bluetooth.
-  - When a controller is found, the check names it and how it is connected, then shows **Enter Studio**.
-  - If the pad names itself as a different model, the button reads "Enter Studio as" that model, so a pad is never opened as a model it says it isn't.
-  - If nothing is found, you can scan again, connect over Bluetooth or carry on offline.
-- **The Studio remembers your controller.** Leave it and go back in, even after closing X20CTL, and you get the same buttons, curves, macros, vibration and the tab you were on. Each player and each model keeps its own. PC mode changes you hadn't applied yet come back with Apply still lit.
-- **Pair and connect Bluetooth controllers from the app,** in Tools, the Bluetooth check and the no-controller screen: scan, pair, connect and disconnect. Re-pairing asks first and says the old link is removed.
-- **Find nearby Bluetooth controllers by listening only.** Nothing is sent to them.
-- **A PlayStation 4 virtual controller** can be picked in PC mode instead of Xbox 360, for games that prefer it. The choice is kept across restarts.
+- Turn any controller button into a keyboard key, a mouse click or a whole sequence of keys.
+- A new Mouse page that shows exactly what every button does.
+- Pick a controller and X20CTL finds it for you, then takes you straight into the Studio.
+- The Studio remembers your settings, even after you close the app.
+- Pair Bluetooth controllers without leaving X20CTL.
 
-### Changed
+### Controller to keyboard input
 
-- **PC mode's tabs.** With PC mode on, Keyboard takes the place of Macros and Mouse sits right beside it, and the Device tab is hidden. Switch PC mode off and Macros and Device come back, with Mouse on the right.
-- **The Combos tab is gone.** Combos you saved before keep working and are listed in the Keyboard tab, where you can remove them.
-- **A warning before PC mode switches on** says that some games and anti-cheat systems may treat a virtual controller as cheating.
+PC mode now has a **Keyboard** tab. Any button on your controller can press a key on your keyboard or click your mouse instead.
+
+- **How it works.** Your controller is at the top and a full keyboard is underneath. Pick a button on the controller, then click the key you want it to press. That's it.
+- **Every key is there.** Letters and numbers, F1 to F12, Esc, Tab, Caps Lock, Space, Enter, Backspace, both Shift, Ctrl, Alt and Windows keys, Menu, the arrow keys, Insert, Delete, Home, End, Page Up, Page Down, Print Screen, Scroll Lock, Pause and the whole number pad.
+- **Mouse buttons too.** Left, right and middle click, back, forward, and tilting the wheel left or right (M1 to M7).
+- **See it at a glance.** A key in use turns green and shows which controller button presses it. Every mapping is also listed at the bottom of the page.
+- **Feels like a real keyboard.** The key stays down for as long as you hold the button, and it is sent the same way a keyboard sends it, so games that ignore fake key presses still pick it up.
+- **No double presses.** Once a button presses a key, the game stops seeing it as a controller button. **Clear this button** hands it back to the game.
+- **Several keys from one press.** Choose **Custom** to play up to 64 keys in a row from a single button. Set how long each key is held (20 to 1000 ms) and how long to wait before the next (0 to 1000 ms).
+- **Play safe.** Some games treat a key sequence as a macro and may ban you for it. The page warns you before you build one.
+- **Nothing lost.** Macros and combos saved in earlier versions appear in the same list, each with a Remove button.
+
+### Mouse
+
+The Mouse page has been rebuilt so nothing is hidden.
+
+- Your controller sits on the left and a mouse on the right, so you can see what every button does.
+- A mouse button in use lights up green and says which controller button clicks it ("From X").
+- The D-pad moves the pointer straight away.
+- All seven mouse buttons are covered. M6 and M7 tilt the scroll wheel left and right, because Windows only knows five real mouse buttons.
+- **Turbo** repeats a click or key 2 to 30 times a second while you hold the button. Set it for each button on its own.
+- Pointer speed, dead zone, scrolling and the shortcut that switches the mouse on and off are all on the same page.
+- The mouse now works while PC mode is on.
+
+### Choosing a controller
+
+- Every controller card now reads **Full PC Mode Configuration**.
+- As soon as you pick a controller, X20CTL looks for it over USB, a 2.4 GHz receiver or Bluetooth.
+- When it finds one, it tells you what it found and how it's connected, then shows **Enter Studio**.
+- If the controller says it's a different model, the button reads **Enter Studio as** that model instead. X20CTL never opens a controller as a model it says it isn't.
+- Nothing found? Scan again, connect over Bluetooth, or carry on without it.
+
+### Your settings stay put
+
+- Leave the Studio and come back, even after closing X20CTL, and everything is as you left it: buttons, curves, macros, vibration and the tab you were on.
+- Each player and each controller keeps its own settings.
+- PC mode changes you haven't applied yet are still there, with **Apply** ready to press.
+
+### Bluetooth
+
+- Scan for, pair, connect and disconnect Bluetooth controllers from inside X20CTL: in Tools, in the Bluetooth check, and on the screen that appears when no controller is found.
+- Re-pairing asks first and tells you the old pairing will be removed.
+- X20CTL can spot nearby Bluetooth controllers just by listening. It sends them nothing.
+
+### PC mode
+
+- **PlayStation 4 controller.** PC mode can now show games a PlayStation 4 controller instead of an Xbox 360 one, for games that prefer it. Your choice is remembered.
+- **Tabs that fit PC mode.** With PC mode on, Keyboard takes the place of Macros, Mouse sits right next to it, and Device is hidden. Switch PC mode off and Macros and Device come back, with Mouse at the end.
+- **The Combos tab is gone.** Combos you already saved keep working, and you can remove them from the Keyboard tab.
+- **A clear warning first.** Before PC mode switches on, X20CTL tells you that some games and anti-cheat systems may treat a virtual controller as cheating.
 
 ### Fixed
 
-- **PC mode switches on again after a Reset.**
-- **A wireless receiver's pad is hidden properly in PC mode,** so XInput games no longer see the real pad next to the virtual one.
+- PC mode can be switched on again after a Reset.
+- With a wireless receiver, the real controller is now fully hidden in PC mode, so games no longer see two controllers.
 
 ## [V0.021] - 2026-11-05
 
