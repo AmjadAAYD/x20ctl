@@ -8,25 +8,25 @@
 - **Several keys from one press.** Custom plays up to 64 keys in a row from a single button, each with its own hold time (20 to 1000 ms) and pause before the next (0 to 1000 ms). A warning on the page says some games treat this as a macro and may ban you for it.
 - **A clearer Mouse page.** The controller sits beside a drawn mouse with M1 to M7, and nothing is folded away. A mapped mouse button lights green and says which controller button clicks it. The D-pad moves the pointer, and M6 and M7 tilt the wheel left and right, because Windows has only five real mouse buttons.
 - **Mouse turbo.** A button can repeat its click or key 2 to 30 times a second while held, set per button.
-- **Mouse mode works with PC mode on.**
+- **Mouse mode works with PC mode on.** The Mouse tab stays next to Keyboard while PC mode runs, and switching the mouse on from the tab, the tray or its controller shortcut works as before.
 - **Choosing a controller scans for it.** X20CTL looks for the pad over USB, a 2.4 GHz receiver or Bluetooth, says what it found and how it is connected, then shows Enter Studio. A pad that names itself as another model is offered as that model instead, never as the one you picked.
 - **The Studio remembers.** Go back into a controller, even after closing X20CTL, and its buttons, curves, macros, vibration and last tab are as you left them, for each player and model. PC mode changes not yet applied come back with Apply still lit.
 - **Pair and connect Bluetooth controllers from the app.** Scan, pair, connect and disconnect from Tools, the Bluetooth check and the no-controller screen. Re-pairing asks first and says the old pairing is removed.
-- **Find nearby Bluetooth controllers by listening.** Nothing is sent to them.
-- **A PlayStation 4 virtual controller in PC mode,** for games that prefer it over Xbox 360. The choice is remembered.
+- **Find nearby Bluetooth controllers by listening.** X20CTL reads what controllers broadcast and, when asked, lists the services they offer. Nothing is sent to them, and only a pad whose identity checks out is shown as configurable.
+- **A PlayStation 4 virtual controller in PC mode.** Pick it instead of Xbox 360 for games that prefer a PlayStation pad. It takes effect the next time the virtual controller is created, and the choice is kept across restarts.
 
 ### Changed
 
-- **Every controller card reads Full PC Mode Configuration.**
+- **Every controller card reads Full PC Mode Configuration.** In Choose a controller, on every theme, it replaces Preview, Input testing and Not available yet.
 - **PC mode's tabs.** With PC mode on, Keyboard replaces Macros, Mouse sits beside it and Device is hidden. With PC mode off, Macros and Device are back and Mouse is last.
 - **The Combos tab is gone.** Saved combos keep working and can be removed from the Keyboard tab.
-- **A warning before PC mode switches on.** Some games and anti-cheat systems may treat a virtual controller as cheating.
-- **This is a pre-release.** The update check doesn't offer it; download it from the releases page.
+- **A warning before PC mode switches on.** It appears every time, and says some games and anti-cheat systems may treat a virtual controller as cheating and could ban the account.
+- **This is a pre-release.** X20CTL's update check doesn't offer it, and V0.021 stays the main download. Get it from the releases page, and report what works through Send feedback.
 
 ### Fixed
 
-- **PC mode switches on after a Reset.**
-- **A pad on a wireless receiver is fully hidden in PC mode,** so games no longer see the real pad next to the virtual one.
+- **PC mode switches on after a Reset.** With every setting back to default, the switch looked on but nothing ran. It now says it is on and waiting, and starts by itself once a setting changes or PlayStation 4 is picked.
+- **A pad on a wireless receiver is fully hidden in PC mode.** X20CTL now hides the receiver's XInput device as well as its gamepad, so games no longer see the real pad next to the virtual one.
 
 ## [V0.021] - 2026-11-05
 
