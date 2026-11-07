@@ -1,6 +1,6 @@
 # Changelog
 
-## [V0.022.1] - 2026-11-07 · Pre-release
+## [V0.022] - 2026-11-07
 
 ### Added
 
@@ -24,7 +24,6 @@
 - **PC mode's tabs.** With PC mode on, Keyboard replaces Macros, Mouse sits beside it and Device is hidden. With PC mode off, Macros and Device are back and Mouse is last.
 - **The Combos tab is gone.** Saved combos keep working and can be removed from the Keyboard tab.
 - **A warning before PC mode switches on.** It appears every time, and says some games and anti-cheat systems may treat a virtual controller as cheating and could ban the account.
-- **This is a pre-release.** It replaces the V0.022 pre-release. X20CTL's update check doesn't offer it, and V0.021 stays the main download. Get it from the releases page, and report what works through Send feedback.
 
 ### Fixed
 
