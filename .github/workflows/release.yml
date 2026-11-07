@@ -199,9 +199,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # no more pre-releases (owner decision, 18 Oct 2026): every release is a full one and is marked Latest, which GitHub can't work
-          # out by itself across the old numbering (4.1.0-preview.7) and the new (0.017)
-          title="X20CTL $(python3 tools/version_name.py "$TAG")"
-          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft --latest --verify-tag --title "$title" --notes-file notes.md
+          # every release is a full one marked Latest, which GitHub can't work out by itself across the old numbering (4.1.0-preview.7)
+          # and the new (0.017), unless its CHANGELOG heading ends in "Pre-release" (owner, 7 Nov 2026): then it is a pre-release,
+          # Latest stays where it is, and the in-app update check doesn't offer it
+          name="$(python3 tools/version_name.py "$TAG")"; title="X20CTL $name"; kind="--latest"
+          if grep -Eq "^## \[${name//./\.}\].*Pre-release" CHANGELOG.md; then kind="--prerelease"; title="$title Pre-release"; fi
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft $kind --verify-tag --title "$title" --notes-file notes.md
           gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" assets/*.exe assets/*.zip assets/*.tar.gz assets/*.AppImage assets/SHA256SUMS.txt
           gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false

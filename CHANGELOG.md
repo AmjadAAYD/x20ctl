@@ -1,5 +1,32 @@
 # Changelog
 
+## [V0.022] - 2026-11-07 · Pre-release
+
+A pre-release for testing. X20CTL's update check doesn't offer it; download it from the releases page.
+
+### Added
+
+- **Full PC Mode Configuration on every controller.** Every card in Choose a controller says so.
+- **Choosing a controller scans for it.** USB, 2.4 GHz receiver or Bluetooth. A found controller shows **Enter Studio**.
+- **The Studio remembers.** Buttons, curves, macros, vibration and the last tab come back when you go in again, even after X20CTL restarts.
+- **Keyboard tab in PC mode.** Controller on top, a full keyboard below, your mappings at the bottom. Any button can press a key, a mouse button or a custom sequence. Some games may treat key sequences as cheating; a warning says so.
+- **New Mouse page.** The controller's buttons sit beside a drawn mouse with M1 to M7. A mapped mouse button lights green and names its controller button. The D-pad moves the pointer, M6 and M7 are wheel tilt left and right, and turbo repeats a click from 2 to 30 times a second.
+- **Mouse mode works with PC mode on.**
+- **Pair and connect Bluetooth controllers** from Tools, the Bluetooth check and the no-controller screen.
+- **Find nearby Bluetooth controllers** by listening only; nothing is sent to them.
+- **PlayStation 4 virtual pad** as an alternative to Xbox in PC mode, remembered across restarts.
+
+### Changed
+
+- **With PC mode on, Keyboard replaces Macros and Mouse sits beside it.** Switch PC mode off and Macros comes back, with Mouse on the right.
+- **The Device tab hides while PC mode is on.**
+- **The Combos tab is gone.** Saved combos keep working.
+
+### Fixed
+
+- **PC mode switches on after a Reset.**
+- **A wireless receiver's pad is hidden properly in PC mode,** so XInput games no longer see the real pad next to the virtual one.
+
 ## [V0.021] - 2026-11-05
 
 ### Added
