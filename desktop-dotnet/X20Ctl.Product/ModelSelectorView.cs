@@ -143,7 +143,7 @@ public sealed partial class ModelSelectorView : Grid
         stack.Children.Add(art);
         var name = new TextBlock { Text = model.Name, FontFamily = DS.Display, FontSize = 19, FontWeight = FontWeights.SemiBold, Foreground = DS.Brush("DS.Text"), TextTrimming = TextTrimming.CharacterEllipsis }; Grid.SetRow(name, 1); stack.Children.Add(name);
         var about = new TextBlock { Text = facts?.Description ?? "", FontFamily = DS.Body, FontSize = 12.5, Foreground = DS.Brush("Zone.TextSecondary"), TextWrapping = TextWrapping.Wrap, Margin = new(0, 5, 0, 10), MaxHeight = 36 }; Grid.SetRow(about, 2); stack.Children.Add(about);
-        bool full = model.Support == "SUPPORTED";
+        bool full = true; // every card: Full PC Mode Configuration
         var line = new StackPanel { Orientation = Orientation.Horizontal };
         line.Children.Add(new System.Windows.Shapes.Ellipse { Width = 7, Height = 7, Margin = new(1, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center, Fill = new SolidColorBrush(full ? Accent : ThemeCatalog.R(Color.FromRgb(98, 112, 134))) });
         line.Children.Add(new TextBlock { Text = facts?.SupportLine ?? model.Summary, FontFamily = DS.Display, FontSize = 12, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(full ? ThemeCatalog.R(Color.FromRgb(150, 205, 255)) : ThemeCatalog.R(Color.FromRgb(150, 162, 182))), VerticalAlignment = VerticalAlignment.Center });
@@ -188,8 +188,7 @@ public sealed partial class ModelSelectorView : Grid
                     if (Has("triggerHaptics")) parts.Add("trigger haptics");
                 }
                 if (item.TryGetProperty("macroSlots", out var slots) && slots.GetArrayLength() > 0) parts.Add($"{slots.GetArrayLength()} macro paddles");
-                string availability = item.TryGetProperty("availability", out var a) ? a.GetString() ?? "" : "";
-                string support = availability switch { "configuration" => "Full configuration", "preview" => "Preview · layout and art", "input_experimental" => "Input testing · experimental", _ => "Not available yet" };
+                string support = "Full PC Mode Configuration"; // owner, 7 Nov 2026: every model is fully configurable in PC mode
                 facts[id] = new(string.Join(" · ", parts), support);
             }
         }

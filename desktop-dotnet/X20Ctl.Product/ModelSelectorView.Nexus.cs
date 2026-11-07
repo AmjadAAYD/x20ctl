@@ -19,13 +19,13 @@ public sealed partial class ModelSelectorView
 
         var chooseItems = new (string Key, string ArtKey, string Name, string Specs, string Status)[]
         {
-            ("x20", "x20", "EasySMX X20", "Hall sticks · Hall triggers · RGB · 4 macro paddles", "Full configuration"),
-            ("x20_pro", "x20pro", "EasySMX X20 Pro", "TMR sticks · Hall / microswitch triggers · RGB · screen · trigger haptics · 6 macro paddles", "Full configuration"),
-            ("x05_pro", "x05pro", "EasySMX X05 Pro", "Hall sticks · Hall / microswitch triggers · RGB · trigger haptics · 2 macro paddles", "Not available yet"),
-            ("x10", "x10", "EasySMX X10", "Hall sticks · Hall triggers · 2 macro paddles", "Input testing · experimental"),
-            ("d10", "d10-purple", "EasySMX D10", "TMR sticks · Hall / microswitch triggers · RGB · 2 macro paddles", "Input testing · experimental"),
-            ("x15", "x15-wukong", "EasySMX X15", "Hall sticks · Hall triggers · RGB · 2 macro paddles", "Input testing · experimental"),
-            ("dune", "dune", "EasySMX Dune", "TMR sticks · RGB · screen · trigger haptics · 4 macro paddles", "Preview · layout and art")
+            ("x20", "x20", "EasySMX X20", "Hall sticks · Hall triggers · RGB · 4 macro paddles", "Full PC Mode Configuration"),
+            ("x20_pro", "x20pro", "EasySMX X20 Pro", "TMR sticks · Hall / microswitch triggers · RGB · screen · trigger haptics · 6 macro paddles", "Full PC Mode Configuration"),
+            ("x05_pro", "x05pro", "EasySMX X05 Pro", "Hall sticks · Hall / microswitch triggers · RGB · trigger haptics · 2 macro paddles", "Full PC Mode Configuration"),
+            ("x10", "x10", "EasySMX X10", "Hall sticks · Hall triggers · 2 macro paddles", "Full PC Mode Configuration"),
+            ("d10", "d10-purple", "EasySMX D10", "TMR sticks · Hall / microswitch triggers · RGB · 2 macro paddles", "Full PC Mode Configuration"),
+            ("x15", "x15-wukong", "EasySMX X15", "Hall sticks · Hall triggers · RGB · 2 macro paddles", "Full PC Mode Configuration"),
+            ("dune", "dune", "EasySMX Dune", "TMR sticks · RGB · screen · trigger haptics · 4 macro paddles", "Full PC Mode Configuration")
         };
 
         string selectedModelId = "x20";

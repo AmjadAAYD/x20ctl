@@ -39,6 +39,17 @@ public sealed class PcModeSync(PcModeLink link, ButtonDraft buttons, CurveDraft 
         catch (Exception error) when (error is ArgumentException or InvalidOperationException) { Status = "PC mode · Some settings couldn't be shown here: " + error.Message; }
     }
 
+    /// <summary>The tabs hold changes that are not saved yet. They are saved only when Apply is pressed (owner, 6 Nov 2026).</summary>
+    public bool HasPending
+    {
+        get
+        {
+            var stored = link.Store.Get(PcModePage.StoreKey);
+            string json = Json(PcModeDrafts.Merge(stored, buttons, curves, macros));
+            return json != baseline && json != Json(stored);
+        }
+    }
+
     /// <summary>Saves the tabs' settings if they changed. Returns whether anything was written.</summary>
     public bool Save()
     {

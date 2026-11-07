@@ -112,6 +112,8 @@ public sealed partial class ProductHost : Grid
     private readonly Dictionary<(int, string), VibrationDraft> vibrations = new();
     private readonly Dictionary<(int,string),string?> activeSetups=new();
     private readonly SetupStore setupStore;
+    // owner, 7 Nov 2026: going back into a controller shows the same settings and tab, across restarts too
+    private readonly StudioMemory memory;
     private readonly IReadOnlyList<string> legacySources;
     private int selectorPlayer;
     public ProductHost(ZoneScene zone, string? assignmentPath = null,Action<string>? openSupport=null)
@@ -125,6 +127,8 @@ public sealed partial class ProductHost : Grid
         if(assignmentPath==null)_=CheckUpdatesAtLaunch(preferencesHealthy&&preferences.AutoUpdate);
         // a review or fixture window gets a store beside its own files and a service that never starts
         pcModeStore=new(assignmentPath==null?X20Ctl.Zone.PcMode.PcModeStore.DefaultPath:Path.Combine(Path.GetDirectoryName(Path.GetFullPath(assignmentPath))!,"pc-mode-fixture.json"));pcModeStore.Load();
+        // the PS4 / Xbox choice survives a restart: PC mode switches itself back on at launch with the type picked last time
+        if(preferencesHealthy)X20Ctl.Zone.PcMode.PcModeEntry.Chosen=X20Ctl.Zone.PcMode.PcModeEntry.FromSaved(preferences.PcModePad);
         PcMode=new(pcModeStore){Enabled=assignmentPath==null&&(!preferencesHealthy||preferences.PcMode)};
         MouseMode=new(assignmentPath==null?X20Ctl.Zone.Mouse.MouseProfile.DefaultPath:Path.Combine(Path.GetDirectoryName(Path.GetFullPath(assignmentPath))!,"mouse-fixture.json"),listen:assignmentPath==null){PcMode=PcMode};
         Zone.SupportRequested+=OpenSupport;Zone.SettingsRequested+=ShowSettings;var languageMenu=new LanguageMenu(preferencesHealthy?preferences:null,zone);Children.Add(languageMenu);Panel.SetZIndex(languageMenu,9);
@@ -132,6 +136,7 @@ public sealed partial class ProductHost : Grid
         store = new(assignmentPath ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "x20ctl", "native", "player-assignments.v1.json"));
         string dataRoot=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),"x20ctl");
         PadColours.Use(assignmentPath==null?Path.Combine(dataRoot,"native","pad-colours.v1.json"):Path.Combine(Path.GetDirectoryName(Path.GetFullPath(assignmentPath))!,"pad-colours-fixture.json"));
+        memory=new(assignmentPath==null?Path.Combine(dataRoot,"native","studio-memory.v1.json"):null);
         setupStore=new(assignmentPath==null?Path.Combine(dataRoot,"native","setups.v1.json"):Path.Combine(Path.GetDirectoryName(Path.GetFullPath(assignmentPath))!,"setups-fixture-"+Guid.NewGuid().ToString("N")+".json"));
         var sources=new List<string>();if(assignmentPath==null){string desktop=Path.Combine(dataRoot,"desktop","profiles.json");if(File.Exists(desktop))sources.Add(desktop);string cli=Path.Combine(dataRoot,"profiles");if(Directory.Exists(cli))sources.AddRange(Directory.GetFiles(cli,"*.json",SearchOption.TopDirectoryOnly));}legacySources=sources.AsReadOnly();
         // every launch opens on an empty Zone (owner direction 10 Oct 2026); review fixtures still restore their files
@@ -146,7 +151,7 @@ public sealed partial class ProductHost : Grid
     {
         if (player is < 0 or > 3) throw new ArgumentOutOfRangeException(nameof(player));
         CloseSelector(); selectorPlayer = player;
-        Selector = new(Catalog, player); Selector.Chosen += AssignSelection; Selector.Cancelled += CloseSelector;
+        Selector = new(Catalog, player); Selector.Chosen += ChooseAndScan; Selector.Cancelled += CloseSelector;
         IllustratedThemeUI.Surface(Selector,"Model selector");
         Zone.IsEnabled = false; if (Studio != null) Studio.IsEnabled = false;
         Children.Add(Selector); Panel.SetZIndex(Selector, 10); Fx.Appear(Selector, .97, 300);
@@ -158,6 +163,13 @@ public sealed partial class ProductHost : Grid
         try { store.Save(Zone.State.Players.Select(p => p.ModelId).ToArray()); }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidOperationException)
         { Zone.FeedbackText.Text = "Assigned for this session. Existing saved data was not overwritten because saving failed."; }
+    }
+    // owner, 7 Nov 2026: choosing a controller scans for it straight away, then offers Enter Studio
+    private void ChooseAndScan(ControllerModel model)
+    {
+        int player = selectorPlayer; AssignSelection(model);
+        if (ReviewSandbox.Active || Zone.State.Players[player].ModelId != model.Id) return;
+        verifiedThisSession.Remove(player); VerifyThenEnter(player);
     }
     public void CloseSelector()
     {
@@ -208,7 +220,7 @@ public sealed partial class ProductHost : Grid
             view.ShowResult(result, model.Name, result.DetectedName, Enter,
                 id => { var other = Catalog.Find(id); Close(); if (other != null) { AssignSelection(other); if (result.Outcome != VerifyOutcome.NoController) verifiedThisSession[player] = (other.Id, result.Transport == null ? null : result.Transport == "Receiver" ? "2.4 GHz receiver" : result.Transport); EnterStudio(player); } },
                 () => _ = Scan());
-            if (result.Outcome == VerifyOutcome.Match) { await Task.Delay(1000); if (token == verifyToken && verifyLayer == layer) Enter(); }
+            // owner, 7 Nov 2026: a found controller waits on "Enter Studio" rather than opening by itself
         }
         await Scan();
     }
@@ -219,20 +231,30 @@ public sealed partial class ProductHost : Grid
         studioPlayer = player;
         var model = assigned.ModelId != null ? Catalog.Find(assigned.ModelId) : Catalog.Models.FirstOrDefault(m => m.Name == assigned.Model);
         if (model == null) { Zone.FeedbackText.Text = "Choose a known controller model before entering Studio."; return; }
+        RememberStudio();
         if (Studio != null) { var old = Studio; old.SuspendMacroActivity(); Studio = null; Fx.Leave(old, () => Children.Remove(old), 1.02, 160); }
+        bool fresh = !drafts.ContainsKey((player, model.Id));
         if (!drafts.TryGetValue((player, model.Id), out var draft)) drafts[(player, model.Id)] = draft = new(model.Id);
         if (!curves.TryGetValue((player, model.Id), out var curveDraft)) curves[(player, model.Id)] = curveDraft = new(model.Id);
         if (!macros.TryGetValue((player, model.Id), out var macroDraft)) macros[(player, model.Id)] = macroDraft = new(model.Id);
         if (!vibrations.TryGetValue((player, model.Id), out var vibrationDraft)) vibrations[(player, model.Id)] = vibrationDraft = new(model.Id);
         var key=(player,model.Id);activeSetups.TryGetValue(key,out var activeSetup);
         // with PC mode on, the Buttons, Curves and Macros tabs edit PC mode's settings, for any model
-        // an X20 Pro keeps these settings on the pad itself (Apply to controller), so its tabs never edit a virtual pad, whatever the PC mode switch says
-        bool pc=PcMode is {Enabled:true}&&pcModeStore!=null&&model.Id!="x20_pro";
+        // 6 Nov 2026: the X20 Pro is the PC Mode rework's test pad, so with PC mode on its tabs edit the virtual pad too; with it off they write on the pad (Apply to controller) as before
+        bool pc=PcMode is {Enabled:true}&&pcModeStore!=null;
         if(draft.PcMode&&!pc&&model.Id!="x20")PcModeSync.Clear(draft,curveDraft,macroDraft); // while still unlocked
         draft.PcMode=curveDraft.PcMode=macroDraft.PcMode=pc;
         if(pcModeStore!=null)PcModePage.UsePlayer(player,pcModeStore); // each controller has its own PC mode settings
         if(pc)PcModeSync.Prepare(pcModeStore!,draft,curveDraft,macroDraft);
+        // what this Studio held when it was last left: PC mode's edits not yet applied come back only while PC mode's saved
+        // settings are still the ones they were made against; a pad's own drafts come back on the first visit after a restart
+        var remembered=memory.Get(player,model.Id);
+        bool pendingBack=remembered!=null&&pc&&remembered.PcBase==PcBase();
+        if(remembered!=null&&(pendingBack||fresh&&!pc&&remembered.PcBase==null))StudioMemory.Restore(remembered,draft,curveDraft,macroDraft,vibrationDraft);
+        else if(remembered!=null&&fresh&&vibrationDraft.CanEdit)try{vibrationDraft.Set(remembered.Vibration);}catch(ArgumentOutOfRangeException){}
         Studio = new(player, model, draft, Zone.ReducedMotion, curveDraft,macroDraft,vibrationDraft,setupStore,legacySources,activeSetup); if(PcMode!=null&&pcModeStore!=null)Studio.PcMode=new(pcModeStore,PcMode,preferencesHealthy?preferences:null);Studio.MouseService=MouseMode;Studio.PcModeSwitched+=()=>Dispatcher.BeginInvoke(()=>{EnterStudio(player);Studio?.ShowManagement("PcMode");});Studio.BackRequested += ReturnToZone;Studio.SupportRequested+=OpenSupport;Studio.ActiveSetupChanged+=id=>activeSetups[key]=id;Studio.TelemetryUpdated+=data=>RecordTelemetry(data,player);
+        // after PC mode's link is made, so edits not yet applied still light Apply
+        if(pendingBack){StudioMemory.Restore(remembered!,draft,curveDraft,macroDraft,vibrationDraft);Studio.DraftsRestored();}
         Studio.SetBatteryLevel(batteryLevels[player]);
         Studio.ToolsRequested += ShowSettings;
         Studio.AgentScanRequested += page => { if (page == "ReadScan") OpenCheck(); else OpenWriteScan(); };
@@ -267,11 +289,23 @@ public sealed partial class ProductHost : Grid
         Studio.Opacity=1;Studio.IsHitTestVisible=true;Zone.Visibility=Visibility.Collapsed;
         Studio.Dashboard?.CompleteEntryTransition();
         if (pendingPage != null) { var page = pendingPage; pendingPage = null; Studio?.ShowManagement(page); }
+        else if (remembered?.Page is { } last && last != "Dashboard") Studio?.GoToTab(last);
+    }
+    string? PcBase()=>PcMode is {Enabled:true}&&pcModeStore!=null?System.Text.Json.JsonSerializer.Serialize(pcModeStore.Get(PcModePage.StoreKey)):null;
+    /// <summary>Keeps what the open Studio holds (settings and tab) so going back in shows the same. Called on leaving it
+    /// and when X20CTL closes.</summary>
+    public void RememberStudio()
+    {
+        if (Studio is not { } s) return;
+        var key=(s.Player,s.Model.Id);
+        if(!drafts.TryGetValue(key,out var b)||!curves.TryGetValue(key,out var c)||!macros.TryGetValue(key,out var m)||!vibrations.TryGetValue(key,out var v))return;
+        memory.Put(s.Player,s.Model.Id,StudioMemory.Capture(b,c,m,v,s.RememberedPage,b.PcMode?PcBase():null));
     }
 
     public void ReturnToZone()
     {
         bool back = Studio != null;
+        RememberStudio();
         if (Studio != null) { var leaving = Studio; leaving.SuspendMacroActivity(); Studio = null; leaving.Diagnostics?.Stop(); Fx.Leave(leaving, () => Children.Remove(leaving), 1.06, 300); }
         studioPlayer = null;
         Zone.BeginAnimation(OpacityProperty, null); Zone.Opacity = 1; Zone.IsHitTestVisible = true; Zone.IsEnabled = Selector == null && Settings == null && Intro == null;

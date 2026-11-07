@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -261,17 +261,19 @@ public sealed class ControllerVerifyView : Grid
         switch (r.Outcome)
         {
             case VerifyOutcome.Match:
-                title.Text = $"Model reported · {modelName}"; status.Text = (r.DetectedName ?? "") + " · opening";
+                title.Text = $"Controller found · {modelName}"; status.Text = Joined(r.DetectedName, Link(r.Transport), "Full PC Mode Configuration");
+                buttons.Children.Add(Action("Enter Studio", true, enter));
+                buttons.Children.Add(Action("Cancel", false, () => Cancelled?.Invoke()));
                 break;
             case VerifyOutcome.Mismatch:
                 string other = ModelLabel(r.DetectedId!, detectedName);
                 title.Text = $"This is a {other}, not a {modelName}"; status.Text = $"The controller names itself \"{r.DetectedName}\". {modelName} settings stay off it.";
-                buttons.Children.Add(Action($"Open as {other}", true, () => switchTo(r.DetectedId!)));
+                buttons.Children.Add(Action($"Enter Studio as {other}", true, () => switchTo(r.DetectedId!)));
                 buttons.Children.Add(Action("Cancel", false, () => Cancelled?.Invoke()));
                 break;
             case VerifyOutcome.Unconfirmed:
-                title.Text = "Controller found"; status.Text = $"It doesn't name its model, so it can't be confirmed as a {modelName}.";
-                buttons.Children.Add(Action("Continue", true, enter));
+                title.Text = "Controller found"; status.Text = Joined(Link(r.Transport), $"Set up as {modelName}", "Full PC Mode Configuration");
+                buttons.Children.Add(Action("Enter Studio", true, enter));
                 buttons.Children.Add(Action("Cancel", false, () => Cancelled?.Invoke()));
                 break;
             default:
@@ -283,6 +285,9 @@ public sealed class ControllerVerifyView : Grid
         }
         if (buttons.Children.Count > 0) buttons.Children[0].Focus();
     }
+
+    static string? Link(string? transport) => transport == null ? null : transport == "Receiver" ? "2.4 GHz receiver" : transport;
+    static string Joined(params string?[] parts) => string.Join(" · ", parts.Where(p => !string.IsNullOrWhiteSpace(p)));
 
     public Button? FirstActionButton => buttons.Children.OfType<Button>().FirstOrDefault();
 

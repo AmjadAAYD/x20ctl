@@ -36,6 +36,7 @@ public partial class StudioScene
             {var tab=original;var item=new MenuItem{Header=tab.Content};item.SetBinding(IsEnabledProperty,new Binding("IsEnabled"){Source=tab});item.Click+=(_,_)=>tab.RaiseEvent(new RoutedEventArgs(RadioButton.ClickEvent));menu.Items.Add(item);}
             menu.Items.Add(new Separator());
             var outputs=new MenuItem{Header="Button outputs, assignments and views…"};outputs.Click+=(_,_)=>buttonsPage?.OpenIllustratedOutputs(button);menu.Items.Add(outputs);
+            if(PcModeEntryAvailable){var pc=new MenuItem{Header="PC Mode…"};pc.Click+=(_,_)=>RequestPcMode();menu.Items.Add(pc);}
             foreach(var original in new[]{TryChoice,StickToolsChoice})
             {var source=original;var item=new MenuItem{Header=source==TryChoice?"Keyboard test":"Advanced stick tools"};item.Click+=(_,_)=>source.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));menu.Items.Add(item);}
             var reset=new MenuItem{Header="Reset all curve drafts"};reset.Click+=(_,_)=>ResetAllCurvesAction.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));menu.Items.Add(reset);

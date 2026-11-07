@@ -154,7 +154,24 @@ static class MouseOutput
     public static void Move(int dx, int dy) => Send(Mouse(MOVE, dx, dy));
     public static void Wheel(int amount, bool horizontal) => Send(Mouse(horizontal ? HWHEEL : WHEEL, data: unchecked((uint)amount)));
 
-    public static bool Repeats(MouseAction a) => a is MouseAction.Up or MouseAction.Down or MouseAction.Left or MouseAction.Right or MouseAction.Backspace
+    [DllImport("user32.dll")] static extern uint MapVirtualKeyW(uint code, uint type);
+    const uint SCANCODE = 0x8;
+
+    /// <summary>A Keyboard tab output: "K:&lt;vk&gt;[e]" as a real key (scan code, so games that read the keyboard
+    /// directly see it too), or "M:&lt;MouseAction&gt;" as a mouse button. Older combo actions are plain action names.</summary>
+    public static void Output(string id, bool down)
+    {
+        if (id.StartsWith("K:"))
+        {
+            ushort vk = X20Ctl.Zone.PcMode.KeyCatalog.VkOf(id); bool extended = id.EndsWith('e') || Extended(vk);
+            ushort scan = (ushort)MapVirtualKeyW(vk, 0);
+            uint flags = (down ? 0 : KEYUP) | (extended ? EXTENDED : 0) | (scan != 0 ? SCANCODE : 0);
+            Send(new Input { Type = 1, U = new() { Key = new() { Vk = scan != 0 ? (ushort)0 : vk, Scan = scan, Flags = flags } } });
+        }
+        else if (Enum.TryParse<MouseAction>(id.StartsWith("M:") ? id[2..] : id, out var action)) Act(action, down);
+    }
+
+    public static bool Repeats(MouseAction a) => a is MouseAction.TiltLeft or MouseAction.TiltRight or MouseAction.Up or MouseAction.Down or MouseAction.Left or MouseAction.Right or MouseAction.Backspace
         or MouseAction.PageUp or MouseAction.PageDown or MouseAction.VolumeUp or MouseAction.VolumeDown or MouseAction.Space;
 
     public static void Act(MouseAction action, bool down)
@@ -166,6 +183,10 @@ static class MouseOutput
             case MouseAction.MiddleClick: Send(Mouse(down ? MIDDLEDOWN : MIDDLEUP)); break;
             case MouseAction.Back: Send(Mouse(down ? XDOWN : XUP, data: 1)); break;
             case MouseAction.Forward: Send(Mouse(down ? XDOWN : XUP, data: 2)); break;
+            // Mouse 6 and 7: one notch of wheel tilt on the press
+            case MouseAction.TiltLeft: if (down) Wheel(-120, true); break;
+            case MouseAction.TiltRight: if (down) Wheel(120, true); break;
+            case MouseAction.PointerUp or MouseAction.PointerDown or MouseAction.PointerLeft or MouseAction.PointerRight: break; // moved by the mapper
             case MouseAction.TaskView: if (down) Send(Key(0x5B, true), Key(0x09, true)); else Send(Key(0x09, false), Key(0x5B, false)); break;
             case MouseAction.OnScreenKeyboard:
                 if (down) try { Process.Start(new ProcessStartInfo("osk.exe") { UseShellExecute = true })?.Dispose(); } catch (Exception error) when (error is System.ComponentModel.Win32Exception or InvalidOperationException) { }

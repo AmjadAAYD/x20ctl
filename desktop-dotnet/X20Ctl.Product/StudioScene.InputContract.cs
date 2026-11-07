@@ -41,10 +41,10 @@ public partial class StudioScene
     private void NotifyInputOwner() { var owner = InputContext; if (lastPageOwner != owner) { lastPageOwner = owner; InputContextChanged?.Invoke(); } UpdateHints(); }
 
     // ----- one tab order -----
-    private string PageOfTab(RadioButton t) => t == DashboardNav ? "Dashboard" : t == ButtonsNav ? "Buttons" : t == CurvesNav ? "Curves" : t == MacrosNav ? "Macros" : t == VibrationNav ? "Vibration" : t == PcModeNav ? "PcMode" : t == RgbNav ? "RGB" : t == ScreenNav ? "Screen" : t == DeviceNav ? "Device" : t == MouseNav ? "Mouse" : "Setups";
+    private string PageOfTab(RadioButton t) => Array.IndexOf(pcTabs, t) >= 0 ? "Pc" + (string)t.Content : t == DashboardNav ? "Dashboard" : t == ButtonsNav ? "Buttons" : t == CurvesNav ? "Curves" : t == MacrosNav ? "Macros" : t == VibrationNav ? "Vibration" : t == PcModeNav ? "PcMode" : t == RgbNav ? "RGB" : t == ScreenNav ? "Screen" : t == DeviceNav ? "Device" : t == MouseNav ? "Mouse" : t == KeyboardNav ? "Keyboard" : "Setups";
     /// <summary>The visible tabs in order: the one list behind the tab strip, LB/RB, PageUp/PageDown and every theme.</summary>
     internal string[] TabOrder => navigation.Select(PageOfTab).ToArray();
-    internal void StepTab(int step) { if (StudioTabs.Step(TabOrder, CurrentPage, step) is { } page) GoToTab(page); }
+    internal void StepTab(int step) { string current = ManagementPage == "PcMode" && PcDashboard ? "Pc" + PcModePage.Part : CurrentPage; if (StudioTabs.Step(TabOrder, current, step) is { } page) GoToTab(page); }
     internal void GoToTab(string page)
     {
         navigation.FirstOrDefault(t => PageOfTab(t) == page)?.RaiseEvent(new RoutedEventArgs(RadioButton.ClickEvent));

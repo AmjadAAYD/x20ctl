@@ -22,4 +22,14 @@ public static class HidHideDeviceList
         }
         return paths.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
     }
+
+    /// <summary>Windows' XnaComposite and XboxComposite device classes: the devices XInput reads.</summary>
+    public static readonly Guid[] XInputClasses = [new("d61ca365-5af4-4486-998b-9db4734c6ca3"), new("05f5cfe2-4733-4950-a6bb-07aad01a3a84")];
+
+    /// <summary>Adds the XInput devices whose parent is about to be hidden. A wireless dongle's USB parent is a composite
+    /// device, and XInput reads its MI_00 child, which --dev-gaming doesn't list; hiding only the parent and the HID
+    /// gamepad leaves XInput games seeing the real pad next to the virtual one.</summary>
+    public static List<string> WithXInputChildren(List<string> paths, IEnumerable<(string Id, string Parent, Guid Class)> present) =>
+        paths.Concat(present.Where(d => XInputClasses.Contains(d.Class) && paths.Contains(d.Parent, StringComparer.OrdinalIgnoreCase)).Select(d => d.Id))
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
 }

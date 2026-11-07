@@ -49,7 +49,8 @@ public sealed class MouseAndShareTests
     [Fact]
     public void Switching_off_lets_go_of_everything_held()
     {
-        var m = new MouseMapper(new MouseProfile()); m.Step(Pad(PadButtons.A | PadButtons.Up), .01);
+        var arrows = new MouseProfile(); arrows.Buttons["DPAD_UP"] = MouseAction.Up; // the D-pad moves the pointer by default now; arrow keys are still a choice
+        var m = new MouseMapper(arrows); m.Step(Pad(PadButtons.A | PadButtons.Up), .01);
         var released = m.Release();
         Assert.Contains((MouseAction.LeftClick, false), released); Assert.Contains((MouseAction.Up, false), released);
     }

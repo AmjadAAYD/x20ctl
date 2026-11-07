@@ -34,17 +34,35 @@ public sealed class PcModeProfile
     /// <summary>"LeftStick"/"RightStick" → fine dead zones, square gate and axis ratio. When present, its dead zones
     /// replace the curve's whole-percent ones for that stick.</summary>
     public Dictionary<string, StickTuning> Sticks { get; set; } = new();
+    /// <summary>Front-button combos: one or more buttons, a press type, and a pad button the game gets instead (rework, 6 Nov 2026).</summary>
+    public List<ComboRule> Combos { get; set; } = new();
+    /// <summary>Keyboard tab: button → one key or mouse button ("K:65", "M:LeftClick"). The game no longer sees that button.</summary>
+    public Dictionary<string, string> Keys { get; set; } = new();
+    /// <summary>Keyboard tab's custom mappings: button → keys and mouse buttons played in order, once per press. The game no longer sees that button.</summary>
+    public Dictionary<string, KeyStep[]> Custom { get; set; } = new();
     /// <summary>A per-game profile's display name (the game's window title when it was added). Not a setting.</summary>
     public string? Name { get; set; }
 
-    public bool IsNeutral => Remap.Count == 0 && Turbo.Count == 0 && Macros.Count == 0 && Curves.Values.All(IsDefault) && Sticks.Values.All(s => s.IsDefault);
+    public bool IsNeutral => Remap.Count == 0 && Keys.Count == 0 && Custom.Count == 0 && Combos.Count == 0 && Turbo.Count == 0 && Macros.Count == 0 && Curves.Values.All(IsDefault) && Sticks.Values.All(s => s.IsDefault);
     public static bool IsDefault(SetupCurve c) => c.Inner == 0 && c.Outer == 100 && c.X1 == 85 && c.Y1 == 85 && c.X2 == 170 && c.Y2 == 170;
     public const int MinTurboHz = 2, MaxTurboHz = 30;
 
     public void Validate()
     {
         if (Name is { Length: > 120 }) throw new InvalidDataException("Name too long.");
-        if (Remap == null || Curves == null || Turbo == null || Macros == null || Sticks == null) throw new InvalidDataException("Missing settings.");
+        if (Remap == null || Curves == null || Turbo == null || Macros == null || Sticks == null || Combos == null) throw new InvalidDataException("Missing settings.");
+        if (Keys == null || Custom == null || Keys.Count > 64 || Custom.Count > 32) throw new InvalidDataException("Too many keyboard settings.");
+        foreach (var (button, output) in Keys)
+            if (!Known(button) || !KeyCatalog.IsValid(output)) throw new InvalidDataException("Unknown key in a keyboard mapping.");
+        foreach (var (button, steps) in Custom)
+            if (!Known(button) || steps == null || steps.Length is < 1 or > 64 || steps.Any(s => s == null || !KeyCatalog.IsValid(s.Output) || s.HoldMs is < 10 or > 10000 || s.PauseMs is < 0 or > 10000))
+                throw new InvalidDataException("Invalid custom mapping.");
+        if (Combos.Count > 64) throw new InvalidDataException("Too many combos.");
+        foreach (var c in Combos)
+            if (c == null || string.IsNullOrWhiteSpace(c.Id) || c.Buttons == null || c.Buttons.Length is < 1 or > 4 || c.Buttons.Any(b => b == null || !PadButtons.Mask.ContainsKey(b))
+                || !Enum.IsDefined(c.Kind) || !Enum.IsDefined(c.Mode) || c.Output == null || !(PadButtons.Mask.ContainsKey(c.Output) || c.Output == "NONE" || ComboRule.IsAction(c.Output)))
+                throw new InvalidDataException("Invalid combo.");
+        if (Combos.Select(c => c.Id).Distinct().Count() != Combos.Count) throw new InvalidDataException("Duplicate combo.");
         if (Macros.Count > 32 || Remap.Count > 64) throw new InvalidDataException("Too many settings.");
         foreach (var (source, target) in Remap)
             if (source == null || target == null || !Known(source) || !(Known(target)||target=="NONE")) throw new InvalidDataException("Unknown button in a remap.");
@@ -66,6 +84,19 @@ public sealed class PcModeProfile
         }
     }
     static bool Known(string name) => name is "LT" or "RT" || PadButtons.Mask.ContainsKey(name);
+}
+
+/// <summary>One front-button combo. The buttons are consumed while they are all held, so the game never sees them as themselves.</summary>
+public sealed class ComboRule
+{
+    public string Id { get; set; } = "";
+    public string[] Buttons { get; set; } = [];
+    public PressKind Kind { get; set; } = PressKind.Press;
+    public ChordMode Mode { get; set; } = ChordMode.Instant;
+    /// <summary>The pad button the game gets, NONE to just swallow the buttons, or "ACT:&lt;name&gt;" for a keyboard or mouse action (a Mouse tab action name).</summary>
+    public string Output { get; set; } = "NONE";
+    public const string ActionPrefix = "ACT:";
+    public static bool IsAction(string output) => output.StartsWith(ActionPrefix) && Enum.TryParse<X20Ctl.Zone.Mouse.MouseAction>(output[ActionPrefix.Length..], out var a) && a != X20Ctl.Zone.Mouse.MouseAction.None && Enum.IsDefined(a);
 }
 
 /// <summary>Fine stick settings for PC mode: dead zones in 0.1% steps, a square gate, and how fast up/down moves
@@ -101,6 +132,11 @@ public sealed class PadProcessor
     readonly Dictionary<string, long> turboSince = new();
     readonly HashSet<string> previous = new();
     SetupMacro[]? playing; long playingSince;
+    ChordEngine? combos; readonly Dictionary<string, long> comboPulse = new(); readonly HashSet<string> comboHeld = new();
+    const int ComboPulseMs = 60;
+    readonly List<(string Action, bool Down)> actions = new();
+    /// <summary>Keyboard and mouse actions the combos asked for since the last call, in order. The caller sends them to Windows.</summary>
+    public IReadOnlyList<(string Action, bool Down)> TakeActions() { var copy = actions.ToArray(); actions.Clear(); return copy; }
 
     public PadProcessor(PcModeProfile profile) { profile.Validate(); this.profile = profile; }
     public bool PlayingMacro => playing != null;
@@ -117,6 +153,8 @@ public sealed class PadProcessor
             if (down.ContainsKey(trigger) && !previous.Contains(trigger) && playing == null && steps.Length > 0) { playing = steps; playingSince = nowMs; }
         var raw = down.Keys.ToHashSet();
         foreach (var trigger in profile.Macros.Keys) down.Remove(trigger);
+        KeyboardOutputs(down, nowMs);
+        var comboOut = ApplyCombos(input.Buttons, nowMs, down);
 
         var target = new Dictionary<string, byte>();
         foreach (var (source, value) in down)
@@ -127,11 +165,12 @@ public sealed class PadProcessor
         // a light trigger pull (below the "pressed" threshold) still reaches a trigger target, so feathering survives
         foreach (var (name, value) in new[] { ("LT", input.LeftTrigger), ("RT", input.RightTrigger) })
         {
-            if (value == 0 || value > PadButtons.TriggerThreshold || profile.Macros.ContainsKey(name)) continue;
+            if (value == 0 || value > PadButtons.TriggerThreshold || profile.Macros.ContainsKey(name) || profile.Keys.ContainsKey(name) || profile.Custom.ContainsKey(name)) continue;
             string to = profile.Remap.GetValueOrDefault(name, name);if(to=="NONE")continue;
             if (to is "LT" or "RT") target[to] = (byte)Math.Max(target.GetValueOrDefault(to), value);
         }
 
+        foreach (var button in comboOut) target[button] = 255;
         foreach (var (button, hz) in profile.Turbo)
         {
             if (!target.ContainsKey(button)) { turboSince.Remove(button); continue; }
@@ -162,6 +201,73 @@ public sealed class PadProcessor
         foreach (var (name, mask) in PadButtons.Mask) if (target.ContainsKey(name)) buttons |= mask;
         byte lt = Trigger(target.GetValueOrDefault("LT"), Curve(CurveChannel.LeftTrigger)), rt = Trigger(target.GetValueOrDefault("RT"), Curve(CurveChannel.RightTrigger));
         return new(buttons, lt, rt, lx, ly, rx, ry);
+    }
+
+    readonly HashSet<string> keyHeld = new();
+    readonly Dictionary<string, (KeyStep[] Steps, long Since, int Sent)> running = new();
+
+    /// <summary>The Keyboard tab: a mapped button holds its key (or mouse button) for as long as it is held; a custom
+    /// mapping plays its steps once per press. Either way the game no longer sees the button.</summary>
+    void KeyboardOutputs(Dictionary<string, byte> down, long nowMs)
+    {
+        foreach (var (button, output) in profile.Keys)
+        {
+            bool now = down.Remove(button), was = keyHeld.Contains(button);
+            if (now && !was) { keyHeld.Add(button); actions.Add((output, true)); }
+            else if (!now && was) { keyHeld.Remove(button); actions.Add((output, false)); }
+        }
+        foreach (var (button, steps) in profile.Custom)
+            if (down.Remove(button) && !previous.Contains(button) && !running.ContainsKey(button)) running[button] = (steps, nowMs, 0);
+        foreach (var button in running.Keys.ToList())
+        {
+            var (steps, since, sent) = running[button];
+            long elapsed = nowMs - since, at = 0; int ev = 0;
+            foreach (var step in steps)
+            {
+                if (ev == sent && elapsed >= at) { actions.Add((step.Output, true)); sent++; }
+                ev++; at += step.HoldMs;
+                if (ev == sent && elapsed >= at) { actions.Add((step.Output, false)); sent++; }
+                ev++; at += step.PauseMs;
+            }
+            if (sent >= steps.Length * 2) running.Remove(button); else running[button] = (steps, since, sent);
+        }
+    }
+
+    /// <summary>PC mode is stopping or pausing: lets go of every key and mouse button still held, so nothing stays stuck.</summary>
+    public IReadOnlyList<(string Action, bool Down)> ReleaseAll()
+    {
+        var ups = new List<(string, bool)>();
+        foreach (var button in keyHeld) if (profile.Keys.TryGetValue(button, out var output)) ups.Add((output, false));
+        foreach (var (steps, _, sent) in running.Values) if (sent % 2 == 1) ups.Add((steps[sent / 2].Output, false));
+        keyHeld.Clear(); running.Clear(); actions.Clear();
+        return ups;
+    }
+
+    /// <summary>Runs the combos: removes their buttons from what passes through and returns the pad buttons they output now.</summary>
+    List<string> ApplyCombos(ushort buttons, long nowMs, Dictionary<string, byte> down)
+    {
+        var result = new List<string>();
+        if (profile.Combos.Count == 0) return result;
+        combos ??= new ChordEngine(profile.Combos.Select(c => new ChordBinding(c.Id, c.Buttons.Aggregate(0u, (m, b) => m | PadButtons.Mask[b]), c.Kind, c.Mode)).ToList());
+        foreach (var ev in combos.Update(nowMs, buttons))
+        {
+            var rule = profile.Combos.First(c => c.Id == ev.Id);
+            bool act = ComboRule.IsAction(rule.Output);
+            string name = act ? rule.Output[ComboRule.ActionPrefix.Length..] : "";
+            if (ev.Phase == ChordPhase.Down) { if (act) actions.Add((name, true)); else comboHeld.Add(rule.Id); }
+            else if (ev.Phase == ChordPhase.Up) { if (act) actions.Add((name, false)); else comboHeld.Remove(rule.Id); }
+            else if (act) { actions.Add((name, true)); actions.Add((name, false)); }
+            else comboPulse[rule.Id] = nowMs + ComboPulseMs;
+        }
+        foreach (var rule in profile.Combos)
+        {
+            bool all = rule.Buttons.All(b => (buttons & PadButtons.Mask[b]) != 0);
+            if (all) foreach (var b in rule.Buttons) down.Remove(b); // consumed while held together
+            bool pulsing = comboPulse.TryGetValue(rule.Id, out var until) && nowMs < until;
+            if (!pulsing) comboPulse.Remove(rule.Id);
+            if ((comboHeld.Contains(rule.Id) || pulsing) && PadButtons.Mask.ContainsKey(rule.Output)) result.Add(rule.Output);
+        }
+        return result;
     }
 
     StickTuning? Tuning(string stick) => profile.Sticks.TryGetValue(stick, out var s) && !s.IsDefault ? s : null;

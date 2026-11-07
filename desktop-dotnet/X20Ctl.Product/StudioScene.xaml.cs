@@ -114,13 +114,13 @@ public partial class StudioScene : UserControl
             bool compact = ActualHeight < 750;
             bool expanded=ActualHeight>900 && ActualWidth>1300;
             RootLayout.RowDefinitions[1].Height = new(86);
-            RootLayout.RowDefinitions[2].Height = new(IsCurves||IsVibration||ManagementPage is "Dashboard" or "Mouse" or "Diagnostics" or "Device" or "RGB" or "Screen" or "PcMode"?0:expanded?44:40);
+            RootLayout.RowDefinitions[2].Height = new(IsCurves||IsVibration||ManagementPage is "Dashboard" or "Mouse" or "Keyboard" or "Diagnostics" or "Device" or "RGB" or "Screen" or "PcMode"?0:expanded?44:40);
             UpdateNavigation();
             SizeAgentController();
             RootLayout.RowDefinitions[4].Height = new(IsCurves?144:IsVibration?54:compact?170:expanded?206:184);
             RootLayout.RowDefinitions[5].Height = new(expanded?78:66);
             SecondaryFooterHint.Visibility=ActualWidth<1100 || ManagementPage=="Tester"?Visibility.Collapsed:Visibility.Visible;
-            StatusNote.Visibility=IsCurves||IsVibration||ManagementPage is "Dashboard" or "Mouse" or "Diagnostics" or "Device" or "RGB" or "Screen" or "PcMode" || ActualWidth<1350?Visibility.Collapsed:Visibility.Visible;
+            StatusNote.Visibility=IsCurves||IsVibration||ManagementPage is "Dashboard" or "Mouse" or "Keyboard" or "Diagnostics" or "Device" or "RGB" or "Screen" or "PcMode" || ActualWidth<1350?Visibility.Collapsed:Visibility.Visible;
             PrimaryHint.FontSize=OverviewHint.FontSize=expanded?16:14;
             ChangeCount.FontSize=expanded?17:15;FeatureNote.FontSize=expanded?17:15;ControlDescription.FontSize=expanded?17:15;CanvasHint.FontSize=expanded?16:14;
             InspectorStage.Margin = compact ? new(0,8,0,4) : new(0,24,0,8);
@@ -184,7 +184,7 @@ public partial class StudioScene : UserControl
         {
             case "ReadScan" or "WriteScan": AgentScanRequested?.Invoke(page); break;
             case "Diagnostics" or "Tools": ShowManagement("Diagnostics"); break;
-            case "Mouse" or "PcMode" or "Device" or "RGB" or "Screen": ShowManagement(page); break;
+            case "Mouse" or "Keyboard" or "PcMode" or "Device" or "RGB" or "Screen": ShowManagement(page); break;
             case "Curves": ShowCurves(true); break;
             case "Macros": ShowMacros(true); break;
             case "Vibration": ShowVibration(true); break;
@@ -343,7 +343,16 @@ public partial class StudioScene : UserControl
         var deviceBody=new StackPanel{Orientation=Orientation.Horizontal,Children={Kit.Text("",16,"DS.AccentHi").Also(t=>t.FontFamily=new FontFamily("Segoe Fluent Icons")),Kit.Text(Model.Name.Replace("EasySMX ",""),14,"DS.Text",FontWeights.SemiBold).Also(t=>t.Margin=new(10,0,8,0)),deviceState}};
         deviceControl=new Button{Content=deviceBody,Style=DS.Style("Zone.Utility"),Height=36,MinHeight=0,Padding=new(10,0,10,0),ToolTip=new StackPanel{Children={Kit.Text($"{Model.Name} · Player {Player+1}",14,"DS.Text",FontWeights.SemiBold),batteryLabel,Kit.Text("Transport · Not reported",13,"DS.TextSoft")}}};
         deviceControl.Click+=(_,_)=>ShowManagement("Device");System.Windows.Automation.AutomationProperties.SetName(deviceControl,"Selected controller status and details");
-        AgentTitleHost.Children.Add(agentPill);TitlePills.Children.Add(deviceControl);TitlePills.Children.Add(more);
+        AgentTitleHost.Children.Add(agentPill);
+        // PC Mode entry beside Agent XCTL (owner, 6 Nov 2026): every pad except the X20 family, scan -> type -> warning -> on
+        if (X20Ctl.Zone.PcMode.PcModeEntry.IsAvailable(Model.Id))
+        {
+            var pcPill = new Button { Content = "PC Mode", Style = DS.Style("Zone.Utility"), Height = 36, MinHeight = 36, Padding = new(14, 0, 14, 0), Margin = new(0, 0, 12, 0), ToolTip = "Remap this controller on the PC" };
+            System.Windows.Automation.AutomationProperties.SetName(pcPill, "Open PC Mode");
+            pcPill.Click += (_, _) => RequestPcMode();
+            AgentTitleHost.Children.Add(pcPill);
+        }
+        TitlePills.Children.Add(deviceControl);TitlePills.Children.Add(more);
         // the battery, in the middle of the title bar (owner request 17 Oct 2026): only what the controller reports
         headerBattery.Click+=(_,_)=>ShowManagement("Device");System.Windows.Shell.WindowChrome.SetIsHitTestVisibleInChrome(headerBattery,true);
         Grid.SetColumnSpan(headerBattery,2);HeaderGrid.Children.Add(headerBattery);UpdateDeviceHeader();
@@ -718,21 +727,56 @@ public partial class StudioScene : UserControl
         Curves.Refresh();
     }
     private PcModeLink? pcLink;
+    /// <summary>Whether this controller gets the PC Mode entry (every pad except the X20 family).</summary>
+    public bool PcModeEntryAvailable => X20Ctl.Zone.PcMode.PcModeEntry.IsAvailable(Model.Id);
+    /// <summary>The PC Mode entry: opens the page when it is already on, else the type and warning window, then switches it on.</summary>
+    public async void RequestPcMode()
+    {
+        if (pcLink == null || !PcModeEntryAvailable) return;
+        if (pcLink.Service.Enabled) { ShowManagement("PcMode"); return; }
+        if (!PcModeGate.Ask(Window.GetWindow(this), Model.Name, out var padType)) return;
+        PcModePage.ChoosePad(pcLink, padType);
+        PcModePage.Part = "Status";
+        var why = await PcModePage.SwitchFromAgent(pcLink, true);
+        if (why != null) MessageBox.Show(Window.GetWindow(this), why, "PC Mode"); else ShowManagement("PcMode");
+    }
     private PcModeSync? pcSync;
     /// <summary>The PC mode tab's switch changed: the host reopens the Studio so the tabs unlock (or lock).</summary>
     public event Action? PcModeSwitched;
     /// <summary>Saves the tabs to PC mode when it is on, and says so in the status bar.</summary>
     private void SyncPcMode()
     {
-        if (pcSync == null || ManagementPage != null) return;
-        pcSync.Save(); ChangeCount.Text = pcSync.Status; DraftChip.Text = "PC mode";
+        ApplyPcDashboard();
+        if (pcSync == null || ManagementPage != null) { UpdatePcApply(); return; }
+        // changes wait for Apply (owner, 6 Nov 2026: nothing may apply by itself)
+        ChangeCount.Text = pcSync.HasPending ? "PC mode · Changes not applied yet. Press Apply to PC mode." : pcSync.Status; DraftChip.Text = "PC mode";
+        UpdatePcApply();
+    }
+    private Button? pcCurveApply;
+    private void ApplyPcClick(object sender, RoutedEventArgs e)
+    {
+        if (pcSync == null) return;
+        pcSync.Save(); ChangeCount.Text = pcSync.Status; UpdatePcApply();
+    }
+    /// <summary>The Apply buttons for PC mode: the bar's, and the Curves toolbar's. Lit only while there is something to apply.</summary>
+    private void UpdatePcApply()
+    {
+        if (pcCurveApply == null)
+        {
+            pcCurveApply = new Button { Content = "Apply to PC mode", Style = DS.Style("ActionButton"), Height = 44, MinHeight = 0, Padding = new(18, 0, 20, 0), Margin = new(0, 0, 8, 0), Visibility = Visibility.Collapsed };
+            pcCurveApply.Click += ApplyPcClick; RegisterFocus(pcCurveApply); Curves.Toolbar.Children.Add(pcCurveApply);
+            Apply.Click -= ApplyPcClick; Apply.Click += ApplyPcClick;
+        }
+        bool pending = pcSync?.HasPending == true;
+        pcCurveApply.Visibility = pcSync != null ? Visibility.Visible : Visibility.Collapsed; pcCurveApply.IsEnabled = pending;
+        if (pcSync != null) { Apply.Content = "Apply to PC mode"; Apply.IsEnabled = pending; Apply.ToolTip = pending ? "Save these changes to PC mode" : "Nothing to apply yet. Change a setting first."; }
     }
     private void PcProfileChanged()
     {
         if (pcSync == null) return;
         pcSync.Reload(); Curves.Refresh(); Macros?.Refresh(); RefreshEditor(); UpdateCurveContext(); UpdateMacroContext();
     }
-    private void PcNoticeAccepted() => pcSync?.Save();
+    private void PcNoticeAccepted() => SyncPcMode();
     private void PcModeTab(object sender, RoutedEventArgs e) => ShowManagement("PcMode");
     public StickToolsPanel? StickTools { get; private set; }
     private Grid? stickToolsLayer;
@@ -768,6 +812,7 @@ public partial class StudioScene : UserControl
     private void DashboardTab(object sender,RoutedEventArgs e)=>ShowManagement("Dashboard");
     public void ShowMacros(bool value)
     {
+        if(value && PcDashboard && KeyboardNav!=null){ShowManagement("Keyboard");return;} // PC mode: macros live in the Keyboard tab (owner, 7 Nov 2026)
         NexusLater(); DuskLater(); 
         HideManagement();
         if(IsVibration)ShowVibration(false);
@@ -808,16 +853,51 @@ public partial class StudioScene : UserControl
     private void UpdateVibrationContext(){if(!IsVibration)return;ChangeCount.Text="Vibration · Test on the controller";DraftChip.Text="Vibration";PrimaryHint.Text=" Adjust strength";OverviewHint.Text=" Reset draft";VibrationResetChoice.IsEnabled=vibrationDraft.Modified;Apply.IsEnabled=false;}
     private void VibrationTab(object sender,RoutedEventArgs e)=>ShowVibration(true);
     private void ResetVibration(object sender,RoutedEventArgs e)=>Vibration?.Reset();
+    /// <summary>PC Mode is on for a pad that has the PC Mode entry: its dashboard has no Device or Diagnostics pages (owner, 6 Nov 2026).</summary>
+    private bool PcDashboard => PcModeEntryAvailable && pcLink?.Service.Enabled == true;
+    private void ApplyPcDashboard()
+    {
+        bool on = PcDashboard;
+        DiagnosticsNav.Visibility = Visibility.Collapsed; PcModeNav.Visibility = Visibility.Collapsed;
+        if (baseNavigation.Length == 0) return; // the strip is not built yet; it calls this again
+        var list = new List<RadioButton>();
+        foreach (var t in baseNavigation)
+        {
+            if (t == PcModeNav) { if (on) list.AddRange(pcTabs); }
+            else if (t == DeviceNav && on) continue;
+            else if (t == MouseNav) continue; // placed below
+            // owner, 7 Nov 2026: with PC mode on, Keyboard takes Macros' place and Mouse sits beside it
+            else if (t == MacrosNav && on && KeyboardNav != null) { list.Add(KeyboardNav); list.Add(MouseNav); }
+            else list.Add(t);
+        }
+        if (!list.Contains(MouseNav) && baseNavigation.Contains(MouseNav)) list.Add(MouseNav); // PC mode off: Mouse on the right
+        navigation = list.ToArray();
+        foreach (var t in pcTabs) t.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+        DeviceNav.Visibility = on ? Visibility.Collapsed : Visibility.Visible; // the strip only ever shows tabs, so hide it here
+        MacrosNav.Visibility = on && KeyboardNav != null ? Visibility.Collapsed : Visibility.Visible;
+        if (KeyboardNav != null) KeyboardNav.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+        // the strip draws its tabs in child order: put them in this order
+        int at = 0;
+        foreach (var t in list)
+        {
+            int now = NavigationTabs.Children.IndexOf(t); if (now < 0) continue;
+            if (now != at) { NavigationTabs.Children.RemoveAt(now); NavigationTabs.Children.Insert(at, t); }
+            at++;
+        }
+        QueueNavigation();
+    }
     public void ShowManagement(string page)
     {
+        if (PcDashboard && page is "Device" or "Diagnostics") page = "PcMode";
+        ApplyPcDashboard();
         NexusLater(); DuskLater(); 
         DraftBar.Visibility=page=="Dashboard"?Visibility.Collapsed:Visibility.Visible;RootLayout.RowDefinitions[2].Height=new(page=="Dashboard"?0:40);
         Apply.Visibility=StatusNote.Visibility=page=="Dashboard"?Visibility.Collapsed:Visibility.Visible;ChangeCount.Visibility=page=="Dashboard"?Visibility.Collapsed:Visibility.Visible;
-        if(page is not ("Dashboard" or "PcMode" or "Device" or "RGB" or "Screen" or "Diagnostics" or "Mouse" or "Tester" or "Setups"))throw new ArgumentException("Unknown Studio page.");
-        if(IsCurves)ShowCurves(false);if(IsMacros)ShowMacros(false);if(IsVibration)ShowVibration(false);HideManagement();ManagementPage=page;bool immediate=page is "Dashboard" or "Mouse" or "Diagnostics" or "Device" or "RGB" or "Screen" or "PcMode";DraftBar.Visibility=immediate?Visibility.Collapsed:Visibility.Visible;RootLayout.RowDefinitions[2].Height=new(immediate?0:40);Apply.Visibility=StatusNote.Visibility=immediate?Visibility.Collapsed:Visibility.Visible;ChangeCount.Visibility=page=="Dashboard"?Visibility.Collapsed:Visibility.Visible;
+        if(page is not ("Dashboard" or "PcMode" or "Device" or "RGB" or "Screen" or "Diagnostics" or "Mouse" or "Keyboard" or "Tester" or "Setups"))throw new ArgumentException("Unknown Studio page.");
+        if(IsCurves)ShowCurves(false);if(IsMacros)ShowMacros(false);if(IsVibration)ShowVibration(false);HideManagement();ManagementPage=page;bool immediate=page is "Dashboard" or "Mouse" or "Keyboard" or "Diagnostics" or "Device" or "RGB" or "Screen" or "PcMode";DraftBar.Visibility=immediate?Visibility.Collapsed:Visibility.Visible;RootLayout.RowDefinitions[2].Height=new(immediate?0:40);Apply.Visibility=StatusNote.Visibility=immediate?Visibility.Collapsed:Visibility.Visible;ChangeCount.Visibility=page=="Dashboard"?Visibility.Collapsed:Visibility.Visible;
         HardwareStage.Visibility=InspectorStage.Visibility=AssignmentShelf.Visibility=OverviewChoice.Visibility=ResetAllChoice.Visibility=Visibility.Collapsed;
         ManagementBodyHost.Visibility=ManagementShelfFrame.Visibility=Visibility.Visible;ManagementBodyHost.Children.Clear();ManagementShelfHost.Children.Clear();
-        ButtonsNav.IsChecked=CurvesNav.IsChecked=MacrosNav.IsChecked=VibrationNav.IsChecked=false;DeviceNav.IsChecked=page=="Device";RgbNav.IsChecked=page=="RGB";ScreenNav.IsChecked=page=="Screen";DiagnosticsNav.IsChecked=page=="Diagnostics";MouseNav.IsChecked=page=="Mouse";PcModeNav.IsChecked=page=="PcMode";TesterNav.IsChecked=page=="Tester";SetupsNav.IsChecked=page=="Setups";DashboardNav.IsChecked=page=="Dashboard";DashboardFlip.Visibility=page=="Dashboard"?Visibility.Visible:Visibility.Collapsed;
+        ButtonsNav.IsChecked=CurvesNav.IsChecked=MacrosNav.IsChecked=VibrationNav.IsChecked=false;DeviceNav.IsChecked=page=="Device";RgbNav.IsChecked=page=="RGB";ScreenNav.IsChecked=page=="Screen";DiagnosticsNav.IsChecked=page=="Diagnostics";MouseNav.IsChecked=page=="Mouse";if(KeyboardNav!=null)KeyboardNav.IsChecked=page=="Keyboard";PcModeNav.IsChecked=false;foreach(var t in pcTabs)t.IsChecked=page=="PcMode"&&(string)t.Content==PcModePage.Part;TesterNav.IsChecked=page=="Tester";SetupsNav.IsChecked=page=="Setups";DashboardNav.IsChecked=page=="Dashboard";DashboardFlip.Visibility=page=="Dashboard"?Visibility.Visible:Visibility.Collapsed;
         if(page=="Dashboard"){Dashboard??=CreateDashboard();Dashboard.SetWorkingState(Draft.UnsentChanges,activeSetup==null?null:setupStore.Items.FirstOrDefault(x=>x.Id==activeSetup)?.Name,Draft.PcMode);ManagementBodyHost.Children.Add(Dashboard);ChangeCount.Text="Select the controller to configure it · Your games are found automatically";PrimaryHint.Text=" Select";OverviewHint.Text="";DraftChip.Text="Dashboard";Dashboard.FocusHero();}
         else if(page=="Device"){Device??=new(Model,Player,this,RegisterFocus,()=>ShowManagement("Diagnostics"),()=>ShowManagement("Setups"),()=>ShowManagement("Screen"),Model.Id=="x20_pro"&&!Draft.PcMode?FactoryReset:null);Device.TelemetryUpdated-=ApplyTelemetry;Device.TelemetryUpdated+=ApplyTelemetry;if(currentTransport!=null)Device.SetTransport(currentTransport);Device.SetBatteryLevel(currentBatteryLevel,currentTransport);if(currentFirmware!=null)Device.SetFirmware(currentFirmware);else if(currentTransport=="2.4 GHz receiver")Device.SetFirmware("Not readable over XInput");if(gameplayConnected is {} deviceConnected)Device.SetConnection(deviceConnected);if(currentHardwareId!=null)Device.SetHardwareId(currentHardwareId);Device.UpdateEngineStatus(NativeEngineStatus);ManagementBodyHost.Children.Add(Device.Body);ManagementShelfHost.Children.Add(Device.Shelf);ChangeCount.Text="Assigned model · Gameplay and configuration remain separate";PrimaryHint.Text=" Open";OverviewHint.Text=" My setups";DraftChip.Text="Controller overview";}
         else if(page=="RGB"){if(Model.Id!="x20_pro")throw new InvalidOperationException("RGB configuration is verified for X20 Pro only.");if(rgbBody==null){var lighting=new LightingWindow();rgbBody=lighting.DetachBody();lighting.ReadOnOpen();}ManagementBodyHost.Children.Add(rgbBody);ChangeCount.Text="RGB lighting";PrimaryHint.Text=" Select";OverviewHint.Text="";DraftChip.Text="RGB";}
@@ -835,13 +915,13 @@ public partial class StudioScene : UserControl
             ChangeCount.Text=Draft.PcMode?"PC mode is on · Buttons, Curves and Macros apply on this PC":"PC mode is off · Switch it on to edit this controller's settings on the PC";PrimaryHint.Text=" Select";OverviewHint.Text="";DraftChip.Text="PC mode";
         }
         else if(page=="Mouse"){if(MouseService==null){ManagementBodyHost.Children.Add(Kit.Text("Mouse mode isn't available in this window.",16,"DS.TextSoft"));}else{Mouse??=new(MouseService,RegisterFocus,Player,Model,layout);ManagementBodyHost.Children.Add(Mouse.Body);Mouse.Switch.Focus();}ChangeCount.Text="Controller as mouse · Saved on this PC";PrimaryHint.Text=" Select";OverviewHint.Text="";DraftChip.Text="Mouse";}
-        else if(page=="Tester"){Tester??=new(Model,layout,this,RegisterFocus,()=>ShowManagement("Device"),animate);Tester.Enter();ManagementBodyHost.Children.Add(Tester.Body);ManagementShelfHost.Children.Add(Tester.Shelf);ChangeCount.Text="Tester owns gameplay input · UI input navigation paused";PrimaryHint.Text=" Exit Tester";OverviewHint.Text="";DraftChip.Text="Gameplay tester";navigationBeforeTester=navigationMode;navigationMode=true;Tester.Exit.Focus();}
+        else if(page=="Keyboard")ShowKeyboardPage();else if(page=="Tester"){Tester??=new(Model,layout,this,RegisterFocus,()=>ShowManagement("Device"),animate);Tester.Enter();ManagementBodyHost.Children.Add(Tester.Body);ManagementShelfHost.Children.Add(Tester.Shelf);ChangeCount.Text="Tester owns gameplay input · UI input navigation paused";PrimaryHint.Text=" Exit Tester";OverviewHint.Text="";DraftChip.Text="Gameplay tester";navigationBeforeTester=navigationMode;navigationMode=true;Tester.Exit.Focus();}
         else {if(Setups==null){Setups=new(setupStore,new ControllerCatalog(File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"Data/catalog.json"))),Model.Id,this,RegisterFocus,()=>SetupSnapshot.Capture(Model.Id,Draft,Curves.Draft,macroDraft,vibrationDraft),LoadSetup,legacySources,activeSetup);Setups.Changed+=()=>{Dashboard=null;UpdateSetupContext();};}Setups.RefreshCurrent();ManagementBodyHost.Children.Add(Setups.Body);ManagementShelfHost.Children.Add(Setups.Shelf);UpdateSetupContext();}
         PrimaryGlyph.Text=page=="Tester"?"↵":"A";BackGlyph.Text=page is "Tester" or "Diagnostics"?"Esc":"B";SecondaryFooterHint.Visibility=ActualWidth<1100 || page is "Tester" or "Diagnostics"?Visibility.Collapsed:Visibility.Visible;
-        Grid.SetRowSpan(StudioBody,page is "Setups" or "Dashboard" or "Diagnostics" or "Mouse" or "PcMode" or "Device" or "RGB" or "Screen"?2:1);if(page is "Setups" or "Dashboard" or "Diagnostics" or "Mouse" or "PcMode" or "Device" or "RGB" or "Screen")ManagementShelfFrame.Visibility=Visibility.Collapsed;InputContextChanged?.Invoke();Apply.IsEnabled=false;if(IsLoaded || page!="Dashboard"){EnterMotion(ManagementBodyHost,14,220);EnterMotion(ManagementShelfHost,14,220);}UpdateButtonsPage();
+        Grid.SetRowSpan(StudioBody,page is "Setups" or "Dashboard" or "Diagnostics" or "Mouse" or "Keyboard" or "PcMode" or "Device" or "RGB" or "Screen"?2:1);if(page is "Setups" or "Dashboard" or "Diagnostics" or "Mouse" or "Keyboard" or "PcMode" or "Device" or "RGB" or "Screen")ManagementShelfFrame.Visibility=Visibility.Collapsed;InputContextChanged?.Invoke();Apply.IsEnabled=false;if(IsLoaded || page!="Dashboard"){EnterMotion(ManagementBodyHost,14,220);EnterMotion(ManagementShelfHost,14,220);}UpdateButtonsPage();
     }
     private void DashboardFlipClick(object sender,RoutedEventArgs e){Dashboard?.FlipController();DashboardFlip.ToolTip=Dashboard?.IsRear==true?"Show the front of this controller":"Show the back of this controller";}
-    private void HideManagement(){Screen?.StopPreview();DashboardFlip.Visibility=Visibility.Collapsed;RootLayout.RowDefinitions[4].Height=new(184);DraftBar.Visibility=Visibility.Visible;RootLayout.RowDefinitions[2].Height=new(40);Apply.Visibility=ChangeCount.Visibility=Visibility.Visible;StopTry();if(ManagementPage==null)return;if(ManagementPage=="Diagnostics")Diagnostics?.Stop();Grid.SetRowSpan(StudioBody,1);if(ManagementPage=="Tester")navigationMode=navigationBeforeTester;Tester?.ExitCapture();ManagementPage=null;InputContextChanged?.Invoke();PrimaryGlyph.Text="A";BackGlyph.Text="B";SecondaryFooterHint.Visibility=ActualWidth<1100?Visibility.Collapsed:Visibility.Visible;ManagementBodyHost.Children.Clear();ManagementShelfHost.Children.Clear();ManagementBodyHost.Visibility=ManagementShelfFrame.Visibility=Visibility.Collapsed;RgbNav.IsChecked=ScreenNav.IsChecked=DeviceNav.IsChecked=DiagnosticsNav.IsChecked=MouseNav.IsChecked=PcModeNav.IsChecked=TesterNav.IsChecked=SetupsNav.IsChecked=DashboardNav.IsChecked=false;HardwareStage.Visibility=InspectorStage.Visibility=AssignmentShelf.Visibility=OverviewChoice.Visibility=ResetAllChoice.Visibility=Visibility.Visible;UpdateButtonsPage();}
+    private void HideManagement(){Screen?.StopPreview();DashboardFlip.Visibility=Visibility.Collapsed;RootLayout.RowDefinitions[4].Height=new(184);DraftBar.Visibility=Visibility.Visible;RootLayout.RowDefinitions[2].Height=new(40);Apply.Visibility=ChangeCount.Visibility=Visibility.Visible;StopTry();if(ManagementPage==null)return;if(ManagementPage=="Diagnostics")Diagnostics?.Stop();Grid.SetRowSpan(StudioBody,1);if(ManagementPage=="Tester")navigationMode=navigationBeforeTester;Tester?.ExitCapture();ManagementPage=null;InputContextChanged?.Invoke();PrimaryGlyph.Text="A";BackGlyph.Text="B";SecondaryFooterHint.Visibility=ActualWidth<1100?Visibility.Collapsed:Visibility.Visible;ManagementBodyHost.Children.Clear();ManagementShelfHost.Children.Clear();ManagementBodyHost.Visibility=ManagementShelfFrame.Visibility=Visibility.Collapsed;RgbNav.IsChecked=ScreenNav.IsChecked=DeviceNav.IsChecked=DiagnosticsNav.IsChecked=MouseNav.IsChecked=PcModeNav.IsChecked=TesterNav.IsChecked=SetupsNav.IsChecked=DashboardNav.IsChecked=false;if(KeyboardNav!=null)KeyboardNav.IsChecked=false;HardwareStage.Visibility=InspectorStage.Visibility=AssignmentShelf.Visibility=OverviewChoice.Visibility=ResetAllChoice.Visibility=Visibility.Visible;UpdateButtonsPage();}
     private void LoadSetup(SetupSnapshot snapshot){if(snapshot.ModelId!=Model.Id)throw new InvalidOperationException("Setup model does not match this player.");snapshot.LoadInto(Draft,Curves.Draft,macroDraft,vibrationDraft);Curves.Refresh();Macros?.Refresh();Vibration?.Refresh();SyncPcMode();}
     private void UpdateSetupContext(){if(ManagementPage!="Setups"||Setups==null)return;activeSetup=Setups.ActiveId;ActiveSetupChanged?.Invoke(activeSetup);ChangeCount.Text=activeSetup==null?"Local setup library · Hardware application unavailable":"Setup open in local editor · Hardware unchanged";PrimaryHint.Text=" Select / Open";OverviewHint.Text=" New setup";DraftChip.Text="My setups";Apply.IsEnabled=false;}
     public bool DeliverGameplayFrame(TesterFrame frame)=>ManagementPage=="Tester" && Tester?.Receive(frame)==true;
@@ -1123,7 +1203,7 @@ public partial class StudioScene : UserControl
             e.Handled = true;
         }
     }
-    private RadioButton? GetActiveTab() => new[] { DashboardNav, ButtonsNav, CurvesNav, MacrosNav, VibrationNav, PcModeNav, RgbNav, ScreenNav, DeviceNav, DiagnosticsNav, MouseNav, TesterNav, SetupsNav }.FirstOrDefault(t => t?.IsChecked == true);
+    private RadioButton? GetActiveTab() => new[] { DashboardNav, ButtonsNav, CurvesNav, MacrosNav, VibrationNav, PcModeNav, RgbNav, ScreenNav, DeviceNav, DiagnosticsNav, MouseNav, KeyboardNav, TesterNav, SetupsNav }.FirstOrDefault(t => t?.IsChecked == true);
     private void FocusCurrentTarget() { if (OnButtonsPage && buttonsPage != null) { buttonsPage.FocusOutput(Draft.Target(SelectedControl)); return; } targetButtons.FirstOrDefault(b => b.IsEnabled && (string)b.Tag == Draft.Target(SelectedControl))?.Focus(); }
     private static string TargetGlyph(string key) => key switch { "DPAD_UP" => "↑", "DPAD_DOWN" => "↓", "DPAD_LEFT" => "←", "DPAD_RIGHT" => "→", _ => Glyph(key) };
     private static string Glyph(string key) => key switch { "DPAD_UP" => "D↑", "DPAD_DOWN" => "D↓", "DPAD_LEFT" => "D←", "DPAD_RIGHT" => "D→", "SELECT" => "View", "START" => "Menu", "HOME" => "Guide", "CAPTURE" => "C", "TURBO" => "T", _ => key };
