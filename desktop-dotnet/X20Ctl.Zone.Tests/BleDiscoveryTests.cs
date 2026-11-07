@@ -254,7 +254,7 @@ public class BleDiscoveryTests
     [Fact] // 18
     public void Discovery_code_cannot_send_pair_or_read_values()
     {
-        string[] forbidden = ["X20Codec", "IPadLink", "SendAsync", "SendQuery", "WriteValue", "WriteClientCharacteristic", "ReadValue", "Pair", "PadBridge", "NativeBleClient."];
+        string[] forbidden = ["X20Codec", "IPadLink", "SendAsync", "SendQuery", "WriteValue", "WriteClientCharacteristic", "ReadValue", "Pair", "PadBridge", "NativeBleClient.QueryAsync", "NativeBleClient.VibrationTestAsync", "FindDeviceAddressAsync"];
         foreach (var file in new[] { "BleDiscovery.cs", "NativeBleDiscovery.cs" })
         {
             var code = Code(Source("X20Ctl.Product", file));

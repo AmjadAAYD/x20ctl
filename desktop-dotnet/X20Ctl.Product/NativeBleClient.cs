@@ -26,6 +26,8 @@ public static class NativeBleClient
 
     public static async Task<PadBridge.Result> QueryAsync(string targetModel = "x20_pro", int timeoutSeconds = 6, bool check = false)
     {
+        // the timed battery reads stand down while the player manages connections in the Bluetooth manager
+        if (!check && BluetoothManager.PauseBackground) return new(true, false, "Paused while the Bluetooth manager is open.");
         await ConfigurationGate.WaitAsync();
         try
         {
@@ -155,6 +157,7 @@ public static class NativeBleClient
     /// <summary>The Part B write test: vibration only, on a proven pad, put back and read back afterwards (see VibrationTest).</summary>
     public static async Task<PadBridge.Result> VibrationTestAsync(string targetModel, int percent, int timeoutSeconds = 6)
     {
+        await ConfigurationGate.WaitAsync(); // one Bluetooth operation at a time, like the queries
         try
         {
             var (address, error) = await FindDeviceAddressAsync(targetModel, timeoutSeconds);
@@ -165,6 +168,7 @@ public static class NativeBleClient
         {
             return new(true, false, $"Bluetooth write test failed: {ex.Message}");
         }
+        finally { ConfigurationGate.Release(); }
     }
 
     private sealed class Link(Func<byte[], byte, Task<byte[]?>> send) : IPadLink

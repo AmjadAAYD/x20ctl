@@ -55,29 +55,37 @@ public static class NativeBleDiscovery
     /// <summary>Service and characteristic UUIDs of one device. Uncached so the answer is the device's, not Windows' memory.</summary>
     public static async Task<BleDiscovery.GattListing> ListServicesAsync(ulong address, TimeSpan timeout)
     {
-        var work = ListAsync(address);
-        if (await Task.WhenAny(work, Task.Delay(timeout)) != work) return new(null, [], "Did not answer in time.");
-        return await work;
+        // one Bluetooth operation at a time across X20CTL, and a timed-out listing is cancelled rather than left connecting
+        if (!await NativeBleClient.ConfigurationGate.WaitAsync(TimeSpan.FromSeconds(15))) return new(null, [], "Another Bluetooth operation is running.");
+        try
+        {
+            using var limit = new CancellationTokenSource(timeout);
+            var work = ListAsync(address, limit.Token);
+            if (await Task.WhenAny(work, Task.Delay(timeout)) != work) { limit.Cancel(); return new(null, [], "Did not answer in time."); }
+            return await work;
+        }
+        finally { NativeBleClient.ConfigurationGate.Release(); }
     }
 
-    static async Task<BleDiscovery.GattListing> ListAsync(ulong address)
+    static async Task<BleDiscovery.GattListing> ListAsync(ulong address, CancellationToken token)
     {
         try
         {
-            using var device = await BluetoothLEDevice.FromBluetoothAddressAsync(address);
+            using var device = await BluetoothLEDevice.FromBluetoothAddressAsync(address).AsTask(token);
             if (device == null) return new(null, [], "Could not connect.");
-            var result = await device.GetGattServicesAsync(BluetoothCacheMode.Uncached);
+            var result = await device.GetGattServicesAsync(BluetoothCacheMode.Uncached).AsTask(token);
             if (result.Status != GattCommunicationStatus.Success) return new(null, [], "Did not list its services.");
             var services = new List<Guid>(); var characteristics = new List<Guid>();
             foreach (var service in result.Services)
                 using (service)
                 {
                     services.Add(service.Uuid);
-                    var chars = await service.GetCharacteristicsAsync(BluetoothCacheMode.Uncached);
+                    var chars = await service.GetCharacteristicsAsync(BluetoothCacheMode.Uncached).AsTask(token);
                     if (chars.Status == GattCommunicationStatus.Success) characteristics.AddRange(chars.Characteristics.Select(c => c.Uuid));
                 }
             return new(services, characteristics, null);
         }
+        catch (OperationCanceledException) { return new(null, [], "Did not answer in time."); }
         // only the error code: Windows exception text can name the device, and this text is shown and saved
         catch (Exception ex) { return new(null, [], $"Could not connect (0x{ex.HResult:X8})."); }
     }

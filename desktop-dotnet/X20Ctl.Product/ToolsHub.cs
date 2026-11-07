@@ -84,6 +84,15 @@ public sealed partial class ProductSettings : Grid
         var header = new DockPanel { Margin = new(0, 0, 0, 30) };
         Back = Pill("", "Controller Zone"); Back.Click += (_, _) => close();
         DockPanel.SetDock(Back, Dock.Right); header.Children.Add(Back);
+        // the Bluetooth manager, one press from Tools: scan, pair and connect without Windows Settings
+        var bluetooth = Pill("", "Bluetooth"); bluetooth.Margin = new(0, 0, 14, 0);
+        bluetooth.Click += (_, _) =>
+        {
+            Scanner.WriteScanView? manager = null;
+            manager = Scanner.WriteScanView.BluetoothManagerOnly(() => Children.Remove(manager));
+            Children.Add(manager);
+        };
+        DockPanel.SetDock(bluetooth, Dock.Right); header.Children.Add(bluetooth);
         var mark = new Image { Source = new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/Assets/icon.png")), Width = 44, Height = 44, Margin = new(0, 0, 18, 0) };
         RenderOptions.SetBitmapScalingMode(mark, BitmapScalingMode.HighQuality);
         header.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = { mark, new StackPanel { VerticalAlignment = VerticalAlignment.Center, Children = {

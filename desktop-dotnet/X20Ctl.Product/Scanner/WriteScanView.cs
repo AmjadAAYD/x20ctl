@@ -97,7 +97,7 @@ public sealed partial class WriteScanView : Grid
 
         setting.TextChanged += (_, _) => Gate(); undoable.Checked += (_, _) => Gate(); undoable.Unchecked += (_, _) => Gate(); Gate();
         planNext.Click += (_, _) => Show(1);
-        BuildWarning(); Children.Add(warning); BuildCheck(); Children.Add(checkView);
+        BuildWarning(); Children.Add(warning); BuildCheck(); Children.Add(checkView); BuildBluetooth(); Children.Add(bluetoothView);
         timer.Tick += (_, _) => Tick();
         Drop += async (_, e) => { if (e.Data.GetData(DataFormats.FileDrop) is string[] { Length: > 0 } files && warning.Visibility != Visibility.Visible && checkView.Visibility != Visibility.Visible) await Read(files[0]); };
         Loaded += (_, _) => { if (DS.Motion) { Opacity = 0; BeginAnimation(OpacityProperty, DS.To(1, 240)); } };
@@ -144,6 +144,7 @@ public sealed partial class WriteScanView : Grid
         var askX20 = Action("\uE702", "Check an X20", "ActionButton"); askX20.Click += async (_, _) => await RunCheck("x20");
         var findNearby = Action("\uE721", "Find nearby controllers", "ActionButton"); findNearby.Click += async (_, _) => await FindNearby();
         listServices.Click += async (_, _) => await ListNearbyServices();
+        var manage = Action("", "Bluetooth manager", "ActionButton"); manage.Click += async (_, _) => { if (!checking) await OpenBluetooth(); };
         checkSave.Click += (_, _) => SaveCheck();
         var phoneRoute = Action("\uE8EA", "Use the phone recording instead", "ActionButton"); phoneRoute.Click += (_, _) => { checkView.Visibility = Visibility.Collapsed; Show(0); };
         var leave = Action("\uE72B", "Back to Tools", "ActionButton"); leave.Click += (_, _) => close();
@@ -159,7 +160,7 @@ public sealed partial class WriteScanView : Grid
             Kit.Text("Check over Bluetooth", 40, "DS.Text", FontWeights.Bold),
             Wrap("Three read-only questions: what the controller is, its firmware, and which settings it exposes. Nothing is written.", 17, "DS.TextSoft").Also(t => t.Margin = new(0, 8, 0, 0)),
             Note("Turn the controller on with Bluetooth. Disconnect it from KeyLinker on any phone first. On a recorded X20 or X20 Pro, a vibration write test is offered afterwards."),
-            new WrapPanel { Margin = new(0, 22, 0, 0), Children = { askPro, askX20.Also(b => b.Margin = new(12, 0, 0, 0)), findNearby.Also(b => b.Margin = new(12, 0, 0, 0)), listServices.Also(b => b.Margin = new(12, 0, 0, 0)) } },
+            new WrapPanel { Margin = new(0, 22, 0, 0), Children = { askPro, askX20.Also(b => b.Margin = new(12, 0, 0, 0)), findNearby.Also(b => b.Margin = new(12, 0, 0, 0)), listServices.Also(b => b.Margin = new(12, 0, 0, 0)), manage.Also(b => b.Margin = new(12, 0, 0, 0)) } },
             checkStatus.Also(t => t.Margin = new(0, 18, 0, 10)),
             checkText,
             testPanel,

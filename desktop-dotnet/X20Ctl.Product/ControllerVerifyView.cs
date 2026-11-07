@@ -227,7 +227,7 @@ public sealed class ControllerVerifyView : Grid
             var empty = new StackPanel { Margin = new(0, 10, 0, 0) };
             empty.Children.Add(Kit.Text("Let's get you connected",20,"DS.Text",FontWeights.SemiBold));
             var hint = Kit.Text("Choose the connection your controller supports, then scan again.",13,"DS.TextMuted");hint.TextWrapping=TextWrapping.Wrap;hint.Margin=new(0,7,0,16);empty.Children.Add(hint);
-            foreach(var (glyph,label,detail) in new[]{("usb","USB cable","Use a data-capable cable, not a charge-only cable."),("receiver","Wireless receiver","Plug the controller's receiver into a USB port."),("bluetooth","Bluetooth","Pair the controller in Windows Bluetooth settings.")})
+            foreach(var (glyph,label,detail) in new[]{("usb","USB cable","Use a data-capable cable, not a charge-only cable."),("receiver","Wireless receiver","Plug the controller's receiver into a USB port."),("bluetooth","Bluetooth","Find, pair and connect it here.")})
             {
                 var text=new StackPanel { VerticalAlignment=VerticalAlignment.Center };
                 text.Children.Add(Kit.Text(label,15,"DS.Text",FontWeights.SemiBold));
@@ -239,7 +239,14 @@ public sealed class ControllerVerifyView : Grid
                 var iconArt=new Canvas { Width=24,Height=24,Children={vector} };
                 var icon=new Border { Width=42,Height=42,CornerRadius=new(12),VerticalAlignment=VerticalAlignment.Center,HorizontalAlignment=HorizontalAlignment.Left,Background=new LinearGradientBrush(ThemeCatalog.R(Color.FromArgb(120,55,103,157)),ThemeCatalog.R(Color.FromArgb(70,22,48,82)),90),BorderBrush=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(65,140,190,245))),BorderThickness=new(1),Child=new Viewbox { Width=22,Height=22,HorizontalAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Center,Child=iconArt } };
                 var content=new Grid();content.ColumnDefinitions.Add(new(){Width=new GridLength(58)});content.ColumnDefinitions.Add(new());content.Children.Add(icon);Grid.SetColumn(text,1);content.Children.Add(text);
-                empty.Children.Add(new Border { MinHeight=76,Padding=new(16,12,16,12),Margin=new(0,0,0,10),CornerRadius=new(14),Background=new LinearGradientBrush(ThemeCatalog.R(Color.FromArgb(70,55,82,120)),ThemeCatalog.R(Color.FromArgb(35,24,39,65)),90),BorderBrush=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(50,150,190,240))),BorderThickness=new(1),Child=content });
+                var option=new Border { MinHeight=76,Padding=new(16,12,16,12),Margin=new(0,0,0,10),CornerRadius=new(14),Background=new LinearGradientBrush(ThemeCatalog.R(Color.FromArgb(70,55,82,120)),ThemeCatalog.R(Color.FromArgb(35,24,39,65)),90),BorderBrush=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(50,150,190,240))),BorderThickness=new(1),Child=content };
+                if(glyph=="bluetooth")
+                {
+                    // the Bluetooth manager over this screen; closing it scans again
+                    option.Cursor=System.Windows.Input.Cursors.Hand;
+                    option.MouseLeftButtonUp+=(_,_)=>OpenBluetooth(rescan);
+                }
+                empty.Children.Add(option);
             }
             deviceList.Children.Add(empty);
         }
@@ -271,12 +278,22 @@ public sealed class ControllerVerifyView : Grid
                 title.Text = "No controller found"; status.Text = $"Connect your {modelName}, or edit offline.";
                 buttons.Children.Add(Action("Continue offline", true, enter));
                 buttons.Children.Add(Action("Scan again", false, rescan));
+                buttons.Children.Add(Action("Connect with Bluetooth", false, () => OpenBluetooth(rescan)));
                 break;
         }
         if (buttons.Children.Count > 0) buttons.Children[0].Focus();
     }
 
     public Button? FirstActionButton => buttons.Children.OfType<Button>().FirstOrDefault();
+
+    /// <summary>The Bluetooth manager over this check; closing it scans again.</summary>
+    private void OpenBluetooth(Action rescan)
+    {
+        Scanner.WriteScanView? manager = null;
+        manager = Scanner.WriteScanView.BluetoothManagerOnly(() => { Children.Remove(manager); rescan(); });
+        Grid.SetRowSpan(manager, Math.Max(1, RowDefinitions.Count)); Grid.SetColumnSpan(manager, Math.Max(1, ColumnDefinitions.Count));
+        Children.Add(manager);
+    }
 
     private static string ModelLabel(string id, string? fallback) => id switch
     {
