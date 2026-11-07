@@ -105,14 +105,7 @@ public static class NativeBleClient
             }
 
             string name = seenNames.TryGetValue(addr, out var n) ? n : rawName;
-            bool nameMatch = targetModel switch
-            {
-                "x20_pro" => name.Equals("EasySMX X20Pro", StringComparison.OrdinalIgnoreCase) ||
-                             name.Equals("EasySMX X20 Pro", StringComparison.OrdinalIgnoreCase),
-                "x20"     => name.Equals("EasySMX X20", StringComparison.OrdinalIgnoreCase) ||
-                             name.Equals("Xpert2", StringComparison.OrdinalIgnoreCase),
-                _         => name.StartsWith("EasySMX X20", StringComparison.OrdinalIgnoreCase)
-            };
+            bool nameMatch = BleDiscovery.MatchesTarget(targetModel, name);
 
             if (nameMatch || (string.IsNullOrEmpty(name) && cachedAddress == addr))
             {
@@ -247,8 +240,7 @@ public static class NativeBleClient
             const int timeoutMs = 2500;
             byte opcode = X20Codec.Unscramble(packet)[0];
             // The controller check asks three read-only questions and nothing else; the write test touches only the motor record.
-            if (check && !PadCheck.IsQuery(opcode)) throw new InvalidOperationException($"The controller check may not send opcode 0x{opcode:X2}.");
-            if (vibrate != null && Array.IndexOf(VibrationTest.SessionOpcodes, opcode) < 0) throw new InvalidOperationException($"The write test may not send opcode 0x{opcode:X2}.");
+            if (BleDiscovery.Refusal(check, vibrate != null, opcode) is { } refused) throw new InvalidOperationException(refused);
             expectedSerial = serial;
             pendingReply = new TaskCompletionSource<byte[]>(TaskCreationOptions.RunContinuationsAsynchronously);
 

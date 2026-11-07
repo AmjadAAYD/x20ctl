@@ -67,6 +67,12 @@ public sealed partial class WriteScanView : Grid
     private readonly CheckBox testAgree = new() { Style = DS.Style("DS.Toggle"), VerticalAlignment = VerticalAlignment.Center };
     private readonly Button testGo = Action("", "Run the write test", "PrimaryButton").Also(b => b.IsEnabled = false);
     private readonly ReadReport? read; // the Read scan that came just before, when the player went on from it
+    // nearby controllers: listen to advertisements, then (on a second press) list services. Neither asks a controller anything.
+    private readonly Button listServices = Action("", "List their Bluetooth services", "ActionButton").Also(b => b.Visibility = Visibility.Collapsed);
+    private IReadOnlyList<BleDiscovery.Seen> nearby = [];
+    private readonly Dictionary<ulong, BleDiscovery.GattListing> nearbyServices = [];
+    private readonly byte[] nearbySalt = System.Security.Cryptography.RandomNumberGenerator.GetBytes(16);
+    private static readonly TimeSpan ListenFor = TimeSpan.FromSeconds(8);
 
     public WriteScanView(Action close, ReadReport? read = null)
     {
@@ -136,6 +142,8 @@ public sealed partial class WriteScanView : Grid
         checkView.Background = new SolidColorBrush(Color.FromArgb(246, 5, 9, 20));
         var askPro = Action("\uE702", "Check an X20 Pro", "PrimaryButton"); askPro.Click += async (_, _) => await RunCheck("x20_pro");
         var askX20 = Action("\uE702", "Check an X20", "ActionButton"); askX20.Click += async (_, _) => await RunCheck("x20");
+        var findNearby = Action("\uE721", "Find nearby controllers", "ActionButton"); findNearby.Click += async (_, _) => await FindNearby();
+        listServices.Click += async (_, _) => await ListNearbyServices();
         checkSave.Click += (_, _) => SaveCheck();
         var phoneRoute = Action("\uE8EA", "Use the phone recording instead", "ActionButton"); phoneRoute.Click += (_, _) => { checkView.Visibility = Visibility.Collapsed; Show(0); };
         var leave = Action("\uE72B", "Back to Tools", "ActionButton"); leave.Click += (_, _) => close();
@@ -151,7 +159,7 @@ public sealed partial class WriteScanView : Grid
             Kit.Text("Check over Bluetooth", 40, "DS.Text", FontWeights.Bold),
             Wrap("Three read-only questions: what the controller is, its firmware, and which settings it exposes. Nothing is written.", 17, "DS.TextSoft").Also(t => t.Margin = new(0, 8, 0, 0)),
             Note("Turn the controller on with Bluetooth. Disconnect it from KeyLinker on any phone first. On a recorded X20 or X20 Pro, a vibration write test is offered afterwards."),
-            new WrapPanel { Margin = new(0, 22, 0, 0), Children = { askPro, askX20.Also(b => b.Margin = new(12, 0, 0, 0)) } },
+            new WrapPanel { Margin = new(0, 22, 0, 0), Children = { askPro, askX20.Also(b => b.Margin = new(12, 0, 0, 0)), findNearby.Also(b => b.Margin = new(12, 0, 0, 0)), listServices.Also(b => b.Margin = new(12, 0, 0, 0)) } },
             checkStatus.Also(t => t.Margin = new(0, 18, 0, 10)),
             checkText,
             testPanel,
@@ -162,12 +170,13 @@ public sealed partial class WriteScanView : Grid
     private async Task RunCheck(string modelId)
     {
         if (checking) return;
-        checking = true; checkSave.Visibility = Visibility.Collapsed; testPanel.Visibility = Visibility.Collapsed; testAgree.IsChecked = false; checkedModel = null;
+        checking = true; checkSave.Visibility = Visibility.Collapsed; testPanel.Visibility = Visibility.Collapsed; testAgree.IsChecked = false; checkedModel = null; listServices.Visibility = Visibility.Collapsed;
         checkStatus.Text = "Asking the controller. Keep it awake and near this PC.";
         try
         {
             var result = await PadBridge.Check(modelId);
             checkText.Text = result.Text; checkText.Visibility = Visibility.Visible;
+            if (result.Check is { } answered) checkText.Text += $"  status          {BleDiscovery.Describe(BleDiscovery.Assess(BleDiscovery.Listing.KnownModelName, null, PadCheck.Build(answered)))}{Environment.NewLine}";
             checkStatus.Text = result.Ok ? "Done. Nothing was changed on the controller." : "The check couldn't finish. Try again, or use the phone recording.";
             if (result.Ok) checkSave.Visibility = Visibility.Visible;
             // the write test only for an exactly proven controller, mode and firmware with motors (VibrationTest.MayRun)
@@ -177,6 +186,41 @@ public sealed partial class WriteScanView : Grid
             }
         }
         finally { checking = false; }
+    }
+
+    /// <summary>Listen to advertisements for a few seconds. No connection, no controller command.</summary>
+    private async Task FindNearby()
+    {
+        if (checking) return;
+        checking = true; checkSave.Visibility = Visibility.Collapsed; testPanel.Visibility = Visibility.Collapsed; testAgree.IsChecked = false; checkedModel = null; listServices.Visibility = Visibility.Collapsed;
+        checkStatus.Text = "Listening for Bluetooth controllers. Nothing is sent to them.";
+        try
+        {
+            nearby = await NativeBleDiscovery.ListenAsync(ListenFor); nearbyServices.Clear();
+            checkText.Text = BleDiscovery.Report(nearby, nearbyServices, nearbySalt, ListenFor); checkText.Visibility = Visibility.Visible;
+            checkStatus.Text = nearby.Count == 0 ? "Nothing found." : $"Found {nearby.Count}.";
+            checkSave.Visibility = Visibility.Visible;
+            listServices.Visibility = nearby.Any(BleDiscovery.MayListServices) ? Visibility.Visible : Visibility.Collapsed;
+        }
+        catch (Exception ex) { checkStatus.Text = $"Couldn't listen (0x{ex.HResult:X8}). Is Bluetooth on?"; }
+        finally { checking = false; }
+    }
+
+    /// <summary>Connect to each possible match in turn and list its service UUIDs. Reads no value and writes nothing.</summary>
+    private async Task ListNearbyServices()
+    {
+        if (checking) return;
+        checking = true; listServices.IsEnabled = false;
+        checkStatus.Text = "Listing services. Nothing is written.";
+        try
+        {
+            foreach (var d in nearby.Where(BleDiscovery.MayListServices))
+                nearbyServices[d.Address] = await NativeBleDiscovery.ListServicesAsync(d.Address, TimeSpan.FromSeconds(10));
+            checkText.Text = BleDiscovery.Report(nearby, nearbyServices, nearbySalt, ListenFor);
+            checkStatus.Text = "Done. Nothing was changed.";
+        }
+        catch (Exception ex) { checkStatus.Text = $"Couldn't list services (0x{ex.HResult:X8}). Nothing was changed."; } // a click handler must not throw
+        finally { checking = false; listServices.IsEnabled = true; }
     }
 
     private async Task RunWriteTest()
