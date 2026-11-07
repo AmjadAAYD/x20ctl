@@ -30,9 +30,10 @@ public partial class StudioScene
     /// Apply when they differ from what PC mode has saved.</summary>
     internal void DraftsRestored()
     {
-        Curves.Refresh(); Macros?.Refresh(); RefreshEditor(); UpdateCurveContext(); UpdateMacroContext(); SyncPcMode();
+        Curves.Refresh(); Macros?.Refresh(); Vibration?.Refresh(); RefreshEditor(); UpdateCurveContext(); UpdateMacroContext(); SyncPcMode();
     }
 
     internal Panel ManagementBodyHostForReview => ManagementBodyHost;
     internal string[] TabOrderForReview => TabOrder;
+    internal string ChangeCountForReview => ChangeCount.Text;
 }

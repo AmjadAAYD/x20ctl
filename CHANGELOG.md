@@ -1,6 +1,6 @@
 # Changelog
 
-## [V0.022] - 2026-11-07 · Pre-release
+## [V0.023] - 2026-11-07 · Pre-release
 
 ### Added
 
@@ -13,18 +13,23 @@
 - **The Studio remembers.** Go back into a controller, even after closing X20CTL, and its buttons, curves, macros, vibration and last tab are as you left them, for each player and model. PC mode changes not yet applied come back with Apply still lit.
 - **Pair and connect Bluetooth controllers from the app.** Scan, pair, connect and disconnect from Tools, the Bluetooth check and the no-controller screen. Re-pairing asks first and says the old pairing is removed.
 - **Find nearby Bluetooth controllers by listening.** X20CTL reads what controllers broadcast and, when asked, lists the services they offer. Nothing is sent to them, and only a pad whose identity checks out is shown as configurable.
+- **Vibration strength in PC mode.** On the Dune, X05 Pro, X10, D10 and X15, the Vibration tab now sets how strongly games make the pad vibrate, from 0 to 100% of the game's own rumble. Press Apply to PC mode to save it; it is kept for each player and each game profile, and 100% leaves the rumble as the game sends it.
+- **Setups for every PC mode controller.** The Dune, X05 Pro, X10, D10 and X15 can now save, open, rename, duplicate and export setups, as the X20 could. A setup holds the button remaps, stick and trigger curves, macros with the button that plays each one, and the vibration strength.
 - **A PlayStation 4 virtual controller in PC mode.** Pick it instead of Xbox 360 for games that prefer a PlayStation pad. It takes effect the next time the virtual controller is created, and the choice is kept across restarts.
 
 ### Changed
 
-- **Every controller card reads Full PC Mode Configuration.** In Choose a controller, on every theme, it replaces Preview, Input testing and Not available yet.
+- **Every controller card says what it can do.** In Choose a controller, on every theme, the Dune, X05 Pro, X10, D10 and X15 read Full PC Mode Configuration, and the X20 and X20 Pro read Full configuration. This replaces Preview, Input testing and Not available yet.
+- **The X20 and X20 Pro keep their own settings.** Their Studio still saves buttons, curves, macros and vibration to the controller itself. The PC mode Studio is for every other EasySMX controller.
 - **PC mode's tabs.** With PC mode on, Keyboard replaces Macros, Mouse sits beside it and Device is hidden. With PC mode off, Macros and Device are back and Mouse is last.
 - **The Combos tab is gone.** Saved combos keep working and can be removed from the Keyboard tab.
 - **A warning before PC mode switches on.** It appears every time, and says some games and anti-cheat systems may treat a virtual controller as cheating and could ban the account.
-- **This is a pre-release.** X20CTL's update check doesn't offer it, and V0.021 stays the main download. Get it from the releases page, and report what works through Send feedback.
+- **This is a pre-release.** It replaces the V0.022 pre-release. X20CTL's update check doesn't offer it, and V0.021 stays the main download. Get it from the releases page, and report what works through Send feedback.
 
 ### Fixed
 
+- **Every EasySMX controller can be set up in PC mode.** The Dune, X05 Pro, X10, D10 and X15 said "Remapping is not verified for this model yet" on Buttons, and "Switch PC mode on to use the Keyboard tab" on Keyboard, even with PC mode on. Buttons, Curves, Macros, Keyboard, Mouse, Vibration and Setups now open ready to edit for these controllers. If PC mode is off, the settings are still saved, and the status bar says to switch it on in the Status tab to use them in games.
+- **Macro paddles are named in PC mode.** A rear paddle reads Rear paddle · Macro slot instead of Configuration role unverified. In Macros, pick the button that plays its sequence, since Windows sees the paddles as A, B, L3 or R3.
 - **PC mode switches on after a Reset.** With every setting back to default, the switch looked on but nothing ran. It now says it is on and waiting, and starts by itself once a setting changes or PlayStation 4 is picked.
 - **A pad on a wireless receiver is fully hidden in PC mode.** X20CTL now hides the receiver's XInput device as well as its gamepad, so games no longer see the real pad next to the virtual one.
 

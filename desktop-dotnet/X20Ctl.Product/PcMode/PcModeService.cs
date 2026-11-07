@@ -222,6 +222,7 @@ public sealed class PcModeService : IDisposable
                     if (mute) { LetGo(pair); output = default; }
                     else if (suspended) { LetGo(pair); output = input; }
                     else { pair.Processor ??= new PadProcessor(ProfileOf(pair.Key)); output = pair.Processor.Process(input, clock.ElapsedMilliseconds); foreach (var (action, down) in pair.Processor.TakeActions()) MouseOutput.Output(action, down); }
+                    pair.Pad.Rumble = mute || suspended ? 100 : ProfileOf(pair.Key).Vibration;
                     try { pair.Pad.Update(output); Applied++; if (pair == pairs[0]) Volatile.Write(ref snapshot, new Snapshot(input, output, Applied)); }
                     catch (Exception error) when (error is not OutOfMemoryException) { Teardown(); Set(PcModeState.NeedsAttention, "The virtual controller stopped answering: " + error.Message); Thread.Sleep(1000); lost = false; break; }
                 }
@@ -263,6 +264,8 @@ sealed class VirtualPad : IDisposable
 {
     readonly ViGEmClient client; readonly IXbox360Controller? pad; readonly IDualShock4Controller? ds4; readonly int real;
     public int Slot { get; private set; } = -1;
+    /// <summary>The share of a game's vibration passed on to the real pad, in percent (the profile's Vibration).</summary>
+    public volatile int Rumble = 100;
     /// <summary>A DualShock 4 is not an XInput device, so it never has an XInput slot.</summary>
     public bool NoSlot => ds4 != null;
     public VirtualPad(int real, PcModeEntry.VirtualType type)
@@ -272,13 +275,13 @@ sealed class VirtualPad : IDisposable
         if (type == PcModeEntry.VirtualType.DualShock4)
         {
             ds4 = client.CreateDualShock4Controller(); ds4.AutoSubmitReport = false;
-            ds4.FeedbackReceived += (_, e) => ControllerRumble.Set(real, e.LargeMotor * 257, e.SmallMotor * 257);
+            ds4.FeedbackReceived += (_, e) => ControllerRumble.Set(real, e.LargeMotor * 257 * Rumble / 100, e.SmallMotor * 257 * Rumble / 100);
             ds4.Connect();
         }
         else
         {
             pad = client.CreateXbox360Controller(); pad.AutoSubmitReport = false;
-            pad.FeedbackReceived += (_, e) => ControllerRumble.Set(real, e.LargeMotor * 257, e.SmallMotor * 257); // a game's vibration goes on to the real pad
+            pad.FeedbackReceived += (_, e) => ControllerRumble.Set(real, e.LargeMotor * 257 * Rumble / 100, e.SmallMotor * 257 * Rumble / 100); // a game's vibration goes on to the real pad
             pad.Connect();
             Refresh();
         }

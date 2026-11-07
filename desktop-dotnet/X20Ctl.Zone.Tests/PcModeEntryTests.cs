@@ -4,7 +4,7 @@ public class PcModeEntryTests
 {
     [Theory]
     [InlineData("x20", false)]
-    [InlineData("x20_pro", true)]
+    [InlineData("x20_pro", false)]
     [InlineData("dune", true)]
     [InlineData("x05_pro", true)]
     public void Only_the_x20_has_no_entry(string model, bool available) =>

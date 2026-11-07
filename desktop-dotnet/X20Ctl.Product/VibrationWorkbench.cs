@@ -25,7 +25,7 @@ public sealed class VibrationWorkbench
   Draft=draft;previewStrength=draft.Strength;Body.ColumnDefinitions.Add(new(){Width=new(1.4,GridUnitType.Star)});Body.ColumnDefinitions.Add(new());
   Visualizer=new((Geometry)resources.FindResource("ControllerOutline"),animations,model);Body.Children.Add(new Viewbox{Child=Visualizer,Stretch=Stretch.Uniform});
   var controls=new StackPanel{Margin=new(24,16,20,8),VerticalAlignment=VerticalAlignment.Center};Grid.SetColumn(controls,1);Body.Children.Add(controls);
-  controls.Children.Add(Copy("VIBRATION",14));controls.Children.Add(value);controls.Children.Add(Copy("Test strength",16));
+  controls.Children.Add(Copy("VIBRATION",14));controls.Children.Add(value);controls.Children.Add(Copy(draft.PcMode?"How strongly games vibrate it (PC mode)":"Test strength",16));
   Strength.Style=DS.Style("DS.Slider");Strength.Margin=new(0,18,0,14);controls.Children.Add(Strength);
   var choices=new WrapPanel();controls.Children.Add(choices);foreach(int percent in new[]{0,25,50,75,100}){int p=percent;var b=Button(percent==0?"Off":percent+"%",()=>Set(p));b.Tag=percent;presets.Add(b);choices.Children.Add(b);}
   controls.Children.Remove(choices);controls.Children.Add(Kit.Segments(choices));

@@ -42,8 +42,10 @@ public sealed class PcModeProfile
     public Dictionary<string, KeyStep[]> Custom { get; set; } = new();
     /// <summary>A per-game profile's display name (the game's window title when it was added). Not a setting.</summary>
     public string? Name { get; set; }
+    /// <summary>How strongly a game's vibration reaches the real pad, in percent (owner, 7 Nov 2026: the Vibration tab sets it in PC mode).</summary>
+    public int Vibration { get; set; } = 100;
 
-    public bool IsNeutral => Remap.Count == 0 && Keys.Count == 0 && Custom.Count == 0 && Combos.Count == 0 && Turbo.Count == 0 && Macros.Count == 0 && Curves.Values.All(IsDefault) && Sticks.Values.All(s => s.IsDefault);
+    public bool IsNeutral => Remap.Count == 0 && Keys.Count == 0 && Custom.Count == 0 && Combos.Count == 0 && Turbo.Count == 0 && Macros.Count == 0 && Curves.Values.All(IsDefault) && Sticks.Values.All(s => s.IsDefault) && Vibration == 100;
     public static bool IsDefault(SetupCurve c) => c.Inner == 0 && c.Outer == 100 && c.X1 == 85 && c.Y1 == 85 && c.X2 == 170 && c.Y2 == 170;
     public const int MinTurboHz = 2, MaxTurboHz = 30;
 
@@ -51,6 +53,7 @@ public sealed class PcModeProfile
     {
         if (Name is { Length: > 120 }) throw new InvalidDataException("Name too long.");
         if (Remap == null || Curves == null || Turbo == null || Macros == null || Sticks == null || Combos == null) throw new InvalidDataException("Missing settings.");
+        if (Vibration is < 0 or > 100) throw new InvalidDataException("Vibration must be 0 to 100%.");
         if (Keys == null || Custom == null || Keys.Count > 64 || Custom.Count > 32) throw new InvalidDataException("Too many keyboard settings.");
         foreach (var (button, output) in Keys)
             if (!Known(button) || !KeyCatalog.IsValid(output)) throw new InvalidDataException("Unknown key in a keyboard mapping.");

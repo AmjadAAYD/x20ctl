@@ -5,7 +5,9 @@ public sealed class VibrationDraft(string modelId)
     public const int DefaultStrength=70; // Preserved UI profile default, not hardware state.
     public int Strength {get;private set;}=DefaultStrength;
     public bool Modified=>Strength!=DefaultStrength;
-    public bool CanEdit=>modelId is "x20" or "x20_pro";
+    /// <summary>PC mode scales a game's vibration on the PC, so any model can set it while PC mode is on.</summary>
+    public bool PcMode {get;set;}
+    public bool CanEdit=>modelId is "x20" or "x20_pro" || PcMode;
     public bool CanApplyHardware=>false;
     public bool CanTestHardware=>false;
     public void Set(int percent)

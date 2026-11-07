@@ -66,6 +66,14 @@ internal static class InputsReview
             Save(view, Path.Combine(directory, $"verify-{outcome}.png"));
             report.Add($"verify {outcome}: " + string.Join(" / ", Texts(view).Where(t => t.Contains("Studio") || t.Contains("found") || t.Contains("·"))));
         }
+        // a Dune: with PC mode off its tabs point to PC mode; with it on, Vibration sets how strongly games vibrate it
+        window.Host.CloseSelector(); window.Scene.AssignController(2, window.Host.Catalog.Get("dune")); window.Host.EnterStudio(2); studio = window.Host.Studio!;
+        studio.ShowManagement("Dashboard"); studio.GoToTab("Buttons"); await Shoot("dune-buttons-off");
+        report.Add("dune, PC mode off: tabs " + string.Join(", ", studio.TabOrderForReview) + " · " + studio.ChangeCountForReview);
+        link.Service.Enabled = true; window.Host.EnterStudio(2); studio = window.Host.Studio!;
+        studio.ShowVibration(true); studio.Vibration!.Set(40); await Shoot("dune-vibration-pc");
+        report.Add("dune vibration, PC mode on: " + string.Join(" / ", Texts(studio).Where(t => t.Contains("PC mode") || t.Contains("games vibrate"))));
+        link.Service.Enabled = false;
         File.WriteAllLines(Path.Combine(directory, "inputs.txt"), report);
     }
 

@@ -553,12 +553,12 @@ public partial class StudioScene : UserControl
         updating = true; var region = layout.Controls.FirstOrDefault(r => r.Key == SelectedControl);
         bool macro = region?.Role == "macro", editable = region != null && Draft.CanEdit(SelectedControl);
         SelectedName.Text = region == null ? "Choose a control" : Label(SelectedControl);
-        ControlDescription.Text = region == null ? "Every physical control is inspectable" : macro ? Model.Id is "x20" or "x20_pro"?"Rear paddle · Macro slot":"Rear control · Configuration role unverified" : region.Role == "axis" ? "Analog movement · Information only" : region.Role == "system" || SelectedControl is "SELECT" or "START" ? "System control · Information only" : SelectedControl.StartsWith("DPAD") ? "Directional input" : SelectedControl is "LB" or "RB" ? "Shoulder button" : SelectedControl is "LT" or "RT" ? "Analog trigger · Button output" : SelectedControl is "L3" or "R3" ? "Stick click" : "Face button";
-        ControlType.Text = region == null ? "CONTROLLER-FIRST MAPPING" : macro ? Model.Id is "x20" or "x20_pro"?"REAR MACRO SLOT":"REAR CONTROL" : region.Role == "axis" ? "ANALOG AXIS · READ ONLY" : region.Role == "system" ? "SYSTEM / SPECIAL CONTROL" : "PHYSICAL INPUT";
+        ControlDescription.Text = region == null ? "Every physical control is inspectable" : macro ? Model.Id is "x20" or "x20_pro"||Draft.PcMode?"Rear paddle · Macro slot":"Rear control · Configuration role unverified" : region.Role == "axis" ? "Analog movement · Information only" : region.Role == "system" || SelectedControl is "SELECT" or "START" ? "System control · Information only" : SelectedControl.StartsWith("DPAD") ? "Directional input" : SelectedControl is "LB" or "RB" ? "Shoulder button" : SelectedControl is "LT" or "RT" ? "Analog trigger · Button output" : SelectedControl is "L3" or "R3" ? "Stick click" : "Face button";
+        ControlType.Text = region == null ? "CONTROLLER-FIRST MAPPING" : macro ? Model.Id is "x20" or "x20_pro"||Draft.PcMode?"REAR MACRO SLOT":"REAR CONTROL" : region.Role == "axis" ? "ANALOG AXIS · READ ONLY" : region.Role == "system" ? "SYSTEM / SPECIAL CONTROL" : "PHYSICAL INPUT";
         CurrentCaption.Text = editable ? "CURRENT · PREVIEW" : "HARDWARE STATE";
         CurrentMapping.Text = editable ? Glyph(SelectedControl) : region == null ? "—" : "Unknown";
         DraftCaption.Text = macro ? "CONTROL ROLE" : editable ? "DRAFT OUTPUT" : "SUPPORT";
-        DraftMapping.Text = macro ? Model.Id is "x20" or "x20_pro"?"Macro\nslot":"Unverified" : editable ? Glyph(Draft.Target(SelectedControl)) : region == null ? "—" : "No write";
+        DraftMapping.Text = macro ? Model.Id is "x20" or "x20_pro"||Draft.PcMode?"Macro\nslot":"Unverified" : editable ? Glyph(Draft.Target(SelectedControl)) : region == null ? "—" : "No write";
         UpdateGlyphScale();
         MappingArrow.Visibility = editable ? Visibility.Visible : Visibility.Hidden;
         TargetChoice.IsEnabled = editable; TargetChoice.SelectedValue = editable ? Draft.Target(SelectedControl) : null;
@@ -697,7 +697,7 @@ public partial class StudioScene : UserControl
     }
     private void CurvesTab(object sender,RoutedEventArgs e)=>ShowCurves(true);
     /// <summary>PC mode's settings, set by the host: the Curves tab's Advanced stick tools write to them.</summary>
-    public PcModeLink? PcMode { get => pcLink; set { pcLink = value; pcSync = value != null && Draft.PcMode ? new(value, Draft, Curves.Draft, macroDraft) : null; WireCurveTuning(); SyncPcMode(); } }
+    public PcModeLink? PcMode { get => pcLink; set { pcLink = value; pcSync = value != null && Draft.PcMode ? new(value, Draft, Curves.Draft, macroDraft, vibrationDraft) : null; WireCurveTuning(); SyncPcMode(); } }
     /// <summary>The Curves graph reads and edits PC mode's stick settings (dead zone, full at, anti-dead zone, max output), so
     /// it draws exactly what games get, including what Agent XCTL changed.</summary>
     private void WireCurveTuning()
@@ -847,14 +847,17 @@ public partial class StudioScene : UserControl
         VibrationBodyHost.Visibility=VibrationShelfFrame.Visibility=VibrationResetChoice.Visibility=value?Visibility.Visible:Visibility.Collapsed;
         ResetCurveChoice.Visibility=CurveMoreChoice.Visibility=Visibility.Collapsed;
         RootLayout.RowDefinitions[4].Height=new(value?54:184);
-        if(value){DraftBar.Visibility=Visibility.Collapsed;RootLayout.RowDefinitions[2].Height=new(0);Apply.Visibility=StatusNote.Visibility=Visibility.Collapsed;if(Vibration==null){Vibration=new(vibrationDraft,this,RegisterFocus,animate,Model.Id);ModelProfiles.Wear(Vibration.Body,Model.Id,"Vibration");VibrationBodyHost.Children.Add(Vibration.Body);VibrationShelfHost.Children.Add(Vibration.Shelf);Vibration.Changed+=UpdateVibrationContext;}UpdateVibrationContext();EnterMotion(VibrationBodyHost,14,220);EnterMotion(VibrationShelfHost,14,220);}
+        if(value){DraftBar.Visibility=Visibility.Collapsed;RootLayout.RowDefinitions[2].Height=new(0);Apply.Visibility=StatusNote.Visibility=Visibility.Collapsed;if(Vibration==null){Vibration=new(vibrationDraft,this,RegisterFocus,animate,Model.Id);ModelProfiles.Wear(Vibration.Body,Model.Id,"Vibration",Draft.PcMode);VibrationBodyHost.Children.Add(Vibration.Body);VibrationShelfHost.Children.Add(Vibration.Shelf);Vibration.Changed+=UpdateVibrationContext;}UpdateVibrationContext();EnterMotion(VibrationBodyHost,14,220);EnterMotion(VibrationShelfHost,14,220);}
         else RefreshEditor();UpdateButtonsPage();
     }
-    private void UpdateVibrationContext(){if(!IsVibration)return;ChangeCount.Text="Vibration · Test on the controller";DraftChip.Text="Vibration";PrimaryHint.Text=" Adjust strength";OverviewHint.Text=" Reset draft";VibrationResetChoice.IsEnabled=vibrationDraft.Modified;Apply.IsEnabled=false;}
+    private void UpdateVibrationContext(){if(!IsVibration)return;ChangeCount.Text="Vibration · Test on the controller";DraftChip.Text="Vibration";PrimaryHint.Text=" Adjust strength";OverviewHint.Text=" Reset draft";VibrationResetChoice.IsEnabled=vibrationDraft.Modified;Apply.IsEnabled=false;
+        // PC mode (owner, 7 Nov 2026): the strength is how much of a game's vibration reaches the pad, saved with Apply like the other tabs
+        if(pcSync!=null){DraftBar.Visibility=Apply.Visibility=StatusNote.Visibility=Visibility.Visible;RootLayout.RowDefinitions[2].Height=new(40);ChangeCount.Text=pcSync.HasPending?"PC mode · Vibration changed. Press Apply to PC mode.":$"PC mode · Games vibrate at {vibrationDraft.Strength}%";UpdatePcApply();}
+    }
     private void VibrationTab(object sender,RoutedEventArgs e)=>ShowVibration(true);
     private void ResetVibration(object sender,RoutedEventArgs e)=>Vibration?.Reset();
     /// <summary>PC Mode is on for a pad that has the PC Mode entry: its dashboard has no Device or Diagnostics pages (owner, 6 Nov 2026).</summary>
-    private bool PcDashboard => PcModeEntryAvailable && pcLink?.Service.Enabled == true;
+    private bool PcDashboard => PcModeEntryAvailable && pcLink != null; // owner, 7 Nov 2026: PC mode is how these controllers are set up
     private void ApplyPcDashboard()
     {
         bool on = PcDashboard;
@@ -912,7 +915,7 @@ public partial class StudioScene : UserControl
                 var pc=new PcModePage(PcMode.Service,PcMode.Store,PcMode.Preferences,back,ShowButtons){Margin=new(30,6,30,24)};pc.Switched+=_=>PcModeSwitched?.Invoke();
                 ManagementBodyHost.Children.Add(new ScrollViewer{Content=pc,VerticalScrollBarVisibility=ScrollBarVisibility.Auto});pc.Switch.Focus();
             }
-            ChangeCount.Text=Draft.PcMode?"PC mode is on · Buttons, Curves and Macros apply on this PC":"PC mode is off · Switch it on to edit this controller's settings on the PC";PrimaryHint.Text=" Select";OverviewHint.Text="";DraftChip.Text="PC mode";
+            ChangeCount.Text=pcLink?.Service.Enabled==true?"PC mode is on · Buttons, Curves, Keyboard and Mouse apply on this PC":"PC mode is off · Switch it on so games get this controller's settings";PrimaryHint.Text=" Select";OverviewHint.Text="";DraftChip.Text="PC mode";
         }
         else if(page=="Mouse"){if(MouseService==null){ManagementBodyHost.Children.Add(Kit.Text("Mouse mode isn't available in this window.",16,"DS.TextSoft"));}else{Mouse??=new(MouseService,RegisterFocus,Player,Model,layout);ManagementBodyHost.Children.Add(Mouse.Body);Mouse.Switch.Focus();}ChangeCount.Text="Controller as mouse · Saved on this PC";PrimaryHint.Text=" Select";OverviewHint.Text="";DraftChip.Text="Mouse";}
         else if(page=="Keyboard")ShowKeyboardPage();else if(page=="Tester"){Tester??=new(Model,layout,this,RegisterFocus,()=>ShowManagement("Device"),animate);Tester.Enter();ManagementBodyHost.Children.Add(Tester.Body);ManagementShelfHost.Children.Add(Tester.Shelf);ChangeCount.Text="Tester owns gameplay input · UI input navigation paused";PrimaryHint.Text=" Exit Tester";OverviewHint.Text="";DraftChip.Text="Gameplay tester";navigationBeforeTester=navigationMode;navigationMode=true;Tester.Exit.Focus();}

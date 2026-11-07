@@ -241,11 +241,12 @@ public sealed partial class ProductHost : Grid
         var key=(player,model.Id);activeSetups.TryGetValue(key,out var activeSetup);
         // with PC mode on, the Buttons, Curves and Macros tabs edit PC mode's settings, for any model
         // 6 Nov 2026: the X20 Pro is the PC Mode rework's test pad, so with PC mode on its tabs edit the virtual pad too; with it off they write on the pad (Apply to controller) as before
-        bool pc=PcMode is {Enabled:true}&&pcModeStore!=null;
+        // owner, 7 Nov 2026: every controller but the X20 and X20 Pro is set up through PC mode, so its tabs always edit PC mode
+        bool pc=PcMode!=null&&pcModeStore!=null&&X20Ctl.Zone.PcMode.PcModeEntry.IsAvailable(model.Id);
         if(draft.PcMode&&!pc&&model.Id!="x20")PcModeSync.Clear(draft,curveDraft,macroDraft); // while still unlocked
-        draft.PcMode=curveDraft.PcMode=macroDraft.PcMode=pc;
+        draft.PcMode=curveDraft.PcMode=macroDraft.PcMode=vibrationDraft.PcMode=pc;
         if(pcModeStore!=null)PcModePage.UsePlayer(player,pcModeStore); // each controller has its own PC mode settings
-        if(pc)PcModeSync.Prepare(pcModeStore!,draft,curveDraft,macroDraft);
+        if(pc)PcModeSync.Prepare(pcModeStore!,draft,curveDraft,macroDraft,vibrationDraft);
         // what this Studio held when it was last left: PC mode's edits not yet applied come back only while PC mode's saved
         // settings are still the ones they were made against; a pad's own drafts come back on the first visit after a restart
         var remembered=memory.Get(player,model.Id);

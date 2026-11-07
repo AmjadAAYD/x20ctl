@@ -188,7 +188,7 @@ public sealed partial class ModelSelectorView : Grid
                     if (Has("triggerHaptics")) parts.Add("trigger haptics");
                 }
                 if (item.TryGetProperty("macroSlots", out var slots) && slots.GetArrayLength() > 0) parts.Add($"{slots.GetArrayLength()} macro paddles");
-                string support = "Full PC Mode Configuration"; // owner, 7 Nov 2026: every model is fully configurable in PC mode
+                string support = id is "x20" or "x20_pro" ? "Full configuration" : "Full PC Mode Configuration"; // owner, 7 Nov 2026: PC mode for every pad but the X20 family
                 facts[id] = new(string.Join(" · ", parts), support);
             }
         }

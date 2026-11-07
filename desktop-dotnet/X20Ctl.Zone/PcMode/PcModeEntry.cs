@@ -3,9 +3,9 @@ namespace X20Ctl.Zone.PcMode;
 /// <summary>Rules for the PC Mode entry (rework plan, 6 Nov 2026): which pads get it, which virtual pad types exist, and the warning shown before enabling.</summary>
 public static class PcModeEntry
 {
-    /// <summary>The X20 writes its settings on the pad, so it has no PC Mode entry. Every other pad does. The X20 Pro is included
-    /// for now (owner, 6 Nov 2026): it is the test pad for the rework, and the exclusion returns if the owner decides it should.</summary>
-    public static bool IsAvailable(string modelId) => modelId is not "x20";
+    /// <summary>The X20 and X20 Pro keep their settings on the pad, so they have no PC Mode. Every other controller is
+    /// configured through PC mode (owner, 7 Nov 2026: "it must be universal ... except X20 Pro and X20").</summary>
+    public static bool IsAvailable(string modelId) => modelId is not ("x20" or "x20_pro");
 
     public enum VirtualType { Xbox360, DualShock4 }
 
