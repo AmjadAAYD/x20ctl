@@ -1,6 +1,6 @@
 # Changelog
 
-## [V0.023] - 2026-11-07 · Pre-release
+## [V0.022.1] - 2026-11-07 · Pre-release
 
 ### Added
 
