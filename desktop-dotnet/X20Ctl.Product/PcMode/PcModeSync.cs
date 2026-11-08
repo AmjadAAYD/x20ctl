@@ -21,7 +21,7 @@ public sealed class PcModeSync(PcModeLink link, ButtonDraft buttons, CurveDraft 
     public static void Prepare(PcModeStore store, ButtonDraft buttons, CurveDraft curves, MacroDraft macros, VibrationDraft? vibration = null)
     {
         var p = store.Get(PcModePage.StoreKey);
-        if (p.IsNeutral && PcModeDrafts.HasChanges(buttons, curves, macros)) { if (vibration is { CanEdit: true }) vibration.Set(p.Vibration); return; }
+        if (p.IsNeutral && PcModeDrafts.HasChanges(buttons, curves, macros)) { if (vibration is { CanEdit: true }) { vibration.Set(Math.Clamp(p.Vibration, 0, vibration.Max)); if (vibration.PcMode) vibration.SetMotors(Math.Clamp(p.VibrationLeft, 0, vibration.Max), Math.Clamp(p.VibrationRight, 0, vibration.Max), Math.Clamp(p.VibrationFloor, 0, PcModeProfile.MaxVibrationFloor)); } return; }
         try { PcModeDrafts.Load(p, buttons, curves, macros, vibration); }
         catch (Exception error) when (error is ArgumentException or InvalidOperationException) { }
     }

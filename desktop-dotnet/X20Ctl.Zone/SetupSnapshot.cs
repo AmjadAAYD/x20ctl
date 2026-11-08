@@ -10,6 +10,8 @@ public sealed class SetupSnapshot
     public Dictionary<string,SetupCurve> Curves {get;set;}=new();
     public Dictionary<string,SetupMacro[]> Macros {get;set;}=new();
     public int Vibration {get;set;}=70;
+    /// <summary>PC mode's per-motor shares and minimum (absent in older setups).</summary>
+    public int[]? Motors {get;set;}
     /// <summary>PC mode: the button that plays each macro slot (absent in older setups).</summary>
     public Dictionary<string,string?>? Triggers {get;set;}
     [JsonExtensionData]public Dictionary<string,JsonElement>? Extra {get;set;}
@@ -17,7 +19,7 @@ public sealed class SetupSnapshot
     {
         ModelId=model,Mappings=ButtonDraft.Sources.ToDictionary(k=>k,buttons.Target),
         Curves=Enum.GetValues<CurveChannel>().ToDictionary(c=>c.ToString(),c=>{var v=curves[c];return new SetupCurve(v.Preset,v.BasePreset,v.Inner,v.Outer,v.Point1.X,v.Point1.Y,v.Point2.X,v.Point2.Y);}),
-        Macros=macros.SlotNames.ToDictionary(s=>s,s=>macros[s].Select(v=>new SetupMacro(v.Id,v.Buttons.ToArray(),v.Left,v.Right,v.HoldMs,v.PauseMs)).ToArray()),Vibration=vibration.Strength,
+        Macros=macros.SlotNames.ToDictionary(s=>s,s=>macros[s].Select(v=>new SetupMacro(v.Id,v.Buttons.ToArray(),v.Left,v.Right,v.HoldMs,v.PauseMs)).ToArray()),Vibration=vibration.Strength,Motors=vibration.PcMode?[vibration.Left,vibration.Right,vibration.Floor]:null,
         Triggers=macros.PcMode?macros.SlotNames.ToDictionary(s=>s,macros.Trigger):null
     };
     public void Validate()
@@ -27,7 +29,7 @@ public sealed class SetupSnapshot
         var buttons=new ButtonDraft(ModelId){PcMode=pc};foreach(var (key,value) in Mappings)buttons.Set(key,value);
         var curves=new CurveDraft(ModelId){PcMode=pc};foreach(var (key,value) in Curves)curves.Set(Enum.Parse<CurveChannel>(key),new(value.Preset,value.Inner,value.Outer,(value.X1,value.Y1),(value.X2,value.Y2)){BasePreset=value.BasePreset});
         var macros=new MacroDraft(ModelId){PcMode=pc};foreach(var (slot,events) in Macros)foreach(var step in events){macros.Add(slot,step.PauseMs);macros.Update(slot,macros[slot].Count-1,new(step.Id,step.Buttons,step.Left,step.Right,step.HoldMs,step.PauseMs));}
-        new VibrationDraft(ModelId){PcMode=pc}.Set(Vibration);
+        var v=new VibrationDraft(ModelId){PcMode=pc};v.Set(Vibration);if(pc&&Motors is {Length:3})v.SetMotors(Motors[0],Motors[1],Motors[2]);
     }
     public void LoadInto(ButtonDraft buttons,CurveDraft curves,MacroDraft macros,VibrationDraft vibration)
     {
@@ -36,5 +38,6 @@ public sealed class SetupSnapshot
         foreach(var slot in macros.SlotNames){macros.Clear(slot);foreach(var step in Macros[slot]){macros.Add(slot,step.PauseMs);macros.Update(slot,macros[slot].Count-1,new(step.Id,step.Buttons,step.Left,step.Right,step.HoldMs,step.PauseMs));}}
         if(Triggers!=null&&macros.PcMode)foreach(var (slot,button) in Triggers)if(macros.SlotNames.Contains(slot))macros.SetTrigger(slot,button);
         vibration.Set(Vibration);
+        if(vibration.PcMode&&Motors is {Length:3})vibration.SetMotors(Motors[0],Motors[1],Motors[2]);
     }
 }

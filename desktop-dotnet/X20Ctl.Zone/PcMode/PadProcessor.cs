@@ -44,8 +44,24 @@ public sealed class PcModeProfile
     public string? Name { get; set; }
     /// <summary>How strongly a game's vibration reaches the real pad, in percent (owner, 7 Nov 2026: the Vibration tab sets it in PC mode).</summary>
     public int Vibration { get; set; } = 100;
+    /// <summary>Game vibration section (TuskGaming's request, 8 Nov 2026): the large (left) and small (right) motor each on
+    /// their own, in percent of what the game asks for, after Vibration.</summary>
+    public int VibrationLeft { get; set; } = 100;
+    public int VibrationRight { get; set; } = 100;
+    /// <summary>The least a motor runs whenever the game rumbles it at all, in percent of full power: faint effects get felt.</summary>
+    public int VibrationFloor { get; set; }
+    public const int MaxVibration = 200, MaxVibrationFloor = 50;
 
-    public bool IsNeutral => Remap.Count == 0 && Keys.Count == 0 && Custom.Count == 0 && Combos.Count == 0 && Turbo.Count == 0 && Macros.Count == 0 && Curves.Values.All(IsDefault) && Sticks.Values.All(s => s.IsDefault) && Vibration == 100;
+    /// <summary>What the real pad gets for a game's motor value (0-255): scaled, lifted to the floor, never past full power.</summary>
+    public int ShapeRumble(int game, bool left)
+    {
+        if (game <= 0) return 0;
+        long level = (long)game * 257 * Vibration / 100 * (left ? VibrationLeft : VibrationRight) / 100;
+        if (level <= 0) return 0;
+        return (int)Math.Min(65535, Math.Max(level, VibrationFloor * 65535L / 100));
+    }
+
+    public bool IsNeutral => Remap.Count == 0 && Keys.Count == 0 && Custom.Count == 0 && Combos.Count == 0 && Turbo.Count == 0 && Macros.Count == 0 && Curves.Values.All(IsDefault) && Sticks.Values.All(s => s.IsDefault) && Vibration == 100 && VibrationLeft == 100 && VibrationRight == 100 && VibrationFloor == 0;
     public static bool IsDefault(SetupCurve c) => c.Inner == 0 && c.Outer == 100 && c.X1 == 85 && c.Y1 == 85 && c.X2 == 170 && c.Y2 == 170;
     public const int MinTurboHz = 2, MaxTurboHz = 30;
 
@@ -53,7 +69,8 @@ public sealed class PcModeProfile
     {
         if (Name is { Length: > 120 }) throw new InvalidDataException("Name too long.");
         if (Remap == null || Curves == null || Turbo == null || Macros == null || Sticks == null || Combos == null) throw new InvalidDataException("Missing settings.");
-        if (Vibration is < 0 or > 100) throw new InvalidDataException("Vibration must be 0 to 100%.");
+        if (Vibration is < 0 or > MaxVibration || VibrationLeft is < 0 or > MaxVibration || VibrationRight is < 0 or > MaxVibration) throw new InvalidDataException("Vibration must be 0 to 200%.");
+        if (VibrationFloor is < 0 or > MaxVibrationFloor) throw new InvalidDataException("The vibration minimum must be 0 to 50%.");
         if (Keys == null || Custom == null || Keys.Count > 64 || Custom.Count > 32) throw new InvalidDataException("Too many keyboard settings.");
         foreach (var (button, output) in Keys)
             if (!Known(button) || !KeyCatalog.IsValid(output)) throw new InvalidDataException("Unknown key in a keyboard mapping.");

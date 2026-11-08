@@ -15,6 +15,9 @@ public sealed class StudioMemory
         public Dictionary<string, Step[]> Macros { get; set; } = new();
         public Dictionary<string, string?> Triggers { get; set; } = new();
         public int Vibration { get; set; } = VibrationDraft.DefaultStrength;
+        public int VibrationLeft { get; set; } = 100;
+        public int VibrationRight { get; set; } = 100;
+        public int VibrationFloor { get; set; }
         public string? Page { get; set; }
         /// <summary>PC mode's stored settings when this was kept; edits not yet applied come back only if those are unchanged.</summary>
         public string? PcBase { get; set; }
@@ -50,7 +53,7 @@ public sealed class StudioMemory
         Curves = Enum.GetValues<CurveChannel>().ToDictionary(c => c.ToString(), c => { var v = curves[c]; return new SetupCurve(v.Preset, v.BasePreset, v.Inner, v.Outer, v.Point1.X, v.Point1.Y, v.Point2.X, v.Point2.Y); }),
         Macros = macros.SlotNames.ToDictionary(s => s, s => macros[s].Select(e => new Step(e.Buttons.ToArray(), e.Left, e.Right, e.HoldMs, e.PauseMs)).ToArray()),
         Triggers = macros.SlotNames.ToDictionary(s => s, macros.Trigger),
-        Vibration = vibration.Strength, Page = page, PcBase = pcBase,
+        Vibration = vibration.Strength, VibrationLeft = vibration.Left, VibrationRight = vibration.Right, VibrationFloor = vibration.Floor, Page = page, PcBase = pcBase,
     };
 
     /// <summary>Fills the drafts from an entry. Each part is tried on its own, so a setting this model can't hold (or a
@@ -68,6 +71,7 @@ public sealed class StudioMemory
             if (e.Triggers.TryGetValue(slot, out var trigger)) Try(() => macros.SetTrigger(slot, trigger));
         }
         if (vibration.CanEdit) Try(() => vibration.Set(e.Vibration));
+        if (vibration.PcMode) Try(() => vibration.SetMotors(e.VibrationLeft, e.VibrationRight, e.VibrationFloor));
     }
 
     public void Put(int player, string model, Entry entry)

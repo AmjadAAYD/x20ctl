@@ -70,3 +70,30 @@ public class PcModeSetupTests
         }
     }
 }
+
+public class GameVibrationTests
+{
+    [Fact]
+    public void GameRumbleIsBoostedSplitAndLiftedButNeverPastFullPower()
+    {
+        var p = new X20Ctl.Zone.PcMode.PcModeProfile();
+        Assert.Equal(255 * 257, p.ShapeRumble(255, true)); Assert.Equal(0, p.ShapeRumble(0, true)); // 100%: as the game sends it
+        p.Vibration = 200; Assert.Equal(100 * 257 * 2, p.ShapeRumble(100, true)); Assert.Equal(65535, p.ShapeRumble(200, true)); // boosted, capped
+        p.Vibration = 100; p.VibrationRight = 0; Assert.Equal(0, p.ShapeRumble(255, false)); // right motor off
+        p.VibrationFloor = 30; Assert.Equal(30 * 65535 / 100, p.ShapeRumble(5, true)); Assert.Equal(0, p.ShapeRumble(0, true)); // faint lifted, silence stays silent
+        Assert.False(p.IsNeutral); p.Validate();
+        p.Vibration = 201; Assert.Throws<InvalidDataException>(p.Validate);
+    }
+
+    [Fact]
+    public void TheMotorSettingsGoThroughPcModeAndComeBack()
+    {
+        var v = new X20Ctl.Zone.VibrationDraft("dune") { PcMode = true }; v.Set(180); v.SetMotors(150, 60, 20);
+        var b = new X20Ctl.Zone.ButtonDraft("dune") { PcMode = true }; var c = new X20Ctl.Zone.CurveDraft("dune") { PcMode = true }; var m = new X20Ctl.Zone.MacroDraft("dune") { PcMode = true };
+        var p = X20Ctl.Zone.PcMode.PcModeDrafts.Merge(new X20Ctl.Zone.PcMode.PcModeProfile(), b, c, m, v);
+        Assert.Equal((180, 150, 60, 20), (p.Vibration, p.VibrationLeft, p.VibrationRight, p.VibrationFloor));
+        var back = new X20Ctl.Zone.VibrationDraft("dune") { PcMode = true }; X20Ctl.Zone.PcMode.PcModeDrafts.Load(p, b, c, m, back);
+        Assert.Equal((180, 150, 60, 20), (back.Strength, back.Left, back.Right, back.Floor));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new X20Ctl.Zone.VibrationDraft("x20").Set(150)); // on the pad 100% stays the most
+    }
+}
