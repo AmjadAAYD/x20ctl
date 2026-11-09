@@ -566,7 +566,8 @@ public sealed class OfflineAgent : IAgentModel
                     : Plan(s, [.. s.Paddles.Select(p => (AgentVocabulary.Paddle, p, (object)(s.Buttons.FirstOrDefault(b => b is "A" or "B") ?? s.Buttons.FirstOrDefault() ?? "A")))])),
             new("reset_target", "reset one stick, trigger or button to default",
                 ["Reset my right trigger", "Put my left stick back to default", "Reset the A button", "Undo everything on my right stick", "Reset X"],
-                s => (s.Sticks.Concat(s.Triggers).Concat(s.Triggers.Count > 0 ? Enumerable.Empty<string>() : s.Buttons).ToArray()) is { Length: > 0 } t ? Each(s, AgentVocabulary.Reset, t, 0) : OfflinePlan.Say("Reset what? A stick, a trigger, a button, or everything?")),
+                s => (s.Sticks.Concat(s.Triggers).Concat(s.Triggers.Count > 0 ? Enumerable.Empty<string>() : s.Buttons).ToArray()) is { Length: > 0 } t ? Each(s, AgentVocabulary.Reset, t, 0) : Regex.IsMatch(s.Text, @"\b(everything|all|every setting|whole controller)\b") ? Plan(s, (AgentVocabulary.Reset, AgentVocabulary.All, 0)) // "put everything back to normal"
+                    : OfflinePlan.Say("Reset what? A stick, a trigger, a button, or everything?")),
             new("reset_all", "reset every setting to default",
                 ["Reset everything", "Put all my settings back to default", "Start over", "Factory reset my settings", "Clear all my changes", "Restore defaults"],
                 s => Plan(s, (AgentVocabulary.Reset, AgentVocabulary.All, 0))),

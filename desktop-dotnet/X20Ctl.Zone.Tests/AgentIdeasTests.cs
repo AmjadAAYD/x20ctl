@@ -127,7 +127,7 @@ public class AgentCharacterTests
 
     [Theory]
     [InlineData("banana telescope", AgentMood.Failed)]
-    [InlineData("Put all my settings back to default", AgentMood.Unsure)]
+    [InlineData("Put it back to default", AgentMood.Unsure)] // "all my settings" now resets everything, so a vague one asks
     [InlineData("Turbo on X, 12 presses a second", AgentMood.Good)]
     [InlineData("Make my sticks smooth", AgentMood.Good)]
     [InlineData("What's good and bad about hair triggers?", AgentMood.Good)]
