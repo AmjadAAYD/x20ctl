@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
 using System.Windows;
@@ -153,7 +153,7 @@ internal static class StudioReview
             vibration.PresetButtons.Single(b=>Equals(b.Tag,25)).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));await Capture("64-vibration-25.png");vibration.Strength.Value=100;await Capture("65-vibration-100.png");vibration.Strength.Value=0;await Capture("66-vibration-off.png");
             Check(vibration.Draft.Strength==0 && vibration.Readback.Text.Contains("—"),"zero local strength never claims hardware off or a readback");
             vibration.Strength.Focus();SendKey(Key.Right);Check(vibration.Draft.Strength==1,"vibration slider supports one percentage-point keyboard adjustment");SendKey(Key.F6);vibration.FocusPreset();await Capture("67-vibration-console-focus.png");
-            vibration.Set(75);window.Width=1040;window.Height=700;await Capture("68-vibration-minimum.png");Check(vibration.Strength.ActualWidth>800 && vibration.Test.IsVisible && !vibration.Test.IsEnabled,"minimum Vibration retains broad strength control and explicit unavailable hardware test");window.WindowState=WindowState.Maximized;await Capture("69-vibration-maximized.png");window.WindowState=WindowState.Normal;window.Width=1220;window.Height=800;await Ready();
+            vibration.Set(75);window.Width=1040;window.Height=700;await Capture("68-vibration-minimum.png");Check(vibration.ZoneSlider(VibrationWorkbench.Zone.LeftGrip)?.ActualWidth>0 && vibration.Test.IsVisible && !vibration.Test.IsEnabled,"minimum Vibration keeps a strength per zone and an explicit unavailable hardware test");window.WindowState=WindowState.Maximized;await Capture("69-vibration-maximized.png");window.WindowState=WindowState.Normal;window.Width=1220;window.Height=800;await Ready();
             window.Host.ReturnToZone();window.Host.EnterStudio(2);studio=window.Host.Studio!;studio.ShowVibration(true);Check(studio.Vibration!.Draft.Strength==75 && studio.Macros==null && studio.Curves.Draft.ModifiedChannels>0,"vibration draft retained separately across Studio visits");studio.VibrationResetChoice.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));Check(!studio.Vibration.Draft.Modified && !studio.Apply.IsEnabled,"vibration reset restores only its local default");await Capture("70-vibration-reset.png");
             studio.ShowMacros(true);Check(studio.IsMacros && !studio.IsVibration && studio.Macros!.Draft["M1"].Count==3,"return from Vibration restores frozen Macro draft");
             var vibrationFrames=new List<BitmapFrame>();studio.ShowVibration(true);

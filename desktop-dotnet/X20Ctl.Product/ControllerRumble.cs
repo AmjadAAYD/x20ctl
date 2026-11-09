@@ -16,15 +16,18 @@ internal static class ControllerRumble
     }
 
     /// <summary>Returns whether a controller took the command.</summary>
-    public static async Task<bool> Test(bool left, bool right, int percent, int ms = 1000)
+    public static Task<bool> Test(bool left, bool right, int percent, int ms = 1000) => Test(left ? percent : 0, right ? percent : 0, ms);
+
+    /// <summary>Each grip at its own strength (0..100); returns whether a controller took the command.</summary>
+    public static async Task<bool> Test(int leftPercent, int rightPercent, int ms = 1000)
     {
         try
         {
             var buffer = new byte[16];
             int slot = Enumerable.Range(0, 4).FirstOrDefault(i => !PcModeService.IsVirtual(i) && GetState((uint)i, buffer) == 0, -1);
             if (slot < 0) return false;
-            ushort level = (ushort)(Math.Clamp(percent, 0, 100) * 65535 / 100);
-            var on = new Vibration { Left = left ? level : (ushort)0, Right = right ? level : (ushort)0 };
+            static ushort Level(int percent) => (ushort)(Math.Clamp(percent, 0, 100) * 65535 / 100);
+            var on = new Vibration { Left = Level(leftPercent), Right = Level(rightPercent) };
             if (SetState((uint)slot, ref on) != 0) return false;
             await Task.Delay(ms);
             var off = new Vibration();
