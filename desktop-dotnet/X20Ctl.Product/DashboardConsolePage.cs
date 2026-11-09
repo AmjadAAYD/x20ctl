@@ -78,12 +78,15 @@ public sealed class DashboardConsolePage : Grid
         setupAction.Content=pcMode?"Open PC mode  →":"Edit working setup  →";
         setupAction.Tag=pcMode?"PcMode":"Buttons";
     }
-    public void SetInputConnected(bool connected)
+    private bool bluetoothOnly;
+    /// <summary>Connected: gameplay input, or (bluetoothOnly) only the controller's own Bluetooth link answering, as with the
+    /// cable in Switch mode, where XInput sees no controller.</summary>
+    public void SetInputConnected(bool connected, bool bluetoothOnly = false)
     {
-        if (inputConnected == connected) return;
-        inputConnected = connected;
+        if (inputConnected == connected && this.bluetoothOnly == bluetoothOnly) return;
+        inputConnected = connected; this.bluetoothOnly = bluetoothOnly;
         deviceState.Text = connected?"Connected":"Offline";
-        connectionValue.Text=connected?(currentTransport!=null?$"Detected · {currentTransport}":"Detected · Transport not reported"):"Not detected";
+        connectionValue.Text=connected?(bluetoothOnly?"Detected · Bluetooth":currentTransport!=null?$"Detected · {currentTransport}":"Detected · Transport not reported"):"Not detected";
         if (connected && currentTransport == "2.4 GHz receiver")
             firmwareValue.Text = "Not readable over XInput";
         deviceState.Foreground=DS.Brush(connected?"DS.Success":"DS.TextSoft");

@@ -12,6 +12,11 @@ public sealed partial class ProductHost : Grid
 {
     private string?[] batteryLevels=new string?[4];
     private readonly string?[] measuredBatteryLevels=new string?[4];
+    private readonly DateTime[] measuredBatteryAt=new DateTime[4];
+    /// <summary>The controller's own battery reading over Bluetooth, if one came in the last five minutes (the live read
+    /// runs once a minute while X20CTL is on screen); null otherwise. It needs no XInput, so it works with the pad in
+    /// Switch mode on the cable too (owner, 8 Nov 2026: "connected using USB and Bluetooth, yet it says it isn't connected").</summary>
+    public string? FreshBluetoothBattery(int player)=>player is >=0 and <4&&measuredBatteryLevels[player]!=null&&DateTime.UtcNow-measuredBatteryAt[player]<TimeSpan.FromMinutes(5)?measuredBatteryLevels[player]:null;
     private readonly X20Ctl.Zone.Telemetry.TelemetryRefreshPolicy telemetryRefresh=new();
     private bool telemetryReading;
     internal event Action? TelemetryRefreshed;
@@ -35,7 +40,7 @@ public sealed partial class ProductHost : Grid
     {
         string? model=telemetry.Controller switch {"EasySMX X20 Pro"=>"x20_pro","EasySMX X20"=>"x20",_=>null};
         if(model!=null){latestTelemetry[(player,model)]=telemetry;if(player>=0&&player<4)measuredBatteryModels[player]=model;}
-        if (telemetry.Battery != null && player >= 0 && player < batteryLevels.Length) measuredBatteryLevels[player]=batteryLevels[player] = telemetry.Battery;
+        if (telemetry.Battery != null && player >= 0 && player < batteryLevels.Length) {measuredBatteryLevels[player]=batteryLevels[player] = telemetry.Battery;measuredBatteryAt[player]=DateTime.UtcNow;}
         TelemetryRefreshed?.Invoke();
     }
 
@@ -119,6 +124,8 @@ public sealed partial class ProductHost : Grid
     public ProductHost(ZoneScene zone, string? assignmentPath = null,Action<string>? openSupport=null)
     {
         Zone = zone; Children.Add(zone);
+        // trigger rumble through a tiny built-in browser, the one route that reaches the X20 Pro's trigger motors (owner, 9 Nov 2026)
+        if(!ReviewSandbox.Active){var triggers=new Diagnostics.BrowserTriggerRumble();Diagnostics.BrowserTriggerRumble.Shared=triggers;Children.Add(triggers.View);triggers.View.Loaded+=(_,_)=>_=triggers.Ready();}
         support=openSupport??ProductLinks.OpenSupport;
         preferences=new(assignmentPath==null?PreferencesPath:Path.Combine(Path.GetDirectoryName(Path.GetFullPath(assignmentPath))!,"preferences-fixture.json"));
         UiSound.Allowed=()=>!preferencesHealthy||preferences.IntroSound;try{preferences.Load();preferencesHealthy=true;}catch(Exception error) when(error is IOException or System.Text.Json.JsonException or InvalidOperationException){Zone.FeedbackText.Text="Startup preferences unavailable; original file preserved. "+error.Message;}
@@ -242,7 +249,7 @@ public sealed partial class ProductHost : Grid
         // with PC mode on, the Buttons, Curves and Macros tabs edit PC mode's settings, for any model
         // 6 Nov 2026: the X20 Pro is the PC Mode rework's test pad, so with PC mode on its tabs edit the virtual pad too; with it off they write on the pad (Apply to controller) as before
         // owner, 7 Nov 2026: every controller but the X20 and X20 Pro is set up through PC mode, so its tabs always edit PC mode
-        bool pc=PcMode!=null&&pcModeStore!=null&&X20Ctl.Zone.PcMode.PcModeEntry.IsAvailable(model.Id);
+        bool pc=PcMode!=null&&pcModeStore!=null&&X20Ctl.Zone.PcMode.PcModeEntry.IsAvailable(model.Id)&&(model.Id!="x20_pro"||PcMode.Enabled); // the X20 Pro edits PC mode only while it is on, else the controller itself
         if(draft.PcMode&&!pc&&model.Id!="x20")PcModeSync.Clear(draft,curveDraft,macroDraft); // while still unlocked
         draft.PcMode=curveDraft.PcMode=macroDraft.PcMode=vibrationDraft.PcMode=pc;
         if(pcModeStore!=null)PcModePage.UsePlayer(player,pcModeStore); // each controller has its own PC mode settings

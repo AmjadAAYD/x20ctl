@@ -274,8 +274,22 @@ public partial class StudioScene : UserControl
     }
     public event Action<TelemetryData>? TelemetryUpdated;
     private string? currentHardwareId;
+    // owner, 8 Nov 2026: "connected using USB and Bluetooth, yet it says it isn't connected". With the cable in Switch mode
+    // XInput sees no controller, but the controller still answers over Bluetooth: a reading from it in the last five
+    // minutes (the live read runs once a minute) counts as connected, without pretending there is gameplay input.
+    private DateTime bluetoothSeen;
+    private bool BluetoothLive => DateTime.UtcNow - bluetoothSeen < TimeSpan.FromMinutes(5);
+    private bool Linked => gameplayConnected == true || BluetoothLive;
+    private bool BluetoothOnly => gameplayConnected != true && BluetoothLive;
+    private void ShowLink()
+    {
+        UpdateDeviceHeader();
+        if (!navigationMode) StatusNote.Text = Linked ? (BluetoothOnly ? "Connected over Bluetooth" : "Connected") : "Controller offline";
+        Dashboard?.SetInputConnected(Linked, BluetoothOnly); Device?.SetConnection(Linked, BluetoothOnly);
+    }
     public void ApplyTelemetry(TelemetryData data)
     {
+        if (data.Battery != null || data.Firmware != null) { bluetoothSeen = DateTime.UtcNow; ShowLink(); }
         if(data.HardwareId!=null){currentHardwareId=data.HardwareId;Device?.SetHardwareId(data.HardwareId);}
         if (data.Firmware != null)
         {
@@ -362,9 +376,9 @@ public partial class StudioScene : UserControl
     {
         if(deviceControl==null)return;
         double previousWidth=deviceControl.ActualWidth;string previousText=deviceState.Text;
-        deviceState.Text="· "+(gameplayConnected==true?(currentBatteryLevel is "full" or "medium" or "low" or "empty" or "wired"?(currentBatteryLevel=="wired"?"Wired":batteryLabel.Text.Replace("Battery · ","")+" battery"):(currentBatteryLevel!=null&&currentBatteryLevel!="receiver"&&!currentBatteryLevel.Contains("Not reported")?(currentBatteryLevel.Contains("battery",StringComparison.OrdinalIgnoreCase)?currentBatteryLevel:currentBatteryLevel+" battery"):"Connected")):"Offline");
-        deviceState.Foreground=DS.Brush(gameplayConnected==true?currentBatteryLevel is "low" or "empty" || (currentBatteryLevel!=null&&currentBatteryLevel.StartsWith("1/4"))?"DS.Warn":"DS.TextSoft":"DS.Warn");
-        headerBattery.Show(gameplayConnected==true?currentBatteryLevel:null);
+        deviceState.Text="· "+(Linked?(currentBatteryLevel is "full" or "medium" or "low" or "empty" or "wired"?(currentBatteryLevel=="wired"?"Wired":batteryLabel.Text.Replace("Battery · ","")+" battery"):(currentBatteryLevel!=null&&currentBatteryLevel!="receiver"&&!currentBatteryLevel.Contains("Not reported")?(currentBatteryLevel.Contains("battery",StringComparison.OrdinalIgnoreCase)?currentBatteryLevel:currentBatteryLevel+" battery"):"Connected")):"Offline");
+        deviceState.Foreground=DS.Brush(Linked?currentBatteryLevel is "low" or "empty" || (currentBatteryLevel!=null&&currentBatteryLevel.StartsWith("1/4"))?"DS.Warn":"DS.TextSoft":"DS.Warn");
+        headerBattery.Show(Linked?currentBatteryLevel:null);
         if(animate&&deviceControl.IsLoaded&&previousWidth>0&&previousText!=deviceState.Text){deviceControl.BeginAnimation(WidthProperty,null);deviceControl.Width=double.NaN;deviceControl.Measure(new Size(double.PositiveInfinity,36));double next=deviceControl.DesiredSize.Width;deviceControl.Width=next;deviceControl.BeginAnimation(WidthProperty,new DoubleAnimation(previousWidth,next,TimeSpan.FromMilliseconds(180)){FillBehavior=FillBehavior.Stop,EasingFunction=DS.EaseOut});}
     }
     /// <summary>The console-design Buttons page replaces the older canvas/inspector/shelf while Buttons is active.</summary>
@@ -632,7 +646,7 @@ public partial class StudioScene : UserControl
     private void SetNavigationPreview(bool value, bool preserveExistingFocus)
     {
         navigationMode = value;
-        StatusNote.Text = value ? "Navigation preview" : (gameplayConnected == true ? "Connected" : "Controller offline");
+        StatusNote.Text = value ? "Navigation preview" : Linked ? (BluetoothOnly ? "Connected over Bluetooth" : "Connected") : "Controller offline";
         if (!value && Keyboard.FocusedElement is Button focused) Lift(focused, false);
         if (!value) { HideDetachedFocus(); lastFocusCenter = null; }
         else if (!preserveExistingFocus || Keyboard.FocusedElement == null || !IsKeyboardFocusWithin)
@@ -808,7 +822,7 @@ public partial class StudioScene : UserControl
     }
     public void ShowButtons() { NexusLater(); DuskLater(); ShowCurves(false);if(IsMacros)ShowMacros(false);if(IsVibration)ShowVibration(false);HideManagement();ButtonsNav.IsChecked=true;FrontChoice.IsEnabled=true;RearChoice.IsEnabled=HasRearArtwork;UpdateButtonsPage(); }
     public DashboardConsolePage? Dashboard {get;private set;}
-    private DashboardConsolePage CreateDashboard(){var page=new DashboardConsolePage(Model,Player,Draft.UnsentChanges,setupStore.Items.Count(s=>s.ModelId==Model.Id),!animate,setupStore.Items.Where(s=>s.ModelId==Model.Id).ToArray(),id=>LoadSetup(setupStore.NativeSnapshot(id)));if(currentTransport!=null)page.SetTransport(currentTransport);if(currentFirmware!=null)page.SetFirmware(currentFirmware);page.SetBatteryLevel(currentBatteryLevel,currentTransport);if(gameplayConnected is bool connected)page.SetInputConnected(connected);page.TelemetryUpdated+=ApplyTelemetry;page.ConfigureRequested+=ShowButtons;page.PageRequested+=target=>{if(target=="Buttons")ShowButtons();else if(target=="Curves")ShowCurves(true);else if(target=="Macros")ShowMacros(true);else ShowManagement(target);};return page;}
+    private DashboardConsolePage CreateDashboard(){var page=new DashboardConsolePage(Model,Player,Draft.UnsentChanges,setupStore.Items.Count(s=>s.ModelId==Model.Id),!animate,setupStore.Items.Where(s=>s.ModelId==Model.Id).ToArray(),id=>LoadSetup(setupStore.NativeSnapshot(id)));if(currentTransport!=null)page.SetTransport(currentTransport);if(currentFirmware!=null)page.SetFirmware(currentFirmware);page.SetBatteryLevel(currentBatteryLevel,currentTransport);if(gameplayConnected!=null||BluetoothLive)page.SetInputConnected(Linked,BluetoothOnly);page.TelemetryUpdated+=ApplyTelemetry;page.ConfigureRequested+=ShowButtons;page.PageRequested+=target=>{if(target=="Buttons")ShowButtons();else if(target=="Curves")ShowCurves(true);else if(target=="Macros")ShowMacros(true);else ShowManagement(target);};return page;}
     private void DashboardTab(object sender,RoutedEventArgs e)=>ShowManagement("Dashboard");
     public void ShowMacros(bool value)
     {
@@ -857,28 +871,32 @@ public partial class StudioScene : UserControl
     private void VibrationTab(object sender,RoutedEventArgs e)=>ShowVibration(true);
     private void ResetVibration(object sender,RoutedEventArgs e)=>Vibration?.Reset();
     /// <summary>PC Mode is on for a pad that has the PC Mode entry: its dashboard has no Device or Diagnostics pages (owner, 6 Nov 2026).</summary>
-    private bool PcDashboard => PcModeEntryAvailable && pcLink != null; // owner, 7 Nov 2026: PC mode is how these controllers are set up
+    // owner, 7 Nov 2026: PC mode is how these controllers are set up. The X20 Pro (lab, 8 Nov) shows PC mode's tabs only while
+    // PC mode is on; switched off, it is the X20 Pro Studio of the release, saving to the controller itself.
+    private bool PcDashboard => PcModeEntryAvailable && pcLink != null && (Model.Id != "x20_pro" || pcLink.Service.Enabled);
     private void ApplyPcDashboard()
     {
         bool on = PcDashboard;
+        // the X20 Pro keeps its Device tab, and Macros until PC mode is on (its settings go to the controller while it is off)
+        bool native = Model.Id == "x20_pro", swap = on && (!native || Draft.PcMode), noDevice = on && !native && Model.Id != "x10"; // the X10 keeps its Device tab: its own settings read over Bluetooth
         DiagnosticsNav.Visibility = Visibility.Collapsed; PcModeNav.Visibility = Visibility.Collapsed;
         if (baseNavigation.Length == 0) return; // the strip is not built yet; it calls this again
         var list = new List<RadioButton>();
         foreach (var t in baseNavigation)
         {
             if (t == PcModeNav) { if (on) list.AddRange(pcTabs); }
-            else if (t == DeviceNav && on) continue;
+            else if (t == DeviceNav && noDevice) continue;
             else if (t == MouseNav) continue; // placed below
             // owner, 7 Nov 2026: with PC mode on, Keyboard takes Macros' place and Mouse sits beside it
-            else if (t == MacrosNav && on && KeyboardNav != null) { list.Add(KeyboardNav); list.Add(MouseNav); }
+            else if (t == MacrosNav && swap && KeyboardNav != null) { list.Add(KeyboardNav); list.Add(MouseNav); }
             else list.Add(t);
         }
         if (!list.Contains(MouseNav) && baseNavigation.Contains(MouseNav)) list.Add(MouseNav); // PC mode off: Mouse on the right
         navigation = list.ToArray();
         foreach (var t in pcTabs) t.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
-        DeviceNav.Visibility = on ? Visibility.Collapsed : Visibility.Visible; // the strip only ever shows tabs, so hide it here
-        MacrosNav.Visibility = on && KeyboardNav != null ? Visibility.Collapsed : Visibility.Visible;
-        if (KeyboardNav != null) KeyboardNav.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+        DeviceNav.Visibility = noDevice ? Visibility.Collapsed : Visibility.Visible; // the strip only ever shows tabs, so hide it here
+        MacrosNav.Visibility = swap && KeyboardNav != null ? Visibility.Collapsed : Visibility.Visible;
+        if (KeyboardNav != null) KeyboardNav.Visibility = swap ? Visibility.Visible : Visibility.Collapsed;
         // the strip draws its tabs in child order: put them in this order
         int at = 0;
         foreach (var t in list)
@@ -891,7 +909,7 @@ public partial class StudioScene : UserControl
     }
     public void ShowManagement(string page)
     {
-        if (PcDashboard && page is "Device" or "Diagnostics") page = "PcMode";
+        if (PcDashboard && Model.Id is not ("x20_pro" or "x10") && page is "Device" or "Diagnostics") page = "PcMode";
         ApplyPcDashboard();
         NexusLater(); DuskLater(); 
         DraftBar.Visibility=page=="Dashboard"?Visibility.Collapsed:Visibility.Visible;RootLayout.RowDefinitions[2].Height=new(page=="Dashboard"?0:40);
@@ -902,7 +920,7 @@ public partial class StudioScene : UserControl
         ManagementBodyHost.Visibility=ManagementShelfFrame.Visibility=Visibility.Visible;ManagementBodyHost.Children.Clear();ManagementShelfHost.Children.Clear();
         ButtonsNav.IsChecked=CurvesNav.IsChecked=MacrosNav.IsChecked=VibrationNav.IsChecked=false;DeviceNav.IsChecked=page=="Device";RgbNav.IsChecked=page=="RGB";ScreenNav.IsChecked=page=="Screen";DiagnosticsNav.IsChecked=page=="Diagnostics";MouseNav.IsChecked=page=="Mouse";if(KeyboardNav!=null)KeyboardNav.IsChecked=page=="Keyboard";PcModeNav.IsChecked=false;foreach(var t in pcTabs)t.IsChecked=page=="PcMode"&&(string)t.Content==PcModePage.Part;TesterNav.IsChecked=page=="Tester";SetupsNav.IsChecked=page=="Setups";DashboardNav.IsChecked=page=="Dashboard";DashboardFlip.Visibility=page=="Dashboard"?Visibility.Visible:Visibility.Collapsed;
         if(page=="Dashboard"){Dashboard??=CreateDashboard();Dashboard.SetWorkingState(Draft.UnsentChanges,activeSetup==null?null:setupStore.Items.FirstOrDefault(x=>x.Id==activeSetup)?.Name,Draft.PcMode);ManagementBodyHost.Children.Add(Dashboard);ChangeCount.Text="Select the controller to configure it · Your games are found automatically";PrimaryHint.Text=" Select";OverviewHint.Text="";DraftChip.Text="Dashboard";Dashboard.FocusHero();}
-        else if(page=="Device"){Device??=new(Model,Player,this,RegisterFocus,()=>ShowManagement("Diagnostics"),()=>ShowManagement("Setups"),()=>ShowManagement("Screen"),Model.Id=="x20_pro"&&!Draft.PcMode?FactoryReset:null);Device.TelemetryUpdated-=ApplyTelemetry;Device.TelemetryUpdated+=ApplyTelemetry;if(currentTransport!=null)Device.SetTransport(currentTransport);Device.SetBatteryLevel(currentBatteryLevel,currentTransport);if(currentFirmware!=null)Device.SetFirmware(currentFirmware);else if(currentTransport=="2.4 GHz receiver")Device.SetFirmware("Not readable over XInput");if(gameplayConnected is {} deviceConnected)Device.SetConnection(deviceConnected);if(currentHardwareId!=null)Device.SetHardwareId(currentHardwareId);Device.UpdateEngineStatus(NativeEngineStatus);ManagementBodyHost.Children.Add(Device.Body);ManagementShelfHost.Children.Add(Device.Shelf);ChangeCount.Text="Assigned model · Gameplay and configuration remain separate";PrimaryHint.Text=" Open";OverviewHint.Text=" My setups";DraftChip.Text="Controller overview";}
+        else if(page=="Device"){Device??=new(Model,Player,this,RegisterFocus,()=>ShowManagement("Diagnostics"),()=>ShowManagement("Setups"),()=>ShowManagement("Screen"),Model.Id=="x20_pro"&&!Draft.PcMode?FactoryReset:null);Device.TelemetryUpdated-=ApplyTelemetry;Device.TelemetryUpdated+=ApplyTelemetry;if(currentTransport!=null)Device.SetTransport(currentTransport);Device.SetBatteryLevel(currentBatteryLevel,currentTransport);if(currentFirmware!=null)Device.SetFirmware(currentFirmware);else if(currentTransport=="2.4 GHz receiver")Device.SetFirmware("Not readable over XInput");if(gameplayConnected!=null||BluetoothLive)Device.SetConnection(Linked,BluetoothOnly);if(currentHardwareId!=null)Device.SetHardwareId(currentHardwareId);Device.UpdateEngineStatus(NativeEngineStatus);ManagementBodyHost.Children.Add(Device.Body);ManagementShelfHost.Children.Add(Device.Shelf);ChangeCount.Text="Assigned model · Gameplay and configuration remain separate";PrimaryHint.Text=" Open";OverviewHint.Text=" My setups";DraftChip.Text="Controller overview";}
         else if(page=="RGB"){if(Model.Id!="x20_pro")throw new InvalidOperationException("RGB configuration is verified for X20 Pro only.");if(rgbBody==null){var lighting=new LightingWindow();rgbBody=lighting.DetachBody();lighting.ReadOnOpen();}ManagementBodyHost.Children.Add(rgbBody);ChangeCount.Text="RGB lighting";PrimaryHint.Text=" Select";OverviewHint.Text="";DraftChip.Text="RGB";}
         else if(page=="Screen"){if(!ModelProfiles.For(Model.Id).HasScreen)throw new InvalidOperationException("This model has no Screen artwork feature.");Screen??=new(this,RegisterFocus,()=>ShowManagement("Device"));ManagementBodyHost.Children.Add(Screen.Body);ChangeCount.Text="Screen artwork · local preview";PrimaryHint.Text=" Select";OverviewHint.Text="";DraftChip.Text="Screen";}
         else if(page=="Diagnostics"){Diagnostics??=new(Player,RegisterFocus,PcMode,model:Model);ManagementBodyHost.Children.Add(Diagnostics.Body);Diagnostics.Start();ChangeCount.Text="Read-only input capture · Use Esc or the mouse to leave";PrimaryHint.Text="";OverviewHint.Text="";DraftChip.Text="Diagnostics";Diagnostics.Reset.Focus();}
@@ -984,11 +1002,11 @@ public partial class StudioScene : UserControl
     public void SetGameplayConnected(bool connected)
     {
         if(gameplayConnected==connected)return;
-        gameplayConnected=connected;UpdateDeviceHeader();
+        gameplayConnected=connected;ShowLink();
         controllerConnection.Set(connected ? "Live input" : "Offline", connected ? ChipKind.Success : ChipKind.Neutral);
         GameplayConnection.Text=connected?"● Live input":"● No input";
         GameplayConnection.Foreground=(Brush)FindResource(connected?"Ice":"Amber");buttonsPage?.SetConnected(connected);
-        Dashboard?.SetInputConnected(connected);Device?.SetConnection(connected);if(!connected){Curves.ShowLive(-1);StickTools?.ClearLive();}
+        if(!connected){Curves.ShowLive(-1);StickTools?.ClearLive();}
     }
     public void ObserveLiveInput(double lx, double ly, double rx, double ry, double lt, double rt)
     {

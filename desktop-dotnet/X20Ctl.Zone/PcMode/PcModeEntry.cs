@@ -5,7 +5,9 @@ public static class PcModeEntry
 {
     /// <summary>The X20 and X20 Pro keep their settings on the pad, so they have no PC Mode. Every other controller is
     /// configured through PC mode (owner, 7 Nov 2026: "it must be universal ... except X20 Pro and X20").</summary>
-    public static bool IsAvailable(string modelId) => modelId is not ("x20" or "x20_pro");
+    // Lab (owner, 8 Nov 2026: "bring back PC mode"): the X20 Pro has PC mode again, as it did before 7 Nov. With PC mode
+    // off it still saves to the controller itself; with it on, its tabs edit PC mode. Only the X20 is left out.
+    public static bool IsAvailable(string modelId) => modelId is not "x20";
 
     public enum VirtualType { Xbox360, DualShock4 }
 
