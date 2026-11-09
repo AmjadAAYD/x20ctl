@@ -73,7 +73,15 @@ internal static class InputsReview
         link.Service.Enabled = true; window.Host.EnterStudio(2); studio = window.Host.Studio!;
         studio.ShowVibration(true); studio.Vibration!.Set(40); await Shoot("dune-vibration-pc");
         report.Add("dune vibration, PC mode on: " + string.Join(" / ", Texts(studio).Where(t => t.Contains("PC mode") || t.Contains("games vibrate"))));
+        // an X10: PC mode on, and its Device tab reads its own settings over Bluetooth (read only)
+        window.Scene.AssignController(3, window.Host.Catalog.Get("x10")); window.Host.EnterStudio(3); studio = window.Host.Studio!;
+        studio.ShowManagement("Device"); await Shoot("x10-device-pc");
+        report.Add("x10 device, PC mode on: tabs " + string.Join(", ", studio.TabOrderForReview) + " · " + string.Join(" / ", Texts(studio).Where(t => t.Contains("X10") || t.Contains("controller"))));
         link.Service.Enabled = false;
+        // an X20 Pro with PC mode off: four zones, no main slider; settings stay on the controller
+        window.Scene.AssignController(1, window.Host.Catalog.Get("x20_pro")); window.Host.EnterStudio(1); studio = window.Host.Studio!;
+        studio.ShowVibration(true); await Shoot("x20pro-vibration-off");
+        report.Add("x20 pro vibration, PC mode off: " + string.Join(" / ", Texts(studio).Where(t => t.Contains("ZONES") || t.Contains("grip") || t.Contains("trigger") || t.Contains("Test"))));
         File.WriteAllLines(Path.Combine(directory, "inputs.txt"), report);
     }
 

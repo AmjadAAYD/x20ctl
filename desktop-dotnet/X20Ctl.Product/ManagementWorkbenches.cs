@@ -76,7 +76,7 @@ public sealed partial class DeviceWorkbench
         battery.Text = level switch {"full"=>"Full","medium"=>"Medium","low"=>"Low","empty"=>"Empty","wired"=>"Wired",_=>level??"Not reported"};
     }
     public void SetBatteryLevel(string? level) => SetBatteryLevel(level, null);
-    public void SetConnection(bool connected)=>connection.Text=connected?"Gameplay input detected":"Not detected";
+    public void SetConnection(bool connected, bool bluetoothOnly = false)=>connection.Text=connected?(bluetoothOnly?"Connected over Bluetooth":"Gameplay input detected"):"Not detected";
     public void UpdateEngineStatus(string status) { /* Process availability does not establish hardware configuration support. */ }
     public DeviceWorkbench(ControllerModel model,int player,FrameworkElement resources,Action<Button> register,Action tester,Action setups,Action? screen=null,Func<Action<string>,Task>? factoryReset=null)
     {
@@ -118,7 +118,8 @@ public sealed partial class DeviceWorkbench
         foreach(var (label,value) in new[]{("Sticks",profile.Sticks),("Triggers",profile.Triggers),("Rear controls",profile.Paddles.Length==0?"None listed":string.Join(" · ",profile.Paddles)),("Motors",profile.Motors),("Motion",profile.Motion)})
         {var row=new Grid{Margin=new(0,0,0,10)};row.ColumnDefinitions.Add(new(){Width=new(110)});row.ColumnDefinitions.Add(new());row.Children.Add(ManagementVisuals.Copy(label,14));var detail=ManagementVisuals.Copy(value,14,true);Grid.SetColumn(detail,1);row.Children.Add(detail);support.Children.Add(row);}
         overview.Children.Add(Kit.Panel("Model capabilities",null,null,support));
-        var compatibility=new StackPanel{Children={ManagementVisuals.Copy(profile.SupportsLocalDrafts?"Local drafts available. Native configuration writes remain locked.":"Layout and artwork available. Native configuration is unavailable for this model.",14),ManagementVisuals.Copy("Gyro, rear controls and independent motors appear only when the connected interface supports them.",13).Also(t=>t.Margin=new(0,8,0,0))}};
+        if(model.Id=="x10")overview.Children.Add(X10Panel(resources,register));
+        var compatibility=new StackPanel{Children={ManagementVisuals.Copy(model.Id=="x10"?"PC mode configures it. Its own settings read over Bluetooth; saving to it is locked.":profile.SupportsLocalDrafts?"Local drafts available. Native configuration writes remain locked.":"Layout and artwork available. Native configuration is unavailable for this model.",14),ManagementVisuals.Copy("Gyro, rear controls and independent motors appear only when the connected interface supports them.",13).Also(t=>t.Margin=new(0,8,0,0))}};
         var supportPanel=Kit.Panel("X20CTL support",null,null,compatibility);supportPanel.Margin=new(0,12,0,0);overview.Children.Add(supportPanel);
         if(factoryReset!=null)
         {
@@ -134,6 +135,36 @@ public sealed partial class DeviceWorkbench
         }
 
         OpenSetups=ManagementVisuals.Action(resources,"My setups",setups,register);OpenSetups.Visibility=Visibility.Collapsed;
+    }
+}
+public sealed partial class DeviceWorkbench
+{
+    /// <summary>The X10's own settings, read over Bluetooth (KRLY, thanks to Edgard's EasyGamepad). Read only: changing
+    /// them on the controller stays locked until it's tested on a real X10.</summary>
+    public Button? ReadX10 {get;private set;}
+    public TextBlock X10Status {get;}=ManagementVisuals.Copy("Pair the X10 with Windows in Bluetooth mode, then read it.",14);
+    FrameworkElement X10Panel(FrameworkElement resources,Action<Button> register)
+    {
+        var rows=new StackPanel{Margin=new(0,10,0,0)};
+        var body=new StackPanel{Children={X10Status,rows}};
+        ReadX10=ManagementVisuals.Action(resources,"Read from controller",async()=>
+        {
+            ReadX10!.IsEnabled=false;X10Status.Text="Reading the X10 over Bluetooth…";rows.Children.Clear();
+            try
+            {
+                var reading=await X10BleClient.ReadAsync();
+                foreach(var (label,value) in X10BleClient.Describe(reading))
+                {var row=new Grid{Margin=new(0,0,0,8)};row.ColumnDefinitions.Add(new(){Width=new(110)});row.ColumnDefinitions.Add(new());row.Children.Add(ManagementVisuals.Copy(label,14));var detail=ManagementVisuals.Copy(value,14,true);Grid.SetColumn(detail,1);row.Children.Add(detail);rows.Children.Add(row);}
+                if(reading.Battery is {} b)battery.Text=$"{b.Percent}%";firmware.Text=reading.Version.Firmware;
+                X10Status.Text="Read from the controller.";
+            }
+            catch(Exception error) when(error is System.IO.IOException or TimeoutException or FormatException or UnauthorizedAccessException or System.Runtime.InteropServices.COMException){X10Status.Text=error.Message;}
+            finally{ReadX10!.IsEnabled=!ReviewSandbox.Active;}
+        },register);
+        ReadX10.HorizontalAlignment=HorizontalAlignment.Left;ReadX10.Margin=new(0,12,0,0);ReadX10.IsEnabled=!ReviewSandbox.Active;
+        body.Children.Add(ReadX10);
+        body.Children.Add(ManagementVisuals.Copy("Saving to the X10 unlocks once it's tested on a real X10. PC mode works meanwhile.",13).Also(t=>t.Margin=new(0,10,0,0)));
+        var panel=Kit.Panel("On the controller",null,null,body);panel.Margin=new(0,12,0,0);return panel;
     }
 }
 public sealed partial class TesterWorkbench
