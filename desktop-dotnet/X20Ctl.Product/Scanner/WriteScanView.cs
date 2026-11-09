@@ -14,7 +14,7 @@ namespace X20Ctl.Product.Scanner;
 /// read what will happen, Identify (reads only), Read-back (reads only), the Write test (writes back the bytes just read,
 /// after a visible confirmation), visual tests the tester judges, then a zip that stays local until it is reviewed and sent.
 /// </summary>
-public sealed class WriteScanView : Grid
+public sealed partial class WriteScanView : Grid
 {
     public const string Title = "Write scan";
     static readonly string[] StepNames = ["Controller", "Identify", "Read-back", "Write test", "Visual tests", "Send"];
@@ -51,6 +51,7 @@ public sealed class WriteScanView : Grid
         foreach (var p in pages) { p.Visibility = Visibility.Collapsed; stage.Children.Add(p); }
         model.SelectionChanged += (_, _) => otherName.Visibility = model.SelectedItem is ControllerCheckView.OtherModel ? Visibility.Visible : Visibility.Collapsed;
         poll.Tick += (_, _) => Poll();
+        BuildBluetooth(); Children.Add(bluetoothView);
         Show(0);
     }
 

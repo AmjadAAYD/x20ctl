@@ -21,7 +21,6 @@ public sealed partial class MouseWorkbench
     internal string LabelFor(string key) => InputName(key);
     internal string ActionFor(string key) => profile.Combo && profile.ToggleButtons.Contains(key) ? "Shortcut reserved" : Friendly(profile.Buttons.GetValueOrDefault(key));
     internal MouseAction CurrentAction => profile.Buttons.GetValueOrDefault(selection);
-    internal IReadOnlyList<(string Group, MouseAction[] Actions)> Groups => Enum.GetValues<MouseAction>().GroupBy(Category).Select(g => (g.Key, g.ToArray())).ToList();
     internal static string[] PresetNames => ["Desktop", "Web browsing", "Media", "Minimal"];
     internal ComboBox SourceBox => source; internal ComboBox PointerBox => pointer; internal ComboBox Chord1Box => chord1; internal ComboBox Chord2Box => chord2; internal ComboBox HoldBox => hold;
     internal Slider SpeedSlider => speed; internal Slider CurveSlider => curve; internal Slider DeadzoneSlider => deadzone; internal Slider PrecisionSlider => precision; internal Slider ScrollSlider => scroll;

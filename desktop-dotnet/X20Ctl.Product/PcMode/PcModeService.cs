@@ -3,6 +3,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using Nefarius.ViGEm.Client;
 using Nefarius.ViGEm.Client.Targets;
+using Nefarius.ViGEm.Client.Targets.DualShock4;
 using Nefarius.ViGEm.Client.Targets.Xbox360;
 using X20Ctl.Product.Scanner;
 using X20Ctl.Zone.PcMode;
@@ -50,12 +51,19 @@ public sealed class PcModeService : IDisposable
     /// <summary>Controller Check is open: give the real controller back so the scan reads it and only it (the virtual
     /// pad would show up as a second, remapped controller). Doesn't change the saved on/off choice.</summary>
     public bool Paused { get => paused; set => paused = value; }
+    /// <summary>The newest controller input PC mode read and what it sent on to the game, for the Test tab. Null until the first loop.</summary>
+    public sealed record Snapshot(PadState Input, PadState Output, long Sent);
+    Snapshot? snapshot;
+    public Snapshot? Latest => Volatile.Read(ref snapshot);
     /// <summary>Settings switched off from the controller (hold View + Menu): the pads pass through untouched.</summary>
     public bool Suspended { get => suspended; set { suspended = value; Changed?.Invoke(); } }
     /// <summary>The controller is the mouse right now: games get a resting controller, so clicks don't also press A.</summary>
     public bool Mute { get => mute; set => mute = value; }
     /// <summary>The profile was edited: pick it up on the next loop.</summary>
     public void Reload() => reload = true;
+    volatile bool rebuild;
+    /// <summary>The virtual controller type changed: replace the running virtual pads with the new type.</summary>
+    public void Rebuild() => rebuild = true;
 
     void Set(PcModeState next, string text)
     {
@@ -96,21 +104,24 @@ public sealed class PcModeService : IDisposable
         PcModeProfile ProfileOf(string key) { if (!profiles.TryGetValue(key, out var p)) profiles[key] = p = store.Get(key); return p; }
         void Assign()
         {   // which settings each pad gets; a pad whose settings changed starts a fresh processor
-            foreach (var pair in pairs) { string key = KeyFor(pair.Real, exe); if (key != pair.Key) { pair.Key = key; pair.Processor = null; } }
+            foreach (var pair in pairs) { string key = KeyFor(pair.Real, exe); if (key != pair.Key) { LetGo(pair); pair.Key = key; pair.Processor = null; } }
             string? game = pairs.Select(p => PcModeStore.Split(p.Key).Key).FirstOrDefault(k => k != PcModeStore.DefaultKey);
             ActiveKey = game ?? PcModeStore.DefaultKey;
         }
         long nextLook = 0, nextJoin = 0;
         WindowsReader? reader = null;
+        // keys and mouse buttons the Keyboard tab is holding are let go, so nothing stays stuck down
+        static void LetGo(Pair pair) { if (pair.Processor is { } processor) foreach (var (action, down) in processor.ReleaseAll()) MouseOutput.Output(action, down); }
         void Teardown()
         {
-            foreach (var pair in pairs) try { pair.Pad.Dispose(); } catch (Exception) { }
+            foreach (var pair in pairs) { LetGo(pair); try { pair.Pad.Dispose(); } catch (Exception) { } }
             pairs.Clear();Volatile.Write(ref routes,[]); Volatile.Write(ref virtualSlots, []); Controllers = 0;
             if (hidden.Count > 0) { HidHide.Unhide(hidden, restoreCloak: !cloakWasOn); hidden.Clear(); HidHide.ForgetRecovery(); }
         }
         string ActiveText()
         {
-            string who = pairs.Count == 1 ? "Games see one Xbox controller" : $"Games see {pairs.Count} Xbox controllers, one for each of yours";
+            string kind = PcModeEntry.Chosen == PcModeEntry.VirtualType.DualShock4 ? "PlayStation 4" : "Xbox";
+            string who = pairs.Count == 1 ? $"Games see one {kind} controller" : $"Games see {pairs.Count} {kind} controllers, one for each of yours";
             var gamePad = pairs.FirstOrDefault(p => PcModeStore.IsGame(p.Key));
             string which = gamePad == null ? "" : $" · {ProfileOf(gamePad.Key).Name ?? ActiveKey[PcModeStore.GamePrefix.Length..]} settings";
             return suspended ? $"Your settings are switched off for now (you held View + Menu). Hold them again for a second to switch them back on."
@@ -137,8 +148,8 @@ public sealed class PcModeService : IDisposable
                     // settings that fail their checks are never applied: they would otherwise end PC mode for the whole session
                     profiles.Clear();
                     try { foreach (var key in store.Keys) _ = new PadProcessor(ProfileOf(key)); }
-                    catch (InvalidDataException) { Teardown(); broken = true; Set(PcModeState.NeedsAttention, "These PC mode settings couldn't be used. Press Reset everything and set them again."); }
-                    foreach (var pair in pairs) { pair.Processor = null; pair.Key = ""; }
+                    catch (InvalidDataException) { Teardown(); broken = true; Set(PcModeState.NeedsAttention, "These PC mode settings couldn't be used. Open PC mode, press Reset Player profile, and set them again."); }
+                    foreach (var pair in pairs) { LetGo(pair); pair.Processor = null; pair.Key = ""; }
                     Assign();
                     anything = store.AnySetting;
                     if (pairs.Count > 0) Set(PcModeState.Active, ActiveText());
@@ -146,7 +157,8 @@ public sealed class PcModeService : IDisposable
                 if (broken) { Thread.Sleep(250); continue; }
                 // with nothing to apply anywhere, stay out of the way; a game without settings while another has some
                 // keeps the virtual pads (passing straight through) so switching windows doesn't make pads come and go
-                if (!anything) { Teardown(); Set(PcModeState.Ready, "On, but there's nothing to apply yet. Change a button, curve, turbo or macro and it starts by itself."); Thread.Sleep(150); continue; }
+                // a PlayStation 4 pad is worth having with no settings at all; an Xbox copy of an Xbox pad changes nothing
+                if (!anything && PcModeEntry.Chosen != PcModeEntry.VirtualType.DualShock4) { Teardown(); Set(PcModeState.Ready, "On, but there's nothing to apply yet. Change a button, curve, turbo or macro, or pick PlayStation 4, and it starts by itself."); Thread.Sleep(150); continue; }
 
                 if (!PcModeSetup.Ready)
                 {
@@ -161,6 +173,8 @@ public sealed class PcModeService : IDisposable
                     if (!PcModeSetup.Ready) { Thread.Sleep(500); continue; }
                 }
                 if (stop || !enabled || paused) continue;
+                // a new controller type: drop the old virtual pads; the block below makes new ones of the chosen type
+                if (rebuild) { rebuild = false; if (pairs.Count > 0) Teardown(); }
 
                 if (pairs.Count == 0)
                 {
@@ -177,7 +191,7 @@ public sealed class PcModeService : IDisposable
                         HidHide.RememberForRecovery(devices);
                         HidHide.Hide(devices); hidden.AddRange(devices);
                         // one virtual pad per real one, in slot order, so player 1 stays player 1
-                        foreach (int real in reals) pairs.Add(new(real, new VirtualPad(real)));
+                        foreach (int real in reals) pairs.Add(new(real, new VirtualPad(real, PcModeEntry.Chosen)));
                         Assign();
                         Volatile.Write(ref virtualSlots, pairs.Select(p => p.Pad.Slot).Where(s => s >= 0).ToArray());
                         Controllers = pairs.Count;
@@ -205,10 +219,11 @@ public sealed class PcModeService : IDisposable
                         Notice?.Invoke(suspended ? "PC mode settings off. Hold View + Menu again to switch them on." : "PC mode settings on.");
                     }
                     PadState output;
-                    if (mute) output = default;
-                    else if (suspended) output = input;
-                    else { pair.Processor ??= new PadProcessor(ProfileOf(pair.Key)); output = pair.Processor.Process(input, clock.ElapsedMilliseconds); }
-                    try { pair.Pad.Update(output); Applied++; }
+                    if (mute) { LetGo(pair); output = default; }
+                    else if (suspended) { LetGo(pair); output = input; }
+                    else { pair.Processor ??= new PadProcessor(ProfileOf(pair.Key)); output = pair.Processor.Process(input, clock.ElapsedMilliseconds); foreach (var (action, down) in pair.Processor.TakeActions()) MouseOutput.Output(action, down); }
+                    pair.Pad.Shape = mute || suspended ? null : ProfileOf(pair.Key);
+                    try { pair.Pad.Update(output); Applied++; if (pair == pairs[0]) Volatile.Write(ref snapshot, new Snapshot(input, output, Applied)); }
                     catch (Exception error) when (error is not OutOfMemoryException) { Teardown(); Set(PcModeState.NeedsAttention, "The virtual controller stopped answering: " + error.Message); Thread.Sleep(1000); lost = false; break; }
                 }
                 Volatile.Write(ref routes,pairs.Select(p=>new Route(p.Real,p.Real,p.Pad.Slot,p.Key)).ToArray());
@@ -218,7 +233,7 @@ public sealed class PcModeService : IDisposable
                 {
                     nextJoin = clock.ElapsedMilliseconds + 1000;
                     // ViGEm may only learn a virtual pad's slot a moment after it connects
-                    if (Volatile.Read(ref virtualSlots).Length < pairs.Count)
+                    if (pairs.Any(p => !p.Pad.NoSlot && p.Pad.Slot < 0))
                         Volatile.Write(ref virtualSlots, pairs.Select(p => p.Pad.Refresh()).Where(s => s >= 0).ToArray());
                     // a controller plugged in since we started gets its own virtual pad too (only once every slot of
                     // ours is known, so one of our own virtual pads is never mistaken for a new controller)
@@ -244,22 +259,42 @@ public sealed class PcModeService : IDisposable
     }
 }
 
-/// <summary>The virtual Xbox 360 pad games see. Needs the ViGEmBus driver.</summary>
+/// <summary>The virtual pad games see: an Xbox 360 or a DualShock 4 (the owner's choice in the PC Mode window). Needs the ViGEmBus driver.</summary>
 sealed class VirtualPad : IDisposable
 {
-    readonly ViGEmClient client; readonly IXbox360Controller pad; readonly int real;
+    readonly ViGEmClient client; readonly IXbox360Controller? pad; readonly IDualShock4Controller? ds4; readonly int real;
     public int Slot { get; private set; } = -1;
-    public VirtualPad(int real)
+    /// <summary>The settings that shape a game's vibration before it reaches the real pad; null passes it on as it is.</summary>
+    public volatile PcModeProfile? Shape;
+    void Feed(byte large, byte small)
+    {
+        var shape = Shape;
+        int left = shape?.ShapeRumble(large, true) ?? large * 257, right = shape?.ShapeRumble(small, false) ?? small * 257;
+        GameRumble.Record(real, large, small, left, right);
+        ControllerRumble.Set(real, left, right); // a game's vibration goes on to the real pad
+    }
+    /// <summary>A DualShock 4 is not an XInput device, so it never has an XInput slot.</summary>
+    public bool NoSlot => ds4 != null;
+    public VirtualPad(int real, PcModeEntry.VirtualType type)
     {
         this.real = real;
         client = new ViGEmClient();
-        pad = client.CreateXbox360Controller(); pad.AutoSubmitReport = false;
-        pad.FeedbackReceived += (_, e) => ControllerRumble.Set(real, e.LargeMotor * 257, e.SmallMotor * 257); // a game's vibration goes on to the real pad
-        pad.Connect();
-        Refresh();
+        if (type == PcModeEntry.VirtualType.DualShock4)
+        {
+            ds4 = client.CreateDualShock4Controller(); ds4.AutoSubmitReport = false;
+            ds4.FeedbackReceived += (_, e) => Feed(e.LargeMotor, e.SmallMotor);
+            ds4.Connect();
+        }
+        else
+        {
+            pad = client.CreateXbox360Controller(); pad.AutoSubmitReport = false;
+            pad.FeedbackReceived += (_, e) => Feed(e.LargeMotor, e.SmallMotor);
+            pad.Connect();
+            Refresh();
+        }
     }
     /// <summary>Asks ViGEm for the XInput slot again; it may not know it straight after connecting.</summary>
-    public int Refresh() { if (Slot < 0) try { Slot = pad.UserIndex; } catch (Exception) { Slot = -1; } return Slot; }
+    public int Refresh() { if (pad != null && Slot < 0) try { Slot = pad.UserIndex; } catch (Exception) { Slot = -1; } return Slot; }
     static readonly (ushort Mask, Xbox360Button Button)[] Buttons =
     [
         (PadButtons.Up, Xbox360Button.Up), (PadButtons.Down, Xbox360Button.Down), (PadButtons.Left, Xbox360Button.Left), (PadButtons.Right, Xbox360Button.Right),
@@ -267,15 +302,38 @@ sealed class VirtualPad : IDisposable
         (PadButtons.LB, Xbox360Button.LeftShoulder), (PadButtons.RB, Xbox360Button.RightShoulder), (PadButtons.Guide, Xbox360Button.Guide),
         (PadButtons.A, Xbox360Button.A), (PadButtons.B, Xbox360Button.B), (PadButtons.X, Xbox360Button.X), (PadButtons.Y, Xbox360Button.Y),
     ];
+    static readonly (ushort Mask, DualShock4Button Button)[] Ds4Buttons =
+    [
+        (PadButtons.Start, DualShock4Button.Options), (PadButtons.Back, DualShock4Button.Share), (PadButtons.L3, DualShock4Button.ThumbLeft), (PadButtons.R3, DualShock4Button.ThumbRight),
+        (PadButtons.LB, DualShock4Button.ShoulderLeft), (PadButtons.RB, DualShock4Button.ShoulderRight),
+        (PadButtons.A, DualShock4Button.Cross), (PadButtons.B, DualShock4Button.Circle), (PadButtons.X, DualShock4Button.Square), (PadButtons.Y, DualShock4Button.Triangle),
+    ];
+    static byte Axis(short v) => (byte)((v + 32768) >> 8);          // XInput -32768..32767 to 0..255
+    static byte AxisUp(short v) => (byte)(255 - Axis(v));           // DualShock 4 has Y increasing downwards
     public void Update(PadState s)
     {
-        foreach (var (mask, button) in Buttons) pad.SetButtonState(button, (s.Buttons & mask) != 0);
-        pad.SetSliderValue(Xbox360Slider.LeftTrigger, s.LeftTrigger); pad.SetSliderValue(Xbox360Slider.RightTrigger, s.RightTrigger);
+        if (ds4 != null)
+        {
+            foreach (var (mask, button) in Ds4Buttons) ds4.SetButtonState(button, (s.Buttons & mask) != 0);
+            ds4.SetButtonState(DualShock4Button.TriggerLeft, s.LeftTrigger > 30); ds4.SetButtonState(DualShock4Button.TriggerRight, s.RightTrigger > 30);
+            ds4.SetButtonState(DualShock4SpecialButton.Ps, (s.Buttons & PadButtons.Guide) != 0);
+            bool up = (s.Buttons & PadButtons.Up) != 0, down = (s.Buttons & PadButtons.Down) != 0, left = (s.Buttons & PadButtons.Left) != 0, right = (s.Buttons & PadButtons.Right) != 0;
+            ds4.SetDPadDirection(up ? (right ? DualShock4DPadDirection.Northeast : left ? DualShock4DPadDirection.Northwest : DualShock4DPadDirection.North)
+                : down ? (right ? DualShock4DPadDirection.Southeast : left ? DualShock4DPadDirection.Southwest : DualShock4DPadDirection.South)
+                : right ? DualShock4DPadDirection.East : left ? DualShock4DPadDirection.West : DualShock4DPadDirection.None);
+            ds4.SetSliderValue(DualShock4Slider.LeftTrigger, s.LeftTrigger); ds4.SetSliderValue(DualShock4Slider.RightTrigger, s.RightTrigger);
+            ds4.SetAxisValue(DualShock4Axis.LeftThumbX, Axis(s.LeftX)); ds4.SetAxisValue(DualShock4Axis.LeftThumbY, AxisUp(s.LeftY));
+            ds4.SetAxisValue(DualShock4Axis.RightThumbX, Axis(s.RightX)); ds4.SetAxisValue(DualShock4Axis.RightThumbY, AxisUp(s.RightY));
+            ds4.SubmitReport();
+            return;
+        }
+        foreach (var (mask, button) in Buttons) pad!.SetButtonState(button, (s.Buttons & mask) != 0);
+        pad!.SetSliderValue(Xbox360Slider.LeftTrigger, s.LeftTrigger); pad.SetSliderValue(Xbox360Slider.RightTrigger, s.RightTrigger);
         pad.SetAxisValue(Xbox360Axis.LeftThumbX, s.LeftX); pad.SetAxisValue(Xbox360Axis.LeftThumbY, s.LeftY);
         pad.SetAxisValue(Xbox360Axis.RightThumbX, s.RightX); pad.SetAxisValue(Xbox360Axis.RightThumbY, s.RightY);
         pad.SubmitReport();
     }
-    public void Dispose() { try { pad.Disconnect(); } catch (Exception) { } client.Dispose(); ControllerRumble.Set(real, 0, 0); }
+    public void Dispose() { try { pad?.Disconnect(); ds4?.Disconnect(); } catch (Exception) { } client.Dispose(); ControllerRumble.Set(real, 0, 0); }
 }
 
 /// <summary>
@@ -303,7 +361,42 @@ static class HidHide
     }
 
     /// <summary>The instance paths to hide for every gaming device present.</summary>
-    public static List<string> GamingDevices() => HidHideDeviceList.Parse(Run("--dev-gaming"));
+    public static List<string> GamingDevices() => HidHideDeviceList.WithXInputChildren(HidHideDeviceList.Parse(Run("--dev-gaming")), XInputDevices());
+
+    /// <summary>Every present XInput device with its parent's instance path, read from Windows' device tree.</summary>
+    static List<(string Id, string Parent, Guid Class)> XInputDevices()
+    {
+        var found = new List<(string, string, Guid)>();
+        foreach (var cls in HidHideDeviceList.XInputClasses)
+        {
+            var guid = cls;
+            var set = SetupDiGetClassDevsW(ref guid, IntPtr.Zero, IntPtr.Zero, 2 /* DIGCF_PRESENT */);
+            if (set == IntPtr.Zero || set == new IntPtr(-1)) continue;
+            try
+            {
+                var data = new SpDevinfoData { Size = (uint)Marshal.SizeOf<SpDevinfoData>() };
+                for (uint i = 0; SetupDiEnumDeviceInfo(set, i, ref data); i++)
+                    if (DeviceId(data.DevInst) is { } id && CM_Get_Parent(out uint parent, data.DevInst, 0) == 0 && DeviceId(parent) is { } parentId)
+                        found.Add((id, parentId, cls));
+            }
+            finally { SetupDiDestroyDeviceInfoList(set); }
+        }
+        return found;
+    }
+
+    static string? DeviceId(uint devInst)
+    {
+        var buffer = new char[400];
+        return CM_Get_Device_IDW(devInst, buffer, buffer.Length, 0) == 0 ? new string(buffer).TrimEnd('\0') : null;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    struct SpDevinfoData { public uint Size; public Guid ClassGuid; public uint DevInst; public IntPtr Reserved; }
+    [DllImport("setupapi.dll", SetLastError = true)] static extern IntPtr SetupDiGetClassDevsW(ref Guid classGuid, IntPtr enumerator, IntPtr parent, uint flags);
+    [DllImport("setupapi.dll", SetLastError = true)] static extern bool SetupDiEnumDeviceInfo(IntPtr set, uint index, ref SpDevinfoData data);
+    [DllImport("setupapi.dll")] static extern bool SetupDiDestroyDeviceInfoList(IntPtr set);
+    [DllImport("cfgmgr32.dll", CharSet = CharSet.Unicode)] static extern int CM_Get_Device_IDW(uint devInst, char[] buffer, int length, uint flags);
+    [DllImport("cfgmgr32.dll")] static extern int CM_Get_Parent(out uint parent, uint devInst, uint flags);
     /// <summary>HidHideCLI --cloak-state answers "--cloak-on" or "--cloak-off".</summary>
     public static bool CloakIsOn() { try { return Run("--cloak-state").Contains("--cloak-on", StringComparison.OrdinalIgnoreCase); } catch (Exception) { return false; } }
     public static void RegisterSelf() { if (Environment.ProcessPath is { } exe) Run("--app-reg", exe); }

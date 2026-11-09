@@ -6,6 +6,9 @@ namespace X20Ctl.Product;
 public partial class StudioScene
 {
     private RadioButton[] navigation=[];
+    private RadioButton[] baseNavigation=[];
+    /// <summary>PC mode's own tabs (owner, 6 Nov 2026): Status, Games, Turbo, Combos, Test, Share. They exist only while PC mode is on.</summary>
+    private RadioButton[] pcTabs=[];
     private readonly TranslateTransform navigationSlide=new();
     private readonly ScaleTransform navigationLensScale=new(1,1);
     private bool arrangingNavigation,navigationQueued;
@@ -17,8 +20,18 @@ public partial class StudioScene
     private void BuildNavigation()
     {
         navigation=new[]{DashboardNav,ButtonsNav,CurvesNav,MacrosNav,VibrationNav,PcModeNav,RgbNav,ScreenNav,DeviceNav,MouseNav,SetupsNav}.Where(t=>(t!=RgbNav||Model.Id=="x20_pro")&&(t!=ScreenNav||ModelProfiles.For(Model.Id).HasScreen)).ToArray();
+        baseNavigation=navigation;
         RgbNav.Visibility=Model.Id=="x20_pro"?Visibility.Visible:Visibility.Collapsed;ScreenNav.Visibility=ModelProfiles.For(Model.Id).HasScreen?Visibility.Visible:Visibility.Collapsed;
         string group="studio-tabs-"+Guid.NewGuid().ToString("N");DiagnosticsNav.GroupName=group;DiagnosticsNav.Checked+=(_,_)=>QueueNavigation();UiSound.SetCue(DiagnosticsNav,UiSound.Cue.Tab);foreach(var tab in navigation){UiSound.SetCue(tab,UiSound.Cue.Tab);tab.GroupName=group;tab.Checked+=(_,_)=>QueueNavigation();}
+        pcTabs=PcModePage.Sections.Select(name=>
+        {
+            var tab=new RadioButton{Content=name,Style=DS.Style("DS.TopTab"),FontSize=14,Margin=new(0,0,24,0),Visibility=Visibility.Collapsed,GroupName=group};
+            tab.Click+=(_,_)=>{PcModePage.Part=name;ShowManagement("PcMode");};
+            UiSound.SetCue(tab,UiSound.Cue.Tab);tab.Checked+=(_,_)=>QueueNavigation();return tab;
+        }).ToArray();
+        int at=NavigationTabs.Children.IndexOf(PcModeNav);foreach(var tab in pcTabs)NavigationTabs.Children.Insert(++at,tab);BuildKeyboardTab(group);
+        PcModeNav.Visibility=Visibility.Collapsed;
+        ApplyPcDashboard();
         BuildFeatureNavigation();
         NavigationIndicator.RenderTransform=new TransformGroup{Children={navigationLensScale,navigationSlide}};
         NavigationIndicator.RenderTransformOrigin=new(.5,.5);
@@ -37,7 +50,7 @@ public partial class StudioScene
             double available=Math.Max(80,NavigationLayer.ActualWidth-152),used=0;
             foreach(var tab in navigation){tab.Visibility=Visibility.Visible;tab.Measure(new Size(double.PositiveInfinity,48));used+=tab.DesiredSize.Width;}
             NavigationMore.ContextMenu!.Items.Clear();
-            foreach(var tab in new[]{PcModeNav,MouseNav,VibrationNav,MacrosNav,CurvesNav,DeviceNav,SetupsNav})
+            foreach(var tab in pcTabs.Reverse().Concat(new[]{MouseNav,KeyboardNav!,VibrationNav,MacrosNav,CurvesNav,DeviceNav,SetupsNav}).Where(t=>navigation.Contains(t)))
             {
                 if(used+(NavigationMore.ContextMenu.Items.Count>0?90:0)<=available)break;
                 used-=tab.DesiredSize.Width;tab.Visibility=Visibility.Collapsed;

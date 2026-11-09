@@ -26,6 +26,8 @@ public static class NativeBleClient
 
     public static async Task<PadBridge.Result> QueryAsync(string targetModel = "x20_pro", int timeoutSeconds = 6, bool check = false)
     {
+        // the timed battery reads stand down while the player manages connections in the Bluetooth manager
+        if (!check && BluetoothManager.PauseBackground) return new(true, false, "Paused while the Bluetooth manager is open.");
         await ConfigurationGate.WaitAsync();
         try
         {
@@ -105,14 +107,7 @@ public static class NativeBleClient
             }
 
             string name = seenNames.TryGetValue(addr, out var n) ? n : rawName;
-            bool nameMatch = targetModel switch
-            {
-                "x20_pro" => name.Equals("EasySMX X20Pro", StringComparison.OrdinalIgnoreCase) ||
-                             name.Equals("EasySMX X20 Pro", StringComparison.OrdinalIgnoreCase),
-                "x20"     => name.Equals("EasySMX X20", StringComparison.OrdinalIgnoreCase) ||
-                             name.Equals("Xpert2", StringComparison.OrdinalIgnoreCase),
-                _         => name.StartsWith("EasySMX X20", StringComparison.OrdinalIgnoreCase)
-            };
+            bool nameMatch = BleDiscovery.MatchesTarget(targetModel, name);
 
             if (nameMatch || (string.IsNullOrEmpty(name) && cachedAddress == addr))
             {
@@ -162,6 +157,7 @@ public static class NativeBleClient
     /// <summary>The Part B write test: vibration only, on a proven pad, put back and read back afterwards (see VibrationTest).</summary>
     public static async Task<PadBridge.Result> VibrationTestAsync(string targetModel, int percent, int timeoutSeconds = 6)
     {
+        await ConfigurationGate.WaitAsync(); // one Bluetooth operation at a time, like the queries
         try
         {
             var (address, error) = await FindDeviceAddressAsync(targetModel, timeoutSeconds);
@@ -172,6 +168,7 @@ public static class NativeBleClient
         {
             return new(true, false, $"Bluetooth write test failed: {ex.Message}");
         }
+        finally { ConfigurationGate.Release(); }
     }
 
     private sealed class Link(Func<byte[], byte, Task<byte[]?>> send) : IPadLink
@@ -247,8 +244,7 @@ public static class NativeBleClient
             const int timeoutMs = 2500;
             byte opcode = X20Codec.Unscramble(packet)[0];
             // The controller check asks three read-only questions and nothing else; the write test touches only the motor record.
-            if (check && !PadCheck.IsQuery(opcode)) throw new InvalidOperationException($"The controller check may not send opcode 0x{opcode:X2}.");
-            if (vibrate != null && Array.IndexOf(VibrationTest.SessionOpcodes, opcode) < 0) throw new InvalidOperationException($"The write test may not send opcode 0x{opcode:X2}.");
+            if (BleDiscovery.Refusal(check, vibrate != null, opcode) is { } refused) throw new InvalidOperationException(refused);
             expectedSerial = serial;
             pendingReply = new TaskCompletionSource<byte[]>(TaskCreationOptions.RunContinuationsAsynchronously);
 

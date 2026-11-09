@@ -235,7 +235,7 @@ internal sealed class ChooserPage : UserControl
         {
             var m = model; facts.TryGetValue(m.Id, out var f);
             var art = new ControllerArt(m.Id, shadow: false, small: true) { Height = 190 };
-            var support = (f?.Support ?? "Not available yet") is var sup ? sup : "";
+            var support = (f?.Support ?? "Full PC Mode Configuration") is var sup ? sup : "";
             IBrush dot = support.StartsWith("Full") ? T.Accent : T.B("#7D8AA6");
             var line = T.Line(7, new Border { Width = 7, Height = 7, CornerRadius = new CornerRadius(4), Background = dot, VerticalAlignment = VerticalAlignment.Center }, T.Label(support, 13, support.StartsWith("Full") ? T.AccentHi : T.Soft));
             var col = T.Stack(7, art, T.Label(m.Name, 21, null, FontWeight.SemiBold), T.Label(f?.Description ?? "", 13, T.Soft), line);
@@ -269,8 +269,7 @@ internal sealed class ChooserPage : UserControl
                     if (Has("triggerHaptics")) parts.Add("trigger haptics");
                 }
                 if (item.TryGetProperty("macroSlots", out var slots) && slots.GetArrayLength() > 0) parts.Add($"{slots.GetArrayLength()} macro paddles");
-                string availability = item.TryGetProperty("availability", out var a) ? a.GetString() ?? "" : "";
-                string support = availability switch { "configuration" => "Full configuration", "preview" => "Preview · layout and art", "input_experimental" => "Input testing · experimental", _ => "Not available yet" };
+                string support = id is "x20" or "x20_pro" ? "Full configuration" : "Full PC Mode Configuration"; // owner, 7 Nov 2026: PC mode for every pad but the X20 family
                 facts[id] = new(string.Join(" · ", parts), support);
             }
         }

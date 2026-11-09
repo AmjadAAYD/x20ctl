@@ -25,6 +25,7 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="../../artifacts/product-engine-phase/native-build/Release/x20ctl-engine.exe" Link="x20ctl-engine.exe" CopyToOutputDirectory="PreserveNewest" ExcludeFromSingleFile="$(EngineBesideExe)" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4314.35" />
     <ProjectReference Include="../X20Ctl.Zone/X20Ctl.Zone.csproj" />
     <!-- the managed ViGEm client only: it talks to the ViGEmBus driver, which PC mode installs on first use -->
     <PackageReference Include="Nefarius.ViGEm.Client" Version="1.21.256" />

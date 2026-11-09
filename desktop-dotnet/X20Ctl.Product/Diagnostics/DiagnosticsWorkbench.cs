@@ -191,8 +191,12 @@ public sealed partial class DiagnosticsWorkbench
     {
         if (chosen >= 0) return chosen;
         if (preferredSlot is >= 0 and < 4 && !PcModeService.IsVirtual(preferredSlot) && reader!.Read(preferredSlot, out _)) return preferredSlot;
-        // Do not silently replace this player with another player's controller.
-        return -1;
+        // Do not silently replace this player with another player's controller; but when only one real controller is
+        // connected it can only be this player's (owner, 8 Nov 2026: an X20 Pro on Bluetooth answers on slot 2, and the
+        // circle test saw nothing on slot 1)
+        int only = -1, found = 0;
+        for (int i = 0; i < 4; i++) if (!PcModeService.IsVirtual(i) && reader!.Read(i, out _)) { only = i; found++; }
+        return found == 1 ? only : -1;
     }
 
     void Refresh() { RefreshCore(); Refreshed?.Invoke(); }

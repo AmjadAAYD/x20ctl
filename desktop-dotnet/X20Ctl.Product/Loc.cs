@@ -20,7 +20,7 @@ public static class Loc
     public static readonly IReadOnlyList<AppLanguage> All = new AppLanguage[]
     {
         English, new("zh", "中文"), new("fr", "Français"), new("de", "Deutsch"), new("pl", "Polski"),
-        new("es", "Español"), new("ja", "日本語"), new("ru", "Русский"), new("it", "Italiano"),
+        new("es", "Español"), new("ja", "日本語"), new("ru", "Русский"), new("it", "Italiano"), new("vi", "Tiếng Việt"),
     };
 
     public static AppLanguage Current { get; private set; } = English;

@@ -65,6 +65,36 @@ public sealed class PcModeStore
         }
     }
 
+    /// <summary>A file that couldn't be read can never be saved over, so its settings could never be fixed. This starts it
+    /// afresh; the unreadable file is kept as .unreadable, which later saves never touch. Does nothing to a healthy file.</summary>
+    public void StartOverIfUnreadable()
+    {
+        lock (gate)
+        {
+            if (Healthy) return;
+            if (File.Exists(path)) File.Copy(path, path + ".unreadable", true);
+            Healthy = true; Write(new Data());
+        }
+    }
+
+    /// <summary>Reset: every setting back to default (buttons, curves, stick tools, turbo, macros, combos) for every player
+    /// and every game. Nothing is deleted: each game keeps its entry and name, and the settings as they were are copied to
+    /// a dated file beside this one first. Returns that copy's path, or null when there was no file yet.</summary>
+    public string? ResetSettings()
+    {
+        lock (gate)
+        {
+            if (!Healthy) throw new IOException("The PC mode file couldn't be read, so it won't be overwritten.");
+            string? copy = null;
+            if (File.Exists(path)) { copy = path + ".before-reset-" + DateTime.Now.ToString("yyyy-MM-dd-HHmmss"); File.Copy(path, copy, true); }
+            var next = new Data();
+            foreach (var (key, profile) in data.Profiles)
+                if (IsGame(key)) next.Profiles[key] = new PcModeProfile { Name = profile.Name };
+            Write(next);
+            return copy;
+        }
+    }
+
     public void Save(string modelId, PcModeProfile profile)
     {
         profile.Validate();

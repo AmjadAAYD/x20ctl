@@ -77,7 +77,7 @@ public sealed class MacroWorkbench
     private readonly ComboBox trigger=new(){MinHeight=36,FontSize=14,SelectedValuePath="Key",ToolTip="PC mode can't see a back paddle. Pick the button that plays this slot; it plays the macro instead of its usual job."};
     private static string TriggerShort(string b)=>b switch{"DPAD_UP"=>"D↑","DPAD_DOWN"=>"D↓","DPAD_LEFT"=>"D←","DPAD_RIGHT"=>"D→","SELECT"=>"View","START"=>"Menu","HOME"=>"Home",_=>b};
     private static string TriggerLabel(string b)=>b switch{"DPAD_UP"=>"D-pad up","DPAD_DOWN"=>"D-pad down","DPAD_LEFT"=>"D-pad left","DPAD_RIGHT"=>"D-pad right","SELECT"=>"View","START"=>"Menu","HOME"=>"Home","L3"=>"Left stick click","R3"=>"Right stick click","LB"=>"Left bumper","RB"=>"Right bumper","LT"=>"Left trigger","RT"=>"Right trigger",_=>b};
-    private const string ReadOnly="Macros for this controller are a preview until its settings are verified. Nothing is stored or sent.";
+    private const string ReadOnly="Switch PC mode on to build macros for this controller: open the PC mode tab, turn it on, then come back here.";
     public MacroWorkbench(MacroDraft draft,ControllerLayout layout,FrameworkElement owner,Action<Button> register,bool reducedMotion,string model="x20")
     {
         Draft=draft;resources=owner;focusRegistration=register;IsReducedMotion=reducedMotion;

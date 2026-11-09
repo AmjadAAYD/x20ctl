@@ -8,21 +8,21 @@ namespace X20Ctl.Product;
 /// While PC mode is on, a controller's Buttons, Curves and Macros tabs are PC mode's editor: every change in them is
 /// saved to the PC mode settings picked on the PC mode tab (every game's, or a game's own) and applies right away.
 /// </summary>
-public sealed class PcModeSync(PcModeLink link, ButtonDraft buttons, CurveDraft curves, MacroDraft macros)
+public sealed class PcModeSync(PcModeLink link, ButtonDraft buttons, CurveDraft curves, MacroDraft macros, VibrationDraft? vibration = null)
 {
     /// <summary>One line for the Studio's status bar: what happened to the last change.</summary>
     public string Status { get; private set; } = "";
     // what the tabs held when they were last filled or saved: until they change, nothing is written, so settings the tabs
     // can't show (a fifth macro, Home inside a macro, odd timings) survive just being looked at
-    string baseline = Json(PcModeDrafts.Merge(link.Store.Get(PcModePage.StoreKey), buttons, curves, macros));
+    string baseline = Json(PcModeDrafts.Merge(link.Store.Get(PcModePage.StoreKey), buttons, curves, macros, vibration));
 
     /// <summary>Before a Studio opens: fill its drafts from PC mode, unless PC mode holds nothing yet and the drafts do
     /// (work done before PC mode was on is kept, and saved with the next change).</summary>
-    public static void Prepare(PcModeStore store, ButtonDraft buttons, CurveDraft curves, MacroDraft macros)
+    public static void Prepare(PcModeStore store, ButtonDraft buttons, CurveDraft curves, MacroDraft macros, VibrationDraft? vibration = null)
     {
         var p = store.Get(PcModePage.StoreKey);
-        if (p.IsNeutral && PcModeDrafts.HasChanges(buttons, curves, macros)) return;
-        try { PcModeDrafts.Load(p, buttons, curves, macros); }
+        if (p.IsNeutral && PcModeDrafts.HasChanges(buttons, curves, macros)) { if (vibration is { CanEdit: true }) { vibration.Set(Math.Clamp(p.Vibration, 0, vibration.Max)); if (vibration.PcMode) vibration.SetMotors(Math.Clamp(p.VibrationLeft, 0, vibration.Max), Math.Clamp(p.VibrationRight, 0, vibration.Max), Math.Clamp(p.VibrationFloor, 0, PcModeProfile.MaxVibrationFloor)); } return; }
+        try { PcModeDrafts.Load(p, buttons, curves, macros, vibration); }
         catch (Exception error) when (error is ArgumentException or InvalidOperationException) { }
     }
 
@@ -35,8 +35,19 @@ public sealed class PcModeSync(PcModeLink link, ButtonDraft buttons, CurveDraft 
 
     public void Reload()
     {
-        try { var p = link.Store.Get(PcModePage.StoreKey); PcModeDrafts.Load(p, buttons, curves, macros); baseline = Json(PcModeDrafts.Merge(p, buttons, curves, macros)); Status = "PC mode · Showing the settings for " + Target(); }
+        try { var p = link.Store.Get(PcModePage.StoreKey); PcModeDrafts.Load(p, buttons, curves, macros, vibration); baseline = Json(PcModeDrafts.Merge(p, buttons, curves, macros, vibration)); Status = "PC mode · Showing the settings for " + Target(); }
         catch (Exception error) when (error is ArgumentException or InvalidOperationException) { Status = "PC mode · Some settings couldn't be shown here: " + error.Message; }
+    }
+
+    /// <summary>The tabs hold changes that are not saved yet. They are saved only when Apply is pressed (owner, 6 Nov 2026).</summary>
+    public bool HasPending
+    {
+        get
+        {
+            var stored = link.Store.Get(PcModePage.StoreKey);
+            string json = Json(PcModeDrafts.Merge(stored, buttons, curves, macros, vibration));
+            return json != baseline && json != Json(stored);
+        }
     }
 
     /// <summary>Saves the tabs' settings if they changed. Returns whether anything was written.</summary>
@@ -44,7 +55,7 @@ public sealed class PcModeSync(PcModeLink link, ButtonDraft buttons, CurveDraft 
     {
         string key = PcModePage.StoreKey;
         var stored = link.Store.Get(key);
-        var next = PcModeDrafts.Merge(stored, buttons, curves, macros);
+        var next = PcModeDrafts.Merge(stored, buttons, curves, macros, vibration);
         string json = Json(next);
         if (json == baseline || json == Json(stored)) { if (Status.Length == 0) Status = Describe(stored); return false; }
         try { next.Validate(); }
@@ -54,7 +65,7 @@ public sealed class PcModeSync(PcModeLink link, ButtonDraft buttons, CurveDraft 
         catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException) { Status = "PC mode · Couldn't save: " + error.Message; return false; }
     }
 
-    string Describe(PcModeProfile p) => p.IsNeutral ? "PC mode · No changes yet: the controller goes straight to games" : "PC mode · Saved for " + Target() + " · Applies right away";
+    string Describe(PcModeProfile p) => p.IsNeutral ? "PC mode · No changes yet: the controller goes straight to games" : !link.Service.Enabled ? "PC mode · Saved for " + Target() + " · Switch PC mode on in its Status tab to use it in games" : "PC mode · Saved for " + Target() + " · Applies right away";
     string Target() => $"Player {PcModePage.Player + 1}, " + (PcModePage.ProfileKey == PcModeStore.DefaultKey ? "every game" : link.Store.Get(PcModePage.StoreKey).Name ?? PcModePage.ProfileKey[PcModeStore.GamePrefix.Length..]);
     static string Json(PcModeProfile p) => JsonSerializer.Serialize(p);
 }

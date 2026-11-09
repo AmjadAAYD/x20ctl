@@ -7,7 +7,6 @@ public sealed class TrayIcon : IDisposable
 {
     private readonly Window window;
     private readonly System.Windows.Forms.NotifyIcon icon;
-    private bool announced;
     public bool Quitting { get; private set; }
 
     public TrayIcon(Window window)
@@ -32,7 +31,9 @@ public sealed class TrayIcon : IDisposable
     /// <summary>The controller's battery, as Windows reports it ("Battery low"), or empty when it isn't known.</summary>
     public void SetBattery(string text) { battery = text; Compose(); }
     void Compose() { string text = battery.Length > 0 ? status + " · " + battery : status; icon.Text = text.Length > 63 ? text[..63] : text; }
-    public void Notify(string title, string text) => icon.ShowBalloonTip(3000, title, text, System.Windows.Forms.ToolTipIcon.None);
+    /// <summary>No Windows notifications (owner, 8 Nov 2026: nothing shows outside the software). Kept so callers stay the
+    /// same; the icon's own tooltip still shows whether PC mode is on or paused.</summary>
+    public void Notify(string title, string text) { }
     /// <summary>A checkable menu line (like "Controller as mouse"), kept in step with its state whenever the menu opens.</summary>
     public void AddToggle(string text, Func<bool> get, Action<bool> set)
     {
@@ -45,7 +46,6 @@ public sealed class TrayIcon : IDisposable
     public void HideToTray()
     {
         window.Hide();
-        if (!announced) { announced = true; icon.ShowBalloonTip(3500, "X20CTL is still running", "It is in the notification area. Right-click the icon to quit.", System.Windows.Forms.ToolTipIcon.None); }
     }
     public void Restore()
     {

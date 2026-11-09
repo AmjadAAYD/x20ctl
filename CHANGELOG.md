@@ -1,15 +1,66 @@
 # Changelog
 
-## [Unreleased]
+## [V0.023] - 2026-11-09
+
+### Added
+
+- **Read an X10's own settings.** On the X10, the Device tab has Read from controller. Over Bluetooth it reads the battery, firmware, trigger ranges, stick ranges and inversion, vibration, turbo and button mappings, and lists them under On the controller. It only reads: nothing on the X10 is changed. The protocol (KRLY) was decoded by Edgard in EasyGamepad, and X20CTL's version is ported from his. He is credited in About and the README. It has not yet been tried on a real X10.
+- **Game vibration up to 200%.** In PC mode, the Vibration tab boosts games' rumble to as much as 200%, so weak effects can be felt. Each grip motor has its own share of the game's rumble, a minimum lifts very faint effects so they still register, and a live Game vibration readout shows what the game asks for and what the controller gets.
+- **A vibration zone for every motor.** Vibration shows one zone per motor, each with its own slider and test: left and right grip on every controller, plus left and right trigger on the X20 Pro and the Dune. Test all four (Test both grips on other controllers) buzzes them together, each at its own strength. Trigger rumble uses a small built-in WebView2 and turns on after one button press on the controller; if the WebView2 runtime is missing, the tab says so.
+- **Vietnamese.** Tiếng Việt is in the language menu.
+- **The agent understands messy typing.** Typos and slang are read before matching, and it knows 3,048 phrasings (501 more). "Put everything back to normal" resets every setting, and plain requests to remap, swap, set turbo or switch PC mode are applied at once. It runs offline, without a chat model.
+- **X05 Pro in D-Input mode.** The Write scan recognises an X05 Pro in D-Input mode by the USB identity SalimKr reported, and offers a probe that sends the one command he reported, after a warning that says so, then records what changed. It shows the pad listens, not what the command means.
 
 ### Changed
 
 - **The Write scan talks to the pad itself.** The phone recording and KeyLinker log are gone. Choose your controller, read what will happen, then Identify (reads only: the pad says whether it answers like an X20, like an X20 Pro, differently, or not at all), Read-back (button, curve and macro records, saved to a file), a Write test that writes each record back exactly as read and reads it again (only after a visible "this sends a write" confirmation, and it puts a record back if it reads back different), and visual tests for the button map, curves, triggers, vibration and macros. The result is a zip that stays on this PC until you review it and press Send.
-- **The Read scan is slower and clearer.** You must choose your controller (or type its name) before it starts, so every report says what it is. A five-second countdown comes before each step, each hold is five seconds, and the last three seconds say "Release in 3, 2, 1" with a pulse. The control being asked for lights up on a plain layout (triggers 0 to 100 on top, bumpers under them, left stick and D-pad on the left, the four buttons and right stick on the right, Back and Start in the middle). The four-step bar reads Choose your controller, Press A to find it, Follow the prompts, Results.
+- **The Read scan is slower and clearer.** You must choose your controller (or type its name) before it starts, so every report says what it is. A five-second countdown comes before each step, each hold is five seconds, and the last three seconds say "Release in 3, 2, 1" with a pulse. The control being asked for lights up on a plain layout (triggers 0 to 100 on top, bumpers under them, left stick and D-pad on the left, the four buttons and right stick on the right, Back and Start in the middle). The four-step bar reads Choose your controller, Press A to find it, Follow the prompts, Results. The M1 to M6 paddle steps are gone: no tested pad reports them to Windows.
+- **Connected over Bluetooth alone.** When a controller answers only over its Bluetooth configuration link, the Studio's status and the Device tab read Connected over Bluetooth instead of not connected.
+- **The X20 Pro can use PC mode again.** With PC mode off, its buttons, curves, macros and vibration still save to the controller itself.
+- **No pop-ups from the tray.** X20CTL no longer shows Windows notification balloons.
+- **Tooltips only while X20CTL is in front.** They no longer open while another window is active, and any open one closes when you switch away.
+- **Diagnostics finds your controller on any slot.** With only one real controller connected, Diagnostics uses it even when Windows puts it on another player slot, as an X20 Pro on Bluetooth can be. It still never takes another player's controller.
+- **The Bluetooth manager stays.** It opens from Tools and the no-controller screen, as before; the Write scan's old Bluetooth check screen is gone.
+- **Licences.** NOTICE now carries the Microsoft WebView2 SDK licence, and THIRD_PARTY.md lists every package the apps use.
 
-### Removed
+### Fixed
 
-- The M1 to M6 paddle steps in the Read scan: no tested pad reports them to Windows.
+- **An old Bluetooth reading no longer counts as connected.** A battery reading remembered from earlier kept a controller marked connected over Bluetooth and reset its own age when it was shown again. Only a fresh reading counts now.
+- **X20 Pro PC mode setups above 100% open.** A setup saved with vibration above 100% failed to load. It loads now, and on the controller itself the value is held at 100%. The Studio's memory of the last session is held the same way.
+- **Trigger rumble starts only when used.** Its WebView2 started at every launch; now it starts the first time a trigger is tested. The Vibration tab no longer keeps old handlers after it closes, and a grip-only controller never sends a trigger pulse.
+- **An X10 read can't close X20CTL.** An unexpected Bluetooth error during a read is shown as a message.
+
+## [V0.022.1] - 2026-11-07
+
+### Added
+
+- **Controller to keyboard input.** PC mode has a new Keyboard tab that turns any controller button into a keyboard key or a mouse button. Your controller sits on top and a full keyboard below it: pick a button, then click the key it should press. Every key is there, from letters, numbers and F1 to F12 to the arrows, Print Screen and the whole number pad, plus mouse buttons M1 to M7. A key in use turns green and names the button that presses it, and every mapping is listed at the bottom with Remove. The key stays held while the button is held and is sent like a real keyboard's, so games that ignore simulated keys still see it. A mapped button no longer reaches the game as a controller button; Clear this button gives it back.
+- **Several keys from one press.** Custom plays up to 64 keys in a row from a single button, each with its own hold time (20 to 1000 ms) and pause before the next (0 to 1000 ms). A warning on the page says some games treat this as a macro and may ban you for it.
+- **A clearer Mouse page.** The controller sits beside a drawn mouse with M1 to M7, and nothing is folded away. A mapped mouse button lights green and says which controller button clicks it. The D-pad moves the pointer, and M6 and M7 tilt the wheel left and right, because Windows has only five real mouse buttons.
+- **Mouse turbo.** A button can repeat its click or key 2 to 30 times a second while held, set per button.
+- **Mouse mode works with PC mode on.** The Mouse tab stays next to Keyboard while PC mode runs, and switching the mouse on from the tab, the tray or its controller shortcut works as before.
+- **Choosing a controller scans for it.** X20CTL looks for the pad over USB, a 2.4 GHz receiver or Bluetooth, says what it found and how it is connected, then shows Enter Studio. A pad that names itself as another model is offered as that model instead, never as the one you picked.
+- **The Studio remembers.** Go back into a controller, even after closing X20CTL, and its buttons, curves, macros, vibration and last tab are as you left them, for each player and model. PC mode changes not yet applied come back with Apply still lit.
+- **Pair and connect Bluetooth controllers from the app.** Scan, pair, connect and disconnect from Tools, the Bluetooth check and the no-controller screen. Re-pairing asks first and says the old pairing is removed.
+- **Find nearby Bluetooth controllers by listening.** X20CTL reads what controllers broadcast and, when asked, lists the services they offer. Nothing is sent to them, and only a pad whose identity checks out is shown as configurable.
+- **Vibration strength in PC mode.** On the Dune, X05 Pro, X10, D10 and X15, the Vibration tab now sets how strongly games make the pad vibrate, from 0 to 100% of the game's own rumble. Press Apply to PC mode to save it; it is kept for each player and each game profile, and 100% leaves the rumble as the game sends it.
+- **Setups for every PC mode controller.** The Dune, X05 Pro, X10, D10 and X15 can now save, open, rename, duplicate and export setups, as the X20 could. A setup holds the button remaps, stick and trigger curves, macros with the button that plays each one, and the vibration strength.
+- **A PlayStation 4 virtual controller in PC mode.** Pick it instead of Xbox 360 for games that prefer a PlayStation pad. It takes effect the next time the virtual controller is created, and the choice is kept across restarts.
+
+### Changed
+
+- **Every controller card says what it can do.** In Choose a controller, on every theme, the Dune, X05 Pro, X10, D10 and X15 read Full PC Mode Configuration, and the X20 and X20 Pro read Full configuration. This replaces Preview, Input testing and Not available yet.
+- **The X20 and X20 Pro keep their own settings.** Their Studio still saves buttons, curves, macros and vibration to the controller itself. The PC mode Studio is for every other EasySMX controller.
+- **PC mode's tabs.** With PC mode on, Keyboard replaces Macros, Mouse sits beside it and Device is hidden. With PC mode off, Macros and Device are back and Mouse is last.
+- **The Combos tab is gone.** Saved combos keep working and can be removed from the Keyboard tab.
+- **A warning before PC mode switches on.** It appears every time, and says some games and anti-cheat systems may treat a virtual controller as cheating and could ban the account.
+
+### Fixed
+
+- **Every EasySMX controller can be set up in PC mode.** The Dune, X05 Pro, X10, D10 and X15 said "Remapping is not verified for this model yet" on Buttons, and "Switch PC mode on to use the Keyboard tab" on Keyboard, even with PC mode on. Buttons, Curves, Macros, Keyboard, Mouse, Vibration and Setups now open ready to edit for these controllers. If PC mode is off, the settings are still saved, and the status bar says to switch it on in the Status tab to use them in games.
+- **Macro paddles are named in PC mode.** A rear paddle reads Rear paddle · Macro slot instead of Configuration role unverified. In Macros, pick the button that plays its sequence, since Windows sees the paddles as A, B, L3 or R3.
+- **PC mode switches on after a Reset.** With every setting back to default, the switch looked on but nothing ran. It now says it is on and waiting, and starts by itself once a setting changes or PlayStation 4 is picked.
+- **A pad on a wireless receiver is fully hidden in PC mode.** X20CTL now hides the receiver's XInput device as well as its gamepad, so games no longer see the real pad next to the virtual one.
 
 ## [V0.021] - 2026-11-05
 

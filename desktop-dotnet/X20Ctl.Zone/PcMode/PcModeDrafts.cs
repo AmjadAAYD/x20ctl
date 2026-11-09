@@ -9,8 +9,9 @@ namespace X20Ctl.Zone.PcMode;
 public static class PcModeDrafts
 {
     /// <summary>Fills the drafts from a profile. The drafts must already be unlocked for PC mode (or be an X20's).</summary>
-    public static void Load(PcModeProfile p, ButtonDraft buttons, CurveDraft curves, MacroDraft macros)
+    public static void Load(PcModeProfile p, ButtonDraft buttons, CurveDraft curves, MacroDraft macros, VibrationDraft? vibration = null)
     {
+        if (vibration is { CanEdit: true }) { vibration.Set(Math.Clamp(p.Vibration, 0, vibration.Max)); if (vibration.PcMode) vibration.SetMotors(Math.Clamp(p.VibrationLeft, 0, vibration.Max), Math.Clamp(p.VibrationRight, 0, vibration.Max), Math.Clamp(p.VibrationFloor, 0, PcModeProfile.MaxVibrationFloor)); }
         buttons.ResetAll();
         foreach (var source in ButtonDraft.Sources)
             if (p.Remap.TryGetValue(source, out var target) && (ButtonDraft.Targets.Contains(target)||buttons.PcMode&&target=="NONE")) buttons.Set(source, target);
@@ -44,9 +45,10 @@ public static class PcModeDrafts
     }
 
     /// <summary>The profile the drafts describe, built on the saved one so turbo, stick tools and the rest are kept.</summary>
-    public static PcModeProfile Merge(PcModeProfile saved, ButtonDraft buttons, CurveDraft curves, MacroDraft macros)
+    public static PcModeProfile Merge(PcModeProfile saved, ButtonDraft buttons, CurveDraft curves, MacroDraft macros, VibrationDraft? vibration = null)
     {
         var p = JsonSerializer.Deserialize<PcModeProfile>(JsonSerializer.SerializeToUtf8Bytes(saved))!;
+        if (vibration is { PcMode: true }) { p.Vibration = vibration.Strength; p.VibrationLeft = vibration.Left; p.VibrationRight = vibration.Right; p.VibrationFloor = vibration.Floor; }
         p.Remap = saved.Remap.Where(r => !ButtonDraft.Sources.Contains(r.Key)).ToDictionary(r => r.Key, r => r.Value);
         foreach (var source in ButtonDraft.Sources)
         {

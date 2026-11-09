@@ -26,7 +26,7 @@ public sealed class ControllerCatalog
             if (id == "x20") { points["HOME"] = new(.5, .301); points["CAPTURE"] = new(646d / 1536, 262d / 1024); points["TURBO"] = new(879d / 1536, 264d / 1024); }
             bool supported = (id == "x20" || id == "x20_pro") && item.GetProperty("backend").GetString() == "x20_keylinker";
             string support = supported ? "SUPPORTED" : item.GetProperty("availability").GetString() == "preview" ? "PREVIEW" : "RESEARCH";
-            string summary = supported ? "Verified legacy configuration. Native connection pending." : "Configuration unverified. Model preview available.";
+            string summary = supported ? "Verified legacy configuration. Native connection pending." : X20Ctl.Zone.PcMode.PcModeEntry.IsAvailable(id) ? "Full PC Mode Configuration" : "Configuration unverified. Model preview available.";
             models.Add(new(id, "EasySMX " + item.GetProperty("name").GetString(), support, summary, visual.GetProperty("asset").GetString()!, points));
         }
         if (models.Select(m => m.Id).Distinct().Count() != models.Count) throw new InvalidDataException("Duplicate catalog model.");

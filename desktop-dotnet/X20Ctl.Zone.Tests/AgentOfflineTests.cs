@@ -36,6 +36,13 @@ public sealed class AgentOfflineTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public async Task Offline_mode_reads_messy_typing()
+    {
+        var (right, total) = await Score("messy", AgentBench.OfflineMessy);
+        Assert.True(right >= total * 0.9, $"{right}/{total}");
+    }
+
+    [Fact]
     public async Task Phrasebooks_compared_on_held_out_wording()
     {
         await Score("examples only", AgentBench.OfflineHeldOut, new OfflineAgent(null));

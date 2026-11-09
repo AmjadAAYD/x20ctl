@@ -4,10 +4,34 @@ namespace X20Ctl.Product;
 
 public partial class App : Application
 {
+    // Nothing of X20CTL's shows over other apps (owner, 8 Nov 2026). A tooltip is a topmost popup that WPF also opens on
+    // keyboard focus, so focus moved while X20CTL was in the background put one over whatever was on screen. Tooltips now
+    // open only while one of X20CTL's windows is active, and close the moment none is.
+    static readonly HashSet<System.Windows.Controls.ToolTip> openTips = [];
+    static bool Inside => Current?.Windows.OfType<Window>().Any(w => w.IsActive) == true;
+    static void KeepTooltipsInside()
+    {
+        EventManager.RegisterClassHandler(typeof(FrameworkElement), FrameworkElement.ToolTipOpeningEvent,
+            new System.Windows.Controls.ToolTipEventHandler((_, e) => { if (!Inside) e.Handled = true; }), true);
+        EventManager.RegisterClassHandler(typeof(System.Windows.Controls.ToolTip), System.Windows.Controls.ToolTip.OpenedEvent,
+            new RoutedEventHandler((s, _) => { var tip = (System.Windows.Controls.ToolTip)s; if (!Inside) tip.IsOpen = false; else openTips.Add(tip); }));
+        EventManager.RegisterClassHandler(typeof(System.Windows.Controls.ToolTip), System.Windows.Controls.ToolTip.ClosedEvent,
+            new RoutedEventHandler((s, _) => openTips.Remove((System.Windows.Controls.ToolTip)s)));
+        Current.Deactivated += (_, _) => { foreach (var tip in openTips.ToArray()) tip.IsOpen = false; };
+    }
+
     private async void OnStartup(object sender, StartupEventArgs e)
     {
+        KeepTooltipsInside();
         try
         {
+            if(e.Args.Length==2 && e.Args[0]=="--review-bluetooth-link")
+            {
+                ShutdownMode=ShutdownMode.OnExplicitShutdown;
+                try{await Development.BluetoothLinkReview.Run(e.Args[1]);Shutdown(0);}
+                catch(Exception failure){Directory.CreateDirectory(e.Args[1]);File.WriteAllText(Path.Combine(e.Args[1],"failure.txt"),failure.ToString());Shutdown(1);}
+                return;
+            }
             if(e.Args.Length==2 && e.Args[0]=="--review-device-telemetry")
             {
                 ShutdownMode=ShutdownMode.OnExplicitShutdown;
@@ -314,6 +338,13 @@ public partial class App : Application
                 try { await Development.FinishReview.Run(e.Args[1]); } catch (Exception failure) { File.WriteAllText(e.Args[1] + ".failure.txt", failure.ToString()); }
                 Shutdown(0); return;
             }
+            if (e.Args.Length == 2 && e.Args[0] == "--review-inputs")
+            {
+                // windowless: the Mouse and Keyboard pages rendered off screen
+                ShutdownMode = ShutdownMode.OnExplicitShutdown; IntroView.SoundEnabled = false;
+                try { await Development.InputsReview.Run(e.Args[1]); } catch (Exception failure) { Directory.CreateDirectory(e.Args[1]); File.WriteAllText(Path.Combine(e.Args[1], "failure.txt"), failure.ToString()); }
+                Shutdown(0); return;
+            }
             if (e.Args.Length == 2 && e.Args[0] == "--review-battery")
             {
                 ShutdownMode = ShutdownMode.OnExplicitShutdown;
@@ -382,7 +413,7 @@ public partial class App : Application
             // HidHide's hide list outlives the app (it survives a reboot): every way out un-hides the controller, not only
             // the window closing — Windows signing out or shutting down, and a crash on any thread
             SessionEnding += (_, _) => { window.Host.MouseMode?.Dispose(); window.Host.PcMode?.Dispose(); };
-            Exit += (_, _) => { window.Host.MouseMode?.Dispose(); window.Host.PcMode?.Dispose(); };
+            Exit += (_, _) => { window.Host.RememberStudio(); window.Host.MouseMode?.Dispose(); window.Host.PcMode?.Dispose(); };
             ForegroundApp.Start();
             AppDomain.CurrentDomain.UnhandledException += (_, _) => { try { window.Host.MouseMode?.Dispose(); window.Host.PcMode?.Dispose(); } catch (Exception) { } };
         }

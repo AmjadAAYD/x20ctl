@@ -9,6 +9,11 @@ public enum MouseAction
     None, LeftClick, RightClick, MiddleClick, Back, Forward, Precision,
     Enter, Escape, Tab, Space, Backspace, Windows, TaskView, OnScreenKeyboard,
     Up, Down, Left, Right, PageUp, PageDown, VolumeUp, VolumeDown, Mute, PlayPause,
+    /// <summary>Mouse 6 and 7: the wheel tilted left and right. Windows sends only five real mouse buttons, and tilt is
+    /// what numbers 6 and 7 are elsewhere (X11), so games that bind "Mouse 6/7" usually read these.</summary>
+    TiltLeft, TiltRight,
+    /// <summary>Moves the pointer while held, at the pointer speed (the D-pad's default).</summary>
+    PointerUp, PointerDown, PointerLeft, PointerRight,
 }
 
 /// <summary>
@@ -50,12 +55,16 @@ public sealed class MouseProfile
     [JsonIgnore] public ushort ToggleMask => (ushort)ToggleButtons.Aggregate(0, (mask, key) => mask | PadButtons.Mask.GetValueOrDefault(key));
     /// <summary>Button name (PadButtons names plus LT, RT) → action.</summary>
     public Dictionary<string, MouseAction> Buttons { get; set; } = Defaults();
+    /// <summary>Turbo: button → presses a second while held (clicks or keys repeat on their own).</summary>
+    public Dictionary<string, int> Turbo { get; set; } = new();
+    public const int MinTurbo = 2, MaxTurbo = 30;
+    public static bool Moves(MouseAction a) => a is MouseAction.PointerUp or MouseAction.PointerDown or MouseAction.PointerLeft or MouseAction.PointerRight;
 
     public static Dictionary<string, MouseAction> Defaults() => new()
     {
         ["A"] = MouseAction.LeftClick, ["B"] = MouseAction.RightClick, ["X"] = MouseAction.MiddleClick, ["Y"] = MouseAction.OnScreenKeyboard,
         ["LB"] = MouseAction.Back, ["RB"] = MouseAction.Forward, ["LT"] = MouseAction.Precision, ["RT"] = MouseAction.LeftClick,
-        ["DPAD_UP"] = MouseAction.Up, ["DPAD_DOWN"] = MouseAction.Down, ["DPAD_LEFT"] = MouseAction.Left, ["DPAD_RIGHT"] = MouseAction.Right,
+        ["DPAD_UP"] = MouseAction.PointerUp, ["DPAD_DOWN"] = MouseAction.PointerDown, ["DPAD_LEFT"] = MouseAction.PointerLeft, ["DPAD_RIGHT"] = MouseAction.PointerRight,
         ["START"] = MouseAction.Windows, ["SELECT"] = MouseAction.None, ["L3"] = MouseAction.Enter, ["R3"] = MouseAction.TaskView, ["HOME"] = MouseAction.None,
     };
     public static readonly string[] Inputs = [.. PadButtons.Mask.Keys, "LT", "RT"];
@@ -71,6 +80,9 @@ public sealed class MouseProfile
             throw new InvalidDataException("Invalid mouse settings.");
         foreach (var (button, action) in Buttons)
             if (!Inputs.Contains(button) || !Enum.IsDefined(action)) throw new InvalidDataException("Invalid mouse button.");
+        if (Turbo == null) throw new InvalidDataException("Invalid mouse settings.");
+        foreach (var (button, rate) in Turbo)
+            if (!Inputs.Contains(button) || rate < MinTurbo || rate > MaxTurbo) throw new InvalidDataException("Turbo needs a known button and 2 to 30 presses a second.");
     }
 
     public static string DefaultPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "x20ctl", "mouse.json");
@@ -111,8 +123,9 @@ public readonly record struct MouseFrame(int Dx, int Dy, int Wheel, int HWheel, 
 public sealed class MouseMapper
 {
     readonly MouseProfile profile;
-    double carryX, carryY, carryWheel, carryH;
+    double carryX, carryY, carryWheel, carryH, clock;
     readonly HashSet<string> held = new();
+    readonly Dictionary<string, double> turboSince = new();
     public MouseMapper(MouseProfile profile) { profile.Validate(); this.profile = profile; }
 
     /// <summary>How fast (0–1 of full speed) a push of this size moves, after the dead zone and the curve.</summary>
@@ -135,7 +148,23 @@ public sealed class MouseMapper
         foreach (var (name, mask) in PadButtons.Mask) if ((s.Buttons & mask) != 0) now.Add(name);
         if (s.LeftTrigger > PadButtons.TriggerThreshold) now.Add("LT");
         if (s.RightTrigger > PadButtons.TriggerThreshold) now.Add("RT");
-        foreach (var action in profile.Buttons.Values.Distinct().Where(a=>a is not (MouseAction.None or MouseAction.Precision)))
+        clock += seconds;
+        // the pointer-move buttons (the D-pad by default) push the pointer like a stick held fully over
+        double mx = 0, my = 0;
+        foreach (var name in now)
+            switch (profile.Buttons.GetValueOrDefault(name))
+            {
+                case MouseAction.PointerUp: my -= 1; break; case MouseAction.PointerDown: my += 1; break;
+                case MouseAction.PointerLeft: mx -= 1; break; case MouseAction.PointerRight: mx += 1; break;
+            }
+        // turbo: a held button is pressed and let go again and again, so a click repeats on its own
+        foreach (var (name, rate) in profile.Turbo)
+        {
+            if (!now.Contains(name)) { turboSince.Remove(name); continue; }
+            if (!turboSince.TryGetValue(name, out var since)) turboSince[name] = since = clock;
+            if (((long)((clock - since) * rate * 2) & 1) == 1) now.Remove(name);
+        }
+        foreach (var action in profile.Buttons.Values.Distinct().Where(a=>a is not (MouseAction.None or MouseAction.Precision) && !MouseProfile.Moves(a)))
         {
             bool down = profile.Buttons.Any(b=>b.Value==action && now.Contains(b.Key));
             bool was = profile.Buttons.Any(b=>b.Value==action && held.Contains(b.Key));
@@ -151,6 +180,11 @@ public sealed class MouseMapper
         double nx = px / 32768.0, ny = py / 32768.0, m = Math.Min(1, Math.Sqrt(nx * nx + ny * ny));
         double speed = Push(m, profile.Deadzone, profile.Curve) * profile.Speed * (Precision ? profile.PrecisionPercent / 100 : 1);
         if (m > 0) { carryX += nx / m * speed * seconds; carryY -= ny / m * speed * seconds; } // screen y grows downwards
+        else if (mx != 0 || my != 0)
+        {
+            double len = Math.Sqrt(mx * mx + my * my), pad = profile.Speed * .5 * (Precision ? profile.PrecisionPercent / 100 : 1);
+            carryX += mx / len * pad * seconds; carryY += my / len * pad * seconds;
+        }
         int dx = (int)Math.Truncate(carryX), dy = (int)Math.Truncate(carryY); carryX -= dx; carryY -= dy;
 
         int wheel = 0, hwheel = 0;
@@ -172,8 +206,8 @@ public sealed class MouseMapper
     /// <summary>Lets go of everything still held (the mouse is being switched off), so no click or key stays stuck.</summary>
     public IReadOnlyList<(MouseAction, bool)> Release()
     {
-        var edges = held.Select(n => profile.Buttons.GetValueOrDefault(n)).Where(a => a is not (MouseAction.None or MouseAction.Precision)).Distinct().Select(a => (a, false)).ToList();
-        held.Clear(); carryX = carryY = carryWheel = carryH = 0; return edges;
+        var edges = held.Select(n => profile.Buttons.GetValueOrDefault(n)).Where(a => a is not (MouseAction.None or MouseAction.Precision) && !MouseProfile.Moves(a)).Distinct().Select(a => (a, false)).ToList();
+        held.Clear(); turboSince.Clear(); carryX = carryY = carryWheel = carryH = 0; return edges;
     }
 }
 
