@@ -6,7 +6,7 @@ using System.Windows.Threading;
 namespace X20Ctl.Product.Scanner;
 
 /// <summary>
-/// The Bluetooth manager, reached from Check over Bluetooth: scan, pick a controller, connect X20CTL's configuration link,
+/// The Bluetooth manager, reached from Tools and the connect screen: scan, pick a controller, connect X20CTL's configuration link,
 /// pair a gameplay device through Windows, and read what happened. The configuration link and the gameplay device are
 /// shown apart and never merged. Leaving the manager releases X20CTL's connection; nothing is ever unpaired.
 /// </summary>
@@ -30,13 +30,13 @@ public sealed partial class WriteScanView
     private bool btBusy;
     private int btSlots = -1;
     private static readonly TimeSpan BtListen = TimeSpan.FromSeconds(8), BtInquiry = TimeSpan.FromSeconds(10);
-    private bool bluetoothOnly; // opened straight from the connect screen: Back closes the whole view
+    private bool bluetoothOnly; // opened straight from Tools or the connect screen: Back closes the whole view
+    private readonly byte[] nearbySalt = System.Security.Cryptography.RandomNumberGenerator.GetBytes(16); // per view: addresses are shown redacted
 
     /// <summary>The manager on its own, for the connect screen's Bluetooth card.</summary>
     public static WriteScanView BluetoothManagerOnly(Action close)
     {
         var view = new WriteScanView(close) { bluetoothOnly = true };
-        view.warning.Visibility = Visibility.Collapsed;
         view.Loaded += async (_, _) => { if (view.bluetoothView.Visibility != Visibility.Visible) await view.OpenBluetooth(); };
         return view;
     }
@@ -79,7 +79,7 @@ public sealed partial class WriteScanView
         btSession ??= new ConfigSession(new WinBluetooth.LinkFactory(), NativeBleClient.ConfigurationGate, btLog);
         btSession.AutoReconnect = btAuto.IsChecked == true;
         btSession.Changed += BtSessionChanged;
-        checkView.Visibility = Visibility.Collapsed; bluetoothView.Visibility = Visibility.Visible;
+        bluetoothView.Visibility = Visibility.Visible;
         btLog.Add("Bluetooth manager opened. Timed battery reads paused.");
         var radio = await WinBluetooth.RadioAsync();
         btAdapter.Text = "Bluetooth adapter: " + WinBluetooth.Describe(radio);
@@ -100,7 +100,7 @@ public sealed partial class WriteScanView
         }
         if (BluetoothManager.PauseBackground) { BluetoothManager.PauseBackground = false; btLog.Add("Timed battery reads resumed."); }
         if (leaveView && bluetoothOnly) { close(); return; }
-        if (leaveView) { bluetoothView.Visibility = Visibility.Collapsed; checkView.Visibility = Visibility.Visible; }
+        if (leaveView) bluetoothView.Visibility = Visibility.Collapsed;
     }
 
     private void BtSessionChanged() => Dispatcher.BeginInvoke(() => { BtRenderList(); BtRenderDetails(); });

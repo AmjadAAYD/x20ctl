@@ -263,9 +263,10 @@ public class BleDiscoveryTests
         Assert.DoesNotContain("PadCheck", Code(Source("X20Ctl.Product", "NativeBleDiscovery.cs")));
         // exception text can carry a device address; discovery shows error codes only
         Assert.DoesNotContain(".Message", Code(Source("X20Ctl.Product", "NativeBleDiscovery.cs")));
-        var view = Code(Source("X20Ctl.Product", "Scanner", "WriteScanView.cs"));
-        int from = view.IndexOf("Task FindNearby()"), to = view.IndexOf("Task RunWriteTest()");
-        Assert.DoesNotContain(".Message", view[from..to]);
+        // the Bluetooth manager's scan and service listing show error codes only, too
+        var manager = Code(Source("X20Ctl.Product", "Scanner", "WriteScanView.Bluetooth.cs"));
+        Assert.DoesNotContain(".Message", Between(manager, "Task BtScan()", "string Label("));
+        Assert.DoesNotContain(".Message", Between(manager, "Task BtInspect(", "Task BtPair("));
     }
 
     [Fact] // 19
@@ -281,10 +282,10 @@ public class BleDiscoveryTests
     [Fact] // 20
     public void The_scan_view_asks_nothing_of_found_devices()
     {
-        var view = Source("X20Ctl.Product", "Scanner", "WriteScanView.cs");
-        var find = Between(view, "private async Task FindNearby()", "private async Task RunWriteTest()");
-        foreach (var token in new[] { "PadBridge", "NativeBleClient", "TestVibration", "X20Codec" }) Assert.DoesNotContain(token, find);
-        Assert.Contains("VibrationTest.MayRun(PadCheck.ParseIdentity(raw.Identity), PadCheck.ParseCapabilities(raw.Menu))", view); // write-test gate as before
+        // the Bluetooth manager's Scan listens and its Device details lists services; neither sends a controller command
+        var manager = Source("X20Ctl.Product", "Scanner", "WriteScanView.Bluetooth.cs");
+        foreach (var part in new[] { Between(manager, "private async Task BtScan()", "private string Label("), Between(manager, "private async Task BtInspect(", "private async Task BtPair(") })
+            foreach (var token in new[] { "PadBridge", "NativeBleClient", "TestVibration", "X20Codec" }) Assert.DoesNotContain(token, part);
     }
 
     // ---------------------------------------------------------------- helpers

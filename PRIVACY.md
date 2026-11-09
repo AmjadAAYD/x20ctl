@@ -17,7 +17,7 @@ These are stored on your computer only and never uploaded:
 - your setups, preferences and player assignments (in `%APPDATA%\x20ctl` on Windows);
 - a crash log, if the app hits an error (in `%LOCALAPPDATA%\x20ctl\native\crash.log`);
 - every Controller Check report ZIP (in `Documents\X20CTLInputReports` on Windows, `~/X20CTLInputReports` on Linux).
-- Write scan findings, only when you press Save (in `Documents\X20CTLWriteScans`). The phone's Bluetooth log you open is read where it is; a copy is kept only if you tick "Also save a copy of the Bluetooth log".
+- Write scan reports (the pad's replies, the records it holds, your test verdicts and the app version, with no Bluetooth address or PC name), in `Documents\X20CTLWriteScans`, written when you read the pad and when you press Save. They are sent only after you review them and press Send.
 
 Controller serial numbers are read only if you turn on "Include serial numbers", and even then they stay in the local
 report.

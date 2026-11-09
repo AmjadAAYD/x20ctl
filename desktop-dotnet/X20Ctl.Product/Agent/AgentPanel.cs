@@ -665,7 +665,7 @@ public sealed partial class AgentPanel
             register(card); return card;
         }
         page.Children.Add(CheckCard("", "Read scan", "Checks sticks, triggers and buttons, then makes a report. It only reads.", () => PageRequested?.Invoke("ReadScan")));
-        page.Children.Add(CheckCard("", "Write scan", "Learns what a setting writes when you change it in KeyLinker.", () => PageRequested?.Invoke("WriteScan")));
+        page.Children.Add(CheckCard("", "Write scan", "Asks your pad who it is, reads its records and tests a write.", () => PageRequested?.Invoke("WriteScan")));
         page.Children.Add(CheckCard("", "Describe it yourself", "Tell me in your own words and I will talk it through.", StartDiagnostic));
         return new ScrollViewer { Content = page, Visibility = Visibility.Collapsed, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
     }
