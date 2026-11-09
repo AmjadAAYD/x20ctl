@@ -14,6 +14,7 @@ public static class ExternalLinks
 {
     public const string Repository = "https://github.com/AmjadAAYD/x20ctl";
     public const string Inspiration = "https://github.com/ReynArts/ApexSenseBridge";
+    public const string EasyGamepad = "https://github.com/edgardmessias/easygamepad";
     public static void Open(string url)
     {
         if (url is not (Repository or Inspiration or ProductLinks.Support or PcModeSetup.BusPage or PcModeSetup.HiderPage) && !url.StartsWith(Repository + "/releases", StringComparison.Ordinal)) throw new ArgumentException("Unsupported destination.");
@@ -320,13 +321,15 @@ public sealed partial class ProductSettings : Grid
         stack.Children.Add(Para("Amjad AAYD, who designs and builds X20CTL.", 6, "DS.Text", 18));
         stack.Children.Add(Kit.Text("THANKS", 13, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(0, 24, 0, 0)));
         stack.Children.Add(Para("Special thanks to Kiin from Team EasySMX for sending me a free X20 Pro controller.", 6, "DS.Text", 18));
+        stack.Children.Add(Para("Thanks to Edgard (edgardmessias) for decoding the X10's Bluetooth protocol in EasyGamepad. X20CTL's X10 support is built on his work.", 6, "DS.Text", 18));
         stack.Children.Add(Kit.Text("INSPIRATION", 13, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(0, 24, 0, 0)));
         stack.Children.Add(Para("The console-style look of X20CTL was inspired by ApexSenseBridge by ReynArts. Thank you for showing how good a controller app can feel.", 6, "DS.Text", 18));
         var links = new StackPanel { Orientation = Orientation.Horizontal, Margin = new(0, 32, 0, 0) };
         var repo = Pill("", "X20CTL on GitHub"); repo.Click += (_, _) => Try(() => ExternalLinks.Open(ExternalLinks.Repository));
         var apex = Pill("", "ApexSenseBridge by ReynArts"); apex.Click += (_, _) => Try(() => ExternalLinks.Open(ExternalLinks.Inspiration));
-        repo.Margin = apex.Margin = aboutBack.Margin = new(0, 0, 12, 0);
-        links.Children.Add(aboutBack); links.Children.Add(repo); links.Children.Add(apex); stack.Children.Add(links);
+        var edgard = Pill("", "EasyGamepad by Edgard"); edgard.Click += (_, _) => Try(() => ExternalLinks.Open(ExternalLinks.EasyGamepad));
+        repo.Margin = apex.Margin = edgard.Margin = aboutBack.Margin = new(0, 0, 12, 0);
+        links.Children.Add(aboutBack); links.Children.Add(repo); links.Children.Add(apex); links.Children.Add(edgard); stack.Children.Add(links);
         stack.Children.Add(Para("X20CTL is not affiliated with, endorsed by or sponsored by EasySMX. EasySMX and its product names belong to their owners.", 26, "DS.TextSoft", 15));
         return new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
     }

@@ -247,6 +247,8 @@ The controller art is generated from the source pictures by `tools/build_native_
 
 **Special thanks to Kiin from Team EasySMX** for supplying a free X20 Pro controller. Real hardware is what turns a protocol guess into a verified setting.
 
+**Thanks to [Edgard (edgardmessias)](https://github.com/edgardmessias)** for decoding the X10's Bluetooth protocol in [EasyGamepad](https://github.com/edgardmessias/easygamepad). X20CTL's X10 support is built on his work.
+
 **Thanks to [Monratis](https://github.com/Monratis)** for fixing the mouse and the controller fighting over focus when you use both at once, and for the EasySMX X20 Pro support, tested on a real X20 Pro.
 
 The console-style look was inspired by [ApexSenseBridge by Kayn arts (ReynArts)](https://github.com/ReynArts/ApexSenseBridge). The credit is for design inspiration only; no code was taken from it. X20CTL has its own branding, artwork and implementation.
