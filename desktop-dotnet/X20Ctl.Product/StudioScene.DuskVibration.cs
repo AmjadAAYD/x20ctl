@@ -53,7 +53,7 @@ public partial class StudioScene
         var strengthValue = new TextBlock { FontFamily = DuskKit.Display, FontSize = 18, Foreground = DuskKit.WhiteBrush, VerticalAlignment = VerticalAlignment.Center, TextAlignment = TextAlignment.Right };
         strengthValue.SetBinding(TextBlock.TextProperty, new Binding("Value") { Source = Vibration.Strength, StringFormat = "{0:0}%" }); Grid.SetColumn(strengthValue, 2); strengthRow.Children.Add(strengthValue); leftStack.Children.Add(strengthRow);
         var presets = new WrapPanel { Margin = new(16,12,0,12) };
-        foreach (int percent in new[] { 0, 25, 50, 75, 100 })
+        foreach (int percent in Vibration.Draft.PcMode ? new[] { 0, 50, 100, 150, 200 } : new[] { 0, 25, 50, 75, 100 })
         {
             var face = new Border { Padding = new(14,8,14,8), Margin = new(0,0,8,0), Background = DuskKit.SlateItemBrush, Child = new TextBlock { Text = percent + "%", Foreground = DuskKit.WhiteBrush, FontFamily = DuskKit.Display } };
             presets.Children.Add(ThemeAction(face, "theme:vibration:preset:" + percent, () => Vibration.Set(percent)));

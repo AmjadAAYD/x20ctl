@@ -43,8 +43,19 @@ internal sealed class BrowserTriggerRumble
     public bool Armed { get; private set; }
     public event Action? ArmedChanged;
 
-    /// <summary>Starts the browser (its working files go in the temp folder, not the user's app data).</summary>
-    public Task Ready() => ready ??= Start();
+    /// <summary>Why the browser couldn't start (no WebView2 runtime, say), or null.</summary>
+    public string? Failure { get; private set; }
+    /// <summary>Starts the browser (its working files go in the temp folder, not the user's app data). Never throws: a
+    /// failure is kept in <see cref="Failure"/> and trigger rumble stays off.</summary>
+    public Task Ready() => ready ??= StartSafely();
+    async Task StartSafely()
+    {
+        try { await Start(); }
+        catch (Exception error) when (error is not OutOfMemoryException)
+        {
+            Failure = error is WebView2RuntimeNotFoundException ? "Trigger rumble needs the Microsoft Edge WebView2 Runtime." : "Trigger rumble couldn't start: " + error.Message;
+        }
+    }
 
     async Task Start()
     {
@@ -64,7 +75,7 @@ internal sealed class BrowserTriggerRumble
     }
 
     /// <summary>Gives the browser focus so the next controller button press arms it (the hint's "turn on" step).</summary>
-    public async Task Listen() { await Ready(); View.Focus(); }
+    public async Task Listen() { await Ready(); if (Failure == null) View.Focus(); }
 
     /// <summary>Trigger rumble for <paramref name="ms"/> (0..1 each side). The browser gets focus for the moment it's
     /// sent, then whatever had focus (the agent's text box, say) gets it back.</summary>
@@ -72,6 +83,7 @@ internal sealed class BrowserTriggerRumble
     {
         if (!Armed) return false;
         await Ready();
+        if (Failure != null) return false;
         var had = Keyboard.FocusedElement as IInputElement;
         View.Focus();
         string sent;
@@ -80,6 +92,7 @@ internal sealed class BrowserTriggerRumble
             var inv = System.Globalization.CultureInfo.InvariantCulture;
             sent = JsonSerializer.Deserialize<string>(await View.CoreWebView2.ExecuteScriptAsync($"buzz({left.ToString(inv)},{right.ToString(inv)},{ms})")) ?? "";
         }
+        catch (Exception error) when (error is InvalidOperationException or System.Runtime.InteropServices.COMException or JsonException) { sent = ""; }
         finally { if (had != null && !ReferenceEquals(had, View)) Keyboard.Focus(had); }
         return sent == "sent";
     }

@@ -287,9 +287,11 @@ public partial class StudioScene : UserControl
         if (!navigationMode) StatusNote.Text = Linked ? (BluetoothOnly ? "Connected over Bluetooth" : "Connected") : "Controller offline";
         Dashboard?.SetInputConnected(Linked, BluetoothOnly); Device?.SetConnection(Linked, BluetoothOnly);
     }
-    public void ApplyTelemetry(TelemetryData data)
+    /// <summary>A Bluetooth reading; <paramref name="seenAt"/> is when it was read (a remembered one is not fresh).</summary>
+    public void ApplyTelemetry(TelemetryData data) => ApplyTelemetry(data, DateTime.UtcNow);
+    public void ApplyTelemetry(TelemetryData data, DateTime seenAt)
     {
-        if (data.Battery != null || data.Firmware != null) { bluetoothSeen = DateTime.UtcNow; ShowLink(); }
+        if ((data.Battery != null || data.Firmware != null) && seenAt > bluetoothSeen) { bluetoothSeen = seenAt; ShowLink(); }
         if(data.HardwareId!=null){currentHardwareId=data.HardwareId;Device?.SetHardwareId(data.HardwareId);}
         if (data.Firmware != null)
         {

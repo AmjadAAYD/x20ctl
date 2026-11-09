@@ -27,7 +27,7 @@ internal static class X10BleClient
             foreach (var address in await FindAsync(cancel))
             {
                 try { return await SessionAsync(address, cancel); }
-                catch (Exception error) when (error is IOException or TimeoutException or FormatException or System.Runtime.InteropServices.COMException) { lastError = error.Message; }
+                catch (Exception error) when (error is not OperationCanceledException) { lastError = error.Message; }
             }
             throw new IOException(lastError ?? "No X10 found over Bluetooth. Pair it with Windows in Bluetooth mode, then try again.");
         }

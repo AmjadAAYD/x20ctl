@@ -70,7 +70,7 @@ public sealed class StudioMemory
                 Try(() => macros.Replace(slot, steps.Select(s => new MacroEvent(Guid.NewGuid(), Array.AsReadOnly(s.Buttons.ToArray()), s.Left, s.Right, s.HoldMs, s.PauseMs))));
             if (e.Triggers.TryGetValue(slot, out var trigger)) Try(() => macros.SetTrigger(slot, trigger));
         }
-        if (vibration.CanEdit) Try(() => vibration.Set(e.Vibration));
+        if (vibration.CanEdit) Try(() => vibration.Set(Math.Clamp(e.Vibration, 0, vibration.Max))); // 150% from PC mode is 100% on the pad
         if (vibration.PcMode) Try(() => vibration.SetMotors(e.VibrationLeft, e.VibrationRight, e.VibrationFloor));
     }
 

@@ -37,7 +37,12 @@ public sealed class VibrationWorkbench
   if(!draft.PcMode){var segments=controls.Children[^1];foreach(var gone in new UIElement[]{value,controls.Children[2],Strength,segments})controls.Children.Remove(gone);}
   controls.Children.Add(Copy(draft.PcMode?"ZONES · each grip's share of the game's rumble · click one to feel it":"ZONES · click one to feel it",14));controls.Children.Add(BuildZones(Button));
   Test=Button(HasTriggers?"Test all four":"Test both grips",()=>_=RunAll());Test.IsEnabled=!ReviewSandbox.Active;Test.Margin=new(0,12,0,0);controls.Children.Add(Test);
-  if(Diagnostics.BrowserTriggerRumble.Shared is {} shared)shared.ArmedChanged+=()=>Test.Dispatcher.BeginInvoke(ShowTriggerState);ShowTriggerState();
+  if(HasTriggers&&Diagnostics.BrowserTriggerRumble.Shared is {} shared)
+  {
+   void Armed()=>Test.Dispatcher.BeginInvoke(ShowTriggerState);
+   Body.Loaded+=(_,_)=>{shared.ArmedChanged-=Armed;shared.ArmedChanged+=Armed;_=shared.Ready();};Body.Unloaded+=(_,_)=>shared.ArmedChanged-=Armed;
+  }
+  ShowTriggerState();
   controls.Children.Add(Readback);if(draft.PcMode)controls.Children.Add(BuildGame());
   Shelf.Children.Add(Copy("Click a zone to feel it at its own strength",14));
   var art=(UIElement)Body.Children[0];Body.Children.Remove(art);var artPanel=Kit.Panel(null,null,null,art);artPanel.Margin=new(0,0,16,0);Body.Children.Add(artPanel);
@@ -85,7 +90,7 @@ public sealed class VibrationWorkbench
    {
     var shared=Diagnostics.BrowserTriggerRumble.Shared;
     if(shared==null){Readback.Text="Trigger rumble isn't available.";return;}
-    if(!shared.Armed){await shared.Listen();Readback.Text="Press any button on the controller to turn on trigger rumble, then click the trigger again.";return;}
+    if(!shared.Armed){await shared.Listen();if(shared.Failure!=null){Readback.Text=shared.Failure;return;}Readback.Text="Press any button on the controller to turn on trigger rumble, then click the trigger again.";return;}
     Readback.Text=$"Buzzing the {name.ToLowerInvariant()} at {percent}%…";
     bool sent=await shared.Play(zone==Zone.LeftTrigger?percent/100.0:0,zone==Zone.RightTrigger?percent/100.0:0,1000);
     await Task.Delay(1000);
@@ -103,8 +108,8 @@ public sealed class VibrationWorkbench
  /// <summary>All four at once, each at its own strength (the triggers only once trigger rumble is on).</summary>
  async Task RunAll()
  {
-  SelectRegion("All");Test.IsEnabled=false;Readback.Text="Buzzing all four…";
-  var shared=Diagnostics.BrowserTriggerRumble.Shared;bool triggers=shared?.Armed==true;
+  SelectRegion("All");Test.IsEnabled=false;Readback.Text=HasTriggers?"Buzzing all four…":"Buzzing both grips…";
+  var shared=Diagnostics.BrowserTriggerRumble.Shared;bool triggers=HasTriggers&&shared?.Armed==true;
   if(triggers)_=shared!.Play(ZoneStrength(Zone.LeftTrigger)/100.0,ZoneStrength(Zone.RightTrigger)/100.0,1000);
   bool sent=await ControllerRumble.Test(ZoneStrength(Zone.LeftGrip),ZoneStrength(Zone.RightGrip));
   Test.IsEnabled=true;

@@ -34,12 +34,15 @@ public sealed partial class ProductHost : Grid
     private string? currentTransport;
     public string?[] BatteryLevels => batteryLevels;
     private readonly Dictionary<(int Player,string Model),TelemetryData> latestTelemetry=[];
+    private readonly Dictionary<(int Player,string Model),DateTime> latestTelemetryAt=[];
+    private bool replayingTelemetry; // a remembered reading shown again is not a new one
     private readonly string?[] measuredBatteryModels=new string?[4];
 
     public void RecordTelemetry(TelemetryData telemetry, int player = 0)
     {
+        if(replayingTelemetry)return;
         string? model=telemetry.Controller switch {"EasySMX X20 Pro"=>"x20_pro","EasySMX X20"=>"x20",_=>null};
-        if(model!=null){latestTelemetry[(player,model)]=telemetry;if(player>=0&&player<4)measuredBatteryModels[player]=model;}
+        if(model!=null){latestTelemetry[(player,model)]=telemetry;latestTelemetryAt[(player,model)]=DateTime.UtcNow;if(player>=0&&player<4)measuredBatteryModels[player]=model;}
         if (telemetry.Battery != null && player >= 0 && player < batteryLevels.Length) {measuredBatteryLevels[player]=batteryLevels[player] = telemetry.Battery;measuredBatteryAt[player]=DateTime.UtcNow;}
         TelemetryRefreshed?.Invoke();
     }
@@ -125,7 +128,7 @@ public sealed partial class ProductHost : Grid
     {
         Zone = zone; Children.Add(zone);
         // trigger rumble through a tiny built-in browser, the one route that reaches the X20 Pro's trigger motors (owner, 9 Nov 2026)
-        if(!ReviewSandbox.Active){var triggers=new Diagnostics.BrowserTriggerRumble();Diagnostics.BrowserTriggerRumble.Shared=triggers;Children.Add(triggers.View);triggers.View.Loaded+=(_,_)=>_=triggers.Ready();}
+        if(!ReviewSandbox.Active){var triggers=new Diagnostics.BrowserTriggerRumble();Diagnostics.BrowserTriggerRumble.Shared=triggers;Children.Add(triggers.View);} // started on first use (Vibration on a pad with trigger motors), not at launch
         support=openSupport??ProductLinks.OpenSupport;
         preferences=new(assignmentPath==null?PreferencesPath:Path.Combine(Path.GetDirectoryName(Path.GetFullPath(assignmentPath))!,"preferences-fixture.json"));
         UiSound.Allowed=()=>!preferencesHealthy||preferences.IntroSound;try{preferences.Load();preferencesHealthy=true;}catch(Exception error) when(error is IOException or System.Text.Json.JsonException or InvalidOperationException){Zone.FeedbackText.Text="Startup preferences unavailable; original file preserved. "+error.Message;}
@@ -279,7 +282,7 @@ public sealed partial class ProductHost : Grid
         };
 
         if (currentTransport != null) Studio.SetTransport(currentTransport);
-        if(latestTelemetry.TryGetValue((player,model.Id),out var rememberedTelemetry))Studio.ApplyTelemetry(rememberedTelemetry);
+        if(latestTelemetry.TryGetValue((player,model.Id),out var rememberedTelemetry)){replayingTelemetry=true;try{Studio.ApplyTelemetry(rememberedTelemetry,latestTelemetryAt.GetValueOrDefault((player,model.Id)));}finally{replayingTelemetry=false;}} // as old as it is: a stale reading is not "connected"
         else if(measuredBatteryModels[player]!=model.Id){measuredBatteryLevels[player]=null;batteryLevels[player]=null;Studio.SetBatteryLevel(null);}
         RequestAutomaticTelemetryRefresh();
         // One session-opening read; subsequent reads follow reconnection or an explicit refresh.

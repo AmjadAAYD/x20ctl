@@ -24,12 +24,13 @@ public sealed class SetupSnapshot
     };
     public void Validate()
     {
-        bool pc=ModelId is not ("x20" or "x20_pro") && X20Ctl.Zone.PcMode.PcModeEntry.IsAvailable(ModelId);
+        // PC mode setups: every pad but the X20 family, and an X20 Pro saved with PC mode on (it carries PC mode's motors)
+        bool pc=ModelId is not ("x20" or "x20_pro") && X20Ctl.Zone.PcMode.PcModeEntry.IsAvailable(ModelId) || ModelId=="x20_pro" && (Motors!=null||Triggers!=null);
         if(ModelId is not ("x20" or "x20_pro") && !pc || Mappings==null || Curves==null || Macros==null || Curves.Values.Any(v=>v==null) || Macros.Values.Any(v=>v==null || v.Any(e=>e==null||e.Buttons==null)) || !Mappings.Keys.Order().SequenceEqual(ButtonDraft.Sources.Order()) || !Curves.Keys.Order().SequenceEqual(Enum.GetNames<CurveChannel>().Order()) || !Macros.Keys.Order().SequenceEqual(new MacroDraft(ModelId).SlotNames.Order()))throw new InvalidDataException("Unsupported native setup model or incomplete fields.");
         var buttons=new ButtonDraft(ModelId){PcMode=pc};foreach(var (key,value) in Mappings)buttons.Set(key,value);
         var curves=new CurveDraft(ModelId){PcMode=pc};foreach(var (key,value) in Curves)curves.Set(Enum.Parse<CurveChannel>(key),new(value.Preset,value.Inner,value.Outer,(value.X1,value.Y1),(value.X2,value.Y2)){BasePreset=value.BasePreset});
         var macros=new MacroDraft(ModelId){PcMode=pc};foreach(var (slot,events) in Macros)foreach(var step in events){macros.Add(slot,step.PauseMs);macros.Update(slot,macros[slot].Count-1,new(step.Id,step.Buttons,step.Left,step.Right,step.HoldMs,step.PauseMs));}
-        var v=new VibrationDraft(ModelId){PcMode=pc};v.Set(Vibration);if(pc&&Motors is {Length:3})v.SetMotors(Motors[0],Motors[1],Motors[2]);
+        var v=new VibrationDraft(ModelId){PcMode=pc};v.Set(Math.Clamp(Vibration,0,v.Max));if(pc&&Motors is {Length:3})v.SetMotors(Motors[0],Motors[1],Motors[2]);
     }
     public void LoadInto(ButtonDraft buttons,CurveDraft curves,MacroDraft macros,VibrationDraft vibration)
     {
@@ -37,7 +38,7 @@ public sealed class SetupSnapshot
         foreach(var (key,value) in Curves)curves.Set(Enum.Parse<CurveChannel>(key),new(value.Preset,value.Inner,value.Outer,(value.X1,value.Y1),(value.X2,value.Y2)){BasePreset=value.BasePreset});
         foreach(var slot in macros.SlotNames){macros.Clear(slot);foreach(var step in Macros[slot]){macros.Add(slot,step.PauseMs);macros.Update(slot,macros[slot].Count-1,new(step.Id,step.Buttons,step.Left,step.Right,step.HoldMs,step.PauseMs));}}
         if(Triggers!=null&&macros.PcMode)foreach(var (slot,button) in Triggers)if(macros.SlotNames.Contains(slot))macros.SetTrigger(slot,button);
-        vibration.Set(Vibration);
+        vibration.Set(Math.Clamp(Vibration,0,vibration.Max)); // a PC mode setup (up to 200%) opened on the pad itself stops at 100%
         if(vibration.PcMode&&Motors is {Length:3})vibration.SetMotors(Motors[0],Motors[1],Motors[2]);
     }
 }

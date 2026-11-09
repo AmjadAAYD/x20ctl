@@ -158,7 +158,7 @@ public sealed partial class DeviceWorkbench
                 if(reading.Battery is {} b)battery.Text=$"{b.Percent}%";firmware.Text=reading.Version.Firmware;
                 X10Status.Text="Read from the controller.";
             }
-            catch(Exception error) when(error is System.IO.IOException or TimeoutException or FormatException or UnauthorizedAccessException or System.Runtime.InteropServices.COMException){X10Status.Text=error.Message;}
+            catch(Exception error){X10Status.Text=error is OperationCanceledException?"Stopped.":error.Message;} // an async click: nothing may escape
             finally{ReadX10!.IsEnabled=!ReviewSandbox.Active;}
         },register);
         ReadX10.HorizontalAlignment=HorizontalAlignment.Left;ReadX10.Margin=new(0,12,0,0);ReadX10.IsEnabled=!ReviewSandbox.Active;

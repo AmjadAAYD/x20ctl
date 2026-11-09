@@ -47,7 +47,8 @@ internal static class InputContractReview
         Tap(System.Windows.Input.Key.PageDown, controller: true); await Settle();
         Check("Mouse keeps RB (the pad is the mouse)", s.CurrentPage == "Mouse");
         s.ShowManagement("Setups"); await Settle(); Tap(System.Windows.Input.Key.PageDown, controller: true); await Settle();
-        Check("RB from the last tab wraps to the first", s.CurrentPage == order[0]);
+        // since 7 Nov Mouse sits last with PC mode off; RB there belongs to the pointer, so the tab before it hands over to Mouse
+        Check(order[^1] == "Mouse" ? "RB from Setups reaches Mouse, the last tab" : "RB from the last tab wraps to the first", s.CurrentPage == (order[^1] == "Mouse" ? "Mouse" : order[0]));
         Tap(System.Windows.Input.Key.PageUp); await Settle();
         Check("LB from the first tab wraps to the last", s.CurrentPage == order[^1]);
         s.ShowManagement("Screen"); await Settle(); Tap(System.Windows.Input.Key.PageUp); await Settle();
