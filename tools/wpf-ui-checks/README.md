@@ -1,6 +1,6 @@
 # Isolated WPF UI checks
 
-From the private lab root on Windows/.NET10:
+From the repository root on Windows/.NET 10:
 
     dotnet run --project tools/wpf-ui-checks/UiChecks.csproj -v q
 

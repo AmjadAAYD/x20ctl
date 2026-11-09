@@ -8,8 +8,7 @@ are one picture.
   desktop-dotnet/X20Ctl.Product/Brand/x20ctl-mark.png   logo on transparent, 512 px, in-app brand tiles (Windows, Linux)
   desktop-dotnet/X20Ctl.Product/Brand/x20ctl-icon.png   the app icon as an image, 256 px, for the setup's header
   desktop-dotnet/X20Ctl.Product/Brand/x20ctl.ico        app icon, 16-256 px: the logo on a white rounded tile
-  assets/x20ctl.png, assets/x20ctl.ico                  the same, for the repository and the legacy desktop app
-  src/assets/brand-mark.png                             small mark for the legacy desktop app
+  assets/x20ctl.png, assets/x20ctl.ico                  the same, for the repository
   tools/linux-studio/x20ctl.png                         512 px, the Linux packages' icon (white tile)
 
 The white tile follows the owner's white icon (19 Oct 2026): a near-white rounded square, corners 22% of the side, the
@@ -61,9 +60,5 @@ if __name__ == "__main__":
     tile(master, 256).save(BRAND / "x20ctl-icon.png")
     tile(master, 256).save(ROOT / "assets" / "x20ctl.png")
     ico(master, ROOT / "assets" / "x20ctl.ico")
-    small = square(master, 54, 1.0)
-    flat = Image.new("RGB", small.size, (0, 0, 0))  # the legacy mark was RGB on black
-    flat.paste(small, mask=small.split()[3])
-    flat.crop((1, 0, 52, 54)).save(ROOT / "src" / "assets" / "brand-mark.png")
     tile(master, 512).save(ROOT / "tools" / "linux-studio" / "x20ctl.png")
-    print("wrote the mark, the icon image, both .ico files, assets/x20ctl.png, src/assets/brand-mark.png, tools/linux-studio/x20ctl.png")
+    print("wrote the mark, the icon image, both .ico files, assets/x20ctl.png, tools/linux-studio/x20ctl.png")
