@@ -53,7 +53,8 @@ public partial class StudioScene
             // Reserve the bumper positions even in capture pages: tab coordinates never shift under the lens.
             PreviousTab.Visibility=NextTab.Visibility=ManagementPage=="Diagnostics"||MouseCapturesInput?Visibility.Hidden:Visibility.Visible;
             DashboardFlip.Measure(new Size(double.PositiveInfinity,double.PositiveInfinity));
-            double flipSpace=DashboardFlip.Visibility==Visibility.Visible?DashboardFlip.DesiredSize.Width+12:0;
+            // Flip stays in layout off Dashboard so changing tabs cannot move RB or reshuffle overflow.
+            double flipSpace=DashboardFlip.DesiredSize.Width+12;
             double available=Math.Max(80,NavigationLayer.ActualWidth-152-flipSpace),used=0;
             foreach(var tab in navigation){tab.Visibility=Visibility.Visible;tab.Measure(new Size(double.PositiveInfinity,48));used+=tab.DesiredSize.Width;}
             var menu=NavigationMore.ContextMenu!;

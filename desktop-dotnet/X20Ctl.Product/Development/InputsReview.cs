@@ -52,14 +52,39 @@ internal static class InputsReview
             window.Host.EnterStudio(0); studio = window.Host.Studio!;
         }
         var strip = (FrameworkElement)studio.FindName("NavigationLayer");
+        var nextTab = (Button)studio.FindName("NextTab");
+        var more = (Button)studio.FindName("NavigationMore");
+        var steps = new[] { ("PreviousTab", "Setups"), ("NextTab", "Dashboard"), ("NextTab", "Buttons"), ("NextTab", "Curves") };
+        studio.GoToTab("Dashboard");
+        await ArrangeTabs();
+        var bumperMargin = nextTab.Margin.Left;
+        var track = (FrameworkElement)studio.FindName("NavigationTrack");
+        var trackWidth = track.ActualWidth;
+        var overflow = OverflowLabels();
+        var baseline = TabGeometry();
+        foreach (var (button, page) in steps)
+        {
+            ((Button)studio.FindName(button)).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await ArrangeTabs();
+            if (studio.CurrentPage != page) throw new InvalidOperationException($"Expected {page}, got {studio.CurrentPage}.");
+            if (Math.Abs(nextTab.Margin.Left - bumperMargin) > 0.5 ||
+                Math.Abs(track.ActualWidth - trackWidth) > 0.5 || !overflow.SequenceEqual(OverflowLabels()))
+                navigationFailures.Add($"Switching to {page} changed the tab strip. Dashboard: {baseline}. {page}: {TabGeometry()}.");
+        }
+        string TabGeometry() => $"strip {strip.ActualWidth:0.##}, RB {nextTab.TranslatePoint(new Point(), strip).X:0.##}, " +
+            $"track {((FrameworkElement)studio.FindName("NavigationTrack")).ActualWidth:0.##}, overflow [{string.Join(", ", OverflowLabels())}]";
+        string?[] OverflowLabels() => more.ContextMenu!.Items.OfType<MenuItem>().Select(item => item.Header as string).ToArray();
+        async Task ArrangeTabs()
+        {
+            root.Measure(new Size(1920, 1150)); root.Arrange(new Rect(0, 0, 1920, 1150)); root.UpdateLayout();
+            await window.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ContextIdle);
+            root.UpdateLayout();
+        }
         strip.Width = 890;
-        root.Measure(new Size(1920, 1150)); root.Arrange(new Rect(0, 0, 1920, 1150)); root.UpdateLayout();
-        await window.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ContextIdle);
+        await ArrangeTabs();
         var mouseTab = (RadioButton)studio.FindName("MouseNav");
         if (studio.KeyboardNav?.Visibility != Visibility.Visible || mouseTab.Visibility != Visibility.Visible)
             navigationFailures.Add("The compact strip hid Keyboard or Mouse.");
-        var more = (Button)studio.FindName("NavigationMore");
-        var track = (FrameworkElement)studio.FindName("NavigationTrack");
         more.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         if (more.Visibility != Visibility.Visible || more.DesiredSize.Height > track.ActualHeight)
             navigationFailures.Add("The overflow button does not fit inside the tab strip.");
