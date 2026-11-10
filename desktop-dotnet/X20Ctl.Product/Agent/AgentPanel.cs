@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
+using X20Ctl.Zone;
 using X20Ctl.Zone.Agent;
 using X20Ctl.Zone.PcMode;
 namespace X20Ctl.Product.Agent;
@@ -15,18 +16,19 @@ namespace X20Ctl.Product.Agent;
 /// what really happened. The window can be dragged by its title and put away without losing the conversation.
 /// It is drawn as a controller (owner, 13 Oct 2026: "we are talking to a controller, it must look like one"): the
 /// conversation is its screen, its sticks are eyes that follow what it's doing, the player lights chase while it thinks,
-/// and its own buttons work it: LB start over, RB the settings, A send, B away, X start over, Y HELP, the D-pad scrolls and
+/// and its own buttons work it: LB Undo, RB the settings, A send, B away, X start over, Y HELP, the D-pad scrolls and
 /// flips through ideas. A change it applies makes the real controller rumble.
 /// </summary>
 public sealed partial class AgentPanel
 {
-    // the agent that answers: a phrasebook that runs on this PC, with nothing to install
     static readonly OfflineAgent offlineAgent = new();
-    // the docs (M5), searched by words
     static readonly Lazy<IReadOnlyList<DocChunk>> docs = new(() => AgentDocs.Load(Path.Combine(AppContext.BaseDirectory, "Help")));
     static readonly Lazy<KeywordSearch> keywords = new(() => new KeywordSearch(docs.Value));
 
     public Border Body { get; }
+    /// <summary>Dims the page behind the handheld while it is out, so the page's own controller art never shows through it
+    /// (the host lays it under <see cref="Body"/>, across the whole window).</summary>
+    public System.Windows.Shapes.Rectangle Shade { get; } = new() { Fill = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(214, 4, 7, 16))), Visibility = Visibility.Collapsed, Opacity = 0, IsHitTestVisible = false };
     public TextBox Input { get; }
     /// <summary>The ideas' own search box (the Ideas view of the screen).</summary>
     public TextBox Search { get; }
@@ -54,16 +56,21 @@ public sealed partial class AgentPanel
     }
     /// <summary>Switches mouse mode; returns why not, or null when it worked.</summary>
     public Func<bool, string?>? MouseSwitch { get; set; }
+    /// <summary>Whether the Studio writes this pad's own memory now (an X20 Pro with PC mode off): only then is a change
+    /// offered for the controller, so the pad and PC mode never both apply the same setting.</summary>
+    public Func<bool>? ControllerWrites { get; set; }
+    /// <summary>The agent wrote the controller's own records: the Studio's tabs must read them again.</summary>
+    public event Action? ControllerWritten;
     readonly string modelId, greeting;
     readonly PcModeLink? link;
     readonly AgentSession session;
     readonly StackPanel transcript = new() { Margin = new(0, 0, 10, 0) };
     readonly ScrollViewer scroller;
-    readonly Button send = null!;
+    readonly Button send;
     readonly Action<Button> register;
     readonly StackPanel ideasList = new();
     // the screen's own pieces (owner's design, 19 Oct 2026): the chat or the ideas, picked from the rail or a topic pill
-    enum View { Chat, Ideas, Checkup }
+    enum View { Chat, Ideas, Checkup, Setups, History, Live, Look }
     readonly DockPanel ideasView;
     readonly ScrollViewer checkupView;
     readonly Button sendRound;
@@ -108,6 +115,8 @@ public sealed partial class AgentPanel
     readonly Border[] leds = new Border[4];
     readonly List<(TranslateTransform Look, ScaleTransform Lid, int Inward)> eyes = [];
     readonly TranslateTransform shake = new();
+    Action<int>? padColour;
+    void OnPadColour(int who) => padColour?.Invoke(who);
     // a silly question: the eyes squeeze into > < for a moment (owner request, 13 Oct 2026)
     readonly List<(UIElement Pupil, UIElement Squint)> squints = [];
     int laughing;
@@ -117,7 +126,6 @@ public sealed partial class AgentPanel
     /// (owner's sketch, 13 Oct); its screen follows the owner's design of 19 Oct: a rail, a header, topic pills and the chat.</summary>
     public const double DesignWidth = 1740, DesignHeight = 800;
     // the art's own places: the display, the stick caps, the D-pad's centre
-    const double ScreenZoom = 1.2, ScreenX = 382, ScreenY = 71, LeftX = 238, RightX = 1510, EyeY = 196, PadX = 270, PadY = 446;
 
     public AgentPanel(string modelId, string controllerName, PcModeLink? link, Action<Button> register, int player = 0, Func<Action<string, int>, IDriftMeter>? meter = null, bool reducedMotion = false)
     {
@@ -147,17 +155,20 @@ public sealed partial class AgentPanel
         // header: the mark and the name, then the controller and the agent's own state as two chips
         var mark = new System.Windows.Controls.Image { Width = 30, Height = 30, Margin = new(0, 0, 10, 0), Source = new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/X20Ctl;component/Assets/brand.png")) };
         padChip.Text = name + " · Player " + (Math.Clamp(player, 0, 3) + 1);
-        var heading = new DockPanel { Margin = new(0, 0, 0, 10) };
-        DockPanel.SetDock(settingsToggle, Dock.Right); settingsToggle.VerticalAlignment = VerticalAlignment.Center; heading.Children.Add(settingsToggle);
-        statusDot.Margin = new(0, 0, 8, 0);
-        heading.Children.Add(new WrapPanel
+        // one line (owner, 8 Nov 2026): the mark and the name, the pad in its colour, the brain's state, and what is set now
+        mark.Width = mark.Height = 24; mark.Margin = new(0, 0, 8, 0);
+        var heading = new DockPanel { Margin = new(0, 0, 0, 10), LastChildFill = false };
+        settingsToggle.FontSize = 12.5;
+        var settingsPill = new Border { CornerRadius = new(13), Height = 26, Padding = new(10, 0, 12, 0), BorderThickness = new(1), BorderBrush = new SolidColorBrush(Line), Background = new SolidColorBrush(Card), VerticalAlignment = VerticalAlignment.Center, Child = settingsToggle.Also(t => t.VerticalAlignment = VerticalAlignment.Center) };
+        DockPanel.SetDock(settingsPill, Dock.Right); heading.Children.Add(settingsPill);
+        statusDot.Margin = new(0, 0, 7, 0); padChip.FontSize = 12.5; status.FontSize = 12.5; status.MaxWidth = 150; status.TextTrimming = TextTrimming.CharacterEllipsis;
+        heading.Children.Add(new StackPanel
         {
             Orientation = Orientation.Horizontal,
             Children =
             {
-                mark, Kit.Text("Agent XCTL", 24, "DS.Text", FontWeights.Bold).Also(t => t.VerticalAlignment = VerticalAlignment.Center),
-                Rule(), Chip(new Border { Width = 9, Height = 9, CornerRadius = new(4.5), BorderThickness = new(2), BorderBrush = new SolidColorBrush(Amber), Margin = new(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center }, padChip),
-                Rule(), Chip(statusDot, status),
+                mark, Kit.Text("Agent XCTL", 19, "DS.Text", FontWeights.Bold).Also(t => { t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new(0, 0, 12, 0); }),
+                Chip(padSwatch, padChip).Also(c => { c.Height = 26; c.Margin = new(0, 0, 6, 0); }), Chip(statusDot, status).Also(c => c.Height = 26),
             },
         });
 
@@ -182,11 +193,11 @@ public sealed partial class AgentPanel
         checkupView = BuildCheckup();
 
         // topic pills: each narrows the ideas to it
-        var pills = new StackPanel { Orientation = Orientation.Horizontal, Margin = new(0, 0, 0, 10) };
+        var pills = new StackPanel { Orientation = Orientation.Horizontal };
         foreach (var (label, glyph, query) in new[] { ("Aim & sticks", "\uE7FC", "sticks"), ("Triggers", "\uE9E9", "triggers"), ("Buttons", "\uE765", "buttons"), ("PC mode", "\uE7F4", "PC mode") })
         {
             var text = Kit.Text(label, 13.5, "DS.TextSoft", FontWeights.SemiBold); var icon = Kit.Icon(glyph, 14, "DS.TextSoft").Also(i => i.Margin = new(0, 0, 8, 0));
-            var look = new Border { CornerRadius = new(17), Height = 34, Padding = new(14, 0, 16, 0), Margin = new(0, 0, 8, 0), BorderThickness = new(1), Child = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Children = { icon, text } } };
+            var look = new Border { CornerRadius = new(15), Height = 30, Padding = new(12, 0, 14, 0), Margin = new(0, 0, 8, 0), BorderThickness = new(1), Child = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Children = { icon, text } } };
             var pill = PadKey(look, "Ideas for " + label.ToLowerInvariant(), () => { Search.Text = query; ShowView(View.Ideas); });
             topics.Add((query, look, text, icon)); register(pill); pills.Children.Add(pill);
         }
@@ -207,118 +218,29 @@ public sealed partial class AgentPanel
         Grid.SetColumn(sendRound, 3); field.Children.Add(sendRound);
         var bar = new Border { Margin = new(0, 10, 0, 0), CornerRadius = new(26), Padding = new(12, 4, 6, 4), BorderThickness = new(1), BorderBrush = new SolidColorBrush(Line), Background = new SolidColorBrush(Card), Child = field };
 
-        // The controller rail item starts a diagnostic. The PC mode shortcut is hidden for now.
-        var railItems = new StackPanel();
-        Border RailItem(string glyph, string tip, Action act, Panel into)
-        {
-            var stripe = new Border { Width = 3, Height = 22, CornerRadius = new(1.5), HorizontalAlignment = HorizontalAlignment.Left, Background = Brushes.Transparent };
-            var look = new Border { Width = 46, Height = 46, CornerRadius = new(12), Margin = new(0, 2, 0, 2), BorderThickness = new(1), BorderBrush = Brushes.Transparent, Background = Brushes.Transparent,
-                Child = new Grid { Children = { stripe, Kit.Icon(glyph, 18, "DS.TextSoft").Also(i => i.HorizontalAlignment = HorizontalAlignment.Center) } } };
-            var item = PadKey(look, tip, act); register(item); into.Children.Add(item);
-            return look;
-        }
-        rail[View.Chat] = RailItem("\uE8BD", "Conversation", () => ShowView(View.Chat), railItems);
-        rail[View.Ideas] = RailItem("\uE82F", "Ideas", () => { ShowView(View.Ideas); Search.Focus(); }, railItems);
-        rail[View.Checkup] = RailItem("\uE7FC", "Controller check-up", () => ShowView(View.Checkup), railItems);
-        RailItem("\uE9E9", "Settings now", () => ShowSettingsPage(!SettingsOpen), railItems);
-        // (the gear that sat below the divider opened the same page as the sliders, so it is gone)
-        var railDock = new DockPanel(); railDock.Children.Add(railItems);
-        var railBox = new Border { Width = 58, Padding = new(5, 8, 5, 6), Margin = new(0, 0, 14, 0), CornerRadius = new(16), BorderThickness = new(1), BorderBrush = new SolidColorBrush(Line), Background = new SolidColorBrush(Card), Child = railDock };
+        BuildPages();
+        var railBox = BuildRail();
+        pillsRow = new Border { Margin = new(0, 10, 0, 0), Visibility = Visibility.Collapsed, Child = pills };
 
-        var views = new Grid { Children = { scroller, ideasView, checkupView } };
+        var views = new Grid { Children = { scroller, ideasView, checkupView, setupsView, historyView, liveView, lookView } };
         var content = new DockPanel();
         DockPanel.SetDock(heading, Dock.Top); content.Children.Add(heading);
-        DockPanel.SetDock(pills, Dock.Top); content.Children.Add(pills);
         DockPanel.SetDock(bar, Dock.Bottom); content.Children.Add(bar);
+        DockPanel.SetDock(pillsRow, Dock.Bottom); content.Children.Add(pillsRow);
         content.Children.Add(views);
         var layout = new DockPanel(); DockPanel.SetDock(railBox, Dock.Left); layout.Children.Add(railBox); layout.Children.Add(new Grid { Children = { content, settingsBox } });
         var screen = new Border
         {
-            Width = 984, Height = 631,
-            Child = new Viewbox { Stretch = Stretch.Fill, Child = new Border { Width = 984 / ScreenZoom, Height = 631 / ScreenZoom, Padding = new(30, 28, 32, 54), Child = layout } },
+            Width = ScreenW, Height = ScreenH,
+            Child = new Viewbox { Stretch = Stretch.Fill, Child = new Border { Width = ScreenW / ScreenZoom, Height = ScreenH / ScreenZoom, Padding = new(26, 22, 28, 20), Child = layout } },
             Background = new LinearGradientBrush(ScreenTop, ScreenBottom, 90),
+            Clip = new RectangleGeometry(new Rect(0, 0, ScreenW, ScreenH), 20, 20),
         };
 
-        // ---- the controller around it: the owner's concept art (19 Oct 2026, "literally, same design"), cut from its
-        // backdrop with the screen emptied; the live screen sits in its display, and each drawn control is a real button ----
+        // ---- the handheld round the screen: drawn body, grips, googly eyes (AgentPanel.Handheld.cs) ----
         var pad = new Canvas { Width = DesignWidth, Height = DesignHeight, RenderTransform = shake };
-        var art = new System.Windows.Controls.Image { Width = DesignWidth, Height = DesignHeight, Stretch = Stretch.Fill, Source = new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/X20Ctl;component/Agent/agent-shell.png")) };
-        // Cache the static artwork: moving the agent must not re-run a full-size shadow effect.
-        art.CacheMode = new BitmapCache();
-        pad.Children.Add(art); Drag(art);
-        void PrintedMark(double x, double y, double size, Rect cleanMetal)
-        {
-            // Blend the repair along straight edges so it cannot leave a circular badge behind.
-            var metal = new ImageBrush(art.Source) { ViewboxUnits = BrushMappingMode.Absolute, Viewbox = cleanMetal, Stretch = Stretch.Fill }; metal.Freeze();
-            var mask = new DrawingBrush(new GeometryDrawing(Brushes.White, null, AgentBrandArtwork.Shape)) { Stretch = Stretch.Uniform }; mask.Freeze();
-            Brush Feather(double angle) => new LinearGradientBrush(new GradientStopCollection { new(Colors.Transparent, 0), new(Colors.White, .12), new(Colors.White, .88), new(Colors.Transparent, 1) }, angle);
-            // A printed mark sits in the metal, not on it: a faint light lip below, a dark lip above, a softened edge,
-            // and ink that lets the brushed grain show through instead of a flat pasted fill.
-            Border Layer(Color color, double dy) => new() { Margin = new(3), OpacityMask = mask, Background = new SolidColorBrush(color), RenderTransform = new TranslateTransform(0, dy) };
-            var ink = Layer(ThemeCatalog.R(Color.FromRgb(196, 195, 188)), 0); ink.Opacity = .8;
-            var print = new Grid { Effect = new BlurEffect { Radius = .6 }, Children = { Layer(ThemeCatalog.R(Color.FromArgb(70, 255, 255, 255)), size * .028), Layer(ThemeCatalog.R(Color.FromArgb(120, 0, 0, 0)), -size * .022), ink } };
-            var mark = new Grid { Width = size, Height = size, ToolTip = "X20CTL", Children =
-            {
-                new Border { OpacityMask = Feather(90), Child = new Border { Background = metal, OpacityMask = Feather(0) } },
-                print,
-            } };
-            Canvas.SetLeft(mark, x); Canvas.SetTop(mark, y); pad.Children.Add(mark); Drag(mark);
-        }
-        PrintedMark(222, 312, 44, new Rect(270, 312, 44, 44));
-        PrintedMark(793, 714, 38, new Rect(765, 714, 25, 38));
-        // All four lights share the eyes' state colour.
-        for (int i = 0; i < 4; i++)
-        {
-            leds[i] = new Border { Width = 28, Height = 10, CornerRadius = new(5), IsHitTestVisible = false };
-            Canvas.SetLeft(leds[i], 795 + i * 43); Canvas.SetTop(leds[i], 48); pad.Children.Add(leds[i]);
-        }
-        // the display is an octagon: the screen is cut to it
-        screen.Clip = Geometry.Parse("M 37,2 L 938,2 L 984,49 L 984,558 L 915,631 L 66,631 L 0,563 L 0,54 Z");
-        Canvas.SetLeft(screen, ScreenX); Canvas.SetTop(screen, ScreenY); pad.Children.Add(screen);
-
-        // the bumpers: LB steps through the idea topics (the rail's bulb opens the list; this flips through it), RB leaves the
-        // agent (the rail's sliders already open the settings). The plates were printed ideas / settings, so their words are
-        // repainted to match what they now do.
-        Relabel(pad, new Rect(328, 25, 112, 25), -2, "LB", "UNDO", Amber);
-        Relabel(pad, new Rect(1308, 27, 144, 28), 6, "RB", "EXIT", ThemeCatalog.R(Color.FromRgb(200, 202, 209)));
-        var undoBumper = ContourHit(237, 12, "M 0,61 Q 9,35 30,19 Q 56,1 102,3 L 210,0 Q 224,0 230,15 L 251,47 Q 126,43 0,61 Z", "LB · Undo the last change", UndoLast);
-        var exitBumper = ContourHit(1257, 10, "M 0,49 L 25,12 Q 31,0 46,0 L 164,4 Q 210,7 236,28 Q 250,42 257,65 Q 130,45 0,49 Z", "RB · Put the agent away", LeaveAgent);
-        pad.Children.Add(undoBumper); pad.Children.Add(exitBumper);
-        // the bar under the screen, as drawn: its LB and RB do what the bumpers do; FRONT / BACK puts the agent away on the
-        // back of this controller, where its paddles are
-        pad.Children.Add(Hit(640, 708, 112, 40, 14, "LB · Undo the last change", UndoLast));
-        pad.Children.Add(Hit(788, 708, 170, 40, 14, "Back of the controller", () => PageRequested?.Invoke("Back")));
-        pad.Children.Add(Hit(994, 708, 112, 40, 14, "RB · Put the agent away", LeaveAgent));
-
-        // the sticks are its eyes
-        // each eye at the centre of its stick's dish, measured on the art
-        Eye(pad, LeftX, EyeY); Eye(pad, RightX, EyeY - 2);
-
-        // left: the D-pad scrolls the conversation, and steps through the ideas
-        foreach (var (x, y, tip, act) in new (double, double, string, Action)[]
-        {
-            (0, -1, "Scroll up", () => scroller.ScrollToVerticalOffset(scroller.VerticalOffset - 140)),
-            (0, 1, "Scroll down", () => scroller.ScrollToVerticalOffset(scroller.VerticalOffset + 140)),
-            (-1, 0, "Previous idea", () => Idea(-1)),
-            (1, 0, "Next idea", () => Idea(1)),
-        })
-            pad.Children.Add(Hit(PadX - 24 + x * 52, PadY - 24 + y * 52, 48, 48, 8, tip, act));
-
-        // right: the face buttons, drawn pulled in so B clears the grip (owner, 19 Oct 2026). A sends, B puts it away, X starts
-        // over, Y searches the ideas
-        foreach (var (letter, x, y, tip, act) in new (string, double, double, string, Action)[]
-        {
-            ("Y", 1490, 359, "Search the ideas", () => { ShowView(View.Ideas); Search.Focus(); Search.SelectAll(); Look(Gaze.Ideas); }),
-            ("X", 1438, 417, "New conversation", Restart),
-            ("B", 1540, 424, "Put away", () => { if (SettingsOpen) ShowSettingsPage(false); else CloseRequested?.Invoke(); }),
-            ("A", 1490, 481, "Send", Send),
-        })
-        {
-            var cap = Hit(x - 35, y - 35, 70, 70, 35, tip, act);
-            pad.Children.Add(cap);
-            if (letter == "A") send = cap;
-        }
-        send ??= new Button();
+        BuildHandheld(pad, screen);
+        send = sendRound;
         ShowIdeas(""); ShowView(View.Chat);
 
         Body = new Border
@@ -333,9 +255,11 @@ public sealed partial class AgentPanel
         if (ThemeCatalog.Current.Id == "hollow") BuildHollowAgent();
         if (ThemeCatalog.Current.Id == "nocturne") BuildNocturneAgent();
         if (ThemeCatalog.Current.Id == "sunrise") BuildSunriseAgent();
-        Say(greeting, null);
+        Say(greeting, null); AddWelcome();
         ShowSettings(new HashSet<string>());
-        Body.Unloaded += (_, _) => StopCharacterMotion();
+        // the static events hold the panel only while it is on screen, so a closed Studio's agent can be let go
+        Body.Unloaded += (_, _) => { PadColours.Changed -= OnPadColour; StopCharacterMotion(); };
+        Body.Loaded += (_, _) => { PadColours.Changed -= OnPadColour; PadColours.Changed += OnPadColour; OnPadColour(player); };
         ShowState(); Look(Gaze.Idle);
     }
 
@@ -386,15 +310,21 @@ public sealed partial class AgentPanel
     /// <summary>The screen shows the conversation or the ideas; the rail and the pills say which.</summary>
     void ShowView(View view)
     {
+        // the settings page lies over every view: picking a view puts it away, or the click seems to do nothing
+        if (SettingsOpen) ShowSettingsPage(false, focus: false);
         scroller.Visibility = view == View.Chat ? Visibility.Visible : Visibility.Collapsed;
         ideasView.Visibility = view == View.Ideas ? Visibility.Visible : Visibility.Collapsed;
         checkupView.Visibility = view == View.Checkup ? Visibility.Visible : Visibility.Collapsed;
-        foreach (var (v, look) in rail)
-        {
-            bool on = v == view;
-            look.Background = on ? new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(34, 39, 47))) : Brushes.Transparent;
-            if (look.Child is Grid { Children: [Border stripe, TextBlock icon] }) { stripe.Background = on ? new SolidColorBrush(Amber) : Brushes.Transparent; icon.Foreground = on ? DS.Brush("DS.Text") : DS.Brush("DS.TextSoft"); }
-        }
+        foreach (var (page, of) in new (FrameworkElement?, View)[] { (setupsView, View.Setups), (historyView, View.History), (liveView, View.Live), (lookView, View.Look) })
+            if (page != null) page.Visibility = view == of ? Visibility.Visible : Visibility.Collapsed;
+        if (view is View.Setups or View.History) RefreshPages();
+        if (view == View.Look) BuildLook();
+        // what it can reach is asked of the controller when the check-up is first opened, not every time the agent is built
+        if (view == View.Checkup && !accessShown) { accessShown = true; _ = ShowAccess(); }
+        LiveScreen(view == View.Live);
+        foreach (var (v, look) in rail) LightRail(look, v == view);
+        // the topic row belongs to the chat and the ideas; the other pages get the room
+        if (pillsRow != null) pillsRow.Visibility = started && view is View.Chat or View.Ideas ? Visibility.Visible : Visibility.Collapsed;
         if (view == View.Chat) scroller.ScrollToEnd();
         Pills();
     }
@@ -498,17 +428,46 @@ public sealed partial class AgentPanel
     void EyeColor(Color color)
     {
         if (color == eyeColor) return; eyeColor = color;
-        foreach (var (pupil, squint) in squints)
+        foreach (var ring in stickRings) ring.Stroke = new SolidColorBrush(color);
+        foreach (var part in ledParts)
         {
-            if (pupil is System.Windows.Shapes.Shape p) { p.Fill = new SolidColorBrush(color); if (p.Effect is DropShadowEffect g) g.Color = color; }
-            if (squint is System.Windows.Shapes.Shape s) { s.Stroke = new SolidColorBrush(color); if (s.Effect is DropShadowEffect g) g.Color = color; }
+            if (part is System.Windows.Shapes.Path line) line.Stroke = new SolidColorBrush(color); else part.Fill = new SolidColorBrush(color);
+            if (part.Effect is DropShadowEffect bloom) bloom.Color = color;
         }
+    }
+    // ---- the agent wears the owner's LED colour (owner, 8 Nov 2026: "if he said i want red rgb, the agent also becomes
+    // red"): its eyes, the rings round them and its light bars rest in that colour, kept between runs ----
+    static string LookFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "x20ctl", "agent-look.txt");
+    /// <summary>A review keeps the worn colour beside its own fixtures, never in the owner's settings.</summary>
+    internal static void UseLookFile(string path) { LookFile = path; LookFileChosen = true; worn = ReadWorn(); eyeStyle = ReadEyeStyle(); }
+    static bool LookFileChosen;
+    static Color? worn = ReadWorn();
+    Color? wornBefore;
+    Color Rest => worn ?? Green;
+    static Color? ReadWorn()
+    {
+        try { return File.Exists(LookFile) && File.ReadAllLines(LookFile) is [var first, ..] && first.Trim() != "-" && ColorConverter.ConvertFromString(first.Trim()) is Color c ? c : null; }
+        catch (Exception error) when (error is IOException or FormatException or UnauthorizedAccessException) { return null; }
+    }
+    /// <summary>Wear a colour (null: back to the agent's own green). A colour too dark to glow is lifted until it shows,
+    /// keeping its hue, so black lights never leave the agent blind.</summary>
+    void Wear(Color? colour)
+    {
+        if (colour is Color c)
+        {
+            int top = Math.Max(c.R, Math.Max(c.G, c.B));
+            if (top < 110) { double t = top == 0 ? 1 : 0; double k = top == 0 ? 0 : 110.0 / top; c = Color.FromRgb((byte)Math.Min(255, c.R * k + 90 * t), (byte)Math.Min(255, c.G * k + 90 * t), (byte)Math.Min(255, c.B * k + 90 * t)); }
+            colour = c;
+        }
+        worn = colour;
+        SaveLook();
+        if (!lightsOn) SetLights(busy ? Violet : Rest);
     }
     bool typingLit;
     void Typing(bool on)
     {
         if (on == typingLit) return; typingLit = on;
-        lightShow++; SetLights(Green);
+        lightShow++; SetLights(Rest);
     }
     /// <summary>Thinking: the sticks turn slowly round their edge.</summary>
     void Circling(bool on)
@@ -516,7 +475,7 @@ public sealed partial class AgentPanel
         foreach (var (look, _, _) in eyes)
         {
             if (!on || !Motion) { look.BeginAnimation(TranslateTransform.XProperty, null); look.BeginAnimation(TranslateTransform.YProperty, null); continue; }
-            const double r = 9; var quarter = TimeSpan.FromSeconds(.7);
+            const double r = 16; var quarter = TimeSpan.FromSeconds(.7);
             // x = sin, y = -cos: each quarter eases out to a peak or in to the middle, so the path is a circle
             var outOf = new System.Windows.Media.Animation.KeySpline(.39, .575, .565, 1); var into = new System.Windows.Media.Animation.KeySpline(.47, 0, .745, .715);
             System.Windows.Media.Animation.DoubleAnimationUsingKeyFrames Round(double[] at, System.Windows.Media.Animation.KeySpline[] ease)
@@ -558,9 +517,10 @@ public sealed partial class AgentPanel
 
     void Look(Gaze gaze)
     {
+        gazeNow = gaze;
         foreach (var (look, _, inward) in eyes)
         {
-            var (x, y) = gaze switch { Gaze.Typing => (5.0 * inward, 9.0), Gaze.Thinking => (0.0, -10.0), Gaze.Down => (0.0, 10.0), Gaze.Ideas => (-9.0, 3.0), _ => (6.0 * inward, 0.0) };
+            var (x, y) = gaze switch { Gaze.Typing => (12.0 * inward, 16.0), Gaze.Thinking => (-8.0, -20.0), Gaze.Down => (0.0, 20.0), Gaze.Ideas => (-16.0, 6.0), _ => (0.0, 0.0) };
             if (!Motion) { look.X = x; look.Y = y; continue; }
             look.BeginAnimation(TranslateTransform.XProperty, DS.To(x, 260)); look.BeginAnimation(TranslateTransform.YProperty, DS.To(y, 260));
         }
@@ -593,9 +553,12 @@ public sealed partial class AgentPanel
             case AgentCommand.AboutController:
                 Say(AgentCommands.AboutController(padName), null); Look(Gaze.Typing); _ = Lights(AgentMood.Good); break;
             case AgentCommand.Battery:
+                if (link?.Service.Enabled == true) { Say("Battery status is hidden while PC mode is on.", null); break; }
                 Searching(true);
-                string? level = await Task.Run(() => XInputDriftMeter.BatteryLevel(player));
-                Searching(false); Say(AgentCommands.Battery(level, padName), null); _ = Lights(level == null ? AgentMood.Unsure : AgentMood.Good);
+                string? level = await BatteryNow();
+                Searching(false);
+                Say(link?.Service.Enabled == true ? "Battery status is hidden while PC mode is on." : AgentCommands.Battery(level, padName), null);
+                _ = Lights(level == null ? AgentMood.Unsure : AgentMood.Good);
                 break;
             case AgentCommand.ChangeController:
                 Say(AgentCommands.ChangeController(), null); _ = Lights(AgentMood.Good);
@@ -606,7 +569,9 @@ public sealed partial class AgentPanel
                 Say(AgentCommands.Donate(), null); _ = Lights(AgentMood.Good); Open(ProductLinks.Support); break;
             case AgentCommand.Diagnostics:
                 Say(AgentCommands.Diagnostics(), null); _ = Lights(AgentMood.Good);
-                await Task.Delay(900); PageRequested?.Invoke("Diagnostics"); break;
+                await Task.Delay(600); StartCheck(); break;
+            case AgentCommand.Access:
+                await AccessInChat(); break;
         }
     }
 
@@ -644,40 +609,18 @@ public sealed partial class AgentPanel
         Canvas.SetLeft(cover, plate.X); Canvas.SetTop(cover, plate.Y); pad.Children.Add(cover);
     }
 
-    ScrollViewer BuildCheckup()
-    {
-        var page = new StackPanel { Margin = new(0, 0, 8, 0) };
-        page.Children.Add(Wrap("Controller check-up", 20, "DS.Text", 0).Also(t => t.FontWeight = FontWeights.SemiBold));
-        page.Children.Add(Wrap("Pick what is happening and I will point you to the right scan. Nothing is written to your controller.", 13.5, "DS.TextMuted", 4));
-        var symptoms = new WrapPanel { Margin = new(0, 14, 0, 4) };
-        foreach (var (glyph, label) in new[] { ("", "A stick drifts"), ("", "A button doesn't register"), ("", "It won't connect"), ("", "Triggers feel off"), ("", "Lag or stutter"), ("", "Settings won't save") })
-        {
-            var look = new Border { CornerRadius = new(17), Height = 34, Padding = new(12, 0, 14, 0), Margin = new(0, 0, 8, 8), BorderThickness = new(1), BorderBrush = new SolidColorBrush(Line), Background = new SolidColorBrush(Card),
-                Child = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Children = { Kit.Icon(glyph, 13, "DS.TextSoft").Also(i => i.Margin = new(0, 0, 8, 0)), Kit.Text(label, 13.5, "DS.TextSoft", FontWeights.SemiBold) } } };
-            var chip = PadKey(look, label, () => Symptom(label)); register(chip); symptoms.Children.Add(chip);
-        }
-        page.Children.Add(symptoms);
-        Button CheckCard(string glyph, string title, string sub, Action act)
-        {
-            var card = PadKey(new Border { CornerRadius = new(12), Padding = new(14, 11, 14, 12), Margin = new(0, 0, 0, 8), BorderThickness = new(1), BorderBrush = new SolidColorBrush(Line), Background = new SolidColorBrush(Card),
-                Child = new DockPanel { Children = { Kit.Icon(glyph, 20, "DS.TextSoft").Also(i => { i.Margin = new(0, 0, 14, 0); i.VerticalAlignment = VerticalAlignment.Center; }),
-                    new StackPanel { Children = { Kit.Text(title, 15, "DS.Text", FontWeights.SemiBold), Wrap(sub, 12.5, "DS.TextMuted", 2) } } } } }, title, act);
-            register(card); return card;
-        }
-        page.Children.Add(CheckCard("", "Read scan", "Checks sticks, triggers and buttons, then makes a report. It only reads.", () => PageRequested?.Invoke("ReadScan")));
-        page.Children.Add(CheckCard("", "Write scan", "Asks your pad who it is, reads its records and tests a write.", () => PageRequested?.Invoke("WriteScan")));
-        page.Children.Add(CheckCard("", "Describe it yourself", "Tell me in your own words and I will talk it through.", StartDiagnostic));
-        return new ScrollViewer { Content = page, Visibility = Visibility.Collapsed, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
-    }
-
     /// <summary>A symptom chip is a sentence the owner said: the agent answers it as a diagnosis, in the chat.</summary>
     void Symptom(string text)
     {
         if (busy) return;
-        ShowSettingsPage(false); ShowView(View.Chat);
-        NextDiagnosticStep(); diagnosing = true; feedbackPending = false;
-        session.CancelClarification();
-        Mine(text, null); RecommendScan(text); _ = Lights(AgentMood.Good);
+        // what can be measured is measured, here; what is about reaching the controller is checked for real
+        if (text is "It won't connect" or "Settings won't save")
+        {
+            ShowSettingsPage(false); ShowView(View.Chat); Mine(text, null); session.CancelClarification();
+            _ = AccessInChat();
+            return;
+        }
+        StartCheck();
     }
 
     void StartDiagnostic()
@@ -712,7 +655,8 @@ public sealed partial class AgentPanel
         string recommendation = System.Text.RegularExpressions.Regex.IsMatch(issue, @"\b(settings?|configur\w*|sav\w*|remap\w*)\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase)
             ? "WRITE SCAN can help capture what the official app writes. Start with READ SCAN if you haven't collected a read report yet."
             : "READ SCAN first, to check the controller and collect a report. WRITE SCAN is the follow-up for settings the app cannot write.";
-        DiagnosticChoices("After analysing your description, I recommend " + recommendation + " No hardware fault has been measured yet.",
+        DiagnosticChoices("I can measure this right here on my screen: sticks, triggers and buttons, about a minute. For a full report, " + recommendation + " No hardware fault has been measured yet.",
+            ("Check it here", () => StartCheck()),
             ("Read scan", () => OpenDiagnosticScan("ReadScan")),
             ("Write scan", () => OpenDiagnosticScan("WriteScan")),
             ("Prepare feedback", OfferFeedback));
@@ -752,7 +696,7 @@ public sealed partial class AgentPanel
     void Steady()
     {
         lightsOn = false;
-        SetLights(Green);
+        SetLights(Rest);
         ShowState();
     }
     void SetLights(Color color)
@@ -791,7 +735,7 @@ public sealed partial class AgentPanel
             double maxLeft = host.ActualWidth - Body.ActualWidth - Body.Margin.Right, maxUp = host.ActualHeight - Body.ActualHeight - Body.Margin.Bottom;
             double x = Math.Clamp(x0 + now.X - from.Value.X, -Math.Max(0, maxLeft), Body.Margin.Right - 8);
             double y = Math.Clamp(y0 + now.Y - from.Value.Y, -Math.Max(0, maxUp), Body.Margin.Bottom - 8);
-            DragEyes(x - offset.X, y - offset.Y); offset.X = x; offset.Y = y;
+            SpinAt(now); DragEyes(x - offset.X, y - offset.Y); offset.X = x; offset.Y = y;
         };
         handle.MouseLeftButtonUp += (_, _) => { from = null; handle.ReleaseMouseCapture(); ReleaseEyes(); };
         handle.LostMouseCapture += (_, _) => { from = null; ReleaseEyes(); };
@@ -801,7 +745,7 @@ public sealed partial class AgentPanel
     readonly List<TranslateTransform> eyeWobbles = [];
     void DragEyes(double dx, double dy)
     {
-        if (!Motion) return;
+        if (!Motion || physicsOn) return;
         foreach (var wobble in eyeWobbles)
         {
             wobble.BeginAnimation(TranslateTransform.XProperty, null); wobble.BeginAnimation(TranslateTransform.YProperty, null);
@@ -810,6 +754,7 @@ public sealed partial class AgentPanel
     }
     void ReleaseEyes()
     {
+        if (physicsOn) return;
         foreach (var wobble in eyeWobbles)
         {
             var spring = new System.Windows.Media.Animation.ElasticEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut, Oscillations = 3, Springiness = 5 };
@@ -823,9 +768,12 @@ public sealed partial class AgentPanel
     bool Motion => !reducedMotion && DS.Motion;
     public void Show()
     {
-        Body.Visibility = Visibility.Visible; Body.IsHitTestVisible = true; if(Motion&&!IllustratedThemeUI.Matched) blink.Start();
+        Body.Visibility = Visibility.Visible; Body.IsHitTestVisible = true; if(Motion&&!IllustratedThemeUI.Matched) { blink.Start(); PhysicsStart(); }
         if (live.Count > 0) StartLive();
-        if (!Motion) { Body.Opacity = 1; pop.ScaleX = pop.ScaleY = 1; return; }
+        if (liveView?.Visibility == Visibility.Visible) LiveScreen(true);
+        Shade.Visibility = Visibility.Visible;
+        if (!Motion) { Body.Opacity = 1; Shade.Opacity = 1; pop.ScaleX = pop.ScaleY = 1; return; }
+        Shade.BeginAnimation(UIElement.OpacityProperty, DS.To(1, 220));
         Body.BeginAnimation(UIElement.OpacityProperty, DS.To(1, 180));
         pop.BeginAnimation(ScaleTransform.ScaleXProperty, new System.Windows.Media.Animation.DoubleAnimation(.6, 1, TimeSpan.FromMilliseconds(260)) { EasingFunction = DS.Spring });
         pop.BeginAnimation(ScaleTransform.ScaleYProperty, new System.Windows.Media.Animation.DoubleAnimation(.6, 1, TimeSpan.FromMilliseconds(260)) { EasingFunction = DS.Spring });
@@ -833,15 +781,16 @@ public sealed partial class AgentPanel
     public void Hide()
     {
         Body.IsHitTestVisible = false; StopCharacterMotion();
-        if (!Motion) { Body.Visibility = Visibility.Collapsed; return; }
-        var fade = DS.To(0, 160); fade.Completed += (_, _) => { if (!Body.IsHitTestVisible) Body.Visibility = Visibility.Collapsed; };
+        if (!Motion) { Body.Visibility = Visibility.Collapsed; Shade.Visibility = Visibility.Collapsed; return; }
+        var fade = DS.To(0, 160); fade.Completed += (_, _) => { if (!Body.IsHitTestVisible) { Body.Visibility = Visibility.Collapsed; Shade.Visibility = Visibility.Collapsed; } };
+        Shade.BeginAnimation(UIElement.OpacityProperty, DS.To(0, 160));
         Body.BeginAnimation(UIElement.OpacityProperty, fade);
         pop.BeginAnimation(ScaleTransform.ScaleXProperty, DS.To(.6, 160)); pop.BeginAnimation(ScaleTransform.ScaleYProperty, DS.To(.6, 160));
     }
     public bool IsShown => Body.Visibility == Visibility.Visible && Body.IsHitTestVisible;
     void StopCharacterMotion()
     {
-        blink.Stop(); lightShow++; Circling(false); Steady(); StopLive();
+        blink.Stop(); PhysicsStop(); lightShow++; Circling(false); CalmDown(); StopLive(); LiveScreen(false); StopCheck(false);
         foreach(var (look,_,_) in eyes) { look.BeginAnimation(TranslateTransform.XProperty,null); look.BeginAnimation(TranslateTransform.YProperty,null); }
     }
 
@@ -850,7 +799,7 @@ public sealed partial class AgentPanel
         if (busy) return;
         // the changes stay in the list on the settings page: a new conversation doesn't take away the way back
         diagnosing = feedbackPending = false; NextDiagnosticStep();
-        session.Forget(); transcript.Children.Clear(); undoButtons.Clear(); live.Clear(); StopLive(); Input.Text = ""; Search.Text = ""; Say(greeting, null); Input.Focus();
+        session.Forget(); transcript.Children.Clear(); undoButtons.Clear(); live.Clear(); StopLive(); Input.Text = ""; Search.Text = ""; Say(greeting, null); AddWelcome(); Input.Focus();
     }
 
     PcModeProfile Current => link == null ? preview : link.Store.Get(PcModePage.StoreKey);
@@ -863,10 +812,12 @@ public sealed partial class AgentPanel
 
     void ShowState()
     {
-        status.Text = busy ? "Thinking" : "Ready";
+        status.Text = busy ? "Thinking" : "Offline · phrasebook";
         statusDot.Background = busy ? new SolidColorBrush(Violet) : DS.Brush("DS.Success");
-        if (!lightsOn) SetLights(busy ? Violet : Green);
-        send.IsEnabled = !busy; sendRound.IsEnabled = !busy; sendRound.Opacity = busy ? .45 : 1;
+        send.IsEnabled = sendRound.IsEnabled = !busy;
+        sendRound.Opacity = busy ? .45 : 1;
+        if (!lightsOn) SetLights(busy ? Violet : Rest);
+        ShowBrain();
     }
 
     async void Send() { if (Input.Text.Trim() is { Length: > 0 } sentence && !busy) { Input.Text = ""; await Ask(sentence); } }
@@ -887,11 +838,15 @@ public sealed partial class AgentPanel
         }
         // broken English is read as plain English first; the owner sees how (Preview 6)
         string said = sentence; sentence = AgentGrammar.Plain(said); string? reading = AgentGrammar.Reading(said, sentence);
-        // the help list is the app's own answer: instant, the same online and offline
+        // the help list is the app's own answer: instant, without waiting for a reply
         if (AgentHelp.Asks(sentence)) { Mine(said, reading); Search.Text = ""; ShowIdeas("", everything: true); ShowView(View.Ideas); Searching(false); Look(Gaze.Ideas); Say(AgentVariety.Pick("help", ["Here's everything I can do. Pick one, or search it. *proudly clicks every button*", "Ta-da! My whole skill list. Pick one.", "Everything I'm good at, listed. It's a long list. *ahem*"]), null); _ = Lights(AgentMood.Good); return null; }
+        // the easter egg: "I love you" is answered with love (AgentPanel.Love.cs)
+        if (AgentCharacter.SaysLove(said) || AgentCharacter.SaysLove(sentence)) { Mine(said, null); LoveBack(); return null; }
         // a topic alone is a search: the ideas narrow to it, and the app answers itself
         // the app's own commands: the controller's name, the battery, another controller, a star, a donation
-        if (AgentCommands.Parse(sentence) is var command and not AgentCommand.None && (!session.HasPendingClarification || command != AgentCommand.AboutController)) { Mine(said, reading); session.CancelClarification(); await Do(command); return null; }
+        // the command is read from the plain-English reading and, failing that, from the words as typed ("can you read my
+        // controller?" reads as "read my controller", and the question is what makes it one)
+        if ((AgentCommands.Parse(sentence) is not AgentCommand.None and var parsed ? parsed : AgentCommands.Parse(said)) is var command and not AgentCommand.None && (!session.HasPendingClarification || command != AgentCommand.AboutController)) { Mine(said, reading); session.CancelClarification(); await Do(command); return null; }
         // undo, and the saved setups: the app's own, from its own records, never the model's
         if (AgentHistory.Parse(sentence) is var undo and not UndoAsk.None) { Mine(said, reading); session.CancelClarification(); UndoFromChat(undo); return null; }
         if (AgentSetupWords.Parse(sentence, setups.Names) is { Ask: not SetupAsk.None } setupAsk) { Mine(said, reading); session.CancelClarification(); SetupFromChat(setupAsk.Ask, setupAsk.Name, said); return null; }
@@ -919,6 +874,8 @@ public sealed partial class AgentPanel
             // PC mode on or off, when asked: the switch itself, not a setting
             string? switched = turn.Outcome.PcMode is { } on ? (link == null ? "PC mode isn't reachable from this window." : await PcModePage.SwitchFromAgent(link, on) ?? "") : null;
             string? mouse = turn.Outcome.Mouse is { } mouseOn ? (MouseSwitch == null ? "Mouse mode isn't reachable from this window." : MouseSwitch(mouseOn) ?? "") : null;
+            string? lit = turn.Outcome.Lighting is { } colour ? await SetLights(colour) : null;
+            if (turn.Outcome.Lighting is { } wear) { wornBefore = worn; Wear(Color.FromRgb(wear.R, wear.G, wear.B)); }
             if (turn.Outcome.Next is { } next && turn.Outcome.Changes.Count > 0)
             {
                 try { Store(next); Applied(); }
@@ -930,9 +887,10 @@ public sealed partial class AgentPanel
                     waitTimer.Stop(); Circling(false); Searching(false);
                     await Walkthrough(before, next, turn.Measured);
                 }
-                Say(turn, before, switched: switched, mouse: mouse, step: step); ShowSettings(turn.Outcome.Changes.Select(c => c.What).ToHashSet());
+                Say(turn, before, switched: switched, mouse: mouse, step: step, lit: lit); ShowSettings(turn.Outcome.Changes.Select(c => c.What).ToHashSet());
+                if (ControllerWrites?.Invoke() == true && AgentPad.Offers(modelId, turn.Verdict.Applicable)) PadOffer(turn.Verdict.Applicable.ToList(), next);
             }
-            else { Say(turn, null, switched: switched, mouse: mouse); if (switched != null) ShowSettings(new HashSet<string>()); }
+            else { Say(turn, null, switched: switched, mouse: mouse, lit: lit); if (switched != null) ShowSettings(new HashSet<string>()); }
             Circling(false);
             if (turn.Verdict.Proposal?.Speech is { } spoken && AgentCharacter.IsSilly(spoken)) Laugh();
             if (!turn.Verdict.Valid || turn.Outcome.Error != null) { Look(Gaze.Down); await Task.Delay(1400); }
@@ -943,7 +901,7 @@ public sealed partial class AgentPanel
         catch (Exception error) when (error is TaskCanceledException or System.Text.Json.JsonException)
         {
             transcript.Children.Remove(thinking);
-            Say(error is TaskCanceledException ? AgentCharacter.Dozed : "I hit a snag: " + error.Message, null);
+            Say(error is TaskCanceledException ? AgentCharacter.Dozed : "My brain isn't answering: " + error.Message, null);
             mood = AgentMood.Failed; return null;
         }
         finally { session.Progress = null; waitTimer.Stop(); busy = false; Circling(false); if (measuring != null) { transcript.Children.Remove(measuring); measuring = null; } Searching(false); Look(Gaze.Idle); Thinking?.Invoke(false); Input.Focus(); if (mood is { } m) _ = Lights(m); }
@@ -961,7 +919,7 @@ public sealed partial class AgentPanel
         ((TextBlock)((StackPanel)measuring.Child).Children[0]).Text = $"{phase} · {seconds}";
         scroller.ScrollToEnd();
     }
-        public PcModeProfile Settings => Current;
+    public PcModeProfile Settings => Current;
     /// <summary>Opens every answer's details (validation and model output), for review captures.</summary>
     public void ExpandDetails() { foreach (var b in transcript.Children.OfType<Border>()) if (b.Child is StackPanel { Children.Count: > 1 } s && s.Children[^1] is StackPanel d) d.Visibility = Visibility.Visible; }
     public void ScrollTo(double offset) { Body.UpdateLayout(); scroller.ScrollToVerticalOffset(offset); }
@@ -983,7 +941,7 @@ public sealed partial class AgentPanel
     /// <summary>The owner's own words, and under them how the agent read them when that was more than tidying.</summary>
     Border Mine(string said, string? reading)
     {
-        var bubble = Bubble(said, mine: true);
+        Started(); var bubble = Bubble(said, mine: true);
         lastMine = (said, [bubble]);
         if (reading != null)
         {
@@ -1003,10 +961,11 @@ public sealed partial class AgentPanel
     }
 
     /// <summary>One answer: the model's words, then what the app did, then the details on request.</summary>
-    void Say(AgentTurn turn, PcModeProfile? undo, string? failure = null, string? switched = null, string? mouse = null, AgentStep? step = null)
+    void Say(AgentTurn turn, PcModeProfile? undo, string? failure = null, string? switched = null, string? mouse = null, AgentStep? step = null, string? lit = null)
     {
         var stack = new StackPanel();
         var v = turn.Verdict;
+
         var sticks = failure == null && undo != null && turn.Outcome.Next is { } curved ? AgentResponsePreview.ChangedSticks(undo, curved) : [];
         bool hero = sticks.Count > 0;
         string spoken = v.Proposal?.Speech is { Length: > 0 } speech ? speech : "I didn't give a usable answer.";
@@ -1056,6 +1015,20 @@ public sealed partial class AgentPanel
         // the switch: "" when it worked, otherwise why not
         if (switched != null && turn.Outcome.PcMode is { } pc)
             stack.Children.Add(Wrap(switched.Length == 0 ? $"PC mode   {(pc ? "on" : "off")}" : "PC mode · " + switched, 14, switched.Length == 0 ? "DS.AccentHi" : "DS.Warn", 6));
+        if (lit != null && turn.Outcome.Lighting is { } colour)
+        {
+            var swatch = new Border { Width = 18, Height = 18, CornerRadius = new(9), Margin = new(0, 0, 10, 0), BorderThickness = new(1), BorderBrush = new SolidColorBrush(Color.FromArgb(90, 255, 255, 255)), Background = new SolidColorBrush(Color.FromRgb(colour.R, colour.G, colour.B)) };
+            var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new(0, 6, 0, 0), Children = { swatch, Wrap(lit.Length == 0 ? $"Lights   {colour.Name} {colour.Hex}, read back from the controller" : "Lights · " + lit, 14, lit.Length == 0 ? "DS.AccentHi" : "DS.Warn") } };
+            if (lit.Length == 0 && lightsBefore is { } was)
+            {
+                var back = Small("Old colour back").Also(b => b.Margin = new(12, 0, 0, 0)); register(back);
+                var wasWorn = wornBefore;
+                back.Click += async (_, _) => { back.IsEnabled = false; Wear(wasWorn); Say(await RestoreLights(was), null); };
+                row.Children.Add(back);
+            }
+            stack.Children.Add(row);
+            stack.Children.Add(Wrap($"Agent XCTL wears it too: eyes, rings and light bars in {colour.Name}.", 13, "DS.TextSoft", 4));
+        }
         if (mouse != null && turn.Outcome.Mouse is { } mo)
             stack.Children.Add(Wrap(mouse.Length == 0 ? $"Mouse mode   {(mo ? "on" : "off")}" : "Mouse mode · " + mouse, 14, mouse.Length == 0 ? "DS.AccentHi" : "DS.Warn", 6));
         // what it asks back: the missing detail, or whether the change feels right
@@ -1066,6 +1039,8 @@ public sealed partial class AgentPanel
             stack.Children.Add(Wrap($"{skipped.Action.Target}: {skipped.Message}", 14, "DS.Warn", 6));
         // the app's own line: the truth about what happened, whatever the model said
         string verdict = failure ?? (turn.Outcome.Next != null && turn.Outcome.Changes.Count == 0 && switched == "" ? "Applied · PC mode switched " + (turn.Outcome.PcMode == true ? "on" : "off")
+            : turn.Outcome.Next != null && turn.Outcome.Changes.Count == 0 && lit == "" ? "Applied · lights set"
+            : turn.Outcome.Next != null && turn.Outcome.Changes.Count == 0 && lit != null ? "Lights not changed"
             : turn.Outcome.Next != null && turn.Outcome.Changes.Count == 0 && mouse == "" ? "Applied · Mouse mode " + (turn.Outcome.Mouse == true ? "on" : "off")
             : v.Valid && turn.Outcome.Changes.Count == 0 && turn.Outcome.Page is { } goTo ? "Opening " + goTo
             : turn.Outcome.Next != null && turn.Outcome.Changes.Count > 0 ? $"Applied · {turn.Outcome.Changes.Count} change{(turn.Outcome.Changes.Count == 1 ? "" : "s")}{(link == null ? " · preview only" : "")}"
@@ -1074,10 +1049,127 @@ public sealed partial class AgentPanel
         var verdictText = Wrap(verdict, 14, failure != null || !v.Valid || turn.Outcome.Error != null ? "DS.Danger" : turn.Outcome.Changes.Count > 0 ? "DS.Success" : "DS.TextMuted").Also(t => { t.FontWeight = FontWeights.SemiBold; t.VerticalAlignment = VerticalAlignment.Center; });
         stack.Children.Add(Footer(verdictText, failure == null && turn.Outcome.Next != null && turn.Outcome.Changes.Count > 0 ? step : null));
 
+        stack.Children.Add(Kit.Text(AgentSession.Stats(turn), 12, "DS.TextMuted").Also(t => t.Margin = new(0, 8, 0, 0)));
         var bubble = Bubble("", false); bubble.Child = stack; bubble.HorizontalAlignment = HorizontalAlignment.Stretch;
         if (hero) { bubble.Background = Brushes.Transparent; bubble.BorderBrush = Brushes.Transparent; bubble.Margin = new(0, 10, 12, 6); }
         scroller.ScrollToEnd();
     }
+
+    bool padBusy;
+    byte[]? lightsBefore;
+    /// <summary>A review's pretend lights (the 24-byte lighting record): a review never touches the real controller.</summary>
+    internal static Func<byte[]?, byte?, Task<byte[]>>? LightsDevice;
+    /// <summary>The controller's own battery reading over Bluetooth for a player, if a recent one came in (the host sets it).</summary>
+    internal static Func<int, string?>? BluetoothBattery;
+    /// <summary>Asks the controller for its battery over Bluetooth now (the host sets it; never in a review).</summary>
+    internal static Func<Task>? RefreshBluetooth;
+
+    /// <summary>The battery, as well as anything can tell (owner, 8 Nov 2026: connected by USB and Bluetooth, yet "not
+    /// connected"): the controller's own Bluetooth reading first, since it is the real level and needs no XInput (the cable
+    /// may be in Switch mode, or say only "wired"); asked for afresh when there is no recent one; then what Windows' XInput
+    /// reports. Read-only.</summary>
+    async Task<string?> BatteryNow()
+    {
+        if (BluetoothBattery?.Invoke(player) is { } known) return known;
+        if (RefreshBluetooth != null && !ReviewSandbox.Active && modelId is "x20" or "x20_pro")
+        {
+            try { await RefreshBluetooth().WaitAsync(TimeSpan.FromSeconds(8)); } catch (Exception error) when (error is TimeoutException or InvalidOperationException or IOException) { }
+            if (BluetoothBattery?.Invoke(player) is { } fresh) return fresh;
+        }
+        return await Task.Run(() => XInputDriftMeter.BatteryLevel(player));
+    }
+    /// <summary>Counts every lights change the owner asked for, so a temporary colour is only put back over itself.</summary>
+    int padLightWrites;
+    static Task<byte[]> PadLights(byte[]? colour = null, byte? mode = null) =>
+        LightsDevice != null ? LightsDevice(colour, mode)
+        : ReviewSandbox.Active ? Task.FromException<byte[]>(new InvalidOperationException("a review never touches the real controller"))
+        : LightingBleClient.RunAsync(colour, mode);
+
+    /// <summary>The lights: only the X20 Pro's lighting record is proven (write, read back). The app writes the colour as a
+    /// solid light and says what the controller reads back; "" when it holds exactly what was asked.</summary>
+    async Task<string> SetLights(AgentColor colour)
+    {
+
+        if (modelId != AgentPad.Model) return "only the X20 Pro's lights are proven writable from X20CTL so far.";
+        try
+        {
+            var before = await PadLights();
+            bool battery = LightsDevice == null && !ReviewSandbox.Active && BatteryLightingService.Load().Enabled;
+            if (battery) BatteryLightingService.Disable(); // battery lighting would paint over the colour at the next level
+            padLightWrites++;
+            var after = await PadLights([colour.R, colour.G, colour.B], 2);
+            lightsBefore = before;
+            if (after.Length != 24) return "the controller did not return a complete lighting record.";
+            bool took = after.Length == 24 && after[0] == colour.R && after[1] == colour.G && after[2] == colour.B && after[6] == 2;
+            return took ? "" : $"the controller reads back #{after[0]:X2}{after[1]:X2}{after[2]:X2}, not {colour.Hex}.";
+        }
+        catch (Exception error) when (PadFailure(error)) { return "couldn't set them: " + error.Message; }
+    }
+
+    async Task<string> RestoreLights(byte[] was)
+    {
+        if (was.Length != 24 || was[6] is not (0 or 2 or 3 or 4)) return "I can't put that lighting back: the old effect isn't one X20CTL knows.";
+        try
+        {
+            var now = await PadLights([was[0], was[1], was[2]], was[6]);
+            return now.AsSpan(0, 3).SequenceEqual(was.AsSpan(0, 3)) && now[6] == was[6] ? $"Lights back to #{was[0]:X2}{was[1]:X2}{was[2]:X2}, read back from the controller." : "Put back, but the controller reads something else now.";
+        }
+        catch (Exception error) when (PadFailure(error)) { return "Couldn't put the lights back: " + error.Message; }
+    }
+
+    /// <summary>The Pad target (class project): the same change saved in the controller's own memory, on request. Only
+    /// what the X20 Pro's records hold with proven read-back goes there; the app reads the pad, writes the touched fields,
+    /// reads every record back, and reports what it read, never what it meant to write.</summary>
+    void PadOffer(IReadOnlyList<AgentAction> applied, PcModeProfile next)
+    {
+        var line = Wrap("PC mode is off for this controller, so this change only plays once it's saved on the controller itself.", 13, "DS.TextSoft");
+        var save = Small("Save on the controller"); register(save);
+        var undo = Small("Undo on the controller").Also(b => { b.Visibility = Visibility.Collapsed; b.Margin = new(8, 0, 0, 0); }); register(undo);
+        var bubble = Bubble("", false);
+        bubble.Child = new StackPanel { Children = { line, new StackPanel { Orientation = Orientation.Horizontal, Margin = new(0, 10, 0, 0), Children = { save, undo } } } };
+        ControllerSnapshot? before = null, written = null;
+        save.Click += async (_, _) =>
+        {
+            if (padBusy || busy) return;
+            if (ControllerWrites?.Invoke() != true) { line.Text = "Turn PC mode off to save on the controller."; return; }
+            padBusy = true; save.IsEnabled = false; line.Text = "Reading the controller, then writing…";
+            try
+            {
+                AgentPadPlan? plan = null;
+                int changed = await LightingBleClient.WriteConfigAsync(held => { before = held; plan = AgentPad.Plan(held, applied, next); return plan.Next; });
+                var seen = await LightingBleClient.ReadConfigAsync();
+                var real = AgentPad.Diff(before!, seen);
+                string text = changed == 0 || real.Count == 0 ? "The controller already holds this. Nothing was written."
+                    : "Saved on the controller and read back: " + string.Join("; ", real.Select(c => $"{c.What} {c.Before} → {c.After}")) + ".";
+                if (plan!.PcOnly.Count > 0) text += " Stays in PC mode only: " + string.Join("; ", plan.PcOnly) + ".";
+                line.Text = text; line.Foreground = DS.Brush("DS.Text");
+                if (real.Count > 0) { written = seen; undo.Visibility = Visibility.Visible; save.Visibility = Visibility.Collapsed; ControllerWritten?.Invoke(); _ = Lights(AgentMood.Good); Applied(); }
+                else save.IsEnabled = true;
+            }
+            catch (Exception error) when (PadFailure(error)) { line.Text = "Couldn't save on the controller: " + error.Message; line.Foreground = DS.Brush("DS.Danger"); save.IsEnabled = true; _ = Lights(AgentMood.Failed); }
+            finally { padBusy = false; }
+        };
+        undo.Click += async (_, _) =>
+        {
+            if (padBusy || busy || before == null || written == null) return;
+            if (ControllerWrites?.Invoke() != true) { line.Text = "Turn PC mode off to undo on the controller."; return; }
+            padBusy = true; undo.IsEnabled = false; line.Text = "Putting the controller back…";
+            try
+            {
+                ControllerSnapshot? restored = null;
+                await LightingBleClient.WriteConfigAsync(held => restored = AgentPad.Restore(held, before, written));
+                var seen = await LightingBleClient.ReadConfigAsync();
+                var left = AgentPad.Diff(restored!, seen);
+                line.Text = left.Count == 0 ? "Undone on the controller and read back: it holds what it held before." : "Put back, but the controller now reads: " + string.Join("; ", left.Select(c => $"{c.What} {c.After}")) + ".";
+                line.Foreground = DS.Brush(left.Count == 0 ? "DS.TextSoft" : "DS.Warn");
+                undo.Visibility = Visibility.Collapsed; ControllerWritten?.Invoke();
+            }
+            catch (Exception error) when (PadFailure(error)) { line.Text = "Couldn't undo on the controller: " + error.Message; line.Foreground = DS.Brush("DS.Danger"); undo.IsEnabled = true; }
+            finally { padBusy = false; }
+        };
+        scroller.ScrollToEnd();
+    }
+    static bool PadFailure(Exception error) => error is IOException or TimeoutException or FormatException or ArgumentException or InvalidOperationException or System.Runtime.InteropServices.COMException or UnauthorizedAccessException;
 
     /// <summary>The app's line under an answer, with the answer's Undo beside it when it changed something.</summary>
     DockPanel Footer(TextBlock verdictText, AgentStep? step)
@@ -1316,12 +1408,16 @@ public sealed partial class AgentPanel
     }
 
     public bool SettingsOpen => settingsBox.Visibility == Visibility.Visible;
-    public void ShowSettingsPage(bool show)
+    public void ShowSettingsPage(bool show) => ShowSettingsPage(show, true);
+    void ShowSettingsPage(bool show, bool focus)
     {
         settingsBox.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
-        if (show) { ShowSettings(new HashSet<string>()); settingsBox.MoveFocus(new TraversalRequest(FocusNavigationDirection.First)); }
-        else Input.Focus();
+        if (settingsRail != null) LightRail(settingsRail, show);
+        foreach (var (_, look) in rail) look.Opacity = show ? .55 : 1;
+        if (show) { ShowSettings(new HashSet<string>()); settingsBox.MoveFocus(new TraversalRequest(FocusNavigationDirection.First)); if (Motion) Fx.Appear(settingsBox, .98, 180); }
+        else if (focus) Input.Focus();
     }
+    Border? settingsRail;
     // ---- the settings panel ----
     void ShowSettings(IReadOnlySet<string> changed)
     {
@@ -1343,35 +1439,11 @@ public sealed partial class AgentPanel
         var paddles = AgentVocabulary.Paddles(modelId);
         if (paddles.Length > 0) settings.Children.Add(Wrap($"Paddles {paddles[0]}–{paddles[^1]} are programmed on the controller, which isn't supported yet.", 12.5, "DS.TextMuted", 8));
 
-        // every change made here, newest first, each with the way back to before it
-        Section("CHANGES MADE HERE");
-        if (history.Steps.Count == 0) settings.Children.Add(Wrap("None yet. Each change I make is listed here, and you can go back to before any of them.", 13, "DS.TextMuted"));
-        foreach (var step in history.Steps.Reverse())
-        {
-            int id = step.Id;
-            var back = Small(step == history.Latest ? "Undo" : "Back to before this"); back.Click += (_, _) => GoBack(id); register(back);
-            settings.Children.Add(Row(back, "“" + Short(step.Asked) + "”", step.Summary));
-        }
-
-        // the saved setups, each ready to load
-        Section("SAVED SETUPS");
-        if (setups.Items.Count == 0) settings.Children.Add(Wrap("None yet. Say “save this as” and a name, for example “save this as Rocket League”.", 13, "DS.TextMuted"));
-        foreach (var setup in setups.Items)
-        {
-            var load = Small("Load"); load.Click += (_, _) => Load(setup, "load " + setup.Name); register(load);
-            settings.Children.Add(Row(load, setup.Name, $"{ModelName(setup.Model)} · saved {setup.Saved.ToLocalTime():d MMM, HH:mm}"));
-        }
-        if (!setups.Healthy) settings.Children.Add(Wrap("The setups file couldn't be read, so nothing is saved over it.", 12.5, "DS.Warn", 6));
-
-        void Section(string title) => settings.Children.Add(Kit.Text(title, 12, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(0, 18, 0, 8)));
-        static DockPanel Row(Button action, string title, string detail)
-        {
-            var row = new DockPanel { Margin = new(0, 0, 0, 8) };
-            action.VerticalAlignment = VerticalAlignment.Center; action.Margin = new(12, 0, 0, 0);
-            DockPanel.SetDock(action, Dock.Right); row.Children.Add(action);
-            row.Children.Add(new StackPanel { Children = { Wrap(title, 14, "DS.Text").Also(t => t.FontWeight = FontWeights.SemiBold), Wrap(detail, 12.5, "DS.TextMuted", 2) } });
-            return row;
-        }
+        // the changes and the saved setups have their own pages on the rail
+        var toHistory = Small($"History · {history.Steps.Count}"); toHistory.Click += (_, _) => ShowView(View.History); register(toHistory);
+        var toSetups = Small($"Setups · {setups.Items.Count}"); toSetups.Click += (_, _) => ShowView(View.Setups); register(toSetups);
+        settings.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Margin = new(0, 14, 0, 0), Children = { toHistory, toSetups.Also(b => b.Margin = new(8, 0, 0, 0)) } });
+        RefreshPages();
     }
 
     UIElement Source(DocHit hit)

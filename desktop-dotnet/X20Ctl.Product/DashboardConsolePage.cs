@@ -30,6 +30,11 @@ public sealed class DashboardConsolePage : Grid
     private readonly TextBlock profileState=Kit.Text("No game-specific setup linked",13,"DS.TextSoft");
     private string? currentTransport;
     private string? currentBatteryLevel;
+    private Border? batteryCell;
+    internal void ShowBattery(bool visible)
+    {
+        if (batteryCell != null) batteryCell.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+    }
     private string? currentFirmware;
     public void SetTransport(string? transport)
     {
@@ -141,6 +146,7 @@ public sealed class DashboardConsolePage : Grid
             cells[i].Item2.TextWrapping=TextWrapping.Wrap;
             text.Children.Add(cells[i].Item2);
             var cell=new Border{CornerRadius=new(12),Padding=new(8),Margin=new(0,0,8,8),Background=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(16,180,205,240))),Child=text};
+            if (cells[i].Item1 == "Battery") batteryCell = cell;
             if (cells[i].Item1 == "Battery" && model.Id is "x20" or "x20_pro")
             {
                 cell.Cursor = Cursors.Hand;

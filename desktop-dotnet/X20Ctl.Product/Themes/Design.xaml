@@ -223,6 +223,37 @@
     </ControlTemplate></Setter.Value></Setter>
   </Style>
 
+  <Style x:Key="DS.MotorTile" TargetType="Button" BasedOn="{StaticResource ActionButton}">
+    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
+      <Border x:Name="Face" CornerRadius="10" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1">
+        <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+      </Border>
+      <ControlTemplate.Triggers>
+        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Face" Property="BorderBrush" Value="{StaticResource DS.AccentFill}"/></Trigger>
+        <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Face" Property="BorderBrush" Value="#B5DBFF"/></Trigger>
+        <Trigger Property="IsPressed" Value="True"><Setter TargetName="Face" Property="Background" Value="{StaticResource DS.Track}"/></Trigger>
+        <Trigger Property="IsEnabled" Value="False"><Setter TargetName="Face" Property="Opacity" Value=".65"/></Trigger>
+        <Trigger Property="Tag" Value="Testing"><Setter TargetName="Face" Property="BorderBrush" Value="{StaticResource DS.AccentFill}"/><Setter TargetName="Face" Property="Opacity" Value="1"/></Trigger>
+      </ControlTemplate.Triggers>
+    </ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <Style x:Key="DS.MotorSlider" TargetType="Slider" BasedOn="{StaticResource DS.Slider}">
+    <Setter Property="Orientation" Value="Vertical"/>
+    <Setter Property="Width" Value="32"/>
+    <Setter Property="Height" Value="Auto"/>
+    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Slider">
+      <Grid>
+        <Border x:Name="TrackBg" Width="8" CornerRadius="4" Background="{StaticResource DS.Track}"/>
+        <Track x:Name="PART_Track" Orientation="{TemplateBinding Orientation}">
+          <Track.DecreaseRepeatButton><RepeatButton Style="{StaticResource DS.SliderRepeat}" Command="Slider.DecreaseLarge"><RepeatButton.Template><ControlTemplate TargetType="RepeatButton"><Border Width="8" CornerRadius="4" Background="{StaticResource DS.AccentFill}"/></ControlTemplate></RepeatButton.Template></RepeatButton></Track.DecreaseRepeatButton>
+          <Track.IncreaseRepeatButton><RepeatButton Style="{StaticResource DS.SliderRepeat}" Command="Slider.IncreaseLarge"/></Track.IncreaseRepeatButton>
+          <Track.Thumb><Thumb Style="{StaticResource DS.SliderThumb}"/></Track.Thumb>
+        </Track>
+      </Grid>
+      <ControlTemplate.Triggers><Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="TrackBg" Property="Background" Value="#3C4C78"/></Trigger></ControlTemplate.Triggers>
+    </ControlTemplate></Setter.Value></Setter>
+  </Style>
+
   <!-- ===== Tabs (text tabs with a short glowing underline) ===== -->
   <Style x:Key="DS.Tab" TargetType="RadioButton">
     <Setter Property="FontFamily" Value="{StaticResource DS.FontDisplay}" /><Setter Property="FontSize" Value="17" /><Setter Property="FontWeight" Value="Normal" /><Setter Property="Foreground" Value="#B8C4DC" />

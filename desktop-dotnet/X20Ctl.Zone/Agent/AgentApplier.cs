@@ -8,7 +8,7 @@ public sealed record AgentChange(string What, string Before, string After);
 /// <param name="PcMode">PC mode switched on (true) or off (false) by the proposal; null when it doesn't say.</param>
 /// <param name="Mouse">Mouse mode switched on or off; null when the proposal doesn't say.</param>
 /// <param name="Page">The page the owner should be taken to, if any.</param>
-public sealed record AgentOutcome(PcModeProfile? Next, IReadOnlyList<AgentChange> Changes, string? Error, bool? PcMode = null, bool? Mouse = null, string? Page = null);
+public sealed record AgentOutcome(PcModeProfile? Next, IReadOnlyList<AgentChange> Changes, string? Error, bool? PcMode = null, bool? Mouse = null, string? Page = null, AgentColor? Lighting = null);
 
 /// <summary>
 /// Turns a validated proposal into the next PC mode profile. Pure: it copies the current profile, never touches it, and
@@ -26,7 +26,9 @@ public static class AgentApplier
         bool? pc = verdict.Applicable.LastOrDefault(a => a.Action == AgentVocabulary.PcMode) is { } s ? s.ValueText == "on" : null;
         bool? mouse = verdict.Applicable.LastOrDefault(a => a.Action == AgentVocabulary.MouseMode) is { } m ? m.ValueText == "on" : null;
         string? page = verdict.Applicable.LastOrDefault(a => a.Action == AgentVocabulary.OpenPage)?.ValueText;
-        return new(next, Diff(current, next), null, pc, mouse, page);
+        // the lights live on the controller, not in the PC mode profile: the app sets them, the RGB from its own reading of the words
+        AgentColor? lighting = verdict.Applicable.LastOrDefault(a => a.Action == AgentVocabulary.LedColor) is { } led && AgentColors.TryParse(led.ValueText, out var colour) ? colour : null;
+        return new(next, Diff(current, next), null, pc, mouse, page, lighting);
     }
 
     static void Do(PcModeProfile p, AgentAction a)

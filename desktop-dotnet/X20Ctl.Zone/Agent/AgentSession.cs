@@ -268,6 +268,8 @@ public sealed class AgentSession(IAgentModel model, string modelId, string contr
             - mouse_mode: target Mouse, value "on" or "off". The controller moves the mouse pointer.
             - open_page: target Page, one of: Diagnostics, Tools, Mouse, Curves, Buttons, Macros, Vibration, PcMode, Device. Takes the owner there. Diagnostics shows live sticks, triggers and buttons; Tools has the Controller Check scan.
 
+            - led_color: target Lighting, value: the colour in plain words exactly as the owner said it ("blueish yellow", "dark teal", "light purple", "warm white", "neon green", "#FF8800"). The app reads the words into RGB; never invent hex numbers. Any LED, RGB, light or glow colour request uses this.
+
             - measure_drift: LeftStick or RightStick, value 0. Reads where the stick rests with no hand on it, for three seconds. Changes nothing.
 
             Drift: when the owner says a stick drifts, moves on its own, or the aim creeps, measure it first: reply with only measure_drift actions (one per stick named, both if they don't say which) and no other actions. The app then sends you what it measured. Answer that with stick_deadzone at least the smallest dead zone it gives for each drifting stick, and explain the numbers in the recap. If it measured no drift worth a dead zone, change nothing and say so.

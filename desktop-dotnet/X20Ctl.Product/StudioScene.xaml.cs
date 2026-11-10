@@ -34,7 +34,7 @@ public partial class StudioScene : UserControl
     public bool CapturingButtonEditor=>CapturingRemap && !IsTrying && !AgentOpen;
     public void SelectPhysicalButton(string key)=>buttonsPage?.SelectPhysical(key);
     private InputOwner? lastPageOwner;
-    public InputOwner InputContext=>IsMacros && Macros?.IsRecording==true?InputOwner.MacroRecording:CapturingButtonEditor?InputOwner.RemapCapture:(tryLayer != null || ManagementPage is "Tester" or "Diagnostics" or "Mouse")?InputOwner.TesterCapture:InputOwner.UiNavigation;
+    public InputOwner InputContext=>IsMacros && Macros?.IsRecording==true?InputOwner.MacroRecording:CapturingButtonEditor?InputOwner.RemapCapture:(tryLayer != null || ManagementPage is "Tester" or "Diagnostics" || MouseCapturesInput || agentPanel?.CapturesController == true)?InputOwner.TesterCapture:InputOwner.UiNavigation;
     /// <summary>The Diagnostics tab, built on first open; it only listens while shown.</summary>
     public Diagnostics.DiagnosticsWorkbench? Diagnostics { get; private set; }
     /// <summary>Controller as mouse: the service lives in the host; the tab is built on first open.</summary>
@@ -151,6 +151,18 @@ public partial class StudioScene : UserControl
         if (agentPanel == null)
         {
             agentPanel = new(Model.Id, Model.Name, PcMode, RegisterFocus, Player, AgentMeter, reducedMotion:!animate);
+            agentPanel.CaptureChanged += NotifyInputOwner;
+            agentPanel.ControllerWrites = () => ControllerWrites && PcMode?.Service.Enabled != true;
+            agentPanel.ControllerWritten += () =>
+            {
+                filledFromController.Remove(Draft);
+                _ = LoadFromController(message => buttonsPage?.SayController(message));
+            };
+            if (!IsNexus && !IllustratedThemeUI.Matched)
+            {
+                Grid.SetZIndex(agentPanel.Shade, 40);
+                StudioShell.Children.Add(agentPanel.Shade);
+            }
             agentPanel.Body.HorizontalAlignment = HorizontalAlignment.Right; agentPanel.Body.VerticalAlignment = VerticalAlignment.Bottom; agentPanel.Body.Margin = new(0, 0, 30, 170);
             agentPanel.CloseRequested += CloseAgent; agentPanel.ChangeControllerRequested += () => { CloseAgent(); BackRequested?.Invoke(); }; agentPanel.Walkthrough = PlayAgentTour;
             agentPanel.PageRequested += AgentGoTo;
@@ -165,7 +177,7 @@ public partial class StudioScene : UserControl
         agentPanel.Show();UpdateButtonsPage();InputContextChanged?.Invoke(); if (agentPill != null) agentPill.ToolTip = "Put Agent XCTL away";
         Dispatcher.BeginInvoke(() => agentPanel?.Input.Focus(), System.Windows.Threading.DispatcherPriority.Input);
     }
-    public void CloseAgent() { if (agentPanel == null) return; agentPanel.Hide();UpdateButtonsPage();InputContextChanged?.Invoke(); if (agentPill != null) agentPill.ToolTip = "Agent XCTL"; }
+    public void CloseAgent() { if (agentPanel == null) return; agentPanel.Hide();UpdateButtonsPage();InputContextChanged?.Invoke(); if (agentPill != null) agentPill.ToolTip = "Agent XCTL"; if (NeedsPcModeRefresh) PcModeSwitched?.Invoke(); }
     private void SizeAgentController()
     {
         if (agentPanel == null) return;
@@ -378,10 +390,21 @@ public partial class StudioScene : UserControl
     {
         if(deviceControl==null)return;
         double previousWidth=deviceControl.ActualWidth;string previousText=deviceState.Text;
-        deviceState.Text="· "+(Linked?(currentBatteryLevel is "full" or "medium" or "low" or "empty" or "wired"?(currentBatteryLevel=="wired"?"Wired":batteryLabel.Text.Replace("Battery · ","")+" battery"):(currentBatteryLevel!=null&&currentBatteryLevel!="receiver"&&!currentBatteryLevel.Contains("Not reported")?(currentBatteryLevel.Contains("battery",StringComparison.OrdinalIgnoreCase)?currentBatteryLevel:currentBatteryLevel+" battery"):"Connected")):"Offline");
-        deviceState.Foreground=DS.Brush(Linked?currentBatteryLevel is "low" or "empty" || (currentBatteryLevel!=null&&currentBatteryLevel.StartsWith("1/4"))?"DS.Warn":"DS.TextSoft":"DS.Warn");
-        headerBattery.Show(Linked?currentBatteryLevel:null);
+        string? level=BatteryVisible?currentBatteryLevel:null;
+        deviceState.Text="· "+(Linked?(level is "full" or "medium" or "low" or "empty" or "wired"?(level=="wired"?"Wired":batteryLabel.Text.Replace("Battery · ","")+" battery"):(level!=null&&level!="receiver"&&!level.Contains("Not reported")?(level.Contains("battery",StringComparison.OrdinalIgnoreCase)?level:level+" battery"):"Connected")):"Offline");
+        deviceState.Foreground=DS.Brush(!Linked||level is "low" or "empty"||level?.StartsWith("1/4")==true?"DS.Warn":"DS.TextSoft");
+        headerBattery.Show(Linked?level:null);
+        headerBattery.Visibility=batteryLabel.Visibility=BatteryVisible?Visibility.Visible:Visibility.Collapsed;
         if(animate&&deviceControl.IsLoaded&&previousWidth>0&&previousText!=deviceState.Text){deviceControl.BeginAnimation(WidthProperty,null);deviceControl.Width=double.NaN;deviceControl.Measure(new Size(double.PositiveInfinity,36));double next=deviceControl.DesiredSize.Width;deviceControl.Width=next;deviceControl.BeginAnimation(WidthProperty,new DoubleAnimation(previousWidth,next,TimeSpan.FromMilliseconds(180)){FillBehavior=FillBehavior.Stop,EasingFunction=DS.EaseOut});}
+    }
+    internal bool BatteryVisible => PcMode?.Service.Enabled != true;
+    internal void RefreshBatteryVisibility()
+    {
+        UpdateDeviceHeader();
+        Dashboard?.ShowBattery(BatteryVisible);
+        Device?.ShowBattery(BatteryVisible);
+        agentPanel?.RefreshStrip();
+        NexusLater();DuskLater();HollowLater();NocturneLater();SunriseLater();
     }
     /// <summary>The console-design Buttons page replaces the older canvas/inspector/shelf while Buttons is active.</summary>
     private void UpdateButtonsPage()
@@ -713,7 +736,7 @@ public partial class StudioScene : UserControl
     }
     private void CurvesTab(object sender,RoutedEventArgs e)=>ShowCurves(true);
     /// <summary>PC mode's settings, set by the host: the Curves tab's Advanced stick tools write to them.</summary>
-    public PcModeLink? PcMode { get => pcLink; set { pcLink = value; pcSync = value != null && Draft.PcMode ? new(value, Draft, Curves.Draft, macroDraft, vibrationDraft) : null; WireCurveTuning(); SyncPcMode(); } }
+    public PcModeLink? PcMode { get => pcLink; set { pcLink = value; pcSync = value != null && Draft.PcMode ? new(value, Draft, Curves.Draft, macroDraft, vibrationDraft) : null; WireCurveTuning(); SyncPcMode(); RefreshBatteryVisibility(); } }
     /// <summary>The Curves graph reads and edits PC mode's stick settings (dead zone, full at, anti-dead zone, max output), so
     /// it draws exactly what games get, including what Agent XCTL changed.</summary>
     private void WireCurveTuning()
@@ -757,7 +780,22 @@ public partial class StudioScene : UserControl
         if (why != null) MessageBox.Show(Window.GetWindow(this), why, "PC Mode"); else ShowManagement("PcMode");
     }
     private PcModeSync? pcSync;
-    /// <summary>The PC mode tab's switch changed: the host reopens the Studio so the tabs unlock (or lock).</summary>
+    internal bool NeedsPcModeRefresh => Model.Id=="x20_pro" && pcLink!=null && Draft.PcMode!=pcLink.Service.Enabled;
+    internal void PcModeEnabledChanged()
+    {
+        RefreshBatteryVisibility();
+        // Let the Agent finish its reply. Closing it picks up the new Studio mode.
+        if (NeedsPcModeRefresh && !AgentOpen) PcModeSwitched?.Invoke();
+        else ApplyPcDashboard();
+    }
+    private bool MouseCapturesInput => ManagementPage=="Mouse" && MouseService is {Active:true} mouse &&
+        mouse.OwnerPlayer==Player && mouse.OwnerModel==Model.Id;
+    internal void MouseModeChanged()
+    {
+        if (ManagementPage!="Mouse") return;
+        NotifyInputOwner();QueueNavigation();
+    }
+    /// <summary>Reopen the X20 Pro Studio when its editor switches between native and PC Mode.</summary>
     public event Action? PcModeSwitched;
     /// <summary>Saves the tabs to PC mode when it is on, and says so in the status bar.</summary>
     private void SyncPcMode()
@@ -824,7 +862,7 @@ public partial class StudioScene : UserControl
     }
     public void ShowButtons() { NexusLater(); DuskLater(); ShowCurves(false);if(IsMacros)ShowMacros(false);if(IsVibration)ShowVibration(false);HideManagement();ButtonsNav.IsChecked=true;FrontChoice.IsEnabled=true;RearChoice.IsEnabled=HasRearArtwork;UpdateButtonsPage(); }
     public DashboardConsolePage? Dashboard {get;private set;}
-    private DashboardConsolePage CreateDashboard(){var page=new DashboardConsolePage(Model,Player,Draft.UnsentChanges,setupStore.Items.Count(s=>s.ModelId==Model.Id),!animate,setupStore.Items.Where(s=>s.ModelId==Model.Id).ToArray(),id=>LoadSetup(setupStore.NativeSnapshot(id)));if(currentTransport!=null)page.SetTransport(currentTransport);if(currentFirmware!=null)page.SetFirmware(currentFirmware);page.SetBatteryLevel(currentBatteryLevel,currentTransport);if(gameplayConnected!=null||BluetoothLive)page.SetInputConnected(Linked,BluetoothOnly);page.TelemetryUpdated+=ApplyTelemetry;page.ConfigureRequested+=ShowButtons;page.PageRequested+=target=>{if(target=="Buttons")ShowButtons();else if(target=="Curves")ShowCurves(true);else if(target=="Macros")ShowMacros(true);else ShowManagement(target);};return page;}
+    private DashboardConsolePage CreateDashboard(){var page=new DashboardConsolePage(Model,Player,Draft.UnsentChanges,setupStore.Items.Count(s=>s.ModelId==Model.Id),!animate,setupStore.Items.Where(s=>s.ModelId==Model.Id).ToArray(),id=>LoadSetup(setupStore.NativeSnapshot(id)));if(currentTransport!=null)page.SetTransport(currentTransport);if(currentFirmware!=null)page.SetFirmware(currentFirmware);page.SetBatteryLevel(currentBatteryLevel,currentTransport);page.ShowBattery(BatteryVisible);if(gameplayConnected!=null||BluetoothLive)page.SetInputConnected(Linked,BluetoothOnly);page.TelemetryUpdated+=ApplyTelemetry;page.ConfigureRequested+=ShowButtons;page.PageRequested+=target=>{if(target=="Buttons")ShowButtons();else if(target=="Curves")ShowCurves(true);else if(target=="Macros")ShowMacros(true);else ShowManagement(target);};return page;}
     private void DashboardTab(object sender,RoutedEventArgs e)=>ShowManagement("Dashboard");
     public void ShowMacros(bool value)
     {
@@ -922,7 +960,7 @@ public partial class StudioScene : UserControl
         ManagementBodyHost.Visibility=ManagementShelfFrame.Visibility=Visibility.Visible;ManagementBodyHost.Children.Clear();ManagementShelfHost.Children.Clear();
         ButtonsNav.IsChecked=CurvesNav.IsChecked=MacrosNav.IsChecked=VibrationNav.IsChecked=false;DeviceNav.IsChecked=page=="Device";RgbNav.IsChecked=page=="RGB";ScreenNav.IsChecked=page=="Screen";DiagnosticsNav.IsChecked=page=="Diagnostics";MouseNav.IsChecked=page=="Mouse";if(KeyboardNav!=null)KeyboardNav.IsChecked=page=="Keyboard";PcModeNav.IsChecked=false;foreach(var t in pcTabs)t.IsChecked=page=="PcMode"&&(string)t.Content==PcModePage.Part;TesterNav.IsChecked=page=="Tester";SetupsNav.IsChecked=page=="Setups";DashboardNav.IsChecked=page=="Dashboard";DashboardFlip.Visibility=page=="Dashboard"?Visibility.Visible:Visibility.Collapsed;
         if(page=="Dashboard"){Dashboard??=CreateDashboard();Dashboard.SetWorkingState(Draft.UnsentChanges,activeSetup==null?null:setupStore.Items.FirstOrDefault(x=>x.Id==activeSetup)?.Name,Draft.PcMode);ManagementBodyHost.Children.Add(Dashboard);ChangeCount.Text="Select the controller to configure it · Your games are found automatically";PrimaryHint.Text=" Select";OverviewHint.Text="";DraftChip.Text="Dashboard";Dashboard.FocusHero();}
-        else if(page=="Device"){Device??=new(Model,Player,this,RegisterFocus,()=>ShowManagement("Diagnostics"),()=>ShowManagement("Setups"),()=>ShowManagement("Screen"),Model.Id=="x20_pro"&&!Draft.PcMode?FactoryReset:null);Device.TelemetryUpdated-=ApplyTelemetry;Device.TelemetryUpdated+=ApplyTelemetry;if(currentTransport!=null)Device.SetTransport(currentTransport);Device.SetBatteryLevel(currentBatteryLevel,currentTransport);if(currentFirmware!=null)Device.SetFirmware(currentFirmware);else if(currentTransport=="2.4 GHz receiver")Device.SetFirmware("Not readable over XInput");if(gameplayConnected!=null||BluetoothLive)Device.SetConnection(Linked,BluetoothOnly);if(currentHardwareId!=null)Device.SetHardwareId(currentHardwareId);Device.UpdateEngineStatus(NativeEngineStatus);ManagementBodyHost.Children.Add(Device.Body);ManagementShelfHost.Children.Add(Device.Shelf);ChangeCount.Text="Assigned model · Gameplay and configuration remain separate";PrimaryHint.Text=" Open";OverviewHint.Text=" My setups";DraftChip.Text="Controller overview";}
+        else if(page=="Device"){Device??=new(Model,Player,this,RegisterFocus,()=>ShowManagement("Diagnostics"),()=>ShowManagement("Setups"),()=>ShowManagement("Screen"),Model.Id=="x20_pro"&&!Draft.PcMode?FactoryReset:null);Device.TelemetryUpdated-=ApplyTelemetry;Device.TelemetryUpdated+=ApplyTelemetry;if(currentTransport!=null)Device.SetTransport(currentTransport);Device.SetBatteryLevel(currentBatteryLevel,currentTransport);Device.ShowBattery(BatteryVisible);if(currentFirmware!=null)Device.SetFirmware(currentFirmware);else if(currentTransport=="2.4 GHz receiver")Device.SetFirmware("Not readable over XInput");if(gameplayConnected!=null||BluetoothLive)Device.SetConnection(Linked,BluetoothOnly);if(currentHardwareId!=null)Device.SetHardwareId(currentHardwareId);Device.UpdateEngineStatus(NativeEngineStatus);ManagementBodyHost.Children.Add(Device.Body);ManagementShelfHost.Children.Add(Device.Shelf);ChangeCount.Text="Assigned model · Gameplay and configuration remain separate";PrimaryHint.Text=" Open";OverviewHint.Text=" My setups";DraftChip.Text="Controller overview";}
         else if(page=="RGB"){if(Model.Id!="x20_pro")throw new InvalidOperationException("RGB configuration is verified for X20 Pro only.");if(rgbBody==null){var lighting=new LightingWindow();rgbBody=lighting.DetachBody();lighting.ReadOnOpen();}ManagementBodyHost.Children.Add(rgbBody);ChangeCount.Text="RGB lighting";PrimaryHint.Text=" Select";OverviewHint.Text="";DraftChip.Text="RGB";}
         else if(page=="Screen"){if(!ModelProfiles.For(Model.Id).HasScreen)throw new InvalidOperationException("This model has no Screen artwork feature.");Screen??=new(this,RegisterFocus,()=>ShowManagement("Device"));ManagementBodyHost.Children.Add(Screen.Body);ChangeCount.Text="Screen artwork · local preview";PrimaryHint.Text=" Select";OverviewHint.Text="";DraftChip.Text="Screen";}
         else if(page=="Diagnostics"){Diagnostics??=new(Player,RegisterFocus,PcMode,model:Model);ManagementBodyHost.Children.Add(Diagnostics.Body);Diagnostics.Start();ChangeCount.Text="Read-only input capture · Use Esc or the mouse to leave";PrimaryHint.Text="";OverviewHint.Text="";DraftChip.Text="Diagnostics";Diagnostics.Reset.Focus();}
@@ -932,7 +970,7 @@ public partial class StudioScene : UserControl
             else
             {
                 var back=new Button{Style=DS.Style("ActionButton"),Height=46,MinHeight=0,Padding=new(22,0,24,0),Content=Kit.Text("Back to Dashboard",15.5,"DS.Text",FontWeights.SemiBold)};back.Click+=(_,_)=>ShowManagement("Dashboard");RegisterFocus(back);
-                var pc=new PcModePage(PcMode.Service,PcMode.Store,PcMode.Preferences,back,ShowButtons){Margin=new(30,6,30,24)};pc.Switched+=_=>PcModeSwitched?.Invoke();
+                var pc=new PcModePage(PcMode.Service,PcMode.Store,PcMode.Preferences,back,ShowButtons){Margin=new(30,6,30,24)};
                 ManagementBodyHost.Children.Add(new ScrollViewer{Content=pc,VerticalScrollBarVisibility=ScrollBarVisibility.Auto});pc.Switch.Focus();
             }
             ChangeCount.Text=pcLink?.Service.Enabled==true?"PC mode is on · Buttons, Curves, Keyboard and Mouse apply on this PC":"PC mode is off · Switch it on so games get this controller's settings";PrimaryHint.Text=" Select";OverviewHint.Text="";DraftChip.Text="PC mode";
@@ -1082,7 +1120,7 @@ public partial class StudioScene : UserControl
         else if (page == "Buttons" && Keyboard.FocusedElement is PhysicalHotspot) focus = Draft.CanEdit(SelectedControl) ? "Choose output" : "Inspect";
         else if (page == "Buttons" && buttonsPage?.IsKeyboardFocusWithin == true && Keyboard.FocusedElement is Button { Tag: string t } && ButtonDraft.Targets.Contains(t)) focus = "Assign";
         if(CapturingButtonEditor){LiveHints.Children.Clear();LiveHints.Children.Add(GlyphHint.Footer(("Esc","Cancel")));return;}
-        if(page=="Mouse"){LiveHints.Children.Clear();LiveHints.Children.Add(GlyphHint.Footer(("Esc","Back")));return;}
+        if(page=="Mouse"&&MouseCapturesInput){LiveHints.Children.Clear();LiveHints.Children.Add(GlyphHint.Footer(("Esc","Back")));return;}
         var map = InputMap.For(page, focus, IsTrying);
         var hints = new List<(string, string)>();
         if (map.A != null) hints.Add(("A", map.A));
@@ -1140,7 +1178,8 @@ public partial class StudioScene : UserControl
         }
         if(trial!=null){if(e.Key==Key.Escape){StopTry();e.Handled=true;return;}if(TrialKey(e.Key) is {} down){if(!e.IsRepeat){trial.Press(down);PushTrialFrame();}e.Handled=true;return;}}
         if(ManagementPage=="Setups" && Setups?.HandleKey(e)==true)return;
-        if(ManagementPage=="Mouse"){if(e.Key==Key.Escape){ShowManagement("Dashboard");e.Handled=true;}return;}
+        if(ManagementPage=="Mouse"&&e.Key==Key.Escape){ShowManagement("Dashboard");e.Handled=true;return;}
+        if(MouseCapturesInput)return;
         if(ManagementPage=="Diagnostics"){if(e.Key==Key.Escape){ShowManagement("Device");e.Handled=true;}return;}
         if(ManagementPage=="Tester"){if(Tester?.HandleKeyboard(e.Key,true)==true){e.Handled=true;return;}if(e.Key==Key.Escape){ShowManagement("Device");e.Handled=true;}else if(e.Key is Key.F6 or Key.A or Key.B or Key.Y){e.Handled=true;}return;}
         if(Keyboard.FocusedElement is not TextBox && !e.IsRepeat)

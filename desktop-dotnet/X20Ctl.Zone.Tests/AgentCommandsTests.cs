@@ -15,6 +15,14 @@ public class AgentCommandsTests
     [InlineData("Change controller", AgentCommand.ChangeController)]
     [InlineData("I want to switch to another controller", AgentCommand.ChangeController)]
     [InlineData("switch to my X20", AgentCommand.ChangeController)]
+    [InlineData("I want to use a different controller", AgentCommand.ChangeController)]
+    [InlineData("take me to the controller zone", AgentCommand.ChangeController)]
+    [InlineData("Change my controller to green", AgentCommand.None)]
+    [InlineData("change the controller lights to blue", AgentCommand.None)]
+    [InlineData("switch my controller's A and B", AgentCommand.None)]
+    [InlineData("can you read my controller?", AgentCommand.Access)]
+    [InlineData("do you have access to my controller settings", AgentCommand.Access)]
+    [InlineData("can you write to my controller", AgentCommand.Access)]
     [InlineData("I want to give a star", AgentCommand.Star)]
     [InlineData("star the repo", AgentCommand.Star)]
     [InlineData("I want to donate", AgentCommand.Donate)]
@@ -39,6 +47,11 @@ public class AgentCommandsTests
         Assert.Contains("full", AgentCommands.Battery("full", "X20 Pro"), StringComparison.OrdinalIgnoreCase);
         Assert.Contains("cable", AgentCommands.Battery("wired", "X20 Pro"));
         Assert.Contains("X20 Pro connected", AgentCommands.Battery(null, "X20 Pro"));
+        // the controller's own reading over Bluetooth (owner, 8 Nov 2026: connected by USB and Bluetooth, yet "not connected")
+        Assert.Contains("3 of 4", AgentCommands.Battery("3/4", "X20 Pro"));
+        Assert.Contains("charging", AgentCommands.Battery("2/4 (Charging)", "X20 Pro"));
+        Assert.DoesNotContain("charging", AgentCommands.Battery("4/4", "X20 Pro"));
+        Assert.DoesNotContain("Windows says", AgentCommands.Battery("1/4", "X20 Pro"));
     }
 }
 

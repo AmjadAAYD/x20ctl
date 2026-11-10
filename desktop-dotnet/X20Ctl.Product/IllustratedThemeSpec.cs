@@ -28,7 +28,7 @@ public sealed record IllustratedThemeSpec(string Id,string Name,string Folder,st
     {
         static string Normalize(string value)=>value.Replace(" ","").Replace("-","").ToLowerInvariant();
         string key=Normalize(page);
-        key=key switch {"zone"=>"controllerzone","selector"=>"modelselector","agent"=>"agentxctl","themes" or "about" or "feedback" or "readscan" or "writescan"=>"tools",_=>key};
+        key=key switch {"zone"=>"controllerzone","selector"=>"modelselector","agent"=>"agentxctl","keyboard"=>"macros","themes" or "about" or "feedback" or "readscan" or "writescan"=>"tools",_=>key};
         int index=Enumerable.Range(0,Pages.Count).FirstOrDefault(i=>Normalize(Pages[i].Name)==key,-1);
         if(index<0)throw new ArgumentException("No illustrated artwork is assigned to page "+page,nameof(page));
         return $"Brand/illustrated/{Id}/wallpapers/{Prefix}-{index+1:00}-{Pages[index].Slug}.jpg";

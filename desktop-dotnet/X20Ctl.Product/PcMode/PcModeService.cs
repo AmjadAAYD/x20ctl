@@ -46,8 +46,15 @@ public sealed class PcModeService : IDisposable
     public bool Enabled
     {
         get => enabled;
-        set { enabled = value; if (value && !ReviewSandbox.Active) Start(); }
+        set
+        {
+            bool changed = enabled != value;
+            enabled = value;
+            if (value && !ReviewSandbox.Active) Start();
+            if (changed) EnabledChanged?.Invoke();
+        }
     }
+    public event Action? EnabledChanged;
     /// <summary>Controller Check is open: give the real controller back so the scan reads it and only it (the virtual
     /// pad would show up as a second, remapped controller). Doesn't change the saved on/off choice.</summary>
     public bool Paused { get => paused; set => paused = value; }

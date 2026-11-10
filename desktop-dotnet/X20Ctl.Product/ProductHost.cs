@@ -127,6 +127,8 @@ public sealed partial class ProductHost : Grid
     public ProductHost(ZoneScene zone, string? assignmentPath = null,Action<string>? openSupport=null)
     {
         Zone = zone; Children.Add(zone);
+        Agent.AgentPanel.BluetoothBattery = FreshBluetoothBattery;
+        Agent.AgentPanel.RefreshBluetooth = RefreshBleTelemetryAsync;
         // trigger rumble through a tiny built-in browser, the one route that reaches the X20 Pro's trigger motors (owner, 9 Nov 2026)
         if(!ReviewSandbox.Active){var triggers=new Diagnostics.BrowserTriggerRumble();Diagnostics.BrowserTriggerRumble.Shared=triggers;Children.Add(triggers.View);} // started on first use (Vibration on a pad with trigger motors), not at launch
         support=openSupport??ProductLinks.OpenSupport;
@@ -140,7 +142,9 @@ public sealed partial class ProductHost : Grid
         // the PS4 / Xbox choice survives a restart: PC mode switches itself back on at launch with the type picked last time
         if(preferencesHealthy)X20Ctl.Zone.PcMode.PcModeEntry.Chosen=X20Ctl.Zone.PcMode.PcModeEntry.FromSaved(preferences.PcModePad);
         PcMode=new(pcModeStore){Enabled=assignmentPath==null&&(!preferencesHealthy||preferences.PcMode)};
+        PcMode.EnabledChanged+=()=>Studio?.PcModeEnabledChanged();
         MouseMode=new(assignmentPath==null?X20Ctl.Zone.Mouse.MouseProfile.DefaultPath:Path.Combine(Path.GetDirectoryName(Path.GetFullPath(assignmentPath))!,"mouse-fixture.json"),listen:assignmentPath==null){PcMode=PcMode};
+        MouseMode.Changed+=()=>Dispatcher.BeginInvoke(()=>Studio?.MouseModeChanged());
         Zone.SupportRequested+=OpenSupport;Zone.SettingsRequested+=ShowSettings;var languageMenu=new LanguageMenu(preferencesHealthy?preferences:null,zone);Children.Add(languageMenu);Panel.SetZIndex(languageMenu,9);
         Catalog = new ControllerCatalog(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Data", "catalog.json")));
         store = new(assignmentPath ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "x20ctl", "native", "player-assignments.v1.json"));
@@ -263,7 +267,16 @@ public sealed partial class ProductHost : Grid
         bool pendingBack=remembered!=null&&pc&&remembered.PcBase==PcBase();
         if(remembered!=null&&(pendingBack||fresh&&!pc&&remembered.PcBase==null))StudioMemory.Restore(remembered,draft,curveDraft,macroDraft,vibrationDraft);
         else if(remembered!=null&&fresh&&vibrationDraft.CanEdit)try{vibrationDraft.Set(remembered.Vibration);}catch(ArgumentOutOfRangeException){}
-        Studio = new(player, model, draft, Zone.ReducedMotion, curveDraft,macroDraft,vibrationDraft,setupStore,legacySources,activeSetup); if(PcMode!=null&&pcModeStore!=null)Studio.PcMode=new(pcModeStore,PcMode,preferencesHealthy?preferences:null);Studio.MouseService=MouseMode;Studio.PcModeSwitched+=()=>Dispatcher.BeginInvoke(()=>{EnterStudio(player);Studio?.ShowManagement("PcMode");});Studio.BackRequested += ReturnToZone;Studio.SupportRequested+=OpenSupport;Studio.ActiveSetupChanged+=id=>activeSetups[key]=id;Studio.TelemetryUpdated+=data=>RecordTelemetry(data,player);
+        var opened = new StudioScene(player, model, draft, Zone.ReducedMotion, curveDraft,macroDraft,vibrationDraft,setupStore,legacySources,activeSetup);
+        Studio = opened;
+        if(PcMode!=null&&pcModeStore!=null)opened.PcMode=new(pcModeStore,PcMode,preferencesHealthy?preferences:null);
+        opened.MouseService=MouseMode;
+        opened.PcModeSwitched+=()=>Dispatcher.BeginInvoke(()=>
+        {
+            if(Studio!=opened||!opened.NeedsPcModeRefresh)return;
+            EnterStudio(player);Studio?.ShowManagement("PcMode");
+        });
+        opened.BackRequested += ReturnToZone;opened.SupportRequested+=OpenSupport;opened.ActiveSetupChanged+=id=>activeSetups[key]=id;opened.TelemetryUpdated+=data=>RecordTelemetry(data,player);
         // after PC mode's link is made, so edits not yet applied still light Apply
         if(pendingBack){StudioMemory.Restore(remembered!,draft,curveDraft,macroDraft,vibrationDraft);Studio.DraftsRestored();}
         Studio.SetBatteryLevel(batteryLevels[player]);

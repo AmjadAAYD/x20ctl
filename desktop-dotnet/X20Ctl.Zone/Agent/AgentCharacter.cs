@@ -18,9 +18,9 @@ public static class AgentCharacter
         """;
 
     public static string Greeting(string name) => AgentVariety.Pick("greeting", [
-        $"Hey, it's me, your {name}! *wiggles sticks* Tell me how you play or what feels wrong, and I'll tune myself. Pick a topic above, or say HELP.",
-        $"*boots up* Your {name}, reporting for duty! What should I tune today? Pick a topic above, or say HELP.",
-        $"Hi! Your {name} here, fully awake and ready. Tell me what feels off, pick a topic above, or say HELP.",
+        $"Hey, it's me, your {name}! *wiggles sticks* Tell me how you play or what feels wrong, and I'll tune myself. Pick a topic below, or say HELP.",
+        $"*boots up* Your {name}, reporting for duty! What should I tune today? Pick a topic below, or say HELP.",
+        $"Hi! Your {name} here, fully awake and ready. Tell me what feels off, pick a topic below, or say HELP.",
     ]);
 
     public const string NotUnderstood = "Beep… boop… that one flew right past my sensors.";
@@ -39,6 +39,37 @@ public static class AgentCharacter
         $"Haha! {SillyCore} {thing}. Now, sticks, triggers, turbo? That I can do.",
         $"*giggles in rumble* {SillyCore} {thing}! Try me on dead zones instead.",
         $"Oh you. {SillyCore} {thing}. Ask me something with buttons in it!",
+    ]);
+
+    // ---- the easter egg (owner, 8 Nov 2026): "I love you" and the controller says it back, with a heart and a heartbeat ----
+    static readonly Regex Love = new(@"^\s*(?:(?:i|ii|me)\s+)?(?:really\s+|just\s+)?(?:love|luv|wuv|lov)\s+(?:you|u|ya|yu|youu+)(?:[\s,]+(?:so\s+much|too|a\s+lot|lots|sm|xd+|lol|bro|buddy|man|agent(?:\s+xctl)?|xctl|controller|little\s+controller|forever|3000))*[\s!.~♥❤️<3]*$|^\s*(?:ily|<3+|❤️?|♥)\s*$", RegexOptions.IgnoreCase);
+    /// <summary>"I love you" (and "love u", "ily", "&lt;3"), said on its own: not a request, a declaration.</summary>
+    public static bool SaysLove(string sentence) => Love.IsMatch(sentence);
+    public static string LoveBack() => AgentVariety.Pick("love", [
+        "I love you too! *heart goes lub-dub, lub-dub*",
+        "Aww, I love you too! *rumbles happily in your hands*",
+        "I love you too! Best player I've ever had. *blushes in RGB*",
+        "I love you too! *both sticks turn into hearts*",
+    ]);
+
+    // ---- the second easter egg (owner, 8 Nov 2026): spin the handheld round and round and it gets dizzy ----
+    /// <summary>What it says when it gets dizzy (1), when it's spun again while still dizzy (2).</summary>
+    public static string Dizzy(int level) => level <= 1
+        ? AgentVariety.Pick("dizzy", [
+            "Whoaaa… *the room spins* Why are there four sticks?!",
+            "Wheee… wait, no, not wheee. *wobbles* Everything's spinning!",
+            "*eyes spinning* I think I just saw my own back paddles…",
+            "Round and round… *dizzy beeps* Which way is up?",
+        ])
+        : AgentVariety.Pick("dizzier", [
+            "Stooop, I'm gonna rumble everywhere! *woozy*",
+            "Please… my gyro can't take any more! *sways*",
+            "Okay okay, you win! *sees stars and D-pads*",
+        ]);
+    public static string Recovered() => AgentVariety.Pick("recovered", [
+        "*shakes it off* Phew. Okay. Which one of you is the real player?",
+        "*blinks* …I'm good. I'm good. Mostly good.",
+        "Phew, the room stopped. Let's never do that again. (Do it again.)",
     ]);
 
     // anything about controllers, games or the app is never off topic

@@ -99,13 +99,17 @@ public sealed class ProductWindow : Window
                 return (result, detectedTransport);
             });
             Host.UpdateBatteryLevels(levels, transport);
-            string? first=Host.BatteryLevels.FirstOrDefault(level=>level!=null && level!="wired" && level!="receiver")
-                          ?? levels.FirstOrDefault(level=>level!=null && level!="wired" && level!="receiver");
+            ShowTrayBattery();
+        }
+        void ShowTrayBattery()
+        {
+            string? first=Host.PcMode?.Enabled==true?null:Host.BatteryLevels.FirstOrDefault(level=>level!=null && level!="wired" && level!="receiver");
             string text=first==null?"":"Battery "+first;
             bool low=first is "low" or "empty" || (first != null && first.StartsWith("1/4"));
             tray?.SetBattery(text);
             if(low&&!batteryWarned){batteryWarned=true;tray?.Notify("Controller battery low","Charge it soon. Windows reports the level as "+text[8..]+".");}else if(!low)batteryWarned=false;
         }
+        if(Host.PcMode is {} pc)pc.EnabledChanged+=ShowTrayBattery;
         Host.TelemetryRefreshed+=Read;WatchLiveBattery();
         batteryTimer=new(System.Windows.Threading.DispatcherPriority.Background){Interval=TimeSpan.FromMinutes(2)};batteryTimer.Tick+=(_,_)=>Read();batteryTimer.Start();Read();
     }

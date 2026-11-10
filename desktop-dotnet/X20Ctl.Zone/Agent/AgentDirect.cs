@@ -25,6 +25,8 @@ public static class AgentDirect
         string s = Regex.Replace(sentence.ToLowerInvariant().Replace('’', '\'').Replace('“', ' ').Replace('”', ' ').Replace('"', ' ').Replace('`', ' '), @"\s+", " ").Trim().TrimEnd('.', '!', '?').Trim();
         s = Regex.Replace(s, @"^(?:hey |ok |okay )?(?:please |pls |can you |could you |would you |i want (?:you )?to |i'd like (?:you )?to |i want |let's )*", "");
         s = Regex.Replace(s, @"(?: please| pls| for me| now| thanks?(?: you)?)+$", "");
+        if (AgentColors.Asked(s) is { } colourWords && AgentColors.TryParse(colourWords, out var colour))
+            return new($"I'll light up {colour.Name} ({colour.Hex}).", [Act(AgentVocabulary.LedColor, AgentVocabulary.LightingTarget, colourWords, "Colour as asked.")], "", [], [], "");
         var swap = Regex.Match(s, "^(?:swap|switch|exchange|flip) " + B("a") + " (?:and|with|&|<->|for) " + B("b") + "$");
         if (swap.Success && ButtonOf(swap.Groups["a"].Value) is { } s1 && ButtonOf(swap.Groups["b"].Value) is { } s2 && s1 != s2)
             return new($"I'll swap {s1} and {s2}.", [Act(AgentVocabulary.Remap, s1, s2, "Swap as asked."), Act(AgentVocabulary.Remap, s2, s1, "Swap as asked.")], "", [], [], "");

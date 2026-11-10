@@ -17,10 +17,13 @@ public sealed class VibrationWorkbench
  public VibrationVisual Visualizer {get;}
  public IEnumerable<Button> PresetButtons=>presets;
  public event Action? Changed;
- readonly List<Button> presets=new();readonly Dictionary<string,Button> regionsByName=new();
+ readonly List<Button> presets=new();
+ readonly ScrollViewer motorControls=new(){VerticalScrollBarVisibility=ScrollBarVisibility.Auto};
+ readonly Slider testAllStrength=new(){Minimum=0,Maximum=100,Value=100,TickFrequency=5,IsSnapToTickEnabled=true};
  public string PreviewRegion {get;private set;}="All";
- public void SelectRegion(string region){PreviewRegion=region;Visualizer.SetRegion(region);foreach(var pair in regionsByName)pair.Value.Foreground=pair.Key==region?new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(17,24,39))):Brushes.LightSteelBlue;foreach(var pair in regionsByName)pair.Value.Background=pair.Key==region?Brushes.White:DS.Brush("Control.ButtonFill");} readonly TextBlock value=new(){FontSize=54,FontWeight=FontWeights.SemiBold};
- bool updating;int previewStrength;
+ public void SelectRegion(string region){PreviewRegion=region;Visualizer.SetRegion(region);}
+ readonly TextBlock value=new(){FontSize=23,FontWeight=FontWeights.SemiBold};
+ bool updating,testing;int previewStrength;
  /// <summary>The pad has trigger motors (X20 Pro, Dune): the tab offers four zones, else the two grips.</summary>
  public bool HasTriggers {get;private set;}
  public VibrationWorkbench(X20Ctl.Zone.VibrationDraft draft,FrameworkElement resources,Action<Button> register,bool animations,string model="x20")
@@ -28,25 +31,39 @@ public sealed class VibrationWorkbench
   Draft=draft;previewStrength=draft.Strength;HasTriggers=ModelProfiles.For(model).Motors.Contains("triggers");Body.ColumnDefinitions.Add(new(){Width=new(1.4,GridUnitType.Star)});Body.ColumnDefinitions.Add(new());
   Visualizer=new((Geometry)resources.FindResource("ControllerOutline"),animations,model);Body.Children.Add(new Viewbox{Child=Visualizer,Stretch=Stretch.Uniform});
   var controls=new StackPanel{Margin=new(24,16,20,8),VerticalAlignment=VerticalAlignment.Center};Grid.SetColumn(controls,1);Body.Children.Add(controls);
-  controls.Children.Add(Copy("VIBRATION",14));controls.Children.Add(value);controls.Children.Add(Copy(draft.PcMode?"How strongly games vibrate it (PC mode)":"Test strength",16));
-  Strength.Maximum=draft.Max;Strength.Style=DS.Style("DS.Slider");Strength.Margin=new(0,18,0,14);controls.Children.Add(Strength);
-  var choices=new WrapPanel();controls.Children.Add(choices);foreach(int percent in draft.PcMode?new[]{0,50,100,150,200}:new[]{0,25,50,75,100}){int p=percent;var b=Button(percent==0?"Off":percent+"%",()=>Set(p));b.Tag=percent;presets.Add(b);choices.Children.Add(b);}
-  controls.Children.Remove(choices);controls.Children.Add(Kit.Segments(choices));
-  // Owner, 9 Nov 2026: "remove the main slider". Outside PC mode it was only a test strength, which the four zones' own
-  // sliders now cover; in PC mode it stays, because there it's the saved strength games vibrate the pad at.
-  if(!draft.PcMode){var segments=controls.Children[^1];foreach(var gone in new UIElement[]{value,controls.Children[2],Strength,segments})controls.Children.Remove(gone);}
-  controls.Children.Add(Copy(draft.PcMode?"ZONES · each grip's share of the game's rumble · click one to feel it":"ZONES · click one to feel it",14));controls.Children.Add(BuildZones(Button));
-  Test=Button(HasTriggers?"Test all four":"Test both grips",()=>_=RunAll());Test.IsEnabled=!ReviewSandbox.Active;Test.Margin=new(0,12,0,0);controls.Children.Add(Test);
+  controls.Children.Add(Copy("VIBRATION · MOTOR TEST",14));
+  controls.Children.Add(Copy("Select a motor tile to feel it. Use its slider to set the strength.",14));
+  controls.Children.Add(BuildZones(Button));
+  Test=Button(HasTriggers?"Test all four":"Test both grips",()=>_=RunAll());
+  Test.Style=DS.Style("DS.MotorTile");Test.IsEnabled=!ReviewSandbox.Active;Test.Height=54;
+  Test.HorizontalAlignment=HorizontalAlignment.Stretch;Test.Margin=new(0,4,0,8);controls.Children.Add(Test);
   if(HasTriggers&&Diagnostics.BrowserTriggerRumble.Shared is {} shared)
   {
    void Armed()=>Test.Dispatcher.BeginInvoke(ShowTriggerState);
-   Body.Loaded+=(_,_)=>{shared.ArmedChanged-=Armed;shared.ArmedChanged+=Armed;_=shared.Ready();};Body.Unloaded+=(_,_)=>shared.ArmedChanged-=Armed;
+   motorControls.Loaded+=(_,_)=>{shared.ArmedChanged-=Armed;shared.ArmedChanged+=Armed;_=shared.Ready();};motorControls.Unloaded+=(_,_)=>shared.ArmedChanged-=Armed;
   }
   ShowTriggerState();
-  controls.Children.Add(Readback);if(draft.PcMode)controls.Children.Add(BuildGame());
+  Readback.TextWrapping=TextWrapping.Wrap;controls.Children.Add(Readback);
+  Strength.Maximum=draft.Max;Strength.Style=DS.Style("DS.Slider");Strength.Margin=new(0,4,0,10);
+  if(draft.PcMode)
+  {
+   controls.Children.Add(Copy("Game rumble strength",16));controls.Children.Add(value);controls.Children.Add(Strength);
+   var choices=new WrapPanel();
+   foreach(int percent in new[]{0,50,100,150,200}){int p=percent;var b=Button(percent==0?"Off":percent+"%",()=>Set(p));b.Tag=percent;presets.Add(b);choices.Children.Add(b);}
+   controls.Children.Add(Kit.Segments(choices));controls.Children.Add(BuildGame());
+  }
+  else
+  {
+   var label=Copy("Test-all strength · 100%",14);
+   testAllStrength.Style=DS.Style("DS.Slider");
+   testAllStrength.ValueChanged+=(_,_)=>label.Text=$"Test-all strength · {testAllStrength.Value:0}%";
+   System.Windows.Automation.AutomationProperties.SetName(testAllStrength,"Test-all strength");
+   controls.Children.Add(label);controls.Children.Add(testAllStrength);
+  }
   Shelf.Children.Add(Copy("Click a zone to feel it at its own strength",14));
   var art=(UIElement)Body.Children[0];Body.Children.Remove(art);var artPanel=Kit.Panel(null,null,null,art);artPanel.Margin=new(0,0,16,0);Body.Children.Add(artPanel);
-  Body.Children.Remove(controls);controls.Margin=new(0);var controlPanel=Kit.Panel(null,null,null,new ScrollViewer{Content=controls,VerticalScrollBarVisibility=ScrollBarVisibility.Auto});Grid.SetColumn(controlPanel,1);Body.Children.Add(controlPanel);
+  Body.Children.Remove(controls);controls.Margin=new(0);motorControls.Content=controls;
+  var controlPanel=Kit.Panel(null,null,null,motorControls);Grid.SetColumn(controlPanel,1);Body.Children.Add(controlPanel);
   Strength.ValueChanged+=(_,_)=>{if(!updating)Set((int)Strength.Value);};Refresh();SelectRegion("All");
   Button Button(string text,Action action){var b=new Button{Content=text,Style=DS.Style("ActionButton"),Height=42,MinHeight=42,Padding=new(14,0,14,0),Margin=new(0,5,8,5),HorizontalAlignment=HorizontalAlignment.Left};b.Click+=(_,_)=>action();register(b);return b;}
  }
@@ -63,27 +80,38 @@ public sealed class VibrationWorkbench
  static bool IsTrigger(Zone zone)=>zone is Zone.LeftTrigger or Zone.RightTrigger;
  UIElement BuildZones(Func<string,Action,Button> button)
  {
+  const double tileSize=160;
   var grid=new System.Windows.Controls.Primitives.UniformGrid{Columns=2,Margin=new(0,0,0,4)};
   foreach(var (zone,name) in zoneNames.Where(n=>HasTriggers||!IsTrigger(n.Zone)))
   {
-   var z=zone;var card=new StackPanel{Margin=new(0,0,10,10)};
-   var head=new Grid();head.ColumnDefinitions.Add(new());head.ColumnDefinitions.Add(new(){Width=GridLength.Auto});
-   var face=button(name,()=>_=RunZone(z));face.IsEnabled=!ReviewSandbox.Active;face.Margin=new(0,0,8,0);head.Children.Add(face);
-   var value=new TextBlock{FontSize=15,FontWeight=FontWeights.SemiBold,Foreground=Brushes.White,VerticalAlignment=VerticalAlignment.Center};Grid.SetColumn(value,1);head.Children.Add(value);
+   var z=zone;bool right=z is Zone.RightTrigger or Zone.RightGrip;
+   var pair=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Center,Margin=new(4,0,4,12)};
+   var face=button(name,()=>_=RunZone(z));
+   face.Style=DS.Style("DS.MotorTile");face.Width=face.Height=tileSize;face.Padding=new(8,0,8,0);
+   face.Margin=new(0);face.IsEnabled=!ReviewSandbox.Active;
+   System.Windows.Automation.AutomationProperties.SetName(face,"Test "+name.ToLowerInvariant());
+   var nameLabel=new TextBlock{Text=name,FontSize=15,FontWeight=FontWeights.SemiBold,TextAlignment=TextAlignment.Center};
+   var value=new TextBlock{FontSize=25,FontWeight=FontWeights.SemiBold,TextAlignment=TextAlignment.Center,Margin=new(0,4,0,0)};
+   face.Content=new StackPanel{Children={nameLabel,value}};
    // PC mode: a grip's slider is that motor's saved share of the game's rumble, up to 200%; otherwise a test strength
    bool share=Draft.PcMode&&!IsTrigger(z);
-   var slider=new Slider{Minimum=0,Maximum=share?Draft.Max:100,TickFrequency=5,IsSnapToTickEnabled=true,Value=share?(z==Zone.LeftGrip?Draft.Left:Draft.Right):75,Style=DS.Style("DS.Slider"),Margin=new(0,6,0,0)};
+   var slider=new Slider{Minimum=0,Maximum=share?Draft.Max:100,TickFrequency=5,SmallChange=5,LargeChange=10,IsSnapToTickEnabled=true,Value=share?(z==Zone.LeftGrip?Draft.Left:Draft.Right):75,Style=DS.Style("DS.MotorSlider"),Height=tileSize,Margin=right?new(0,0,8,0):new(8,0,0,0)};
+   System.Windows.Automation.AutomationProperties.SetName(slider,name+" strength");
    slider.ValueChanged+=(_,_)=>{value.Text=(int)slider.Value+"%";if(share&&!updating){int v=(int)slider.Value;if(z==Zone.LeftGrip)Draft.SetMotors(v,Draft.Right,Draft.Floor);else Draft.SetMotors(Draft.Left,v,Draft.Floor);Changed?.Invoke();}};value.Text=(int)slider.Value+"%";
-   card.Children.Add(head);card.Children.Add(slider);grid.Children.Add(card);zones[z]=(face,slider,value);
+   if(right)pair.Children.Add(slider);
+   pair.Children.Add(face);
+   if(!right)pair.Children.Add(slider);
+   grid.Children.Add(pair);zones[z]=(face,slider,value);
   }
   return grid;
  }
  async Task RunZone(Zone zone)
  {
+  if(testing||ReviewSandbox.Active)return;
   int percent=ZoneStrength(zone);string name=zoneNames.First(n=>n.Zone==zone).Name;
   if(zone is Zone.LeftGrip or Zone.RightGrip)SelectRegion(name);
   if(percent==0){Readback.Text=name+" is at 0%.";return;}
-  var face=zones[zone].Face;face.IsEnabled=false;
+  var face=zones[zone].Face;SetTesting(face,true);
   try
   {
    if(IsTrigger(zone))
@@ -103,17 +131,33 @@ public sealed class VibrationWorkbench
     Readback.Text=sent?$"{name} buzzed at {percent}%.":"No controller found.";
    }
   }
-  finally{face.IsEnabled=!ReviewSandbox.Active;}
+  finally{SetTesting(face,false);}
  }
  /// <summary>All four at once, each at its own strength (the triggers only once trigger rumble is on).</summary>
  async Task RunAll()
  {
-  SelectRegion("All");Test.IsEnabled=false;Readback.Text=HasTriggers?"Buzzing all four…":"Buzzing both grips…";
-  var shared=Diagnostics.BrowserTriggerRumble.Shared;bool triggers=HasTriggers&&shared?.Armed==true;
-  if(triggers)_=shared!.Play(ZoneStrength(Zone.LeftTrigger)/100.0,ZoneStrength(Zone.RightTrigger)/100.0,1000);
-  bool sent=await ControllerRumble.Test(ZoneStrength(Zone.LeftGrip),ZoneStrength(Zone.RightGrip));
-  Test.IsEnabled=true;
-  Readback.Text=!sent?"No controller found.":!HasTriggers?"Both grips buzzed.":triggers?"All four buzzed.":"The grips buzzed. Click a trigger to turn on trigger rumble.";
+  if(testing||ReviewSandbox.Active)return;
+  int Level(Zone zone)=>ZoneStrength(zone)*(int)testAllStrength.Value/100;
+  if(zones.Keys.All(z=>Level(z)==0)){Readback.Text="All motors are at 0%.";return;}
+  SelectRegion("All");SetTesting(Test,true);Readback.Text=HasTriggers?"Buzzing all four…":"Buzzing both grips…";
+  try
+  {
+   var shared=Diagnostics.BrowserTriggerRumble.Shared;
+   var triggerTask=HasTriggers&&shared?.Armed==true
+    ? shared.Play(Level(Zone.LeftTrigger)/100.0,Level(Zone.RightTrigger)/100.0,1000)
+    : Task.FromResult(false);
+   bool grips=await ControllerRumble.Test(Level(Zone.LeftGrip),Level(Zone.RightGrip));
+   bool triggers=await triggerTask;
+   Readback.Text=grips?(triggers?"Grip and trigger test sent.":HasTriggers?"Grip test sent. Click a trigger to turn on trigger rumble.":"Grip test sent.")
+    :triggers?"Trigger test sent. The grips aren't reachable.":"No controller found.";
+  }
+  finally{SetTesting(Test,false);}
+ }
+ void SetTesting(Button active,bool running)
+ {
+  testing=running;active.Tag=running?"Testing":null;
+  Test.IsEnabled=!running;
+  foreach(var item in zones.Values)item.Face.IsEnabled=!running;
  }
  void ShowTriggerState()
  {
@@ -146,8 +190,8 @@ public sealed class VibrationWorkbench
   Motor(panel,"Minimum for faint effects",0,X20Ctl.Zone.PcMode.PcModeProfile.MaxVibrationFloor,"%",()=>Draft.Floor,v=>Draft.SetMotors(Draft.Left,Draft.Right,v));
   panel.Children.Add(Copy("Above 100% weak effects get stronger; the strongest stay at full power.",13));
   live.Tick+=(_,_)=>ShowLive();
-  Body.IsVisibleChanged+=(_,_)=>{if(Body.IsVisible&&!ReviewSandbox.Active)live.Start();else live.Stop();};
-  Body.Unloaded+=(_,_)=>live.Stop();
+  motorControls.IsVisibleChanged+=(_,_)=>{if(motorControls.IsVisible&&!ReviewSandbox.Active)live.Start();else live.Stop();};
+  motorControls.Unloaded+=(_,_)=>live.Stop();
   ShowLive();
   return panel;
  }
@@ -172,6 +216,6 @@ public sealed class VibrationWorkbench
  public void Set(int percent){previewStrength=Math.Clamp(percent,0,Draft.Max);if(Draft.CanEdit)Draft.Set(previewStrength);Refresh();Changed?.Invoke();}
  public void Reset(){if(Draft.CanEdit)Draft.Reset();previewStrength=Draft.Strength;Refresh();Changed?.Invoke();}
  public void Refresh(){updating=true;if(Draft.CanEdit)previewStrength=Draft.Strength;value.Text=previewStrength+"%";Strength.Value=previewStrength;Visualizer.SetStrength(Math.Min(100,previewStrength));foreach(var (slider,label,get,unit) in motors){slider.Value=get();label.Text=get()+unit;}if(Draft.PcMode){if(ZoneSlider(Zone.LeftGrip) is {} l)l.Value=Draft.Left;if(ZoneSlider(Zone.RightGrip) is {} r)r.Value=Draft.Right;}foreach(var b in presets)b.Foreground=(int)b.Tag==previewStrength?new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(17,24,39))):Brushes.LightSteelBlue;foreach(var b in presets)b.Background=(int)b.Tag==previewStrength?Brushes.White:DS.Brush("Control.ButtonFill");updating=false;}
- public void FocusPreset()=>presets.OrderBy(b=>Math.Abs((int)b.Tag-previewStrength)).First().Focus();
+ public void FocusPreset()=>(presets.OrderBy(b=>Math.Abs((int)b.Tag-previewStrength)).FirstOrDefault()??ZoneButton(Zone.LeftGrip))?.Focus();
  public bool HandleKey(KeyEventArgs e){if(Keyboard.FocusedElement!=Strength || e.Key is not(Key.Left or Key.Right))return false;Set(previewStrength+(e.Key==Key.Right?1:-1)*((Keyboard.Modifiers&ModifierKeys.Shift)!=0?5:1));e.Handled=true;return true;}
 }

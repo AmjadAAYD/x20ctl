@@ -15,6 +15,8 @@ public static class ControllerRecords
     ];
     const int ChannelSize = 7, StickScale = 1, TriggerScale = 2;
     static byte Code(string name) => RemapSources.First(s => s.Name == name).Code;
+    /// <summary>Whether the pad's remap record has a slot for this button, as a source and as a target.</summary>
+    public static bool Remappable(string name) => RemapSources.Any(s => s.Name == name);
 
     public static byte[] BuildRemap(IReadOnlyDictionary<string, string> changes)
     {

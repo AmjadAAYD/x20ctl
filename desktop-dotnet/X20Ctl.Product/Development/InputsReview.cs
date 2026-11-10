@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using X20Ctl.Zone;
 namespace X20Ctl.Product.Development;
 
 /// <summary>The Mouse and Keyboard pages laid out off screen and saved as pictures, top to bottom. No window is shown and
@@ -41,12 +42,48 @@ internal static class InputsReview
         sample.Keys["X"] = "K:87"; sample.Keys["LB"] = "K:160"; sample.Keys["RB"] = "M:Back"; sample.Keys["DPAD_UP"] = "K:49";
         sample.Custom["Y"] = [new() { Output = "K:81", HoldMs = 50, PauseMs = 30 }, new() { Output = "K:69", HoldMs = 50, PauseMs = 0 }];
         link.Store.Save(PcModePage.StoreKey, sample);
-        link.Service.Enabled = true; window.Host.EnterStudio(0); studio = window.Host.Studio!;
+        link.Service.Enabled = true;
+        await window.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ContextIdle);
+        var navigationFailures = new List<string>();
+        studio = window.Host.Studio!;
+        if (!studio.Draft.PcMode || !studio.TabOrderForReview.Contains("Keyboard"))
+        {
+            navigationFailures.Add("Turning on PC Mode left the existing Studio in native mode.");
+            window.Host.EnterStudio(0); studio = window.Host.Studio!;
+        }
+        var strip = (FrameworkElement)studio.FindName("NavigationLayer");
+        strip.Width = 890;
+        root.Measure(new Size(1920, 1150)); root.Arrange(new Rect(0, 0, 1920, 1150)); root.UpdateLayout();
+        await window.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ContextIdle);
+        var mouseTab = (RadioButton)studio.FindName("MouseNav");
+        if (studio.KeyboardNav?.Visibility != Visibility.Visible || mouseTab.Visibility != Visibility.Visible)
+            navigationFailures.Add("The compact strip hid Keyboard or Mouse.");
+        var more = (Button)studio.FindName("NavigationMore");
+        var track = (FrameworkElement)studio.FindName("NavigationTrack");
+        more.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        if (more.Visibility != Visibility.Visible || more.DesiredSize.Height > track.ActualHeight)
+            navigationFailures.Add("The overflow button does not fit inside the tab strip.");
+        if (navigationFailures.Count > 0) throw new InvalidOperationException(string.Join(" ", navigationFailures));
+        studio.GoToTab("Keyboard");
+        if (studio.KeyboardPage == null) throw new InvalidOperationException("The Keyboard tab did not open its editor.");
+        studio.StepTab(1);
+        if (studio.ManagementPage != "Mouse" || studio.InputContext != InputOwner.UiNavigation)
+            throw new InvalidOperationException("Idle Mouse settings blocked tab navigation.");
+        studio.StepTab(-1);
+        if (studio.ManagementPage != "Keyboard") throw new InvalidOperationException("Could not return from Mouse to Keyboard.");
+        await Shoot("pc-tabs-compact");
+        strip.Width = double.NaN;
         report.Add("tabs, PC mode on: " + string.Join(", ", studio.TabOrderForReview));
         studio.ShowManagement("Keyboard"); await Shoot("keyboard");
         if (studio.KeyboardPage is { } keys) { keys.Select("Y"); await Shoot("keyboard-custom"); }
         studio.ShowManagement("Mouse"); await Shoot("mouse-pc");
-        link.Service.Enabled = false; window.Host.EnterStudio(0); studio = window.Host.Studio!;
+        window.Host.MouseMode!.TakeControl(0, "x20_pro", preview:true);
+        if (studio.InputContext != InputOwner.TesterCapture) throw new InvalidOperationException("Mouse testing did not capture input.");
+        window.Host.MouseMode.Active = window.Host.MouseMode.Previewing = false;
+        link.Service.Enabled = false;
+        await window.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ContextIdle);
+        studio = window.Host.Studio!;
+        if (studio.Draft.PcMode || studio.TabOrderForReview.Contains("Keyboard")) throw new InvalidOperationException("Turning PC Mode off left its Keyboard editor active.");
         report.Add("tabs, PC mode off again: " + string.Join(", ", studio.TabOrderForReview));
 
         // leaving and coming back shows the same settings and tab
@@ -82,6 +119,35 @@ internal static class InputsReview
         window.Scene.AssignController(1, window.Host.Catalog.Get("x20_pro")); window.Host.EnterStudio(1); studio = window.Host.Studio!;
         studio.ShowVibration(true); await Shoot("x20pro-vibration-off");
         report.Add("x20 pro vibration, PC mode off: " + string.Join(" / ", Texts(studio).Where(t => t.Contains("ZONES") || t.Contains("grip") || t.Contains("trigger") || t.Contains("Test"))));
+        foreach (var theme in ThemeCatalog.All.Skip(1))
+        {
+            ThemeCatalog.Apply(theme);
+            var host = new ProductHost(new ZoneScene(true), Path.Combine(directory, theme.Id + "-assignments.json"));
+            host.Zone.AssignController(0, host.Catalog.Get("x20_pro"));
+            host.PcMode!.Enabled = true;
+            host.EnterStudio(0);
+            var themed = host.Studio!;
+            var stage = new DesignStage { Child = host };
+            using var source = new System.Windows.Interop.HwndSource(new System.Windows.Interop.HwndSourceParameters("Themed input review")
+            {
+                WindowStyle = unchecked((int)0x80000000), Width = 1600, Height = 900,
+                PositionX = -32000, PositionY = -32000,
+            }) { RootVisual = stage };
+            themed.GoToTab("Keyboard");
+            await themed.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ContextIdle);
+            stage.Measure(new Size(1600, 900)); stage.Arrange(new Rect(0, 0, 1600, 900)); stage.UpdateLayout();
+            if (themed.KeyboardPage?.Body.IsVisible != true || themed.KeyboardNav?.Visibility != Visibility.Visible ||
+                ((RadioButton)themed.FindName("MouseNav")).Visibility != Visibility.Visible ||
+                Find<HeaderBattery>(themed)?.Visibility != Visibility.Collapsed)
+                throw new InvalidOperationException(theme.Id + ": Keyboard, Mouse or battery visibility is incorrect.");
+            Save(stage, Path.Combine(directory, theme.Id + "-keyboard.png"));
+            themed.GoToTab("Vibration");
+            await themed.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ContextIdle);
+            stage.UpdateLayout();
+            if (themed.Vibration?.ZoneButton(VibrationWorkbench.Zone.RightTrigger)?.IsVisible != true)
+                throw new InvalidOperationException(theme.Id + ": Vibration did not show its trigger motor tiles.");
+            report.Add(theme.Name + ": Keyboard and Mouse tabs, hidden battery and motor tiles verified.");
+        }
         File.WriteAllLines(Path.Combine(directory, "inputs.txt"), report);
     }
 

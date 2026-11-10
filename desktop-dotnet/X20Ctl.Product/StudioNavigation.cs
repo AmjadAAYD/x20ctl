@@ -36,7 +36,12 @@ public partial class StudioScene
         NavigationIndicator.RenderTransform=new TransformGroup{Children={navigationLensScale,navigationSlide}};
         NavigationIndicator.RenderTransformOrigin=new(.5,.5);
         NavigationIndicator.Effect=null;
-        NavigationMore.ContextMenu=new ContextMenu();NavigationMore.Click+=(_,_)=>NavigationMore.ContextMenu.IsOpen=true;
+        NavigationMore.ContextMenu=new ContextMenu
+        {
+            PlacementTarget=NavigationMore,
+            Placement=System.Windows.Controls.Primitives.PlacementMode.Bottom,
+        };
+        NavigationMore.Click+=(_,_)=>NavigationMore.ContextMenu.IsOpen=true;
         NavigationLayer.SizeChanged+=(_,_)=>QueueNavigation();Loaded+=(_,_)=>QueueNavigation();
     }
     private void UpdateNavigation()
@@ -46,19 +51,30 @@ public partial class StudioScene
         try
         {
             // Reserve the bumper positions even in capture pages: tab coordinates never shift under the lens.
-            PreviousTab.Visibility=NextTab.Visibility=ManagementPage is "Diagnostics" or "Mouse"?Visibility.Hidden:Visibility.Visible;
-            double available=Math.Max(80,NavigationLayer.ActualWidth-152),used=0;
+            PreviousTab.Visibility=NextTab.Visibility=ManagementPage=="Diagnostics"||MouseCapturesInput?Visibility.Hidden:Visibility.Visible;
+            DashboardFlip.Measure(new Size(double.PositiveInfinity,double.PositiveInfinity));
+            double flipSpace=DashboardFlip.Visibility==Visibility.Visible?DashboardFlip.DesiredSize.Width+12:0;
+            double available=Math.Max(80,NavigationLayer.ActualWidth-152-flipSpace),used=0;
             foreach(var tab in navigation){tab.Visibility=Visibility.Visible;tab.Measure(new Size(double.PositiveInfinity,48));used+=tab.DesiredSize.Width;}
-            NavigationMore.ContextMenu!.Items.Clear();
-            foreach(var tab in pcTabs.Reverse().Concat(new[]{MouseNav,KeyboardNav!,VibrationNav,MacrosNav,CurvesNav,DeviceNav,SetupsNav}).Where(t=>navigation.Contains(t)))
+            var menu=NavigationMore.ContextMenu!;
+            menu.Items.Clear();
+            NavigationMore.Visibility=used>available?Visibility.Visible:Visibility.Collapsed;
+            NavigationMore.Measure(new Size(double.PositiveInfinity,double.PositiveInfinity));
+            double moreWidth=NavigationMore.DesiredSize.Width;
+            var overflow=new HashSet<RadioButton>();
+            // Keep the PC input editors beside each other. Move PC utilities and secondary pages first.
+            foreach(var tab in pcTabs.Reverse().Concat(new[]{DeviceNav,SetupsNav,ScreenNav,RgbNav,MacrosNav,VibrationNav,CurvesNav,MouseNav,KeyboardNav!,ButtonsNav,DashboardNav}).Where(navigation.Contains))
             {
-                if(used+(NavigationMore.ContextMenu.Items.Count>0?90:0)<=available)break;
+                if(used+moreWidth<=available)break;
                 used-=tab.DesiredSize.Width;tab.Visibility=Visibility.Collapsed;
-                var item=new MenuItem{Header=tab.Content,IsCheckable=true,IsChecked=tab.IsChecked==true};var destination=tab;
-                item.Click+=(_,_)=>destination.RaiseEvent(new RoutedEventArgs(RadioButton.ClickEvent));NavigationMore.ContextMenu.Items.Add(item);
+                overflow.Add(tab);
             }
-            NavigationMore.Visibility=NavigationMore.ContextMenu.Items.Count>0?Visibility.Visible:Visibility.Collapsed;
-            NavigationTrack.Width=Math.Min(available,used+(NavigationMore.ContextMenu.Items.Count>0?90:0));NavigationTrack.HorizontalAlignment=HorizontalAlignment.Left;
+            foreach(var tab in navigation.Where(overflow.Contains))
+            {
+                var item=new MenuItem{Header=tab.Content,IsCheckable=true,IsChecked=tab.IsChecked==true};var destination=tab;
+                item.Click+=(_,_)=>destination.RaiseEvent(new RoutedEventArgs(RadioButton.ClickEvent));menu.Items.Add(item);
+            }
+            NavigationTrack.Width=Math.Min(available,used+moreWidth);NavigationTrack.HorizontalAlignment=HorizontalAlignment.Left;
             Grid.SetColumn(NextTab,0);Grid.SetColumnSpan(NextTab,3);NextTab.HorizontalAlignment=HorizontalAlignment.Left;NextTab.Margin=new(76+NavigationTrack.Width+6,0,0,4);
             NavigationTabs.UpdateLayout();var active=navigation.FirstOrDefault(t=>t.IsChecked==true);if(active==null){NavigationIndicator.Visibility=Visibility.Collapsed;return;}
             NavigationIndicator.Visibility=Visibility.Visible;

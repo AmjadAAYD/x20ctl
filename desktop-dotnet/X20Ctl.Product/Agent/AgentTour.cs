@@ -66,10 +66,11 @@ public sealed class AgentTour
                 var show = Build(step, before, after, measured?.For(step.Target), out var play);
                 body.Children.Clear(); body.Children.Add(show);
                 if (i > 0) Fx.Appear(show, .98, 260);
-                int morph = DS.Motion ? 2000 : 0, hold = 2600 + 700 * step.Rows.Count;
+                // owner, 8 Nov 2026: fast, not slow and visible any more: a glance at each change, then back to the answer
+                int morph = DS.Motion ? 550 : 0, hold = 700 + 250 * step.Rows.Count;
                 progress.BeginAnimation(FrameworkElement.WidthProperty, null); progress.Width = 0;
-                progress.BeginAnimation(FrameworkElement.WidthProperty, new DoubleAnimation(0, 620, TimeSpan.FromMilliseconds(600 + morph + hold)));
-                await Task.Delay(600, skip.Token);
+                progress.BeginAnimation(FrameworkElement.WidthProperty, new DoubleAnimation(0, 620, TimeSpan.FromMilliseconds(150 + morph + hold)));
+                await Task.Delay(150, skip.Token);
                 play(morph);
                 await Task.Delay(morph, skip.Token);
                 Held?.Invoke(step);

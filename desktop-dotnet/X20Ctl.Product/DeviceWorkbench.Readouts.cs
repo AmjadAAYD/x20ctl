@@ -8,6 +8,14 @@ namespace X20Ctl.Product;
 public sealed partial class DeviceWorkbench
 {
     private FrameworkElement? batteryTile;
+    private FrameworkElement? x10BatteryRow;
+    private bool batteryVisible = true;
+    internal void ShowBattery(bool visible)
+    {
+        batteryVisible = visible;
+        if (batteryTile != null) batteryTile.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        if (x10BatteryRow != null) x10BatteryRow.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+    }
     internal string ConnectionText => connection.Text;
     internal string BatteryText => battery.Text;
     internal string FirmwareText => firmware.Text;

@@ -66,6 +66,8 @@ public static class AgentKnowledge
             "", "", "using the desktop or a launcher from the couch", "while it is on, the controller drives the pointer instead of the app"),
         new(AgentVocabulary.OpenPage, "Open a page", "takes the owner to a page of the app: Diagnostics, Tools, Mouse, Curves, Buttons, Macros, Vibration, PC mode or the controller overview",
             "", "", "testing the controller (Diagnostics) or anything better done by hand", "the agent window steps aside"),
+        new(AgentVocabulary.LedColor, "LED colour", "the colour of the controller's own lights, read from the owner's words (blends, tints and shades too)",
+            "", "", "matching a setup, a team or a mood", "only the X20 Pro's lights are proven writable; the app reads the colour back"),
         new(AgentVocabulary.Reset, "Reset", "puts a stick, trigger or button back to its default", "", "", "starting over", "the change is undone"),
     ];
 

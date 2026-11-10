@@ -2,7 +2,7 @@ using System.Text.RegularExpressions;
 namespace X20Ctl.Zone.Agent;
 
 /// <summary>Things the app does itself when asked in the chat, instantly and without the model.</summary>
-public enum AgentCommand { None, AboutController, Battery, ChangeController, Star, Donate, Diagnostics }
+public enum AgentCommand { None, AboutController, Battery, ChangeController, Star, Donate, Diagnostics, Access }
 
 /// <summary>
 /// The agent's app commands (owner request, 13 Oct 2026): naming the controller ("EasySMX X20 Pro") gets "That's your
@@ -19,11 +19,18 @@ public static class AgentCommands
         sentence = AgentSpelling.Fix(sentence);
         string lower = " " + Regex.Replace(sentence.ToLowerInvariant().Replace('’', '\''), @"[^a-z0-9' ]", " ") + " ";
         lower = Regex.Replace(lower, @"\s+", " ");
-        // owner, 14 Oct 2026: asking for a diagnostic goes straight to the Diagnostics page
+        // "can you read my controller?": what the agent can reach, checked for real (owner, 8 Nov 2026)
+        if (Regex.IsMatch(lower, @"\b(can|do|are|could) you\b.*\b(read|access|see|write|reach|save|talk to|connect\w*|detect\w*)\b.*\b(controllers?|pads?|gamepads?|settings|config\w*|memory)\b|\b(check|test) (your |the )?access\b|\baccess check\b")) return AgentCommand.Access;
+        // owner, 14 Oct 2026: asking for a diagnostic starts the check-up (since 8 Nov 2026, on the agent's own screen)
         if (Regex.IsMatch(lower, @"\b(diagnos\w*|diagnost\w*|test (my |the )?(controller|pad|sticks?|buttons?|triggers?)|check (my |the )?(controller|pad|sticks?|buttons?))\b")) return AgentCommand.Diagnostics;
         // the battery now, not how long batteries last in general (that's a docs question)
         if (Regex.IsMatch(lower, @"\b(battery|batteries|charge left|charged|how much charge|power left)\b") && !Regex.IsMatch(lower, @"\b(hours?|last|lasts|life|lifespan|long|replace|buy)\b")) return AgentCommand.Battery;
-        if (Regex.IsMatch(lower, @"\b(change|switch|swap|another|different|other|pick|choose)\b.*\b(controllers?|pads?|gamepads?)\b|\bcontroller zone\b|\b(use|switch to|change to) (my |the )?(x20 pro|x20|x05 pro|dune)\b")) return AgentCommand.ChangeController;
+        // the whole sentence counts (owner, 8 Nov 2026: "change my controller to green" is about its colour, not another
+        // controller): only a request that is about switching and nothing more goes to the Controller Zone
+        if (Regex.IsMatch(lower, @"^ ?(?:i want to |i'd like to |let me |can i |could i |please |i need to )*(?:change|switch|swap|pick|choose|use)(?: to)? (?:my |the |a |an )?(?:another |different |other |new |second )?(?:controllers?|pads?|gamepads?)(?: please)? ?$")
+            || Regex.IsMatch(lower, @"\b(?:another|a different|a new|other|second) (?:controller|pad|gamepad)s? ?(?:please )?$")
+            || Regex.IsMatch(lower, @"\bcontroller zone\b")
+            || Regex.IsMatch(lower, @"\b(use|switch to|change to) (my |the )?(x20 pro|x20|x05 pro|dune)\b")) return AgentCommand.ChangeController;
         if (Regex.IsMatch(lower, @"\b(give|leave|drop) (you |it |the (repo|project) )?(a |one )?stars?\b|\bstar (the |this |your )?(repo|project|app|it|you)\b|\bstar on github\b|^ ?star ?$")) return AgentCommand.Star;
         if (Regex.IsMatch(lower, @"\b(donate|donation|donating|tip|support (you|the (dev|developer|project|app))|ko ?fi|buy (you|the dev) a coffee)\b")) return AgentCommand.Donate;
         // only the controller's name, maybe as a question: "EasySMX X20 Pro", "what is the x20 pro?"
@@ -41,9 +48,9 @@ public static class AgentCommands
         $"Yep, your {name}, at your service. What's wrong?",
     ]);
     public static string Diagnostics() => AgentVariety.Pick("diagnostics", [
-        "Opening Diagnostics: roll each stick round its edge, squeeze both triggers and press every button. I'll watch.",
-        "To Diagnostics! Move everything on me and we'll see what's off. Use Esc or the mouse to leave capture.",
-        "Taking you to Diagnostics. Wiggle, squeeze, press: I'm all yours.",
+        "Check-up time! It runs right here on my screen: let go, roll each stick, squeeze, press. I'll watch.",
+        "Let's check you over, here on my screen. Follow the steps and I'll measure everything.",
+        "Check-up on my screen, starting now. Wiggle, squeeze, press: I'm all yours.",
     ]);
     public static string ChangeController() => AgentVariety.Pick("change", [
         "Taking you to the Controller Zone. Pick another controller there, I'll wait right here. *taps foot*",
@@ -61,16 +68,36 @@ public static class AgentCommands
         "Opening the support page. You're the best player I've ever had.",
     ]);
 
-    /// <summary>What the battery reading says, in character. Level: empty, low, medium, full; wired; or null when Windows
-    /// didn't report it.</summary>
-    public static string Battery(string? level, string controllerName) => level switch
+    /// <summary>What the battery reading says, in character. Level: empty, low, medium, full; wired; the controller's own
+    /// reading over Bluetooth, "N/4" with " (Charging)" while it charges; or null when nothing reported it.</summary>
+    public static string Battery(string? level, string controllerName)
+    {
+        var bars = level == null ? null : Regex.Match(level, @"^\s*([0-4])\s*/\s*4");
+        if (bars is { Success: true })
+        {
+            int n = bars.Groups[1].Value[0] - '0';
+            bool charging = level!.Contains("charging", StringComparison.OrdinalIgnoreCase);
+            string said = n switch
+            {
+                4 => AgentVariety.Pick("battery-bt-4", ["My battery is full, 4 of 4 bars. Let's play all night!", "All 4 bars! I could go for hours."]),
+                3 => AgentVariety.Pick("battery-bt-3", ["My battery is at 3 of 4 bars. Plenty left.", "3 of 4 bars. We're good for a good while."]),
+                2 => AgentVariety.Pick("battery-bt-2", ["My battery is at 2 of 4 bars, about half.", "Half way: 2 of 4 bars left."]),
+                1 => AgentVariety.Pick("battery-bt-1", ["My battery is down to 1 of 4 bars. Plug me in soon, I'm getting sleepy.", "1 bar of 4 left! *yawns* A charge would be lovely."]),
+                _ => AgentVariety.Pick("battery-bt-0", ["My battery is nearly empty! Charge me before I nap mid-game.", "Running on fumes! Plug me in, please."]),
+            };
+            return said + (charging ? " And I'm charging right now." : "");
+        }
+        return Words(level, controllerName);
+    }
+
+    static string Words(string? level, string controllerName) => level switch
     {
         "full" => AgentVariety.Pick("battery-full", ["My battery is full. Let's play all night!", "Battery full! I could go for hours.", "Fully charged and ready to rumble."]),
         "medium" => AgentVariety.Pick("battery-medium", ["My battery is about half full. Plenty left for a few rounds.", "Battery at medium. We're good for a while."]),
         "low" => AgentVariety.Pick("battery-low", ["My battery is low. Plug me in soon, I'm getting sleepy.", "Battery low! *yawns* A charge would be lovely."]),
         "empty" => AgentVariety.Pick("battery-empty", ["My battery is nearly empty! Charge me before I nap mid-game.", "Running on fumes! Plug me in, please."]),
         "wired" => AgentVariety.Pick("battery-wired", ["I'm on a cable, so I'm running on wall power. No battery worries!", "Plugged in by cable, so no battery to worry about."]),
-        null => AgentVariety.Pick("battery-none", [$"Windows didn't tell me my battery level. Is your {controllerName} connected?", $"I can't feel my battery right now. Is your {controllerName} connected?"]),
+        null => AgentVariety.Pick("battery-none", [$"Neither Windows nor Bluetooth told me my battery level. Is your {controllerName} connected by Bluetooth, or in Xbox (XInput) mode?", $"I can't feel my battery right now. Bluetooth is the surest way for me to read it: is your {controllerName} connected that way?"]),
         _ => $"Windows says my battery is: {level}.",
     };
 }

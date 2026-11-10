@@ -11,16 +11,16 @@ public static class AgentVocabulary
     public const string StickDeadzone = "stick_deadzone", StickFullAt = "stick_full_at", StickAntiDeadzone = "stick_anti_deadzone", StickCurve = "stick_curve",
         TriggerDeadzone = "trigger_deadzone", TriggerFullAt = "trigger_full_at", TriggerCurve = "trigger_curve", Remap = "remap", Turbo = "turbo", Reset = "reset", Paddle = "paddle", MeasureDrift = "measure_drift", PcMode = "pc_mode",
         StickCurvePoints = "stick_curve_points", TriggerCurvePoints = "trigger_curve_points", StickMaxOutput = "stick_max_output", StickAxisRatio = "stick_axis_ratio", StickSquareGate = "stick_square_gate",
-        MouseMode = "mouse_mode", OpenPage = "open_page";
-    public static readonly string[] Actions = [StickDeadzone, StickFullAt, StickAntiDeadzone, StickCurve, StickCurvePoints, StickMaxOutput, StickAxisRatio, StickSquareGate, TriggerDeadzone, TriggerFullAt, TriggerCurve, TriggerCurvePoints, Remap, Turbo, Reset, Paddle, MeasureDrift, PcMode, MouseMode, OpenPage];
+        MouseMode = "mouse_mode", OpenPage = "open_page", LedColor = "led_color";
+    public static readonly string[] Actions = [StickDeadzone, StickFullAt, StickAntiDeadzone, StickCurve, StickCurvePoints, StickMaxOutput, StickAxisRatio, StickSquareGate, TriggerDeadzone, TriggerFullAt, TriggerCurve, TriggerCurvePoints, Remap, Turbo, Reset, Paddle, MeasureDrift, PcMode, MouseMode, OpenPage, LedColor];
     /// <summary>Pages the agent can take the owner to.</summary>
     public static readonly string[] Pages = ["Diagnostics", "Tools", "Mouse", "Curves", "Buttons", "Macros", "Vibration", "PcMode", "Device"];
     public static readonly string[] Sticks = ["LeftStick", "RightStick"], Triggers = ["LeftTrigger", "RightTrigger"];
     public static readonly string[] Buttons = [.. PadButtons.Mask.Keys, "LT", "RT"];
     public static readonly string[] AllPaddles = ["M1", "M2", "M3", "M4", "M5", "M6"];
     public static IReadOnlyCollection<string> Curves => CurveDraft.Presets.Keys.ToArray();
-    public const string All = "All", PcModeTarget = "PcMode", MouseTarget = "Mouse", PageTarget = "Page";
-    public static readonly string[] Targets = [.. Sticks, .. Triggers, .. Buttons, .. AllPaddles, All, PcModeTarget, MouseTarget, PageTarget];
+    public const string All = "All", PcModeTarget = "PcMode", MouseTarget = "Mouse", PageTarget = "Page", LightingTarget = "Lighting";
+    public static readonly string[] Targets = [.. Sticks, .. Triggers, .. Buttons, .. AllPaddles, All, PcModeTarget, MouseTarget, PageTarget, LightingTarget];
     public const int MaxTriggerDeadzone = 40, MinTriggerFullAt = 10, MaxActions = 8;
 
     /// <summary>The rear paddles a model has, from x20ctl/controllers/catalog.json (macroSlots).</summary>
@@ -175,6 +175,10 @@ public static class ProposalValidator
             case AgentVocabulary.StickSquareGate:
                 if (!stick) return No($"{a.Action} needs LeftStick or RightStick, not {a.Target}.");
                 return Word(a, ["on", "off"]);
+            case AgentVocabulary.LedColor:
+                if (a.Target != AgentVocabulary.LightingTarget) return No($"led_color needs the target Lighting, not {a.Target}.");
+                if (a.Value.ValueKind != JsonValueKind.String || !AgentColors.TryParse(a.ValueText, out var colour)) return No($"\"{a.ValueText}\" isn't a colour I can read. Use colour words such as \"blueish yellow\" or \"dark teal\", or a #hex code.");
+                return (CheckState.Ok, "Reads as " + colour + ".");
             case AgentVocabulary.MeasureDrift:
                 return stick ? (CheckState.Ok, "A reading: changes nothing.") : No($"measure_drift needs LeftStick or RightStick, not {a.Target}.");
             case AgentVocabulary.Reset:

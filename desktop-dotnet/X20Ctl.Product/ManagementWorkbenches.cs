@@ -149,12 +149,17 @@ public sealed partial class DeviceWorkbench
         var body=new StackPanel{Children={X10Status,rows}};
         ReadX10=ManagementVisuals.Action(resources,"Read from controller",async()=>
         {
-            ReadX10!.IsEnabled=false;X10Status.Text="Reading the X10 over Bluetooth…";rows.Children.Clear();
+            ReadX10!.IsEnabled=false;X10Status.Text="Reading the X10 over Bluetooth…";rows.Children.Clear();x10BatteryRow=null;
             try
             {
                 var reading=await X10BleClient.ReadAsync();
                 foreach(var (label,value) in X10BleClient.Describe(reading))
-                {var row=new Grid{Margin=new(0,0,0,8)};row.ColumnDefinitions.Add(new(){Width=new(110)});row.ColumnDefinitions.Add(new());row.Children.Add(ManagementVisuals.Copy(label,14));var detail=ManagementVisuals.Copy(value,14,true);Grid.SetColumn(detail,1);row.Children.Add(detail);rows.Children.Add(row);}
+                {
+                    var row=new Grid{Margin=new(0,0,0,8)};row.ColumnDefinitions.Add(new(){Width=new(110)});row.ColumnDefinitions.Add(new());
+                    row.Children.Add(ManagementVisuals.Copy(label,14));var detail=ManagementVisuals.Copy(value,14,true);Grid.SetColumn(detail,1);row.Children.Add(detail);
+                    if(label=="Battery"){x10BatteryRow=row;row.Visibility=batteryVisible?Visibility.Visible:Visibility.Collapsed;}
+                    rows.Children.Add(row);
+                }
                 if(reading.Battery is {} b)battery.Text=$"{b.Percent}%";firmware.Text=reading.Version.Firmware;
                 X10Status.Text="Read from the controller.";
             }
