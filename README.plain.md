@@ -6,8 +6,6 @@
 
 **Thank you EasySMX Kiin & Team EasySMX for supplying an EasySMX X20 Pro to build and test X20CTL.**
 
-**Special thanks to EasySMX-Khalil for providing an EasySMX Dune.**
-
 *This is the plain-text version of the README. The main README is an illustrated page; this copy keeps everything selectable and copyable.*
 
 > **Independent project.** X20CTL is open-source software. EasySMX supplied an X20 Pro to help develop it, but the app is not made, endorsed, sponsored or supported by EasySMX. Product names belong to their owners and are used only to say which controllers X20CTL works with.
@@ -63,7 +61,7 @@ The home screen. Each of the four players has a card; the selected card grows in
 
 Pick the model you hold. Each card names what the pad has: stick and trigger type, lighting, screen and back buttons. Choosing a model sets the layout and tools; connecting the hardware is a separate step.
 
-<p align="center"><img src="docs/screenshots/choose-controller.webp" alt="Choosing between eight EasySMX controllers" width="880"></p>
+<p align="center"><img src="docs/screenshots/choose-controller.webp" alt="Six EasySMX controllers featured in this guide" width="880"></p>
 
 ### Agent XCTL
 
@@ -106,24 +104,24 @@ Build sequences for the M back paddles, step by step, on a timeline. Each step h
 
 #### Vibration
 
-Set motor strength and watch the preview: each grip lights along its own edge and pulses with the motors. It is a visual preview of your setting, not a reading from the motors. The X20 Pro and the Dune have trigger motors; every other model has two grip motors.
+Adjust each grip motor separately and scale game rumble up to 200% in PC Mode. On the X20 Pro, you can also test each trigger motor. The preview shows your chosen settings while you adjust them.
 
 <p align="center"><img src="docs/screenshots/vibration.webp" alt="Vibration preview at 70 percent" width="880"></p>
 
 #### PC mode
 
-PC mode gives any controller remaps, turbo, stick and trigger curves and macros on the PC. X20CTL reads the real controller, applies your settings, and hands the result to the game as a virtual Xbox controller while the real one is hidden. Nothing is written to the controller.
+PC Mode applies remaps, turbo, stick and trigger curves, and macros on Windows. Games receive the result through a virtual Xbox 360 or DualShock 4 controller. Your settings stay on the PC.
 
 PC mode is a tab on every controller's Studio. While it's on, that controller's own **Buttons**, **Curves** and **Macros** tabs edit the PC mode settings, and every change applies right away.
 
 <p align="center"><img src="docs/screenshots/pc-mode.webp" alt="The PC mode tab" width="880"></p>
 
 - **Back paddles and macros.** EasySMX paddles don't have a button of their own: each one sends an ordinary button. So in PC mode, each macro slot is played by a real button you pick in the Macros tab, and that button plays the macro instead of its usual job.
-- **Up to four controllers at once, each with its own settings** and its own virtual Xbox controller, in the same order.
+- **Up to four controllers at once, each with its own settings** and its own virtual controller, in player order.
 - **Settings per game.** Give a running game its own settings; X20CTL switches to them while that game is in front, and back to *Every game* otherwise.
 - **Hold View + Menu for a second** to switch your settings off mid-game, and again to switch them back on.
 - **Share settings** as a file or as a short code to paste in a chat. Only the settings go in, never anything about you or your PC.
-- It's on by default but does nothing until you change a setting, and it only works while X20CTL is open.
+- PC Mode applies your settings while X20CTL is open.
 - The first time, it installs two small drivers by Nefarius: [ViGEmBus](https://github.com/nefarius/ViGEmBus) (the virtual controller) and [HidHide](https://github.com/nefarius/HidHide) (hides the real one). Their official installers are inside the exe, checked against pinned hashes. Remove them any time from Windows Settings → Apps.
 - **Turbo and macros can get you banned in online games.** You are responsible for the rules of the games you play.
 
@@ -183,9 +181,9 @@ It only reads. It never changes settings, lighting, vibration or firmware. Sendi
 
 <p align="center"><img src="docs/screenshots/controller-check.webp" alt="Controller Check introduction" width="880"></p>
 
-The Controller Check is the **Read scan**. Its partner, the **Write scan**, learns what KeyLinker writes to a controller. You change one setting in KeyLinker on an Android phone or an iPhone while the phone's Bluetooth log records, then open the log here, and you can send the findings to X20CTL. X20CTL shows who the controller says it is, what it offers, and the bytes the app changed. X20CTL sends nothing to the controller. It's slow: plan on 20 to 40 minutes the first time.
+Controller Check is the **Read scan**. It measures the input Windows receives. The **Write scan** identifies the controller and can read supported settings back. Its optional write test asks for confirmation before sending anything to the pad. Review the resulting ZIP before choosing whether to send it.
 
-Without a phone log, the command line can compare the controller's own settings before and after a change: `x20 state save before.json --label before`, change one setting in the official app and close it, `x20 state save after.json --label after`, then `x20 state diff before.json after.json`. It shows which record and bytes changed, not the messages that changed them.
+The command line can compare the controller's own settings before and after a change: `x20 state save before.json --label before`, change one setting in the official app and close it, `x20 state save after.json --label after`, then `x20 state diff before.json after.json`. It shows which record and bytes changed, not the messages that changed them.
 
 #### Feedback and About
 
@@ -197,17 +195,18 @@ Without a phone log, the command line can compare the controller's own settings 
 
 ## Supported controllers
 
-| Controller | Status |
+| Controller | Configuration |
 |---|---|
-| **EasySMX X20** | Verified. Full Studio: buttons, curves, macros (M1–M4), vibration, setups, tester |
-| EasySMX X20 Pro | Read-only preview: TMR sticks, six back buttons, four motors including the triggers |
-| EasySMX Dune | Read-only preview: TMR sticks, M1–M4, four motors including the triggers |
-| EasySMX X15 | Read-only preview |
-| EasySMX X10 | Read-only preview |
-| EasySMX X05 Pro | Read-only preview |
-| EasySMX D10 | Read-only preview |
+| EasySMX X20 | On-device configuration and PC Mode |
+| EasySMX X20 Pro | On-device configuration and PC Mode |
+| EasySMX X15 | PC Mode |
+| EasySMX X10 | PC Mode and experimental Bluetooth read-back |
+| EasySMX X05 Pro | PC Mode |
+| EasySMX D10 | PC Mode |
 
-For a preview model, nothing is written to the controller and nothing is stored as if it had been. A model becomes verified only once its settings can be read back from real hardware. Controller Check reports from owners help get each model there. With [PC mode](#pc-mode) on, every model gets remaps, curves and macros on the PC, since nothing is written to the controller.
+PC Mode needs a compatible Windows input connection. Native features depend on the model. The X10 Bluetooth read is experimental and is still awaiting a physical X10 test.
+
+The Windows app offers 10 languages, including Vietnamese. Untranslated text uses English. Select a language in the app to use it on the next launch.
 
 ## Download
 
