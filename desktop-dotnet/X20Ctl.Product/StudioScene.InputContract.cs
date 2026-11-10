@@ -42,9 +42,30 @@ public partial class StudioScene
 
     // ----- one tab order -----
     private string PageOfTab(RadioButton t) => Array.IndexOf(pcTabs, t) >= 0 ? "Pc" + (string)t.Content : t == DashboardNav ? "Dashboard" : t == ButtonsNav ? "Buttons" : t == CurvesNav ? "Curves" : t == MacrosNav ? "Macros" : t == VibrationNav ? "Vibration" : t == PcModeNav ? "PcMode" : t == RgbNav ? "RGB" : t == ScreenNav ? "Screen" : t == DeviceNav ? "Device" : t == MouseNav ? "Mouse" : t == KeyboardNav ? "Keyboard" : "Setups";
-    /// <summary>The visible tabs in order: the one list behind the tab strip, LB/RB, PageUp/PageDown and every theme.</summary>
-    internal string[] TabOrder => navigation.Select(PageOfTab).ToArray();
-    internal void StepTab(int step) { string current = ManagementPage == "PcMode" && PcDashboard ? "Pc" + PcModePage.Part : CurrentPage; if (StudioTabs.Step(TabOrder, current, step) is { } page) GoToTab(page); }
+    /// <summary>The tabs actually on the strip, in order: the one list behind LB/RB, PageUp/PageDown and every theme.
+    /// Tabs collapsed into More stay reachable from its menu, but are not a step of their own.</summary>
+    internal string[] TabOrder => visibleNavigation.Select(PageOfTab).ToArray();
+    internal void StepTab(int step)
+    {
+        string current = ManagementPage == "PcMode" && PcDashboard ? "Pc" + PcModePage.Part : CurrentPage;
+        var shown = visibleNavigation;
+        if (shown.Length == 0) return;
+        // Tester/Diagnostics are not tabs: they step from Device, the tab they open from.
+        string anchor = current is "Tester" or "Diagnostics" && navigation.Any(t => PageOfTab(t) == "Device") ? "Device" : current;
+        int at = Array.FindIndex(navigation, t => PageOfTab(t) == anchor);
+        if (at >= 0 && Array.IndexOf(shown, navigation[at]) < 0)
+        {
+            // The active page is a tab collapsed into More. Next/previous means the nearest tab still on the strip.
+            int direction = Math.Sign(step);
+            for (int n = 1; n <= navigation.Length; n++)
+            {
+                int i = ((at + direction * n) % navigation.Length + navigation.Length) % navigation.Length;
+                if (Array.IndexOf(shown, navigation[i]) >= 0) { GoToTab(PageOfTab(navigation[i])); return; }
+            }
+            return;
+        }
+        if (StudioTabs.Step(shown.Select(PageOfTab).ToArray(), current, step) is { } page) GoToTab(page);
+    }
     internal void GoToTab(string page)
     {
         navigation.FirstOrDefault(t => PageOfTab(t) == page)?.RaiseEvent(new RoutedEventArgs(RadioButton.ClickEvent));

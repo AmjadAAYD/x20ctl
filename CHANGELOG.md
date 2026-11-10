@@ -1,5 +1,25 @@
 # Changelog
 
+## [V0.024] - 2026-11-10
+
+### Added
+
+- **Handheld Agent XCTL.** The Agent uses the selected controller's body and finish around its screen. Its sidebar gives you access to Chat, Ideas, Setups, History, Live, Check-up and Look. The phrasebook and help search run on your PC without a downloaded chat model.
+- **Controller check-up in the Agent.** Follow the steps to check stick drift and range, trigger travel and button input. The report shows what X20CTL measured.
+- **Save and undo supported X20 Pro edits from the Agent.** With PC Mode off, the Agent can offer to save supported remaps and curve settings to the controller. It reads back the settings after writing. Undo stops if the affected controller record has changed since the save.
+
+### Changed
+
+- **Vibration motor tiles.** Click a square to test that motor and use the blue slider beside it to set its strength. The full-width control tests the motors together. Trigger tiles appear on models with trigger rumble.
+- **Battery display in PC Mode.** The battery indicator hides while PC Mode is on and returns with the latest reading when it is switched off.
+
+### Fixed
+
+- **PC Mode navigation.** Enabling PC Mode on the X20 Pro opens the appropriate Studio. The PC Mode button always opens its own Status tab, with the switch and controller type, instead of the section used last. Keyboard and Mouse stay together, secondary tabs move into More when space runs out, LB/RB step only through tabs on the strip, and switching pages no longer shifts RB, changes which tabs fit at the same window width, or flashes tabs that belong in More back onto the strip.
+- **Mouse and theme navigation.** Idle Mouse settings allow normal tab navigation. Pointer testing retains input capture. Keyboard opens with the correct background in all five shipped themes.
+
+The Windows release still requests administrator permission when opened. Agent controller writes and motor output in this release were verified with fixtures and offscreen checks. Physical output and write-back still need testing on hardware.
+
 ## [V0.023] - 2026-11-09
 
 ### Added

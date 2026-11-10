@@ -768,14 +768,15 @@ public partial class StudioScene : UserControl
     private PcModeLink? pcLink;
     /// <summary>Whether this controller gets the PC Mode entry (every pad except the X20 family).</summary>
     public bool PcModeEntryAvailable => X20Ctl.Zone.PcMode.PcModeEntry.IsAvailable(Model.Id);
-    /// <summary>The PC Mode entry: opens the page when it is already on, else the type and warning window, then switches it on.</summary>
+    /// <summary>The PC Mode entry: always opens PC mode's own Status section (the switch and controller type),
+    /// whether it is already on or the warning window is about to switch it on.</summary>
     public async void RequestPcMode()
     {
         if (pcLink == null || !PcModeEntryAvailable) return;
+        PcModePage.Part = "Status";
         if (pcLink.Service.Enabled) { ShowManagement("PcMode"); return; }
         if (!PcModeGate.Ask(Window.GetWindow(this), Model.Name, out var padType)) return;
         PcModePage.ChoosePad(pcLink, padType);
-        PcModePage.Part = "Status";
         var why = await PcModePage.SwitchFromAgent(pcLink, true);
         if (why != null) MessageBox.Show(Window.GetWindow(this), why, "PC Mode"); else ShowManagement("PcMode");
     }
@@ -933,10 +934,14 @@ public partial class StudioScene : UserControl
         }
         if (!list.Contains(MouseNav) && baseNavigation.Contains(MouseNav)) list.Add(MouseNav); // PC mode off: Mouse on the right
         navigation = list.ToArray();
-        foreach (var t in pcTabs) t.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
-        DeviceNav.Visibility = noDevice ? Visibility.Collapsed : Visibility.Visible; // the strip only ever shows tabs, so hide it here
-        MacrosNav.Visibility = swap && KeyboardNav != null ? Visibility.Collapsed : Visibility.Visible;
-        if (KeyboardNav != null) KeyboardNav.Visibility = swap ? Visibility.Visible : Visibility.Collapsed;
+        // Until the strip is measured, the mode's whole order is the order. UpdateNavigation narrows it to what fits.
+        visibleNavigation = navigation;
+        // Hide what this mode does not own. Tabs it does own keep the visibility UpdateNavigation gave them,
+        // so a tab collapsed into More is not flashed back onto the strip on every page change.
+        if (!on) foreach (var t in pcTabs) t.Visibility = Visibility.Collapsed;
+        if (noDevice) DeviceNav.Visibility = Visibility.Collapsed; // the strip only ever shows tabs, so hide it here
+        if (swap && KeyboardNav != null) MacrosNav.Visibility = Visibility.Collapsed;
+        if (KeyboardNav != null && !swap) KeyboardNav.Visibility = Visibility.Collapsed;
         // the strip draws its tabs in child order: put them in this order
         int at = 0;
         foreach (var t in list)

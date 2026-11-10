@@ -6,6 +6,7 @@ namespace X20Ctl.Product;
 public partial class StudioScene
 {
     private RadioButton[] navigation=[];
+    private RadioButton[] visibleNavigation=[];
     private RadioButton[] baseNavigation=[];
     /// <summary>PC mode's own tabs (owner, 6 Nov 2026): Status, Games, Turbo, Combos, Test, Share. They exist only while PC mode is on.</summary>
     private RadioButton[] pcTabs=[];
@@ -75,6 +76,8 @@ public partial class StudioScene
                 var item=new MenuItem{Header=tab.Content,IsCheckable=true,IsChecked=tab.IsChecked==true};var destination=tab;
                 item.Click+=(_,_)=>destination.RaiseEvent(new RoutedEventArgs(RadioButton.ClickEvent));menu.Items.Add(item);
             }
+            // LB/RB follow what is on the strip. A tab in More is reachable from its menu, not as a silent step.
+            visibleNavigation=navigation.Where(t=>t.Visibility==Visibility.Visible).ToArray();
             NavigationTrack.Width=Math.Min(available,used+moreWidth);NavigationTrack.HorizontalAlignment=HorizontalAlignment.Left;
             Grid.SetColumn(NextTab,0);Grid.SetColumnSpan(NextTab,3);NextTab.HorizontalAlignment=HorizontalAlignment.Left;NextTab.Margin=new(76+NavigationTrack.Width+6,0,0,4);
             NavigationTabs.UpdateLayout();var active=navigation.FirstOrDefault(t=>t.IsChecked==true);if(active==null){NavigationIndicator.Visibility=Visibility.Collapsed;return;}
