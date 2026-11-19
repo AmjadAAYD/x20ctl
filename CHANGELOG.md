@@ -1,5 +1,29 @@
 # Changelog
 
+## [V0.025] - 2026-11-19 — Final release for now
+
+**Final release for now.** This release brings the redesigned RGB Studio, simultaneous 2.4 GHz dongle + BLE lighting and configuration support, offline Agent XCTL upgrades, theme and motion polish, Linux Flatpak packaging, and critical Controller Check fixes for EasySMX X20 Pro owners.
+
+### Added
+
+- **Redesigned native RGB Studio.** Theme-aware Lighting Studio across all six themes (Default, Channel, Undertow, Alert, Slate, Multiverse) with an interactive 4-zone X20 Pro preview, custom effects (Rainbow, Wave, Pulse, Audio/Ambient, Battery lighting, and custom palettes), saved presets, Screen Ambient color sampling, and hardware-safe BLE transactions.
+- **Dongle + simultaneous BLE lighting and configuration.** When gaming over the 2.4 GHz receiver (`413D:2131`), X20 Pro lighting effects and supported settings send over simultaneous unpaired BLE whenever PC Bluetooth is on (no Windows pairing required). Agent Check-up now reports this setup clearly.
+- **Offline Agent XCTL upgrades.** Adds Tab-autocomplete, `+ New chat` cancellation for in-flight requests, interactive RGB lighting cards and effects commands, and improved undo/replay and spelling/NLU handling while staying 100% offline with no downloaded chat model.
+- **Linux Flatpak packaging and input ownership.** Adds Flatpak packaging/updater support and Linux input-ownership improvements, plus `413D:2131` receiver recognition in Linux Controller Check.
+
+### Changed
+
+- **Theme consistency and motion polish.** Replaces hardcoded WPF colors across Vibration, Screen, Stick Tools, and Management workbenches with active theme tokens, updates the Vibration visual and controller outlines, and restores smooth panel entrance motion.
+- **Clearer Controller Check mismatch handling.** When Windows reports a different EasySMX model name than selected, Controller Check now shows `"Detected <other>, not <chosen>"` and offers `"Continue as <chosen>"` alongside `"Enter Studio as <other>"` and `"Cancel"`. Real BLE hardware writes still verify the pad's own identity before sending.
+- **Updater and release maintenance.** Skips pre-releases in the updater, bumps `bleak` in `tools/controller-scan-kit` to 3.1.0, and updates release/CI actions (`download-artifact@v8`, `codeql-action@v4.39.3`, `signpath@v2`).
+
+### Fixed
+
+- **EasySMX X20 Pro misdetected as X20 on dongle / DInput (`0079:181C` / Steam `STK-7024X`) and `1D57:FA60`.** Removes the hardcoded `0079:181C` (`STK-7024X`) and retracted `1D57:FA60` (Xenta wireless mouse/keyboard receiver) rules that locked X20 Pro owners out of X20 Pro Studio (`M5`/`M6`, RGB, Screen). Shared `0079:181C` DInput devices now stay `Unconfirmed` with a hint to switch to XInput mode for full PC support, compact/hyphenated strings such as `EasySMX X20PRO` resolve to `X20 Pro` before `X20`, and `413D:2131` or an exact target match takes priority when multiple devices are connected.
+- **Crash guards and UI layout fixes.** Adds error guards around `async void` handlers in `StudioScene`, `DashboardConsolePage`, and `ProductWindow`, fixes Agent header status clipping and Battery lighting spectrum layout clipping, and fixes `AgentPanel.Checkup` receiver transport detection (`"Receiver"`).
+
+The Windows release still requests administrator permission when opened. RGB Studio layouts across all six themes, offline Agent features, and Controller Check identity rules were verified with automated tests and offscreen renders; live hardware behavior on the final packaged build (including X20 Pro DInput mode and simultaneous dongle + BLE writes) should still be verified on physical hardware.
+
 ## [V0.024] - 2026-11-10
 
 ### Added

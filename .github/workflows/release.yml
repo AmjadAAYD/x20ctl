@@ -204,7 +204,8 @@ jobs:
           # and the new (0.017), unless its CHANGELOG heading ends in "Pre-release" (owner, 7 Nov 2026): then it is a pre-release,
           # Latest stays where it is, and the in-app update check doesn't offer it
           name="$(python3 tools/version_name.py "$TAG")"; title="X20CTL $name"; kind="--latest"
-          if grep -Eq "^## \[${name//./\.}\].*Pre-release" CHANGELOG.md; then kind="--prerelease"; title="$title Pre-release"; fi
+          subtitle="$(python3 -c 'import re, sys; from pathlib import Path; m = re.search(rf"^## \[{re.escape(sys.argv[1])}\][^\n]*?\s(?:—|--)\s*(.+)$", Path("CHANGELOG.md").read_text(encoding="utf-8"), re.M); print(m.group(1).strip() if m else "")' "$name")"
+          if grep -Eq "^## \[${name//./\.}\].*Pre-release" CHANGELOG.md; then kind="--prerelease"; title="$title Pre-release"; elif [ -n "$subtitle" ]; then title="$title — $subtitle"; fi
           gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft $kind --verify-tag --title "$title" --notes-file notes.md
           gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" assets/*.exe assets/*.zip assets/*.tar.gz assets/*.AppImage assets/*.flatpak assets/SHA256SUMS.txt
           gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false
