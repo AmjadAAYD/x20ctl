@@ -5,6 +5,9 @@ public sealed record SetupCurve(string Preset,string BasePreset,int Inner,int Ou
 public sealed record SetupMacro(Guid Id,string[] Buttons,StickHeading Left,StickHeading Right,int HoldMs,int PauseMs);
 public sealed class SetupSnapshot
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public X20Ctl.Zone.Lighting.LightingEffectSpec? Lighting { get; set; }
+    public SetupSnapshot WithLighting(X20Ctl.Zone.Lighting.LightingEffectSpec? lighting) { Lighting = lighting?.Normalized(); return this; }
     public string ModelId {get;set;}="x20";
     public Dictionary<string,string> Mappings {get;set;}=new();
     public Dictionary<string,SetupCurve> Curves {get;set;}=new();

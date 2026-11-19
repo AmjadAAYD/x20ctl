@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using X20Ctl.Product.Scanner;
 using X20Ctl.Zone.Agent;
 using Sh = System.Windows.Shapes;
 
@@ -142,9 +143,21 @@ public partial class AgentPanel
     {
         var lines = new List<AccessLine>();
         int slot = CheckInput != null ? 1 : await Task.Run(() => XInputDriftMeter.Slot(player));
+        string? transport = null;
+        if (!ReviewSandbox.Active)
+        {
+            try
+            {
+                var inv = await Inventory.Bound(Task.Run(() => WindowsInventory.Read(false)), 3000);
+                transport = ScanFlow.DetectTransport(inv);
+            }
+            catch { }
+        }
         lines.Add(slot >= 0
-            ? new(true, $"I can see your {padName} live (Windows controller slot {slot + 1}): every stick, trigger and button.")
-            : new(false, $"I can't see your {padName} right now. Connect it by cable, Bluetooth or its dongle, in Xbox (XInput) mode."));
+            ? new(true, $"I can see your {padName} live (Windows slot {slot + 1}" + (transport != null ? $", {transport}" : "") + "): every stick, trigger and button.")
+            : new(false, $"I can't see your {padName} right now. Connect it by cable, 2.4 GHz dongle or Bluetooth, in Xbox (XInput) mode."));
+        if (transport == "2.4 GHz receiver")
+            lines.Add(new(true, "2.4 GHz dongle (413D:2131) carries gameplay only (no USB HID config channel) — settings and RGB send over simultaneous unpaired BLE whenever PC Bluetooth is ON."));
         if (FinishModel(modelId) == "x20_pro")
         {
             string? problem;
@@ -161,17 +174,19 @@ public partial class AgentPanel
             }
             catch (Exception error) when (PadFailure(error)) { problem = error.Message; }
             lines.Add(problem == null
-                ? new(true, "I can read the settings stored on it (mappings, curves, macros) over Bluetooth.")
-                : new(false, $"I couldn't read the settings stored on it: {problem.TrimEnd('.')}. Is it paired over Bluetooth and awake?"));
+                ? new(true, "I can read and save controller settings (mappings, curves, macros, RGB) over simultaneous BLE (works on 2.4 GHz dongle, USB, or Bluetooth).")
+                : new(false, $"I couldn't reach the controller's BLE config service: {problem.TrimEnd('.')}. Keep PC Bluetooth ON (no Windows pairing needed) and wake the controller."));
         }
         else lines.Add(new(false, $"The app can't read the settings stored on a {padName} yet, so I work through PC mode on this PC."));
-        if (ControllerWrites?.Invoke() == true)
+        if (FinishModel(modelId) == "x20_pro" && ControllerWrites?.Invoke() != false)
+            lines.Add(new(true, "Changes save automatically to controller memory over BLE with read-back verification (even while playing on the 2.4 GHz dongle)."));
+        else if (ControllerWrites?.Invoke() == true)
             lines.Add(new(true, "I can save changes on the controller itself. I show you each one first and read it back after."));
         else if (link != null)
             lines.Add(new(link.Service.Enabled, link.Service.Enabled
                 ? "My changes go to PC mode on this PC, which is on: games feel them straight away. The controller's own memory isn't written while PC mode is on."
                 : "My changes go to PC mode on this PC, but PC mode is off, so games won't feel them until you turn it on."));
-        else lines.Add(new(false, "Here I can only preview changes. Turn on PC mode, or use an X20 Pro with PC mode off, to apply them."));
+        else lines.Add(new(false, "Here I can only preview changes. Turn on PC mode, or use an X20 Pro, to apply them."));
         return lines;
     }
 

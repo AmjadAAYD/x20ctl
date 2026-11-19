@@ -66,8 +66,8 @@ public class LightingTransactionTests
   Assert.Single(pad.Sent,s=>s.op==0x37);
  }
  [Theory]
- [InlineData(0,0x10)] [InlineData(100,0xff)]
+ [InlineData(0,0x00)] [InlineData(100,0xff)]
  public void BrightnessEndsMapToTheTestedRange(double percent,byte expected)=>Assert.Equal(expected,LightingRecord.BrightnessByteFor(percent));
  [Fact]
- public void TheStoredDefaultReadsAsAboutAQuarter()=>Assert.Equal(27,Math.Round(LightingRecord.BrightnessPercentFor(0x50)));
+ public void TheStoredDefaultReadsAsAboutAThird()=>Assert.Equal(31,Math.Round(LightingRecord.BrightnessPercentFor(0x50)));
 }

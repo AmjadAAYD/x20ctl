@@ -13,7 +13,7 @@ public sealed class VibrationWorkbench
  public X20Ctl.Zone.VibrationDraft Draft {get;}
  public Slider Strength {get;}=new(){Minimum=0,Maximum=100,TickFrequency=1,IsSnapToTickEnabled=true};
  public Button Test {get;}
- public TextBlock Readback {get;}=new(){FontSize=14,Foreground=Brushes.LightSteelBlue};
+ public TextBlock Readback {get;}=new(){FontSize=14,Foreground=DS.Brush("DS.TextSoft")};
  public VibrationVisual Visualizer {get;}
  public IEnumerable<Button> PresetButtons=>presets;
  public event Action? Changed;
@@ -169,7 +169,7 @@ public sealed class VibrationWorkbench
  // Game vibration (PC mode): each motor's share of the game's rumble, a minimum for faint effects, and a live readout
  readonly List<(Slider Slider,TextBlock Label,Func<int> Get,string Unit)> motors=new();
  readonly System.Windows.Threading.DispatcherTimer live=new(){Interval=TimeSpan.FromMilliseconds(100)};
- public TextBlock LiveText {get;}=new(){FontSize=14,Foreground=Brushes.LightSteelBlue,TextWrapping=TextWrapping.Wrap,Margin=new(0,4,0,8)};
+ public TextBlock LiveText {get;}=new(){FontSize=14,Foreground=DS.Brush("DS.TextSoft"),TextWrapping=TextWrapping.Wrap,Margin=new(0,4,0,8)};
  readonly Border[] liveBars=new Border[4];
  public IReadOnlyList<Slider> MotorSliders=>motors.Select(m=>m.Slider).ToList();
  UIElement BuildGame()
@@ -181,9 +181,9 @@ public sealed class VibrationWorkbench
   for(int i=0;i<4;i++)
   {
    var row=new Grid{Margin=new(0,3,0,3)};row.ColumnDefinitions.Add(new(){Width=new(170)});row.ColumnDefinitions.Add(new());
-   row.Children.Add(new TextBlock{Text=names[i],FontSize=13,Foreground=Brushes.LightSteelBlue,VerticalAlignment=VerticalAlignment.Center});
+   row.Children.Add(new TextBlock{Text=names[i],FontSize=13,Foreground=DS.Brush("DS.TextSoft"),VerticalAlignment=VerticalAlignment.Center});
    var track=new Border{Height=10,CornerRadius=new(5),Background=DS.Brush("Control.ButtonFill"),VerticalAlignment=VerticalAlignment.Center};Grid.SetColumn(track,1);
-   var bar=new Border{Height=10,CornerRadius=new(5),Width=0,HorizontalAlignment=HorizontalAlignment.Left,Background=i%2==0?Brushes.LightSteelBlue:new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(90,170,255)))};
+   var bar=new Border{Height=10,CornerRadius=new(5),Width=0,HorizontalAlignment=HorizontalAlignment.Left,Background=i%2==0?DS.Brush("DS.AccentHi"):DS.Brush("DS.Accent")};
    track.Child=bar;liveBars[i]=bar;row.Children.Add(track);panel.Children.Add(row);
   }
   panel.Children.Add(LiveText);
@@ -198,8 +198,8 @@ public sealed class VibrationWorkbench
  void Motor(Panel panel,string name,int min,int max,string unit,Func<int> get,Action<int> set)
  {
   var head=new Grid{Margin=new(0,12,0,0)};head.ColumnDefinitions.Add(new());head.ColumnDefinitions.Add(new(){Width=GridLength.Auto});
-  head.Children.Add(new TextBlock{Text=name,FontSize=14,Foreground=Brushes.LightSteelBlue});
-  var label=new TextBlock{FontSize=14,FontWeight=FontWeights.SemiBold,Foreground=Brushes.White};Grid.SetColumn(label,1);head.Children.Add(label);panel.Children.Add(head);
+  head.Children.Add(new TextBlock{Text=name,FontSize=14,Foreground=DS.Brush("DS.TextSoft")});
+  var label=new TextBlock{FontSize=14,FontWeight=FontWeights.SemiBold,Foreground=DS.Brush("DS.Text")};Grid.SetColumn(label,1);head.Children.Add(label);panel.Children.Add(head);
   var slider=new Slider{Minimum=min,Maximum=max,TickFrequency=1,IsSnapToTickEnabled=true,Style=DS.Style("DS.Slider"),Margin=new(0,6,0,0),Value=get()};
   slider.ValueChanged+=(_,_)=>{if(updating)return;set((int)slider.Value);label.Text=get()+unit;Changed?.Invoke();};
   label.Text=get()+unit;motors.Add((slider,label,get,unit));panel.Children.Add(slider);
@@ -212,10 +212,10 @@ public sealed class VibrationWorkbench
   for(int i=0;i<4;i++)if(liveBars[i]?.Parent is Border track)liveBars[i].Width=Math.Max(0,track.ActualWidth)*percent[i]/100;
   LiveText.Text=fresh?$"Game {percent[0]}% / {percent[2]}% → controller {percent[1]}% / {percent[3]}%":"Play a game with PC mode on and its vibration shows here.";
  }
- static TextBlock Copy(string text,double size)=>new(){Text=text,FontSize=size,Foreground=Brushes.LightSteelBlue,TextWrapping=TextWrapping.Wrap,Margin=new(0,8,0,8)};
+ static TextBlock Copy(string text,double size)=>new(){Text=text,FontSize=size,Foreground=DS.Brush("DS.TextSoft"),TextWrapping=TextWrapping.Wrap,Margin=new(0,8,0,8)};
  public void Set(int percent){previewStrength=Math.Clamp(percent,0,Draft.Max);if(Draft.CanEdit)Draft.Set(previewStrength);Refresh();Changed?.Invoke();}
  public void Reset(){if(Draft.CanEdit)Draft.Reset();previewStrength=Draft.Strength;Refresh();Changed?.Invoke();}
- public void Refresh(){updating=true;if(Draft.CanEdit)previewStrength=Draft.Strength;value.Text=previewStrength+"%";Strength.Value=previewStrength;Visualizer.SetStrength(Math.Min(100,previewStrength));foreach(var (slider,label,get,unit) in motors){slider.Value=get();label.Text=get()+unit;}if(Draft.PcMode){if(ZoneSlider(Zone.LeftGrip) is {} l)l.Value=Draft.Left;if(ZoneSlider(Zone.RightGrip) is {} r)r.Value=Draft.Right;}foreach(var b in presets)b.Foreground=(int)b.Tag==previewStrength?new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(17,24,39))):Brushes.LightSteelBlue;foreach(var b in presets)b.Background=(int)b.Tag==previewStrength?Brushes.White:DS.Brush("Control.ButtonFill");updating=false;}
+ public void Refresh(){updating=true;if(Draft.CanEdit)previewStrength=Draft.Strength;value.Text=previewStrength+"%";Strength.Value=previewStrength;Visualizer.SetStrength(Math.Min(100,previewStrength));foreach(var (slider,label,get,unit) in motors){slider.Value=get();label.Text=get()+unit;}if(Draft.PcMode){if(ZoneSlider(Zone.LeftGrip) is {} l)l.Value=Draft.Left;if(ZoneSlider(Zone.RightGrip) is {} r)r.Value=Draft.Right;}foreach(var b in presets)LightingWindow.SetSelectedState(b,(int)b.Tag==previewStrength);updating=false;}
  public void FocusPreset()=>(presets.OrderBy(b=>Math.Abs((int)b.Tag-previewStrength)).FirstOrDefault()??ZoneButton(Zone.LeftGrip))?.Focus();
  public bool HandleKey(KeyEventArgs e){if(Keyboard.FocusedElement!=Strength || e.Key is not(Key.Left or Key.Right))return false;Set(previewStrength+(e.Key==Key.Right?1:-1)*((Keyboard.Modifiers&ModifierKeys.Shift)!=0?5:1));e.Handled=true;return true;}
 }

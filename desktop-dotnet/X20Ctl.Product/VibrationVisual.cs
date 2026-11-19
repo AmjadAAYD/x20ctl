@@ -33,8 +33,8 @@ public sealed class VibrationVisual : Grid
         var rim = Flow.LoadRim(model);
         // the strokes follow the edge of the colour the pad is shown in (each colour's shell is traced on its own)
         string finish = PadColours.Active(model);
-        var islands = Flow.Islands(model, finish);
-        behind = new Flow(tracks, false) { Rim = rim }; over = new Flow(tracks, true) { Rim = rim, Parts = islands, Palette = [ThemeCatalog.R(Color.FromRgb(246,191,105)),ThemeCatalog.R(Color.FromRgb(255,229,187))], Body = Flow.Silhouette(model, finish) };
+        var islands = ControllerOutlines.LoadIslands(model, finish);
+        behind = new Flow(tracks, false) { Rim = rim }; over = new Flow(tracks, true) { Rim = rim, Parts = islands, Palette = [ThemeCatalog.R(Color.FromRgb(246,191,105)),ThemeCatalog.R(Color.FromRgb(255,229,187))], Body = ControllerOutlines.LoadSilhouette(model, finish) };
         Children.Add(behind); Children.Add(new PhotoController(model)); Children.Add(over);
         RenderTransform = shake;
         Loaded += (_, _) => UpdateClock(); Unloaded += (_, _) => Stop(); IsVisibleChanged += (_, _) => UpdateClock();
@@ -83,58 +83,10 @@ public sealed class VibrationVisual : Grid
         private int strength; private double time; private bool moving;
         private static readonly Color Deep = ThemeCatalog.R(Color.FromRgb(56, 132, 255)), Ice = ThemeCatalog.R(Color.FromRgb(170, 214, 255)), White = ThemeCatalog.R(Color.FromRgb(240, 247, 255));
         public Track? Rim { get; init; }
-        public List<Island> Parts { get; init; } = [];
-
-        /// <summary>One of the four separate pieces that light up: a grip pad's loop or a bumper cap, resampled for the
-        /// travelling pulse, with its base line built once.</summary>
-        public sealed record Island(Point[] Points, double[] Along, double Length, bool Left, bool Grip, bool Closed, Geometry Line);
-
-        // owner, 13 Oct 2026: the line follows the controller's own outline, never a drawn shape. Each stroke is the stretch
-        // of the photo's silhouette round a grip (and the bumper tops on the X20 Pro and X15), set just inside the edge and
-        // smoothed. Fractions of the 1536 x 1024 photo, so they scale with it.
+        public List<ControllerOutlines.Island> Parts { get; init; } = [];
         /// <summary>The controller's exact outline from its photo. The light is clipped to it, so it lives on the controller's
         /// edge like an edge-lit bevel and never bleeds out into the background.</summary>
         public Geometry? Body { get; init; }
-        /// <summary>A colour's own entry ("model/colour") when it has one, else the model's.</summary>
-        private static bool Entry(System.Text.Json.JsonElement section, string model, string finish, out System.Text.Json.JsonElement entry) =>
-            section.TryGetProperty(model + "/" + finish, out entry) || section.TryGetProperty(model, out entry);
-        public static Geometry? Silhouette(string model, string finish = X20Ctl.Zone.FinishCatalog.Original)
-        {
-            try
-            {
-                using var doc = System.Text.Json.JsonDocument.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(AppContext.BaseDirectory, "Data", "vibration-outlines.json")));
-                if (!doc.RootElement.TryGetProperty("silhouettes", out var all) || !Entry(all, model, finish, out var pts)) return null;
-                var a = pts.EnumerateArray().Select(q => new Point(q[0].GetDouble() * 1536, q[1].GetDouble() * 1024)).ToList();
-                var g = new StreamGeometry();
-                using (var ctx = g.Open()) { ctx.BeginFigure(a[0], true, true); ctx.PolyLineTo(a.Skip(1).ToList(), false, true); }
-                g.Freeze(); return g;
-            }
-            catch (Exception e) when (e is System.IO.IOException or System.Text.Json.JsonException or InvalidOperationException) { return null; }
-        }
-        public static List<Island> Islands(string model, string finish = X20Ctl.Zone.FinishCatalog.Original)
-        {
-            var list = new List<Island>();
-            try
-            {
-                using var doc = System.Text.Json.JsonDocument.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(AppContext.BaseDirectory, "Data", "vibration-outlines.json")));
-                if (!Entry(doc.RootElement.GetProperty("models"), model, finish, out var shapes)) return list;
-                foreach (var shape in shapes.EnumerateArray())
-                {
-                    var pts = shape.GetProperty("points").EnumerateArray().Select(q => new Point(q[0].GetDouble() * 1536, q[1].GetDouble() * 1024)).ToList();
-                    if (pts.Count < 8) continue;
-                    bool closed = shape.TryGetProperty("closed", out var cl) && cl.GetBoolean();
-                    if (closed) pts.Add(pts[0]);
-                    var a = pts.ToArray(); var along = new double[a.Length];
-                    for (int k = 1; k < a.Length; k++) along[k] = along[k - 1] + (a[k] - a[k - 1]).Length;
-                    var line = new StreamGeometry();
-                    using (var ctx = line.Open()) { ctx.BeginFigure(a[0], false, closed); ctx.PolyLineTo(a.Skip(1).ToList(), true, true); }
-                    line.Freeze();
-                    list.Add(new Island(a, along, along[^1], shape.GetProperty("side").GetString() == "left", shape.GetProperty("part").GetString() == "grip", closed, line));
-                }
-            }
-            catch (Exception e) when (e is System.IO.IOException or System.Text.Json.JsonException or KeyNotFoundException or InvalidOperationException) { }
-            return list;
-        }
         /// <summary>Catmull-Rom through the traced points, so the contour reads as fitted, not hand drawn.</summary>
         private static Point[] Smooth(Point[] p, bool closed)
         {
@@ -287,7 +239,7 @@ public sealed class VibrationVisual : Grid
         }
         /// <summary>One pulse at progress q round the loop (outside 0..1 it is resting): a short bright strip of RGB light with
         /// feathered ends, a soft bloom under it, easing in as it starts and out as it ends.</summary>
-        private void Pulse(DrawingContext dc, Island part, double q, double m, double weight, double time)
+        private void Pulse(DrawingContext dc, ControllerOutlines.Island part, double q, double m, double weight, double time)
         {
             if (q is < 0 or > 1 || weight <= 0) return;
             // owner, 14 Oct 2026: the moving light is solid, so the line underneath never shows through it. Its tips taper in
@@ -320,7 +272,7 @@ public sealed class VibrationVisual : Grid
         }
         /// <summary>The whole stroke as one lit edge: the palette spread along it from its top end, fading to nothing at both
         /// ends. One geometry per layer, so the glow has no seams or beads.</summary>
-        private void EdgeGlow(DrawingContext dc, Island part, double alpha, double width, bool hot)
+        private void EdgeGlow(DrawingContext dc, ControllerOutlines.Island part, double alpha, double width, bool hot)
         {
             // the grips run down the outer edge, round the bottom and up the inner edge, so the colours run top to bottom
             var low = part.Points.MaxBy(q => q.Y);

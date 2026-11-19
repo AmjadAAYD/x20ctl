@@ -15,7 +15,7 @@ public static class AgentSpelling
         foreach (var i in OfflineAgent.Intents) words.UnionWith(Words(i.Meaning));
         foreach (var s in AgentHelp.Situations) { words.UnionWith(Words(s.Have)); words.UnionWith(Words(s.Say)); }
         words.UnionWith(["sticks", "stick", "triggers", "trigger", "buttons", "button", "turbo", "paddles", "paddle", "drift", "deadzone", "curves", "curve", "battery", "controller", "controllers", "donate", "star", "remap", "sensitivity",
-            "raise", "lower", "increase", "decrease", "reduce", "boost", "speed", "slower", "faster", "camera", "movement", "looking", "turning"]);
+            "raise", "lower", "increase", "decrease", "reduce", "boost", "speed", "slower", "faster", "camera", "movement", "looking", "turning", "write", "writes", "access", "reach"]);
         return words;
     });
     // the words a topic search is usually about: preferred when two known words are equally close

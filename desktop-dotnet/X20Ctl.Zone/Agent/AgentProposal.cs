@@ -11,8 +11,8 @@ public static class AgentVocabulary
     public const string StickDeadzone = "stick_deadzone", StickFullAt = "stick_full_at", StickAntiDeadzone = "stick_anti_deadzone", StickCurve = "stick_curve",
         TriggerDeadzone = "trigger_deadzone", TriggerFullAt = "trigger_full_at", TriggerCurve = "trigger_curve", Remap = "remap", Turbo = "turbo", Reset = "reset", Paddle = "paddle", MeasureDrift = "measure_drift", PcMode = "pc_mode",
         StickCurvePoints = "stick_curve_points", TriggerCurvePoints = "trigger_curve_points", StickMaxOutput = "stick_max_output", StickAxisRatio = "stick_axis_ratio", StickSquareGate = "stick_square_gate",
-        MouseMode = "mouse_mode", OpenPage = "open_page", LedColor = "led_color";
-    public static readonly string[] Actions = [StickDeadzone, StickFullAt, StickAntiDeadzone, StickCurve, StickCurvePoints, StickMaxOutput, StickAxisRatio, StickSquareGate, TriggerDeadzone, TriggerFullAt, TriggerCurve, TriggerCurvePoints, Remap, Turbo, Reset, Paddle, MeasureDrift, PcMode, MouseMode, OpenPage, LedColor];
+        MouseMode = "mouse_mode", OpenPage = "open_page", LedColor = "led_color", LedEffect = "led_effect";
+    public static readonly string[] Actions = [StickDeadzone, StickFullAt, StickAntiDeadzone, StickCurve, StickCurvePoints, StickMaxOutput, StickAxisRatio, StickSquareGate, TriggerDeadzone, TriggerFullAt, TriggerCurve, TriggerCurvePoints, Remap, Turbo, Reset, Paddle, MeasureDrift, PcMode, MouseMode, OpenPage, LedColor, LedEffect];
     /// <summary>Pages the agent can take the owner to.</summary>
     public static readonly string[] Pages = ["Diagnostics", "Tools", "Mouse", "Curves", "Buttons", "Macros", "Vibration", "PcMode", "Device"];
     public static readonly string[] Sticks = ["LeftStick", "RightStick"], Triggers = ["LeftTrigger", "RightTrigger"];
@@ -177,8 +177,17 @@ public static class ProposalValidator
                 return Word(a, ["on", "off"]);
             case AgentVocabulary.LedColor:
                 if (a.Target != AgentVocabulary.LightingTarget) return No($"led_color needs the target Lighting, not {a.Target}.");
+                if (a.Value.ValueKind == JsonValueKind.String && AgentLightingEffects.TryParse(a.ValueText, out _, out _) && !AgentColors.TryParse(a.ValueText, out _))
+                    return No($"\"{a.ValueText}\" is a lighting animation or off state, not a colour. Use {{\"action\":\"led_effect\",\"target\":\"Lighting\",\"value\":\"{a.ValueText}\"}} instead.");
                 if (a.Value.ValueKind != JsonValueKind.String || !AgentColors.TryParse(a.ValueText, out var colour)) return No($"\"{a.ValueText}\" isn't a colour I can read. Use colour words such as \"blueish yellow\" or \"dark teal\", or a #hex code.");
                 return (CheckState.Ok, "Reads as " + colour + ".");
+            case AgentVocabulary.LedEffect:
+                if (a.Target != AgentVocabulary.LightingTarget) return No($"led_effect needs the target Lighting, not {a.Target}.");
+                if (a.Value.ValueKind == JsonValueKind.String && AgentLightingEffects.TryParse(a.ValueText, out _, out var effectSummary))
+                    return (CheckState.Ok, "Reads as " + effectSummary + ".");
+                if (a.Value.ValueKind == JsonValueKind.String && AgentColors.TryParse(a.ValueText, out _))
+                    return No($"\"{a.ValueText}\" is a static colour, not an effect. Use led_color for static colours.");
+                return No($"\"{a.ValueText}\" isn't a known lighting effect. Try rainbow, breathe, cycle, moonlight pulse, hue sweep, strobe, ember shimmer, trigger glow, stick heat, button flash, ambient sync, or off.");
             case AgentVocabulary.MeasureDrift:
                 return stick ? (CheckState.Ok, "A reading: changes nothing.") : No($"measure_drift needs LeftStick or RightStick, not {a.Target}.");
             case AgentVocabulary.Reset:

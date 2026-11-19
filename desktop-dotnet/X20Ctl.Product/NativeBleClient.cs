@@ -17,6 +17,33 @@ namespace X20Ctl.Product;
 public static class NativeBleClient
 {
     internal static readonly SemaphoreSlim ConfigurationGate=new(1,1);
+    internal static Func<CancellationToken, Task<IAsyncDisposable?>>? YieldActiveStreamAsync;
+    internal static async Task<IAsyncDisposable> AcquireConfigGateAsync(CancellationToken ct = default, bool yieldActiveStream = true)
+    {
+        var yielded = yieldActiveStream && YieldActiveStreamAsync is { } hook ? await hook(ct) : null;
+        try
+        {
+            await ConfigurationGate.WaitAsync(ct);
+            return new ConfigGateScope(yielded);
+        }
+        catch
+        {
+            if (yielded != null) await yielded.DisposeAsync();
+            throw;
+        }
+    }
+    sealed class ConfigGateScope(IAsyncDisposable? yielded) : IAsyncDisposable
+    {
+        int released;
+        public async ValueTask DisposeAsync()
+        {
+            if (Interlocked.Exchange(ref released, 1) == 0)
+            {
+                ConfigurationGate.Release();
+                if (yielded != null) await yielded.DisposeAsync();
+            }
+        }
+    }
     private static readonly Guid ServiceUuid = Guid.Parse("d7f010e0-660d-46e9-96c3-19c4148bdab5");
     private static readonly Guid WriteUuid   = Guid.Parse("d7f010e1-660d-46e9-96c3-19c4148bdab5");
     private static readonly Guid NotifyUuid  = Guid.Parse("d7f010e2-660d-46e9-96c3-19c4148bdab5");
@@ -28,7 +55,7 @@ public static class NativeBleClient
     {
         // the timed battery reads stand down while the player manages connections in the Bluetooth manager
         if (!check && BluetoothManager.PauseBackground) return new(true, false, "Paused while the Bluetooth manager is open.");
-        await ConfigurationGate.WaitAsync();
+        await using var gate = await AcquireConfigGateAsync();
         try
         {
             var (address, error) = await FindDeviceAddressAsync(targetModel, timeoutSeconds, requireAdvertisedService: false);
@@ -44,7 +71,7 @@ public static class NativeBleClient
         {
             return new(true, false, $"Bluetooth query failed: {ex.Message}");
         }
-        finally { ConfigurationGate.Release(); }
+        finally { }
     }
 
     /// <summary>The address of the pad last reached here, so a repeat operation can connect at once instead of scanning first.</summary>
@@ -59,8 +86,9 @@ public static class NativeBleClient
         try { Directory.CreateDirectory(Path.GetDirectoryName(CachePath)!); File.WriteAllText(CachePath, address.ToString("X")); } catch (IOException) { }
     }
 
-    internal static async Task<(ulong? Address, string? Error)> FindDeviceAddressAsync(string targetModel, int timeoutSeconds, bool requireAdvertisedService = true)
+    internal static async Task<(ulong? Address, string? Error)> FindDeviceAddressAsync(string targetModel, int timeoutSeconds, bool requireAdvertisedService = true, CancellationToken ct = default)
     {
+        ct.ThrowIfCancellationRequested();
         ulong? cachedAddress = null;
         if (File.Exists(CachePath))
         {
@@ -86,7 +114,7 @@ public static class NativeBleClient
         var seenServices = new HashSet<ulong>();
         var seenNames = new Dictionary<ulong, string>();
 
-        // Narrow filter: match specifically expected models and require the KeyLinker configuration service
+        // Narrow filter: match specifically expected models, KeyLinker service adverts on X20 Pro (including dongle+unpaired BLE), or cached address
         watcher.Received += (w, args) =>
         {
             ulong addr = args.BluetoothAddress;
@@ -108,8 +136,10 @@ public static class NativeBleClient
 
             string name = seenNames.TryGetValue(addr, out var n) ? n : rawName;
             bool nameMatch = BleDiscovery.MatchesTarget(targetModel, name);
+            bool x20ProSidecarMatch = targetModel == "x20_pro" && seenServices.Contains(addr) &&
+                (nameMatch || name.Contains("X20", StringComparison.OrdinalIgnoreCase) || name.Contains("Xpert", StringComparison.OrdinalIgnoreCase) || BleDiscovery.HasFamilyPrefix(addr));
 
-            if (nameMatch || (string.IsNullOrEmpty(name) && cachedAddress == addr))
+            if (nameMatch || x20ProSidecarMatch || (string.IsNullOrEmpty(name) && cachedAddress == addr))
             {
                 try { w.Stop(); } catch { }
                 tcs.TrySetResult(addr);
@@ -137,9 +167,15 @@ public static class NativeBleClient
             return (null, $"Could not start Bluetooth scan: {ex.Message}");
         }
 
-        var timeoutTask = Task.Delay(TimeSpan.FromSeconds(timeoutSeconds));
+        using var reg = ct.Register(() =>
+        {
+            try { watcher.Stop(); } catch { }
+            tcs.TrySetCanceled(ct);
+        });
+        var timeoutTask = Task.Delay(TimeSpan.FromSeconds(timeoutSeconds), ct);
         var completed = await Task.WhenAny(tcs.Task, timeoutTask);
         try { watcher.Stop(); } catch { }
+        ct.ThrowIfCancellationRequested();
 
         if (completed == tcs.Task)
         {
@@ -151,13 +187,17 @@ public static class NativeBleClient
             return (null, scanError);
         }
 
+        if (targetModel == "x20_pro")
+        {
+            return (null, "Controller not found over BLE. You can stay on the 2.4 GHz dongle or USB — just keep PC Bluetooth turned ON (no Windows pairing needed) and wake the controller so its KeyLinker BLE service answers.");
+        }
         return (null, "Controller not found over Bluetooth. Make sure Bluetooth is enabled and the controller is awake. If it still isn't found, switch the controller to Bluetooth mode and try again: some pads only answer settings there.");
     }
 
     /// <summary>The Part B write test: vibration only, on a proven pad, put back and read back afterwards (see VibrationTest).</summary>
     public static async Task<PadBridge.Result> VibrationTestAsync(string targetModel, int percent, int timeoutSeconds = 6)
     {
-        await ConfigurationGate.WaitAsync(); // one Bluetooth operation at a time, like the queries
+        await using var gate = await AcquireConfigGateAsync(); // one Bluetooth operation at a time, like the queries
         try
         {
             var (address, error) = await FindDeviceAddressAsync(targetModel, timeoutSeconds);
@@ -168,7 +208,7 @@ public static class NativeBleClient
         {
             return new(true, false, $"Bluetooth write test failed: {ex.Message}");
         }
-        finally { ConfigurationGate.Release(); }
+        finally { }
     }
 
     private sealed class Link(Func<byte[], byte, Task<byte[]?>> send) : IPadLink

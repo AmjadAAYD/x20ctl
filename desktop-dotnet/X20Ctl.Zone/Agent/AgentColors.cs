@@ -99,17 +99,30 @@ public static class AgentColors
     static double Stretch(double v, double min, double amount) => Math.Max(0, v - min * Math.Min(amount, 1));
     static byte B(double v) => (byte)Math.Clamp(Math.Round(v), 0, 255);
 
-    /// <summary>"Change my leds / rgb / lights to X", "make the lights X", "rgb X", "set led colour X": the colour words, or null.</summary>
+    /// <summary>"Change my leds / rgb / lights to X", "make the lights X", "rgb X", "show me cyan", "can you make my lights red?": the colour words, or null.</summary>
     public static string? Asked(string sentence)
     {
         string s = sentence.Trim().ToLowerInvariant().Replace('’', '\'');
-        if (!Regex.IsMatch(s, @"\b(leds?|lights?|lighting|rgb|glow|backlight|light ?bar|light ?ring)\b")) return Pad(s);
-        var m = Regex.Match(s, @"\b(?:to|into|as|=|:|be|is|in)\s+(?<c>[^.!?]+?)\s*(?:please|pls|thanks)?[.!?]*$");
-        if (!m.Success) m = Regex.Match(s, @"\b(?:leds?|lights?|lighting|rgb|glow|backlight|light ?bar|light ?ring)(?:'s)?\s+(?:colou?r\s+)?(?<c>[^.!?]+?)\s*[.!?]*$");
-        if (!m.Success) m = Regex.Match(s, @"^(?:please\s+)?(?:make|turn|set|change|paint|switch)\s+(?:my\s+|the\s+)?(?:leds?|lights?|lighting|rgb)\s+(?<c>[^.!?]+?)\s*[.!?]*$");
+        if (Regex.IsMatch(s, @"\b(how|why|which|what)\b") && !Regex.IsMatch(s, @"\b(what\s+about|how\s+about|look\s+like)\b")) return null;
+        bool hasLightWord = Regex.IsMatch(s, @"\b(leds?|lights?|lighting|rgbs?|glow|backlight|light ?bar|light ?ring|eyes?)\b");
+        bool hasPreviewVerb = Regex.IsMatch(s, @"\b(show|preview|try|test|visuali[sz]e)\b");
+        if (!hasLightWord && !hasPreviewVerb)
+        {
+            var pronoun = Regex.Match(s, @"^(?:now\s+)?(?:please\s+|can you\s+|could you\s+)?(?:make|turn|set|change|switch)\s+it\s+(?:to\s+)?(?<c>[^.!?]+?)\s*(?:please|pls|now)?[.!?]*$");
+            if (pronoun.Success)
+            {
+                string p = Regex.Replace(pronoun.Groups["c"].Value, @"\b(colou?r|please|pls|now)\b", " ").Trim();
+                if (p.Length > 0 && TryParse(p, out _)) return p;
+            }
+            return Pad(s);
+        }
+        var m = Regex.Match(s, @"\b(?:to|into|as|=|:|be|is|in|look\s+like)\s+(?<c>[^.!?]+?)\s*(?:please|pls|thanks|look\s+like)?[.!?]*$");
+        if (!m.Success) m = Regex.Match(s, @"\b(?:leds?|lights?|lighting|rgb|glow|backlight|light ?bar|light ?ring|eyes?)(?:'s)?\s+(?:colou?r\s+)?(?<c>[^.!?]+?)\s*[.!?]*$");
+        if (!m.Success) m = Regex.Match(s, @"^(?:please\s+|can you\s+|could you\s+|would you\s+)?(?:make|turn|set|change|paint|switch|show|preview|try|test|visuali[sz]e)\s+(?:me\s+|my\s+|the\s+)?(?:leds?|lights?|lighting|rgb\s+)?(?<c>[^.!?]+?)\s*[.!?]*$");
+        if (!m.Success && hasLightWord) m = Regex.Match(s, @"(?<c>\b[a-z#][a-z0-9\s#-]*?)\s+(?:leds?|lights?|lighting|rgb)\s*[.!?]*$");
         if (!m.Success) return null;
-        string phrase = Regex.Replace(m.Groups["c"].Value, @"\b(colou?r|please|pls|now)\b", " ").Trim();
-        return TryParse(phrase, out _) ? phrase : null;
+        string phrase = Regex.Replace(m.Groups["c"].Value, @"\b(colou?r|please|pls|now|look|like|rgb)\b", " ").Trim();
+        return phrase.Length > 0 && TryParse(phrase, out _) ? phrase : null;
     }
 
     /// <summary>"Change my controller to green", "make my pad red", "paint the controller purple": a colour asked of the

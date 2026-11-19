@@ -412,6 +412,11 @@ public sealed partial class ProductHost : Grid
                     double lx=payload.GetProperty("leftX").GetDouble(),ly=payload.GetProperty("leftY").GetDouble();if(Math.Abs(lx)>.6&&Math.Abs(lx)>=Math.Abs(ly))now.Add(lx>0?"LS_RIGHT":"LS_LEFT");else if(Math.Abs(ly)>.6)now.Add(ly>0?"LS_UP":"LS_DOWN");
                 }}
             var pressed=now.Except(lastNativeButtons).ToArray();lastNativeButtons=now;
+            if (connected) LightingEffectsService.ObserveLiveInput(
+                payload.GetProperty("leftX").GetDouble(), payload.GetProperty("leftY").GetDouble(),
+                payload.GetProperty("rightX").GetDouble(), payload.GetProperty("rightY").GetDouble(),
+                payload.GetProperty("lt").GetDouble(), payload.GetProperty("rt").GetDouble(),
+                now.Count, pressed.Length > 0);
             if (ActiveThemeNotice is {} themedNotice)
             {
                 if (!connected || Window.GetWindow(this)?.IsActive != true) { nativeArmed = false; return; }

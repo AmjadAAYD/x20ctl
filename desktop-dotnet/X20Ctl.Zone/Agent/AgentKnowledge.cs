@@ -68,6 +68,8 @@ public static class AgentKnowledge
             "", "", "testing the controller (Diagnostics) or anything better done by hand", "the agent window steps aside"),
         new(AgentVocabulary.LedColor, "LED colour", "the colour of the controller's own lights, read from the owner's words (blends, tints and shades too)",
             "", "", "matching a setup, a team or a mood", "only the X20 Pro's lights are proven writable; the app reads the colour back"),
+        new(AgentVocabulary.LedEffect, "LED effect", "a lighting effect or mode for the controller lights (rainbow, breathe, cycle, off, moonlight pulse, hue sweep, strobe, lava shimmer, trigger glow, stick heat, button flash, ambient sync)",
+            "", "", "animated colour waves, ultra-dim nightlight at 0x01, or reactive feedback", "streamed effects run over one Bluetooth connection while X20CTL is open"),
         new(AgentVocabulary.Reset, "Reset", "puts a stick, trigger or button back to its default", "", "", "starting over", "the change is undone"),
     ];
 

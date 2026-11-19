@@ -24,6 +24,7 @@ internal static class BatteryLightingService
     public static void Resume(){var settings=Load();if(settings.Enabled)Start(settings,AfterLaunch);}
     public static async Task<int> ApplyAsync(int[] colours)
     {
+        await LightingEffectsService.StopAsync(restoreBaseline: false);
         var previous=Load();Stop();
         var settings=new BatteryLighting(true,colours);
         try

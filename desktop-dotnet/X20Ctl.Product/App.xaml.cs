@@ -70,21 +70,35 @@ public partial class App : Application
                 Directory.CreateDirectory(e.Args[1]);
                 try
                 {
-                    var lightingReviewWindow = new LightingWindow();
-                    var visual = (FrameworkElement)lightingReviewWindow.Content;
-                    visual.Width = 550; visual.Height = 720;
-                    visual.Measure(new Size(550,720)); visual.Arrange(new Rect(0,0,550,720)); visual.UpdateLayout();
-                    var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(550,720,96,96,System.Windows.Media.PixelFormats.Pbgra32);
-                    bitmap.Render(visual);
-                    var png = new System.Windows.Media.Imaging.PngBitmapEncoder(); png.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
-                    using (var file = File.Create(Path.Combine(e.Args[1],"lighting.png"))) png.Save(file);
+                    var lightingReviewWindow = new LightingWindow(null, animate: false);
+                    var host = new System.Windows.Controls.Border
+                    {
+                        Background = DS.Brush("DS.Deep"),
+                        Padding = new(24),
+                        Width = 1140,
+                        Height = 760,
+                        Child = lightingReviewWindow.DetachBody(),
+                    };
+                    void SaveLightingPng(string filename)
+                    {
+                        host.Measure(new Size(1140, 760));
+                        host.Arrange(new Rect(0, 0, 1140, 760));
+                        host.UpdateLayout();
+                        var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(1140, 760, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+                        bitmap.Render(host);
+                        var png = new System.Windows.Media.Imaging.PngBitmapEncoder();
+                        png.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
+                        using var file = File.Create(Path.Combine(e.Args[1], filename));
+                        png.Save(file);
+                    }
+                    lightingReviewWindow.SelectSection(0);
+                    SaveLightingPng("lighting.png");
+                    lightingReviewWindow.SelectSection(1);
+                    SaveLightingPng("lighting-effects.png");
+                    lightingReviewWindow.SelectSection(2);
+                    SaveLightingPng("lighting-auto.png");
                     lightingReviewWindow.ShowBattery();
-                    visual.Width = 1100; visual.Height = 800;
-                    visual.Measure(new Size(1100,800)); visual.Arrange(new Rect(0,0,1100,800)); visual.UpdateLayout();
-                    bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(1100,800,96,96,System.Windows.Media.PixelFormats.Pbgra32);
-                    bitmap.Render(visual);
-                    png = new System.Windows.Media.Imaging.PngBitmapEncoder(); png.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
-                    using (var file = File.Create(Path.Combine(e.Args[1],"lighting-battery.png"))) png.Save(file);
+                    SaveLightingPng("lighting-battery.png");
                     if(e.Args[0] == "--review-lighting")
                     {
                         var record = await LightingBleClient.RunAsync();
@@ -412,8 +426,8 @@ public partial class App : Application
             BatteryLightingService.Resume();
             // HidHide's hide list outlives the app (it survives a reboot): every way out un-hides the controller, not only
             // the window closing — Windows signing out or shutting down, and a crash on any thread
-            SessionEnding += (_, _) => { window.Host.MouseMode?.Dispose(); window.Host.PcMode?.Dispose(); };
-            Exit += (_, _) => { window.Host.RememberStudio(); window.Host.MouseMode?.Dispose(); window.Host.PcMode?.Dispose(); };
+            SessionEnding += (_, _) => { LightingEffectsService.Shutdown(); window.Host.MouseMode?.Dispose(); window.Host.PcMode?.Dispose(); };
+            Exit += (_, _) => { LightingEffectsService.Shutdown(); window.Host.RememberStudio(); window.Host.MouseMode?.Dispose(); window.Host.PcMode?.Dispose(); };
             ForegroundApp.Start();
             AppDomain.CurrentDomain.UnhandledException += (_, _) => { try { window.Host.MouseMode?.Dispose(); window.Host.PcMode?.Dispose(); } catch (Exception) { } };
         }

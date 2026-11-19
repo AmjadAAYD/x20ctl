@@ -41,7 +41,7 @@ public class LightingTests
         Assert.Throws<ArgumentException>(() => LightingRecord.WithColour(new byte[length], 1, 2, 3));
 
     [Theory]
-    [InlineData(0)] [InlineData(2)] [InlineData(3)] [InlineData(4)]
+    [InlineData(0)] [InlineData(1)] [InlineData(2)] [InlineData(3)] [InlineData(4)]
     public void NativeModePreservesColourAndOtherParameters(byte mode)
     {
         var original = Convert.FromHexString(Red);
@@ -52,7 +52,7 @@ public class LightingTests
     }
 
     [Theory]
-    [InlineData(1)] [InlineData(5)] [InlineData(255)]
+    [InlineData(5)] [InlineData(255)]
     public void RejectsUnmappedModes(byte mode) =>
         Assert.Throws<ArgumentOutOfRangeException>(() => LightingRecord.WithMode(Convert.FromHexString(Red), mode));
 }

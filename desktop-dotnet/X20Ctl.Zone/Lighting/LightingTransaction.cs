@@ -6,6 +6,23 @@ public static class LightingTransaction
     public delegate Task<byte[]> Exchange(byte op, byte[] payload, byte serial, byte length);
     static readonly byte[] Ack = [2, 0xdf, 0xaa];
 
+    /// <summary>Writes a 24-byte lighting record as `[24, ..record]` over two 0x37 chunks, verifying ACK on each chunk.</summary>
+    public static async Task WriteRecordAsync(Exchange exchange, byte[] record, TimeSpan chunkGap)
+    {
+        if (record.Length != 24) throw new ArgumentException("Expected a 24-byte lighting record.", nameof(record));
+        byte[] payload = [24, ..record];
+        for (int index = 0; index < 2; index++)
+        {
+            int counter = index + 1;
+            byte[] chunk = payload.Skip(index * 15).Take(15).ToArray();
+            byte serial = (byte)(((counter & 1) << 7) | (index << 3) | (counter & 7));
+            byte length = (byte)(((counter & 7) << 5) | (chunk.Length + 5));
+            var ack = await exchange(0x37, chunk, serial, length);
+            if (!ack.SequenceEqual(Ack)) throw new IOException("Unexpected lighting acknowledgement.");
+            if (chunkGap > TimeSpan.Zero) await Task.Delay(chunkGap);
+        }
+    }
+
     public static async Task<byte[]> ReadAsync(Exchange exchange, Func<byte> next)
     {
         var first = await exchange(0xb7, [0], next(), 6);
@@ -30,19 +47,9 @@ public static class LightingTransaction
         Directory.CreateDirectory(checkpointFolder);
         var checkpoint = Path.Combine(checkpointFolder, $"{DateTime.UtcNow:yyyyMMddTHHmmssfff}-before.txt");
         await File.WriteAllTextAsync(checkpoint, Convert.ToHexString(original));
-        byte[] payload = [24, ..target];
         try
         {
-            for (int index = 0; index < 2; index++)
-            {
-                int counter = index + 1;
-                byte[] chunk = payload.Skip(index * 15).Take(15).ToArray();
-                byte serial = (byte)(((counter & 1) << 7) | (index << 3) | (counter & 7));
-                byte length = (byte)(((counter & 7) << 5) | (chunk.Length + 5));
-                var ack = await exchange(0x37, chunk, serial, length);
-                if (!ack.SequenceEqual(Ack)) throw new IOException("Unexpected lighting acknowledgement.");
-                await Task.Delay(chunkGap);
-            }
+            await WriteRecordAsync(exchange, target, chunkGap);
             var observed = await ReadAsync(exchange, next);
             if (!observed.SequenceEqual(target)) throw new IOException("Lighting read-back differs from the requested record.");
             return observed;

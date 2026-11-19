@@ -88,12 +88,21 @@ public static class AgentGrammar
         (@"\b(?:movin|moveing|mvoing)\b", "moving"), (@"\b(?:turnin|turing|trning)\b", "turning"), (@"\b(?:breaking)\b(?= in| for| when| feels| is)", "braking"),
         (@"\b(?:accelaration|acceleraton|acelleration|accelleration)\b", "acceleration"), (@"\b(?:throtle|throttel|trottle)\b", "throttle"),
         (@"\b(?:vibraton|vibraiton|vibartion)\b", "vibration"), (@"\b(?:rumbel|rumle)\b", "rumble"),
+        (@"\b(?:colur|colr|clour|clor)\b", "color"), (@"\b(?:rainbw|ranbow|rainobw|rainboew|rainbwo)\b", "rainbow"),
+        (@"\b(?:ambent|ambiant|ambinet|ambiet)\b", "ambient"), (@"\b(?:purpel|pruple)\b", "purple"),
+        (@"\b(?:effct|efect)(s?)\b", "effect$1"), (@"\b(?:moonligth|moonligt)\b", "moonlight"), (@"\bstrob\b", "strobe"),
+        (@"\b(?:brething|breathng)\b", "breathing"), (@"\bshimer\b", "shimmer"), (@"\bnightligt\b", "nightlight"),
         (@"\b(?:mous mode|mousemod|mouse mod)\b", "mouse mode"),
+        (@"\b(?:anti[\s-]?dz|antideadzone|antidead\s*zone)\b", "anti-dead zone"),
+        (@"\b(?:sqaure|squar|sqare)\s*gate\b", "square gate"),
+        (@"\b(?:digonals?|diagonls?)\b", "diagonals"),
+        (@"\b(?:rebind|reassign)\b", "remap"),
+        (@"\b(?:rekoil|recoill)\b", "recoil"),
         (@"\b(?:bumpers?)\b(?=\s+(?:swap|switch))", "bumpers"),
         (@"\b(?:screen|view|pov)\b(?= (?:keeps|is|moves|moving|spins|spinning|drifts|drifting|turns|turning|slides|creeps))", "camera"),
         (@"\bmy (?:player|guy|dude|man|soldier|car|operator|toon)\b(?= (?:keeps|is|moves|walks|walking|runs|running|goes|drifts|creeps|slides))", "my character"),
         (@"\b(?:walks|moves|goes|runs) (?:alone|on (?:his|her|its|their) own|by (?:him|her|it|them)sel(?:f|ves))\b", "walks by itself"),
-        (@"\bto (?=(?:slow|fast|quick|high|low|much|little|sensitive|jumpy|shaky|twitchy|floaty|sluggish|stiff|loose|heavy|light|big|small|strong|weak|hard|soft|sharp|jittery|laggy|snappy|touchy)\b)", "too "),
+        (@"\bto (?=(?:slow|fast|quick|high|low|much|little|sensitive|jumpy|shaky|twitchy|floaty|sluggish|stiff|loose|heavy|light(?!\s+(?:blue|green|red|purple|violet|pink|teal|cyan|aqua|magenta|yellow|orange|amber|brown|grey|gray|indigo|lavender|lilac|lime|mint|gold|peach|rose|coral|azure|cobalt|navy|plum|blush|turquoise|aquamarine|olive|maroon|crimson|scarlet|tan|copper|bronze))|big|small|strong|weak|hard|soft|sharp|jittery|laggy|snappy|touchy)\b)", "too "),
     ];
 
     // two words run together, or spelt apart in a way that hides the setting
@@ -160,9 +169,10 @@ public static class AgentGrammar
         // "i no want", "i not want", "i dont want" -> "i don't want"
         s = Regex.Replace(s, @"\b(i|we) (?:no|not|never) (want|need|like)s?\b", "$1 don't $2", I);
         s = Regex.Replace(s, @"\bput\b(?=.*(?:\d|dead zone|stick|trigger))", "set", I);
-        // the pad that won't pair or isn't found: the words the connection help recognises
+        // the pad that won't pair or isn't found: the words the connection help recognises (not profile settings/changes)
         s = Regex.Replace(s, @"\b(?:do(?:es)?n't|do(?:es)? not|can't|cannot|won't|will not|never|isn't|is not|not able to|unable to|no|not)\s+(?:to\s+)?(?:connect(?:ing|ed|s)?|pair(?:ing|ed)?)\b", "won't connect", I);
-        s = Regex.Replace(s, @"\b(?:do(?:es)?n't|do(?:es)? not|can't|cannot|never|isn't|is not|not able to|unable to|no|not)\s+(?:to\s+)?(?:detect(?:ed|ing)?|recogni[sz]e[ds]?|show(?:ing)? up|found|appear(?:ing)?)\b", m => Regex.IsMatch(m.Value, @"^(?:is )?not detected$", I) ? m.Value : "not detected", I);
+        if (!Regex.IsMatch(s, @"\b(?:changes|settings|edits|tweaks|presets|profiles|curves|options)\b", I))
+            s = Regex.Replace(s, @"\b(?:do(?:es)?n't|do(?:es)? not|can't|cannot|never|isn't|is not|not able to|unable to|no|not)\s+(?:to\s+)?(?:detect(?:ed|ing)?|recogni[sz]e[ds]?|show(?:ing)? up|found|appear(?:ing)?)\b", m => Regex.IsMatch(m.Value, @"^(?:is )?not detected$", I) ? m.Value : "not detected", I);
         // "swap the buttons a and b", "button x": a lone letter that names a face button is written as one
         s = Regex.Replace(s, @"\b(buttons?)\s+([abxy])\b(?:\s+(and|with|to|for)\s+([abxy])\b)?", m => m.Groups[1].Value + " " + m.Groups[2].Value.ToUpperInvariant()
             + (m.Groups[3].Success ? " " + m.Groups[3].Value + " " + m.Groups[4].Value.ToUpperInvariant() : ""), I);

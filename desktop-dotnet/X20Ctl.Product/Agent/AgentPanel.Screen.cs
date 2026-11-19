@@ -98,16 +98,17 @@ public partial class AgentPanel
     {
         started = false;
         var cards = new UniformGrid { Columns = 3, Margin = new(0, 6, 0, 0) };
-        foreach (var (glyph, title, example, act) in new (string, string, string, Action)[]
+        foreach (var (glyph, title, example, prompt) in new (string, string, string, string)[]
         {
-            ("", "Aim & sticks", "“My right stick drifts a little”", () => { Search.Text = "sticks"; ShowView(View.Ideas); }),
-            ("", "Triggers", "“Faster triggers for shooting”", () => { Search.Text = "triggers"; ShowView(View.Ideas); }),
-            ("", "Buttons", "“Turbo on X, 12 a second”", () => { Search.Text = "buttons"; ShowView(View.Ideas); }),
-            ("", "Lights", "“Make my lights red”", () => ShowView(View.Look)),
-            ("", "PC mode", "“Turn PC mode on”", () => { Search.Text = "PC mode"; ShowView(View.Ideas); }),
-            ("", "Setups", "“Save this as Sniper”", () => ShowView(View.Setups)),
+            ("", "Aim & sticks", "“My right stick drifts a little”", "My right stick drifts a little"),
+            ("", "Triggers", "“Faster triggers for shooting”", "Faster triggers for shooting"),
+            ("", "Buttons", "“Turbo on X, 12 a second”", "Turbo on X, 12 a second"),
+            ("", "Lights", "“Make my lights red”", "Make my lights red"),
+            ("", "PC mode", "“Turn PC mode on”", "Turn PC mode on"),
+            ("", "Setups", "“Save this as Sniper”", "Save this as Sniper"),
         })
         {
+            string runPrompt = prompt;
             var look = new Border
             {
                 CornerRadius = new(12), Padding = new(12, 9, 10, 10), Margin = new(0, 0, 8, 8), BorderThickness = new(1), BorderBrush = new SolidColorBrush(Line), Background = new SolidColorBrush(Card),
@@ -117,7 +118,7 @@ public partial class AgentPanel
                     Kit.Text(example, 12, "DS.TextMuted").Also(t => { t.Margin = new(0, 5, 0, 0); t.TextTrimming = TextTrimming.CharacterEllipsis; }),
                 } },
             };
-            var card = PadKey(look, title, act); register(card); cards.Children.Add(card);
+            var card = PadKey(look, $"Run: {runPrompt}", () => { if (!busy) { ShowView(View.Chat); Input.Text = runPrompt; Send(); } }); register(card); cards.Children.Add(card);
         }
         strip = new WrapPanel { Margin = new(0, 4, 0, 0) };
         welcome = new StackPanel { Margin = new(0, 4, 0, 0), Children = { cards, strip } };
@@ -225,8 +226,8 @@ public partial class AgentPanel
 
         // history
         historyList.Children.Clear();
-        if (history.Steps.Count == 0) historyList.Children.Add(Wrap("Nothing changed yet. Each change I make is listed here, with the way back to before it.", 13.5, "DS.TextMuted"));
-        else
+        if (history.Steps.Count == 0 && chatHistory.Count == 0) historyList.Children.Add(Wrap("Nothing changed yet. Each change I make and prompt you send is listed here, with Undo.", 13.5, "DS.TextMuted"));
+        else if (history.Steps.Count > 0)
         {
             var all = Small($"Undo all {history.Steps.Count}"); int first = history.Steps[0].Id; all.Click += (_, _) => { GoBack(first); RefreshPages(); }; register(all);
             historyList.Children.Add(new DockPanel { Margin = new(0, 0, 0, 10), Children = { all.Also(a => { DockPanel.SetDock(a, Dock.Right); }), Kit.Text($"{history.Steps.Count} change{(history.Steps.Count == 1 ? "" : "s")} this session", 13, "DS.TextSoft").Also(t => t.VerticalAlignment = VerticalAlignment.Center) } });
@@ -243,9 +244,21 @@ public partial class AgentPanel
             ((StackPanel)((DockPanel)card.Child).Children[1]).Children.Add(detail);
             historyList.Children.Add(card);
         }
+        if (chatHistory.Count > 0)
+        {
+            historyList.Children.Add(Kit.Text($"Recent prompts ({chatHistory.Count})", 13, "DS.TextSoft").Also(t => t.Margin = new(0, history.Steps.Count > 0 ? 12 : 0, 0, 8)));
+            foreach (var entry in chatHistory.AsEnumerable().Reverse().Take(25))
+            {
+                string askAgain = entry.Asked;
+                var rerun = Small("Run again");
+                rerun.Click += (_, _) => { if (!busy) { ShowView(View.Chat); Input.Text = askAgain; Send(); } };
+                register(rerun);
+                historyList.Children.Add(PageCard(rerun, $"“{Short(entry.Asked)}”", $"{entry.At:HH:mm} · {entry.Outcome}"));
+            }
+        }
 
         // badges
-        Badge(View.Setups, setups.Items.Count); Badge(View.History, history.Steps.Count);
+        Badge(View.Setups, setups.Items.Count); Badge(View.History, history.Steps.Count > 0 ? history.Steps.Count : chatHistory.Count);
         RefreshStrip();
 
         void Badge(View v, int count)

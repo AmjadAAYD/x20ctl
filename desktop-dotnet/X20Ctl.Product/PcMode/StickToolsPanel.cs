@@ -249,17 +249,17 @@ public sealed partial class StickToolsPanel : Border
     void DrawPreview(CurveChannel channel,PcModeProfile profile)
     {
         if(!charts.TryGetValue(channel,out var canvas))return;canvas.Children.Clear();var curve=profile.Curves.GetValueOrDefault(channel.ToString());var tuning=profile.Sticks.GetValueOrDefault(channel.ToString());
-        var line=new Polyline{Stroke=Brushes.LightSkyBlue,StrokeThickness=2,Points=new PointCollection(Enumerable.Range(0,101).Select(v=>new Point(30+v*3.1,138-PadProcessor.Response(curve,tuning,v/100d)*105)))};
-        canvas.Children.Add(new Line{X1=30,X2=340,Y1=138,Y2=138,Stroke=Brushes.SlateGray});canvas.Children.Add(new Line{X1=30,X2=30,Y1=33,Y2=138,Stroke=Brushes.SlateGray});canvas.Children.Add(line);Put("Physical input → Game output",30,5);
+        var line=new Polyline{Stroke=DS.Brush("DS.AccentHi"),StrokeThickness=2,Points=new PointCollection(Enumerable.Range(0,101).Select(v=>new Point(30+v*3.1,138-PadProcessor.Response(curve,tuning,v/100d)*105)))};
+        canvas.Children.Add(new Line{X1=30,X2=340,Y1=138,Y2=138,Stroke=DS.Brush("DS.Hairline")});canvas.Children.Add(new Line{X1=30,X2=30,Y1=33,Y2=138,Stroke=DS.Brush("DS.Hairline")});canvas.Children.Add(line);Put("Physical input → Game output",30,5);
         double x=channel==CurveChannel.LeftStick?lx:rx,y=channel==CurveChannel.LeftStick?ly:ry;
         var previewProfile=new PcModeProfile();if(curve!=null)previewProfile.Curves[channel.ToString()]=curve;if(tuning!=null)previewProfile.Sticks[channel.ToString()]=tuning;
         static short Raw(double n)=>(short)Math.Clamp(Math.Round(n*32767),-32768,32767);
         var output=new PadProcessor(previewProfile).Process(channel==CurveChannel.LeftStick?new PadState(0,0,0,Raw(x),Raw(y),0,0):new PadState(0,0,0,0,0,Raw(x),Raw(y)),0);
         double ox=(channel==CurveChannel.LeftStick?output.LeftX:output.RightX)/32768d,oy=(channel==CurveChannel.LeftStick?output.LeftY:output.RightY)/32768d;
         foreach(var (center,label,dx,dy) in new[]{(440d,"Physical",x,y),(605d,"Processed",ox,oy)})
-        {Shape gate=center>500&&tuning?.SquareGate==true?new Rectangle{Width=84,Height=84}:new Ellipse{Width=84,Height=84};gate.Stroke=Brushes.SlateGray;gate.StrokeThickness=1;Canvas.SetLeft(gate,center-42);Canvas.SetTop(gate,45);canvas.Children.Add(gate);Put(label,center-34,10);
-         if(center<500){foreach(var radius in new[]{(tuning?.Inner??0)/100*42,(tuning?.Outer??100)/100*42}){var ring=new Ellipse{Width=radius*2,Height=radius*2,Stroke=Brushes.LightSkyBlue,StrokeThickness=1};Canvas.SetLeft(ring,center-radius);Canvas.SetTop(ring,87-radius);canvas.Children.Add(ring);}}
-         if(live){var dot=new Ellipse{Width=8,Height=8,Fill=Brushes.White};Canvas.SetLeft(dot,center+dx*42-4);Canvas.SetTop(dot,87-dy*42-4);canvas.Children.Add(dot);Put($"{dx:P0}, {dy:P0}",center-40,141);}}
+        {Shape gate=center>500&&tuning?.SquareGate==true?new Rectangle{Width=84,Height=84}:new Ellipse{Width=84,Height=84};gate.Stroke=DS.Brush("DS.Hairline");gate.StrokeThickness=1;Canvas.SetLeft(gate,center-42);Canvas.SetTop(gate,45);canvas.Children.Add(gate);Put(label,center-34,10);
+         if(center<500){foreach(var radius in new[]{(tuning?.Inner??0)/100*42,(tuning?.Outer??100)/100*42}){var ring=new Ellipse{Width=radius*2,Height=radius*2,Stroke=DS.Brush("DS.AccentHi"),StrokeThickness=1};Canvas.SetLeft(ring,center-radius);Canvas.SetTop(ring,87-radius);canvas.Children.Add(ring);}}
+         if(live){var dot=new Ellipse{Width=8,Height=8,Fill=DS.Brush("DS.Text")};Canvas.SetLeft(dot,center+dx*42-4);Canvas.SetTop(dot,87-dy*42-4);canvas.Children.Add(dot);Put($"{dx:P0}, {dy:P0}",center-40,141);}}
         
         void Put(string text,double left,double top){var label=Kit.Text(text,13,"DS.TextSoft");Canvas.SetLeft(label,left);Canvas.SetTop(label,top);canvas.Children.Add(label);}
         

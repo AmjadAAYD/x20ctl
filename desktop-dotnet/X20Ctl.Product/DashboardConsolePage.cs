@@ -106,7 +106,12 @@ public sealed class DashboardConsolePage : Grid
     /// <summary>What A does on the highlighted item, for the live footer.</summary>
     public string FocusAction => heroFocus?.IsKeyboardFocused == true ? "Configure" : play.IsKeyboardFocused ? "Play" : "Select";
     /// <summary>Y: scan the launchers again.</summary>
-    public async void Rescan() { DropAll(); scanGeneration++; scan = null; cards.Clear(); covers.Clear(); shelf.Children.Clear(); Feature(null); gamesCount.Text = "…"; await Populate(); }
+    public async void Rescan()
+    {
+        DropAll(); scanGeneration++; scan = null; cards.Clear(); covers.Clear(); shelf.Children.Clear(); Feature(null); gamesCount.Text = "…";
+        try { await Populate(); }
+        catch { gamesCount.Text = "0"; }
+    }
     /// <summary>LT/RT: jump a page (five covers) along the shelf.</summary>
     public void PageShelf(int step) { if (cards.Count == 0) return; int i = Math.Max(0, cards.FindIndex(c => c.Card.IsKeyboardFocusWithin)); cards[Math.Clamp(i + step * 5, 0, cards.Count - 1)].Card.Focus(); }
     public ControllerShowcase Showcase { get; } = new() { Tilt = 0 };

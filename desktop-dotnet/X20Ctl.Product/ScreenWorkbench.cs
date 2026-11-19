@@ -23,8 +23,8 @@ public sealed class ScreenWorkbench
  readonly TextBlock details=ManagementVisuals.Copy("Choose an image or wallpaper",14),status=ManagementVisuals.Copy("Controller",14),sizeText=ManagementVisuals.Copy("Upload 0 / 3 MiB",13),notice=ManagementVisuals.Copy("",13);
  readonly TextBox portName=new(){Width=150,HorizontalAlignment=HorizontalAlignment.Left};
  readonly ProgressBar transferProgress=new(){Minimum=0,Maximum=100,Height=6,Margin=new(0,8,0,6)};
- readonly CheckBox animation=new(){Content="Animation",Foreground=Brushes.White},simulate=new(){Content="Simulate",IsChecked=false,Foreground=Brushes.White},confirmReset=new(){Content="Confirm reset",Foreground=Brushes.White};
- readonly CheckBox before=new(){Content="Before: current screen noted",Foreground=Brushes.White},after=new(){Content="After: image and colors match",Foreground=Brushes.White};
+ readonly CheckBox animation=new(){Content="Animation",Foreground=DS.Brush("DS.Text")},simulate=new(){Content="Simulate",IsChecked=false,Foreground=DS.Brush("DS.Text")},confirmReset=new(){Content="Confirm reset",Foreground=DS.Brush("DS.Text")};
+ readonly CheckBox before=new(){Content="Before: current screen noted",Foreground=DS.Brush("DS.Text")},after=new(){Content="After: image and colors match",Foreground=DS.Brush("DS.Text")};
  readonly Slider zoom=new(){Minimum=1,Maximum=4,Value=1},panX=new(){Minimum=-1,Maximum=1},panY=new(){Minimum=-1,Maximum=1},brightness=new(){Minimum=-.5,Maximum=.5},contrast=new(){Minimum=.25,Maximum=2,Value=1},fps=new(){Minimum=1,Maximum=20,Value=5,TickFrequency=1,IsSnapToTickEnabled=true},frameLimit=new(){Minimum=1,Maximum=1,Value=1,TickFrequency=1,IsSnapToTickEnabled=true};
  readonly ComboBox rotation=new(){ItemsSource=new[]{"0°","90°","180°","270°"},SelectedIndex=0,Width=100},fit=new(){ItemsSource=new[]{"Fill","Fit"},SelectedIndex=0,Width=100};
  readonly DispatcherTimer previewClock=new(),editClock=new(){Interval=TimeSpan.FromMilliseconds(250)};readonly List<BitmapSource> frames=[],encodedFrames=[];

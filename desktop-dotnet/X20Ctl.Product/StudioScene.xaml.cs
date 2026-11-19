@@ -515,8 +515,28 @@ public partial class StudioScene : UserControl
     }
     private void EnterMotion(FrameworkElement element, double distance, int milliseconds)
     {
-        element.BeginAnimation(OpacityProperty, null); element.Opacity = 1;
+        element.BeginAnimation(OpacityProperty, null);
         element.RenderTransform = Transform.Identity;
+        if (!animate || !DS.Motion || ReviewSandbox.Active)
+        {
+            element.Opacity = 1;
+            return;
+        }
+        int durationMs = milliseconds > 0 ? Math.Min(milliseconds, 180) : 180;
+        var duration = new Duration(TimeSpan.FromMilliseconds(durationMs));
+        var ease = DS.EaseOut;
+        var slide = new TranslateTransform(0, distance);
+        element.RenderTransform = slide;
+        element.Opacity = 0.2;
+        var fade = new DoubleAnimation(0.2, 1, duration) { EasingFunction = ease, FillBehavior = FillBehavior.Stop };
+        var move = new DoubleAnimation(distance, 0, duration) { EasingFunction = ease, FillBehavior = FillBehavior.Stop };
+        fade.Completed += (_, _) =>
+        {
+            element.Opacity = 1;
+            element.RenderTransform = Transform.Identity;
+        };
+        element.BeginAnimation(OpacityProperty, fade);
+        slide.BeginAnimation(TranslateTransform.YProperty, move);
     }
     public void ShowController(bool rear)
     {
@@ -777,8 +797,15 @@ public partial class StudioScene : UserControl
         if (pcLink.Service.Enabled) { ShowManagement("PcMode"); return; }
         if (!PcModeGate.Ask(Window.GetWindow(this), Model.Name, out var padType)) return;
         PcModePage.ChoosePad(pcLink, padType);
-        var why = await PcModePage.SwitchFromAgent(pcLink, true);
-        if (why != null) MessageBox.Show(Window.GetWindow(this), why, "PC Mode"); else ShowManagement("PcMode");
+        try
+        {
+            var why = await PcModePage.SwitchFromAgent(pcLink, true);
+            if (why != null) MessageBox.Show(Window.GetWindow(this), why, "PC Mode"); else ShowManagement("PcMode");
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(Window.GetWindow(this), ex.Message, "PC Mode");
+        }
     }
     private PcModeSync? pcSync;
     internal bool NeedsPcModeRefresh => Model.Id=="x20_pro" && pcLink!=null && Draft.PcMode!=pcLink.Service.Enabled;
@@ -966,7 +993,7 @@ public partial class StudioScene : UserControl
         ButtonsNav.IsChecked=CurvesNav.IsChecked=MacrosNav.IsChecked=VibrationNav.IsChecked=false;DeviceNav.IsChecked=page=="Device";RgbNav.IsChecked=page=="RGB";ScreenNav.IsChecked=page=="Screen";DiagnosticsNav.IsChecked=page=="Diagnostics";MouseNav.IsChecked=page=="Mouse";if(KeyboardNav!=null)KeyboardNav.IsChecked=page=="Keyboard";PcModeNav.IsChecked=false;foreach(var t in pcTabs)t.IsChecked=page=="PcMode"&&(string)t.Content==PcModePage.Part;TesterNav.IsChecked=page=="Tester";SetupsNav.IsChecked=page=="Setups";DashboardNav.IsChecked=page=="Dashboard";DashboardFlip.Visibility=page=="Dashboard"?Visibility.Visible:Visibility.Hidden;
         if(page=="Dashboard"){Dashboard??=CreateDashboard();Dashboard.SetWorkingState(Draft.UnsentChanges,activeSetup==null?null:setupStore.Items.FirstOrDefault(x=>x.Id==activeSetup)?.Name,Draft.PcMode);ManagementBodyHost.Children.Add(Dashboard);ChangeCount.Text="Select the controller to configure it · Your games are found automatically";PrimaryHint.Text=" Select";OverviewHint.Text="";DraftChip.Text="Dashboard";Dashboard.FocusHero();}
         else if(page=="Device"){Device??=new(Model,Player,this,RegisterFocus,()=>ShowManagement("Diagnostics"),()=>ShowManagement("Setups"),()=>ShowManagement("Screen"),Model.Id=="x20_pro"&&!Draft.PcMode?FactoryReset:null);Device.TelemetryUpdated-=ApplyTelemetry;Device.TelemetryUpdated+=ApplyTelemetry;if(currentTransport!=null)Device.SetTransport(currentTransport);Device.SetBatteryLevel(currentBatteryLevel,currentTransport);Device.ShowBattery(BatteryVisible);if(currentFirmware!=null)Device.SetFirmware(currentFirmware);else if(currentTransport=="2.4 GHz receiver")Device.SetFirmware("Not readable over XInput");if(gameplayConnected!=null||BluetoothLive)Device.SetConnection(Linked,BluetoothOnly);if(currentHardwareId!=null)Device.SetHardwareId(currentHardwareId);Device.UpdateEngineStatus(NativeEngineStatus);ManagementBodyHost.Children.Add(Device.Body);ManagementShelfHost.Children.Add(Device.Shelf);ChangeCount.Text="Assigned model · Gameplay and configuration remain separate";PrimaryHint.Text=" Open";OverviewHint.Text=" My setups";DraftChip.Text="Controller overview";}
-        else if(page=="RGB"){if(Model.Id!="x20_pro")throw new InvalidOperationException("RGB configuration is verified for X20 Pro only.");if(rgbBody==null){var lighting=new LightingWindow();rgbBody=lighting.DetachBody();lighting.ReadOnOpen();}ManagementBodyHost.Children.Add(rgbBody);ChangeCount.Text="RGB lighting";PrimaryHint.Text=" Select";OverviewHint.Text="";DraftChip.Text="RGB";}
+        else if(page=="RGB"){if(Model.Id!="x20_pro")throw new InvalidOperationException("RGB configuration is verified for X20 Pro only.");if(rgbBody==null){var lighting=new LightingWindow(RegisterFocus,animate);rgbBody=lighting.DetachBody();lighting.ReadOnOpen();}ManagementBodyHost.Children.Add(rgbBody);ChangeCount.Text="RGB lighting";PrimaryHint.Text=" Select";OverviewHint.Text="";DraftChip.Text="RGB";}
         else if(page=="Screen"){if(!ModelProfiles.For(Model.Id).HasScreen)throw new InvalidOperationException("This model has no Screen artwork feature.");Screen??=new(this,RegisterFocus,()=>ShowManagement("Device"));ManagementBodyHost.Children.Add(Screen.Body);ChangeCount.Text="Screen artwork · local preview";PrimaryHint.Text=" Select";OverviewHint.Text="";DraftChip.Text="Screen";}
         else if(page=="Diagnostics"){Diagnostics??=new(Player,RegisterFocus,PcMode,model:Model);ManagementBodyHost.Children.Add(Diagnostics.Body);Diagnostics.Start();ChangeCount.Text="Read-only input capture · Use Esc or the mouse to leave";PrimaryHint.Text="";OverviewHint.Text="";DraftChip.Text="Diagnostics";Diagnostics.Reset.Focus();}
         else if(page=="PcMode")

@@ -79,27 +79,31 @@ public sealed class ProductWindow : Window
         if(ReviewSandbox.Active)return;
         async void Read()
         {
-            var (levels, transport)=await Task.Run(()=>{
-                var result=new string?[4];
-                string? detectedTransport=null;
-                try{using var reader=new X20Ctl.Product.Scanner.WindowsReader("XInput1_4.dll");for(int slot=0;slot<4;slot++){
-                    if(PcModeService.IsVirtual(slot)||!reader.Read(slot,out _))continue;
-                    var(type,level,known)=reader.Battery(slot);result[slot]=type=="wired"?"wired":known?level:null;
-                }}catch(Exception error)when(error is System.IO.IOException or ArgumentException){}
-                try{
-                    var inventory = X20Ctl.Product.Scanner.WindowsInventory.Read(false);
-                    var t = X20Ctl.Product.Scanner.ScanFlow.DetectTransport(inventory);
-                    if (t != null) detectedTransport = t == "Receiver" ? "2.4 GHz receiver" : t;
-                }catch(Exception){}
-                if (detectedTransport == "2.4 GHz receiver")
-                {
-                    for (int slot = 0; slot < 4; slot++)
-                        if (result[slot] == "wired") result[slot] = "receiver";
-                }
-                return (result, detectedTransport);
-            });
-            Host.UpdateBatteryLevels(levels, transport);
-            ShowTrayBattery();
+            try
+            {
+                var (levels, transport)=await Task.Run(()=>{
+                    var result=new string?[4];
+                    string? detectedTransport=null;
+                    try{using var reader=new X20Ctl.Product.Scanner.WindowsReader("XInput1_4.dll");for(int slot=0;slot<4;slot++){
+                        if(PcModeService.IsVirtual(slot)||!reader.Read(slot,out _))continue;
+                        var(type,level,known)=reader.Battery(slot);result[slot]=type=="wired"?"wired":known?level:null;
+                    }}catch(Exception error)when(error is System.IO.IOException or ArgumentException){}
+                    try{
+                        var inventory = X20Ctl.Product.Scanner.WindowsInventory.Read(false);
+                        var t = X20Ctl.Product.Scanner.ScanFlow.DetectTransport(inventory);
+                        if (t != null) detectedTransport = t == "Receiver" ? "2.4 GHz receiver" : t;
+                    }catch(Exception){}
+                    if (detectedTransport == "2.4 GHz receiver")
+                    {
+                        for (int slot = 0; slot < 4; slot++)
+                            if (result[slot] == "wired") result[slot] = "receiver";
+                    }
+                    return (result, detectedTransport);
+                });
+                Host.UpdateBatteryLevels(levels, transport);
+                ShowTrayBattery();
+            }
+            catch { }
         }
         void ShowTrayBattery()
         {

@@ -56,6 +56,7 @@ public sealed class OfflineAgent : IAgentModel
         // Carry only a pending clarification, not arbitrary prior requests, into a short answer.
         var previous = messages.Take(messages.Count - 1).LastOrDefault(m => m.Role == "assistant");
         if (previous?.Content.TrimEnd().EndsWith('?') == true && Regex.Matches(sentence, @"\S+").Count <= 4
+            && !IsQuestion(sentence.ToLowerInvariant())
             && !Regex.IsMatch(sentence, @"\b(turn|set|make|open|show|switch|reset|stop)\b", RegexOptions.IgnoreCase))
         {
             var request = messages.Take(messages.Count - 1).LastOrDefault(m => m.Role == "user");
@@ -122,6 +123,10 @@ public sealed class OfflineAgent : IAgentModel
         if (OfflineSupport.Explain(sentence) is { } explanation) return explanation;
         sentence = AgentSpelling.Fix(sentence);
         string lower = sentence.ToLowerInvariant();
+        if (Regex.IsMatch(lower, @"\b(dongle|2\.4\s*g(?:hz)?|receiver|keylinker)\b") || (IsQuestion(lower) && Regex.IsMatch(lower, @"\b(ble|bluetooth|unpaired|paired)\b")))
+            return OfflinePlan.Say(
+                "The 2.4 GHz dongle carries 1000 Hz gameplay only (no USB HID config channel), so settings and RGB travel over the controller's simultaneous KeyLinker BLE service (d7f010e0) at the same time.",
+                "Just keep PC Bluetooth turned ON — no Windows Bluetooth pairing is needed while playing on the 2.4 GHz dongle.");
         if (IsQuestion(lower)) return AgentCharacter.OffTopic(sentence) is { } unrelated ? OfflinePlan.Say(AgentCharacter.Silly(unrelated)) : Question(lower);
         var slots = Slots(sentence);
         var stickTargets = slots.Sticks.Count > 0 ? slots.Sticks : slots.Implied != null ? [slots.Implied] : AgentVocabulary.Sticks.ToList();
@@ -149,8 +154,14 @@ public sealed class OfflineAgent : IAgentModel
             return Plan(slots, stickTargets.Select(t => (AgentVocabulary.StickSquareGate, t, (object)(Regex.IsMatch(lower, @"\b(off|disable|stop)\b") ? "off" : "on"))).ToArray());
         if (Regex.IsMatch(lower, @"\b(turbo|rapid fire)\b") && !IsQuestion(lower) && Slots(sentence).Buttons.Count == 0)
             return OfflinePlan.Say("Which button should get turbo?");
-        if (Regex.IsMatch(lower, @"\b(rgb|leds?|lights?|lighting|colou?rs?|vibration|vibrate|rumble|haptics?|battery|firmware|gyro|motion|volume|sound|mic|microphone|bluetooth)\b"))
-            return OfflinePlan.Say("I can't change that yet. I can set sticks, triggers, buttons, turbo, paddles, PC mode, and measure drift.");
+        if (AgentColors.Asked(sentence) is { } colorWords && AgentColors.TryParse(colorWords, out var ledColor))
+            return Plan(slots, (AgentVocabulary.LedColor, AgentVocabulary.LightingTarget, colorWords)) with { Speech = $"I'll light up {ledColor.Name} ({ledColor.Hex})." };
+        if (AgentLightingEffects.Asked(sentence) is { } effectWords && AgentLightingEffects.TryParse(effectWords, out _, out var effectSummary))
+            return Plan(slots, (AgentVocabulary.LedEffect, AgentVocabulary.LightingTarget, effectWords)) with { Speech = $"I'll set {effectSummary}." };
+        if (Regex.IsMatch(lower, @"\b(rgb|leds?|lights|lighting|backlights?)\b|\b(?:change|set|turn|make|switch|put|paint)\b.*\b(?:light|colou?r)\b"))
+            return OfflinePlan.Say("Which colour or lighting effect should I set? Say a colour (like dark teal, warm white, or #FF8800) or an effect (like rainbow, ambient, breathe, cycle, moonlight pulse, hue sweep, strobe, or off).") with { Question = "Which colour or lighting effect should I set?" };
+        if (Regex.IsMatch(lower, @"\b(vibration|vibrate|rumble|haptics?|battery|firmware|gyro|motion|volume|sound|mic|microphone|bluetooth)\b"))
+            return OfflinePlan.Say("I can't change that yet. I can set sticks, triggers, buttons, turbo, paddles, lighting, mouse mode, PC mode, and measure drift.");
         if (Regex.IsMatch(lower, @"^\s*(hi|hello|hey|help|what can you do|who are you)\W*$")) return Intents.First(i => i.Id == "greeting").Build(new OfflineSlots());
         if (Regex.IsMatch(lower, @"\bmouse\s*mode\b"))
             return Intents.First(i => i.Id == (Regex.IsMatch(lower, @"\b(off|disable|stop)\b") ? "mouse_mode_off" : "mouse_mode_on")).Build(Slots(sentence));
@@ -212,6 +223,11 @@ public sealed class OfflineAgent : IAgentModel
         return id =>
             !(id.StartsWith("trigger_") && stick && !trigger) && !(id.StartsWith("stick_") && trigger && !stick)
             && !(id.StartsWith("mouse_mode") && !lower.Contains("mouse")) && !(id == "open_page" && !AgentVocabulary.Pages.Any(p => lower.Contains(p.ToLowerInvariant())))
+            && !(id.StartsWith("pc_mode") && !Regex.IsMatch(lower, @"\b(pc\s*mode|in\s*games?|stock\s*settings|reach\s*games?|nothing\s*changes|edits|settings|controller\s*mode)\b"))
+            && !(id.StartsWith("led_") && !Regex.IsMatch(lower, @"\b(rgb|leds?|lights|lighting|colou?rs?|backlights?|rainbow(?!\s*(?:six|6|r6))|ambient|ambilight|strobe|moonlight|breathe|breathing|cycle|fade|ember|shimmer|lava|glow)\b"))
+            && !(id == "stick_max_output_set" && !Regex.IsMatch(lower, @"\b(max(?:imum)?\s*output|output\s*cap|cap\b.*\boutput|limit\b.*\boutput)\b"))
+            && !(id == "stick_axis_ratio_set" && !Regex.IsMatch(lower, @"\b(ratio|vertical|horizontal)\b"))
+            && !(id.StartsWith("stick_square_gate") && !Regex.IsMatch(lower, @"\bsquare\s*gate\b|\bgate\b"))
             && !(id.EndsWith("_off") && !off) && !(id.EndsWith("_on") && off);
     }
 
@@ -327,6 +343,7 @@ public sealed class OfflineAgent : IAgentModel
         }
         public (string Intent, double Score) Nearest(List<string> tokens, Func<string, bool>? allowed = null)
         {
+            if (!tokens.Any(t => t != "NUM" && !t.Contains('_') && idf.ContainsKey(t))) return ("", 0);
             var q = Vector(tokens);
             if (q.Count == 0) return ("", 0);
             // the closest examples vote, weighted by how close they are (hand-written ones count more): one stray
@@ -386,7 +403,10 @@ public sealed class OfflineAgent : IAgentModel
         AgentVocabulary.StickSquareGate => $"switch my {Words(targets.Select(Called))} square gate {value}",
         AgentVocabulary.MouseMode => $"switch mouse mode {value}",
         AgentVocabulary.OpenPage => $"open {value}",
-        _ => $"switch PC mode {value}",
+        AgentVocabulary.LedColor => $"change controller lighting to {value}",
+        AgentVocabulary.LedEffect => $"set lighting effect to {value}",
+        AgentVocabulary.PcMode => $"switch PC mode {value}",
+        _ => $"{action.Replace('_', ' ')} {value}",
     };
 
     /// <summary>A plan from actions: "I'll …" from each action, and a recap from each setting's meaning.</summary>
@@ -435,6 +455,9 @@ public sealed class OfflineAgent : IAgentModel
             : Regex.IsMatch(lower, @"axis ratio|vertical ratio") ? AgentVocabulary.StickAxisRatio
             : Regex.IsMatch(lower, @"square gate") ? AgentVocabulary.StickSquareGate
             : Regex.IsMatch(lower, @"mouse mode") ? AgentVocabulary.MouseMode
+            : Regex.IsMatch(lower, @"\b(effect|rainbow(?!\s*(?:six|6|r6))|ambient|ambilight|strobe|moonlight|lava|ember|shimmer|breathe|breathing|hue\s*sweep|nightlight|trigger\s*glow|stick\s*heat|button\s*flash)\b") ? AgentVocabulary.LedEffect
+            : Regex.IsMatch(lower, @"\b(colou?rs?|hex|shade|rgb|leds?|lights|lighting|backlights?)\b") ? AgentVocabulary.LedColor
+            : Regex.IsMatch(lower, @"\b(pages?|diagnostics?\s*page)\b") ? AgentVocabulary.OpenPage
             : Regex.IsMatch(lower, @"hair[\s-]*trigger|full[\s-]*(at|press)") ? AgentVocabulary.TriggerFullAt
             : Regex.IsMatch(lower, @"anti[\s-]*dead") ? AgentVocabulary.StickAntiDeadzone
             : Regex.IsMatch(lower, @"dead[\s-]*zone|deadzone|drift") ? (trigger ? AgentVocabulary.TriggerDeadzone : AgentVocabulary.StickDeadzone)
@@ -444,7 +467,7 @@ public sealed class OfflineAgent : IAgentModel
             : Regex.IsMatch(lower, @"remap|swap|rebind") ? AgentVocabulary.Remap
             : Regex.IsMatch(lower, @"paddle|\bm[1-6]\b") ? AgentVocabulary.Paddle
             : Regex.IsMatch(lower, @"pc mode") ? AgentVocabulary.PcMode : null;
-        if (action == null) return OfflinePlan.Say("Ask me about dead zones, anti-dead zones, curves, hair triggers, turbo, remaps, paddles or PC mode, and I'll explain.");
+        if (action == null) return OfflinePlan.Say("Ask me about dead zones, anti-dead zones, curves, max output, vertical ratio, square gate, hair triggers, turbo, remaps, paddles, lighting, mouse mode or PC mode, and I'll explain.");
         var m = AgentKnowledge.Of(action);
         var answer = new StringBuilder($"{m.Name}: {m.What}.");
         if (m.More.Length > 0) answer.Append($" Higher: {m.More}.");
@@ -521,8 +544,20 @@ public sealed class OfflineAgent : IAgentModel
                 ["Remove the dead zone on my sticks", "No dead zone on my right stick", "Turn off the stick dead zone", "Zero dead zone on both sticks"],
                 s => Each(s, AgentVocabulary.StickDeadzone, Sticks(s, both), 0)),
             new("stick_full_at_set", "set where a stick reaches full speed (outer dead zone), as a number",
-                ["Right stick full speed at 85", "Make my left stick reach max at 90", "Set the outer dead zone of my sticks to 80", "Full speed at 75 on the right stick"],
+                ["Right stick full speed at 85", "Make my left stick reach max at 90", "Set the outer dead zone of my sticks to 80", "Full speed at 75 on the right stick", "Set left stick full speed to 85"],
                 s => Number(s, AgentVocabulary.StickFullAt, Sticks(s, both), "full speed point, 60 to 100")),
+            new("stick_max_output_set", "cap the maximum output percentage of a stick",
+                ["Cap right stick output at 90 percent", "Limit left stick max output to 85", "Set right stick maximum output to 88", "Cap stick output at 92%"],
+                s => Number(s, AgentVocabulary.StickMaxOutput, Sticks(s, both), "maximum output, 60 to 100")),
+            new("stick_axis_ratio_set", "set a stick's vertical axis ratio percentage relative to horizontal",
+                ["Set right stick vertical axis ratio to 120 percent", "Change left stick vertical ratio to 85", "Lower vertical axis ratio to 90 on right stick"],
+                s => Number(s, AgentVocabulary.StickAxisRatio, Sticks(s, both), "vertical axis ratio, 50 to 150")),
+            new("stick_square_gate_on", "enable square gate on a stick so diagonals reach full output",
+                ["Turn square gate on for the left stick", "Enable square gate on both sticks", "Switch right stick square gate on"],
+                s => Each(s, AgentVocabulary.StickSquareGate, Sticks(s, both), "on")),
+            new("stick_square_gate_off", "disable square gate on a stick to use a circular gate",
+                ["Turn square gate off for the left stick", "Disable square gate on my sticks", "Stop square gate on right stick"],
+                s => Each(s, AgentVocabulary.StickSquareGate, Sticks(s, both), "off")),
             new("stick_small_moves", "small stick movements don't register in a game (needs an anti-dead zone)",
                 ["Small stick movements don't register in my game", "Tiny movements of my stick do nothing in game", "The game ignores small aim adjustments", "Add an anti dead zone", "My small corrections don't register"],
                 s => First(s) is { } n ? Each(s, AgentVocabulary.StickAntiDeadzone, Sticks(s, both), Num(n)) : Each(s, AgentVocabulary.StickAntiDeadzone, Sticks(s, both), 10)),
@@ -587,9 +622,19 @@ public sealed class OfflineAgent : IAgentModel
                 ["Open diagnostics", "Show curves", "Take me to macros", "Open buttons", "Show tools"],
                 s => AgentVocabulary.Pages.FirstOrDefault(p => s.Text.Contains(p, StringComparison.OrdinalIgnoreCase)) is { } page
                     ? Plan(s, (AgentVocabulary.OpenPage, AgentVocabulary.PageTarget, page)) : OfflinePlan.Say("Which page should I open?")),
+            new("led_color_set", "change controller RGB lights to a colour, tint, shade or hex code",
+                ["Change my leds to blue", "Set the lights to dark teal", "Make my rgb neon green", "Change led colour to warm white", "Paint the lighting deep purple"],
+                s => AgentColors.Asked(s.Text) is { } colorWords && AgentColors.TryParse(colorWords, out var ledColor)
+                    ? Plan(s, (AgentVocabulary.LedColor, AgentVocabulary.LightingTarget, colorWords)) with { Speech = $"I'll light up {ledColor.Name} ({ledColor.Hex})." }
+                    : OfflinePlan.Say("Which colour should I set the lights to? Try warm white, dark teal, or #FF8800.")),
+            new("led_effect_set", "set a lighting effect or turn controller lights off",
+                ["Put rainbow effect on my lights", "Set leds to moonlight pulse blue", "Turn off my rgb lights", "Enable breathing lights", "Switch lighting to strobe", "Turn on ambient screen sync"],
+                s => AgentLightingEffects.Asked(s.Text) is { } effectWords && AgentLightingEffects.TryParse(effectWords, out _, out var effectSummary)
+                    ? Plan(s, (AgentVocabulary.LedEffect, AgentVocabulary.LightingTarget, effectWords)) with { Speech = $"I'll set {effectSummary}." }
+                    : OfflinePlan.Say("Which lighting effect would you like? Try rainbow, ambient, breathe, cycle, moonlight pulse, hue sweep, strobe, or off.")),
             new("greeting", "hello, help, or what can you do",
                 ["Hi", "Hello", "What can you do", "Help", "Hey there", "Who are you"],
-                _ => OfflinePlan.Say("I'm Agent XCTL. I can set stick and trigger dead zones and curves, hair triggers, turbo, remaps, paddles, reset, switch PC mode, and measure stick drift. Tell me how you play.")),
+                _ => OfflinePlan.Say("I'm Agent XCTL, in offline mode. I can set stick and trigger dead zones and curves, max output, vertical ratio, square gate, hair triggers, turbo, remaps, paddles, lighting, mouse mode, PC mode, and measure stick drift. Tell me how you play.")),
         ];
     }
 }
