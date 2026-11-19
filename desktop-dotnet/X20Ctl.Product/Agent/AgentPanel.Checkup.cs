@@ -153,10 +153,11 @@ public partial class AgentPanel
             }
             catch { }
         }
+        string? transportDisplay = transport == "Receiver" ? "2.4 GHz receiver" : transport;
         lines.Add(slot >= 0
-            ? new(true, $"I can see your {padName} live (Windows slot {slot + 1}" + (transport != null ? $", {transport}" : "") + "): every stick, trigger and button.")
+            ? new(true, $"I can see your {padName} live (Windows slot {slot + 1}" + (transportDisplay != null ? $", {transportDisplay}" : "") + "): every stick, trigger and button.")
             : new(false, $"I can't see your {padName} right now. Connect it by cable, 2.4 GHz dongle or Bluetooth, in Xbox (XInput) mode."));
-        if (transport == "2.4 GHz receiver")
+        if (transport is "Receiver" or "2.4 GHz receiver")
             lines.Add(new(true, "2.4 GHz dongle (413D:2131) carries gameplay only (no USB HID config channel) — settings and RGB send over simultaneous unpaired BLE whenever PC Bluetooth is ON."));
         if (FinishModel(modelId) == "x20_pro")
         {

@@ -25,7 +25,7 @@ public static class ScanFlow
         (0x045E, 0x028E, "Xbox 360-compatible XInput identity. Most pads in XInput mode, EasySMX included, use it, so it proves nothing about the model."),
         (0x045E, 0x02E0, "Xbox Wireless (Bluetooth) identity, shared by many pads; the EasySMX Dune 8K uses 02FD instead."),
         (0x045E, 0x02FD, "Xbox Wireless Controller over Bluetooth. A genuine Microsoft controller uses it, and so does the EasySMX Dune 8K on Bluetooth (an owner's scan, 10 Oct 2026: \"Xbox Bluetooth Gamepad\" by Microsoft Corporation, no vendor channels). Pick the model you hold."),
-        (0x0079, 0x181C, "Seen with the EasySMX X20 in DInput mode."),
+        (0x0079, 0x181C, "Generic DragonRise DInput gamepad identity (often shown as STK-7024X in Steam). Seen on multiple EasySMX controllers (X20, X20 Pro, X15) in DInput mode — does not identify a specific model."),
         (0x1D57, 0xFA60, "A Xenta wireless keyboard and mouse receiver. It is not an EasySMX receiver; the X20's own dongle shows the pad's identity instead."),
         (0x1A34, 0xF517, "Reported for the EasySMX X15's 2.4 GHz receiver. The vendor's X20 receiver tool also opens this id (found in its code, not yet seen here)."),
         (0x2345, 0xE084, "Reported for the EasySMX X05 Pro in D-Input mode (SalimKr, issue #64, not yet seen here): a USB device with a vendor channel on usage page 0xFFA0 and 64-byte reports 0x04 (input) and 0x05 (output)."),
@@ -49,23 +49,15 @@ public static class ScanFlow
 
     /// <summary>The model a controller names itself as, from the product and manufacturer strings Windows lists (the Dune 8K
     /// reports "EasySMX D15 Dune 8K"). A name is a claim the controller makes, not proof, and the finding says so.</summary>
-    public static (string Name, string Model)? DetectModel(Inventory inventory)
-    {
-        foreach (var i in inventory.interfaces)
-            foreach (var text in new[] { i.manufacturer, i.product })
-            {
-                if (string.IsNullOrWhiteSpace(text) || !text.Contains("EasySMX", StringComparison.OrdinalIgnoreCase)) continue;
-                string t = text.ToUpperInvariant();
-                string? model = t.Contains("DUNE") || t.Contains("D15") ? "Dune / D15" : t.Contains("X20 PRO") ? "X20 Pro" : t.Contains("X20") ? "X20" : t.Contains("X15") ? "X15" : t.Contains("X10") ? "X10" : t.Contains("X05 PRO") ? "X05 Pro" : t.Contains("D10") ? "D10" : null;
-                if (model != null) return (text.Trim(), model);
-            }
-        if (inventory.interfaces.Any(i => i.vid == 0x413D && i.pid == 0x2131)) return ("EasySMX receiver (X20 Pro or Dune)", "X20 Pro / Dune");
-        return null;
-    }
+    public static (string Name, string Model)? DetectModel(Inventory inventory) =>
+        ControllerIdentity.DetectModel(ToIdentities(inventory));
+
     /// <summary>Bluetooth when Windows enumerated the gamepad through its Bluetooth HID service; Receiver when the 2.4 GHz receiver is present; otherwise unknown (a cable and a generic receiver look alike).</summary>
     public static string? DetectTransport(Inventory inventory) =>
-        inventory.interfaces.Any(i => i.vid == 0x413D && i.pid == 0x2131) ? "Receiver" :
-        inventory.interfaces.Any(i => i.usagePage == 1 && i.usage is 4 or 5 && (i.path.Contains("00001124-0000-1000-8000-00805f9b34fb", StringComparison.OrdinalIgnoreCase) || i.path.Contains("BTHLE", StringComparison.OrdinalIgnoreCase) || i.path.Contains("BTHENUM", StringComparison.OrdinalIgnoreCase))) ? "Bluetooth" : null;
+        ControllerIdentity.DetectTransport(ToIdentities(inventory));
+
+    private static IEnumerable<DeviceIdentity> ToIdentities(Inventory inventory) =>
+        inventory.interfaces.Select(i => new DeviceIdentity(i.kind, i.path, i.container, i.product, i.manufacturer, i.vid, i.pid, i.usagePage, i.usage));
     public static string AppVersion => System.Reflection.Assembly.GetExecutingAssembly().GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false).OfType<System.Reflection.AssemblyInformationalVersionAttribute>().FirstOrDefault()?.InformationalVersion.Split('+')[0] ?? "native-preview";
 
     public static List<Finding> Interpret(Evidence evidence, Inventory inventory, (string Type, string Level, bool Known) battery, IReadOnlyDictionary<string, double> reportRates, double holdError, List<(string Name, int Percent)>? bluetooth = null,

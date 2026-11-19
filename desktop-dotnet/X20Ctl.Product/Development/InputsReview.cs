@@ -120,13 +120,27 @@ internal static class InputsReview
         report.Add("card lines: " + string.Join(" | ", window.Host.Selector!.Cards.Select(c => Texts(c).LastOrDefault() ?? "?")));
         root.Measure(new Size(1920, 1150)); root.Arrange(new Rect(0, 0, 1920, 1150)); root.UpdateLayout(); await Task.Delay(900); root.UpdateLayout();
         Save(root, Path.Combine(directory, "selector.png"));
-        foreach (var outcome in new[] { VerifyOutcome.Match, VerifyOutcome.Unconfirmed })
+        foreach (var outcome in new[] { VerifyOutcome.Match, VerifyOutcome.Unconfirmed, VerifyOutcome.Mismatch })
         {
-            var view = new ControllerVerifyView("x10", "X10", false);
-            view.ShowResult(new(outcome, outcome == VerifyOutcome.Match ? "x10" : null, outcome == VerifyOutcome.Match ? "EasySMX X10" : null, "", [new("EasySMX X10", outcome == VerifyOutcome.Match ? "x10" : null, "HID · 045E:028E")], "USB"), "X10", null, () => { }, _ => { }, () => { });
+            var view = new ControllerVerifyView(outcome == VerifyOutcome.Mismatch ? "x20_pro" : "x10", outcome == VerifyOutcome.Mismatch ? "EasySMX X20 Pro" : "X10", false);
+            var verifyResult = outcome switch
+            {
+                VerifyOutcome.Match => new VerifyResult(VerifyOutcome.Match, "x10", "EasySMX X10", "", [new("EasySMX X10", "x10", "HID · 045E:028E · reported identity")], "USB"),
+                VerifyOutcome.Mismatch => new VerifyResult(VerifyOutcome.Mismatch, "x20", "EasySMX X20", "EasySMX X20", [new("EasySMX X20", "x20", "HID · 0079:181C · reported identity")], "USB"),
+                _ => new VerifyResult(VerifyOutcome.Unconfirmed, null, null, "", [new("EasySMX X10", null, "HID · 045E:028E · model unconfirmed")], "USB"),
+            };
+            view.ShowResult(verifyResult, outcome == VerifyOutcome.Mismatch ? "EasySMX X20 Pro" : "X10", verifyResult.DetectedName, () => { }, _ => { }, () => { });
             view.Measure(new Size(1600, 700)); view.Arrange(new Rect(0, 0, 1600, 700)); view.UpdateLayout();
             Save(view, Path.Combine(directory, $"verify-{outcome}.png"));
-            report.Add($"verify {outcome}: " + string.Join(" / ", Texts(view).Where(t => t.Contains("Studio") || t.Contains("found") || t.Contains("·"))));
+            report.Add($"verify {outcome}: " + string.Join(" / ", Texts(view).Where(t => t.Contains("Studio") || t.Contains("Continue") || t.Contains("Detected") || t.Contains("found") || t.Contains("·"))));
+        }
+        {
+            var dinputView = new ControllerVerifyView("x20_pro", "EasySMX X20 Pro", false);
+            var dinputResult = ControllerIdentity.Evaluate("x20_pro", [new DeviceIdentity("HID", @"\\?\hid#vid_0079&pid_181c#1_05", "dinput", "STK-7024X", "DragonRise Inc.", 0x0079, 0x181C, 1, 5)]);
+            dinputView.ShowResult(dinputResult, "EasySMX X20 Pro", dinputResult.DetectedName, () => { }, _ => { }, () => { });
+            dinputView.Measure(new Size(1600, 700)); dinputView.Arrange(new Rect(0, 0, 1600, 700)); dinputView.UpdateLayout();
+            Save(dinputView, Path.Combine(directory, "verify-DInput.png"));
+            report.Add("verify DInput: " + string.Join(" / ", Texts(dinputView).Where(t => t.Contains("Studio") || t.Contains("0079:181C") || t.Contains("found") || t.Contains("·"))));
         }
         // a Dune: with PC mode off its tabs point to PC mode; with it on, Vibration sets how strongly games vibrate it
         window.Host.CloseSelector(); window.Scene.AssignController(2, window.Host.Catalog.Get("dune")); window.Host.EnterStudio(2); studio = window.Host.Studio!;

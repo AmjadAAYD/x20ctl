@@ -90,11 +90,12 @@ internal static class CheckEngine
     {
         [(0x045E, 0x028E)] = "Xbox 360-compatible identity. Most pads in XInput mode, EasySMX included, use it; it proves nothing about the model.",
         [(0x045E, 0x02E0)] = "Xbox Wireless (Bluetooth) identity, shared by many pads.",
-        [(0x0079, 0x181C)] = "Seen with the EasySMX X20 in DInput mode.",
-        [(0x1D57, 0xFA60)] = "Seen with the EasySMX X20's 2.4 GHz receiver (Xenta chip).",
+        [(0x0079, 0x181C)] = "Generic DragonRise DInput gamepad identity (often shown as STK-7024X in Steam). Seen on multiple EasySMX controllers (X20, X20 Pro, X15) in DInput mode — does not identify a specific model.",
+        [(0x1D57, 0xFA60)] = "A Xenta wireless keyboard and mouse receiver. It is not an EasySMX receiver; the X20's own dongle shows the pad's identity instead.",
         [(0x1A34, 0xF517)] = "Reported for the EasySMX X15's 2.4 GHz receiver (research notes, not yet seen here).",
         [(0x2345, 0xE084)] = "Reported for the EasySMX X05 Pro in D-Input mode (SalimKr, issue #64, not yet seen here): a USB device with a vendor channel on usage page 0xFFA0 and 64-byte reports 0x04 (input) and 0x05 (output).",
-        [(0x2345, 0xE062)] = "Reported for the EasySMX D10's receiver, a vendor-defined HID device (research notes, not yet seen here)."
+        [(0x2345, 0xE062)] = "Reported for the EasySMX D10's receiver, a vendor-defined HID device (research notes, not yet seen here).",
+        [(0x413D, 0x2131)] = "Seen with the EasySMX Dune 8K (D15) and EasySMX X20 Pro 2.4 GHz receiver in XInput mode, exposing vendor channels 0xFF70 and 0xFF10.",
     };
 
     public sealed record Result(string Step, string Status, string[] KeysSeen, Dictionary<string, int[]> AxesMoved, Dictionary<string, int[]> HoldsMs, int ReportsPerSecondMax, object[] Events);

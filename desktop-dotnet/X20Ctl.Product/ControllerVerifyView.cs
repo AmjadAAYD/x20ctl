@@ -7,67 +7,24 @@ using X20Ctl.Product.Scanner;
 
 namespace X20Ctl.Product;
 
-public enum VerifyOutcome { Match, Mismatch, Unconfirmed, NoController }
-
-/// <summary>What the scan on entering a controller found. Detected is a model id when Windows named the pad as one.</summary>
-public sealed record DetectedController(string Name, string? ModelId, string Detail);
-public sealed record VerifyResult(VerifyOutcome Outcome, string? DetectedId, string? DetectedName, string Detail, IReadOnlyList<DetectedController>? Controllers = null, string? Transport = null);
-
 public static class ControllerVerify
 {
-    // model ids by the name ScanFlow.DetectModel returns
-    private static readonly Dictionary<string, string> ByName = new()
-    {
-        ["Dune / D15"] = "dune", ["X20 Pro"] = "x20_pro", ["X20"] = "x20", ["X15"] = "x15", ["X10"] = "x10", ["X05 Pro"] = "x05_pro", ["D10"] = "d10",
-    };
-    // identities seen on real hardware that name a model outright (docs/00-findings.md); the shared Xbox identities never do
-    private static readonly Dictionary<(int, int), string> ById = new() { [(0x0079, 0x181C)] = "x20", [(0x1D57, 0xFA60)] = "x20" };
+    private static IReadOnlyList<DeviceIdentity> ToIdentities(Inventory inventory) =>
+        inventory.interfaces.Select(i => new DeviceIdentity(i.kind, i.path, i.container, i.product, i.manufacturer, i.vid, i.pid, i.usagePage, i.usage)).ToList();
 
     /// <summary>Asks Windows what is plugged in and whether it names itself as the model the player clicked. A name or ID is
-    /// the pad's own claim; the shared Xbox identities prove nothing, so such a pad comes back Unconfirmed, never Match.</summary>
+    /// the pad's own claim; the shared Xbox and DInput identities prove nothing, so such a pad comes back Unconfirmed, never Match.</summary>
     public static async Task<VerifyResult> Run(string modelId)
     {
         Inventory inventory;
         try { inventory = await Inventory.Bound(Task.Run(() => WindowsInventory.Read(false)), 8000); }
         catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception or System.IO.IOException)
         { return new(VerifyOutcome.NoController, null, null, "Windows would not list devices."); }
-        var found = Describe(inventory);
-        string? transport = ScanFlow.DetectTransport(inventory);
-        VerifyResult Result(VerifyOutcome outcome, string? id, string? name, string detail) => new(outcome, id, name, detail, found, transport);
-        string? id = null, name = null;
-        if (ScanFlow.DetectModel(inventory) is { } named && ByName.TryGetValue(named.Model, out var byName)) { id = byName; name = named.Name; }
-        else foreach (var i in inventory.interfaces) if (ById.TryGetValue((i.vid, i.pid), out var byId)) { id = byId; name = $"{i.vid:X4}:{i.pid:X4}"; break; }
-        if (id == null && inventory.interfaces.Any(i => i.vid == 0x413D && i.pid == 0x2131))
-        {
-            if (modelId is "x20_pro" or "dune") { id = modelId; name = "EasySMX receiver (X20 Pro or Dune)"; }
-            else { id = null; name = "EasySMX receiver (X20 Pro or Dune)"; }
-        }
-        if (id == modelId) return Result(VerifyOutcome.Match, id, name, name ?? "");
-        if (id != null) return Result(VerifyOutcome.Mismatch, id, name, name ?? "");
-        bool pad = found.Count > 0;
-        return pad ? Result(VerifyOutcome.Unconfirmed, null, null, "A gamepad is connected but doesn't name its model.")
-                   : Result(VerifyOutcome.NoController, null, null, "No gamepad was listed.");
-    }
-    public static IReadOnlyList<DetectedController> Describe(Inventory inventory)
-    {
-        var found = new List<DetectedController>();
-        foreach (var group in Inventory.Group(inventory.interfaces))
-        {
-            var subset = new Inventory { interfaces = group };
-            var named = ScanFlow.DetectModel(subset);
-            var pad = group.FirstOrDefault(i => i.kind == "HID" && i.usagePage == 1 && i.usage is 4 or 5);
-            var known = group.FirstOrDefault(i => ById.ContainsKey((i.vid, i.pid)));
-            pad ??= group.FirstOrDefault(i => i.vid == 0x045E && (i.product.Contains("Xbox", StringComparison.OrdinalIgnoreCase) || i.product.Contains("Controller", StringComparison.OrdinalIgnoreCase)));
-            bool isReceiver = group.Any(i => i.vid == 0x413D && i.pid == 0x2131);
-            if (pad == null && known == null && named == null && !isReceiver) continue;
-            var device = pad ?? known ?? group[0];
-            string? id = named is { } n && ByName.TryGetValue(n.Model, out var mapped) ? mapped : known != null ? ById[(known.vid, known.pid)] : null;
-            string name = named?.Name ?? (isReceiver ? "EasySMX receiver (X20 Pro or Dune)" : !string.IsNullOrWhiteSpace(device.product) ? device.product : "Windows gamepad");
-            found.Add(new(name, id, $"{device.kind} · {device.vid:X4}:{device.pid:X4}" + (isReceiver ? " · 2.4 GHz receiver" : id == null ? " · model unconfirmed" : " · reported identity")));
-        }
-        return found;
+        return ControllerIdentity.Evaluate(modelId, ToIdentities(inventory));
     }
 
+    public static IReadOnlyList<DetectedController> Describe(Inventory inventory) =>
+        ControllerIdentity.Describe(ToIdentities(inventory));
 }
 
 /// <summary>The popup shown when a controller is opened: a glowing gamepad outline that a light runs round while Windows is
@@ -89,6 +46,7 @@ public sealed class ControllerVerifyView : Grid
     private readonly TranslateTransform scanMove = new();
     private readonly Rectangle scanBeam = new() { Height = 24, VerticalAlignment = VerticalAlignment.Top, IsHitTestVisible = false };
     private readonly bool animate;
+    private readonly string selectedId;
     private readonly string selectedName;
 
     public event Action? Cancelled;
@@ -96,7 +54,7 @@ public sealed class ControllerVerifyView : Grid
 
     public ControllerVerifyView(string modelId, string modelName, bool animate)
     {
-        this.animate = animate; selectedName = modelName;
+        this.animate = animate; selectedId = modelId; selectedName = modelName;
         Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(170, 2, 6, 18)));
         var accent = ThemeCatalog.R(Color.FromRgb(86, 190, 255));
         var size = GamepadGlyph.Size;
@@ -200,7 +158,7 @@ public sealed class ControllerVerifyView : Grid
 
     private Button Action(string text, bool primary, Action click)
     {
-        var b = new Button { Style = DS.Style(primary ? "PrimaryButton" : "ActionButton"), Height = 42, MinHeight = 0, Padding = new(22, 0, 22, 0), Margin = new(5, 0, 5, 0), Content = text };
+        var b = new Button { Style = DS.Style(primary ? "PrimaryButton" : "ActionButton"), Height = 42, MinHeight = 0, Padding = new(22, 0, 22, 0), Margin = new(5, 4, 5, 4), Content = text };
         b.Click += (_, _) => click(); return b;
     }
 
@@ -267,12 +225,18 @@ public sealed class ControllerVerifyView : Grid
                 break;
             case VerifyOutcome.Mismatch:
                 string other = ModelLabel(r.DetectedId!, detectedName);
-                title.Text = $"This is a {other}, not a {modelName}"; status.Text = $"The controller names itself \"{r.DetectedName}\". {modelName} settings stay off it.";
+                string chosen = ModelLabel(selectedId, modelName);
+                title.Text = $"Detected {other}, not {chosen}";
+                status.Text = $"The controller reports \"{r.DetectedName}\". Hardware writes still check the pad before sending.";
                 buttons.Children.Add(Action($"Enter Studio as {other}", true, () => switchTo(r.DetectedId!)));
+                buttons.Children.Add(Action($"Continue as {chosen}", false, enter));
                 buttons.Children.Add(Action("Cancel", false, () => Cancelled?.Invoke()));
                 break;
             case VerifyOutcome.Unconfirmed:
-                title.Text = "Controller found"; status.Text = Joined(Link(r.Transport), $"Set up as {modelName}", "Full PC Mode Configuration");
+                title.Text = "Controller found";
+                status.Text = r.Detail.Contains("0079:181C", StringComparison.OrdinalIgnoreCase)
+                    ? Joined("DInput mode (0079:181C)", $"Set up as {modelName}", "Switch to XInput for full PC support")
+                    : Joined(Link(r.Transport), $"Set up as {modelName}", "Full PC Mode Configuration");
                 buttons.Children.Add(Action("Enter Studio", true, enter));
                 buttons.Children.Add(Action("Cancel", false, () => Cancelled?.Invoke()));
                 break;
