@@ -63,11 +63,11 @@ internal static class UpdateCheck
         http.DefaultRequestHeaders.UserAgent.ParseAdd("X20CTL/" + AppInfo.Version.Replace('+', '.'));
         http.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
         using var doc = JsonDocument.Parse(await http.GetStringAsync(Api));
-        bool takePre = AppInfo.Version.Contains('-'); Release? best = null;
+        Release? best = null;
         foreach (var r in doc.RootElement.EnumerateArray())
         {
             if (r.GetProperty("draft").GetBoolean()) continue;
-            if (r.GetProperty("prerelease").GetBoolean() && !takePre) continue;
+            if (r.GetProperty("prerelease").GetBoolean()) continue; // pre-releases are never offered
             string tag = r.GetProperty("tag_name").GetString() ?? "", version = Regex.Replace(tag.TrimStart('v'), "-exe$", "");
             // only releases that carry a Linux package count
             bool linux = r.GetProperty("assets").EnumerateArray().Any(a => (a.GetProperty("name").GetString() ?? "").Contains("linux-x"));
