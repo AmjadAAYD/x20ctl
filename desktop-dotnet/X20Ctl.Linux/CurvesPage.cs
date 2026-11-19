@@ -21,13 +21,14 @@ internal sealed class CurvesPage : UserControl, IKeyPage
     public CurvesPage(StudioState state)
     {
         this.state = state; Build();
-        reader.Frame += f => { frame = f; Live(); }; reader.Start();
+        reader.Frame += f => { frame = f; Live(); };
         ramp.Tick += (_, _) => Ramp();
-        AttachedToVisualTree += (_, _) => ramp.Start();
-        DetachedFromVisualTree += (_, _) => { ramp.Stop(); reader.Dispose(); };
+        AttachedToVisualTree += (_, _) => { reader.Start(state.Slot); ramp.Start(); };
+        DetachedFromVisualTree += (_, _) => { ramp.Stop(); held.Clear(); kx = ky = kl = kr = 0; reader.Stop(); };
     }
 
     /// <summary>Keyboard stand-in for the sticks and triggers: a held key eases the value to full over a fifth of a second, like a thumb.</summary>
+    public void ResetInput() { held.Clear(); kx = ky = kl = kr = 0; Live(); }
     void Ramp()
     {
         if (!keyboard) return;

@@ -16,7 +16,7 @@ internal sealed class MacrosPage : UserControl
     readonly StudioState state; string slot; int index = -1; string tab = "Buttons"; double zoom = 1;
     public MacrosPage(StudioState state)
     {
-        this.state = state; slot = state.Macros.SlotNames.FirstOrDefault() ?? "M1";
+        this.state = state; DetachedFromVisualTree += (_, _) => CancelInput(); slot = state.Macros.SlotNames.FirstOrDefault() ?? "M1";
         index = state.Macros[slot].Count > 0 ? 0 : -1; Build();
     }
 
@@ -52,21 +52,25 @@ internal sealed class MacrosPage : UserControl
 
     MacroRecorder? recorder; Avalonia.Threading.DispatcherTimer? watch; string recordNote = "";
 
+    public event Action? OwnershipChanged;
+    public bool Recording => recorder != null;
+    public void CancelInput() { watch?.Stop(); watch = null; recorder?.Dispose(); recorder = null; preview?.Cancel(); preview = null; recordNote = "Recording stopped; draft preserved."; OwnershipChanged?.Invoke(); }
+
     void ToggleRecord()
     {
         if (recorder != null) { FinishRecord(); return; }
-        var r = new MacroRecorder();
+        var r = new MacroRecorder(state.Slot);
         if (!r.Start()) { r.Dispose(); recordNote = "No controller found to record from."; Build(); return; }
-        recorder = r; recordNote = "Recording. Play the sequence on the controller.";
+        recorder = r; OwnershipChanged?.Invoke(); recordNote = "Recording. Play the sequence on the controller.";
         watch = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
-        watch.Tick += (_, _) => { if (recorder == null) return; if (recorder.ShouldStop) FinishRecord(); };
+        watch.Tick += (_, _) => { if (recorder == null) return; if (recorder.SourceLost) { CancelInput(); Build(); } else if (recorder.ShouldStop) FinishRecord(); };
         watch.Start(); Build();
     }
 
     void FinishRecord()
     {
         var r = recorder; if (r == null) return;
-        watch?.Stop(); watch = null; recorder = null; r.Stop();
+        watch?.Stop(); watch = null; recorder = null; OwnershipChanged?.Invoke(); r.Stop();
         var events = r.Events(); r.Dispose();
         if (events.Count == 0) { recordNote = "Nothing was played."; Build(); return; }
         int kept = 0;

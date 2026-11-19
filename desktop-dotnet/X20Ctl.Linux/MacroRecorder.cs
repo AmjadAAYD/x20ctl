@@ -4,7 +4,7 @@ namespace X20Ctl.Linux;
 
 /// <summary>Record on the Macros page: play the sequence on the controller and it becomes the slot's events. Reads the pad through the joystick interface (read-only).
 /// Each held combination becomes one event and the rest after it its pause. Times round to the 5 ms grid, blips under 15 ms fold away, and it stops by itself after 2.5 s of rest following the last input or after 30 s.</summary>
-internal sealed class MacroRecorder : IDisposable
+internal sealed class MacroRecorder(int player = 0) : IDisposable
 {
     sealed record Snap(string Buttons, StickHeading Left, StickHeading Right) { public bool Neutral => Buttons.Length == 0 && Left == StickHeading.Neutral && Right == StickHeading.Neutral; }
     sealed record Segment(Snap State, double Start, double End);
@@ -13,23 +13,32 @@ internal sealed class MacroRecorder : IDisposable
     readonly GamepadReader reader = new();
     Snap current = new("", StickHeading.Neutral, StickHeading.Neutral); double currentStart, lastInput = -1;
     public bool Running { get; private set; }
+    bool armed, connectedOnce;
+    public bool Connected => reader.Connected;
+    public bool SourceLost => !reader.Connected && (connectedOnce || Elapsed > 1000);
     public double Elapsed => clock.Elapsed.TotalMilliseconds;
     public double IdleMs => lastInput < 0 ? 0 : Elapsed - lastInput;
     public bool Heard => lastInput >= 0;
-    public bool ShouldStop => Heard && IdleMs > 2500 || Elapsed > 30000;
+    public bool ShouldStop => Heard && current.Neutral && IdleMs > 2500 || Elapsed > 30000;
     public string Holding => current.Neutral ? "nothing" : string.Join(" + ", new[] { current.Buttons.Replace("+", " + ") }.Where(t => t.Length > 0)
         .Concat(current.Left == StickHeading.Neutral ? [] : new[] { "L " + current.Left }).Concat(current.Right == StickHeading.Neutral ? [] : new[] { "R " + current.Right }));
 
     /// <summary>False when no controller is exposed.</summary>
     public bool Start()
     {
-        reader.Start(); if (!reader.Connected) return false;
+        reader.Start(player); if (InputSources.Source(player) == null || !InputSources.UiActive) return false;
         reader.Frame += OnFrame; Running = true; clock.Restart(); currentStart = 0; return true;
     }
 
     void OnFrame(PadFrame f)
     {
         if (!Running) return;
+        connectedOnce |= reader.Connected;
+        if (!armed)
+        {
+            if (f.Down.Count == 0 && Math.Abs(f.LX) < .15 && Math.Abs(f.LY) < .15 && Math.Abs(f.RX) < .15 && Math.Abs(f.RY) < .15) { armed = true; clock.Restart(); }
+            return;
+        }
         var keys = f.Down.Where(MacroDraft.Inputs.Contains).OrderBy(k => Array.IndexOf(MacroDraft.Inputs, k));
         var snap = new Snap(string.Join("+", keys), Heading(f.LX, -f.LY), Heading(f.RX, -f.RY));
         if (snap == current) return;

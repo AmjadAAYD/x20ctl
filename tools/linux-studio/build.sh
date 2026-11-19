@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds the Linux Studio packages from a checkout: a tarball and an AppImage.
+# Builds the Linux Studio packages from a checkout: tarballs, an AppImage and a Flatpak bundle.
 #   tools/linux-studio/build.sh VERSION OUTDIR [INFO [NAME]]
 # VERSION is the numeric form .NET needs (0.17.0), INFO the version the app reports (0.017), NAME what the files are called (V0.017); both default to VERSION.
 # Needs the .NET 10 SDK. The AppImage step also needs curl and a FUSE-less run (appimagetool is extracted, not mounted).
@@ -52,4 +52,5 @@ exec "$here/usr/bin/x20ctl-studio" "$@"
 APPRUN
 chmod 755 "$appdir/AppRun"
 ARCH=x86_64 "$work/squashfs-root/AppRun" "$appdir" "$out/X20CTL-$name-linux-x86_64.AppImage"
+bash "$here/build-flatpak.sh" "$work/publish" "$out/X20CTL-$name-linux-x86_64.flatpak"
 ls -la "$out"

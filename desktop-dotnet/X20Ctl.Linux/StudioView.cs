@@ -93,21 +93,36 @@ internal sealed class StudioView : UserControl
         return bar;
     }
 
+    public string CurrentPage => current;
+    public bool OwnsController => host.Content is TesterPage or DiagnosticsPage || host.Content is ButtonsPage { OwnsInput: true } || host.Content is MacrosPage { Recording: true };
+    public void ControllerFrame(PadFrame frame) { if (host.Content is ButtonsPage b) b.CaptureFrame(frame); }
+    public void ResetInput()
+    {
+        if (host.Content is ButtonsPage b) b.CancelInput();
+        if (host.Content is MacrosPage m) m.CancelInput();
+        if (host.Content is CurvesPage c) c.ResetInput();
+        if (host.Content is TesterPage t) t.ResetInput();
+    }
+    public void StepTab(int d) { if (!OwnsController) Step(d); }
     public void HandleKey(KeyEventArgs e, bool down = true)
     {
+        if (down && e.Key == Key.Escape && host.Content is ButtonsPage { OwnsInput: true } b) { b.CancelInput(); Show(current); e.Handled = true; return; }
+        if (TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() is TextBox or ComboBox) return;
         if (host.Content is IKeyPage page) { page.OnKey(e, down); if (e.Handled) return; }
-        if (!down) return;
-        if (e.Key == Key.PageUp || e.Key == Key.OemOpenBrackets) Step(-1);
-        else if (e.Key == Key.PageDown || e.Key == Key.OemCloseBrackets) Step(1);
+        if (!down || OwnsController) return;
+        if (e.Key == Key.PageUp) { Step(-1); e.Handled = true; }
+        else if (e.Key == Key.PageDown) { Step(1); e.Handled = true; }
     }
     void Step(int d) => Show(Tabs[(Array.IndexOf(Tabs, current) + d + Tabs.Length) % Tabs.Length]);
     public void ShowTab(string name) => Show(name);
 
+    ButtonsPage MakeButtons() { var p = new ButtonsPage(state); p.OwnershipChanged += () => footerHost.Child = Footing(current); return p; }
+    MacrosPage MakeMacros() { var p = new MacrosPage(state); p.OwnershipChanged += () => footerHost.Child = Footing(current); return p; }
     Control Page(string name) => name switch
     {
-        "Buttons" => new ButtonsPage(state),
+        "Buttons" => MakeButtons(),
         "Curves" => new CurvesPage(state),
-        "Macros" => new MacrosPage(state),
+        "Macros" => MakeMacros(),
         "Vibration" => new VibrationPage(state),
         "Device" => new DevicePage(state),
         "PC mode" => new PcModePage(state, ShowTab),
@@ -121,11 +136,12 @@ internal sealed class StudioView : UserControl
     /// <summary>Opens a tab: its page slides in from the side it lies on, and the underline glides to it.</summary>
     void Show(string name)
     {
+        if (name != current) ResetInput();
         int from = Array.IndexOf(Tabs, current), to = Array.IndexOf(Tabs, name);
         bool moved = host.Content != null && name != current;
         current = name;
         // pages that summarise or follow the drafts are rebuilt each time they open
-        if (!pages.TryGetValue(name, out var page) || name is "Dashboard" or "Setups" or "Device" or "PC mode") pages[name] = page = Page(name);
+        if (!pages.TryGetValue(name, out var page) || name is "Dashboard" or "Setups" or "Device" or "PC mode" or "Mouse") pages[name] = page = Page(name);
         host.Content = page;
         if (moved) Motion.SlideIn(page, to > from ? 28 : -28);
         foreach (var (n, (_, label, _)) in tabs) { bool on = n == current; label.Foreground = on ? T.Text : T.Soft; label.FontWeight = on ? FontWeight.SemiBold : FontWeight.Normal; }
@@ -148,10 +164,11 @@ internal sealed class StudioView : UserControl
             "Vibration" => ("Vibration preview · No local changes", Hints.Row(("A", "Select"), ("B", "Back"), ("X", "Reset"), ("LT/RT", "Strength"), ("LB/RB", "Tabs"))),
             _ => (null, Hints.Row(("A", "Select"), ("B", "Back"), ("LB/RB", "Tabs")))
         };
+        if (OwnsController) hints = host.Content is ButtonsPage ? Hints.Row(("Esc", "Cancel"), ("View+Menu", "Cancel listening")) : Hints.Row(("Esc", "Exit input capture"));
         var inner = new StackPanel { Spacing = 10 };
         if (headline != null) inner.Children.Add(T.Label(headline, 18, null, FontWeight.Medium));
         inner.Children.Add(hints);
-        var apply = new Pill("Apply Changes", Pill.Kinds.Primary) { Padding = new Thickness(26, 12) };
+        var apply = new Pill("Apply Changes", Pill.Kinds.Primary) { Enabled = !OwnsController, Padding = new Thickness(26, 12) };
         apply.Click += () => { PcModeHub.Shared.Save(state); Show(current); };
         var row = new Grid { ColumnDefinitions = new("*,Auto") }; row.Children.Add(inner);
         if (name is "Buttons" or "Curves" or "Macros") { apply.VerticalAlignment = VerticalAlignment.Center; Grid.SetColumn(apply, 1); row.Children.Add(apply); }

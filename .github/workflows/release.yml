@@ -159,8 +159,8 @@ jobs:
         with:
           dotnet-version: '10.0.x'
       - name: Install the desktop-file validator appimagetool needs
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq desktop-file-utils
-      - name: Package it (tarball and AppImage)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq desktop-file-utils flatpak flatpak-builder
+      - name: Package it (tarballs, AppImage and Flatpak)
         run: |
           # NAME titles the files (V0.017); .NET gets 0.17.0 and the app reports 0.017. Old-style tags (the V0.016 bridge) keep their own number.
           name="$(python3 tools/version_name.py "$TAG")"
@@ -173,6 +173,7 @@ jobs:
           path: |
             out/*.tar.gz
             out/*.AppImage
+            out/*.flatpak
           if-no-files-found: error
 
   release:
@@ -193,7 +194,7 @@ jobs:
           merge-multiple: true
       - name: Checksums and notes
         run: |
-          cd assets && sha256sum *.exe *.zip *.tar.gz *.AppImage > SHA256SUMS.txt && cat SHA256SUMS.txt && cd ..
+          cd assets && sha256sum *.exe *.zip *.tar.gz *.AppImage *.flatpak > SHA256SUMS.txt && cat SHA256SUMS.txt && cd ..
           python3 tools/release_notes.py "$TAG" > notes.md
       - name: Create, fill, then publish
         env:
@@ -205,5 +206,5 @@ jobs:
           name="$(python3 tools/version_name.py "$TAG")"; title="X20CTL $name"; kind="--latest"
           if grep -Eq "^## \[${name//./\.}\].*Pre-release" CHANGELOG.md; then kind="--prerelease"; title="$title Pre-release"; fi
           gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft $kind --verify-tag --title "$title" --notes-file notes.md
-          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" assets/*.exe assets/*.zip assets/*.tar.gz assets/*.AppImage assets/SHA256SUMS.txt
+          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" assets/*.exe assets/*.zip assets/*.tar.gz assets/*.AppImage assets/*.flatpak assets/SHA256SUMS.txt
           gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false

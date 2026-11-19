@@ -45,10 +45,10 @@ internal sealed class MousePage : UserControl, IKeyPage
 
         string status = !PcEngine.Supported ? "Not available" : !hub.Enabled ? "Off" : engine.Pointing ? "Active" : engine.Headline;
         var head = new Grid { ColumnDefinitions = new("*,Auto") };
-        head.Children.Add(T.Stack(2, T.Label("Controller as mouse", 36, null, FontWeight.Bold), T.Label("Player 1 · " + state.Model.Name, 16, T.Soft)));
-        var sw = T.Line(14, T.Label(status, 16, T.Soft), Toggle(hub.Enabled, v => { if (PcEngine.Supported) hub.SetEnabled(v); }));
+        head.Children.Add(T.Stack(2, T.Label("Controller as mouse", 36, null, FontWeight.Bold), T.Label("Player " + (state.Slot + 1) + " · " + state.Model.Name, 16, T.Soft)));
+        var sw = T.Line(14, T.Label(status, 16, T.Soft), Toggle(hub.Enabled, v => { if (PcEngine.Supported) { var next = hub.Profile.Clone(); next.SourceSlot = state.Slot; hub.Save(next); hub.SetEnabled(v); } }));
         sw.VerticalAlignment = VerticalAlignment.Top; sw.Margin = new Thickness(0, 6, 0, 0); Grid.SetColumn(sw, 1); head.Children.Add(sw); page.Children.Add(head);
-        page.Children.Add(T.Label(hub.Enabled && engine.Detail.Length > 0 ? engine.Detail : "The first controller found drives the desktop. PC mode steps aside while the mouse is on; hold the shortcut to switch it off and on from the pad.", 14.5, T.Soft));
+        page.Children.Add(T.Label(hub.Enabled && engine.Detail.Length > 0 ? engine.Detail : "The selected player input drives the desktop. PC mode steps aside while the mouse is on; hold the shortcut to switch it off and on from the pad.", 14.5, T.Soft));
 
         var editor = new Grid { ColumnDefinitions = new("1.15*,1*") };
         editor.Children.Add(Visual());

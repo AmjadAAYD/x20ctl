@@ -42,7 +42,7 @@ internal sealed class MouseEngine
     /// <summary>One controller driving the pointer: its own mapper and shortcut, so every connected pad can move the pointer and any pad's shortcut switches only that pad.</summary>
     sealed class Pad(EvDevice device, PcEngine.RealPad real)
     {
-        public EvDevice Device = device; public PcEngine.RealPad Real = real; public MouseMapper? Mapper; public HoldCombo? Combo; public bool Active = true; public long Last;
+        public long Lease; public EvDevice Device = device; public PcEngine.RealPad Real = real; public MouseMapper? Mapper; public HoldCombo? Combo; public bool Active = true; public long Last;
     }
 
     void Loop()
@@ -59,24 +59,24 @@ internal sealed class MouseEngine
                 {
                     reload = false;
                     try { profile = Profile(); } catch (InvalidDataException) { profile = new(); }
-                    foreach (var pad in pads.Values) { pad.Mapper = new MouseMapper(profile); pad.Combo = profile.Combo ? new HoldCombo(profile.ToggleMask, profile.HoldMilliseconds) : null; }
+                    foreach (var pad in pads.Values) { foreach (var (act, _) in pad.Mapper?.Release() ?? []) mouse.Act(act, 0); held.Clear(); pad.Mapper = new MouseMapper(profile); pad.Combo = profile.Combo ? new HoldCombo(profile.ToggleMask, profile.HoldMilliseconds) : null; }
                     scanned = -1000;
                 }
                 long now = clock.ElapsedMilliseconds;
                 if (now - scanned >= 500)
                 {
-                    scanned = now; var present = PcEngine.Controllers().ToList(); problem = "";
-                    foreach (var gone in pads.Keys.Where(k => present.All(d => d.Path != k)).ToList()) { pads[gone].Real.Dispose(); pads.Remove(gone); }
+                    scanned = now; var selected = (profile.SourceSlot is >= 0 and < 4 ? InputSources.Source(profile.SourceSlot) : null); var present = selected == null ? new List<EvDevice>() : PcEngine.Controllers().Where(d => InputSources.Key(d) == InputSources.Key(selected)).ToList(); problem = "";
+                    foreach (var gone in pads.Keys.Where(k => present.All(d => InputSources.Key(d) != InputSources.Key(pads[k].Device)) || pads[k].Lease != InputSources.Revision(profile.SourceSlot < 0 ? 0 : profile.SourceSlot)).ToList()) { foreach (var (act, _) in pads[gone].Mapper?.Release() ?? []) mouse.Act(act, 0); held.Clear(); pads[gone].Real.Dispose(); pads.Remove(gone); }
                     foreach (var device in present.Where(d => !pads.ContainsKey(d.Path)))
                     {
                         try
                         {
-                            var pad = new Pad(device, new PcEngine.RealPad(device, grab: true)) { Last = now, Mapper = new MouseMapper(profile), Combo = profile.Combo ? new HoldCombo(profile.ToggleMask, profile.HoldMilliseconds) : null };
+                            var pad = new Pad(device, new PcEngine.RealPad(device, grab: true)) { Lease = InputSources.Revision(profile.SourceSlot), Last = now, Mapper = new MouseMapper(profile), Combo = profile.Combo ? new HoldCombo(profile.ToggleMask, profile.HoldMilliseconds) : null };
                             pads[device.Path] = pad;
                         }
                         catch (IOException e) { problem = $"Couldn't take {device.Name}: {e.Message}."; }
                     }
-                    if (pads.Count == 0) Set(problem.Length > 0 ? "Needs attention" : "Waiting", problem.Length > 0 ? problem : "No controller found. Plug one in and it starts by itself.", false);
+                    if (pads.Count == 0) Set(problem.Length > 0 ? "Needs attention" : "Waiting", problem.Length > 0 ? problem : "Select an input source for this player in PC mode.", false);
                     else Set("Active", (pads.Count == 1 ? pads.Values.First().Device.Name + " moves" : pads.Count + " controllers move") + " the pointer. Hold the shortcut to switch one off.", pads.Values.Any(p => p.Active));
                 }
                 if (pads.Count == 0) { Thread.Sleep(100); continue; }
@@ -85,7 +85,7 @@ internal sealed class MouseEngine
                 now = clock.ElapsedMilliseconds;
                 foreach (var (path, pad) in pads.ToList())
                 {
-                    if (!pad.Real.Read()) { pad.Real.Dispose(); pads.Remove(path); pad.Mapper?.Release(); scanned = -1000; continue; }
+                    if (!pad.Real.Read()) { InputSources.Lost(profile.SourceSlot, pad.Device, pad.Lease); pad.Real.Dispose(); pads.Remove(path); foreach (var (act, _) in pad.Mapper?.Release() ?? []) mouse.Act(act, 0); held.Clear(); scanned = -1000; continue; }
                     double seconds = (now - pad.Last) / 1000.0; pad.Last = now; var state = pad.Real.State();
                     if (pad.Combo != null && pad.Combo.Update(state.Buttons, now))
                     {
@@ -94,6 +94,7 @@ internal sealed class MouseEngine
                         Set("Active", pad.Active ? "The mouse is on." : "A controller's mouse is off for now: it works as it normally does. Hold the shortcut again to switch it on.", pads.Values.Any(p => p.Active));
                     }
                     if (!pad.Active || pad.Mapper == null) continue;
+                    bool owned = InputSources.UseLease(profile.SourceSlot, pad.Lease, () => {
                     var frame = pad.Mapper.Step(state, seconds);
                     mouse.Move(frame.Dx, frame.Dy, frame.Wheel, frame.HWheel);
                     foreach (var (action, down) in frame.Edges)
@@ -101,6 +102,9 @@ internal sealed class MouseEngine
                         if (action == MouseAction.OnScreenKeyboard) { if (down) Keyboard(); continue; }
                         mouse.Act(action, down ? 1 : 0); if (down && Repeats.Contains(action)) held[action] = now + 400; else held.Remove(action);
                     }
+                    });
+                    if (!owned) { foreach (var (act, _) in pad.Mapper.Release()) mouse.Act(act, 0); held.Clear(); pad.Real.Dispose(); pads.Remove(path); scanned = -1000; }
+
                 }
                 foreach (var action in held.Keys.ToList()) if (now >= held[action]) { mouse.Act(action, 2); held[action] = now + 40; }
             }

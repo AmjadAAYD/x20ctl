@@ -21,9 +21,9 @@ internal interface IIntroHandoff
     void HandoffEnd();
 }
 
-/// <summary>The opening: the Windows app's film, picture and sound, then its logo flies onto the header's mark while the
+/// <summary>The opening: the Windows app's film, picture only, then its logo flies onto the header's mark while the
 /// Zone grows in around it, with the Windows timings and curve (X20Ctl.Product/ProductExperience.cs, IntroView). Esc, any
-/// other key or a click skips it; M mutes it, and the choice is remembered as the intro's Sound setting.</summary>
+/// other key or a click skips it. Linux intentionally has no audio.</summary>
 internal sealed class IntroView : Panel
 {
     const double CoverAt = 6.45, FlyAt = 6.6, FlyFor = .8, Total = FlyAt + FlyFor, OpenWithin = 2.5;
@@ -31,43 +31,31 @@ internal sealed class IntroView : Panel
     static readonly Rect FilmLogo = new(622.42, 235.10, 674.90, 469.80), MarkInk = new(10, 85, 492, 342);
     static readonly Color Dark = Color.FromRgb(2, 4, 10);
 
-    readonly Bitmap? mark; readonly IIntroHandoff? handoff; readonly Action done; readonly bool silent;
-    readonly IntroFilm? film = IntroFilm.Open(); readonly IntroSound sound = new();
-    readonly Pill skip, mute; readonly Surface picture;
+    readonly Bitmap? mark; readonly IIntroHandoff? handoff; readonly Action done;
+    readonly IntroFilm? film = IntroFilm.Open();
+    readonly Pill skip; readonly Surface picture;
     readonly DateTime created = DateTime.UtcNow;
-    bool finished, began, muted, handing, targetsRead; DateTime beganAt; double? frozen; Rect? markTarget;
+    bool finished, began, handing, targetsRead; DateTime beganAt; double? frozen; Rect? markTarget;
     // what Render draws, worked out each frame by Step
     double backdrop = 1, filmOpacity = 1, coverOpacity, coverSize; Matrix coverPlace = Matrix.Identity;
 
     public IntroView(Bitmap? mark, IIntroHandoff? handoff, Action done, bool silent = false)
     {
-        this.mark = mark; this.handoff = handoff; this.done = done; this.silent = silent || ReviewMode.Headless;
-        muted = !AppSettings.Shared.IntroSound; Focusable = true; ClipToBounds = true;
+        this.mark = mark; this.handoff = handoff; this.done = done;
+        Focusable = true; ClipToBounds = true;
         skip = new Pill("Skip · Esc", Pill.Kinds.Ghost, Finish) { Padding = new Thickness(20, 10), Opacity = .8 };
-        mute = new Pill("", Pill.Kinds.Ghost, ToggleMute) { Padding = new Thickness(20, 10), Opacity = .8, IsVisible = film != null };
-        ShowMute();
         Children.Add(picture = new Surface(this));
-        Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 36, 36), Children = { mute, skip } });
+        Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 36, 36), Children = { skip } });
         PointerPressed += (_, e) => { if (!e.Handled) Finish(); };
-        KeyDown += (_, e) => { e.Handled = true; if (e.Key == Key.M) ToggleMute(); else Finish(); };
+        KeyDown += (_, e) => { e.Handled = true; Finish(); };
         AttachedToVisualTree += (_, _) => { Focus(); if (frozen == null) TopLevel.GetTopLevel(this)?.RequestAnimationFrame(Tick); };
         Step(0);
-    }
-
-    void ShowMute() => mute.Text = muted ? "Unmute · M" : "Mute · M";
-    /// <summary>Mute stops the sound at once; unmuting brings it back where the picture is.</summary>
-    public void ToggleMute()
-    {
-        if (film == null || finished) return;
-        muted = !muted; ShowMute();
-        if (muted) sound.Stop(); else if (began && !silent) sound.Start(Elapsed);
-        if (!silent) { AppSettings.Shared.IntroSound = !muted; AppSettings.Shared.Save(); }
     }
 
     public void Finish()
     {
         if (finished) return; finished = true;
-        sound.Stop(); film?.Dispose();
+        film?.Dispose();
         handoff?.HandoffEnd(); done();
     }
 
@@ -82,7 +70,7 @@ internal sealed class IntroView : Panel
         if (!began)
         {
             // the clock starts with the film's first picture, and the sound with it
-            if (film == null || film.Ready) { began = true; beganAt = DateTime.UtcNow; if (film != null && !muted && !silent) sound.Start(); }
+            if (film == null || film.Ready) { began = true; beganAt = DateTime.UtcNow; }
             // a film that never shows must not hold the app behind a dark screen
             else if (film.Failed || (DateTime.UtcNow - created).TotalSeconds > OpenWithin) { Finish(); return; }
         }
@@ -113,7 +101,7 @@ internal sealed class IntroView : Panel
         backdrop = 1 - Smooth(Win(t, FlyAt + .05, FlyAt + .7));
         double landed = Win(t, FlyAt + FlyFor, FlyAt + FlyFor + .14);
         if (handing) handoff!.Handoff(Win(t, FlyAt, FlyAt + FlyFor + .1), brand, landed > 0 && landed < 1 ? 1 + .03 * Math.Sin(Math.PI * landed) : 1);
-        skip.Opacity = mute.Opacity = .8 * (1 - Smooth(Win(t, FlyAt, FlyAt + .3)));
+        skip.Opacity = .8 * (1 - Smooth(Win(t, FlyAt, FlyAt + .3)));
         // nearly settled: the Zone already answers the mouse
         IsHitTestVisible = t < Total - .1;
         picture.InvalidateVisual();

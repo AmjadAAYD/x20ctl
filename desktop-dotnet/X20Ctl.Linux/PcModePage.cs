@@ -20,7 +20,7 @@ internal sealed class PcModePage : UserControl
     public PcModePage(StudioState state, Action<string> go)
     {
         this.state = state; this.go = go;
-        hub.Changed += OnHub; DetachedFromVisualTree += (_, _) => { hub.Changed -= OnHub; EndCheck(); };
+        hub.Changed += OnHub; InputSources.Changed += OnHub; DetachedFromVisualTree += (_, _) => { InputSources.Changed -= OnHub; hub.Changed -= OnHub; EndCheck(); };
         Build();
     }
     void OnHub() => Avalonia.Threading.Dispatcher.UIThread.Post(Build);
@@ -109,6 +109,19 @@ internal sealed class PcModePage : UserControl
         var stack = new StackPanel { Spacing = 0 };
         stack.Children.Add(T.Label("PC mode", 44, null, FontWeight.Bold));
         var sub = T.Label("Route gameplay input through your saved PC profile to a virtual Xbox controller. Nothing is written to hardware.", 16.5, T.Soft); sub.Margin = new Thickness(0, 6, 0, 18); stack.Children.Add(sub);
+
+        var devices = (ReviewMode.Pads ?? PcEngine.Controllers()).ToList();
+        InputSources.RemoveMissing(devices);
+        var selected = InputSources.Source(Player);
+        var labels = new[] { "No input source" }.Concat(devices.Select(d => d.Name + " · " + d.Path)).ToList();
+        var source = new ComboBox { ItemsSource = labels, MinWidth = 360, SelectedIndex = selected == null ? 0 : devices.FindIndex(d => InputSources.Key(d) == InputSources.Key(selected)) + 1 };
+        source.SelectionChanged += (_, _) => {
+            int i = source.SelectedIndex - 1;
+            if (!InputSources.Select(Player, i >= 0 && i < devices.Count ? devices[i] : null)) message = "That input belongs to another player.";
+            else message = "Input source selected for this session.";
+            hub.Engine.Reload(); Build();
+        };
+        stack.Children.Add(T.Stack(8, T.Label("Player " + (Player + 1) + " input source", 18), T.Line(12, source, new Pill("Refresh inputs", Pill.Kinds.Ghost, Build)), T.Label(selected != null && PadLayoutStore.Shared.Resolve(selected).State == "needs-check" ? "Check this input layout before using mapped controls." : "Session input source · Select again after reconnect.", 13, T.Soft)));
 
         var engine = hub.Engine; bool on = hub.Enabled && PcEngine.Supported;
         (string label, string detail, IBrush dot) = !PcEngine.Supported ? ("Not available", "PC mode needs Linux: it uses the kernel's evdev and uinput.", T.Warn)

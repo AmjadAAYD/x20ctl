@@ -81,8 +81,10 @@ internal sealed class Pill : Border
         // it presses in and springs back (Windows: .94 over 80 ms, back over 260 ms); the click happens on the press
         PointerPressed += (_, e) => { if (enabled && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) { Motion.Press(this, true); Click?.Invoke(); e.Handled = true; } };
         PointerReleased += (_, _) => Motion.Press(this, false); PointerCaptureLost += (_, _) => Motion.Press(this, false);
+        Focusable = true; KeyDown += (_, e) => { if (e.Key is Key.Enter or Key.Space) { Invoke(); e.Handled = true; } };
         Paint();
     }
+    public void Invoke() { if (enabled && IsEnabled) Click?.Invoke(); }
     public string Text { get => label.Text ?? ""; set => label.Text = value; }
     public Kinds Kind { get => kind; set { kind = value; Paint(); } }
     public bool Enabled { get => enabled; set { enabled = value; Cursor = new Cursor(value ? StandardCursorType.Hand : StandardCursorType.Arrow); Paint(); } }

@@ -78,8 +78,8 @@ internal sealed class TesterPage : UserControl, IKeyPage
 
     public TesterPage(StudioState state)
     {
-        this.state = state; Build(); reader.Frame += f => { frame = f; Apply(); }; reader.Start(); if (reader.Connected) Apply();
-        DetachedFromVisualTree += (_, _) => reader.Dispose();
+        this.state = state; Build(); reader.Frame += f => { frame = f; Apply(); }; AttachedToVisualTree += (_, _) => reader.Start(state.Slot);
+        DetachedFromVisualTree += (_, _) => { keys.Clear(); reader.Stop(); };
     }
 
     void Build()
@@ -114,6 +114,7 @@ internal sealed class TesterPage : UserControl, IKeyPage
         Content = page; Apply();
     }
 
+    public void ResetInput() { keys.Clear(); frame = PadFrame.Empty; Apply(); }
     public void OnKey(KeyEventArgs e, bool down)
     {
         if (!keyboard) return;
@@ -162,8 +163,8 @@ internal sealed class DiagnosticsPage : UserControl
     public DiagnosticsPage(StudioState state)
     {
         this.state = state; Build();
-        reader.Frame += Observe; reader.Start();
-        tick.Tick += (_, _) => Refresh(); AttachedToVisualTree += (_, _) => tick.Start(); DetachedFromVisualTree += (_, _) => { tick.Stop(); reader.Dispose(); };
+        reader.Frame += Observe;
+        tick.Tick += (_, _) => Refresh(); AttachedToVisualTree += (_, _) => { reader.Start(state.Slot); tick.Start(); }; DetachedFromVisualTree += (_, _) => { tick.Stop(); reader.Stop(); };
         Refresh();
     }
 
@@ -198,6 +199,7 @@ internal sealed class DiagnosticsPage : UserControl
 
     string UseAsDeadZone(CurveChannel channel, List<(double X, double Y)> rest)
     {
+        if (!reader.Connected) return "Select a connected input source first.";
         var drift = new DriftObservation();
         foreach (var (x, y) in rest) drift.Add((short)Math.Clamp(x * 32767, -32768, 32767), (short)Math.Clamp(y * 32767, -32768, 32767));
         if (!drift.Stable) return "Let go of the stick and wait a moment, then try again.";
@@ -208,6 +210,7 @@ internal sealed class DiagnosticsPage : UserControl
 
     void Observe(PadFrame f)
     {
+        if (!reader.Connected) { Clear(); return; }
         left.Set(f.LX, f.LY); right.Set(f.RX, f.RY); lt.Set(f.LT); rt.Set(f.RT);
         if (Math.Abs(f.LX) < .12 && Math.Abs(f.LY) < .12) { leftRest.Add((f.LX, f.LY)); if (leftRest.Count > 400) leftRest.RemoveAt(0); }
         if (Math.Abs(f.RX) < .12 && Math.Abs(f.RY) < .12) { rightRest.Add((f.RX, f.RY)); if (rightRest.Count > 400) rightRest.RemoveAt(0); }
@@ -246,7 +249,7 @@ internal sealed class DiagnosticsPage : UserControl
         leftNote.Text = live ? (left.Roundness is { } a ? $"Roundness {a:0}% · " : "Roll the stick around its edge · ") + Rest(leftRest, left) : "No input source · Connect or select a controller";
         rightNote.Text = live ? (right.Roundness is { } b ? $"Roundness {b:0}% · " : "Roll the stick around its edge · ") + Rest(rightRest, right) : "No input source · Connect or select a controller";
         ltText.Text = live && lt.Maximum > 0 ? $"{lt.Minimum:P0}–{lt.Maximum:P0}" : "No data"; rtText.Text = live && rt.Maximum > 0 ? $"{rt.Minimum:P0}–{rt.Maximum:P0}" : "No data";
-        rate.Text = live ? $"{reader.Rate:0} updates per second" : "No input data · Rate unavailable"; rateNote.Text = live ? "Counted from the system's joystick interface." : "Move a stick. If this stays empty, the system isn't passing this controller's reports to apps.";
+        rate.Text = live ? $"{reader.Rate:0} updates per second" : "No input data · Rate unavailable"; rateNote.Text = live ? "Counted from the selected evdev source." : "Move a stick. If this stays empty, the system isn't passing this controller's reports to apps.";
         buttons.Children.Clear();
         var row = new WrapPanel();
         foreach (var (k, p) in presses.OrderBy(p => p.Key))

@@ -37,7 +37,7 @@ internal sealed class StickToolsView : UserControl
     readonly StudioState state; readonly Action done; CurveChannel stick = CurveChannel.LeftStick; bool linked; string message = ""; StickTuning? undo; StickTuning? undoOther;
     (DriftObservation Left, DriftObservation Right)? sampled; bool measuring; double progress;
 
-    public StickToolsView(StudioState state, Action done) { this.state = state; this.done = done; Build(); }
+    public StickToolsView(StudioState state, Action done) { this.state = state; this.done = done; DetachedFromVisualTree += (_, _) => sampling?.Cancel(); Build(); }
     CurveChannel Other => stick == CurveChannel.LeftStick ? CurveChannel.RightStick : CurveChannel.LeftStick;
     static string Name(CurveChannel c) => c == CurveChannel.LeftStick ? "Left stick" : "Right stick";
 
@@ -102,14 +102,19 @@ internal sealed class StickToolsView : UserControl
     }
 
     /// <summary>Centre guard: five seconds of readings with the sticks left alone. Each stick's inner dead zone goes just past the farthest it wandered, so drift and jitter never reach the game. Read-only.</summary>
+    CancellationTokenSource? sampling;
     async void Measure()
     {
-        using var reader = new GamepadReader(); reader.Start();
-        if (!reader.Connected) { message = "No controller input found. Connect one and try again."; Build(); return; }
+        sampling?.Cancel(); using var cancel = sampling = new();
+        using var reader = new GamepadReader(); reader.Start(state.Slot);
+        bool connected;
+        try { connected = await reader.WaitUntilConnected(cancel.Token); } catch (OperationCanceledException) { return; }
+        if (!connected) { message = "No controller input found. Connect one and try again."; Build(); return; }
         measuring = true; progress = 0; message = "Release both sticks · Sampling…"; Build();
         var left = new DriftObservation(); var right = new DriftObservation(); var watch = System.Diagnostics.Stopwatch.StartNew();
         while (watch.ElapsedMilliseconds < 5000)
         {
+            if (cancel.IsCancellationRequested || !reader.Connected) { measuring = false; sampled = null; return; }
             await Task.Delay(8); var f = reader.Snapshot();
             left.Add((short)Math.Clamp(f.LX * 32767, -32768, 32767), (short)Math.Clamp(-f.LY * 32767, -32768, 32767)); right.Add((short)Math.Clamp(f.RX * 32767, -32768, 32767), (short)Math.Clamp(-f.RY * 32767, -32768, 32767));
             progress = watch.ElapsedMilliseconds / 5000.0;
