@@ -1,11 +1,205 @@
-<p align="center"><img src="assets/readme/bg/hero.svg?v=26" alt="X20CTL: a controller studio for EasySMX pads" width="100.0000%" align="top"><a href="https://github.com/AmjadAAYD/x20ctl/releases/latest"><img src="assets/readme/bg/nav1.svg?v=release-v0.025" alt="Download v0.025" width="26.7000%" align="top"></a><a href="#reverse-engineering"><img src="assets/readme/bg/nav2.svg?v=26" alt="Reverse engineering" width="23.3000%" align="top"></a><a href="CHANGELOG.md"><img src="assets/readme/bg/nav3.svg?v=26" alt="Changelog" width="23.3000%" align="top"></a><a href="IF-YOUR-CONTROLLER-ISNT-WORKING.md"><img src="assets/readme/bg/nav4.svg?v=26" alt="Controller not working?" width="26.6700%" align="top"></a><img src="assets/readme/bg/thanks.svg?v=28" alt="Thank you EasySMX Kiin and Team EasySMX for supplying an EasySMX X20 Pro to build and test X20CTL." width="100.0000%" align="top"><img src="assets/readme/bg/demo.svg?v=28" alt="A tour of X20CTL" width="100.0000%" align="top"><img src="assets/readme/bg/b001.svg?v=26" alt="Independent project. X20CTL is open-source software. EasySMX supplied an X20 Pro to help develop it, but the app is not made, endorsed, sponsored or supported by EasySMX. Product names belong to their" width="100.0000%" align="top"><img src="assets/readme/bg/b002.svg?v=26" alt="What it is" width="100.0000%" align="top"><img src="assets/readme/bg/b003.svg?v=26" alt="X20CTL is a native Windows app for EasySMX controllers. It gives every pad a console-style studio: remap buttons, shape the sticks and triggers, build macros for the back paddles, preview vibration, c" width="100.0000%" align="top"><img src="assets/readme/bg/b004.svg?v=26" alt="Everything below is shown on the EasySMX X20 Pro." width="100.0000%" align="top"><a name="reverse-engineering"></a><img src="assets/readme/bg/b005.svg?v=26" alt="Reverse engineering" width="100.0000%" align="top"><img src="assets/readme/bg/b006.svg?v=26" alt="EasySMX configures its pads from a phone app (KeyLinker), and the protocol it speaks was never documented. X20CTL exists because that protocol had to be recovered, checked against real hardware, and r" width="100.0000%" align="top"><img src="assets/readme/bg/b007a.svg?v=26" alt="KeyLinker packet layout and the scramble applied on the wire" width="100.0000%" align="top"><img src="assets/readme/bg/b007b.svg?v=26" alt="Research pipeline: decompile, capture, diff, verify, ship" width="100.0000%" align="top"><img src="assets/readme/bg/b008.svg?v=26" alt="Transport: Bluetooth LE GATT. A configuration service with one write and one notify characteristic. The OTA firmware service is documented so it can be left alone: X20CTL does not flash firmware.; Fingerprinting: the controllers&#x27; Bluetooth address prefixes tell models apart far better than the clone" width="100.0000%" align="top"><img src="assets/readme/bg/b008c_r0_0.svg?v=26" alt="" width="7.8000%" align="top"><a href="docs/research-policy.md"><img src="assets/readme/bg/b008c_r0_1.svg?v=26" alt="docs/research-policy.md" width="21.2000%" align="top"></a><img src="assets/readme/bg/b008c_r0_f.svg?v=26" alt="" width="70.9700%" align="top"><img src="assets/readme/bg/b009.svg?v=26" alt="Read more: protocol reference(docs/01-protocol.md) · reverse-engineering log(docs/00-findings.md) · controller scan kit(docs/controller-scan-kit/)" width="100.0000%" align="top"><img src="assets/readme/bg/b009c_r0_0.svg?v=26" alt="" width="7.8000%" align="top"><a href="docs/01-protocol.md"><img src="assets/readme/bg/b009c_r0_1.svg?v=26" alt="protocol reference" width="17.5000%" align="top"></a><a href="docs/00-findings.md"><img src="assets/readme/bg/b009c_r0_2.svg?v=26" alt="reverse-engineering log" width="20.9000%" align="top"></a><a href="docs/controller-scan-kit/"><img src="assets/readme/bg/b009c_r0_3.svg?v=26" alt="controller scan kit" width="17.2000%" align="top"></a><img src="assets/readme/bg/b009c_r0_f.svg?v=26" alt="" width="36.5700%" align="top"><img src="assets/readme/bg/b010.svg?v=26" alt="Studio tour" width="100.0000%" align="top"><img src="assets/readme/bg/b011.svg?v=26" alt="Controller Zone" width="100.0000%" align="top"><img src="assets/readme/bg/b012.svg?v=26" alt="The home screen. Each of the four players has a card; the selected card grows into the hero spot on the left and the other three wait on the right. Press + on an empty card to choose a controller. The" width="100.0000%" align="top"><img src="assets/readme/bg/b013.svg?v=26" alt="Controller Zone with an X20 Pro in the first slot" width="100.0000%" align="top"><img src="assets/readme/bg/b014.svg?v=26" alt="Choose your controller" width="100.0000%" align="top"><img src="assets/readme/bg/b015.svg?v=26" alt="Pick the model you hold. Each card names what the pad has: stick and trigger type, lighting, screen and back buttons. Choosing a model sets the layout and tools; connecting the hardware is a separate " width="100.0000%" align="top"><img src="assets/readme/bg/b016.svg?v=28" alt="Six EasySMX controllers featured in this guide" width="100.0000%" align="top"><img src="assets/readme/bg/b017.svg?v=26" alt="Agent XCTL" width="100.0000%" align="top"><img src="assets/readme/bg/b018.svg?v=26" alt="A small assistant drawn as a controller, in the Studio&#x27;s title bar. Tell it in your own words how you play and it sets your PC mode for you: stick and trigger curves, dead zones, hair triggers, turbo," width="100.0000%" align="top"><img src="assets/readme/bg/b019.svg?v=26" alt="Studio" width="100.0000%" align="top"><img src="assets/readme/bg/b020.svg?v=26" alt="Dashboard" width="100.0000%" align="top"><img src="assets/readme/bg/b021.svg?v=26" alt="The controller, its player slot, your draft and the games installed on this PC. The game shelf finds Steam, Epic, GOG and Riot games, plus any folder you add, and launches them with their own setup. I" width="100.0000%" align="top"><img src="assets/readme/bg/b022.svg?v=26" alt="Studio dashboard" width="100.0000%" align="top"><img src="assets/readme/bg/b023.svg?v=26" alt="Buttons" width="100.0000%" align="top"><img src="assets/readme/bg/b024.svg?v=26" alt="Pick a button on the controller, then press what it should do. Front and back views are included, plus a showcase of every output a control can send. Test mapping lets you feel a change before you kee" width="100.0000%" align="top"><img src="assets/readme/bg/b025.svg?v=26" alt="Remapping A to B" width="100.0000%" align="top"><img src="assets/readme/bg/b026.svg?v=26" alt="Curves" width="100.0000%" align="top"><img src="assets/readme/bg/b027.svg?v=26" alt="Shape each stick and trigger separately: presets, or your own curve with inner dead zone and outer travel limit. The graph shows the response a game actually gets, and a live dot follows the real stic" width="100.0000%" align="top"><img src="assets/readme/bg/b028.svg?v=26" alt="Stick response curves" width="100.0000%" align="top"><img src="assets/readme/bg/b029.svg?v=26" alt="Advanced opens the fine stick tools:" width="100.0000%" align="top"><img src="assets/readme/bg/b030.svg?v=26" alt="dead zones in 0.1% steps, anti-deadzone and max output;; a square gate, up/down speed, or pure raw 1:1;; presets, copy to the other stick, and a table of what the game gets at each push;; Measure drift, which sets each inner dead zone just past how far the stick wanders on its own." width="100.0000%" align="top"><img src="assets/readme/bg/b031.svg?v=26" alt="Advanced stick tools" width="100.0000%" align="top"><img src="assets/readme/bg/b032.svg?v=26" alt="Macros" width="100.0000%" align="top"><img src="assets/readme/bg/b033.svg?v=26" alt="Build sequences for the M back paddles, step by step, on a timeline. Each step holds buttons, stick directions or a pause, with its own timing, and you can record one by playing the moves. The X20 Pro" width="100.0000%" align="top"><img src="assets/readme/bg/b034.svg?v=26" alt="A three-step macro on M1" width="100.0000%" align="top"><img src="assets/readme/bg/b035.svg?v=26" alt="Vibration" width="100.0000%" align="top"><img src="assets/readme/bg/b036.svg?v=28" alt="Adjust each grip motor separately and scale game rumble up to 200% in PC Mode. On the X20 Pro, you can also test each trigger motor. The preview shows your chosen settings while you adjust them." width="100.0000%" align="top"><img src="assets/readme/bg/b037.svg?v=26" alt="Vibration preview at 70 percent" width="100.0000%" align="top"><img src="assets/readme/bg/b038.svg?v=26" alt="PC mode" width="100.0000%" align="top"><img src="assets/readme/bg/b039.svg?v=28" alt="PC Mode applies remaps, turbo, stick and trigger curves, and macros on Windows. Games receive the result through a virtual Xbox 360 or DualShock 4 controller. Your settings stay on the PC." width="100.0000%" align="top"><img src="assets/readme/bg/b040.svg?v=26" alt="PC mode is a tab on every controller&#x27;s Studio. While it&#x27;s on, that controller&#x27;s own Buttons, Curves and Macros tabs edit the PC mode settings, and every change applies right away." width="100.0000%" align="top"><img src="assets/readme/bg/b041.svg?v=26" alt="The PC mode tab" width="100.0000%" align="top"><img src="assets/readme/bg/b042.svg?v=28" alt="PC Mode supports up to four controllers, per-game settings and shareable profiles. See README.plain.md for details." width="100.0000%" align="top"><img src="assets/readme/bg/b042c_r0_0.svg?v=26" alt="" width="7.8000%" align="top"><a href="https://github.com/nefarius/ViGEmBus"><img src="assets/readme/bg/b042c_r0_1.svg?v=26" alt="ViGEmBus" width="12.7000%" align="top"></a><a href="https://github.com/nefarius/HidHide"><img src="assets/readme/bg/b042c_r0_2.svg?v=26" alt="HidHide" width="11.3000%" align="top"></a><img src="assets/readme/bg/b042c_r0_f.svg?v=26" alt="" width="68.1700%" align="top"><img src="assets/readme/bg/b043.svg?v=26" alt="Device" width="100.0000%" align="top"><img src="assets/readme/bg/b044.svg?v=26" alt="The controller&#x27;s battery, firmware, hardware revision and transport. Gameplay and configuration are listed as separate connections, along with what X20CTL supports on this model." width="100.0000%" align="top"><img src="assets/readme/bg/b045.svg?v=26" alt="Device page" width="100.0000%" align="top"><img src="assets/readme/bg/b046.svg?v=26" alt="Diagnostics" width="100.0000%" align="top"><img src="assets/readme/bg/b047.svg?v=26" alt="A live, read-only check of the controller:" width="100.0000%" align="top"><img src="assets/readme/bg/b048.svg?v=26" alt="Sticks: a range trace with its roundness, where each stick rests (drift), and the smallest step it moves in.; Triggers: how far each one travels.; Buttons: every press, with chatter flagged, since a press too short for a finger usually means a worn switch.; Report rate: how many reports a second the" width="100.0000%" align="top"><img src="assets/readme/bg/b049.svg?v=26" alt="Copy report puts the readings on the clipboard for a bug report. Use as dead zone puts a stick&#x27;s measured drift straight into PC mode&#x27;s dead zone." width="100.0000%" align="top"><img src="assets/readme/bg/b050.svg?v=26" alt="Diagnostics" width="100.0000%" align="top"><img src="assets/readme/bg/b051.svg?v=26" alt="Mouse" width="100.0000%" align="top"><img src="assets/readme/bg/b052.svg?v=26" alt="Use the controller as a mouse around Windows: from the couch, or in a game&#x27;s launcher. One stick moves the pointer, the other scrolls, and every button does what you pick: clicks, back and forward, En" width="100.0000%" align="top"><img src="assets/readme/bg/b053.svg?v=26" alt="Switch it on in the tab, from the tray icon, or by holding View + Y for a second.; Speed, acceleration, dead zone, slow-pointer speed and scroll speed are adjustable.; While it&#x27;s on, games see a resting controller, so a click never also presses A in a game.; The idea comes from Gopher360(https://git" width="100.0000%" align="top"><img src="assets/readme/bg/b053c_r0_0.svg?v=26" alt="" width="7.8000%" align="top"><a href="https://github.com/Tylemagne/Gopher360"><img src="assets/readme/bg/b053c_r0_1.svg?v=26" alt="Gopher360" width="13.4000%" align="top"></a><img src="assets/readme/bg/b053c_r0_f.svg?v=26" alt="" width="78.7700%" align="top"><img src="assets/readme/bg/b054.svg?v=26" alt="Controller as mouse" width="100.0000%" align="top"><img src="assets/readme/bg/b055.svg?v=26" alt="Setups" width="100.0000%" align="top"><img src="assets/readme/bg/b056.svg?v=26" alt="Keep whole-controller setups in a local library: buttons, curves, macros and vibration together. Open, duplicate, rename, export and import them." width="100.0000%" align="top"><img src="assets/readme/bg/b057.svg?v=26" alt="Saved setups" width="100.0000%" align="top"><img src="assets/readme/bg/b058.svg?v=26" alt="Tester" width="100.0000%" align="top"><img src="assets/readme/bg/b059.svg?v=26" alt="See exactly what Windows receives from the controller: every button, both sticks and both triggers, live, with the front and back views." width="100.0000%" align="top"><img src="assets/readme/bg/b060.svg?v=26" alt="Input tester" width="100.0000%" align="top"><img src="assets/readme/bg/b061.svg?v=26" alt="Tools" width="100.0000%" align="top"><img src="assets/readme/bg/b062.svg?v=26" alt="Help and extras: PC mode, the Controller Check, Replay Intro, About, Send feedback, Support X20CTL and the GitHub repository, plus switches for update checks and for the opening intro." width="100.0000%" align="top"><img src="assets/readme/bg/b063.svg?v=26" alt="Tools hub" width="100.0000%" align="top"><img src="assets/readme/bg/b064.svg?v=26" alt="Controller Check" width="100.0000%" align="top"><img src="assets/readme/bg/b065.svg?v=26" alt="Is the controller not working? The Controller Check walks you through every button, stick and trigger, one step at a time. It shows held times, the stick report rate and resolution, battery, button ch" width="100.0000%" align="top"><img src="assets/readme/bg/b066.svg?v=26" alt="It only reads. It never changes settings, lighting, vibration or firmware. Sending the report is your choice: before the scan starts, pick Scan and send or Scan, keep it on this PC." width="100.0000%" align="top"><img src="assets/readme/bg/b067.svg?v=26" alt="Controller Check introduction" width="100.0000%" align="top"><img src="assets/readme/bg/b068.svg?v=28" alt="Controller Check is the Read scan. It measures the input Windows receives. The Write scan identifies the controller and can read supported settings back. Its optional write test asks for confirmation before sending anything to the pad. Review the resulting ZIP before choosing whether to send it." width="100.0000%" align="top"><img src="assets/readme/bg/b069.svg?v=28" alt="Use the CLI to compare saved controller settings before and after changing a setting." width="100.0000%" align="top"><img src="assets/readme/bg/b070.svg?v=26" alt="Feedback and About" width="100.0000%" align="top"><img src="assets/readme/bg/b071.svg?v=26" alt="Send feedback goes straight to the X20CTL inbox, and About has the credits." width="100.0000%" align="top"><img src="assets/readme/bg/b072.svg?v=26" alt="Send feedback" width="100.0000%" align="top"><img src="assets/readme/bg/b073.svg?v=26" alt="About X20CTL" width="100.0000%" align="top"><img src="assets/readme/bg/b074.svg?v=26" alt="Supported controllers" width="100.0000%" align="top"><img src="assets/readme/bg/b075.svg?v=28" alt="Compatibility for the X20, X20 Pro, X15, X10, X05 Pro and D10" width="100.0000%" align="top"><img src="assets/readme/bg/b076.svg?v=28" alt="PC Mode needs a compatible Windows input connection. Native features depend on the model. The X10 Bluetooth read is experimental and is still awaiting a physical X10 test. The Windows app offers 10 languages, including Vietnamese. Untranslated text uses English. Select a language in the app to use it on the next launch." width="100.0000%" align="top"><img src="assets/readme/bg/b077.svg?v=26" alt="Download" width="100.0000%" align="top"><img src="assets/readme/bg/b078.svg?v=26" alt="Windows: download X20CTL-V0.017-windows-x64-setup.exe(https://github.com/AmjadAAYD/x20ctl/releases/download/v0.017/X20CTL-V0.017-windows-x64-setup.exe) and run it. It installs X20CTL with a Start menu" width="100.0000%" align="top"><img src="assets/readme/bg/b078c_r0_0.svg?v=26" alt="" width="7.8000%" align="top"><a href="https://github.com/AmjadAAYD/x20ctl/releases/download/v0.017/X20CTL-V0.017-windows-x64-setup.exe"><img src="assets/readme/bg/b078c_r0_1.svg?v=26" alt="X20CTL-V0.017-windows-x64-se…" width="27.7000%" align="top"></a><a href="https://github.com/AmjadAAYD/x20ctl/releases/download/v0.017/X20CTL-V0.017-windows-x64.exe"><img src="assets/readme/bg/b078c_r0_2.svg?v=26" alt="X20CTL-V0.017-windows-x64.exe" width="27.1000%" align="top"></a><img src="assets/readme/bg/b078c_r0_f.svg?v=26" alt="" width="37.3700%" align="top"><img src="assets/readme/bg/b079.svg?v=26" alt="You need Windows 10 or 11 (x64). Everything is bundled: you don&#x27;t need to install .NET, Python, a browser runtime or an account." width="100.0000%" align="top"><img src="assets/readme/bg/b080.svg?v=26" alt="Code signing: releases are built on GitHub Actions straight from this repository, and X20CTL has applied for free code signing for open-source projects from the SignPath Foundation(https://signpath.or" width="100.0000%" align="top"><img src="assets/readme/bg/b080c_r0_0.svg?v=26" alt="" width="7.8000%" align="top"><a href="https://signpath.org"><img src="assets/readme/bg/b080c_r0_1.svg?v=26" alt="SignPath Foundation" width="19.2000%" align="top"></a><img src="assets/readme/bg/b080c_r0_f.svg?v=26" alt="" width="72.9700%" align="top"><img src="assets/readme/bg/b081.svg?v=26" alt="Linux: X20CTL-V0.017-linux-check.zip(https://github.com/AmjadAAYD/x20ctl/releases/download/v0.017/X20CTL-V0.017-linux-check.zip). The Studio is Windows-only for now; this ZIP contains the Controller C" width="100.0000%" align="top"><img src="assets/readme/bg/b081c_r0_0.svg?v=26" alt="" width="7.8000%" align="top"><a href="https://github.com/AmjadAAYD/x20ctl/releases/download/v0.017/X20CTL-V0.017-linux-check.zip"><img src="assets/readme/bg/b081c_r0_1.svg?v=26" alt="X20CTL-V0.017-linux-check.zip" width="25.5000%" align="top"></a><img src="assets/readme/bg/b081c_r0_f.svg?v=26" alt="" width="66.6700%" align="top"><img src="assets/readme/bg/b082.svg?v=26" alt="Every earlier release is on the releases page(https://github.com/AmjadAAYD/x20ctl/releases). How the version names work: docs/versions.md(docs/versions.md)." width="100.0000%" align="top"><img src="assets/readme/bg/b082c_r0_0.svg?v=26" alt="" width="7.8000%" align="top"><a href="https://github.com/AmjadAAYD/x20ctl/releases"><img src="assets/readme/bg/b082c_r0_1.svg?v=26" alt="releases page" width="14.6000%" align="top"></a><a href="docs/versions.md"><img src="assets/readme/bg/b082c_r0_2.svg?v=26" alt="docs/versions.md" width="17.0000%" align="top"></a><img src="assets/readme/bg/b082c_r0_f.svg?v=26" alt="" width="60.5700%" align="top"><img src="assets/readme/bg/b083.svg?v=26" alt="Local first" width="100.0000%" align="top"><img src="assets/readme/bg/b084.svg?v=26" alt="No account. No telemetry. The update check is on by default and you can turn it off with Keep X20CTL up to date in Tools. PC mode names its two drivers and asks before it installs them. Your setups, drafts and assignments stay in your user folder.; Every change is a local draft until it can be sent " width="100.0000%" align="top"><img src="assets/readme/bg/b084c_r0_0.svg?v=26" alt="" width="7.8000%" align="top"><a href="PRIVACY.md"><img src="assets/readme/bg/b084c_r0_1.svg?v=26" alt="privacy policy" width="14.6000%" align="top"></a><img src="assets/readme/bg/b084c_r0_f.svg?v=26" alt="" width="77.5700%" align="top"><img src="assets/readme/bg/b085.svg?v=26" alt="Build from source" width="100.0000%" align="top"><img src="assets/readme/bg/b086.svg?v=26" alt="You need the .NET 10 SDK on Windows:" width="100.0000%" align="top"></p>
+<div align="center">
 
-```powershell
-git clone https://github.com/AmjadAAYD/x20ctl.git
-cd x20ctl
-dotnet build desktop-dotnet\X20Ctl.Product\X20Ctl.Product.csproj -c Release
-```
+<a href="https://github.com/AmjadAAYD/x20ctl/releases/tag/v0.025">
+  <img src="assets/readme/hero.svg?v=release-v0.025" alt="X20CTL V0.025 — Open-source EasySMX Controller Studio" width="100%">
+</a>
 
-<p align="center"><img src="assets/readme/bg/b088.svg?v=26" alt="The controller art is generated from the source pictures by tools/build_native_controller_layers.py, and the outlines by tools/build_controller_outlines.py. The protocol research and the earlier Pytho" width="100.0000%" align="top"><img src="assets/readme/bg/b088c_r0_0.svg?v=26" alt="" width="7.8000%" align="top"><a href="docs/"><img src="assets/readme/bg/b088c_r0_1.svg?v=26" alt="docs/" width="9.7000%" align="top"></a><a href="docs/01-protocol.md"><img src="assets/readme/bg/b088c_r0_2.svg?v=26" alt="protocol reference" width="17.5000%" align="top"></a><img src="assets/readme/bg/b088c_r0_f.svg?v=26" alt="" width="64.9700%" align="top"><img src="assets/readme/bg/b089.svg?v=26" alt="Credits" width="100.0000%" align="top"><img src="assets/readme/bg/b090.svg?v=26" alt="Special thanks to Kiin from Team EasySMX for supplying a free X20 Pro controller. Real hardware is what turns a protocol guess into a verified setting." width="100.0000%" align="top"><a href="https://github.com/edgardmessias/easygamepad"><img src="assets/readme/bg/b090e.svg?v=26" alt="Thanks to Edgard (edgardmessias) for decoding the X10&#x27;s Bluetooth protocol in EasyGamepad. X20CTL&#x27;s X10 support is built on his work." width="100.0000%" align="top"></a><img src="assets/readme/bg/b091.svg?v=26" alt="The console-style look was inspired by ApexSenseBridge by Kayn arts (ReynArts)(https://github.com/ReynArts/ApexSenseBridge). The credit is for design inspiration only; no code was taken from it. X20CT" width="100.0000%" align="top"><img src="assets/readme/bg/b091c_r0_0.svg?v=26" alt="" width="7.8000%" align="top"><a href="https://github.com/ReynArts/ApexSenseBridge"><img src="assets/readme/bg/b091c_r0_1.svg?v=26" alt="ApexSenseBridge by Kayn arts…" width="25.8000%" align="top"></a><img src="assets/readme/bg/b091c_r0_f.svg?v=26" alt="" width="66.3700%" align="top"><img src="assets/readme/bg/b092.svg?v=26" alt="If X20CTL helps you, you can support it on Ko-fi(https://ko-fi.com/x20ctl), or simply star the repo." width="100.0000%" align="top"><img src="assets/readme/bg/b092c_r0_0.svg?v=26" alt="" width="7.8000%" align="top"><a href="https://ko-fi.com/x20ctl"><img src="assets/readme/bg/b092c_r0_1.svg?v=26" alt="support it on Ko-fi" width="17.7000%" align="top"></a><img src="assets/readme/bg/b092c_r0_f.svg?v=26" alt="" width="74.4700%" align="top"><img src="assets/readme/bg/b093.svg?v=26" alt="License" width="100.0000%" align="top"><img src="assets/readme/bg/b094.svg?v=26" alt="From V0.012 (4.1.0 Preview 3), X20CTL is free software under the GNU General Public License v3.0 or later(LICENSE). You may use, study, share and change it. If you distribute a modified version, it mu" width="100.0000%" align="top"><img src="assets/readme/bg/b094c_r0_0.svg?v=26" alt="" width="7.8000%" align="top"><a href="LICENSE"><img src="assets/readme/bg/b094c_r0_1.svg?v=26" alt="GNU General Public License v…" width="25.4000%" align="top"></a><img src="assets/readme/bg/b094c_r0_f.svg?v=26" alt="" width="66.7700%" align="top"><img src="assets/readme/bg/b095.svg?v=26" alt="Releases up to and including V0.011 (4.1.0 Preview 2) were published under MIT, and code contributed under MIT keeps its notice (licenses/(licenses/)). See NOTICE(NOTICE) for details and the full non-" width="100.0000%" align="top"><img src="assets/readme/bg/b095c_r0_0.svg?v=26" alt="" width="7.8000%" align="top"><a href="licenses/"><img src="assets/readme/bg/b095c_r0_1.svg?v=26" alt="licenses/" width="11.5000%" align="top"></a><a href="NOTICE"><img src="assets/readme/bg/b095c_r0_2.svg?v=26" alt="NOTICE" width="11.2000%" align="top"></a><img src="assets/readme/bg/b095c_r0_f.svg?v=26" alt="" width="69.4700%" align="top"><img src="assets/readme/bg/end.svg?v=26" alt="X20CTL, GPL-3.0-or-later" width="100.0000%" align="top"></p>
+**[Download V0.025](#download)** · **[Supported controllers](#supported-controllers)** · **[Features](#features)** · **[PC mode](#pc-mode)** · **[Linux](#download)** · **[Troubleshooting](IF-YOUR-CONTROLLER-ISNT-WORKING.md)** · **[Changelog](CHANGELOG.md)**
 
-<p align="center"><sub>Everything above is also available as plain, copyable text in <a href="README.plain.md">README.plain.md</a>.</sub></p>
+</div>
+
+> **V0.025 — Final release for now.** Open-source desktop controller studio for Windows (WPF + C++) and Linux (Avalonia) built for EasySMX gamepads — local-first, 100% offline assistant, no account, and no firmware flashing.
+
+---
+
+## Features
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/screenshots/rgb-studio.webp" alt="X20 Pro RGB Studio" width="100%">
+      <br><strong>RGB Studio &amp; Effects (X20 Pro)</strong><br>
+      4-zone live controller lighting, hex/palette swatches, Rainbow/Wave/Pulse/Battery effects, Screen Ambient Sync, and simultaneous 2.4 GHz dongle + unpaired BLE sync.
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/screenshots/rgb-effects.webp" alt="Live Lighting Effects" width="100%">
+      <br><strong>Live Lighting Engine</strong><br>
+      Trigger Glow, Stick Heat, Button Flash, Ambient Screen Sync, Cyberpunk/Fire/Police/Aurora presets, and battery-level gauges with safe BLE read-back.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/screenshots/screen.webp" alt="X20 Pro Built-in Screen Editor" width="100%">
+      <br><strong>Built-in Screen Editor (X20 Pro)</strong><br>
+      Upload static images or animated GIFs to the <code>160x80</code> controller display over USB serial, adjust crop/zoom/brightness/contrast, or export <code>.bin</code> artwork locally.
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/screenshots/agent-xctl.webp" alt="Offline Handheld Agent XCTL" width="100%">
+      <br><strong>100% Offline Handheld Agent XCTL</strong><br>
+      Built-in handheld assistant wrapped in your chosen controller body: 3,048 phrases, Tab autocomplete, live Check-up, interactive RGB cards, help search, and multi-step undo with zero external AI calls.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/screenshots/buttons.webp" alt="Buttons &amp; Rear Paddle Remapping" width="100%">
+      <br><strong>Buttons &amp; Macros</strong><br>
+      Interactive front/rear visualizer with listen-to-bind capture, draft previews, saved setups, and sequence macro timelines on hardware slots (<code>M1–M4</code> / <code>M1–M6</code>).
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/screenshots/curves.webp" alt="Stick &amp; Trigger Response Curves" width="100%">
+      <br><strong>Stick &amp; Trigger Curves</strong><br>
+      Sculpt response curves with built-in presets (Default, Quick, Slow, Smooth, Fine), inner/outer dead zones, keyboard curve testing, and one-click Diagnostics drift setup.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/screenshots/keyboard.webp" alt="PC Mode Keyboard Mapping" width="100%">
+      <br><strong>Keyboard &amp; Custom Key Sequences</strong><br>
+      Bind controller buttons to real keyboard keys or mouse buttons (<code>M1–M7</code>), or play up to 64 keys with per-step hold/pause timings inside PC Mode.
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/screenshots/mouse.webp" alt="Controller as Mouse" width="100%">
+      <br><strong>Controller as Mouse</strong><br>
+      Move the cursor, scroll horizontally/vertically, bind <code>M1–M7</code> + turbo (2–30 Hz), and toggle mouse mode anytime with <code>View + Y</code>.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/screenshots/vibration.webp" alt="4-Zone Vibration Visualizer" width="100%">
+      <br><strong>4-Zone Vibration &amp; 200% Boost</strong><br>
+      Independent sliders and isolated tests for left/right grip and trigger motors, plus PC Mode game-rumble amplification up to 200%.
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/screenshots/choose-controller.webp" alt="Controller Selector with All 7 EasySMX Models" width="100%">
+      <br><strong>7 EasySMX Models &amp; Finish Packs</strong><br>
+      Full hardware artwork, rear views, and colourways across X20, X20 Pro, X15, X10, X05 Pro, D10, and Dune 8K.
+    </td>
+  </tr>
+</table>
+
+<details>
+<summary><strong>More Studio screens</strong> — Zone, Dashboard, Agent Check-up, Macros, Tester, Diagnostics, Controller Check, Tools &amp; Linux Studio</summary>
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/zone.webp" alt="Controller Zone (1-4 Players)" width="100%"><br><sub><b>Controller Zone</b> — 4-player slots &amp; hot-swap studio</sub></td>
+    <td width="50%"><img src="docs/screenshots/dashboard.webp" alt="Dashboard &amp; Game Profiles" width="100%"><br><sub><b>Dashboard</b> — Steam/Epic/GOG/Riot per-game profiles</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/agent-checkup.webp" alt="Agent XCTL Check-up" width="100%"><br><sub><b>Agent Check-up</b> — stick drift, range &amp; link audit</sub></td>
+    <td width="50%"><img src="docs/screenshots/macros.webp" alt="Macro Sequence Timeline" width="100%"><br><sub><b>Macros</b> — rear paddle sequences &amp; visual timeline</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/pc-mode.webp" alt="PC Mode Status" width="100%"><br><sub><b>PC Mode</b> — virtual Xbox 360 / DualShock 4 pipeline</sub></td>
+    <td width="50%"><img src="docs/screenshots/tester.webp" alt="Gameplay Input Tester" width="100%"><br><sub><b>Tester</b> — live XInput &amp; keyboard test overlay</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/diagnostics.webp" alt="Controller Diagnostics" width="100%"><br><sub><b>Diagnostics</b> — raw stick resolution &amp; update rate</sub></td>
+    <td width="50%"><img src="docs/screenshots/controller-check.webp" alt="Controller Check Scan" width="100%"><br><sub><b>Controller Check</b> — read-only hardware capture</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/tools.webp" alt="Tools, Themes &amp; Updater" width="100%"><br><sub><b>Tools</b> — Bluetooth manager, themes &amp; update controls</sub></td>
+    <td width="50%"><img src="docs/screenshots/linux-studio.webp" alt="Linux Avalonia Studio" width="100%"><br><sub><b>Linux Studio</b> — Avalonia desktop interface</sub></td>
+  </tr>
+</table>
+
+</details>
+
+<br>
+
+<p align="center">
+  <img src="assets/readme/themes-strip.svg" alt="6 Native X20CTL Themes and 10 Languages" width="100%">
+</p>
+
+---
+
+## Supported controllers
+
+Every model runs local drafts and **PC Mode**. Hardware flash configuration depends on each controller's verified protocol:
+
+| Controller | On-device configuration | PC Mode | Notes |
+|---|---|---|---|
+| **EasySMX X20** | Buttons, curves, macros (`M1–M4`), vibration | Yes | Full BLE GATT configuration + read-back verification |
+| **EasySMX X20 Pro** | Buttons, curves, macros (`M1–M6`), 4-motor vibration, RGB Studio, `160x80` screen | Yes | Simultaneous 2.4 GHz dongle (`413D:2131`) + unpaired BLE when PC Bluetooth is on |
+| **EasySMX X15** | Read-only in Studio | Yes | Windows/Linux PC Mode remapping, curves, keyboard, mouse, rumble |
+| **EasySMX X10** | Experimental read-only Bluetooth (KRLY) | Yes | BLE read-back ported from EasyGamepad; awaiting physical X10 verification |
+| **EasySMX X05 Pro** | Read-only in Studio | Yes | DInput recognition helper in Write scan (`tools`) |
+| **EasySMX D10** | Read-only in Studio | Yes | Full PC Mode profiles, curves, keyboard &amp; mouse |
+| **EasySMX Dune 8K** | Layout &amp; 4-motor haptic visualizer | Yes | `M1–M4` layout &amp; trigger rumble in PC Mode; native BLE/USB protocol unverified |
+
+- **Dongle / DInput tip (`0079:181C` / Steam `STK-7024X`):** If your X20 Pro or X20 connects in DInput mode (`STK-7024X`), switch the physical controller back to XInput mode for full PC Mode and dongle+BLE recognition. See [`IF-YOUR-CONTROLLER-ISNT-WORKING.md`](IF-YOUR-CONTROLLER-ISNT-WORKING.md).
+- **10 UI Languages:** Switch between English, 中文, Français, Deutsch, Polski, Español, 日本語, Русский, Italiano, and Tiếng Việt in **Tools -> Themes**.
+
+<p align="center">
+  <img src="assets/readme/protocol-pipeline.svg" alt="X20CTL Native On-Device and PC Mode Pipeline" width="100%">
+</p>
+
+---
+
+## PC mode
+
+**PC Mode** sits cleanly between your controller and your games, applying remaps, response curves, keyboard/mouse bindings, turbo (`0–30 Hz`), and up to `200%` game rumble amplification while active — closing X20CTL restores your pad immediately.
+
+- **Windows output:** Pinned, SHA-256 verified [`ViGEmBus` (`1.22.0`)](https://github.com/nefarius/ViGEmBus) and [`HidHide` (`1.5.230`)](https://github.com/nefarius/HidHide), offering selectable **Xbox 360** or **PlayStation 4 (DualShock 4)** virtual controllers across **up to 4 players**.
+- **Per-game automatic switching:** Detects local Steam, Epic, GOG, and Riot titles on Windows (Steam, Heroic, and Lutris on Linux) to load setups automatically when launched.
+- **On-pad toggle:** Hold **View + Menu** to toggle PC Mode, or **View + Y** to toggle Mouse mode, without leaving your game.
+- **Linux output:** Exclusive `evdev` source routing (`EVIOCGRAB`) and virtual Xbox 360 output via `/dev/uinput` (`60-x20ctl-uinput.rules` setup instructions shown in-app; see [`docs/linux-user-guide.md`](docs/linux-user-guide.md)).
+
+---
+
+## Controller Check
+
+**Controller Check** (under **Tools**) inspects how Windows or Linux actually sees your controller without writing to hardware memory:
+
+- **Read scan:** Guided per-control check recording buttons, stick resolution/center drift, trigger range, and report timing into a local ZIP.
+- **Write scan:** Identifies whether a Bluetooth pad answers like X20 or X20 Pro and lets you run read-only record read-back checks before ever consenting to a reversible write test.
+- **Safe mismatch handling:** If Windows detects another EasySMX model than you clicked, X20CTL clearly offers **Enter Studio as \<detected\>**, **Continue as \<chosen\>**, or **Cancel**, while native BLE writes still verify hardware identity before writing.
+
+---
+
+## Tools
+
+- **6 Native Themes &amp; 10 Languages:** Switch themes (`Default`, `Channel`, `Undertow`, `Alert`, `Slate`, `Multiverse`) and UI languages live.
+- **Bluetooth Manager:** Scan, pair, connect, and inspect nearby BLE controllers directly from Tools or offline screens.
+- **Updates (`Keep X20CTL up to date`):** On by default; checks stable GitHub releases only (skips pre-releases) and verifies downloads against `SHA256SUMS.txt`. Toggle off anytime.
+- **Tray &amp; Preferences:** Minimizing/closing can keep active PC Mode profiles running in the system tray (right-click tray icon -> **Quit** to exit completely). Opening intro video &amp; sound can also be toggled cleanly in Tools.
+
+---
+
+## Download
+
+All official builds are compiled from source via GitHub Actions on [**Release V0.025**](https://github.com/AmjadAAYD/x20ctl/releases/tag/v0.025) and checksummed in [`SHA256SUMS.txt`](https://github.com/AmjadAAYD/x20ctl/releases/download/v0.025/SHA256SUMS.txt).
+
+| Platform | Package | Download | Notes |
+|---|---|---|---|
+| **Windows 10/11 (x64)** | Installer (Recommended) | [`X20CTL-V0.025-windows-x64-setup.exe`](https://github.com/AmjadAAYD/x20ctl/releases/download/v0.025/X20CTL-V0.025-windows-x64-setup.exe) | Bundled .NET 10 + C++ engine + Start menu |
+| **Windows 10/11 (x64)** | Portable Single Exe | [`X20CTL-V0.025-windows-x64.exe`](https://github.com/AmjadAAYD/x20ctl/releases/download/v0.025/X20CTL-V0.025-windows-x64.exe) | No installer; unpacks engine to temp folder |
+| **Linux (x86_64)** | AppImage | [`X20CTL-V0.025-linux-x86_64.AppImage`](https://github.com/AmjadAAYD/x20ctl/releases/download/v0.025/X20CTL-V0.025-linux-x86_64.AppImage) | Self-updating against `SHA256SUMS.txt` |
+| **Linux (x86_64)** | Flatpak Bundle | [`X20CTL-V0.025-linux-x86_64.flatpak`](https://github.com/AmjadAAYD/x20ctl/releases/download/v0.025/X20CTL-V0.025-linux-x86_64.flatpak) | Install with `flatpak install --user` |
+| **Linux (glibc x64)** | Tarball | [`X20CTL-V0.025-linux-x64.tar.gz`](https://github.com/AmjadAAYD/x20ctl/releases/download/v0.025/X20CTL-V0.025-linux-x64.tar.gz) | Ubuntu, Fedora, Arch, Debian, openSUSE |
+| **Linux (musl x64)** | Tarball | [`X20CTL-V0.025-linux-musl-x64.tar.gz`](https://github.com/AmjadAAYD/x20ctl/releases/download/v0.025/X20CTL-V0.025-linux-musl-x64.tar.gz) | Alpine, Chimera |
+| **Linux (Python 3 CLI)** | Controller Check ZIP | [`X20CTL-V0.025-linux-check.zip`](https://github.com/AmjadAAYD/x20ctl/releases/download/v0.025/X20CTL-V0.025-linux-check.zip) | Standalone `x20ctl-check.py` &amp; `x20ctl-pcmode.py` |
+
+- **Code signing:** X20CTL has applied for free open-source signing through the [SignPath Foundation](https://signpath.org/). Until active, Windows SmartScreen may warn because binaries are unsigned — verify against [`SHA256SUMS.txt`](https://github.com/AmjadAAYD/x20ctl/releases/download/v0.025/SHA256SUMS.txt) and never disable your antivirus.
+- **Linux verification note:** Linux Studio and its bundles are compiled on CI and headlessly rendered/tested, but live runtime execution on physical Linux hardware awaits community testing. See [`docs/linux-user-guide.md`](docs/linux-user-guide.md) and [`tools/linux-studio/FLATPAK.md`](tools/linux-studio/FLATPAK.md).
+- **Python CLI (`uv` / `pip`):** Run `uv run x20 scan` from source, or see [`CHANGELOG.md`](CHANGELOG.md) and [`docs/versions.md`](docs/versions.md) for version numbering.
+
+---
+
+## Local first
+
+- **No account, no telemetry, zero cloud AI:** Handheld Agent XCTL, setups, drafts, PC Mode profiles, and Check-up diagnostics execute 100% locally on your PC.
+- **Local library scan only:** Reads Steam/Epic/GOG/Riot/Heroic/Lutris local files solely for automatic per-game profile matching; game lists never leave your device.
+- **Local drafts before writes:** Edits remain local until you explicitly click **Apply**, and hardware writes never touch an unverified controller or flash firmware.
+- **Opt-in uploads only:** Data leaves your machine only if you explicitly confirm **Scan and send** (Controller Check) or **Send to X20CTL** (Feedback), with personal paths/serials stripped. Full details: [`PRIVACY.md`](PRIVACY.md) and [`IF-YOUR-CONTROLLER-ISNT-WORKING.md`](IF-YOUR-CONTROLLER-ISNT-WORKING.md).
+
+---
+
+## Credits &amp; License
+
+- Hardware support thanks to **Kiin from Team EasySMX** (supplied X20 Pro test unit).
+- X10 Bluetooth protocol reference adapted from [**EasyGamepad**](https://github.com/edgardmessias/easygamepad) by **Edgard** (`edgardmessias`).
+- Console Studio UI inspired by [**ApexSenseBridge**](https://github.com/ReynArts/ApexSenseBridge) by **Kayn arts**; Mouse mapping defaults inspired by [**Gopher360**](https://github.com/Tylemagne/Gopher360).
+- Support development on [**Ko-fi**](https://ko-fi.com/x20ctl) or star the repository.
+
+Licensed under [**GNU General Public License v3.0 or later (`GPL-3.0-or-later`)**](LICENSE) — see [`NOTICE`](NOTICE) and [`THIRD_PARTY.md`](THIRD_PARTY.md) for component notices.
