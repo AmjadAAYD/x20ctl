@@ -1,4 +1,4 @@
-"""Keep README.md, README.plain.md, and assets/readme/bg/*.svg in sync with the latest GitHub release.
+"""Keep README.md, README.plain.md, and assets/readme/hero.svg in sync with the latest GitHub release.
 
 Usage:
     python tools/sync_readme_release.py v0.025
@@ -19,22 +19,6 @@ REPO_RELEASES = "https://github.com/AmjadAAYD/x20ctl/releases"
 VER_RE = r"V\d+\.\d+(?:\.\d+)?"
 TAG_RE = r"v\d+\.\d+(?:\.\d+)?"
 
-SVG_RELEASE_SLICES = (
-    "hero.svg",
-    "nav1.svg",
-    "demo.svg",
-    "tour_1.svg",
-    "download_head.svg",
-    "dl_win_1.svg",
-    "dl_win_2.svg",
-    "dl_lin1_1.svg",
-    "dl_lin1_2.svg",
-    "dl_lin1_3.svg",
-    "dl_lin2_1.svg",
-    "dl_lin2_2.svg",
-    "end.svg",
-)
-
 
 def _sub_req(pattern: str, repl: str, text: str, label: str, minimum: int = 1) -> str:
     updated, count = re.subn(pattern, repl, text)
@@ -43,11 +27,51 @@ def _sub_req(pattern: str, repl: str, text: str, label: str, minimum: int = 1) -
     return updated
 
 
-def _sync_svg_text(text: str, filename: str, ver: str, tag: str) -> str:
+def _sync_hero_svg(text: str, ver: str) -> str:
     updated = re.sub(rf"\b{VER_RE}\b", ver, text)
-    updated = re.sub(rf"\bTAG\s+{TAG_RE}\b", f"TAG {tag}", updated)
-    if updated == text and not re.search(rf"\b{re.escape(ver)}\b", text):
-        raise ValueError(f"Expected version token in {filename}; files left unchanged")
+    if (
+        updated == text
+        and not re.search(rf'id="hero-version">{re.escape(ver)}<', text)
+    ):
+        raise ValueError("Expected version token in assets/readme/hero.svg; files left unchanged")
+    return updated
+
+
+def _sync_markdown_downloads(text: str, label_prefix: str, tag: str, ver: str, min_headings: int = 2) -> str:
+    updated = _sub_req(
+        rf"{re.escape(REPO_RELEASES)}/tag/{TAG_RE}",
+        f"{REPO_RELEASES}/tag/{tag}",
+        text,
+        f"{label_prefix} release tag URL",
+        minimum=2,
+    )
+    updated = _sub_req(
+        rf"(\*\*|Download |Release |\(){VER_RE}",
+        rf"\g<1>{ver}",
+        updated,
+        f"{label_prefix} version headings",
+        minimum=min_headings,
+    )
+    updated = _sub_req(
+        rf"{re.escape(REPO_RELEASES)}/download/{TAG_RE}/SHA256SUMS\.txt",
+        f"{REPO_RELEASES}/download/{tag}/SHA256SUMS.txt",
+        updated,
+        f"{label_prefix} SHA256SUMS URL",
+    )
+    updated = _sub_req(
+        rf"{re.escape(REPO_RELEASES)}/download/{TAG_RE}/X20CTL-{VER_RE}(-[^\"\s)<]+)",
+        rf"{REPO_RELEASES}/download/{tag}/X20CTL-{ver}\1",
+        updated,
+        f"{label_prefix} asset download URLs",
+        minimum=7,
+    )
+    updated = _sub_req(
+        rf"(?<![/\w])X20CTL-{VER_RE}(-[A-Za-z0-9_.-]+\.(?:exe|AppImage|flatpak|tar\.gz|zip))",
+        rf"X20CTL-{ver}\1",
+        updated,
+        f"{label_prefix} asset filename labels",
+        minimum=7,
+    )
     return updated
 
 
@@ -58,103 +82,52 @@ def sync(root: Path, tag: str) -> bool:
     ver = release_name(tag)
     readme = root / "README.md"
     plain = root / "README.plain.md"
-    bg_dir = root / "assets" / "readme" / "bg"
+    hero_svg = root / "assets" / "readme" / "hero.svg"
 
-    required_svgs = [bg_dir / name for name in SVG_RELEASE_SLICES]
-    if not readme.is_file() or any(not p.is_file() for p in required_svgs):
-        raise ValueError("Missing README.md or release SVG slices; files left unchanged")
+    if not readme.is_file() or not hero_svg.is_file():
+        raise ValueError("Missing README.md or assets/readme/hero.svg; files left unchanged")
 
     original_readme = readme.read_text(encoding="utf-8")
-    updated_readme = original_readme
-
-    # Validate nav1 button & update cache-busters, hero/tour/download alts, and URLs
+    updated_readme = _sync_markdown_downloads(original_readme, "README.md", tag, ver, min_headings=2)
     updated_readme = _sub_req(
-        rf'(<a\s+href="{re.escape(REPO_RELEASES)}/)tag/{TAG_RE}("><img\s+[^>]*src="assets/readme/bg/nav1\.svg)(\?[^"]*)?("[^>]*alt="Download ){VER_RE}(")',
-        rf"\g<1>tag/{tag}\g<2>?v=release-{tag}\g<4>{ver}\g<5>",
-        updated_readme,
-        "README nav1 release button",
-    )
-    updated_readme = re.sub(
-        r"(assets/readme/bg/[a-z0-9_]+\.svg)\?v=release-[^\s\"']+",
+        r"(assets/readme/(?:hero|thanks)\.svg)\?v=release-[^\s\"']+",
         rf"\1?v=release-{tag}",
         updated_readme,
+        "README artwork cache-busters",
+        minimum=2,
     )
     updated_readme = _sub_req(
-        rf'(alt="(?:X20CTL |Download X20CTL |Download |Animated studio tour of X20CTL |Download X20CTL-)){VER_RE}',
+        rf'(alt="X20CTL ){VER_RE}',
         rf"\g<1>{ver}",
         updated_readme,
-        "README image version alt",
-        minimum=11,
-    )
-    updated_readme = _sub_req(
-        rf"{re.escape(REPO_RELEASES)}/download/{TAG_RE}/SHA256SUMS\.txt",
-        f"{REPO_RELEASES}/download/{tag}/SHA256SUMS.txt",
-        updated_readme,
-        "README SHA256SUMS download URL",
-    )
-    updated_readme = _sub_req(
-        rf"{re.escape(REPO_RELEASES)}/download/{TAG_RE}/X20CTL-{VER_RE}(-[^\"\s)<]+)",
-        rf"{REPO_RELEASES}/download/{tag}/X20CTL-{ver}\1",
-        updated_readme,
-        "README asset download URLs",
-        minimum=7,
+        "README hero alt version",
     )
 
-    pending_writes: list[tuple[Path, str, str]] = [(readme, original_readme, updated_readme)]
+    pending: list[tuple[Path, str, str]] = [(readme, original_readme, updated_readme)]
 
     if plain.is_file():
         original_plain = plain.read_text(encoding="utf-8")
-        updated_plain = _sub_req(
-            rf"{re.escape(REPO_RELEASES)}/tag/{TAG_RE}",
-            f"{REPO_RELEASES}/tag/{tag}",
-            original_plain,
-            "README.plain.md tag URL",
-            minimum=2,
-        )
-        updated_plain = _sub_req(
-            rf"(\*\*|\[Download |Release |\(){VER_RE}",
-            rf"\g<1>{ver}",
-            updated_plain,
-            "README.plain.md version headings",
-            minimum=4,
-        )
-        updated_plain = _sub_req(
-            rf"{re.escape(REPO_RELEASES)}/download/{TAG_RE}/SHA256SUMS\.txt",
-            f"{REPO_RELEASES}/download/{tag}/SHA256SUMS.txt",
-            updated_plain,
-            "README.plain.md SHA256SUMS link",
-        )
-        updated_plain = _sub_req(
-            rf"{re.escape(REPO_RELEASES)}/download/{TAG_RE}/X20CTL-{VER_RE}(-[^\"\s)<]+)",
-            rf"{REPO_RELEASES}/download/{tag}/X20CTL-{ver}\1",
-            updated_plain,
-            "README.plain.md asset download URLs",
-            minimum=7,
-        )
-        updated_plain = _sub_req(
-            rf"(?<![/\w])X20CTL-{VER_RE}(-[A-Za-z0-9_.-]+\.(?:exe|AppImage|flatpak|tar\.gz|zip))",
-            rf"X20CTL-{ver}\1",
-            updated_plain,
-            "README.plain.md filename labels",
-            minimum=7,
-        )
-        pending_writes.append((plain, original_plain, updated_plain))
+        updated_plain = _sync_markdown_downloads(original_plain, "README.plain.md", tag, ver, min_headings=4)
+        pending.append((plain, original_plain, updated_plain))
 
-    for svg_path in required_svgs:
-        orig_svg = svg_path.read_text(encoding="utf-8")
-        new_svg = _sync_svg_text(orig_svg, svg_path.name, ver, tag)
-        pending_writes.append((svg_path, orig_svg, new_svg))
+    original_hero = hero_svg.read_text(encoding="utf-8")
+    updated_hero = _sync_hero_svg(original_hero, ver)
+    pending.append((hero_svg, original_hero, updated_hero))
 
-    changed = any(new != old for _, old, new in pending_writes)
+    changed = any(new != old for _, old, new in pending)
     if changed:
-        for path, old, new in pending_writes:
+        for path, old, new in pending:
             if new != old:
                 path.write_text(new, encoding="utf-8")
     return changed
 
 
-if __name__ == "__main__":
+def main() -> None:
     if len(sys.argv) != 2:
-        raise SystemExit("Usage: python tools/sync_readme_release.py TAG")
+        raise SystemExit(f"Usage: {Path(sys.argv[0]).name} v<version>")
     changed = sync(ROOT, sys.argv[1])
-    print("Updated README, plain text twin, and artwork" if changed else "README release links and artwork already current")
+    print("Updated README release links and artwork" if changed else "README release links and artwork already current")
+
+
+if __name__ == "__main__":
+    main()
