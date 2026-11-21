@@ -1,170 +1,22 @@
-# Controller photo layers
+# Controller Artwork & Geometry Assets
 
-## Colours (finishes), 24 Oct 2026
+This directory holds the V0.025 layered artwork and vector/contour geometry used by the WPF (`X20Ctl.Product`) and Linux Avalonia (`X20Ctl.Linux`) desktop studios on a `1536x1024` canvas.
 
-The owner supplied new artwork for X20, X05, X05 Pro, X10, D10, X15 and Dune in their original colours and eleven
-other colours (`controller-animation-layers.zip`), plus a white X20 Pro front and rear pair. These are edited design
-renders, not photographs of the hardware. The X05 (not the X05 Pro) was removed from the app the same day at the
-owner's request; its art, data and catalog entry are gone. `tools/import_finish_packs.py` places them on this
-1536x1024 canvas:
+## Structure per model (`x20`, `x20_pro`, `x15`, `x10`, `x05_pro`, `d10`, `dune`)
 
-- each front is pinned by its two stick pivots onto the ones in `native-layers.json` (scale and offset only, no
-  stretch), so the control shapes, stick travel and hotspots measured for the model stay on their controls;
-- each rear is fitted to the model's rear silhouette; the rear's screen-left trigger is RT (`trigger-r.png`);
-- the original colour replaces `<model>/native/`; every other colour goes to `<model>/finishes/<id>/` with the same
-  eight layers; `finishes.json` lists each model's colours, the original first;
-- the rim outlines in `outlines.json` and `lighting.json` were retraced from the new originals (the old Dune
-  silhouette still included its charging dock);
-- the black X20 Pro art is unchanged; its white finish is cut from the white backdrop and fitted onto the black one by
-  matching details (SIFT), with the black finish's cap and trigger shapes reused. In the source picture the front's
-  right grip runs into the rear view, so that strip is rebuilt by mirroring the white's own left grip;
-- every other colour has its own traced rim in `outlines.json`, keyed `model/colour`;
-- a tidy step drops what a neighbouring picture left glued to a shell: the white X20 Pro is held inside the black's
-  outline, and any rear loses a solid piece with no mirror twin (the white Pro's own front grip, a tab beside the X05
-  Pro purple rear) or a long thin strip; `--tidy-only` reruns it on the colours on disk.
+- `native/`: Base colourway layer stack (`front-body.png`, `front-full.png`, `rear-body.png`, `rear-full.png`, `stick-l.png`, `stick-r.png`, `trigger-l.png`, `trigger-r.png`, `holo-front.png`, `holo-rear.png`).
+- `finishes/<colour>/`: Alternate colour finishes built on the same alignment grid.
+- `haptics-geometry.json`: Grip and trigger haptic highlight contours rendered on the Vibration page.
+- `x20/rear-geometry.json`: Reference rear button polygons shared across desktop geometry checks.
 
-`tools/build_vibration_outlines.py` then retraces `vibration-outlines.json` from each colour's own front: every
-vibration stroke is cut again from that picture's inset edge between the ends of the stroke already in the file, and a
-colour gets its own strokes and silhouette keyed `model/colour`, so the Vibration page follows the pad's colour.
+## Root manifests
 
-A pad's colour can't be read from its USB or Bluetooth identity, so the player picks it with Change color in the Zone.
-It is remembered per player and model. The hologram layers (`holo-*.png`) are drawn from the model's shape and are
-shared by every colour.
+- `native-layers.json` — stick pivot centers, trigger hinge/motion metadata, and per-model layer alignment.
+- `finishes.json` — ordered colourway list and display names per model (original colour first).
+- `control-shapes.json` — clickable/interactive front and rear control hit regions.
+- `outlines.json` — traced shell silhouettes per model and finish (`model/colour`).
+- `lighting.json` — RGB lighting zone coordinates and rim-light contour paths.
+- `framing.json` — stage framing and crop boxes.
+- `vibration-outlines.json` — per-finish stroke segments used by the Vibration visualizer.
 
-## Vibration contours
-
-Each model's `haptics-geometry.json` traces its grip silhouettes in front-photo
-coordinates. Models with upper visualization zones also have curved trigger-cap
-contours. The shared canvas clips traveling light and surface pulses to those
-shapes, preserving the image and all input overlays. Strength controls speed and
-brightness; Off removes the effects. No hardware commands were added.
-See [vibration verification](../../../docs/vibration-contours-validation.md).
-
-## Rear views
-
-Each of the six models has a new `controller-rear.png` and `rear-geometry.json`.
-The 1536×1024 plates share blue-left and amber-right lighting. Rear images use a
-single contained image plane with normalized physical-button polygons; this
-keeps the HTML hover/click overlays aligned through resizing. The shared
-`ControllerView` offers Front View / Back View on Buttons and opens the selected
-macro slot. Macros is fixed to the rear view with no view-switch buttons.
-X05 Pro has a slight rear tilt to show its top controls.
-All existing front images, empty-well bases and front geometry were preserved.
-
-See [rear verification and source notes](../../../docs/rear-controller-views-validation.md)
-and [exact image edit prompts](../../../docs/rear-controller-image-prompts.json).
-
-## Additional UI-only previews
-
-On 1 October the user approved X05, X05 Pro, X10 and D10 as UI-only previews.
-Each model now has an edited 1536×1024 front complete plate (`controller.png`)
-and a matching empty-well base (`controller-base.png`). The image editor isolated
-the front controller from the source reference, retained its model-specific shell
-and controls, and produced the illuminated complete plate. A second edit removed
-only the movable caps and raised stems. Boxes, rear views, docks, captions and
-callout lines are excluded. Original reference images and source notes are
-retained in `artifacts/front-controller-sources/`; runtime plates are edited
-illustrations rather than untouched manufacturer photographs.
-
-Static cards, picker previews and headers use the complete plate. Interactive
-canvases use the empty-well base with two opaque moving cap crops sampled from the
-complete plate. `geometry.json` mirrors each catalog entry. Neutral cap placement
-and drag origins follow the actual fixed socket centers measured in the base;
-the independent crop centers select source texture only. Crops exclude stems and
-surrounding glow. Thin selection outlines add no glow, filter or drop shadow.
-These visual coordinates do not establish physical calibration, hardware
-identity or a configuration protocol.
-
-Selected front reference sources (original downloads retained unchanged):
-
-- X05: the lower-left controller in the [official package photograph](https://cdn.shopify.com/s/files/1/0075/2425/3809/files/EasySMX_X05_Gaming_Controller_Package.jpg?v=1722843760), saved as `x05-marketing-12.jpg`.
-- X05 Pro: the single front controller in the [retailer photograph](https://acdn-us.mitiendanube.com/stores/005/542/994/products/easysmx-x05-pro-2-598ad17b9b97b3bba117616321613694-1024-1024.webp), saved as `x05_pro-retailer.webp`. Manufacturer imagery cross-checks appearance; retailer text supplies no technical claims.
-- X10: the left/front controller in the [official marketing photograph](https://cdn.shopify.com/s/files/1/0075/2425/3809/files/5_3078f837-9049-480c-b516-abbd0f536a4c.jpg?v=1700304373), saved as `x10-front-marketing.jpg`.
-- D10: the upper/front controller in the [official control diagram photograph](https://cdn.shopify.com/s/files/1/0075/2425/3809/files/15_f272e730-5f43-4cf9-ac21-1793dbd4b977.jpg?v=1747906313), saved as `d10-black-15.jpg`.
-
-The generated outputs are retained there as `*-complete.png` and `*-base.png`.
-Selection notes are in `x05-sources-report.md` and `x10-d10-source-review.md`.
-Every non-X20 model remains an inactive hardware preview. X20/X20 Pro artwork,
-geometry and registry definitions, and the shared renderer, are unchanged by
-this update. Protected hashes and the first two catalog objects are recorded in
-`artifacts/front-controller-sources/protected-before.json`.
-
-The current preview verification and manufacturer capability references are in
-`docs/preview-models-validation.md`.
-
-For these four edited models, the final typecheck and production build passed,
-along with six targeted native registry/preview-selection tests. All six geometry
-files match the catalog, all twelve plates are 1536×1024, and cap crop bounds are
-valid. The protected snapshot comparison passed for six asset/geometry hashes
-and the first two catalog objects. The final offscreen headless layered-cap
-review passed all four new models at normal and compact sizes, saved seventeen
-images and has no report error:
-`artifacts/front-layered-models-2026-10-01-final/report.json`.
-
-The user prohibited screen access. This update used no desktop window control or
-screen capture; the four new models were not verified in native WebView2.
-Reopen the source desktop app manually to load the rebuilt artwork. No hardware
-commands or release work were performed. The older native X20/X20 Pro evidence
-below remains specific to those protected models.
-
-## X20 / X20 Pro photo layers
-
-The complete `x20/controller.png` and `x20_pro/controller.png` remain the original
-artwork for cards, the picker, the header and inactive previews.
-
-Interactive canvases use the following edited background plates:
-
-- `<home>/Desktop/Study/Projects/Personal/x20ctl/src/assets/controllers/x20/controller-base.png`
-- `<home>/Desktop/Study/Projects/Personal/x20ctl/src/assets/controllers/x20_pro/controller-base.png`
-
-Both plates retain the 1536×1024 framing. Both stationary rubber caps were removed
-using the built-in imagegen tool. Each moving cap samples the original photo;
-model-specific `sticks.left.cap` and `sticks.right.cap` crop bounds are stored in
-`x20ctl/controllers/catalog.json`, mirrored by each model's `geometry.json`.
-The edited plate and moving caps are different sources. Moving a stick therefore
-reveals its empty socket instead of another photographed cap. Selection uses a
-thin outline; the input overlays have no added glow, filter or drop shadow.
-The fixed RGB rings and ambient lighting belong to the controller artwork.
-
-Crop centers are texture-sampling coordinates, not display offsets. Neutral caps
-and drag origins use these independently measured fixed-ring centers in the
-1536×1024 background plates:
-
-| Model | Left ring (x, y) | Right ring (x, y) |
-| --- | --- | --- |
-| X20 | (400.67, 307.98) | (932.75, 510.55) |
-| X20 Pro | (399, 283) | (960, 460) |
-
-The centering follow-up saved native evidence to
-`artifacts/thumbstick-centering-2026-10-01-verified/`. It verifies both neutral
-caps and interaction origins against the measured centers at normal and compact
-sizes and after returning from deflection. Maximum observed coordinate difference
-was 0.021 CSS pixels. Source crop bounds and artwork were preserved.
-
-## Edit prompt set
-
-Shared prompt: precise object edit of the supplied controller image; remove only
-the two movable rubber thumbstick caps and raised rubber sidewalls; leave empty
-dark recessed sockets. Preserve the complete framing, 1536×1024 dimensions, shell,
-buttons, D-pad, screen/branding, RGB strips, fixed rings, lighting and proportions.
-No zoom, recentering, new objects, text, watermark or product redesign.
-
-- X20 prompt: remove the grey rubber caps at the two stick locations and preserve
-  the outer pink/purple RGB rings; fill the caps' areas with recessed dark wells.
-- X20 Pro prompt: remove the black rubber caps and preserve the fixed silver
-  toothed rings, their housing, the display and shell branding.
-
-Generated transparent cap candidates were rejected because they changed the
-original shapes and lighting; they are not project assets or runtime layers.
-
-## Verification
-
-`tools/thumbstick_review.py` drives isolated local previews in the actual Windows
-WebView2 desktop host, without hardware commands. The Oct 1 correction passed for
-both models at neutral, both travel directions, selected/pressed styling and a
-1060×760 window. It saved ten native screenshots and a passing report in
-`artifacts/thumbstick-review-2026-10-01-verified/`.
-
-The production build passed using `node node_modules/vite/bin/vite.js build
---configLoader native`, which avoids the sandbox's blocked config-bundling
-directory traversal. Type checking and `git diff --check` also passed.
+Legacy single-plate React assets from early versions have been removed. Artwork layers can be regenerated or re-trimmed from finish packs with `tools/import_finish_packs.py`, `tools/build_controller_outlines.py`, and `tools/build_vibration_outlines.py`.
