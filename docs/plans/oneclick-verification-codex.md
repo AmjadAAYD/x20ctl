@@ -1,1 +1,0 @@
-Add deterministic fake-HTTP tests for asset selection, labels, progress, validation failures, cancellation and install preservation. Render update notice states offscreen without install/restart calls. Compare clean baseline build warnings and build Linux. No commits or publication.
