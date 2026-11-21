@@ -79,10 +79,6 @@ public sealed partial class ModelSelectorView : Grid
         footer.Margin = new(9, 0, 0, 0); Grid.SetRow(footer, 2); body.Children.Add(footer);
 
         Unloaded += (_, _) => turn.Stop();
-        if (ThemeCatalog.Current.Id == "nexus") BuildNexusSelector(catalog, facts);
-        if (ThemeCatalog.Current.Id == "hollow") BuildHollowSelector(catalog, facts);
-        if (ThemeCatalog.Current.Id == "nocturne") BuildNocturneSelector(catalog, facts);
-        if (ThemeCatalog.Current.Id == "sunrise") BuildSunriseSelector(catalog, facts);
         Loaded += (_, _) =>
         {
             if (cards.Count > 0) cards[0].Focus();

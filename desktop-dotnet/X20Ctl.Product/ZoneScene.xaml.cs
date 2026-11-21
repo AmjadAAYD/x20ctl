@@ -60,26 +60,26 @@ public partial class ZoneScene : UserControl
         ProvenanceText.Text = value == ZoneScenario.Empty ? "LIVE INPUT" : "DEMO";
         ScenarioHint.Text = value switch { ZoneScenario.OneController => "One mock assignment · F9 changes fixture", ZoneScenario.MultipleControllers => "Three mock assignments · F9 changes fixture", _ => "Waiting for controller input" };
         FeedbackText.Text = "Select any player. All four docks begin equal.";
-        if (IsNexus) { NexusSync(); } else if (IsDusk) { DuskSync(); } else if (IsHollow) { HollowSync(); } else if (IsNocturne) { NocturneSync(); } else if (IsSunrise) { SunriseSync(); } else SnapLayout();
+        SnapLayout();
     }
     public void RestoreAssignments(IReadOnlyList<string?> ids, ControllerCatalog catalog)
     {
         State.Restore(ids, catalog);
         for (int i = 0; i < 4; i++) docks[i].RefreshPlayer(State.Players[i]);
-        SnapLayout(); NexusSync(); DuskSync(); HollowSync(); NocturneSync(); SunriseSync();
+        SnapLayout();
         ScenarioHint.Text = "Saved models · connection checked separately";
     }
     public void AssignController(int index, ControllerModel model)
     {
         State.Assign(index, model);
         docks[index].RefreshPlayer(State.Players[index]);
-        SnapLayout(); NexusSync(); DuskSync(); HollowSync(); NocturneSync(); SunriseSync();
+        SnapLayout();
         FeedbackText.Text = $"{model.Name} assigned to Player {index + 1}. Hardware connection is separate.";
         ScenarioHint.Text = "Assigned models · connection checked separately";
     }
     public void RemoveController(int index)
     {
-        transition?.Cancel();State.Clear(index);docks[index].RefreshPlayer(State.Players[index]);SnapLayout();UpdateOverviewPill();NexusSync(); DuskSync();
+        transition?.Cancel();State.Clear(index);docks[index].RefreshPlayer(State.Players[index]);SnapLayout();UpdateOverviewPill();
         FeedbackText.Text=$"Player {index+1} controller removed. Saved setups retained.";
         ControllerRemoved?.Invoke(index);
     }
@@ -96,7 +96,6 @@ public partial class ZoneScene : UserControl
     }
     private void SnapLayout()
     {
-        RefreshIllustratedZone();
         // Assignment/resize snaps also invalidate an awaiting transition's old destination.
         transition?.Cancel(); CompositionTarget.Rendering -= MoveFrame; moveClock.Stop();
         if (DockStage.ActualWidth <= 48 || DockStage.ActualHeight <= 48)
@@ -119,7 +118,7 @@ public partial class ZoneScene : UserControl
     /// (the "fwoosh": fast through the middle, soft at both ends), each one's content reflowing at its in-between size.</summary>
     private void PlaceViews(int duration)
     {
-        var bounds = (IsNexus ? NexusBounds() : (IsDusk ? DuskBounds() : Bounds()));
+        var bounds = Bounds();
         CompositionTarget.Rendering -= MoveFrame;
         if (duration <= 0) { for (int i = 0; i < 4; i++) { docks[i].SetMoving(false); docks[i].SetBounds(bounds[i], Role(i).hero, Role(i).secondary); } return; }
         moveFrom = docks.Select(d => d.RenderedBounds.Width > 0 ? d.RenderedBounds : bounds[d.Index]).ToArray(); moveTo = bounds; moveMs = duration;
@@ -144,7 +143,6 @@ public partial class ZoneScene : UserControl
     public async Task FocusPlayerAsync(int? index)
     {
         if (index == State.FocusedPlayer) return;
-        if (IsNexus) { await NexusFocus(index); return; } if (IsDusk) { await DuskFocus(index); return; } if (IsHollow) { await HollowFocus(index); return; } if (IsNocturne) { await NocturneFocus(index); return; } if (IsSunrise) { await SunriseFocus(index); return; }
         transition?.Cancel();
         // Freeze the displayed rectangles before retracting for a new selection.
         CompositionTarget.Rendering -= MoveFrame; moveClock.Stop();
@@ -201,7 +199,8 @@ public partial class ZoneScene : UserControl
         FocusBloom.BeginAnimation(Canvas.TopProperty, milliseconds == 0 ? null : new DoubleAnimation(start.Y + start.Height / 2 - FocusBloom.Height / 2, endY, TimeSpan.FromMilliseconds(milliseconds)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut } });
         FocusBloom.BeginAnimation(OpacityProperty, new DoubleAnimation(1, TimeSpan.FromMilliseconds(milliseconds)));
     }
-    public void FocusDock(int index) {if(matchedPlayerButtons.TryGetValue(index,out var native))native.Focus();else docks[index].FocusButton.Focus();}
+    private int FocusedDockIndex() => Array.FindIndex(docks, d => d.IsKeyboardFocusWithin);
+    public void FocusDock(int index) { docks[index].FocusButton.Focus(); }
     public void SetSimulationNavigation(bool enabled) => SetSimulationNavigation(enabled, false);
     public void SetSimulationNavigation(bool enabled, bool preserveExistingFocus)
     {
@@ -224,8 +223,6 @@ public partial class ZoneScene : UserControl
     private InputFrame Frame(Buttons buttons) => new(0, true, "simulation:zone-keys", clock.Elapsed.TotalMilliseconds, buttons);
     public async void OnKeyDown(object sender, KeyEventArgs e)
     {
-        if(matchedZone!=null&&Keyboard.FocusedElement is Button native&&(e.Key==Key.Enter||e.Key==Key.A))
-        {if(!e.IsRepeat)native.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));e.Handled=true;return;}
         if(Keyboard.FocusedElement is System.Windows.Controls.Button shell && (ReferenceEquals(shell,SupportButton)||ReferenceEquals(shell,ToolsButton)))
         {
             if(e.Key==Key.Enter || e.Key==Key.A){if(!e.IsRepeat)shell.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));e.Handled=true;return;}
@@ -287,12 +284,6 @@ public partial class ZoneScene : UserControl
     }
     private void MoveFocusToDock(int selected, NavigationAction action)
     {
-        if(matchedZone!=null)
-        {
-            if(action==NavigationAction.Left||action==NavigationAction.Right)FocusDock(Math.Clamp(selected+(action==NavigationAction.Left?-1:1),0,3));
-            else if(matchedPlayerButtons.TryGetValue(selected,out var native))native.MoveFocus(new(action==NavigationAction.Up?FocusNavigationDirection.Up:FocusNavigationDirection.Down));
-            return;
-        }
         if (State.FocusedPlayer.HasValue)
         {
             // the hero on the left, the other three in a column on the right

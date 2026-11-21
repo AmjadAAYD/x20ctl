@@ -37,15 +37,7 @@ public static class ThemeCatalog
 
     public static readonly IReadOnlyList<AppTheme> All = new[] { Default }.Concat(IllustratedThemeUI.Catalog()).ToArray();
 
-    /// <summary>Written by previews/console-concepts/themes/app_films.py: where each film's logo settles.</summary>
-    internal static readonly Dictionary<string, IntroSpec> Intros = new()
-    {
-        ["nexus"] = new("nexus", 2.67, 2.62, 2.77, new(624.0, 273.0, 672.0, 453.06), new(752, 523), new(0, 3, 752, 507)),
-        ["dusk"] = new("dusk", 2.80, 2.74, 2.89, new(624.0, 272.68, 672.0, 459.32), new(752, 523), new(0, 0, 752, 514)),
-        ["hollow"] = new("hollow", 2.67, 2.62, 2.77, new(806.81, 366.35, 307.34, 294.89), new(752, 523), new(216, 80, 321, 308)),
-        ["nocturne"] = new("nocturne", 2.67, 2.62, 2.77, new(806.81, 366.35, 307.34, 294.89), new(752, 523), new(216, 80, 321, 308)),
-        ["sunrise"] = new("sunrise", 2.67, 2.62, 2.77, new(806.81, 366.35, 307.34, 294.89), new(752, 523), new(216, 80, 321, 308)),
-    };
+    internal static readonly Dictionary<string, IntroSpec> Intros = new();
 
     /// <summary>The theme in use for this run (set once at startup).</summary>
     public static AppTheme Current { get; private set; } = Default;

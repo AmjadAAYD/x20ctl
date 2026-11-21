@@ -13,8 +13,6 @@ namespace X20Ctl.Product;
 internal static class IllustratedThemeUI
 {
     public static IllustratedThemeSpec? Current => IllustratedThemeSpec.Find(ThemeCatalog.Current.Id);
-    /// <summary>The theme replaces pages with fixed-canvas layouts (false for native skins on Default's layout).</summary>
-    public static bool Matched => Current is {Native:false};
     internal static readonly DependencyProperty PrimaryProperty=DependencyProperty.RegisterAttached("Primary",typeof(bool),typeof(IllustratedThemeUI),new PropertyMetadata(false));
     private static bool installed;
     private static readonly DependencyProperty StyledProperty=DependencyProperty.RegisterAttached("Styled",typeof(bool),typeof(IllustratedThemeUI),new PropertyMetadata(false));

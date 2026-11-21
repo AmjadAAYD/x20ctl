@@ -33,7 +33,6 @@ public partial class StudioScene
         int at=NavigationTabs.Children.IndexOf(PcModeNav);foreach(var tab in pcTabs)NavigationTabs.Children.Insert(++at,tab);BuildKeyboardTab(group);
         PcModeNav.Visibility=Visibility.Collapsed;
         ApplyPcDashboard();
-        BuildFeatureNavigation();
         NavigationIndicator.RenderTransform=new TransformGroup{Children={navigationLensScale,navigationSlide}};
         NavigationIndicator.RenderTransformOrigin=new(.5,.5);
         NavigationIndicator.Effect=null;
@@ -47,7 +46,6 @@ public partial class StudioScene
     }
     private void UpdateNavigation()
     {
-        if(illustratedShell){EnforceIllustratedShell();return;}
         if(arrangingNavigation||navigation.Length==0||NavigationLayer.ActualWidth<=0)return;arrangingNavigation=true;
         try
         {

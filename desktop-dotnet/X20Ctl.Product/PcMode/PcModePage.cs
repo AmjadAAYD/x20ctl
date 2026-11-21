@@ -66,7 +66,7 @@ public static class PcModeSetup
             : "•  HidHide: hides the physical pad so games don't see it twice"));
         string text = "PC mode needs " + (names.Count == 1 ? "a small driver" : "two small drivers") + ":\n\n" + list
             + "\n\nThey are the signed installers from Nefarius Software Solutions, packaged with X20CTL. Windows will ask for permission and a setup window may flash by. You can remove them any time in Windows Apps.\n\nInstall now?";
-        bool Ask() => Application.Current.MainWindow is ProductWindow themedWindow && ThemeCatalog.Current.Id != "default" ? themedWindow.Host.ConfirmThemeDrivers(names) : MessageBox.Show(Application.Current.MainWindow, text, "X20CTL · PC mode drivers", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) == MessageBoxResult.Yes;
+        bool Ask() => MessageBox.Show(Application.Current.MainWindow, text, "X20CTL · PC mode drivers", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) == MessageBoxResult.Yes;
         return Application.Current.Dispatcher.CheckAccess() ? Ask() : Application.Current.Dispatcher.Invoke(Ask);
     }
 
@@ -166,7 +166,7 @@ public sealed partial class PcModePage : Border
     readonly ComboBox profiles = new() { MinHeight = 40, Width = 320, FontSize = 15, DisplayMemberPath = "Label", SelectedValuePath = "Id" };
     readonly ComboBox owner = new() { MinHeight = 40, Width = 220, FontSize = 15, DisplayMemberPath = "Label", SelectedValuePath = "Id" };
     readonly ComboBox apps = new() { MinHeight = 40, Width = 420, FontSize = 14.5, DisplayMemberPath = "Label", SelectedValuePath = "Id" };
-    readonly StackPanel picker; readonly Button removeGame; PcModeCombosPanel? combosPanel; Button? turboApply;
+    readonly StackPanel picker; readonly Button removeGame; Button? turboApply;
     readonly TextBlock statusLabel, statusDetail, saved, setupNote;
     readonly TextBlock pipeline=Wrap("",14,"DS.TextSoft",12);
     readonly Ellipse dot = new() { Width = 14, Height = 14, VerticalAlignment = VerticalAlignment.Center };
@@ -294,9 +294,6 @@ public sealed partial class PcModePage : Border
         turboApply = Pill("Apply turbo"); turboApply.IsEnabled = false; turboApply.Margin = new(0, 18, 0, 0); turboApply.HorizontalAlignment = HorizontalAlignment.Left;
         turboApply.Click += (_, _) => { Persist(); turboApply.IsEnabled = false; };
         stack.Children.Add(turboApply);
-        combosPanel = new PcModeCombosPanel(store, service, preferences, text => saved.Text = text);
-        int combosAt = stack.Children.Count;
-        stack.Children.Add(combosPanel);
         int testAt = stack.Children.Count;
         stack.Children.Add(new PcModeTestPanel(service));
 
@@ -319,7 +316,7 @@ public sealed partial class PcModePage : Border
         back.Margin = new(0, 24, 12, 0);if(editButtons!=null)back.Visibility=Visibility.Collapsed;
         stack.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = { back, reset } });
         saved = Wrap("", 14, "DS.TextMuted", 12); stack.Children.Add(saved);
-        ShowSection(stack, gamesAt, turboAt, combosAt, testAt, shareAt);
+        ShowSection(stack, gamesAt, turboAt, testAt, shareAt);
 
         loading = true; ListProfiles(); Fill(store.Get(StoreKey)); loading = false;
         // the service outlives this page: listen only while shown
@@ -331,14 +328,14 @@ public sealed partial class PcModePage : Border
     }
 
     /// <summary>Shows only the part of the page that belongs to the chosen tab. The notice and the saved line stay wherever they are needed.</summary>
-    void ShowSection(StackPanel stack, int gamesAt, int turboAt, int combosAt, int testAt, int shareAt)
+    void ShowSection(StackPanel stack, int gamesAt, int turboAt, int testAt, int shareAt)
     {
         string section = Sections.Contains(Part) ? Part : "Status";
         for (int i = 0; i < stack.Children.Count; i++)
         {
             var child = stack.Children[i];
             if (child == notice || child == saved) continue;
-            string owner = i < gamesAt ? "Status" : i < turboAt ? "Games" : i < combosAt ? "Turbo" : i < testAt ? "Combos" : i < shareAt ? "Test" : "Share";
+            string owner = i < gamesAt ? "Status" : i < turboAt ? "Games" : i < testAt ? "Turbo" : i < shareAt ? "Test" : "Share";
             if (owner != section) child.Visibility = Visibility.Collapsed; // parts of the chosen tab keep whatever visibility they already had
         }
         if (stack.Children[0] is TextBlock title) title.Text = section == "Status" ? "PC mode" : section;
@@ -407,7 +404,6 @@ public sealed partial class PcModePage : Border
     void Fill(PcModeProfile p)
     {
         foreach (var (id, _) in Buttons) turbo[id].SelectedIndex = Math.Max(0, Array.IndexOf(TurboRates, p.Turbo.GetValueOrDefault(id)));
-        combosPanel?.Reload();
     }
 
     /// <summary>The saved settings (or an import) with this page's turbo on top. The tabs own everything else.</summary>

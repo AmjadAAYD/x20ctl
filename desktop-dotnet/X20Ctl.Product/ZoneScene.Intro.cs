@@ -27,13 +27,7 @@ public partial class ZoneScene : IIntroHandoff
     private static readonly Rect MarkInk = new(.07 * 46, (.47 - .43 * 662 / 951) * 46, .86 * 46, .86 * 662 / 951 * 46);
     private readonly ScaleTransform brandPulse = new(1, 1);
 
-    public Rect? MarkTarget(Visual to)
-    {
-        if(matchedZone!=null)return matchedZone.MarkTarget(to);
-        if(IllustratedThemeUI.Current is {Native:false} art)
-        {var ink=IllustratedThemeUI.LogoInk(art);double k=BrandMark.ActualWidth/512;return Within(BrandMark,new Rect(ink.X*k,ink.Y*k,ink.Width*k,ink.Height*k),to);}
-        return Within(BrandMark,MarkInk,to);
-    }
+    public Rect? MarkTarget(Visual to) => Within(BrandMark, MarkInk, to);
     public Rect? WordTarget(Visual to)
     {
         // "20CTL" inside "X20CTL": after the width of the X

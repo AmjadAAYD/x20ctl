@@ -483,10 +483,6 @@ public sealed partial class ControllerCheckView : Grid
                 Child = Wrap("Your report: the full ZIP is always saved to Documents\\X20CTLInputReports. \"Scan and send\" also sends a compact summary (controller names, IDs and results, no personal files) to X20CTLADMIN, the X20CTL team's report site, when the scan ends. You can send the ZIP to @" + ScanFlow.Discord + " on Discord too.", 14.5, "DS.Text") },
             choices, linux } };
         warning.Child = new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
-        if (ThemeCatalog.Current.Id == "nexus") BuildNexusReadWarning(cards, systemRow, choices, linux);
-        if (ThemeCatalog.Current.Id == "hollow") BuildHollowReadWarning(cards, systemRow, choices, linux);
-        if (ThemeCatalog.Current.Id == "nocturne") BuildNocturneReadWarning(cards, systemRow, choices, linux);
-        if (ThemeCatalog.Current.Id == "sunrise") BuildSunriseReadWarning(cards, systemRow, choices, linux);
     }
     /// <summary>For a controller on a Linux PC: the bundled Linux Controller Check (tools/linux_controller_check), the same
     /// steps and report in a terminal, for every distro with Python 3.</summary>

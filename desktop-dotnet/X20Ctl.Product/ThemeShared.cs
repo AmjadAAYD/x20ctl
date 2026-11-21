@@ -65,17 +65,5 @@ public partial class StudioScene
 
 public partial class ZoneScene
 {
-    private DockBounds[] Bounds()
-    {
-        if(!IllustratedThemeUI.Matched||State.FocusedPlayer.HasValue)return ZoneLayout.Calculate(DockStage.ActualWidth,DockStage.ActualHeight,State.FocusedPlayer);
-        string id=IllustratedThemeUI.Current!.Id;
-        double gap=id=="manga"?14:22,wide=DockStage.ActualWidth,high=DockStage.ActualHeight;
-        if(id is "frutiger-aero" or "tokyo-night" or "crimson-rebellion")
-        {
-            double cw=Math.Max(1,(wide-gap)/2),ch=Math.Max(1,(high-gap-20)/2);
-            return Enumerable.Range(0,4).Select(i=>new DockBounds(i%2*(cw+gap),10+i/2*(ch+gap),cw,ch)).ToArray();
-        }
-        double w=Math.Max(1,(wide-gap*3)/4),h=Math.Max(1,high*(id=="vaporwave"?.82:id=="synthwave"?.76:1)-24);
-        return Enumerable.Range(0,4).Select(i=>new DockBounds(i*(w+gap),id=="synthwave"?high-h-12:(high-h)/2,w,h)).ToArray();
-    }
+    private DockBounds[] Bounds() => ZoneLayout.Calculate(DockStage.ActualWidth, DockStage.ActualHeight, State.FocusedPlayer);
 }

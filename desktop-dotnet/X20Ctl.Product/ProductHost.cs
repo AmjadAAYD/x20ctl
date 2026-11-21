@@ -103,7 +103,7 @@ public sealed partial class ProductHost : Grid
     private readonly object nativeEventLock=new();private readonly EdgeQueue<JsonElement> nativeEvents=new();private int nativeEventScheduled;
     private HashSet<string> lastNativeButtons=new();private bool nativeArmed;private long lastNativeSequence=-1,lastNavigationUs;
     internal string ExpectedNativeContext=>NativeInputStudio?.InputContext is InputOwner.TesterCapture or InputOwner.RemapCapture or InputOwner.MacroRecording?"TESTER_CAPTURE":"UI_NAVIGATION";
-    internal StudioScene? NativeInputStudio => Settings != null || Check != null || WriteScan != null || ActiveThemeNotice != null ? null : Studio;
+    internal StudioScene? NativeInputStudio => Settings != null || Check != null || WriteScan != null ? null : Studio;
     private int? studioPlayer;
     public bool IntroWasPlayed {get;private set;}
     private readonly ProductPreferences preferences;
@@ -417,16 +417,6 @@ public sealed partial class ProductHost : Grid
                 payload.GetProperty("rightX").GetDouble(), payload.GetProperty("rightY").GetDouble(),
                 payload.GetProperty("lt").GetDouble(), payload.GetProperty("rt").GetDouble(),
                 now.Count, pressed.Length > 0);
-            if (ActiveThemeNotice is {} themedNotice)
-            {
-                if (!connected || Window.GetWindow(this)?.IsActive != true) { nativeArmed = false; return; }
-                if (!nativeArmed) { if (now.Count == 0) nativeArmed = true; return; }
-                if (pressed.Contains("B")) ThemeNoticeButton(themedNotice, "no")?.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-                else if (pressed.Contains("A") && Keyboard.FocusedElement is Button action && themedNotice.IsKeyboardFocusWithin) action.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-                else if (pressed.Contains("DPAD_LEFT") || pressed.Contains("DPAD_UP")) ThemeNoticeButton(themedNotice, "no")?.Focus();
-                else if (pressed.Contains("DPAD_RIGHT") || pressed.Contains("DPAD_DOWN")) ThemeNoticeButton(themedNotice, "yes")?.Focus();
-                return;
-            }
             long time=value.GetProperty("timestampUs").GetInt64();
             NativeInputStudio?.NoteControllerHeld(now);
             // remap capture and macro recording own every press of the pad, but only while X20CTL is in front
@@ -516,12 +506,7 @@ public sealed partial class ProductHost : Grid
                 if (ThemeCatalog.Current.Id == "default") ReturnToZone();
         CloseSelector(); CloseSettings(); Zone.IsEnabled = false;
         if (Studio != null) { Studio.IsEnabled = false; Studio.Visibility = Visibility.Collapsed; }
-        Settings = new(OpenSupport, StartIntro, CloseSettings, OpenCheck, preferencesHealthy ? preferences : null, PcMode, pcModeStore, OpenWriteScan)
-        {
-            ThemeNavigate = NavigateThemePage, NexusNavigate = NavigateThemePage,
-            IllustratedModelId=Studio?.Model.Id??(Zone.State.FocusedPlayer is int selected?Zone.State.Players[selected].ModelId:null),
-            RestartRequested = RequestCurrentThemeRestart
-        };
+        Settings = new(OpenSupport, StartIntro, CloseSettings, OpenCheck, preferencesHealthy ? preferences : null, PcMode, pcModeStore, OpenWriteScan);
         Children.Add(Settings); Panel.SetZIndex(Settings, 20); Fx.Appear(Settings, 1.04, 320); Settings.FocusFirst();
         _ = UpdateNativeContext();
     }
@@ -624,7 +609,6 @@ public sealed partial class ProductHost : Grid
     public void OnKeyDown(object sender, KeyEventArgs e)
     {
         var key=e.Key==Key.System?e.SystemKey:e.Key;
-        if (HandleThemeNoticeKey(e)) return;
         // the identity scan popup: Esc / B backs out, A / Enter presses the focused button, nothing behind it moves
         if(updateLayer!=null){updateLayer.HandleKey(key);e.Handled=true;return;}
         if(verifyLayer!=null)

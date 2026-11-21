@@ -131,11 +131,7 @@ public sealed partial class StickToolsPanel : Border
         Loaded += (_, _) => { link.Service.Changed -= refresh; link.Service.Changed += refresh; ShowStatus(); };
         Unloaded += (_, _) => link.Service.Changed -= refresh;
         ShowStatus();
-        if (ThemeCatalog.Current.Id == "nexus") BuildNexusAdvanced(close, reset);
-                else if (ThemeCatalog.Current.Id == "hollow") BuildHollowAdvanced(close, reset);
-        else if (ThemeCatalog.Current.Id == "nocturne") BuildNocturneAdvanced(close, reset);
-        else if (ThemeCatalog.Current.Id == "sunrise") BuildSunriseAdvanced(close, reset);
-            }
+    }
 
     void Load()
     {
@@ -242,7 +238,7 @@ public sealed partial class StickToolsPanel : Border
     void ApplyMeasured(){if(sampled is not {} result)return;loading=true;rows[CurveChannel.LeftStick].Inner.Value=result.Left.RecommendedInner;rows[CurveChannel.RightStick].Inner.Value=result.Right.RecommendedInner;loading=false;Changed();applyDrift.Visibility=Visibility.Collapsed;}
     static string StickName(CurveChannel c)=>c==CurveChannel.LeftStick?"Left stick":"Right stick";
     static void CopyValues(Row a,Row b){b.Inner.Value=a.Inner.Value;b.Outer.Value=a.Outer.Value;b.Anti.Value=a.Anti.Value;b.Max.Value=a.Max.Value;b.Square.IsChecked=a.Square.IsChecked;b.Raw.IsChecked=a.Raw.IsChecked;b.Ratio.Value=a.Ratio.Value;}
-    public void SelectStick(CurveChannel c){selectedStick=c;foreach(var pair in cards)pair.Value.Visibility=pair.Key==c?Visibility.Visible:Visibility.Collapsed;UpdateTables(Build());RefreshNexusAdvanced();}
+    public void SelectStick(CurveChannel c){selectedStick=c;foreach(var pair in cards)pair.Value.Visibility=pair.Key==c?Visibility.Visible:Visibility.Collapsed;UpdateTables(Build());}
     UIElement Preview(CurveChannel channel){var canvas=new Canvas{Width=720,Height=165,ClipToBounds=true};charts[channel]=canvas;return new Viewbox{Child=canvas,Stretch=Stretch.Uniform,MaxHeight=165,HorizontalAlignment=HorizontalAlignment.Left,Margin=new(0,14,0,0)};}
     public void ShowLive(double leftX,double leftY,double rightX,double rightY){live=true;lx=leftX;ly=leftY;rx=rightX;ry=rightY;UpdateTables(Build());}
     public void ClearLive(){live=false;UpdateTables(Build());}
@@ -263,7 +259,6 @@ public sealed partial class StickToolsPanel : Border
         
         void Put(string text,double left,double top){var label=Kit.Text(text,13,"DS.TextSoft");Canvas.SetLeft(label,left);Canvas.SetTop(label,top);canvas.Children.Add(label);}
         
-        RefreshNexusAdvancedGraph(channel);
     }
 
     static void Wide(TextBlock t) => t.Width = 165;

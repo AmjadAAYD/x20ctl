@@ -40,9 +40,7 @@ public sealed partial class ProductSettings : Grid
     public Button PcMode { get; }
     public Button WriteScan { get; }
     public Button Themes { get; }
-    internal Action<string>? ThemeNavigate { get; set; }
-    internal Action? RestartRequested { get; set; }
-    private void RequestThemeRestart() => (RestartRequested ?? ThemeCatalog.Restart)();
+    private void RequestThemeRestart() { if (!ReviewSandbox.Active) ThemeCatalog.Restart(); }
     private Grid? pageGrid;
     // the feedback and PC mode pages are built the first time they're opened: Tools is rebuilt on every visit, and most
     // visits never open them
@@ -187,12 +185,6 @@ public sealed partial class ProductSettings : Grid
         about.Children.Add(BuildAbout());
 
         if (DS.Motion) Loaded += (_, _) => Enter(hub);
-        if (ThemeCatalog.Current.Id == "nexus") BuildNexus();
-        if (ThemeCatalog.Current.Id == "dusk") BuildDusk();
-        if (ThemeCatalog.Current.Id == "hollow") BuildHollow();
-        if (ThemeCatalog.Current.Id == "nocturne") BuildNocturne();
-        if (ThemeCatalog.Current.Id == "sunrise") BuildSunrise();
-        BuildIllustratedTools();
     }
 
     public void ShowAbout(bool on)
@@ -200,7 +192,6 @@ public sealed partial class ProductSettings : Grid
         hub.Visibility = on ? Visibility.Collapsed : Visibility.Visible; about.Visibility = on ? Visibility.Visible : Visibility.Collapsed; footer.Visibility = hub.Visibility; 
         if (DS.Motion) Enter(on ? about : hub);
         (on ? aboutBack : About).Focus();
-        NexusSync(); DuskSync(); HollowSync(); NocturneSync(); SunriseSync();
     }
     /// <summary>B / Esc: from About back to the hub, from the hub back to the Zone.</summary>
     private FeedbackPage BuildFeedback()
@@ -230,7 +221,6 @@ public sealed partial class ProductSettings : Grid
         hub.Visibility = on ? Visibility.Collapsed : Visibility.Visible; feedback.Visibility = on ? Visibility.Visible : Visibility.Collapsed; footer.Visibility = hub.Visibility; 
         if (DS.Motion) Enter(on ? feedback : hub);
         if (on) FeedbackForm.Message.Focus(); else Feedback.Focus();
-        NexusSync(); DuskSync(); 
     }
     public void ShowPcMode(bool on)
     {
@@ -239,7 +229,6 @@ public sealed partial class ProductSettings : Grid
         hub.Visibility = on ? Visibility.Collapsed : Visibility.Visible; pcMode.Visibility = on ? Visibility.Visible : Visibility.Collapsed; footer.Visibility = hub.Visibility; 
         if (DS.Motion) Enter(on ? pcMode : hub);
         if (!on) PcMode.Focus();
-        NexusSync(); DuskSync(); 
     }
     public void ShowThemes(bool on)
     {
@@ -247,7 +236,6 @@ public sealed partial class ProductSettings : Grid
         hub.Visibility = on ? Visibility.Collapsed : Visibility.Visible; themes.Visibility = on ? Visibility.Visible : Visibility.Collapsed; footer.Visibility = hub.Visibility; 
         if (DS.Motion) Enter(on ? themes : hub);
         if (on) themeCards.FirstOrDefault(c => c.Tag as string == ChosenTheme)?.Focus(); else Themes.Focus();
-        NexusSync(); DuskSync(); 
     }
 
     public bool StepBack()

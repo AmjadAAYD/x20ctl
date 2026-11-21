@@ -7,7 +7,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <AssemblyName>x20ctl-studio</AssemblyName>
     <RootNamespace>X20Ctl.Linux</RootNamespace>
-    <Version>4.1.0-preview.7</Version>
+    <Version>0.25.0</Version>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
   </PropertyGroup>
   <ItemGroup>
@@ -25,7 +25,7 @@
     <AvaloniaResource Include="../X20Ctl.Product/Brand/x20ctl-mark.png" Link="Assets/x20ctl-mark.png" />
     <AvaloniaResource Include="../X20Ctl.Product/Brand/x20ctl-icon.png" Link="Assets/x20ctl-icon.png" />
     <!-- the opening film as stills, and its sound (tools/linux-studio/build_intro_film.py, from X20Ctl.Product/Brand/intro.mp4) -->
-    <Content Include="Brand/intro-film.frames;Brand/intro-film.wav" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Brand/intro-film.frames" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../X20Ctl.Product/Brand/intro-audio-provenance.md" Link="Brand/intro-audio-provenance.md" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../src/assets/controllers/framing.json" Link="Data/framing.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../src/assets/controllers/vibration-outlines.json" Link="Data/vibration-outlines.json" CopyToOutputDirectory="PreserveNewest" />

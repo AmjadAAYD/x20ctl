@@ -294,12 +294,7 @@ public sealed partial class AgentPanel
             Background = Brushes.Transparent, Child = new Viewbox { Stretch = Stretch.Uniform, Child = pad },
             RenderTransform = new TransformGroup { Children = { pop, offset } }, RenderTransformOrigin = new(1, 1),
         };
-        if(IllustratedThemeUI.Matched)BuildIllustratedAgent(screen);
         blink.Tick += (_, _) => Blink();
-        if (ThemeCatalog.Current.Id == "nexus") BuildNexusAgent();
-        if (ThemeCatalog.Current.Id == "hollow") BuildHollowAgent();
-        if (ThemeCatalog.Current.Id == "nocturne") BuildNocturneAgent();
-        if (ThemeCatalog.Current.Id == "sunrise") BuildSunriseAgent();
         Say(greeting, null); AddWelcome();
         ShowSettings(new HashSet<string>());
         // the static events hold the panel only while it is on screen, so a closed Studio's agent can be let go
@@ -813,7 +808,7 @@ public sealed partial class AgentPanel
     bool Motion => !reducedMotion && DS.Motion;
     public void Show()
     {
-        Body.Visibility = Visibility.Visible; Body.IsHitTestVisible = true; if(Motion&&!IllustratedThemeUI.Matched) { blink.Start(); PhysicsStart(); }
+        Body.Visibility = Visibility.Visible; Body.IsHitTestVisible = true; if(Motion) { blink.Start(); PhysicsStart(); }
         if (live.Count > 0) StartLive();
         if (liveView?.Visibility == Visibility.Visible) LiveScreen(true);
         Shade.Visibility = Visibility.Visible;

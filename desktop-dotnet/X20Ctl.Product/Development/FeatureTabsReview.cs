@@ -24,13 +24,6 @@ internal static class FeatureTabsReview
         foreach(var page in rgbOnly?new[]{"RGB"}:new[]{"RGB","Screen","Device","RGB"})
         {
             if(page=="Device")studio.ShowManagement(page);
-            else if(IllustratedThemeUI.Matched)
-            {
-                var more=Descendants(studio).OfType<Button>().First(b=>b.IsVisible&&Convert.ToString(b.Content)=="More pages…");
-                var destination=more.ContextMenu!.Items.OfType<MenuItem>().Single(i=>Convert.ToString(i.Header)==page);
-                if(!destination.IsEnabled)throw new InvalidOperationException(page+" is unavailable from the native menu.");
-                destination.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
-            }
             else ((RadioButton)studio.FindName(page=="RGB"?"RgbNav":"ScreenNav")).RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
             await studio.Dispatcher.InvokeAsync(()=>{},DispatcherPriority.ContextIdle);await Task.Delay(100);
             IllustratedThemeUI.Skin(host);

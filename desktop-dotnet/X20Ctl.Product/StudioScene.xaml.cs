@@ -70,7 +70,7 @@ public partial class StudioScene : UserControl
     private Point? lastFocusCenter;
     public StudioScene(int player, ControllerModel model, ButtonDraft draft, bool reducedMotion = false, CurveDraft? curveDraft = null,MacroDraft? macros = null,VibrationDraft? vibration = null,SetupStore? setups=null,IReadOnlyList<string>? legacy=null,string? activeId=null)
     {
-        InitializeComponent(); Player = player; Model = model; Draft = draft; PadColours.ActivePlayer = player; Loaded += (_, _) => { if (ThemeCatalog.Current.Id == "nexus") BuildNexusStudio(); if (ThemeCatalog.Current.Id == "dusk") BuildDuskStudio(); if (ThemeCatalog.Current.Id == "hollow") BuildHollowStudio(); if (ThemeCatalog.Current.Id == "nocturne") BuildNocturneStudio(); if (ThemeCatalog.Current.Id == "sunrise") BuildSunriseStudio(); };
+        InitializeComponent(); Player = player; Model = model; Draft = draft; PadColours.ActivePlayer = player;
         setupStore=setups??new(Path.Combine(Path.GetTempPath(),"x20ctl-render-setup-"+Guid.NewGuid().ToString("N")+".json"));legacySources=legacy??Array.Empty<string>();activeSetup=activeId;
         Unloaded+=(_,_)=>{SuspendMacroActivity();StopTry();Tester?.ExitCapture();Diagnostics?.Stop();};
         IsEnabledChanged += (_, _) => { if (!IsEnabled) SuspendMacroActivity(); };
@@ -87,7 +87,7 @@ public partial class StudioScene : UserControl
         Loaded+=(_,_)=>{PcModePage.ProfileChanged-=PcProfileChanged;PcModePage.ProfileChanged+=PcProfileChanged;PcModePage.NoticeAccepted-=PcNoticeAccepted;PcModePage.NoticeAccepted+=PcNoticeAccepted;};
         BuildTargets(); BuildInventory();
         BuildTitlePills(); BuildNavigation();
-        buttonsPage = new ButtonsConsolePage(model, layout, draft, Label, animate, SelectControl, OpenMacroSlot, () => { if (IsTrying) StopTry(); else StartTry(); },IllustratedStudioControl);
+        buttonsPage = new ButtonsConsolePage(model, layout, draft, Label, animate, SelectControl, OpenMacroSlot, () => { if (IsTrying) StopTry(); else StartTry(); });
         buttonsPage.Changed += RefreshEditor; ButtonsPageHost.Children.Add(buttonsPage); BuildCaptureBanner();
         PreviewGotKeyboardFocus += (_, _) => Dispatcher.BeginInvoke(UpdateHints, System.Windows.Threading.DispatcherPriority.Background);
         foreach (var h in buttonsPage.Hotspots) RegisterFocus(h);
@@ -129,10 +129,6 @@ public partial class StudioScene : UserControl
         };
         ShowController(false); ClearSelection(); UpdateButtonsPage(); ShowManagement("Dashboard");
         BuildAgent();
-        if (ThemeCatalog.Current.Id == "nexus") BuildNexusStudio();
-       
-        if (ThemeCatalog.Current.Id == "dusk") BuildDuskStudio();
-        BuildIllustratedStudio();
     }
 
     // ---- the agent (12 Oct 2026): the title-bar pill, and the window it opens (the round button went, 14 Oct) ----
@@ -158,11 +154,8 @@ public partial class StudioScene : UserControl
                 filledFromController.Remove(Draft);
                 _ = LoadFromController(message => buttonsPage?.SayController(message));
             };
-            if (!IsNexus && !IllustratedThemeUI.Matched)
-            {
-                Grid.SetZIndex(agentPanel.Shade, 40);
-                StudioShell.Children.Add(agentPanel.Shade);
-            }
+            Grid.SetZIndex(agentPanel.Shade, 40);
+            StudioShell.Children.Add(agentPanel.Shade);
             agentPanel.Body.HorizontalAlignment = HorizontalAlignment.Right; agentPanel.Body.VerticalAlignment = VerticalAlignment.Bottom; agentPanel.Body.Margin = new(0, 0, 30, 170);
             agentPanel.CloseRequested += CloseAgent; agentPanel.ChangeControllerRequested += () => { CloseAgent(); BackRequested?.Invoke(); }; agentPanel.Walkthrough = PlayAgentTour;
             agentPanel.PageRequested += AgentGoTo;
@@ -173,7 +166,7 @@ public partial class StudioScene : UserControl
         // across the Studio, nearly all of it (owner's concept, 19 Oct: the screen as big as it can be), keeping a controller's
         // shape: as large as the room allows, centred
         SizeAgentController();
-        if (!IsNexus) { agentPanel.Body.HorizontalAlignment=HorizontalAlignment.Right;agentPanel.Body.VerticalAlignment=VerticalAlignment.Bottom; }
+        agentPanel.Body.HorizontalAlignment=HorizontalAlignment.Right;agentPanel.Body.VerticalAlignment=VerticalAlignment.Bottom;
         agentPanel.Show();UpdateButtonsPage();InputContextChanged?.Invoke(); if (agentPill != null) agentPill.ToolTip = "Put Agent XCTL away";
         Dispatcher.BeginInvoke(() => agentPanel?.Input.Focus(), System.Windows.Threading.DispatcherPriority.Input);
     }
@@ -181,7 +174,6 @@ public partial class StudioScene : UserControl
     private void SizeAgentController()
     {
         if (agentPanel == null) return;
-        if (IsNexus) { agentPanel.Body.Width = 1600; agentPanel.Body.Height = 900; agentPanel.Body.Margin = new(0); agentPanel.Body.HorizontalAlignment = HorizontalAlignment.Stretch; agentPanel.Body.VerticalAlignment = VerticalAlignment.Stretch; return; }
         double room=Math.Max(180,StudioShell.ActualHeight-70), wide=Math.Max(280,StudioShell.ActualWidth-40);
         double high=Math.Min(room,wide*Agent.AgentPanel.DesignHeight/Agent.AgentPanel.DesignWidth);
         double across=high*Agent.AgentPanel.DesignWidth/Agent.AgentPanel.DesignHeight;
@@ -404,12 +396,10 @@ public partial class StudioScene : UserControl
         Dashboard?.ShowBattery(BatteryVisible);
         Device?.ShowBattery(BatteryVisible);
         agentPanel?.RefreshStrip();
-        NexusLater();DuskLater();HollowLater();NocturneLater();SunriseLater();
     }
     /// <summary>The console-design Buttons page replaces the older canvas/inspector/shelf while Buttons is active.</summary>
     private void UpdateButtonsPage()
     {
-        UpdateIllustratedPage();
         if(IllustratedThemeUI.Current!=null)StudioBackdrop.ArtworkPage=AgentOpen?"Agent XCTL":CurrentPage;
         IllustratedThemeUI.QueueSkin(this);
         if (buttonsPage == null) return;
@@ -608,7 +598,6 @@ public partial class StudioScene : UserControl
     }
     private void RefreshEditor()
     {
-        NexusLater(); DuskLater(); HollowLater(); NocturneLater(); SunriseLater();
         updating = true; var region = layout.Controls.FirstOrDefault(r => r.Key == SelectedControl);
         bool macro = region?.Role == "macro", editable = region != null && Draft.CanEdit(SelectedControl);
         SelectedName.Text = region == null ? "Choose a control" : Label(SelectedControl);
@@ -718,7 +707,6 @@ public partial class StudioScene : UserControl
     }
     public void ShowCurves(bool value)
     {
-        NexusLater(); DuskLater(); 
         // a page this model cannot use is refused before anything changes (it used to drop a Device or Setups
         // page onto Buttons with no tab lit, found by the stress run on 10 Oct 2026)
         HideManagement();
@@ -869,13 +857,11 @@ public partial class StudioScene : UserControl
         CancelRemapCapture();
         if(PcMode==null||stickToolsLayer!=null)return;
         StickTools=new StickToolsPanel(PcMode,CloseStickTools);
-        if (IsNexus) StickTools.NexusNavigate = target => { CloseStickTools(); NexusSelectPage(target); };
         stickToolsLayer=new Grid{Background=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(200,3,6,16))),Children={StickTools}};
         Grid.SetZIndex(stickToolsLayer,50);StudioShell.Children.Add(stickToolsLayer);Fx.Appear(stickToolsLayer,1.03,240);StickTools.Done.Focus();
     }
     public void CloseStickTools()
     {
-        if (IsNexus) NexusShowCurves();
         if(stickToolsLayer==null)return;var leaving=stickToolsLayer;stickToolsLayer=null;StickTools=null;
         Fx.Leave(leaving,()=>StudioShell.Children.Remove(leaving),1.02,200);if(IsCurves)StickToolsChoice.Focus();
     }
@@ -888,14 +874,13 @@ public partial class StudioScene : UserControl
         if (Macros is { IsRecording: true } recording) recording.CancelRecording();
         Macros?.StopPreview();
     }
-    public void ShowButtons() { NexusLater(); DuskLater(); ShowCurves(false);if(IsMacros)ShowMacros(false);if(IsVibration)ShowVibration(false);HideManagement();ButtonsNav.IsChecked=true;FrontChoice.IsEnabled=true;RearChoice.IsEnabled=HasRearArtwork;UpdateButtonsPage(); }
+    public void ShowButtons() { ShowCurves(false);if(IsMacros)ShowMacros(false);if(IsVibration)ShowVibration(false);HideManagement();ButtonsNav.IsChecked=true;FrontChoice.IsEnabled=true;RearChoice.IsEnabled=HasRearArtwork;UpdateButtonsPage(); }
     public DashboardConsolePage? Dashboard {get;private set;}
     private DashboardConsolePage CreateDashboard(){var page=new DashboardConsolePage(Model,Player,Draft.UnsentChanges,setupStore.Items.Count(s=>s.ModelId==Model.Id),!animate,setupStore.Items.Where(s=>s.ModelId==Model.Id).ToArray(),id=>LoadSetup(setupStore.NativeSnapshot(id)));if(currentTransport!=null)page.SetTransport(currentTransport);if(currentFirmware!=null)page.SetFirmware(currentFirmware);page.SetBatteryLevel(currentBatteryLevel,currentTransport);page.ShowBattery(BatteryVisible);if(gameplayConnected!=null||BluetoothLive)page.SetInputConnected(Linked,BluetoothOnly);page.TelemetryUpdated+=ApplyTelemetry;page.ConfigureRequested+=ShowButtons;page.PageRequested+=target=>{if(target=="Buttons")ShowButtons();else if(target=="Curves")ShowCurves(true);else if(target=="Macros")ShowMacros(true);else ShowManagement(target);};return page;}
     private void DashboardTab(object sender,RoutedEventArgs e)=>ShowManagement("Dashboard");
     public void ShowMacros(bool value)
     {
         if(value && PcDashboard && KeyboardNav!=null){ShowManagement("Keyboard");return;} // PC mode: macros live in the Keyboard tab (owner, 7 Nov 2026)
-        NexusLater(); DuskLater(); 
         HideManagement();
         if(IsVibration)ShowVibration(false);
         if(value==IsMacros)return;
@@ -920,7 +905,6 @@ public partial class StudioScene : UserControl
     private void MacrosTab(object sender,RoutedEventArgs e)=>ShowMacros(true);
     public void ShowVibration(bool value)
     {
-        NexusLater(); DuskLater(); 
         HideManagement();
         if(value==IsVibration)return;
         if(value && IsCurves)ShowCurves(false);if(value && IsMacros)ShowMacros(false);
@@ -983,7 +967,6 @@ public partial class StudioScene : UserControl
     {
         if (PcDashboard && Model.Id is not ("x20_pro" or "x10") && page is "Device" or "Diagnostics") page = "PcMode";
         ApplyPcDashboard();
-        NexusLater(); DuskLater(); 
         DraftBar.Visibility=page=="Dashboard"?Visibility.Collapsed:Visibility.Visible;RootLayout.RowDefinitions[2].Height=new(page=="Dashboard"?0:40);
         Apply.Visibility=StatusNote.Visibility=page=="Dashboard"?Visibility.Collapsed:Visibility.Visible;ChangeCount.Visibility=page=="Dashboard"?Visibility.Collapsed:Visibility.Visible;
         if(page is not ("Dashboard" or "PcMode" or "Device" or "RGB" or "Screen" or "Diagnostics" or "Mouse" or "Keyboard" or "Tester" or "Setups"))throw new ArgumentException("Unknown Studio page.");
