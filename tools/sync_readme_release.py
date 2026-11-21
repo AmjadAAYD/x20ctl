@@ -1,43 +1,115 @@
-"""Keep the README's download artwork in sync with GitHub's latest stable release.
+"""Keep README.md and assets/readme/hero.svg in sync with the latest GitHub release.
 
-Usage: python tools/sync_readme_release.py v0.018
-The workflow obtains the tag from /releases/latest, not the triggering release.
+Usage:
+    python tools/sync_readme_release.py v0.025
 """
+from __future__ import annotations
+
 import re
 import sys
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(Path(__file__).resolve().parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from version_name import name as release_name  # noqa: E402
+
+REPO_RELEASES = "https://github.com/AmjadAAYD/x20ctl/releases"
+VER_TOKEN = r"V\d+\.\d+(?:\.\d+)?"
+
+
+def _sub_required(pattern: str, repl: str, text: str, label: str, minimum: int = 1) -> tuple[str, int]:
+    updated, count = re.subn(pattern, repl, text)
+    if count < minimum:
+        raise ValueError(f"Expected at least {minimum} {label} marker(s); files left unchanged")
+    return updated, count
 
 
 def sync(root: Path, tag: str) -> bool:
     if not re.fullmatch(r"v\d+\.\d+(?:\.\d+)?", tag):
         raise ValueError(f"Unsupported release tag: {tag!r}")
+
+    ver = release_name(tag)
     readme = root / "README.md"
-    nav = root / "assets/readme/bg/nav1.svg"
+    hero = root / "assets" / "readme" / "hero.svg"
+    if not readme.is_file() or not hero.is_file():
+        raise ValueError("Missing README.md or assets/readme/hero.svg; files left unchanged")
+
     original_readme = readme.read_text(encoding="utf-8")
-    original_nav = nav.read_text(encoding="utf-8")
-    label = f"Download {tag}"
+    original_hero = hero.read_text(encoding="utf-8")
 
-    def button(match):
-        image, count = re.subn(r'alt="Download [^"]+"', f'alt="{label}"', match[1])
-        if count != 1:
-            raise ValueError("Expected one download image label")
-        image = re.sub(r'assets/readme/bg/nav1\.svg(?:\?[^"\s]*)?', f"assets/readme/bg/nav1.svg?v=release-{tag}", image)
-        return f'<a href="https://github.com/AmjadAAYD/x20ctl/releases/latest">{image}</a>'
+    # 1. Sync hero.svg (aria-label + visible release pill)
+    updated_hero, _ = _sub_required(
+        rf'aria-label="X20CTL {VER_TOKEN}([^"]*)"',
+        rf'aria-label="X20CTL {ver}\1"',
+        original_hero,
+        "hero aria-label",
+    )
+    updated_hero, _ = _sub_required(
+        rf'(<text\s+[^>]*id="release-badge"[^>]*>RELEASE · ){VER_TOKEN}(</text>)',
+        rf'\g<1>{ver}\2',
+        updated_hero,
+        "hero release-badge",
+    )
 
-    updated_readme, links = re.subn(r'<a\s+href="[^"]+">(<img\s+[^>]*src="assets/readme/bg/nav1\.svg[^>]*>)</a>', button, original_readme)
-    updated_nav, aria = re.subn(r'aria-label="Download [^"]+"', f'aria-label="{label}"', original_nav)
-    updated_nav, text = re.subn(r'>Download [^<]+</text>', f'>{label}</text>', updated_nav)
-    if (links, aria, text) != (1, 1, 1):
-        raise ValueError("Expected one README download button and one SVG label; files left unchanged")
-    changed = updated_readme != original_readme or updated_nav != original_nav
+    # 2. Sync README.md hero artwork reference & cache-buster
+    updated_readme, _ = _sub_required(
+        r'assets/readme/hero\.svg(?:\?[^"\s]*)?',
+        f"assets/readme/hero.svg?v=release-{tag}",
+        original_readme,
+        "README hero image",
+    )
+    updated_readme, _ = _sub_required(
+        rf'alt="X20CTL {VER_TOKEN}([^"]*)"',
+        rf'alt="X20CTL {ver}\1"',
+        updated_readme,
+        "README hero alt",
+    )
+
+    # 3. Sync release page tag links, CTA labels, SHA256SUMS, and Windows/Linux assets
+    updated_readme, _ = _sub_required(
+        rf"{re.escape(REPO_RELEASES)}/tag/v[^\"\s)#]+",
+        f"{REPO_RELEASES}/tag/{tag}",
+        updated_readme,
+        "release tag URL",
+    )
+    updated_readme, _ = _sub_required(
+        rf"(Download |Release ){VER_TOKEN}",
+        rf"\g<1>{ver}",
+        updated_readme,
+        "release version heading/link text",
+    )
+    updated_readme, _ = _sub_required(
+        rf"{re.escape(REPO_RELEASES)}/download/v[^/\"\s)]+/SHA256SUMS\.txt",
+        f"{REPO_RELEASES}/download/{tag}/SHA256SUMS.txt",
+        updated_readme,
+        "SHA256SUMS link",
+    )
+    updated_readme, _ = _sub_required(
+        rf"{re.escape(REPO_RELEASES)}/download/v[^/\"\s)]+/X20CTL-{VER_TOKEN}(-[^/\"\s)<]+)",
+        rf"{REPO_RELEASES}/download/{tag}/X20CTL-{ver}\1",
+        updated_readme,
+        "release download URL",
+        minimum=7,
+    )
+    updated_readme, _ = _sub_required(
+        rf"(?<![/\w])X20CTL-{VER_TOKEN}(-[A-Za-z0-9_.-]+\.(?:exe|AppImage|flatpak|tar\.gz|zip))",
+        rf"X20CTL-{ver}\1",
+        updated_readme,
+        "release filename label",
+        minimum=7,
+    )
+
+    changed = updated_readme != original_readme or updated_hero != original_hero
     if changed:
         readme.write_text(updated_readme, encoding="utf-8")
-        nav.write_text(updated_nav, encoding="utf-8")
+        hero.write_text(updated_hero, encoding="utf-8")
     return changed
 
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
         raise SystemExit("Usage: python tools/sync_readme_release.py TAG")
-    changed = sync(Path(__file__).resolve().parents[1], sys.argv[1])
-    print("Updated README download" if changed else "README download already current")
+    changed = sync(ROOT, sys.argv[1])
+    print("Updated README and hero artwork" if changed else "README and hero artwork already current")
