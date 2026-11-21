@@ -1,5 +1,7 @@
 # Changelog
 
+<p><img src="assets/readme/header-changelog.svg" alt="X20CTL Changelog header" width="100%"></p>
+
 ## [V0.025] - 2026-11-19 — Final release for now
 
 **Final release for now.** This release brings the redesigned RGB Studio, simultaneous 2.4 GHz dongle + BLE lighting and configuration support, offline Agent XCTL upgrades, theme and motion polish, Linux Flatpak packaging, and critical Controller Check fixes for EasySMX X20 Pro owners.

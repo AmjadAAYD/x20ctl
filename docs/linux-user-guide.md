@@ -1,5 +1,7 @@
 # X20CTL on Linux: User Guide
 
+<p><img src="../assets/readme/header-linux.svg" alt="X20CTL Linux User Guide header" width="100%"></p>
+
 X20CTL Studio for Linux mirrors the Windows Studio using Avalonia (`linux-x64`). This guide covers installation, the one-time `/dev/uinput` rule for PC Mode, and known limitations.
 
 > **Verification status:** Linux Studio packages are built automatically on CI and headlessly rendered/verified (`X20Ctl.Linux.Review`), but live runtime behavior on physical Linux hardware (AppImage, Flatpak, `evdev`/`uinput`, and rumble forwarding) has not yet been tested end-to-end. Please report Linux distribution findings via **Feedback** or GitHub Issues.

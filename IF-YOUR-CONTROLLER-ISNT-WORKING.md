@@ -1,5 +1,7 @@
 # If Your Controller Isn't Working
 
+<p><img src="assets/readme/header-troubleshoot.svg" alt="X20CTL Troubleshooting guide header" width="100%"></p>
+
 This guide covers quick fixes for V0.025 on Windows and Linux.
 
 ## The tester shows no input
