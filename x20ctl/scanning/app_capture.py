@@ -127,9 +127,24 @@ def read_trace(path, route):
     return data, trace_info(data, route)
 
 
+def _choose(prompt, rows, describe, ask=input, say=print):
+    if not rows: say("No candidate appeared. This step can be skipped."); return None
+    say(prompt)
+    for index, row in enumerate(rows, 1): say(f"  {index}. {describe(row)}")
+    while True:
+        answer = ask("Number, or ENTER to skip: ").strip()
+        if not answer: return None
+        if answer.isdigit() and 1 <= int(answer) <= len(rows): return rows[int(answer) - 1]
+        say("Choose one of the listed numbers.")
+
+
+def _yes(prompt, ask=input):
+    return ask(prompt + " [y/N]: ").strip().casefold() in {"y", "yes"}
+
+
 def collect_app_capture(report, ask=input, say=print):
     """Optional step; timestamp owner actions and include only an opt-in trace."""
-    from .cli import choose, yes
+    choose, yes = _choose, _yes
     if not yes("Optional: record one setting change in a controller settings app you already use?", ask):
         report.manifest["appCapture"] = {"status": "skipped"}
         return
