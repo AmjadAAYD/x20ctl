@@ -2,28 +2,34 @@
 import asyncio
 import hashlib
 import json
+import sys
 import zipfile
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
+_SCAN_KIT_SRC = str(Path(__file__).resolve().parents[1] / "tools" / "controller-scan-kit" / "src")
+if _SCAN_KIT_SRC not in sys.path:
+    sys.path.insert(0, _SCAN_KIT_SRC)
+
 
 def test_inventory_reordering_does_not_create_a_new_device():
-    from tools.controller_scan_kit.evidence import candidates
+    from controller_scan_kit.evidence import candidates
     a = {"_key": "A", "_parent": "pad1", "kind": "hid"}
     b = {"_key": "B", "_parent": "pad2", "kind": "hid"}
     assert candidates([a, b], [b, a]) == []
 
 
 def test_selected_parent_excludes_an_unrelated_identical_vid_pid():
-    from tools.controller_scan_kit.evidence import related
+    from controller_scan_kit.evidence import related
     rows = [{"_key": "a", "_parent": "one", "vid": 0x045E},
             {"_key": "b", "_parent": "two", "vid": 0x045E}]
     assert related(rows, rows[0]) == [rows[0]]
 
 
 def test_export_drops_device_paths_addresses_and_serials():
-    from tools.controller_scan_kit.evidence import public_device
+    from controller_scan_kit.evidence import public_device
     row = {"_key": "private", "_parent": "private", "path": "secret",
            "serial": "123456", "address": "AA:BB:CC:DD:EE:FF", "vid": 0x045E,
            "product": r"Pad C:\Users\Alice\data", "hardware_ids": [r"USB\VID_045E&PID_028E"]}
@@ -35,13 +41,13 @@ def test_export_drops_device_paths_addresses_and_serials():
 
 
 def test_packet_counter_alone_does_not_verify_button_mapping():
-    from tools.controller_scan_kit.input_tests import summarize
+    from controller_scan_kit.input_tests import summarize
     samples = [{"source": "xinput_state", "values": {"buttons": 0, "packet": n}} for n in (1, 2)]
     assert summarize("A", samples)["status"] == "no_change_observed"
 
 
 def test_button_mapping_uses_actual_state_change_and_keeps_api_label():
-    from tools.controller_scan_kit.input_tests import summarize
+    from controller_scan_kit.input_tests import summarize
     samples = [{"source": "xinput_state", "values": {"buttons": n, "packet": 1}} for n in (0, 4096, 0)]
     result = summarize("A", samples)
     assert result["status"] == "change_observed"
@@ -51,7 +57,7 @@ def test_button_mapping_uses_actual_state_change_and_keeps_api_label():
 
 
 def test_zip_hashes_are_of_the_actual_files_and_corruption_is_rejected(tmp_path):
-    from tools.controller_scan_kit.evidence import Report, validate_archive
+    from controller_scan_kit.evidence import Report, validate_archive
     report = Report(tmp_path, "X10")
     report.write_json("device/session.json", {"status": "unavailable", "reason": "no controller"})
     path = report.package()
@@ -72,7 +78,7 @@ def test_zip_hashes_are_of_the_actual_files_and_corruption_is_rejected(tmp_path)
 
 @pytest.mark.parametrize("name", ["../escape.txt", "C:/escape", "a\\b", "payload.exe"])
 def test_zip_rejects_untrusted_entry_names(tmp_path, name):
-    from tools.controller_scan_kit.evidence import validate_archive
+    from controller_scan_kit.evidence import validate_archive
     path = tmp_path / "bad.zip"
     with zipfile.ZipFile(path, "w") as z:
         z.writestr("manifest.json", "{}")
@@ -82,7 +88,7 @@ def test_zip_rejects_untrusted_entry_names(tmp_path, name):
 
 
 def test_zip_rejects_unmanifested_entries(tmp_path):
-    from tools.controller_scan_kit.evidence import Report, validate_archive
+    from controller_scan_kit.evidence import Report, validate_archive
     path = Report(tmp_path, "X20").package()
     with zipfile.ZipFile(path, "a") as z:
         z.writestr("docs/extra.txt", "not listed")
@@ -91,7 +97,7 @@ def test_zip_rejects_unmanifested_entries(tmp_path):
 
 
 def test_collection_cannot_silently_overwrite_evidence(tmp_path):
-    from tools.controller_scan_kit.evidence import Report
+    from controller_scan_kit.evidence import Report
     report = Report(tmp_path, "X20")
     report.write_json("device/a.json", {"first": True})
     with pytest.raises(FileExistsError):
@@ -99,7 +105,7 @@ def test_collection_cannot_silently_overwrite_evidence(tmp_path):
 
 
 def test_raw_hid_is_not_normalized_as_xinput():
-    from tools.controller_scan_kit.input_tests import summarize
+    from controller_scan_kit.input_tests import summarize
     result = summarize("M1", [{"source": "hid_input", "report_hex": "0000"},
                               {"source": "hid_input", "report_hex": "0001"}])
     assert result["source"] == "hid_input"
@@ -107,7 +113,7 @@ def test_raw_hid_is_not_normalized_as_xinput():
 
 
 def test_usb_configuration_parser_decodes_endpoints_without_guessing_ids():
-    from tools.controller_scan_kit.usb import parse_configuration
+    from controller_scan_kit.usb import parse_configuration
     raw = bytes.fromhex("09021900010100803209040000010300000007058103400001")
     result = parse_configuration(raw)
     assert result["interfaces"][0]["class"] == 3
@@ -119,13 +125,13 @@ def test_usb_configuration_parser_decodes_endpoints_without_guessing_ids():
 
 @pytest.mark.parametrize("raw", [b"\x00\x02", b"\x09\x02\x20", b"\x02\x04"])
 def test_usb_configuration_parser_rejects_truncation(raw):
-    from tools.controller_scan_kit.usb import parse_configuration
+    from controller_scan_kit.usb import parse_configuration
     with pytest.raises(ValueError):
         parse_configuration(raw)
 
 
 def test_ble_reads_only_the_standard_service_characteristic_pair():
-    from tools.controller_scan_kit.ble import inspect_client
+    from controller_scan_kit.ble import inspect_client
     # Hardware boundary double: any forbidden request raises; resulting values
     # and omitted vendor/serial payloads establish the collector's contract.
     battery = SimpleNamespace(uuid="00002a19-0000-1000-8000-00805f9b34fb",
@@ -148,8 +154,8 @@ def test_ble_reads_only_the_standard_service_characteristic_pair():
 
 
 def test_timed_input_recording_preserves_disconnection(tmp_path):
-    from tools.controller_scan_kit.input_tests import record_action
-    from tools.controller_scan_kit.evidence import Report
+    from controller_scan_kit.input_tests import record_action
+    from controller_scan_kit.evidence import Report
     class Reader:
         def __init__(self): self.n = 0
         def read(self, timeout_ms):
@@ -166,7 +172,7 @@ def test_timed_input_recording_preserves_disconnection(tmp_path):
 
 def test_usb_query_uses_full_initialized_buffers_and_only_standard_configuration_request():
     import ctypes as c
-    from tools.controller_scan_kit.usb import descriptor
+    from controller_scan_kit.usb import descriptor
     config = bytes.fromhex("090209000001008032")
     class Kernel:
         def DeviceIoControl(self, handle, code, source, source_size, output, output_size, actual, overlap):
@@ -180,7 +186,7 @@ def test_usb_query_uses_full_initialized_buffers_and_only_standard_configuration
 
 
 def test_xinput_summary_records_button_bits_and_axis_range():
-    from tools.controller_scan_kit.input_tests import summarize
+    from controller_scan_kit.input_tests import summarize
     result = summarize("A", [{"source": "xinput_state", "values": {"buttons": b, "lt": t}}
                               for b, t in [(0, 0), (4096, 255), (0, 0)]])
     assert result["changed_button_bits"] == ["1000"]
@@ -188,7 +194,7 @@ def test_xinput_summary_records_button_bits_and_axis_range():
 
 
 def test_validator_rejects_invented_input_sources(tmp_path):
-    from tools.controller_scan_kit.evidence import Report
+    from controller_scan_kit.evidence import Report
     report = Report(tmp_path, "X20")
     report.write_text("input/a.jsonl", json.dumps({"source": "claimed_hid", "timestamp": "now",
         "action": "A", "elapsed_ms": 0, "report_hex": "00"}) + "\n")
@@ -197,8 +203,8 @@ def test_validator_rejects_invented_input_sources(tmp_path):
 
 
 def test_scripted_wizard_exports_only_correlated_device_and_preserves_claim(tmp_path):
-    from tools.controller_scan_kit.cli import wizard
-    from tools.controller_scan_kit.evidence import validate_archive
+    from controller_scan_kit.cli import wizard
+    from controller_scan_kit.evidence import validate_archive
     class Backend:
         def __init__(self): self.calls = 0
         def inventory(self):
@@ -234,22 +240,20 @@ def test_scripted_wizard_exports_only_correlated_device_and_preserves_claim(tmp_
 
 
 def test_cancelled_wizard_retains_a_marked_partial_report(tmp_path):
-    from tools.controller_scan_kit.cli import wizard
-    from tools.controller_scan_kit.evidence import validate_archive
+    from controller_scan_kit.cli import wizard
     answers = iter(["y", "1", "1", "XInput"])
     def ask(_):
         try: return next(answers)
         except StopIteration: raise KeyboardInterrupt
-    archive = wizard(tmp_path, backend=SimpleNamespace(), ask=ask, say=lambda _: None)
-    manifest = validate_archive(archive)
-    assert manifest["collectionStoppedEarly"] is True
-    assert manifest["sessions"][0]["status"] == "cancelled"
-    assert manifest["privacy"]["userReviewed"] is False
+    result = wizard(tmp_path, backend=SimpleNamespace(), ask=ask, say=lambda _: None)
+    assert result.is_dir()
+    assert not list(tmp_path.glob("*.zip"))
+    assert (result / "system.json").is_file()
 
 
 def test_beginner_run_needs_no_mode_input_source_or_bluetooth_knowledge(tmp_path):
-    from tools.controller_scan_kit.cli import wizard
-    from tools.controller_scan_kit.evidence import validate_archive
+    from controller_scan_kit.cli import wizard
+    from controller_scan_kit.evidence import validate_archive
     class Backend:
         calls = 0
         def inventory(self):
@@ -281,8 +285,8 @@ def test_beginner_run_needs_no_mode_input_source_or_bluetooth_knowledge(tmp_path
 
 @pytest.mark.parametrize("include_raw", [False, True])
 def test_full_guided_run_retains_intake_both_input_paths_and_ble(tmp_path, include_raw):
-    from tools.controller_scan_kit.cli import wizard
-    from tools.controller_scan_kit.evidence import validate_archive
+    from controller_scan_kit.cli import wizard
+    from controller_scan_kit.evidence import validate_archive
     class Backend:
         count = 0
         recorded = []
@@ -314,7 +318,7 @@ def test_full_guided_run_retains_intake_both_input_paths_and_ble(tmp_path, inclu
     answers = ["y", "1", "rev A", "Official app", "1.2", "unknown", "RGB, remapping",
                "1", "", "", "", "y", "y", "y" if include_raw else "n", "", "", "q"]
     if include_raw: answers += ["", "q"]
-    answers += ["y", "y", "", "1", "y", "n", "n", "Vibration worked in my game", "y"]
+    answers += ["y", "y", "", "1", "y", "n", "Vibration worked in my game", "y"]
     iterator = iter(answers)
     archive = wizard(tmp_path, backend=backend, ask=lambda _: next(iterator), say=lambda _: None, guided=True)
     manifest = validate_archive(archive)
@@ -334,7 +338,7 @@ def test_full_guided_run_retains_intake_both_input_paths_and_ble(tmp_path, inclu
 
 
 def test_executable_defaults_to_full_guided_collection_and_keeps_basic_option(monkeypatch, tmp_path):
-    from tools.controller_scan_kit import cli
+    from controller_scan_kit import cli
     calls = []
     monkeypatch.setattr(cli, "wizard", lambda output, **options: calls.append(options))
     assert cli.main(["--output", str(tmp_path)]) == 0
@@ -357,7 +361,7 @@ def bluetooth_trace():
 
 
 def test_capture_import_extracts_only_bluetooth_not_private_bug_report(tmp_path):
-    from tools.controller_scan_kit.app_capture import read_trace
+    from controller_scan_kit.app_capture import read_trace
     path = tmp_path / "phone.zip"
     with zipfile.ZipFile(path, "w") as archive:
         archive.writestr("bugreport-phone.txt", "PRIVATE ACCOUNT AND OTHER LOGS")
@@ -372,14 +376,14 @@ def test_capture_import_extracts_only_bluetooth_not_private_bug_report(tmp_path)
     ("windows", usb_trace()[:-1]), ("android", bluetooth_trace()[:-1]),
     ("android", b"btsnoop\0" + b"\0" * 8), ("windows", bluetooth_trace())])
 def test_capture_import_rejects_wrong_empty_or_truncated_formats(route, data):
-    from tools.controller_scan_kit.app_capture import trace_info
+    from controller_scan_kit.app_capture import trace_info
     with pytest.raises(ValueError):
         trace_info(data, route)
 
 
 def test_capture_import_rejects_network_pcap_and_mixed_pcapng_interfaces():
     import struct
-    from tools.controller_scan_kit.app_capture import trace_info
+    from controller_scan_kit.app_capture import trace_info
     data = bytearray(usb_trace())
     struct.pack_into("<I", data, 20, 1)
     with pytest.raises(ValueError, match="network"):
@@ -395,7 +399,7 @@ def test_capture_import_rejects_network_pcap_and_mixed_pcapng_interfaces():
 
 @pytest.mark.parametrize("trace_count", [0, 2])
 def test_android_bug_report_requires_one_unambiguous_full_log(tmp_path, trace_count):
-    from tools.controller_scan_kit.app_capture import read_trace
+    from controller_scan_kit.app_capture import read_trace
     path = tmp_path / "phone.zip"
     with zipfile.ZipFile(path, "w") as archive:
         archive.writestr("bugreport.txt", "Diagnostic text only")
@@ -406,8 +410,8 @@ def test_android_bug_report_requires_one_unambiguous_full_log(tmp_path, trace_co
 
 
 def test_app_only_wizard_attaches_trace_and_timeline_with_honest_privacy(tmp_path):
-    from tools.controller_scan_kit.cli import wizard
-    from tools.controller_scan_kit.evidence import validate_archive
+    from controller_scan_kit.cli import wizard
+    from controller_scan_kit.evidence import validate_archive
     capture = tmp_path / "private-capture.pcap"
     capture.write_bytes(usb_trace())
     answers = iter(["y", "3", "X10", "y", "2", "Working app", "1.2", "vibration",
@@ -436,8 +440,8 @@ def test_app_only_wizard_attaches_trace_and_timeline_with_honest_privacy(tmp_pat
 
 
 def test_cancelled_app_experiment_retains_timeline_and_cleanup_instruction(tmp_path):
-    from tools.controller_scan_kit.app_capture import collect_app_capture
-    from tools.controller_scan_kit.evidence import Report, validate_archive
+    from controller_scan_kit.app_capture import collect_app_capture
+    from controller_scan_kit.evidence import Report, validate_archive
     report = Report(tmp_path, "X10")
     answers = iter(["y", "2", "Working app", "", "vibration", "2", "3", "y", "y", "y", "", "", "", ""])
     def ask(_):
@@ -453,7 +457,7 @@ def test_cancelled_app_experiment_retains_timeline_and_cleanup_instruction(tmp_p
 
 
 def test_trace_without_explicit_privacy_provenance_is_rejected(tmp_path):
-    from tools.controller_scan_kit.evidence import Report
+    from controller_scan_kit.evidence import Report
     report = Report(tmp_path, "X10")
     report.write_bytes("app-capture/setting-change.pcap", usb_trace())
     with pytest.raises(ValueError, match="privacy"):
@@ -461,14 +465,13 @@ def test_trace_without_explicit_privacy_provenance_is_rejected(tmp_path):
 
 
 def test_cancellation_at_app_intro_still_creates_marked_partial_zip(tmp_path):
-    from tools.controller_scan_kit.cli import wizard
-    from tools.controller_scan_kit.evidence import validate_archive
+    from controller_scan_kit.cli import wizard
     answers = iter(["y", "1"])
     def ask(_):
         try: return next(answers)
         except StopIteration: raise EOFError
-    archive = wizard(tmp_path, backend=SimpleNamespace(), ask=ask, say=lambda _: None, guided=True, app_only=True)
-    manifest = validate_archive(archive)
-    assert manifest["collectionStoppedEarly"] is True
-    assert manifest["appCapture"]["status"] == "cancelled"
-    assert manifest["privacy"]["userReviewed"] is False
+    result = wizard(tmp_path, backend=SimpleNamespace(), ask=ask, say=lambda _: None, guided=True, app_only=True)
+    assert result.is_dir()
+    assert not list(tmp_path.glob("*.zip"))
+    review = (result / "BEFORE_YOU_SEND.txt").read_text(encoding="utf-8")
+    assert "cancelled" in review
