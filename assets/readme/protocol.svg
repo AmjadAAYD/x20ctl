@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 196" width="1200" height="196" role="img" aria-label="KeyLinker 20-byte scrambled BLE GATT packet format and hardware verification pipeline">
+  <style>
+    .s { font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Inter', 'Helvetica Neue', Arial, sans-serif; }
+    .m { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+  </style>
+  <defs>
+    <linearGradient id="proto-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#080A0F"/>
+      <stop offset="55%" stop-color="#0D111A"/>
+      <stop offset="100%" stop-color="#121824"/>
+    </linearGradient>
+    <radialGradient id="proto-softbox" cx="80%" cy="30%" r="48%">
+      <stop offset="0%" stop-color="#B8CEF0" stop-opacity="0.16"/>
+      <stop offset="45%" stop-color="#7EA0D6" stop-opacity="0.05"/>
+      <stop offset="100%" stop-color="#0D111A" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="proto-key" cx="18%" cy="14%" r="55%">
+      <stop offset="0%" stop-color="#D7E4F8" stop-opacity="0.06"/>
+      <stop offset="100%" stop-color="#0D111A" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="proto-card" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#101521"/>
+      <stop offset="100%" stop-color="#0B0F17"/>
+    </linearGradient>
+    <clipPath id="proto-clip">
+      <rect x="0.5" y="0.5" width="1199" height="195" rx="18"/>
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#proto-clip)">
+    <rect width="1200" height="196" fill="url(#proto-bg)"/>
+    <rect width="1200" height="196" fill="url(#proto-softbox)"/>
+    <text x="34" y="34" class="m" font-size="11.5" font-weight="600" fill="#6D798E" letter-spacing="2">KEYLINKER WIRE PROTOCOL · 20-BYTE SCRAMBLED GATT FRAME</text>
+    <text x="1166" y="34" text-anchor="end" class="m" font-size="11.5" fill="#6D798E" letter-spacing="1.6">NO OTA FIRMWARE TOUCHED</text>
+    <line x1="34" y1="45" x2="1166" y2="45" stroke="#E2ECFF" stroke-opacity="0.09" stroke-width="1"/>
+  <rect x="34" y="58" width="148" height="52" rx="10" fill="#121723" stroke="#E2ECFF" stroke-opacity="0.14" stroke-width="1"/>
+  <text x="48" y="79" class="m" font-size="11.5" font-weight="700" fill="#F4F7FC" letter-spacing="0.8">OPCODE</text>
+  <text x="48" y="97" class="s" font-size="12" fill="#6D798E">1B command</text>
+  <rect x="194" y="58" width="150" height="52" rx="10" fill="#121723" stroke="#E2ECFF" stroke-opacity="0.14" stroke-width="1"/>
+  <text x="208" y="79" class="m" font-size="11.5" font-weight="700" fill="#F4F7FC" letter-spacing="0.8">LENGTH</text>
+  <text x="208" y="97" class="s" font-size="12" fill="#6D798E">payload size</text>
+  <rect x="356" y="58" width="150" height="52" rx="10" fill="#121723" stroke="#E2ECFF" stroke-opacity="0.14" stroke-width="1"/>
+  <text x="370" y="79" class="m" font-size="11.5" font-weight="700" fill="#F4F7FC" letter-spacing="0.8">SERIAL</text>
+  <text x="370" y="97" class="s" font-size="12" fill="#6D798E">session ctr</text>
+  <rect x="518" y="58" width="162" height="52" rx="10" fill="#121723" stroke="#E2ECFF" stroke-opacity="0.14" stroke-width="1"/>
+  <text x="532" y="79" class="m" font-size="11.5" font-weight="700" fill="#F4F7FC" letter-spacing="0.8">NONCE</text>
+  <text x="532" y="97" class="s" font-size="12" fill="#6D798E">keystream idx</text>
+  <rect x="692" y="58" width="316" height="52" rx="10" fill="#121723" stroke="#E2ECFF" stroke-opacity="0.14" stroke-width="1"/>
+  <text x="706" y="79" class="m" font-size="11.5" font-weight="700" fill="#F4F7FC" letter-spacing="0.8">PAYLOAD</text>
+  <text x="706" y="97" class="s" font-size="12" fill="#6D798E">up to 15 bytes</text>
+  <rect x="1020" y="58" width="148" height="52" rx="10" fill="#121723" stroke="#E2ECFF" stroke-opacity="0.14" stroke-width="1"/>
+  <text x="1034" y="79" class="m" font-size="11.5" font-weight="700" fill="#F4F7FC" letter-spacing="0.8">CRC-8</text>
+  <text x="1034" y="97" class="s" font-size="12" fill="#6D798E">poly 0xEB</text>
+  <rect x="34" y="130" width="210" height="38" rx="19" fill="#111621" stroke="#E2ECFF" stroke-opacity="0.12" stroke-width="1"/>
+  <text x="139.0" y="153.5" text-anchor="middle" class="s" font-size="12.5" font-weight="600" fill="#9FAAC0">1. Decompile</text>
+  <text x="254" y="153.5" text-anchor="middle" class="s" font-size="13" fill="#6D798E">→</text>
+  <rect x="264" y="130" width="210" height="38" rx="19" fill="#111621" stroke="#E2ECFF" stroke-opacity="0.12" stroke-width="1"/>
+  <text x="369.0" y="153.5" text-anchor="middle" class="s" font-size="12.5" font-weight="600" fill="#9FAAC0">2. Capture BLE</text>
+  <text x="484" y="153.5" text-anchor="middle" class="s" font-size="13" fill="#6D798E">→</text>
+  <rect x="494" y="130" width="210" height="38" rx="19" fill="#111621" stroke="#E2ECFF" stroke-opacity="0.12" stroke-width="1"/>
+  <text x="599.0" y="153.5" text-anchor="middle" class="s" font-size="12.5" font-weight="600" fill="#9FAAC0">3. Diff 1 setting</text>
+  <text x="714" y="153.5" text-anchor="middle" class="s" font-size="13" fill="#6D798E">→</text>
+  <rect x="724" y="130" width="210" height="38" rx="19" fill="#192132" stroke="#E2ECFF" stroke-opacity="0.28" stroke-width="1"/>
+  <text x="829.0" y="153.5" text-anchor="middle" class="s" font-size="12.5" font-weight="600" fill="#F4F7FC">4. Verify read-back</text>
+  <text x="944" y="153.5" text-anchor="middle" class="s" font-size="13" fill="#6D798E">→</text>
+  <rect x="954" y="130" width="210" height="38" rx="19" fill="#192132" stroke="#E2ECFF" stroke-opacity="0.28" stroke-width="1"/>
+  <text x="1059.0" y="153.5" text-anchor="middle" class="s" font-size="12.5" font-weight="600" fill="#F4F7FC">5. Ship in Studio</text>
+  </g>
+
+  <rect x="0.5" y="0.5" width="1199" height="195" rx="18" fill="none" stroke="#E2ECFF" stroke-opacity="0.14" stroke-width="1"/>
+</svg>
