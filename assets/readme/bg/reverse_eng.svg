@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1000 354" width="1000" height="354" role="img" aria-label="Reverse engineering KeyLinker packet structure and hardware safety rules">
+  <defs>
+    <linearGradient id="bg_re" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#CFC7AE"/>
+      <stop offset="5%" stop-color="#DDD7C3"/>
+      <stop offset="50%" stop-color="#DAD4BE"/>
+      <stop offset="95%" stop-color="#D5CEB6"/>
+      <stop offset="100%" stop-color="#CFC7AE"/>
+    </linearGradient>
+    <pattern id="scan_re" width="8" height="4" patternUnits="userSpaceOnUse">
+      <line x1="0" y1="0" x2="8" y2="0" stroke="#BCB49A" stroke-width="0.6" opacity="0.22"/>
+    </pattern>
+    
+    <style>
+      .s { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+      .m { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+      
+    </style>
+  </defs>
+  <rect x="0" y="0" width="1000" height="354" fill="url(#bg_re)"/>
+  <rect x="0" y="0" width="1000" height="354" fill="url(#scan_re)"/>
+  <line x1="26" y1="0" x2="26" y2="354" stroke="#BCB49A" stroke-width="1"/>
+  <line x1="30" y1="0" x2="30" y2="354" stroke="#BCB49A" stroke-width="0.6" opacity="0.65"/>
+  <line x1="974" y1="0" x2="974" y2="354" stroke="#BCB49A" stroke-width="1"/>
+  <line x1="970" y1="0" x2="970" y2="354" stroke="#BCB49A" stroke-width="0.6" opacity="0.65"/>
+  <rect x="52" y="28" width="5" height="22" fill="#454138"/>
+  <rect x="60" y="28" width="2" height="22" fill="#454138"/>
+  <rect x="69" y="35" width="8" height="8" fill="#454138"/>
+  <text x="85" y="46" class="s" font-size="20" font-weight="700" fill="#35322B" letter-spacing="2.4">REVERSE ENGINEERING</text>
+  <text x="85" y="22" class="m" font-size="10.5" fill="#6F6858" letter-spacing="1.6">ARCHIVE // 02</text>
+  <text x="948" y="45" text-anchor="end" class="m" font-size="11" fill="#6F6858" letter-spacing="1.4">KEYLINKER WIRE PROTOCOL</text>
+  <line x1="52" y1="54" x2="940" y2="54" stroke="#454138" stroke-width="1"/>
+  <polygon points="944,51 948,54 944,57 940,54" fill="#454138"/>
+  <text x="52" y="82" class="s" font-size="14" fill="#35322B">EasySMX configures its pads from KeyLinker on mobile. X20CTL recovers those packets on real hardware, verifies</text>
+  <text x="52" y="103" class="s" font-size="14" fill="#35322B">every setting by reading it back, and scrambles each 20-byte GATT message with the protocol keystreams:</text>
+  <rect x="54" y="140" width="142" height="52" fill="#BDB69E"/>
+  <rect x="52" y="138" width="142" height="52" fill="#E7E2CE" stroke="#454138" stroke-width="1"/>
+  <rect x="52" y="138" width="142" height="18" fill="#454138"/>
+  <text x="123.0" y="151" text-anchor="middle" class="m" font-size="10.5" font-weight="700" fill="#EFEAD8">OPCODE</text>
+  <text x="123.0" y="176" text-anchor="middle" class="s" font-size="12" fill="#35322B">1B command</text>
+  <rect x="204" y="140" width="142" height="52" fill="#BDB69E"/>
+  <rect x="202" y="138" width="142" height="52" fill="#E7E2CE" stroke="#454138" stroke-width="1"/>
+  <rect x="202" y="138" width="142" height="18" fill="#454138"/>
+  <text x="273.0" y="151" text-anchor="middle" class="m" font-size="10.5" font-weight="700" fill="#EFEAD8">LENGTH</text>
+  <text x="273.0" y="176" text-anchor="middle" class="s" font-size="12" fill="#35322B">payload size</text>
+  <rect x="354" y="140" width="142" height="52" fill="#BDB69E"/>
+  <rect x="352" y="138" width="142" height="52" fill="#E7E2CE" stroke="#454138" stroke-width="1"/>
+  <rect x="352" y="138" width="142" height="18" fill="#454138"/>
+  <text x="423.0" y="151" text-anchor="middle" class="m" font-size="10.5" font-weight="700" fill="#EFEAD8">SERIAL</text>
+  <text x="423.0" y="176" text-anchor="middle" class="s" font-size="12" fill="#35322B">session ctr</text>
+  <rect x="504" y="140" width="142" height="52" fill="#BDB69E"/>
+  <rect x="502" y="138" width="142" height="52" fill="#E7E2CE" stroke="#454138" stroke-width="1"/>
+  <rect x="502" y="138" width="142" height="18" fill="#454138"/>
+  <text x="573.0" y="151" text-anchor="middle" class="m" font-size="10.5" font-weight="700" fill="#EFEAD8">NONCE</text>
+  <text x="573.0" y="176" text-anchor="middle" class="s" font-size="12" fill="#35322B">key index</text>
+  <rect x="654" y="140" width="142" height="52" fill="#BDB69E"/>
+  <rect x="652" y="138" width="142" height="52" fill="#E7E2CE" stroke="#454138" stroke-width="1"/>
+  <rect x="652" y="138" width="142" height="18" fill="#454138"/>
+  <text x="723.0" y="151" text-anchor="middle" class="m" font-size="10.5" font-weight="700" fill="#EFEAD8">PAYLOAD</text>
+  <text x="723.0" y="176" text-anchor="middle" class="s" font-size="12" fill="#35322B">up to 15B</text>
+  <rect x="804" y="140" width="142" height="52" fill="#BDB69E"/>
+  <rect x="802" y="138" width="142" height="52" fill="#E7E2CE" stroke="#454138" stroke-width="1"/>
+  <rect x="802" y="138" width="142" height="18" fill="#454138"/>
+  <text x="873.0" y="151" text-anchor="middle" class="m" font-size="10.5" font-weight="700" fill="#EFEAD8">CRC-8</text>
+  <text x="873.0" y="176" text-anchor="middle" class="s" font-size="12" fill="#35322B">poly 0xEB</text>
+  <rect x="52" y="206" width="166" height="32" fill="#DFD9C4" stroke="#9E9781" stroke-width="1"/>
+  <text x="135.0" y="226" text-anchor="middle" class="s" font-size="12" font-weight="700" fill="#35322B">1. Decompile</text>
+  <text x="227" y="226" text-anchor="middle" class="m" font-size="12" fill="#6F6858">→</text>
+  <rect x="234" y="206" width="166" height="32" fill="#DFD9C4" stroke="#9E9781" stroke-width="1"/>
+  <text x="317.0" y="226" text-anchor="middle" class="s" font-size="12" font-weight="700" fill="#35322B">2. Capture BLE</text>
+  <text x="409" y="226" text-anchor="middle" class="m" font-size="12" fill="#6F6858">→</text>
+  <rect x="416" y="206" width="166" height="32" fill="#DFD9C4" stroke="#9E9781" stroke-width="1"/>
+  <text x="499.0" y="226" text-anchor="middle" class="s" font-size="12" font-weight="700" fill="#35322B">3. Diff 1 setting</text>
+  <text x="591" y="226" text-anchor="middle" class="m" font-size="12" fill="#6F6858">→</text>
+  <rect x="598" y="206" width="166" height="32" fill="#DFD9C4" stroke="#9E9781" stroke-width="1"/>
+  <text x="681.0" y="226" text-anchor="middle" class="s" font-size="12" font-weight="700" fill="#35322B">4. Verify read-back</text>
+  <text x="773" y="226" text-anchor="middle" class="m" font-size="12" fill="#6F6858">→</text>
+  <rect x="780" y="206" width="166" height="32" fill="#DFD9C4" stroke="#9E9781" stroke-width="1"/>
+  <text x="863.0" y="226" text-anchor="middle" class="s" font-size="12" font-weight="700" fill="#35322B">5. Ship in Studio</text>
+  <text x="52" y="266" class="s" font-size="13.5" fill="#35322B"><tspan font-weight="700">■ Transport &amp; Safety:</tspan> Bluetooth LE GATT (+ USB serial for X20 Pro screen). OTA firmware service is untouched: X20CTL never flashes firmware.</text>
+  <text x="52" y="289" class="s" font-size="13.5" fill="#35322B"><tspan font-weight="700">■ Accurate ID:</tspan> Matches hardware BLE / USB descriptors (avoiding generic 045E:028E &amp; STK-7024X / 0079:181C DInput traps).</text>
+  <text x="52" y="312" class="s" font-size="13.5" fill="#35322B"><tspan font-weight="700">■ Read-back rule:</tspan> Nothing writes to onboard memory unless read-back is verified; everything else uses local drafts + PC Mode.</text>
+  <text x="52" y="335" class="s" font-size="13.5" fill="#35322B"><tspan font-weight="700">■ Research boundary:</tspan> Raw captures stay private; only sanitized protocol docs and templates ship publicly.</text>
+</svg>

@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 210 52" width="210" height="52" role="img" aria-label="THIRD_PARTY.md">
+  <defs>
+    <linearGradient id="bg_lic_links_3" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#CFC7AE"/>
+      <stop offset="5%" stop-color="#DDD7C3"/>
+      <stop offset="50%" stop-color="#DAD4BE"/>
+      <stop offset="95%" stop-color="#D5CEB6"/>
+      <stop offset="100%" stop-color="#CFC7AE"/>
+    </linearGradient>
+    <pattern id="scan_lic_links_3" width="8" height="4" patternUnits="userSpaceOnUse">
+      <line x1="0" y1="0" x2="8" y2="0" stroke="#BCB49A" stroke-width="0.6" opacity="0.22"/>
+    </pattern>
+    
+    <style>
+      .s { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+      .m { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+      
+    </style>
+  </defs>
+  <rect x="-472" y="0" width="1000" height="52" fill="url(#bg_lic_links_3)"/>
+  <rect x="-472" y="0" width="1000" height="52" fill="url(#scan_lic_links_3)"/>
+  <rect x="3" y="11" width="202" height="34" fill="#BDB69E"/>
+  <rect x="0" y="8" width="202" height="34" fill="#E7E2CE" stroke="#454138" stroke-width="1"/>
+  <rect x="11" y="21.5" width="7" height="7" fill="#454138"/>
+  <text x="25" y="29.5" class="s" font-size="12.5" font-weight="600" fill="#35322B">Third-party notices</text>
+  <text x="191" y="29.0" text-anchor="end" class="m" font-size="12" fill="#6F6858">→</text>
+</svg>
