@@ -1,33 +1,21 @@
-# Security
+# Security Policy
 
-Report vulnerabilities privately through this repository's **Security > Report a vulnerability** when available. Avoid posting controller identifiers or pairing information publicly. Response times are not guaranteed for this volunteer project.
+## Scope
 
-## Trust boundaries
+The active release line is **V0.025**. Older v1/v2 preview lines are superseded and do not receive backports.
 
-Unpublished controller research and raw tester evidence stay outside public
-source. See [research policy](docs/research-policy.md) and
-[contributing](CONTRIBUTING.md). The Git-index boundary check prevents recognized
-private files from passing CI; it does not redact file contents or protect
-material already published.
+## Reporting a vulnerability
 
-- Only bundled local UI is loaded in the desktop view. Unexpected navigation is blocked.
-- The native bridge allowlists named operations. There is no shell, arbitrary Python evaluation, raw-packet or caller-selected filesystem-path endpoint.
-- Profile file access uses Windows file dialogs. Imported values are validated in Python before storage or hardware use.
-- Controller operations are serialized on one event loop. Invalid requests and disconnected writes fail closed.
-- The UI reads XInput. It does not inject game input or pretend to measure controller polling frequency.
-- Settings use the recovered KeyLinker configuration protocol. The app has no firmware-flashing workflow. This is not a guarantee that every configuration operation is risk-free.
-- Optional updates query `api.github.com/repos/AmjadAAYD/x20ctl/releases/latest`. No controller telemetry or profiles are sent. Update checks can be disabled.
+If you find a security issue, unsafe privilege boundary, credential/data leak, or malformed-archive handling bug:
 
-## Release verification
+1. **Do not** open a public GitHub issue with exploit payloads or private device captures.
+2. Report it privately through GitHub **Security Advisories** on [`AmjadAAYD/x20ctl`](https://github.com/AmjadAAYD/x20ctl/security/advisories), or contact the maintainer privately first.
+3. Include reproduction steps, affected component (Windows Studio, Linux Studio, Python CLI, updater, or Controller Scan Kit), and any crash/diagnostic excerpt with personal usernames or serials removed.
 
-Download only from [this repository's releases](https://github.com/AmjadAAYD/x20ctl/releases). Compare the executable with the checksum file attached to that exact release:
+## Release verification & runtime boundaries
 
-```powershell
-Get-FileHash .\x20ctl.exe -Algorithm SHA256
-```
-
-The executable is not Authenticode-signed by the project and no GitHub/SLSA attestation is claimed. A checksum verifies integrity against the published artifact, not safety. Treat antivirus findings seriously; do not disable protection based on a generic reassurance.
-
-## Scope of support
-
-2.0 is the desktop recovery line. 1.2.0 remains available as a rollback. No promise of backported fixes, universal controller compatibility or zero bugs is made. Physical-device acceptance limitations are listed in [validation](docs/desktop-validation.md).
+- **Build provenance & checksums:** Official release artifacts are built cleanly from source in GitHub Actions (`.github/workflows/release.yml`) and published with `SHA256SUMS.txt` covering both Windows (`-windows-x64-setup.exe`, `-windows-x64.exe`) and Linux (`.AppImage`, `.flatpak`, `-linux-x64.tar.gz`, `-linux-musl-x64.tar.gz`, `-linux-check.zip`) assets.
+- **Hardware write safety:** Native configuration writes are restricted to explicitly confirmed EasySMX X20 / X20 Pro paths and verify model identity before applying. X20CTL **never flashes firmware**.
+- **PC Mode drivers & permissions:** On Windows, virtual controller output uses user-approved installation of pinned `ViGEmBus` (`1.22.0`) and `HidHide` (`1.5.230`), with SHA-256 verification before launch. On Linux, PC Mode uses `/dev/uinput` (`uinput` + `evdev`) with standard user udev rules and never auto-elevates.
+- **Offline Agent & privacy:** Handheld Agent XCTL executes locally on your device without external network requests, telemetry, or remote LLM calls.
+- **No warranty on universal hardware behavior:** Physical-device verification status for each model is documented transparently in [`README.md`](README.md) and [`CHANGELOG.md`](CHANGELOG.md).
