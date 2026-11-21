@@ -3,10 +3,10 @@
 <p align="center">
   <a href="#download"><b>Download V0.025</b></a> &nbsp;&middot;&nbsp;
   <a href="#highlights">Highlights</a> &nbsp;&middot;&nbsp;
-  <a href="#supported-controllers">Supported Controllers</a> &nbsp;&middot;&nbsp;
-  <a href="#reverse-engineering">Reverse Engineering</a> &nbsp;&middot;&nbsp;
+  <a href="#supported-controllers">Controllers</a> &nbsp;&middot;&nbsp;
+  <a href="#reverse-engineering">Protocol</a> &nbsp;&middot;&nbsp;
   <a href="CHANGELOG.md">Changelog</a> &nbsp;&middot;&nbsp;
-  <a href="IF-YOUR-CONTROLLER-ISNT-WORKING.md">Controller not working?</a>
+  <a href="IF-YOUR-CONTROLLER-ISNT-WORKING.md">Troubleshooting</a>
 </p>
 
 <p align="center"><img src="assets/readme/thanks.svg?v=release-v0.025" alt="Thank you, EasySMX Kiin and Team EasySMX for supplying an EasySMX X20 Pro to build and test X20CTL" width="100%"></p>
