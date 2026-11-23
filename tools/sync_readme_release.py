@@ -1,4 +1,4 @@
-"""Keep README.md, README.plain.md, and assets/readme/bg/*.svg in sync with the latest GitHub release.
+"""Keep README.md, README.plain.md, and release SVG assets in sync with the latest GitHub release.
 
 Usage:
     python tools/sync_readme_release.py v0.025
@@ -19,19 +19,9 @@ REPO_RELEASES = "https://github.com/AmjadAAYD/x20ctl/releases"
 VER_RE = r"V\d+\.\d+(?:\.\d+)?"
 TAG_RE = r"v\d+\.\d+(?:\.\d+)?"
 
-SVG_RELEASE_SLICES = (
-    "hero.svg",
-    "nav_1.svg",
-    "demo.svg",
-    "download_head.svg",
-    "dl_win_1.svg",
-    "dl_win_2.svg",
-    "dl_lin1_1.svg",
-    "dl_lin1_2.svg",
-    "dl_lin1_3.svg",
-    "dl_lin2_1.svg",
-    "dl_lin2_2.svg",
-    "end.svg",
+SVG_RELEASE_FILES = (
+    "btn-download.svg",
+    "bg/hero.svg",
 )
 
 
@@ -57,32 +47,48 @@ def sync(root: Path, tag: str) -> bool:
     ver = release_name(tag)
     readme = root / "README.md"
     plain = root / "README.plain.md"
-    bg_dir = root / "assets" / "readme" / "bg"
+    assets_dir = root / "assets" / "readme"
 
-    required_svgs = [bg_dir / name for name in SVG_RELEASE_SLICES]
+    required_svgs = [assets_dir / rel for rel in SVG_RELEASE_FILES]
     if not readme.is_file() or any(not p.is_file() for p in required_svgs):
-        raise ValueError("Missing README.md or release SVG slices; files left unchanged")
+        raise ValueError("Missing README.md or release SVG assets; files left unchanged")
 
     original_readme = readme.read_text(encoding="utf-8")
     updated_readme = original_readme
 
     updated_readme = _sub_req(
-        rf'(<a\s+href="{re.escape(REPO_RELEASES)}/)tag/{TAG_RE}("><img\s+[^>]*src="assets/readme/bg/nav_1\.svg)(\?[^"]*)?("[^>]*alt="Download ){VER_RE}(")',
+        rf'(<a\s+href="{re.escape(REPO_RELEASES)}/)tag/{TAG_RE}("><img\s+[^>]*src="assets/readme/btn-download\.svg)(\?[^"]*)?("[^>]*alt="Download ){VER_RE}(")',
         rf"\g<1>tag/{tag}\g<2>?v=release-{tag}\g<4>{ver}\g<5>",
         updated_readme,
-        "README nav_1 release button",
+        "README btn-download release button",
     )
     updated_readme = re.sub(
-        r"(assets/readme/bg/[a-z0-9_]+\.svg)\?v=release-[^\s\"']+",
+        rf"{re.escape(REPO_RELEASES)}/tag/{TAG_RE}",
+        f"{REPO_RELEASES}/tag/{tag}",
+        updated_readme,
+    )
+    updated_readme = re.sub(
+        r"(assets/readme/(?:bg/)?[a-z0-9_-]+\.svg)\?v=release-[^\s\"']+",
         rf"\1?v=release-{tag}",
         updated_readme,
     )
     updated_readme = _sub_req(
-        rf'(alt="(?:X20CTL |Download X20CTL |Download |Animated studio tour of X20CTL |Download X20CTL-)){VER_RE}',
-        rf"\g<1>{ver}",
+        rf'(alt="X20CTL ){VER_RE}(:|")',
+        rf"\g<1>{ver}\g<2>",
         updated_readme,
-        "README image version alt",
-        minimum=12,
+        "README hero version alt",
+    )
+    updated_readme = _sub_req(
+        rf"(## Download \(){VER_RE}(\))",
+        rf"\g<1>{ver}\g<2>",
+        updated_readme,
+        "README download heading",
+    )
+    updated_readme = _sub_req(
+        rf"(\*\*Release ){VER_RE}(\*\*)",
+        rf"\g<1>{ver}\g<2>",
+        updated_readme,
+        "README Release link label",
     )
     updated_readme = _sub_req(
         rf"{re.escape(REPO_RELEASES)}/download/{TAG_RE}/SHA256SUMS\.txt",
@@ -91,10 +97,17 @@ def sync(root: Path, tag: str) -> bool:
         "README SHA256SUMS download URL",
     )
     updated_readme = _sub_req(
-        rf"{re.escape(REPO_RELEASES)}/download/{TAG_RE}/X20CTL-{VER_RE}(-[^\"\s)<]+)",
+        rf"{re.escape(REPO_RELEASES)}/download/{TAG_RE}/X20CTL-{VER_RE}(-[^\"\s)<`\]]+)",
         rf"{REPO_RELEASES}/download/{tag}/X20CTL-{ver}\1",
         updated_readme,
         "README asset download URLs",
+        minimum=7,
+    )
+    updated_readme = _sub_req(
+        rf"\[`X20CTL-{VER_RE}(-[^`\]]+)`\]",
+        rf"[`X20CTL-{ver}\1`]",
+        updated_readme,
+        "README asset link labels",
         minimum=7,
     )
 
