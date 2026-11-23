@@ -12,7 +12,7 @@ Open-source Windows and Linux desktop alternative to the KeyLinker phone app. Co
 </p>
 
 <p align="center">
-  <a href="https://github.com/AmjadAAYD/x20ctl/releases/tag/v0.025"><img src="assets/readme/bg/hero.svg?v=release-v0.025" alt="X20CTL V0.025: controller studio for EasySMX pads" width="100%"></a>
+  <a href="https://github.com/AmjadAAYD/x20ctl/releases/tag/v0.025"><img src="assets/readme/hero-motion.svg?v=release-v0.025" alt="X20CTL V0.025: controller studio for EasySMX pads" width="100%"></a>
 </p>
 
 <p align="center">
@@ -38,7 +38,7 @@ Open-source Windows and Linux desktop alternative to the KeyLinker phone app. Co
 > **Independent open-source project.** EasySMX supplied an X20 Pro to build and test X20CTL, but the app is not made, endorsed, sponsored, or supported by EasySMX.
 > Shopping for an EasySMX pad? Using [`easysmx.com/?ref=X20CTL`](https://www.easysmx.com/?ref=X20CTL) supports X20CTL (10% affiliate commission at no extra cost to you), or you can [support directly on Ko-fi](https://ko-fi.com/x20ctl).
 
----
+<p align="center"><img src="assets/readme/led-divider.svg" alt="" width="100%"></p>
 
 ## Advantages
 
@@ -48,7 +48,7 @@ Open-source Windows and Linux desktop alternative to the KeyLinker phone app. Co
 4. **Verified-safe hardware writes:** Never flashes controller firmware. Every native change backs up a local checkpoint, writes once, and verifies read-back against physical controller memory.
 5. **Up to 4 players with PC Mode:** Software bridge via signed [ViGEmBus](https://github.com/nefarius/ViGEmBus) + [HidHide](https://github.com/nefarius/HidHide) on Windows or `/dev/uinput` on Linux outputs clean virtual **Xbox 360** or **DualShock 4** pads for every listed EasySMX model.
 
----
+<p align="center"><img src="assets/readme/led-divider.svg" alt="" width="100%"></p>
 
 ## Features
 
@@ -93,12 +93,12 @@ Per-game software profiles let you bind `M1-M7` to up to 64 keyboard keys or mou
 
 </details>
 
----
+<p align="center"><img src="assets/readme/led-divider.svg" alt="" width="100%"></p>
 
 ## Supported Controllers
 
 <p align="center">
-  <img src="assets/readme/bg/models.svg?v=release-v0.025" alt="Supported EasySMX controllers: X20, X20 Pro, X15, X10, X05 Pro, D10, Dune 8K" width="100%">
+  <img src="assets/readme/lineup-motion.svg" alt="Animated lineup of supported EasySMX controllers: X20 Pro, X20, X15, X10, X05 Pro, D10, Dune 8K" width="100%">
 </p>
 
 | Controller | On-Device Configuration | PC Mode | Status |
@@ -115,7 +115,7 @@ Per-game software profiles let you bind `M1-M7` to up to 64 keyboard keys or mou
 > **DInput `STK-7024X` (`0079:181C`):** If Windows or Steam labels your EasySMX pad as `STK-7024X`, switch the controller back to XInput mode for full PC Mode and X20 Pro detection.
 > **Thinking of buying an EasySMX pad?** [Shop EasySMX with referral link (`?ref=X20CTL`)](https://www.easysmx.com/?ref=X20CTL) to support development at no extra cost.
 
----
+<p align="center"><img src="assets/readme/led-divider.svg" alt="" width="100%"></p>
 
 ## Download (V0.025)
 
@@ -134,15 +134,33 @@ All official builds are compiled in GitHub Actions and published under [**Releas
 > [!IMPORTANT]
 > **Code signing:** X20CTL has applied for free open-source code signing through the [SignPath Foundation](https://signpath.org/). Until active, Windows binaries are **unsigned**, so SmartScreen may prompt on first run. Always verify downloads with [`SHA256SUMS.txt`](https://github.com/AmjadAAYD/x20ctl/releases/download/v0.025/SHA256SUMS.txt) and never disable your antivirus. See [docs/versions.md](docs/versions.md) for versioning rules.
 
----
+<p align="center"><img src="assets/readme/led-divider.svg" alt="" width="100%"></p>
 
 ## Reverse Engineering & Safety
+
+<p align="center">
+  <img src="assets/readme/protocol-live.svg" alt="Animated KeyLinker BLE GATT and 2.4 GHz simultaneous telemetry diagram" width="100%">
+</p>
 
 X20CTL decodes EasySMX's undocumented KeyLinker BLE GATT protocol (`opcode`, `length`, `serial`, `nonce`, `payload`, reflected `CRC-8` polynomial `0xEB` initial `0x00`) plus the USB serial protocol for the X20 Pro `160x80` display.
 
 - **Verified writes only:** Nothing is written to controller flash without read-back confirmation; unverified models stay in software PC Mode.
 - **No firmware flashing:** X20CTL leaves controller OTA/firmware services completely untouched.
 - **Learn more:** [Protocol Reference](docs/01-protocol.md) · [Reverse-Engineering Log](docs/00-findings.md) · [Controller Scan Kit](docs/controller-scan-kit/) · [Research Policy](docs/research-policy.md)
+
+<details>
+<summary>Architecture flow: How simultaneous 2.4 GHz Dongle + unpaired BLE and PC Mode work together</summary>
+
+```mermaid
+flowchart LR
+    Pad["EasySMX Pad (X20 / X20 Pro)"] -->|"2.4G HID (1000Hz)"| PC["Windows / Linux Studio"]
+    Pad <-->|"Unpaired BLE GATT (0x37 / 0xB3)"| BLE["X20CTL Engine (CRC-8 0xEB)"]
+    Pad -->|"USB Serial"| LCD["160x80 LCD GIF Uploader"]
+    PC --> Virtual["PC Mode: ViGEmBus + HidHide / Linux uinput"]
+    Virtual -->|"Xbox 360 / PS4 / Mouse / 64-Key"| Game["Any PC Game"]
+```
+
+</details>
 
 ## Local First & Privacy
 
