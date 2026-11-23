@@ -4,7 +4,7 @@
 
 **V0.025 — Final release for now.**
 
-[Download V0.025](https://github.com/AmjadAAYD/x20ctl/releases/tag/v0.025) · [Changelog](CHANGELOG.md) · [Controller not working?](IF-YOUR-CONTROLLER-ISNT-WORKING.md) · [Issues](https://github.com/AmjadAAYD/x20ctl/issues)
+[Download V0.025](https://github.com/AmjadAAYD/x20ctl/releases/tag/v0.025) · [Buy EasySMX Controllers (Referral)](https://www.easysmx.com/?ref=X20CTL) · [Support Me on Ko-fi](https://ko-fi.com/x20ctl) · [Changelog](CHANGELOG.md) · [Controller not working?](IF-YOUR-CONTROLLER-ISNT-WORKING.md) · [Issues](https://github.com/AmjadAAYD/x20ctl/issues)
 
 **Thank you, EasySMX Kiin & Team EasySMX for supplying an EasySMX X20 Pro to build and test X20CTL.**
 
@@ -112,6 +112,7 @@ Walks through every button, stick, trigger, report rate, and identity check loca
 | **EasySMX Dune 8K** | 4-motor haptic visualizer & `M1–M4` layout | Yes | PC mode remapping & trigger rumble; native protocol unverified |
 
 - **DInput tip (`STK-7024X` / `0079:181C`):** If Steam or Windows labels your pad `STK-7024X`, switch it back to XInput mode for full PC mode and X20 Pro identification.
+- **Shopping for an EasySMX controller?** Use the [EasySMX referral link (`?ref=X20CTL`)](https://www.easysmx.com/?ref=X20CTL) (10% affiliate commission supports X20CTL at no extra cost to you), or [Support me on Ko-fi](https://ko-fi.com/x20ctl).
 
 ## Download
 

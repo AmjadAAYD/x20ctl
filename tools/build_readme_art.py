@@ -1036,6 +1036,7 @@ def generate_all(tag: str, social_preview: bool = False) -> list[Path]:
         ("hero", 384),
         ("nav", 62),
         ("thanks", 288),
+        ("thanks_links", 52),
         ("demo", 606),
         ("intro", 220),
         ("spot_1", 640),
@@ -1047,6 +1048,7 @@ def generate_all(tag: str, social_preview: bool = False) -> list[Path]:
         ("shots_r1", 50),
         ("shots_r2", 56),
         ("models", 594),
+        ("models_links", 52),
         ("download_head", 128),
         ("dl_win", 54),
         ("dl_lin1", 52),
@@ -1094,6 +1096,23 @@ def generate_all(tag: str, social_preview: bool = False) -> list[Path]:
     slices.update(s_nav)
 
     slices["thanks.svg"], _ = _render_thanks(y_offsets["thanks"], total_h, softboxes, beams)
+
+    s_tkl, _, _ = _emit_button_row(
+        "thanks_links",
+        y_offsets["thanks_links"],
+        52,
+        total_h,
+        softboxes,
+        beams,
+        [
+            ("Buy EasySMX Controllers (10% Supports X20CTL)", "Buy EasySMX Controllers with referral link", True),
+            ("Support Me on Ko-fi", "Support X20CTL on Ko-fi", False),
+        ],
+        btn_widths=[447, 447],
+        gap=10,
+    )
+    slices.update(s_tkl)
+
     slices["demo.svg"], _ = _render_demo(y_offsets["demo"], total_h, softboxes, beams, tag)
     slices["intro.svg"], _ = _render_intro(y_offsets["intro"], total_h, softboxes, beams)
 
@@ -1193,6 +1212,23 @@ def generate_all(tag: str, social_preview: bool = False) -> list[Path]:
     slices.update(s_sr2)
 
     slices["models.svg"], _ = _render_models(y_offsets["models"], total_h, softboxes, beams)
+
+    s_mdl, _, _ = _emit_button_row(
+        "models_links",
+        y_offsets["models_links"],
+        52,
+        total_h,
+        softboxes,
+        beams,
+        [
+            ("Shop EasySMX Controllers (Referral Link)", "Shop EasySMX Controllers with referral link", True),
+            ("Support Me on Ko-fi", "Support X20CTL on Ko-fi", False),
+        ],
+        btn_widths=[447, 447],
+        gap=10,
+    )
+    slices.update(s_mdl)
+
     slices["download_head.svg"], _ = _render_download_head(y_offsets["download_head"], total_h, softboxes, beams, tag)
 
     s_win, _, _ = _emit_button_row(
