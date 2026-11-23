@@ -43,7 +43,7 @@ Shows the active controller, player slot, pending draft changes, and your local 
 
 #### RGB & Live Effects (X20 Pro)
 
-Configure 4-zone LED colours (`Left`, `Right`, `Middle`, `Logo`), palette swatches, brightness, Rainbow Wave, Trigger Glow, Stick Heat, Button Flash, Ambient Screen Sync, and live Battery gauges. Simultaneous **2.4 GHz dongle (`413D:2131`) + unpaired BLE sync** applies lighting and settings whenever PC Bluetooth is enabled.
+Configure 4-zone LED colours (`Left`, `Right`, `Middle`, `Logo`), palette swatches, brightness, Rainbow Wave, Trigger Glow, Stick Heat, Button Flash, Ambient Screen Sync, Audio Reactive RGB, and live Battery gauges. Simultaneous **2.4 GHz dongle (`413D:2131`) + unpaired BLE sync** applies lighting and settings whenever PC Bluetooth is enabled.
 
 #### Screen (`160x80`, X20 Pro)
 
@@ -142,6 +142,7 @@ Official builds from [**Release V0.025**](https://github.com/AmjadAAYD/x20ctl/re
 - **Special thanks to Kiin from Team EasySMX** for supplying a free X20 Pro controller.
 - **Thanks to [Edgard (edgardmessias)](https://github.com/edgardmessias)** for decoding the X10 Bluetooth protocol in [EasyGamepad](https://github.com/edgardmessias/easygamepad).
 - **Thanks to [Monratis](https://github.com/Monratis)** for resolving simultaneous mouse/gamepad focus and testing X20 Pro hardware support.
+- **Thanks to [shazzaam7](https://github.com/shazzaam7)** for audio-reactive RGB envelope design inspiration from [DualSenseClient](https://github.com/DualSenseClient/DualSenseClient) (GPL-3.0).
 - Console layout inspired by [ApexSenseBridge (Kayn arts)](https://github.com/ReynArts/ApexSenseBridge); mouse layout defaults inspired by [Gopher360](https://github.com/Tylemagne/Gopher360). Support development on [Ko-fi](https://ko-fi.com/x20ctl).
 
 ## License
