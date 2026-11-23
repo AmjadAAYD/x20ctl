@@ -495,6 +495,34 @@ public sealed class CustomLightingEffectsTests
         var dub = AudioHapticsEngine.Evaluate(leftHeavy with { BeatPulse = 0.35f, Bass = 0.7f, TrebleTransient = 0f }, AudioHapticsMode.Heartbeat, 100);
         Assert.True(lub.LeftTrigger > lub.LeftGrip);
         Assert.True(dub.LeftGrip > dub.LeftTrigger);
+
+        // StereoWave alternates trigger kick bounce on even vs odd beats when centered.
+        var centered = new AudioFrame(0.5f, 0.2f, 0.2f, 0.2f, 0.9f, 2, 0f, LeftLevel: 0.3f, RightLevel: 0.3f);
+        var evenBeat = AudioHapticsEngine.Evaluate(centered, AudioHapticsMode.StereoWave, 100);
+        var oddBeat = AudioHapticsEngine.Evaluate(centered with { BeatCount = 3 }, AudioHapticsMode.StereoWave, 100);
+        Assert.True(evenBeat.LeftTrigger > evenBeat.RightTrigger);
+        Assert.True(oddBeat.RightTrigger > oddBeat.LeftTrigger);
+
+        // SubwooferDrop engages full grip punch when energy crosses 0.55.
+        var dropChorus = AudioHapticsEngine.Evaluate(new AudioFrame(0.8f, 0.6f, 0.5f, 0.4f, 0.2f, 4, 0f, Energy: 0.70f), AudioHapticsMode.SubwooferDrop, 100);
+        Assert.True(dropChorus.LeftGrip >= 0.6 && dropChorus.LeftTrigger >= 0.6);
+
+        // Sub-threshold residual signal (< 0.06 after strength scale) gates cleanly to zero.
+        var whisper = new AudioFrame(0.05f, 0.05f, 0.05f, 0.05f, 0f, 0, 0f);
+        var gated = AudioHapticsEngine.Evaluate(whisper, AudioHapticsMode.QuadConcert, 35);
+        Assert.True(gated.IsSilent);
+    }
+
+    [Fact]
+    public void AudioHapticsSpec_NormalizesStrengthBoundsAndPreservesMode()
+    {
+        var rawLow = new LightingEffectSpec { Kind = LightingEffectKind.AudioReactive, AudioHapticsStrength = -25, AudioHapticsStyle = AudioHapticsMode.Heartbeat }.Normalized();
+        var rawHigh = new LightingEffectSpec { Kind = LightingEffectKind.AudioReactive, AudioHapticsStrength = 180, AudioHapticsStyle = AudioHapticsMode.TriggerPulse }.Normalized();
+
+        Assert.Equal(0, rawLow.AudioHapticsStrength);
+        Assert.Equal(AudioHapticsMode.Heartbeat, rawLow.AudioHapticsStyle);
+        Assert.Equal(100, rawHigh.AudioHapticsStrength);
+        Assert.Equal(AudioHapticsMode.TriggerPulse, rawHigh.AudioHapticsStyle);
     }
 
     [Fact]
