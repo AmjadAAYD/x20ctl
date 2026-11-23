@@ -2,7 +2,7 @@
 
 **A controller studio for EasySMX pads.** Remap, shape curves, build macros, customize X20 Pro lighting & screen, talk to offline Agent XCTL, and use PC mode on Windows and Linux.
 
-**V0.025 — Final release for now.**
+**V0.025 - Final release for now.**
 
 [Download V0.025](https://github.com/AmjadAAYD/x20ctl/releases/tag/v0.025) · [FAQ](docs/FAQ.md) · [Updates (@AmjadCTL)](https://x.com/AmjadCTL) · [Buy EasySMX Controllers (Referral)](https://www.easysmx.com/?ref=X20CTL) · [Support Me on Ko-fi](https://ko-fi.com/x20ctl) · [Changelog](CHANGELOG.md) · [Controller not working?](IF-YOUR-CONTROLLER-ISNT-WORKING.md) · [Discussions](https://github.com/AmjadAAYD/x20ctl/discussions) · [Issues](https://github.com/AmjadAAYD/x20ctl/issues)
 
@@ -33,7 +33,7 @@ The home screen shows up to four player cards; the active controller sits in the
 
 ### Agent XCTL
 
-Built-in handheld assistant rendered inside your chosen controller frame in the title bar. Ask in plain words — 100% offline with 3,048 handwritten phrases, **Tab** autocomplete, `+ New chat` cancellation, live **Check-up** drift audits, interactive RGB cards, help doc search, and multi-step **Undo**. It checks every edit against fixed safety rules before applying changes to PC mode, and nothing you type leaves your machine. Type **help** to see everything it can do.
+Built-in handheld assistant rendered inside your chosen controller frame in the title bar. Ask in plain words (100% offline with 3,048 handwritten phrases), **Tab** autocomplete, `+ New chat` cancellation, live **Check-up** drift audits, interactive RGB cards, help doc search, and multi-step **Undo**. It checks every edit against fixed safety rules before applying changes to PC mode, and nothing you type leaves your machine. Type **help** to see everything it can do.
 
 ### Studio
 
@@ -73,9 +73,9 @@ PC mode sits between your physical controller and games on Windows and Linux, ap
 - **Up to four controllers at once:** Each of the 4 player slots keeps its own settings, profiles, and virtual controller.
 - **Settings per game:** Assign a profile to any installed game so X20CTL switches automatically while that game is in front and returns to *Every game* otherwise.
 - **Switch settings off mid-game:** Hold **View + Menu** for a second to pause/disable PC mode in the middle of a game, and hold it again to turn settings back on. Closing X20CTL restores your pad immediately.
-- **Share settings with a friend:** Export or import any profile as a file or short share code — only controller settings are included, never personal data.
+- **Share settings with a friend:** Export or import any profile as a file or short share code: only controller settings are included, never personal data.
 - **Drivers on Windows:** On first use, PC mode installs two signed Nefarius drivers from hashes verified inside the installer: [ViGEmBus](https://github.com/nefarius/ViGEmBus) (`1.22.0`, virtual controller) and [HidHide](https://github.com/nefarius/HidHide) (`1.5.230`, hides the physical controller from double input). Remove either driver anytime in Windows Settings → Apps.
-- **Back paddles and turbo warning:** On pads whose rear paddles duplicate face/shoulder inputs, bind an unused button to play the macro slot in PC mode. **Turbo and macros can get you banned in online games** — check each game's rules before using them.
+- **Back paddles and turbo warning:** On pads whose rear paddles duplicate face/shoulder inputs, bind an unused button to play the macro slot in PC mode. **Turbo and macros can get you banned in online games** - check each game's rules before using them.
 
 #### Keyboard
 
@@ -118,7 +118,7 @@ Walks through every button, stick, trigger, report rate, and identity check loca
 
 Official builds from [**Release V0.025**](https://github.com/AmjadAAYD/x20ctl/releases/tag/v0.025) (`SHA256SUMS.txt`: [`SHA256SUMS.txt`](https://github.com/AmjadAAYD/x20ctl/releases/download/v0.025/SHA256SUMS.txt)):
 
-- **Windows 10/11 (x64):** Everything is bundled — you don't need to install .NET, Python, or a browser runtime.
+- **Windows 10/11 (x64):** Everything is bundled: you don't need to install .NET, Python, or a browser runtime.
   - Installer: [`X20CTL-V0.025-windows-x64-setup.exe`](https://github.com/AmjadAAYD/x20ctl/releases/download/v0.025/X20CTL-V0.025-windows-x64-setup.exe) (Start menu entry & Windows Apps uninstaller)
   - Portable single exe: [`X20CTL-V0.025-windows-x64.exe`](https://github.com/AmjadAAYD/x20ctl/releases/download/v0.025/X20CTL-V0.025-windows-x64.exe) (unpacks engine to temp folder on first launch)
 - **Linux (x86_64):**
