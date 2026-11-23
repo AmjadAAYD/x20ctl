@@ -25,8 +25,28 @@ internal static class AgentRumble
     public static async Task Pulse(int player, int ms = 260, ushort left = 20000, ushort right = 32000, double triggers = 0)
     {
         if (ReviewSandbox.Active) { ReviewPulse?.Invoke(ms, left, right); await Task.Delay(ms); return; }
-        if (triggers > 0 && Diagnostics.BrowserTriggerRumble.Shared is { Armed: true } browser)
-            Application.Current?.Dispatcher.BeginInvoke(() => _ = browser.Play(triggers, triggers, ms));
+        if (triggers > 0 &&
+            Diagnostics.BrowserTriggerRumble.Shared is { Armed: true, SupportsTriggerRumble: true, Failure: null } browser &&
+            Application.Current?.Dispatcher is { } dispatcher)
+        {
+            bool sent4 = false;
+            try
+            {
+                sent4 = await dispatcher.InvokeAsync(() => browser.Play4(left / 65535.0, right / 65535.0, triggers, triggers, ms)).Task.Unwrap();
+            }
+            catch { }
+            if (sent4)
+            {
+                await Task.Delay(ms);
+                return;
+            }
+        }
+        if (triggers > 0)
+        {
+            ushort trigMotor = (ushort)Math.Clamp(Math.Round(triggers * 65535.0), 0, 65535);
+            left = Math.Max(left, trigMotor);
+            right = Math.Max(right, trigMotor);
+        }
         if (left == 0 && right == 0) { await Task.Delay(ms); return; }
         try
         {

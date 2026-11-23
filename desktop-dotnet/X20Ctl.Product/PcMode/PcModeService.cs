@@ -406,7 +406,31 @@ static class HidHide
     [DllImport("cfgmgr32.dll")] static extern int CM_Get_Parent(out uint parent, uint devInst, uint flags);
     /// <summary>HidHideCLI --cloak-state answers "--cloak-on" or "--cloak-off".</summary>
     public static bool CloakIsOn() { try { return Run("--cloak-state").Contains("--cloak-on", StringComparison.OrdinalIgnoreCase); } catch (Exception) { return false; } }
-    public static void RegisterSelf() { if (Environment.ProcessPath is { } exe) Run("--app-reg", exe); }
+    public static void RegisterSelf()
+    {
+        if (Environment.ProcessPath is { } exe)
+            Run("--app-reg", exe);
+
+        foreach (var root in new[]
+        {
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        })
+        {
+            if (string.IsNullOrEmpty(root)) continue;
+            string appDir = Path.Combine(root, "Microsoft", "EdgeWebView", "Application");
+            if (!Directory.Exists(appDir)) continue;
+            try
+            {
+                foreach (var webviewExe in Directory.EnumerateFiles(appDir, "msedgewebview2.exe", SearchOption.AllDirectories))
+                {
+                    try { Run("--app-reg", webviewExe); } catch (Exception) { }
+                }
+            }
+            catch (Exception) { }
+        }
+    }
     public static void Hide(IEnumerable<string> paths) { foreach (var p in paths) Run("--dev-hide", p); }
     public static void CloakOn() => Run("--cloak-on");
     public static void Unhide(IEnumerable<string> paths, bool restoreCloak)

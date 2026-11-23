@@ -63,7 +63,7 @@ Step-by-step macro timeline for rear paddles (`M1–M4` on X20, `M1–M6` on X20
 
 #### Vibration
 
-Independent grip and trigger motor sliders (`Left/Right grip`, `Left/Right trigger`), isolated motor previews, and PC Mode game rumble amplification up to `200%`.
+Independent grip and trigger motor sliders (`Left/Right grip`, `Left/Right trigger`), isolated motor previews, and PC Mode game rumble amplification up to `200%`. On the X20 Pro over 2.4 GHz dongle or wired USB, press **M + BACK** on the controller to toggle LT/RT trigger vibration ON (linked to the left/right channels), or connect in Bluetooth mode (`Screen -> Mode -> BT`) for independent 4-motor trigger addressing.
 
 #### PC mode
 
