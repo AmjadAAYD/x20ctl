@@ -29,10 +29,10 @@ internal sealed class BrowserTriggerRumble
         let lastStreamTag = "";
         const supportsTriggerEffect = g => {
           if (!g || !g.vibrationActuator) return false;
-          const id = (g.id || "").toLowerCase();
-          if (id.includes("360") || id.includes("xinput standard gamepad")) return false;
           const fx = g.vibrationActuator.effects;
           if (Array.isArray(fx)) return fx.includes("trigger-rumble");
+          const id = (g.id || "").toLowerCase();
+          if (id.includes("360") || id.includes("xinput standard gamepad")) return false;
           return g.vibrationActuator.type === "trigger-rumble";
         };
         const pad = () => {
@@ -119,10 +119,6 @@ internal sealed class BrowserTriggerRumble
           }
           syncFocus(false);
           const effectType = d.dual ? "dual-rumble" : "trigger-rumble";
-          if (document.hasFocus()) {
-            streamOk = true;
-            tellStream("stream-ok:active");
-          }
           g.vibrationActuator.playEffect(effectType, {
             duration: d.ms || 160,
             startDelay: 0,
@@ -161,6 +157,7 @@ internal sealed class BrowserTriggerRumble
     int streamQueued;
     long waitingToArmUntilTick;
     long lastFocusAttemptTick;
+    long lastUiFocusKickTick;
 
     /// <summary>True once the browser has seen the controller (a button was pressed on it); trigger rumble works from then on.</summary>
     public bool Armed { get; private set; }
@@ -394,7 +391,7 @@ internal sealed class BrowserTriggerRumble
         return sent == "sent";
     }
 
-    bool TryFocusViewIfSafeOnUiThread()
+    bool TryFocusViewIfSafeOnUiThread(bool force = false)
     {
         HookHostWindowOnUiThread();
         if (Failure != null || !Armed || !SupportsTriggerRumble) return false;
@@ -404,6 +401,10 @@ internal sealed class BrowserTriggerRumble
             return false;
         if (Keyboard.FocusedElement is TextBoxBase or ComboBox or PasswordBox)
             return false;
+        long now = Environment.TickCount64;
+        if (!force && now - Volatile.Read(ref lastUiFocusKickTick) < 500)
+            return View.IsKeyboardFocusWithin;
+        Volatile.Write(ref lastUiFocusKickTick, now);
         if (View.IsKeyboardFocusWithin && !HasDocumentFocus)
             Keyboard.ClearFocus();
         bool focused = View.Focus();
@@ -421,7 +422,7 @@ internal sealed class BrowserTriggerRumble
         Volatile.Write(ref lastFocusAttemptTick, now);
         try
         {
-            View.Dispatcher.BeginInvoke(() => TryFocusViewIfSafeOnUiThread(), DispatcherPriority.Background);
+            View.Dispatcher.BeginInvoke(() => TryFocusViewIfSafeOnUiThread(force: true), DispatcherPriority.Background);
         }
         catch { }
     }
