@@ -310,4 +310,68 @@ public sealed class CustomLightingEffectsTests
             if (Directory.Exists(ckpt)) Directory.Delete(ckpt, true);
         }
     }
+
+    [Fact]
+    public void AudioLevelMeter_AttackReleaseClampingAndIdleDecay()
+    {
+        var clock = new SteppingTimeProvider();
+        var meter = new AudioLevelMeter(clock);
+
+        Assert.Equal(0f, meter.Level);
+
+        meter.Process([0.2f, -0.8f], 0.06);
+        float afterRise = meter.Level;
+        Assert.InRange(afterRise, 0.45f, 0.60f);
+
+        // NaN samples are ignored safely; release decays slower than attack.
+        clock.Advance(TimeSpan.FromMilliseconds(50));
+        meter.Process([float.NaN, 0f], 0.05);
+        float afterDecay = meter.Level;
+        Assert.InRange(afterDecay, 0.25f, afterRise);
+
+        // Idle timeout (> 0.50 s) drops stale level cleanly to zero.
+        clock.Advance(TimeSpan.FromMilliseconds(600));
+        Assert.Equal(0f, meter.Level);
+
+        meter.ProcessPeak(5.0f, 0.50);
+        Assert.InRange(meter.Level, 0.99f, 1.0f);
+        meter.Reset();
+        Assert.Equal(0f, meter.Level);
+    }
+
+    [Fact]
+    public void AudioReactive_EvaluatesPaletteStopsGainAndBrightness()
+    {
+        var threeStop = new LightingEffectSpec
+        {
+            Kind = LightingEffectKind.AudioReactive,
+            Palette = ["#0000FF", "#00FF00", "#FF0000"],
+            MinBrightness = 0x20,
+            MaxBrightness = 0xFF,
+            AudioSensitivity = 100, // gain = 0.5 + 3.5 = 4.0
+        };
+
+        var quiet = LightingEffectEngine.Evaluate(threeStop, TimeSpan.Zero, new LightingInputState(0, 0, 0, 0, false, 0, AudioLevel: 0.0));
+        var mid = LightingEffectEngine.Evaluate(threeStop, TimeSpan.Zero, new LightingInputState(0, 0, 0, 0, false, 0, AudioLevel: 0.125)); // 0.125 * 4 = 0.5
+        var peak = LightingEffectEngine.Evaluate(threeStop, TimeSpan.Zero, new LightingInputState(0, 0, 0, 0, false, 0, AudioLevel: 0.5)); // clamped to 1.0
+
+        Assert.Equal("#0000FF", quiet.Hex);
+        Assert.Equal(0x20, quiet.Brightness);
+        Assert.Equal("#00FF00", mid.Hex);
+        Assert.Equal("#FF0000", peak.Hex);
+        Assert.Equal(0xFF, peak.Brightness);
+
+        var twoStop = threeStop with { Palette = ["#102030", "#FFFFFF"], AudioSensitivity = 0 }; // gain = 0.5
+        var twoPeak = LightingEffectEngine.Evaluate(twoStop, TimeSpan.Zero, new LightingInputState(0, 0, 0, 0, false, 0, AudioLevel: 1.0)); // 0.5
+        Assert.InRange(twoPeak.R, 130, 140);
+        Assert.Equal(LightingRecord.ModeSolid, twoPeak.NativeMode);
+    }
+
+    sealed class SteppingTimeProvider : TimeProvider
+    {
+        long ticks = TimeSpan.TicksPerSecond;
+        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+        public override long GetTimestamp() => ticks;
+        public void Advance(TimeSpan delta) => ticks += delta.Ticks;
+    }
 }

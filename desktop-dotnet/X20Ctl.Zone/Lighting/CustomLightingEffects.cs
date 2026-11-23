@@ -22,6 +22,7 @@ public enum LightingEffectKind
     GameAutoProfile,
     ScreenAmbient,
     BatteryLevel,
+    AudioReactive,
 }
 
 public readonly record struct LightingFrame(byte R, byte G, byte B, byte Brightness, byte NativeMode = LightingRecord.ModeSolid)
@@ -38,7 +39,8 @@ public readonly record struct LightingInputState(
     double LeftTrigger,
     double RightTrigger,
     bool AnyButtonPressed,
-    double IdleSeconds);
+    double IdleSeconds,
+    double AudioLevel = 0.0);
 
 public sealed record LightingEffectSpec
 {
@@ -56,6 +58,7 @@ public sealed record LightingEffectSpec
     public int IdleTimeoutSeconds { get; init; } = 60;
     public bool RestoreOnStop { get; init; } = true;
     public int MaxSessionWrites { get; init; } = 0;
+    public int AudioSensitivity { get; init; } = 65;
 
     public bool IsNativeMode => Kind is LightingEffectKind.Solid or LightingEffectKind.NativeRainbow
         or LightingEffectKind.NativeBreathe or LightingEffectKind.NativeCycle or LightingEffectKind.NativeOff;
@@ -87,6 +90,7 @@ public sealed record LightingEffectSpec
             CyclePeriodMs = Math.Clamp(CyclePeriodMs, MinCyclePeriodMs, MaxCyclePeriodMs),
             IdleTimeoutSeconds = Math.Clamp(IdleTimeoutSeconds, 5, 1800),
             MaxSessionWrites = Math.Clamp(MaxSessionWrites, 0, 50000),
+            AudioSensitivity = Math.Clamp(AudioSensitivity, 0, 100),
         };
     }
 
@@ -136,6 +140,7 @@ public sealed record LightingEffectSpec
         LightingEffectKind.GameAutoProfile => "Auto by Foreground Game",
         LightingEffectKind.ScreenAmbient => "Ambient Screen Sync",
         LightingEffectKind.BatteryLevel => "Battery Level Indicator",
+        LightingEffectKind.AudioReactive => "Audio Reactive RGB",
         _ => kind.ToString(),
     };
 }
@@ -249,6 +254,15 @@ public static class LightingEffectEngine
             MaxBrightness = 0xE8,
             StepIntervalMs = 70,
         }),
+        BuiltIn("builtin-audio-reactive", "Audio Reactive RGB", new LightingEffectSpec
+        {
+            Kind = LightingEffectKind.AudioReactive,
+            Palette = ["#1B5CFF", "#00F5D4", "#FF1E56"],
+            MinBrightness = 0x18,
+            MaxBrightness = 0xFF,
+            StepIntervalMs = 65,
+            AudioSensitivity = 65,
+        }),
         BuiltIn("builtin-off", "LEDs Off (0x00)", new LightingEffectSpec
         {
             Kind = LightingEffectKind.NativeOff,
@@ -355,6 +369,20 @@ public static class LightingEffectEngine
                     ? Math.Clamp((input.IdleSeconds - spec.IdleTimeoutSeconds) / 3.0, 0.0, 1.0)
                     : 0.0;
                 return new(r0, g0, b0, LerpByte(maxB, minB, fade));
+            }
+            case LightingEffectKind.AudioReactive:
+            {
+                double gain = 0.5 + Math.Clamp(spec.AudioSensitivity, 0, 100) / 100.0 * 3.5;
+                double level = Math.Clamp(input.AudioLevel * gain, 0.0, 1.0);
+                var (r, g, b) = spec.Palette.Length switch
+                {
+                    1 => (r0, g0, b0),
+                    2 => LerpRgb((r0, g0, b0), LightingEffectSpec.ParseRgb(spec.Palette[1]), level),
+                    _ => level <= 0.5
+                        ? LerpRgb((r0, g0, b0), LightingEffectSpec.ParseRgb(spec.Palette[1]), level / 0.5)
+                        : LerpRgb(LightingEffectSpec.ParseRgb(spec.Palette[1]), LightingEffectSpec.ParseRgb(spec.Palette[2]), (level - 0.5) / 0.5),
+                };
+                return new(r, g, b, LerpByte(minB, maxB, level));
             }
             default:
                 return new(r0, g0, b0, maxB);

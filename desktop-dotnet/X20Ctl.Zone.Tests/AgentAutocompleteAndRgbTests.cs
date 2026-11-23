@@ -40,6 +40,11 @@ public sealed class AgentAutocompleteAndRgbTests
     [InlineData("palette jump", LightingEffectKind.PaletteStep)]
     [InlineData("multi-color jump", LightingEffectKind.PaletteStep)]
     [InlineData("game auto", LightingEffectKind.GameAutoProfile)]
+    [InlineData("audio reactive", LightingEffectKind.AudioReactive)]
+    [InlineData("music sync", LightingEffectKind.AudioReactive)]
+    [InlineData("sound reactive", LightingEffectKind.AudioReactive)]
+    [InlineData("beat sync", LightingEffectKind.AudioReactive)]
+    [InlineData("audio mode", LightingEffectKind.AudioReactive)]
     public void AgentLightingEffectsParsesAllStudioAndSyncModes(string text, LightingEffectKind expected)
     {
         Assert.True(AgentLightingEffects.TryParse(text, out var spec, out _));
@@ -52,6 +57,9 @@ public sealed class AgentAutocompleteAndRgbTests
     [InlineData("switch lights to battery mode")]
     [InlineData("set rgb to palette jump")]
     [InlineData("turn on screen sync")]
+    [InlineData("enable audio reactive")]
+    [InlineData("set lights to music sync")]
+    [InlineData("turn on beat sync")]
     public void AskedDetectsNewRgbAndSyncRequests(string sentence)
     {
         Assert.NotNull(AgentLightingEffects.Asked(sentence));
@@ -61,6 +69,7 @@ public sealed class AgentAutocompleteAndRgbTests
     public void EffectLabelsIncludeAmbientAndBattery()
     {
         Assert.Equal("Ambient Screen Sync", LightingEffectSpec.EffectLabel(LightingEffectKind.ScreenAmbient));
+        Assert.Equal("Audio Reactive RGB", LightingEffectSpec.EffectLabel(LightingEffectKind.AudioReactive));
         Assert.Equal("Battery Level Indicator", LightingEffectSpec.EffectLabel(LightingEffectKind.BatteryLevel));
     }
 
