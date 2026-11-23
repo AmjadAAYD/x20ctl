@@ -55,7 +55,10 @@ internal sealed class LightingEffectsSection
     private ColumnDefinition? lgEmptyCol, rgEmptyCol, ltEmptyCol, rtEmptyCol;
     private Border? beatBadge;
     private Button? armTriggersButton;
+    private Button? test4MotorButton;
     private TextBlock? triggerArmStatusText;
+    private string? testStatusText;
+    private long testStatusUntilTick;
     private readonly DispatcherTimer audioUiTimer = new() { Interval = TimeSpan.FromMilliseconds(60) };
 
     private static readonly LightingEffectKind[] GridKinds =
@@ -253,6 +256,13 @@ internal sealed class LightingEffectsSection
                 UpdateSliderLabels();
                 SyncPreviewDraft();
                 await LightingEffectsService.ApplyAsync(BuildCurrentEffectSpec());
+                if (!ReviewSandbox.Active &&
+                    kind == LightingEffectKind.AudioReactive &&
+                    selectedAudioHaptics > 0 &&
+                    Diagnostics.BrowserTriggerRumble.Shared is { Armed: true } shared)
+                {
+                    shared.EnsureFocusForAudioTriggers();
+                }
             };
             registerFocus?.Invoke(btn);
             kindButtons[kind] = btn;
@@ -269,7 +279,12 @@ internal sealed class LightingEffectsSection
         audioUiTimer.Tick += (_, _) => RefreshLiveAudioMeters();
         void OnTriggerArmChanged()
         {
-            stack.Dispatcher.BeginInvoke(RefreshTriggerArmState);
+            stack.Dispatcher.BeginInvoke(() =>
+            {
+                if (Diagnostics.BrowserTriggerRumble.Shared is { Armed: true })
+                    testStatusUntilTick = 0;
+                RefreshTriggerArmState();
+            });
         }
         stack.Loaded += (_, _) =>
         {
@@ -277,6 +292,8 @@ internal sealed class LightingEffectsSection
             {
                 shared.ArmedChanged -= OnTriggerArmChanged;
                 shared.ArmedChanged += OnTriggerArmChanged;
+                shared.StateChanged -= OnTriggerArmChanged;
+                shared.StateChanged += OnTriggerArmChanged;
                 _ = shared.Ready();
             }
             RefreshTriggerArmState();
@@ -286,7 +303,11 @@ internal sealed class LightingEffectsSection
         {
             audioUiTimer.Stop();
             if (Diagnostics.BrowserTriggerRumble.Shared is { } shared)
+            {
                 shared.ArmedChanged -= OnTriggerArmChanged;
+                shared.StateChanged -= OnTriggerArmChanged;
+                shared.CancelListen();
+            }
             if (!LightingEffectsService.Status.IsRunning)
                 SystemAudioLevelSampler.Reset();
         };
@@ -315,14 +336,13 @@ internal sealed class LightingEffectsSection
             ("Aurora", ["#00FF9D", "#00B8FF", "#9D4EDD"]),
         })
         {
-            paletteActions.Children.Add(SmallButton(name, () =>
+            paletteActions.Children.Add(SmallButton(name, async () =>
             {
                 palette.Clear();
                 palette.AddRange(stops);
                 RenderPaletteSwatches();
                 SyncPreviewDraft();
-                if (LightingEffectsService.Status.IsRunning)
-                    _ = LightingEffectsService.ApplyAsync(BuildCurrentEffectSpec());
+                await ApplyOrHotUpdateAudioAsync();
             }).Also(b => b.Margin = new(0, 0, 6, 6)));
         }
         stack.Children.Add(paletteActions);
@@ -332,17 +352,32 @@ internal sealed class LightingEffectsSection
             if (minBrightSlider.Value > maxBrightSlider.Value && !syncing) maxBrightSlider.Value = Math.Max(1, minBrightSlider.Value);
             UpdateSliderLabels();
             SyncPreviewDraft();
+            if (!syncing && selectedKind == LightingEffectKind.AudioReactive && LightingEffectsService.Status.IsRunning)
+                LightingEffectsService.UpdateRunningSpec(BuildCurrentEffectSpec(), remember: false);
         };
         maxBrightSlider.ValueChanged += (_, _) =>
         {
             if (maxBrightSlider.Value < minBrightSlider.Value && !syncing) minBrightSlider.Value = maxBrightSlider.Value;
             UpdateSliderLabels();
             SyncPreviewDraft();
+            if (!syncing && selectedKind == LightingEffectKind.AudioReactive && LightingEffectsService.Status.IsRunning)
+                LightingEffectsService.UpdateRunningSpec(BuildCurrentEffectSpec(), remember: false);
         };
         intervalSlider.ValueChanged += (_, _) => UpdateSliderLabels();
         periodSlider.ValueChanged += (_, _) => { UpdateSliderLabels(); SyncPreviewDraft(); };
         idleSlider.ValueChanged += (_, _) => UpdateSliderLabels();
-        audioSensSlider.ValueChanged += (_, _) => { UpdateSliderLabels(); SyncPreviewDraft(); };
+        audioSensSlider.ValueChanged += (_, _) =>
+        {
+            UpdateSliderLabels();
+            SyncPreviewDraft();
+            if (!syncing && selectedKind == LightingEffectKind.AudioReactive && LightingEffectsService.Status.IsRunning)
+                LightingEffectsService.UpdateRunningSpec(BuildCurrentEffectSpec(), remember: false);
+        };
+        audioSensSlider.LostMouseCapture += (_, _) =>
+        {
+            if (!syncing && selectedKind == LightingEffectKind.AudioReactive && LightingEffectsService.Status.IsRunning)
+                LightingEffectsService.UpdateRunningSpec(BuildCurrentEffectSpec(), remember: true);
+        };
 
         stack.Children.Add(maxBrightLabel);
         stack.Children.Add(maxBrightSlider);
@@ -558,8 +593,7 @@ internal sealed class LightingEffectsSection
                 }
                 UpdateSelectionButtons();
                 SyncPreviewDraft();
-                if (LightingEffectsService.Status.IsRunning)
-                    await LightingEffectsService.ApplyAsync(BuildCurrentEffectSpec());
+                await ApplyOrHotUpdateAudioAsync();
             };
             registerFocus?.Invoke(btn);
             audioStyleButtons[captured] = btn;
@@ -588,8 +622,7 @@ internal sealed class LightingEffectsSection
                 selectedAudioHaptics = captured;
                 UpdateSelectionButtons();
                 SyncPreviewDraft();
-                if (LightingEffectsService.Status.IsRunning)
-                    await LightingEffectsService.ApplyAsync(BuildCurrentEffectSpec());
+                await ApplyOrHotUpdateAudioAsync(autoStartIfStopped: captured > 0);
             };
             registerFocus?.Invoke(btn);
             audioHapticsButtons[captured] = btn;
@@ -616,8 +649,7 @@ internal sealed class LightingEffectsSection
                 selectedAudioHapticsMode = captured;
                 UpdateSelectionButtons();
                 SyncPreviewDraft();
-                if (LightingEffectsService.Status.IsRunning)
-                    await LightingEffectsService.ApplyAsync(BuildCurrentEffectSpec());
+                await ApplyOrHotUpdateAudioAsync();
             };
             registerFocus?.Invoke(btn);
             audioHapticsModeButtons[captured] = btn;
@@ -665,7 +697,7 @@ internal sealed class LightingEffectsSection
         motorsRow.Children.Add(rtCell);
         body.Children.Add(motorsRow);
 
-        var armRow = new DockPanel { Margin = new(0, 2, 0, 0) };
+        var armButtons = new WrapPanel { Margin = new(0, 2, 0, 4) };
         armTriggersButton = new Button
         {
             Content = "Arm Triggers (4-Motor)",
@@ -674,24 +706,83 @@ internal sealed class LightingEffectsSection
             FontSize = 11.5,
             MinHeight = 28,
             Height = double.NaN,
-            Margin = new(0, 0, 8, 0),
+            Margin = new(0, 0, 6, 4),
         };
         armTriggersButton.Click += async (_, _) =>
         {
             var shared = Diagnostics.BrowserTriggerRumble.Shared;
             if (shared == null)
             {
-                if (triggerArmStatusText != null) triggerArmStatusText.Text = "Trigger rumble host unavailable here.";
+                testStatusText = "Trigger rumble host unavailable here.";
+                testStatusUntilTick = Environment.TickCount64 + 3500;
+                RefreshTriggerArmState();
                 return;
             }
             await shared.Listen();
+            if (!shared.Armed && shared.Failure == null)
+            {
+                testStatusText = "Press any controller button now to unlock LT/RT triggers.";
+                testStatusUntilTick = Environment.TickCount64 + 20_000;
+            }
+            else
+            {
+                testStatusUntilTick = 0;
+            }
             RefreshTriggerArmState();
-            if (!shared.Armed && shared.Failure == null && triggerArmStatusText != null)
-                triggerArmStatusText.Text = "Press any controller button now to unlock triggers.";
         };
         registerFocus?.Invoke(armTriggersButton);
-        DockPanel.SetDock(armTriggersButton, Dock.Left);
-        armRow.Children.Add(armTriggersButton);
+        armButtons.Children.Add(armTriggersButton);
+
+        test4MotorButton = new Button
+        {
+            Content = "Test 4-Motor",
+            Style = DS.Style("ActionButton"),
+            Padding = new(10, 4, 10, 4),
+            FontSize = 11.5,
+            MinHeight = 28,
+            Height = double.NaN,
+            Margin = new(0, 0, 0, 4),
+        };
+        test4MotorButton.Click += async (_, _) =>
+        {
+            test4MotorButton.IsEnabled = false;
+            try
+            {
+                int slot = ControllerRumble.FindPhysicalSlot();
+                var shared = Diagnostics.BrowserTriggerRumble.Shared;
+                bool armed = shared is { Armed: true, Failure: null };
+                testStatusText = armed ? "Pulsing all 4 motors..." : "Pulsing XInput grips...";
+                testStatusUntilTick = Environment.TickCount64 + 3500;
+                RefreshTriggerArmState();
+
+                Task<bool> gripTask = ControllerRumble.Test(70, 70, 450);
+                Task<bool> trigTask = armed ? shared!.Play4(0.70, 0.70, 0.95, 0.95, 450) : Task.FromResult(false);
+                bool gripsOk = await gripTask;
+                bool trigOk = await trigTask;
+
+                if (gripsOk && trigOk)
+                    testStatusText = $"4-Motor pulse sent (Slot {slot} Grips + LT/RT Triggers)";
+                else if (gripsOk && !armed)
+                    testStatusText = $"Grips pulsed (Slot {slot}) · Click Arm Triggers + press pad button for LT/RT";
+                else if (gripsOk)
+                    testStatusText = $"Grips pulsed (Slot {slot}) · Trigger route idle";
+                else if (trigOk)
+                    testStatusText = "Triggers pulsed · No XInput slot found for grips";
+                else
+                    testStatusText = "No XInput controller found (check 2.4G dongle or cable)";
+                testStatusUntilTick = Environment.TickCount64 + 4000;
+                if (armed && selectedKind == LightingEffectKind.AudioReactive && selectedAudioHaptics > 0)
+                    shared!.EnsureFocusForAudioTriggers();
+                RefreshTriggerArmState();
+            }
+            finally
+            {
+                test4MotorButton.IsEnabled = true;
+            }
+        };
+        registerFocus?.Invoke(test4MotorButton);
+        armButtons.Children.Add(test4MotorButton);
+        body.Children.Add(armButtons);
 
         triggerArmStatusText = new TextBlock
         {
@@ -700,11 +791,26 @@ internal sealed class LightingEffectsSection
             VerticalAlignment = VerticalAlignment.Center,
             TextWrapping = TextWrapping.Wrap,
         };
-        armRow.Children.Add(triggerArmStatusText);
-        body.Children.Add(armRow);
+        body.Children.Add(triggerArmStatusText);
 
         box.Child = body;
         return box;
+    }
+
+    private async Task ApplyOrHotUpdateAudioAsync(bool autoStartIfStopped = false)
+    {
+        var spec = BuildCurrentEffectSpec();
+        bool updated = LightingEffectsService.UpdateRunningSpec(spec);
+        if (!updated && (autoStartIfStopped || LightingEffectsService.Status.IsRunning))
+            await LightingEffectsService.ApplyAsync(spec);
+
+        if (!ReviewSandbox.Active &&
+            selectedKind == LightingEffectKind.AudioReactive &&
+            selectedAudioHaptics > 0 &&
+            Diagnostics.BrowserTriggerRumble.Shared is { Armed: true } shared)
+        {
+            shared.EnsureFocusForAudioTriggers();
+        }
     }
 
     private void RefreshTriggerArmState()
@@ -713,35 +819,72 @@ internal sealed class LightingEffectsSection
         if (ReviewSandbox.Active)
         {
             armTriggersButton.Visibility = Visibility.Collapsed;
-            triggerArmStatusText.Text = "Sandbox mode: simulating all 4 motors";
+            if (test4MotorButton != null) test4MotorButton.Visibility = Visibility.Collapsed;
+            if (triggerArmStatusText.Text != "Sandbox mode: simulating all 4 motors")
+                triggerArmStatusText.Text = "Sandbox mode: simulating all 4 motors";
             return;
         }
+
+        if (test4MotorButton != null)
+            test4MotorButton.Visibility = Visibility.Visible;
+
         var shared = Diagnostics.BrowserTriggerRumble.Shared;
-        if (shared == null)
+        shared?.SyncHostWindowActiveOnUiThread();
+        bool armed = shared is { Armed: true };
+        if (shared == null || shared.Failure != null)
         {
+            armTriggersButton.Visibility = Visibility.Visible;
             armTriggersButton.IsEnabled = false;
-            triggerArmStatusText.Text = "Grips active via XInput";
-            return;
         }
-        if (shared.Failure != null)
-        {
-            armTriggersButton.IsEnabled = false;
-            triggerArmStatusText.Text = shared.Failure;
-            return;
-        }
-        if (shared.Armed)
+        else if (armed)
         {
             armTriggersButton.Visibility = Visibility.Collapsed;
-            triggerArmStatusText.Foreground = DS.Brush("DS.AccentHi");
-            triggerArmStatusText.Text = "4-Motor Armed · Grips + LT/RT Triggers Live";
         }
         else
         {
             armTriggersButton.Visibility = Visibility.Visible;
             armTriggersButton.IsEnabled = true;
-            triggerArmStatusText.Foreground = DS.Brush("DS.TextMuted");
-            triggerArmStatusText.Text = "Click Arm & press a pad button for LT/RT triggers";
         }
+
+        string nextText;
+        Brush nextColor;
+        if (testStatusUntilTick != 0 && Environment.TickCount64 < testStatusUntilTick && !string.IsNullOrEmpty(testStatusText))
+        {
+            nextText = testStatusText;
+            nextColor = DS.Brush("DS.AccentHi");
+        }
+        else if (LightingEffectsService.Status.IsRunning && selectedKind == LightingEffectKind.AudioReactive)
+        {
+            nextText = SystemAudioLevelSampler.HapticsPathSummary;
+            nextColor = SystemAudioLevelSampler.TriggersStreaming ? DS.Brush("DS.AccentHi") : DS.Brush("DS.TextSoft");
+        }
+        else if (shared == null)
+        {
+            nextText = "Grips active via XInput";
+            nextColor = DS.Brush("DS.TextMuted");
+        }
+        else if (shared.Failure != null)
+        {
+            nextText = shared.Failure;
+            nextColor = DS.Brush("DS.TextMuted");
+        }
+        else if (armed)
+        {
+            nextText = "4-Motor Armed · Pick Light/Punch/Max to feel Grips + LT/RT";
+            nextColor = DS.Brush("DS.AccentHi");
+        }
+        else
+        {
+            nextText = shared.WaitingToArm
+                ? "Press any pad button now to unlock LT/RT triggers."
+                : "Click Arm Triggers & press a pad button for LT/RT triggers";
+            nextColor = DS.Brush("DS.TextMuted");
+        }
+
+        if (!Equals(triggerArmStatusText.Foreground, nextColor))
+            triggerArmStatusText.Foreground = nextColor;
+        if (triggerArmStatusText.Text != nextText)
+            triggerArmStatusText.Text = nextText;
     }
 
     private void SyncAudioTimer()
@@ -780,6 +923,7 @@ internal sealed class LightingEffectsSection
             hf = selectedAudioHaptics > 0 && LightingEffectsService.Status.IsRunning
                 ? SystemAudioLevelSampler.LatestHaptics
                 : AudioHapticsEngine.Evaluate(af, selectedAudioHapticsMode, selectedAudioHaptics, 0.0);
+            RefreshTriggerArmState();
         }
 
         static void SetBar(ColumnDefinition? fill, ColumnDefinition? empty, float v)

@@ -80,7 +80,7 @@ internal static class LightingEffectsService
         }
     }
 
-    public static LightingEffectSpec CurrentSpec => currentSpec;
+    public static LightingEffectSpec CurrentSpec => Volatile.Read(ref currentSpec);
     public static LightingFrame PreviewFrame => previewFrame;
 
     public static LightingEffectsStatus Status => new(
@@ -128,26 +128,26 @@ internal static class LightingEffectsService
 
     public static LightingFrame EvaluatePreview()
     {
-        var spec = currentSpec;
+        var spec = Volatile.Read(ref currentSpec);
         if (spec.Kind == LightingEffectKind.GameAutoProfile)
         {
             var resolved = ResolveEffectiveGameSpec(spec, out _);
             spec = resolved;
         }
         var (input, pressAge) = ReadInputState();
-        var frame = EvaluateFrame(spec, DateTimeOffset.UtcNow - effectStartUtc, input, pressAge);
+        var frame = EvaluateFrame(spec, DateTimeOffset.UtcNow - effectStartUtc, input, pressAge, driveHaptics: false);
         previewFrame = frame;
         return frame;
     }
 
-    static LightingFrame EvaluateFrame(LightingEffectSpec spec, TimeSpan elapsed, LightingInputState input, TimeSpan? pressAge)
+    static LightingFrame EvaluateFrame(LightingEffectSpec spec, TimeSpan elapsed, LightingInputState input, TimeSpan? pressAge, bool driveHaptics)
     {
         if (spec.Kind == LightingEffectKind.ScreenAmbient && !ReviewSandbox.Active)
             return ScreenAmbientSampler.Sample(spec);
         if (spec.Kind == LightingEffectKind.AudioReactive)
         {
             if (!ReviewSandbox.Active)
-                return SystemAudioLevelSampler.Sample(spec, elapsed, input, pressAge);
+                return SystemAudioLevelSampler.Sample(spec, elapsed, input, pressAge, driveHaptics);
             double t = elapsed.TotalSeconds;
             double beatCycle = (t * 2.0) % 1.0;
             double beatPulse = Math.Exp(-beatCycle * 5.0);
@@ -177,9 +177,42 @@ internal static class LightingEffectsService
     public static void SetPreviewDraft(LightingEffectSpec draftSpec)
     {
         if (wantRunning) return;
-        currentSpec = draftSpec.Normalized();
+        Volatile.Write(ref currentSpec, draftSpec.Normalized());
         previewFrame = EvaluatePreview();
         Changed?.Invoke();
+    }
+
+    public static bool UpdateRunningSpec(LightingEffectSpec rawSpec, bool remember = true)
+    {
+        var spec = rawSpec.Normalized();
+        if (!ControlLock.Wait(0)) return false;
+        try
+        {
+            if (!wantRunning || spec.IsNativeMode || workerTask is not { IsCompleted: false })
+                return false;
+            if (currentSpec.Kind != spec.Kind || currentSpec.Kind == LightingEffectKind.GameAutoProfile)
+                return false;
+            Volatile.Write(ref currentSpec, spec);
+        }
+        finally
+        {
+            ControlLock.Release();
+        }
+
+        if (spec.Kind == LightingEffectKind.AudioReactive && spec.AudioHapticsStrength <= 0 && !ReviewSandbox.Active)
+            SystemAudioLevelSampler.SilenceHapticsNow();
+
+        if (remember && !ReviewSandbox.Active)
+        {
+            try { Store.RememberLastEffect(spec); } catch { }
+        }
+
+        if (WakeSignal.CurrentCount == 0)
+        {
+            try { WakeSignal.Release(); } catch (SemaphoreFullException) { }
+        }
+        Changed?.Invoke();
+        return true;
     }
 
     public static async Task<LightingEffectsStatus> ApplyAsync(LightingEffectSpec rawSpec, bool remember = true)
@@ -380,7 +413,8 @@ internal static class LightingEffectsService
             {
                 EvaluatePreview();
                 Changed?.Invoke();
-                try { await Task.Delay(rootSpec.StepIntervalMs, ct); } catch (OperationCanceledException) { break; }
+                int step = Volatile.Read(ref currentSpec).StepIntervalMs;
+                try { await Task.Delay(step, ct); } catch (OperationCanceledException) { break; }
             }
             return;
         }
@@ -391,7 +425,7 @@ internal static class LightingEffectsService
             return;
         }
 
-        await RunStreamSpecAsync(rootSpec, ct);
+        await RunStreamSpecAsync(rootSpec, ct, followLiveSpec: true);
     }
 
     static async Task RunGameAutoLoopAsync(LightingEffectSpec rootSpec, CancellationToken ct)
@@ -453,18 +487,39 @@ internal static class LightingEffectsService
         }
     }
 
-    static async Task RunStreamSpecAsync(LightingEffectSpec spec, CancellationToken ct)
+    static async Task RunStreamSpecAsync(LightingEffectSpec spec, CancellationToken ct, bool followLiveSpec = false)
     {
         int consecutiveErrors = 0;
         while (!ct.IsCancellationRequested)
         {
+            var initialSpec = followLiveSpec ? Volatile.Read(ref currentSpec) : spec;
             try
             {
-                await using var session = await LightingBleClient.OpenStreamAsync(ct);
+                var openTask = LightingBleClient.OpenStreamAsync(ct);
+                if (initialSpec.Kind == LightingEffectKind.AudioReactive)
+                {
+                    var lastConnectNotify = DateTimeOffset.UtcNow;
+                    while (!openTask.IsCompleted && !ct.IsCancellationRequested)
+                    {
+                        var activeSpec = followLiveSpec ? Volatile.Read(ref currentSpec) : spec;
+                        if (activeSpec.Kind != LightingEffectKind.AudioReactive) break;
+                        var (input, pressAge) = ReadInputState();
+                        previewFrame = EvaluateFrame(activeSpec, DateTimeOffset.UtcNow - effectStartUtc, input, pressAge, driveHaptics: true);
+                        var now = DateTimeOffset.UtcNow;
+                        if ((now - lastConnectNotify).TotalMilliseconds >= 220)
+                        {
+                            lastConnectNotify = now;
+                            Changed?.Invoke();
+                        }
+                        int step = Math.Clamp(activeSpec.StepIntervalMs, LightingEffectSpec.MinStepIntervalMs, 150);
+                        await Task.WhenAny(openTask, Task.Delay(step, ct));
+                    }
+                }
+                await using var session = await openTask;
                 isBleConnected = true;
                 consecutiveErrors = 0;
                 lastError = null;
-                summary = $"Streaming {LightingEffectSpec.EffectLabel(spec.Kind)} on BLE";
+                summary = $"Streaming {LightingEffectSpec.EffectLabel(initialSpec.Kind)} on BLE";
                 Changed?.Invoke();
 
                 var lastSentUtc = DateTimeOffset.MinValue;
@@ -472,8 +527,9 @@ internal static class LightingEffectsService
                 {
                     while (!ct.IsCancellationRequested)
                     {
+                        var activeSpec = followLiveSpec ? Volatile.Read(ref currentSpec) : spec;
                         var (input, pressAge) = ReadInputState();
-                        var frame = EvaluateFrame(spec, DateTimeOffset.UtcNow - effectStartUtc, input, pressAge);
+                        var frame = EvaluateFrame(activeSpec, DateTimeOffset.UtcNow - effectStartUtc, input, pressAge, driveHaptics: true);
                         previewFrame = frame;
 
                         bool sent = await session.SendFrameAsync(frame, ct);
@@ -490,7 +546,7 @@ internal static class LightingEffectsService
                         }
                         Changed?.Invoke();
 
-                        if (spec.MaxSessionWrites > 0 && sessionWrites >= spec.MaxSessionWrites)
+                        if (activeSpec.MaxSessionWrites > 0 && sessionWrites >= activeSpec.MaxSessionWrites)
                         {
                             wantRunning = false;
                             summary = $"Stopped at write budget ({sessionWrites} writes)";
@@ -498,7 +554,7 @@ internal static class LightingEffectsService
                             return;
                         }
 
-                        int waitMs = spec.StepIntervalMs;
+                        int waitMs = activeSpec.StepIntervalMs;
                         await Task.WhenAny(
                             Task.Delay(waitMs, ct),
                             WakeSignal.WaitAsync(ct));
@@ -526,6 +582,34 @@ internal static class LightingEffectsService
                 isBleConnected = false;
                 consecutiveErrors++;
                 lastError = ex.Message;
+                var activeSpec = followLiveSpec ? Volatile.Read(ref currentSpec) : spec;
+                if (activeSpec.Kind == LightingEffectKind.AudioReactive)
+                {
+                    // Keep WASAPI FFT + 4-motor Audio Haptics running over 2.4 GHz dongle even while BLE retries.
+                    summary = $"Audio Haptics live · BLE retrying ({ex.Message})";
+                    Changed?.Invoke();
+                    int retryMs = Math.Min(6000, consecutiveErrors * 2000);
+                    var retryDeadline = DateTimeOffset.UtcNow.AddMilliseconds(retryMs);
+                    var lastNotify = DateTimeOffset.UtcNow;
+                    while (!ct.IsCancellationRequested && DateTimeOffset.UtcNow < retryDeadline)
+                    {
+                        activeSpec = followLiveSpec ? Volatile.Read(ref currentSpec) : spec;
+                        if (activeSpec.Kind != LightingEffectKind.AudioReactive) break;
+                        var (input, pressAge) = ReadInputState();
+                        previewFrame = EvaluateFrame(activeSpec, DateTimeOffset.UtcNow - effectStartUtc, input, pressAge, driveHaptics: true);
+                        var now = DateTimeOffset.UtcNow;
+                        if ((now - lastNotify).TotalMilliseconds >= 220)
+                        {
+                            lastNotify = now;
+                            Changed?.Invoke();
+                        }
+                        int step = Math.Clamp(activeSpec.StepIntervalMs, LightingEffectSpec.MinStepIntervalMs, 150);
+                        try { await Task.Delay(step, ct); }
+                        catch (OperationCanceledException) { return; }
+                    }
+                    continue;
+                }
+
                 summary = $"BLE stream paused ({ex.Message})";
                 Changed?.Invoke();
                 if (consecutiveErrors >= 5)

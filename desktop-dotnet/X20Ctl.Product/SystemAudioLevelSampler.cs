@@ -41,11 +41,20 @@ internal static class SystemAudioLevelSampler
     static long lastMeterTick;
 
     static int activeRumbleSlot = -1;
+    static int lastKnownSlot = -1;
     static bool rumbleActive;
     static bool triggerStreamActive;
+    static volatile bool triggersStreamingLive;
+    static long lastTriggerDispatchTick;
+    static double lastSentLt, lastSentRt;
 
     public static AudioFrame LatestFrame => Analyzer.CurrentFrame;
     public static HapticsFrame LatestHaptics { get; private set; }
+    public static int ActiveXInputSlot => Volatile.Read(ref lastKnownSlot);
+    public static bool TriggersStreaming => triggersStreamingLive;
+    public static string HapticsPathSummary { get; private set; } = "Haptics idle";
+
+    public static void SilenceHapticsNow() => SilenceHaptics();
 
     public static void EnsureStarted()
     {
@@ -71,11 +80,13 @@ internal static class SystemAudioLevelSampler
         LightingEffectSpec spec,
         TimeSpan elapsed,
         LightingInputState input,
-        TimeSpan? pressAge)
+        TimeSpan? pressAge,
+        bool driveHaptics = true)
     {
         EnsureStarted();
         var frame = SampleAudioFrame();
-        UpdateAudioHaptics(spec, frame, elapsed.TotalSeconds);
+        if (driveHaptics)
+            UpdateAudioHaptics(spec, frame, elapsed.TotalSeconds);
 
         var enriched = input with
         {
@@ -135,6 +146,7 @@ internal static class SystemAudioLevelSampler
         {
             stopRequested = true;
             loopbackActive = false;
+            lastLoopbackRetryTick = 0;
             toJoin = captureThread;
             captureThread = null;
         }
@@ -158,8 +170,13 @@ internal static class SystemAudioLevelSampler
         if (spec.AudioHapticsStrength <= 0)
         {
             SilenceHaptics();
+            HapticsPathSummary = "Audio Haptics off · pick Light, Punch, or Max";
             return;
         }
+
+        var browser = Diagnostics.BrowserTriggerRumble.Shared;
+        bool canUseTriggers = browser is { Armed: true, Failure: null, SupportsTriggerRumble: true };
+        bool triggersForegroundLive = canUseTriggers && browser!.IsHostWindowActive;
 
         var hf = AudioHapticsEngine.Evaluate(frame, spec.AudioHapticsStyle, spec.AudioHapticsStrength, elapsedSec);
         LatestHaptics = hf;
@@ -167,39 +184,118 @@ internal static class SystemAudioLevelSampler
         if (hf.IsSilent)
         {
             SilenceHaptics();
+            int probedSlot = ControllerRumble.FindPhysicalSlot();
+            Volatile.Write(ref lastKnownSlot, probedSlot);
+            UpdateHapticsSummary(probedSlot, browser, triggersForegroundLive);
             return;
         }
 
-        var browser = Diagnostics.BrowserTriggerRumble.Shared;
-        if (browser is { Armed: true })
-        {
-            browser.Stream4(hf.LeftGrip, hf.RightGrip, hf.LeftTrigger, hf.RightTrigger, Math.Max(140, spec.StepIntervalMs * 2));
-            triggerStreamActive = true;
+        // Always drive XInput grips; keep grips separated when foreground trigger streaming is active,
+        // otherwise fold trigger accents into grips so background music or unarmed pads still feel every hit.
+        double gripL = triggersForegroundLive ? hf.LeftGrip : Math.Max(hf.LeftGrip, hf.LeftTrigger * 0.72);
+        double gripR = triggersForegroundLive ? hf.RightGrip : Math.Max(hf.RightGrip, hf.RightTrigger * 0.85);
+        int leftMotor = (int)Math.Clamp(Math.Round(gripL * 65535.0), 0, 65535);
+        int rightMotor = (int)Math.Clamp(Math.Round(gripR * 65535.0), 0, 65535);
+        int activeSlot = ApplyXInputGrips(leftMotor, rightMotor);
 
-            // If X20CTL is backgrounded or Chromium blocks unfocused playEffect, seamlessly fall back to XInput grips.
-            if (browser.StreamLive)
+        if (triggersForegroundLive)
+        {
+            long now = Environment.TickCount64;
+            long elapsedSinceDispatch = lastTriggerDispatchTick == 0 ? 1000 : now - lastTriggerDispatchTick;
+            bool hasTriggerDrive = hf.LeftTrigger > 0.01 || hf.RightTrigger > 0.01;
+
+            if (hasTriggerDrive)
             {
-                ClearGripXInputOnly();
-                return;
+                bool sharpOnset = (hf.LeftTrigger - lastSentLt >= 0.24 || hf.RightTrigger - lastSentRt >= 0.24) && elapsedSinceDispatch >= 65;
+                if (!triggerStreamActive || elapsedSinceDispatch >= 115 || sharpOnset)
+                {
+                    browser!.Stream4(hf.LeftGrip, hf.RightGrip, hf.LeftTrigger, hf.RightTrigger, 240);
+                    triggerStreamActive = true;
+                    lastTriggerDispatchTick = now;
+                    lastSentLt = hf.LeftTrigger;
+                    lastSentRt = hf.RightTrigger;
+                }
+                triggersStreamingLive = browser!.StreamLive || browser.HasDocumentFocus;
+            }
+            else if (triggerStreamActive)
+            {
+                browser!.Stream4(hf.LeftGrip, hf.RightGrip, 0, 0, 60);
+                triggerStreamActive = false;
+                triggersStreamingLive = false;
+                lastTriggerDispatchTick = now;
+                lastSentLt = 0;
+                lastSentRt = 0;
             }
         }
+        else if (triggerStreamActive)
+        {
+            triggerStreamActive = false;
+            triggersStreamingLive = false;
+            lastSentLt = 0;
+            lastSentRt = 0;
+            browser?.StopStream();
+        }
+        else
+        {
+            triggersStreamingLive = false;
+        }
 
-        // Fold trigger accent subtly into XInput grips when triggers aren't armed yet or window is unfocused.
-        int leftMotor = (int)Math.Clamp(Math.Round(Math.Max(hf.LeftGrip, hf.LeftTrigger * 0.70) * 65535.0), 0, 65535);
-        int rightMotor = (int)Math.Clamp(Math.Round(Math.Max(hf.RightGrip, hf.RightTrigger * 0.85) * 65535.0), 0, 65535);
-        ApplyXInputGrips(leftMotor, rightMotor);
+        UpdateHapticsSummary(activeSlot, browser, triggersForegroundLive);
     }
 
-    static void ApplyXInputGrips(int leftMotor, int rightMotor)
+    static void UpdateHapticsSummary(int slot, Diagnostics.BrowserTriggerRumble? browser, bool triggersForegroundLive)
+    {
+        if (slot < 0)
+        {
+            HapticsPathSummary = "No XInput pad found · check 2.4G dongle or cable";
+            return;
+        }
+        if (browser == null)
+        {
+            HapticsPathSummary = $"Grips live (XInput Slot {slot})";
+            return;
+        }
+        if (browser.Failure != null)
+        {
+            HapticsPathSummary = $"Grips live (Slot {slot}) · {browser.Failure}";
+            return;
+        }
+        if (!browser.Armed)
+        {
+            HapticsPathSummary = browser.WaitingToArm
+                ? $"Grips live (Slot {slot}) · Press any pad button now for LT/RT"
+                : $"Grips live (Slot {slot}) · Click Arm Triggers for LT/RT";
+            return;
+        }
+        if (!browser.SupportsTriggerRumble)
+        {
+            HapticsPathSummary = $"Grips live (Slot {slot}) · Pad reports dual-rumble only";
+            return;
+        }
+        if (!triggersForegroundLive || !browser.IsHostWindowActive)
+        {
+            HapticsPathSummary = $"Grips live (Slot {slot}) · Triggers paused in background";
+            return;
+        }
+        if (triggersStreamingLive || browser.StreamLive || browser.HasDocumentFocus)
+        {
+            HapticsPathSummary = $"4-Motor Live (Slot {slot} Grips + LT/RT Triggers)";
+            return;
+        }
+        HapticsPathSummary = $"Grips live (Slot {slot}) · Trigger state: {browser.LastStreamState}";
+    }
+
+    static int ApplyXInputGrips(int leftMotor, int rightMotor)
     {
         lock (HapticsLock)
         {
             int slot = ControllerRumble.FindPhysicalSlot();
+            Volatile.Write(ref lastKnownSlot, slot);
             if (slot < 0)
             {
                 rumbleActive = false;
                 activeRumbleSlot = -1;
-                return;
+                return -1;
             }
             if (rumbleActive && activeRumbleSlot >= 0 && activeRumbleSlot != slot)
                 ControllerRumble.Set(activeRumbleSlot, 0, 0);
@@ -212,12 +308,13 @@ internal static class SystemAudioLevelSampler
                     rumbleActive = false;
                 }
                 activeRumbleSlot = slot;
-                return;
+                return slot;
             }
 
             ControllerRumble.Set(slot, leftMotor, rightMotor);
             activeRumbleSlot = slot;
             rumbleActive = true;
+            return slot;
         }
     }
 
@@ -234,6 +331,10 @@ internal static class SystemAudioLevelSampler
     static void SilenceHaptics()
     {
         LatestHaptics = HapticsFrame.Zero;
+        triggersStreamingLive = false;
+        lastSentLt = 0;
+        lastSentRt = 0;
+        lastTriggerDispatchTick = 0;
         if (triggerStreamActive)
         {
             triggerStreamActive = false;
