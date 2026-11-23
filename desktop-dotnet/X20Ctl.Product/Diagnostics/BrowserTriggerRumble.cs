@@ -27,7 +27,18 @@ internal sealed class BrowserTriggerRumble
         let streamOk = false;
         let lastFocus = document.hasFocus();
         let lastStreamTag = "";
-        const pad = () => [...navigator.getGamepads()].find(p => p && p.vibrationActuator) || cached;
+        const supportsTriggerEffect = g => {
+          if (!g || !g.vibrationActuator) return false;
+          const id = (g.id || "").toLowerCase();
+          if (id.includes("360") || id.includes("xinput standard gamepad")) return false;
+          const fx = g.vibrationActuator.effects;
+          if (Array.isArray(fx)) return fx.includes("trigger-rumble");
+          return g.vibrationActuator.type === "trigger-rumble";
+        };
+        const pad = () => {
+          const pads = [...navigator.getGamepads()].filter(p => p && p.vibrationActuator);
+          return pads.find(supportsTriggerEffect) || pads[0] || cached;
+        };
         const tell = m => { try { window.chrome.webview.postMessage(m); } catch (e) {} };
         const tellStream = tag => {
           if (tag !== lastStreamTag) {
@@ -46,26 +57,27 @@ internal sealed class BrowserTriggerRumble
         };
         const reportArmed = g => {
           cached = g;
-          const fx = g.vibrationActuator && Array.isArray(g.vibrationActuator.effects)
-            ? g.vibrationActuator.effects
-            : null;
-          const hasTrig = !fx || fx.includes("trigger-rumble");
-          tell(hasTrig ? "armed:trigger" : "armed:dual");
+          const hasTrig = supportsTriggerEffect(g);
+          const id = (g.id || "").trim();
+          tell((hasTrig ? "armed:trigger:" : "armed:dual:") + id);
           syncFocus(true);
         };
         const arm = () => {
           const g = pad();
-          if (g) reportArmed(g);
+          if (g && (!cached || g.id !== cached.id || supportsTriggerEffect(g) !== supportsTriggerEffect(cached)))
+            reportArmed(g);
         };
         addEventListener("focus", () => syncFocus(true));
         addEventListener("blur", () => { streamOk = false; lastStreamTag = ""; syncFocus(true); });
         addEventListener("gamepadconnected", e => { if (e.gamepad && e.gamepad.vibrationActuator) reportArmed(e.gamepad); });
         addEventListener("gamepaddisconnected", () => { cached = null; streamOk = false; lastStreamTag = ""; tell("disarmed"); });
-        setInterval(() => { if (!cached) arm(); }, 450);
+        setInterval(arm, 450);
 
         window.buzz = (lt, rt, ms) => {
           const g = pad();
           if (!g) return "no gamepad";
+          if (!supportsTriggerEffect(g)) return "unsupported";
+          try { window.focus(); } catch (e) {}
           g.vibrationActuator.playEffect("trigger-rumble", {
             duration: ms, startDelay: 0, strongMagnitude: 0, weakMagnitude: 0, leftTrigger: lt, rightTrigger: rt
           }).catch(() => {});
@@ -75,6 +87,8 @@ internal sealed class BrowserTriggerRumble
         window.buzz4 = (lg, rg, lt, rt, ms) => {
           const g = pad();
           if (!g) return "no gamepad";
+          if (!supportsTriggerEffect(g)) return "unsupported";
+          try { window.focus(); } catch (e) {}
           g.vibrationActuator.playEffect("trigger-rumble", {
             duration: ms, startDelay: 0, strongMagnitude: lg, weakMagnitude: rg, leftTrigger: lt, rightTrigger: rt
           }).catch(() => {});
@@ -90,7 +104,7 @@ internal sealed class BrowserTriggerRumble
             streamOk = false;
             lastStreamTag = "";
             try { if (typeof g.vibrationActuator.reset === "function") g.vibrationActuator.reset(); } catch (e) {}
-            if (document.hasFocus()) {
+            if (document.hasFocus() && supportsTriggerEffect(g)) {
               g.vibrationActuator.playEffect("trigger-rumble", {
                 duration: 40, startDelay: 0, strongMagnitude: 0, weakMagnitude: 0, leftTrigger: 0, rightTrigger: 0
               }).catch(() => {});
@@ -98,10 +112,19 @@ internal sealed class BrowserTriggerRumble
             tell("stream-idle");
             return;
           }
+          if (!supportsTriggerEffect(g)) {
+            streamOk = false;
+            tellStream("stream-err:NotSupportedError");
+            return;
+          }
           syncFocus(false);
           const effectType = d.dual ? "dual-rumble" : "trigger-rumble";
+          if (document.hasFocus()) {
+            streamOk = true;
+            tellStream("stream-ok:active");
+          }
           g.vibrationActuator.playEffect(effectType, {
-            duration: d.ms || 240,
+            duration: d.ms || 160,
             startDelay: 0,
             strongMagnitude: d.lg || 0,
             weakMagnitude: d.rg || 0,
@@ -148,7 +171,9 @@ internal sealed class BrowserTriggerRumble
     /// <summary>True when the host WPF window is currently the active foreground window.</summary>
     public bool IsHostWindowActive { get; private set; }
     /// <summary>True when the detected Web Gamepad exposes <c>trigger-rumble</c>.</summary>
-    public bool SupportsTriggerRumble { get; private set; } = true;
+    public bool SupportsTriggerRumble { get; private set; }
+    /// <summary>Browser Gamepad API <c>gamepad.id</c> string reported on arm.</summary>
+    public string GamepadId { get; private set; } = "";
     /// <summary>Last status token returned by Chromium's <c>playEffect</c> promise.</summary>
     public string LastStreamState { get; private set; } = "idle";
     /// <summary>True during the 20s window after Listen() when controller presses should arm WebView2 rather than navigate UI.</summary>
@@ -188,18 +213,20 @@ internal sealed class BrowserTriggerRumble
             {
                 case "armed":
                 case "armed:trigger":
-                    SupportsTriggerRumble = true;
+                    if (!SupportsTriggerRumble) { SupportsTriggerRumble = true; armedChanged = true; }
                     waitingToArmUntilTick = 0;
                     if (!Armed) { Armed = true; armedChanged = true; }
                     break;
                 case "armed:dual":
-                    SupportsTriggerRumble = false;
+                    if (SupportsTriggerRumble) { SupportsTriggerRumble = false; armedChanged = true; }
                     waitingToArmUntilTick = 0;
                     if (!Armed) { Armed = true; armedChanged = true; }
                     break;
                 case "disarmed":
                     HasDocumentFocus = false;
                     StreamLive = false;
+                    SupportsTriggerRumble = false;
+                    GamepadId = "";
                     LastStreamState = "disarmed";
                     if (Armed) { Armed = false; armedChanged = true; }
                     break;
@@ -216,7 +243,21 @@ internal sealed class BrowserTriggerRumble
                     LastStreamState = "idle";
                     break;
                 default:
-                    if (msg.StartsWith("stream-ok:", StringComparison.Ordinal))
+                    if (msg.StartsWith("armed:trigger:", StringComparison.Ordinal))
+                    {
+                        GamepadId = msg["armed:trigger:".Length..];
+                        if (!SupportsTriggerRumble) { SupportsTriggerRumble = true; armedChanged = true; }
+                        waitingToArmUntilTick = 0;
+                        if (!Armed) { Armed = true; armedChanged = true; }
+                    }
+                    else if (msg.StartsWith("armed:dual:", StringComparison.Ordinal))
+                    {
+                        GamepadId = msg["armed:dual:".Length..];
+                        if (SupportsTriggerRumble) { SupportsTriggerRumble = false; armedChanged = true; }
+                        waitingToArmUntilTick = 0;
+                        if (!Armed) { Armed = true; armedChanged = true; }
+                    }
+                    else if (msg.StartsWith("stream-ok:", StringComparison.Ordinal))
                     {
                         LastStreamState = msg["stream-ok:".Length..];
                         StreamLive = HasDocumentFocus;
@@ -282,7 +323,11 @@ internal sealed class BrowserTriggerRumble
         if (Failure != null) return;
         HookHostWindowOnUiThread();
         if (!Armed) waitingToArmUntilTick = Environment.TickCount64 + 20_000;
+        if (View.IsKeyboardFocusWithin && !HasDocumentFocus)
+            Keyboard.ClearFocus();
         View.Focus();
+        Keyboard.Focus(View);
+        try { _ = View.CoreWebView2?.ExecuteScriptAsync("window.focus()"); } catch { }
         StateChanged?.Invoke();
     }
 
@@ -293,34 +338,46 @@ internal sealed class BrowserTriggerRumble
     }
 
     /// <summary>Trigger rumble for <paramref name="ms"/> (0..1 each side). The browser gets focus for the moment it's
-    /// sent, then whatever had focus (the agent's text box, say) gets it back.</summary>
+    /// sent, then whatever text input had focus (the agent's text box, say) gets it back.</summary>
     public async Task<bool> Play(double left, double right, int ms)
     {
-        if (!Armed) return false;
+        if (!Armed || !SupportsTriggerRumble || Failure != null) return false;
         await Ready();
-        if (Failure != null) return false;
+        if (Failure != null || !Armed || !SupportsTriggerRumble) return false;
+        HookHostWindowOnUiThread();
         var had = Keyboard.FocusedElement as IInputElement;
+        if (View.IsKeyboardFocusWithin && !HasDocumentFocus)
+            Keyboard.ClearFocus();
         View.Focus();
+        Keyboard.Focus(View);
         string sent;
         try
         {
             var inv = System.Globalization.CultureInfo.InvariantCulture;
-            sent = JsonSerializer.Deserialize<string>(await View.CoreWebView2.ExecuteScriptAsync($"buzz({left.ToString(inv)},{right.ToString(inv)},{ms})")) ?? "";
+            sent = JsonSerializer.Deserialize<string>(await View.CoreWebView2.ExecuteScriptAsync(
+                $"buzz({Math.Clamp(left, 0, 1).ToString(inv)},{Math.Clamp(right, 0, 1).ToString(inv)},{Math.Clamp(ms, 40, 2000)})")) ?? "";
         }
         catch (Exception error) when (error is InvalidOperationException or System.Runtime.InteropServices.COMException or JsonException) { sent = ""; }
-        finally { if (had != null && !ReferenceEquals(had, View)) Keyboard.Focus(had); }
+        finally
+        {
+            if (had is TextBoxBase or ComboBox or PasswordBox && !ReferenceEquals(had, View))
+                Keyboard.Focus(had);
+        }
         return sent == "sent";
     }
 
     /// <summary>Simultaneous 4-motor one-shot pulse for Audio Studio testing.</summary>
     public async Task<bool> Play4(double leftGrip, double rightGrip, double leftTrigger, double rightTrigger, int ms)
     {
-        if (!Armed) return false;
+        if (!Armed || !SupportsTriggerRumble || Failure != null) return false;
         await Ready();
-        if (Failure != null) return false;
+        if (Failure != null || !Armed || !SupportsTriggerRumble) return false;
         HookHostWindowOnUiThread();
         var had = Keyboard.FocusedElement as IInputElement;
+        if (View.IsKeyboardFocusWithin && !HasDocumentFocus)
+            Keyboard.ClearFocus();
         View.Focus();
+        Keyboard.Focus(View);
         string sent;
         try
         {
@@ -347,7 +404,12 @@ internal sealed class BrowserTriggerRumble
             return false;
         if (Keyboard.FocusedElement is TextBoxBase or ComboBox or PasswordBox)
             return false;
-        return View.Focus() || View.IsKeyboardFocusWithin || HasDocumentFocus;
+        if (View.IsKeyboardFocusWithin && !HasDocumentFocus)
+            Keyboard.ClearFocus();
+        bool focused = View.Focus();
+        Keyboard.Focus(View);
+        try { _ = View.CoreWebView2?.ExecuteScriptAsync("window.focus()"); } catch { }
+        return focused || View.IsKeyboardFocusWithin || HasDocumentFocus;
     }
 
     /// <summary>Gently restores focus to WebView2 after clicking Audio Studio buttons so trigger rumble stays active.</summary>
