@@ -11,6 +11,51 @@ public enum AudioHapticsMode
     Heartbeat,
 }
 
+public enum MotorAudioRole
+{
+    Auto,
+    SubBassKick,
+    LeadVocals,
+    VocalAir,
+    Instruments,
+    SnareHiHat,
+    StereoLeft,
+    StereoRight,
+    FullBeat,
+    Off,
+}
+
+public readonly record struct MotorRoleMap
+{
+    public MotorAudioRole LeftGrip { get; init; } = MotorAudioRole.Auto;
+    public MotorAudioRole RightGrip { get; init; } = MotorAudioRole.Auto;
+    public MotorAudioRole LeftTrigger { get; init; } = MotorAudioRole.Auto;
+    public MotorAudioRole RightTrigger { get; init; } = MotorAudioRole.Auto;
+
+    public MotorRoleMap() { }
+
+    public MotorRoleMap(
+        MotorAudioRole leftGrip,
+        MotorAudioRole rightGrip,
+        MotorAudioRole leftTrigger,
+        MotorAudioRole rightTrigger)
+    {
+        LeftGrip = leftGrip;
+        RightGrip = rightGrip;
+        LeftTrigger = leftTrigger;
+        RightTrigger = rightTrigger;
+    }
+
+    public static MotorRoleMap Default => new();
+    public bool IsAllAuto => LeftGrip == MotorAudioRole.Auto && RightGrip == MotorAudioRole.Auto
+        && LeftTrigger == MotorAudioRole.Auto && RightTrigger == MotorAudioRole.Auto;
+
+    public static MotorRoleMap LyricalStage => new(MotorAudioRole.SubBassKick, MotorAudioRole.Instruments, MotorAudioRole.LeadVocals, MotorAudioRole.VocalAir);
+    public static MotorRoleMap PercussionPro => new(MotorAudioRole.SubBassKick, MotorAudioRole.SnareHiHat, MotorAudioRole.FullBeat, MotorAudioRole.SnareHiHat);
+    public static MotorRoleMap StereoConcert => new(MotorAudioRole.StereoLeft, MotorAudioRole.StereoRight, MotorAudioRole.LeadVocals, MotorAudioRole.SnareHiHat);
+    public static MotorRoleMap BassAndVocals => new(MotorAudioRole.SubBassKick, MotorAudioRole.SubBassKick, MotorAudioRole.LeadVocals, MotorAudioRole.LeadVocals);
+}
+
 public readonly record struct HapticsFrame(
     double LeftGrip,
     double RightGrip,
@@ -23,11 +68,86 @@ public readonly record struct HapticsFrame(
 
 /// <summary>
 /// Pure 4-motor audio haptics choreography engine mapping live stereo FFT bands, Mid-Side vocal stems,
-/// dynamic contrast, and detected music vibe onto Left Grip, Right Grip, Left Trigger, and Right Trigger.
+/// per-motor role assignments, dynamic contrast, and detected music vibe onto Left/Right Grips and Triggers.
 /// </summary>
 public static class AudioHapticsEngine
 {
-    public static HapticsFrame Evaluate(AudioFrame audio, AudioHapticsMode mode, int strengthPercent, double elapsedSeconds = 0.0)
+    public static readonly MotorAudioRole[] AllRoles =
+    [
+        MotorAudioRole.Auto,
+        MotorAudioRole.SubBassKick,
+        MotorAudioRole.LeadVocals,
+        MotorAudioRole.VocalAir,
+        MotorAudioRole.Instruments,
+        MotorAudioRole.SnareHiHat,
+        MotorAudioRole.StereoLeft,
+        MotorAudioRole.StereoRight,
+        MotorAudioRole.FullBeat,
+        MotorAudioRole.Off,
+    ];
+
+    public static string RoleLabel(MotorAudioRole role) => role switch
+    {
+        MotorAudioRole.Auto => "Auto (Vibe)",
+        MotorAudioRole.SubBassKick => "Sub Bass & Kick",
+        MotorAudioRole.LeadVocals => "Lead Vocals",
+        MotorAudioRole.VocalAir => "Vocal Harmonics",
+        MotorAudioRole.Instruments => "Instruments",
+        MotorAudioRole.SnareHiHat => "Snare & Hi-Hat",
+        MotorAudioRole.StereoLeft => "Stereo Left",
+        MotorAudioRole.StereoRight => "Stereo Right",
+        MotorAudioRole.FullBeat => "Full Beat Punch",
+        MotorAudioRole.Off => "Muted (Off)",
+        _ => role.ToString(),
+    };
+
+    public static string RoleShortLabel(MotorAudioRole role) => role switch
+    {
+        MotorAudioRole.Auto => "Auto",
+        MotorAudioRole.SubBassKick => "Bass",
+        MotorAudioRole.LeadVocals => "Vocals",
+        MotorAudioRole.VocalAir => "Vox Air",
+        MotorAudioRole.Instruments => "Music",
+        MotorAudioRole.SnareHiHat => "Snare",
+        MotorAudioRole.StereoLeft => "Left Ch",
+        MotorAudioRole.StereoRight => "Right Ch",
+        MotorAudioRole.FullBeat => "Beat",
+        MotorAudioRole.Off => "Off",
+        _ => role.ToString(),
+    };
+
+    public static string RoleDescription(MotorAudioRole role) => role switch
+    {
+        MotorAudioRole.Auto => "Follows the selected Audio Haptics choreography and detected vibe.",
+        MotorAudioRole.SubBassKick => "Deep sub-bass rumble (20-220 Hz) and kick drum impacts.",
+        MotorAudioRole.LeadVocals => "Centered singing body and lyrical chest warmth (260-1150 Hz).",
+        MotorAudioRole.VocalAir => "Upper vocal clarity, chorus shimmer, and lyric articulation.",
+        MotorAudioRole.Instruments => "Stereo chords, guitars, keys, and melody accompaniment.",
+        MotorAudioRole.SnareHiHat => "Crisp snare snaps, hi-hats, cymbals, and sharp transients.",
+        MotorAudioRole.StereoLeft => "Direct left stereo channel spatial energy.",
+        MotorAudioRole.StereoRight => "Direct right stereo channel spatial energy.",
+        MotorAudioRole.FullBeat => "Locks tightly to detected beat pulses across the whole mix.",
+        MotorAudioRole.Off => "Silences this motor during audio reactivity.",
+        _ => string.Empty,
+    };
+
+    public static MotorAudioRole CycleRole(MotorAudioRole current, int delta = 1)
+    {
+        int idx = Array.IndexOf(AllRoles, current);
+        if (idx < 0) idx = 0;
+        int next = ((idx + delta) % AllRoles.Length + AllRoles.Length) % AllRoles.Length;
+        return AllRoles[next];
+    }
+
+    public static HapticsFrame Evaluate(AudioFrame audio, AudioHapticsMode mode, int strengthPercent, double elapsedSeconds = 0.0) =>
+        Evaluate(audio, mode, strengthPercent, MotorRoleMap.Default, elapsedSeconds);
+
+    public static HapticsFrame Evaluate(
+        AudioFrame audio,
+        AudioHapticsMode mode,
+        int strengthPercent,
+        MotorRoleMap roles,
+        double elapsedSeconds = 0.0)
     {
         double scale = Math.Clamp(strengthPercent, 0, 100) / 100.0;
         if (scale <= 0.0) return HapticsFrame.Zero;
@@ -64,7 +184,7 @@ public static class AudioHapticsEngine
         switch (mode)
         {
             case AudioHapticsMode.AutoAdaptive:
-                if (audio.Vibe == AudioMusicVibe.Silent && level <= 0.02 && beat <= 0.02 && vocal <= 0.02)
+                if (audio.Vibe == AudioMusicVibe.Silent && level <= 0.02 && beat <= 0.02 && vocal <= 0.02 && roles.IsAllAuto)
                     return HapticsFrame.Zero;
 
                 switch (audio.Vibe)
@@ -180,7 +300,7 @@ public static class AudioHapticsEngine
                 }
                 else
                 {
-                    double quietBreath = 0.05 * (0.5 + 0.5 * Math.Sin(elapsedSeconds * 3.0)) * Math.Max(bass, mid);
+                    double quietBreath = level >= 0.06 ? 0.05 * (0.5 + 0.5 * Math.Sin(elapsedSeconds * 3.0)) * Math.Max(bass, mid) : 0.0;
                     lg = quietBreath;
                     rg = 0;
                     lt = vocal >= 0.12 ? vocal * 0.32 : (treble > 0.35 ? treble * 0.28 : 0);
@@ -212,6 +332,16 @@ public static class AudioHapticsEngine
                 break;
         }
 
+        // Apply per-motor custom role overrides when assigned.
+        if (roles.LeftGrip != MotorAudioRole.Auto)
+            lg = EvaluateSingleRole(roles.LeftGrip, audio, bass, mid, treble, beat, transient, effBassPunch, effInst, dynCurve, vocal, vocalWarm, vocalAir, leftBal, rightBal);
+        if (roles.RightGrip != MotorAudioRole.Auto)
+            rg = EvaluateSingleRole(roles.RightGrip, audio, bass, mid, treble, beat, transient, effBassPunch, effInst, dynCurve, vocal, vocalWarm, vocalAir, leftBal, rightBal);
+        if (roles.LeftTrigger != MotorAudioRole.Auto)
+            lt = EvaluateSingleRole(roles.LeftTrigger, audio, bass, mid, treble, beat, transient, effBassPunch, effInst, dynCurve, vocal, vocalWarm, vocalAir, leftBal, rightBal);
+        if (roles.RightTrigger != MotorAudioRole.Auto)
+            rt = EvaluateSingleRole(roles.RightTrigger, audio, bass, mid, treble, beat, transient, effBassPunch, effInst, dynCurve, vocal, vocalWarm, vocalAir, leftBal, rightBal);
+
         static double GateGrip(double v, double gain)
         {
             double scaled = Math.Clamp(v * gain, 0.0, 1.0);
@@ -231,6 +361,38 @@ public static class AudioHapticsEngine
             GateGrip(rg, scale),
             GateTrigger(lt, scale),
             GateTrigger(rt, scale));
+    }
+
+    static double EvaluateSingleRole(
+        MotorAudioRole role,
+        AudioFrame audio,
+        double bass,
+        double mid,
+        double treble,
+        double beat,
+        double transient,
+        double bassPunch,
+        double instrument,
+        double dynCurve,
+        double vocal,
+        double vocalWarm,
+        double vocalAir,
+        double leftBal,
+        double rightBal)
+    {
+        return role switch
+        {
+            MotorAudioRole.Off => 0.0,
+            MotorAudioRole.SubBassKick => Math.Clamp(Math.Max(beat * 0.96, Math.Pow(Math.Max(bassPunch, bass), 1.35) * 0.92) * dynCurve, 0.0, 1.0),
+            MotorAudioRole.LeadVocals => vocal < 0.065 ? 0.0 : Math.Clamp(Math.Pow(Math.Max(vocalWarm, vocal * 0.92), 1.08), 0.0, 1.0),
+            MotorAudioRole.VocalAir => vocal < 0.065 ? 0.0 : Math.Clamp(Math.Pow(Math.Max(vocalAir, vocal * 0.80), 1.12), 0.0, 1.0),
+            MotorAudioRole.Instruments => Math.Clamp(Math.Max(Math.Pow(instrument, 1.35) * 0.88, Math.Pow(mid, 1.45) * 0.78) * dynCurve, 0.0, 1.0),
+            MotorAudioRole.SnareHiHat => Math.Clamp(Math.Max(transient * 0.98, Math.Max(audio.Spectrum.Presence * 0.82, Math.Pow(treble, 1.45) * 0.88)), 0.0, 1.0),
+            MotorAudioRole.StereoLeft => Math.Clamp((Math.Pow(leftBal, 1.15) * 0.90 + (audio.StereoPan < -0.15f ? beat * 0.45 : 0.0)) * dynCurve, 0.0, 1.0),
+            MotorAudioRole.StereoRight => Math.Clamp((Math.Pow(rightBal, 1.15) * 0.90 + (audio.StereoPan > 0.15f ? beat * 0.45 : 0.0)) * dynCurve, 0.0, 1.0),
+            MotorAudioRole.FullBeat => Math.Clamp(Math.Max(beat, Math.Pow(bass, 1.65) * 0.65), 0.0, 1.0),
+            _ => 0.0,
+        };
     }
 
     static void EvaluateLyricalMusical(

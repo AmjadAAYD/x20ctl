@@ -85,6 +85,7 @@ public sealed record LightingEffectSpec
     public AudioReactiveStyle AudioStyle { get; init; } = AudioReactiveStyle.AutoAdaptive;
     public int AudioHapticsStrength { get; init; } = 0;
     public AudioHapticsMode AudioHapticsStyle { get; init; } = AudioHapticsMode.AutoAdaptive;
+    public MotorRoleMap AudioMotorRoles { get; init; } = MotorRoleMap.Default;
 
     public bool IsNativeMode => Kind is LightingEffectKind.Solid or LightingEffectKind.NativeRainbow
         or LightingEffectKind.NativeBreathe or LightingEffectKind.NativeCycle or LightingEffectKind.NativeOff;
@@ -507,6 +508,10 @@ public static class LightingEffectEngine
         var c1 = spec.Palette.Length > 1 ? LightingEffectSpec.ParseRgb(spec.Palette[1]) : c0;
         var c2 = spec.Palette.Length > 2 ? LightingEffectSpec.ParseRgb(spec.Palette[2]) : c1;
         var cLast = LightingEffectSpec.ParseRgb(spec.Palette[^1]);
+
+        // Hold resting baseline cleanly with zero synthetic LFO motion during true silence.
+        if (input.AudioVibe == AudioMusicVibe.Silent && level <= 0.025 && bass <= 0.025 && mid <= 0.025 && treble <= 0.025 && beat <= 0.025 && transient <= 0.025)
+            return new(c0.R, c0.G, c0.B, minB);
 
         switch (spec.AudioStyle)
         {

@@ -5,7 +5,7 @@ using X20Ctl.Zone.Lighting;
 namespace X20Ctl.Product;
 
 /// <summary>
-/// Real-time Windows WASAPI Loopback PCM capture + 512-point FFT analyzer for Audio Reactive RGB
+/// Real-time Windows WASAPI Loopback PCM capture + 1024-point FFT analyzer for Audio Reactive RGB
 /// and 4-motor Audio Haptics (Left Grip, Right Grip, Left Trigger, Right Trigger), with WebView2
 /// trigger-rumble streaming and automatic XInput background failover.
 /// </summary>
@@ -183,7 +183,7 @@ internal static class SystemAudioLevelSampler
         bool canAttemptTriggerStream = browser is { Armed: true, Failure: null, SupportsTriggerRumble: true, IsHostWindowActive: true };
         bool streamConfirmedLive = canAttemptTriggerStream && browser!.StreamLive && browser.HasDocumentFocus;
 
-        var hf = AudioHapticsEngine.Evaluate(frame, spec.AudioHapticsStyle, spec.AudioHapticsStrength, elapsedSec);
+        var hf = AudioHapticsEngine.Evaluate(frame, spec.AudioHapticsStyle, spec.AudioHapticsStrength, spec.AudioMotorRoles, elapsedSec);
         LatestHaptics = hf;
 
         if (hf.IsSilent)
@@ -236,11 +236,15 @@ internal static class SystemAudioLevelSampler
         }
         else
         {
-            // On 2.4G/USB (or when backgrounded/unfocused), route musical rhythm to Left and lyrical vocals/melody to Right
-            // in AutoAdaptive / LyricalMusical modes so both channels stay separated and musical without buzzing constantly.
+            // On 2.4G/USB: respect per-motor custom role routing directly when configured; otherwise keep L=music / R=vocals in Auto/Lyrical modes.
             double gripL;
             double gripR;
-            if (spec.AudioHapticsStyle is AudioHapticsMode.LyricalMusical or AudioHapticsMode.AutoAdaptive)
+            if (!spec.AudioMotorRoles.IsAllAuto)
+            {
+                gripL = Math.Max(hf.LeftGrip, hf.LeftTrigger);
+                gripR = Math.Max(hf.RightGrip, hf.RightTrigger);
+            }
+            else if (spec.AudioHapticsStyle is AudioHapticsMode.LyricalMusical or AudioHapticsMode.AutoAdaptive)
             {
                 gripL = Math.Max(hf.LeftGrip, hf.RightGrip * 0.45);
                 gripR = hf.LeftTrigger > 0.01 || hf.RightTrigger > 0.01
@@ -429,14 +433,18 @@ internal static class SystemAudioLevelSampler
 
                 consecutiveFailures = 0;
                 loopbackActive = true;
+                long lastPacketTick = Stopwatch.GetTimestamp();
+                long lastSilenceTick = lastPacketTick;
 
                 while (!stopRequested)
                 {
                     int hrNext = captureClient.GetNextPacketSize(out uint packetFrames);
                     if (hrNext != 0) throw new COMException("GetNextPacketSize failed.", hrNext);
 
+                    bool gotPacket = false;
                     while (!stopRequested && packetFrames > 0)
                     {
+                        gotPacket = true;
                         int hrBuf = captureClient.GetBuffer(
                             out IntPtr dataPtr,
                             out uint framesToRead,
@@ -483,6 +491,19 @@ internal static class SystemAudioLevelSampler
 
                         hrNext = captureClient.GetNextPacketSize(out packetFrames);
                         if (hrNext != 0) throw new COMException("GetNextPacketSize failed.", hrNext);
+                    }
+
+                    long nowTick = Stopwatch.GetTimestamp();
+                    if (gotPacket)
+                    {
+                        lastPacketTick = nowTick;
+                        lastSilenceTick = nowTick;
+                    }
+                    else if (Stopwatch.GetElapsedTime(lastPacketTick, nowTick).TotalMilliseconds >= 18.0)
+                    {
+                        double silenceDt = Stopwatch.GetElapsedTime(lastSilenceTick, nowTick).TotalSeconds;
+                        Analyzer.TickSilence(silenceDt);
+                        lastSilenceTick = nowTick;
                     }
 
                     Thread.Sleep(12);

@@ -645,6 +645,154 @@ public sealed class CustomLightingEffectsTests
         Assert.True(hRock.LeftGrip > hRock.LeftTrigger, $"Expected heavy musical grips on instrumental RockMetal hits, got LG={hRock.LeftGrip}, LT={hRock.LeftTrigger}");
     }
 
+    [Fact]
+    public void AudioSpectrumAnalyzer_PreservesCenteredVocalsOverHeavySubBassAndReverb()
+    {
+        var clock = new SteppingTimeProvider();
+        var analyzer = new AudioSpectrumAnalyzer(clock);
+
+        var buf = new float[1024 * 2];
+        AudioFrame last = default;
+        for (int blk = 0; blk < 4; blk++)
+        {
+            for (int i = 0; i < 1024; i++)
+            {
+                int n = blk * 1024 + i;
+                double t = n / 48000.0;
+                double bass = 0.72 * Math.Sin(2.0 * Math.PI * 60.0 * t);
+                double vocalCenter = 0.36 * Math.Sin(2.0 * Math.PI * 900.0 * t) + 0.18 * Math.Sin(2.0 * Math.PI * 1800.0 * t);
+                double vocalReverbSide = 0.08 * Math.Sin(2.0 * Math.PI * 900.0 * t + 0.8);
+                buf[i * 2] = (float)(bass + vocalCenter + vocalReverbSide);
+                buf[i * 2 + 1] = (float)(bass + vocalCenter - vocalReverbSide);
+            }
+            clock.Advance(TimeSpan.FromMilliseconds(21));
+            last = analyzer.ProcessInterleaved(buf, 2, 48000, 1024.0 / 48000.0);
+        }
+
+        Assert.True(last.VocalPresence > 0.40f, $"Expected vocals preserved over sub-bass + mild reverb, got VocalPresence={last.VocalPresence}");
+        Assert.True(last.Spectrum.Sub > 0.35f, $"Expected strong Sub band, got {last.Spectrum.Sub}");
+        Assert.True(last.Spectrum.VocalLow > 0.25f, $"Expected strong VocalLow band, got {last.Spectrum.VocalLow}");
+    }
+
+    [Fact]
+    public void AudioSpectrumAnalyzer_RejectsBroadbandNonHarmonicNoiseFromVocals()
+    {
+        var clock = new SteppingTimeProvider();
+        var analyzer = new AudioSpectrumAnalyzer(clock);
+
+        uint state = 0x12345678u;
+        float NextNoise()
+        {
+            state = state * 1664525u + 1013904223u;
+            return ((state >> 8) / 16777216f) * 2f - 1f;
+        }
+
+        var buf = new float[1024 * 2];
+        AudioFrame last = default;
+        for (int blk = 0; blk < 4; blk++)
+        {
+            for (int i = 0; i < 1024; i++)
+            {
+                float c = NextNoise() * 0.25f;
+                float s = NextNoise() * 0.10f;
+                buf[i * 2] = c + s;
+                buf[i * 2 + 1] = c - s;
+            }
+            clock.Advance(TimeSpan.FromMilliseconds(21));
+            last = analyzer.ProcessInterleaved(buf, 2, 48000, 1024.0 / 48000.0);
+        }
+
+        Assert.True(last.VocalPresence < 0.25f, $"Expected broadband noise filtered from VocalPresence, got {last.VocalPresence}");
+    }
+
+    [Fact]
+    public void AudioSpectrumAnalyzer_TickSilenceDecaysImmediatelyAndPopulates8Bands()
+    {
+        var clock = new SteppingTimeProvider();
+        var analyzer = new AudioSpectrumAnalyzer(clock);
+
+        var buf = new float[1024 * 2];
+        for (int i = 0; i < 1024; i++)
+        {
+            double t = i / 48000.0;
+            float s = (float)(0.45 * Math.Sin(2.0 * Math.PI * 60.0 * t)
+                + 0.35 * Math.Sin(2.0 * Math.PI * 1000.0 * t)
+                + 0.30 * Math.Sin(2.0 * Math.PI * 7500.0 * t));
+            buf[i * 2] = s;
+            buf[i * 2 + 1] = s;
+        }
+
+        var loud = analyzer.ProcessInterleaved(buf, 2, 48000, 1024.0 / 48000.0);
+        Assert.True(loud.Spectrum.Sub > 0.20f);
+        Assert.True(loud.Spectrum.VocalLow > 0.20f);
+        Assert.True(loud.Spectrum.Treble > 0.20f);
+
+        // Four 50ms silence ticks (200ms total, still < IdleSeconds) must decay signals to near-zero cleanly.
+        AudioFrame quiet = loud;
+        for (int k = 0; k < 4; k++)
+        {
+            clock.Advance(TimeSpan.FromMilliseconds(50));
+            quiet = analyzer.TickSilence(0.05);
+        }
+
+        Assert.True(quiet.Level < 0.05f, $"Expected rapid silence decay on TickSilence, got Level={quiet.Level}");
+        Assert.True(quiet.BeatPulse < 0.05f, $"Expected BeatPulse decayed on TickSilence, got {quiet.BeatPulse}");
+        Assert.True(quiet.Spectrum.VocalLow < 0.05f, $"Expected band decay on TickSilence, got {quiet.Spectrum.VocalLow}");
+        Assert.Equal(AudioMusicVibe.Silent, quiet.Vibe);
+    }
+
+    [Fact]
+    public void AudioHapticsEngine_HonorsPerMotorRolesAndJsonPersistence()
+    {
+        var customRoles = new MotorRoleMap
+        {
+            LeftGrip = MotorAudioRole.SubBassKick,
+            RightGrip = MotorAudioRole.Off,
+            LeftTrigger = MotorAudioRole.LeadVocals,
+            RightTrigger = MotorAudioRole.SnareHiHat,
+        };
+
+        var instrumental = new AudioFrame(
+            0.70f, 0.85f, 0.45f, 0.80f, 0.90f, 4, 0f,
+            TrebleTransient: 0.92f, VocalPresence: 0f, VocalWarmth: 0f, VocalAir: 0f,
+            InstrumentEnergy: 0.65f, BassPunch: 0.90f, DynamicContrast: 0.85f, Vibe: AudioMusicVibe.RockMetal);
+
+        var hInst = AudioHapticsEngine.Evaluate(instrumental, AudioHapticsMode.AutoAdaptive, 100, customRoles);
+        Assert.True(hInst.LeftGrip > 0.70);
+        Assert.Equal(0.0, hInst.RightGrip);
+        Assert.Equal(0.0, hInst.LeftTrigger);
+        Assert.True(hInst.RightTrigger >= 0.24);
+
+        var vocalMix = instrumental with { VocalPresence = 0.86f, VocalWarmth = 0.88f, TrebleTransient = 0f, Treble = 0.1f };
+        var hVoc = AudioHapticsEngine.Evaluate(vocalMix, AudioHapticsMode.AutoAdaptive, 100, customRoles);
+        Assert.True(hVoc.LeftTrigger >= 0.70);
+        Assert.Equal(0.0, hVoc.RightGrip);
+
+        // Verify JSON persistence roundtrip preserves custom per-motor role mappings.
+        string dir = Path.Combine(Path.GetTempPath(), "x20ctl-test-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var path = Path.Combine(dir, "presets.json");
+            var store = new LightingPresetsStore(path);
+            var spec = new LightingEffectSpec
+            {
+                Kind = LightingEffectKind.AudioReactive,
+                AudioHapticsStrength = 65,
+                AudioMotorRoles = customRoles,
+            };
+            store.SavePreset("My Custom Roles", spec);
+
+            var reloaded = new LightingPresetsStore(path);
+            reloaded.Load();
+            Assert.Single(reloaded.Presets);
+            Assert.Equal(customRoles, reloaded.Presets[0].Spec.AudioMotorRoles);
+        }
+        finally
+        {
+            if (Directory.Exists(dir)) Directory.Delete(dir, true);
+        }
+    }
+
     sealed class SteppingTimeProvider : TimeProvider
     {
         long ticks = TimeSpan.TicksPerSecond;

@@ -10,6 +10,30 @@ public enum AudioMusicVibe
     RockMetal,
 }
 
+public readonly record struct AudioSpectrum8(
+    float Sub = 0f,
+    float Kick = 0f,
+    float LowMid = 0f,
+    float VocalLow = 0f,
+    float VocalHigh = 0f,
+    float Presence = 0f,
+    float Treble = 0f,
+    float Air = 0f)
+{
+    public float this[int index] => index switch
+    {
+        0 => Sub,
+        1 => Kick,
+        2 => LowMid,
+        3 => VocalLow,
+        4 => VocalHigh,
+        5 => Presence,
+        6 => Treble,
+        7 => Air,
+        _ => 0f,
+    };
+}
+
 /// <summary>
 /// Live multi-band stereo audio analysis snapshot produced by <see cref="AudioSpectrumAnalyzer"/>.
 /// </summary>
@@ -32,16 +56,17 @@ public readonly record struct AudioFrame(
     float InstrumentEnergy = 0f,
     float BassPunch = 0f,
     float DynamicContrast = 0f,
-    AudioMusicVibe Vibe = AudioMusicVibe.Silent);
+    AudioMusicVibe Vibe = AudioMusicVibe.Silent,
+    AudioSpectrum8 Spectrum = default);
 
 /// <summary>
-/// Zero-allocation, thread-safe 512-point Hann-windowed Radix-2 Mid-Side dual-FFT analyzer
-/// separating Bass/Instruments, centered Lyrical Vocals, dynamic punch, and detected music vibe.
+/// Zero-allocation, thread-safe 1024-point Hann-windowed Radix-2 Mid-Side dual-FFT analyzer
+/// separating 8 musical frequency bands, coherence-gated harmonic vocals, dynamic punch, and music vibe.
 /// </summary>
 public sealed class AudioSpectrumAnalyzer
 {
-    public const int FftSize = 512;
-    public const double IdleSeconds = 0.50;
+    public const int FftSize = 1024;
+    public const double IdleSeconds = 0.25;
     public const double BeatCooldownSeconds = 0.16;
 
     static readonly double MaxLogSpan = Math.Log2(12000.0 / 20.0);
@@ -57,6 +82,8 @@ public sealed class AudioSpectrumAnalyzer
     readonly float[] fftImag = new float[FftSize];
     readonly double[] midMag = new double[FftSize / 2];
     readonly double[] sideMag = new double[FftSize / 2];
+    readonly float[] agcBands = [0.04f, 0.04f, 0.04f, 0.035f, 0.035f, 0.03f, 0.028f, 0.025f];
+    readonly float[] smoothBands = new float[8];
 
     int ringPos;
     long lastProcessTimestamp;
@@ -65,6 +92,7 @@ public sealed class AudioSpectrumAnalyzer
     long lastVibeSwitchTimestamp;
 
     float trackRef = 0.05f;
+    float midVocalRef = 0.04f;
     float agcBass = 0.04f;
     float agcMid = 0.04f;
     float agcTreble = 0.04f;
@@ -75,6 +103,7 @@ public sealed class AudioSpectrumAnalyzer
     float trebleAvg;
     float bassFloor;
     float levelFloor;
+    float prevCenterRms;
 
     float smoothLevel;
     float smoothBass;
@@ -121,6 +150,16 @@ public sealed class AudioSpectrumAnalyzer
         }
     }
 
+    AudioSpectrum8 SnapshotSpectrumLocked() => new(
+        smoothBands[0],
+        smoothBands[1],
+        smoothBands[2],
+        smoothBands[3],
+        smoothBands[4],
+        smoothBands[5],
+        smoothBands[6],
+        smoothBands[7]);
+
     AudioFrame SnapshotLocked() => new(
         smoothLevel,
         smoothBass,
@@ -140,7 +179,8 @@ public sealed class AudioSpectrumAnalyzer
         smoothInst,
         smoothBassPunch,
         smoothDynamic,
-        currentVibe);
+        currentVibe,
+        SnapshotSpectrumLocked());
 
     public void Reset()
     {
@@ -148,12 +188,19 @@ public sealed class AudioSpectrumAnalyzer
         {
             Array.Clear(monoRing);
             Array.Clear(sideRing);
+            Array.Clear(smoothBands);
+            agcBands[0] = agcBands[1] = agcBands[2] = 0.04f;
+            agcBands[3] = agcBands[4] = 0.035f;
+            agcBands[5] = 0.03f;
+            agcBands[6] = 0.028f;
+            agcBands[7] = 0.025f;
             ringPos = 0;
             lastProcessTimestamp = 0;
             lastBeatTimestamp = 0;
             lastTrebleTimestamp = 0;
             lastVibeSwitchTimestamp = 0;
             trackRef = 0.05f;
+            midVocalRef = 0.04f;
             agcBass = 0.04f;
             agcMid = 0.04f;
             agcTreble = 0.04f;
@@ -164,6 +211,7 @@ public sealed class AudioSpectrumAnalyzer
             trebleAvg = 0f;
             bassFloor = 0f;
             levelFloor = 0f;
+            prevCenterRms = 0f;
             smoothLevel = 0f;
             smoothBass = 0f;
             smoothMid = 0f;
@@ -192,6 +240,65 @@ public sealed class AudioSpectrumAnalyzer
         }
     }
 
+    /// <summary>
+    /// Advances silence decay immediately when WASAPI loopback yields zero packets, preventing stale frozen bars or haptics.
+    /// </summary>
+    public AudioFrame TickSilence(double durationSeconds)
+    {
+        double dt = durationSeconds > 0 && double.IsFinite(durationSeconds)
+            ? Math.Clamp(durationSeconds, 0.005, 0.25)
+            : 0.025;
+
+        lock (gate)
+        {
+            long now = time.GetTimestamp();
+            lastProcessTimestamp = now;
+
+            static float DecayZero(float v, double dtSec, double tauSec)
+            {
+                float next = v * (float)Math.Exp(-dtSec / tauSec);
+                return next < 0.005f ? 0f : next;
+            }
+
+            smoothLevel = DecayZero(smoothLevel, dt, 0.045);
+            smoothBass = DecayZero(smoothBass, dt, 0.045);
+            smoothMid = DecayZero(smoothMid, dt, 0.045);
+            smoothTreble = DecayZero(smoothTreble, dt, 0.040);
+            smoothLeft = DecayZero(smoothLeft, dt, 0.045);
+            smoothRight = DecayZero(smoothRight, dt, 0.045);
+            smoothVocal = DecayZero(smoothVocal, dt, 0.038);
+            smoothVocalWarm = DecayZero(smoothVocalWarm, dt, 0.038);
+            smoothVocalAir = DecayZero(smoothVocalAir, dt, 0.035);
+            smoothInst = DecayZero(smoothInst, dt, 0.045);
+            smoothBassPunch = DecayZero(smoothBassPunch, dt, 0.040);
+            smoothDynamic = DecayZero(smoothDynamic, dt, 0.045);
+            beatPulse = DecayZero(beatPulse, dt, 0.040);
+            trebleTransient = DecayZero(trebleTransient, dt, 0.035);
+            smoothEnergy = DecayZero(smoothEnergy, dt, 0.22);
+            prevCenterRms = DecayZero(prevCenterRms, dt, 0.045);
+            stereoPan = DecayZero(stereoPan, dt, 0.08);
+            bassFloor = DecayZero(bassFloor, dt, 0.25);
+            levelFloor = DecayZero(levelFloor, dt, 0.25);
+            beatRateHz = DecayZero(beatRateHz, dt, 0.40);
+
+            for (int i = 0; i < smoothBands.Length; i++)
+                smoothBands[i] = DecayZero(smoothBands[i], dt, 0.045);
+
+            if (smoothLevel < 0.04f)
+            {
+                vibeEnergy = vibeBass = vibeVocal = vibeInst = vibeTreble = 0f;
+                currentVibe = AudioMusicVibe.Silent;
+            }
+            if (smoothLevel < 0.01f)
+            {
+                Array.Clear(monoRing);
+                Array.Clear(sideRing);
+            }
+
+            return SnapshotLocked();
+        }
+    }
+
     public AudioFrame ProcessInterleaved(ReadOnlySpan<float> interleaved, int channels, int sampleRate, double durationSeconds)
     {
         int ch = Math.Max(1, channels);
@@ -206,10 +313,11 @@ public sealed class AudioSpectrumAnalyzer
             bool firstOrResumed = lastProcessTimestamp == 0 || IsStale(lastProcessTimestamp);
             if (firstOrResumed)
             {
+                Array.Clear(smoothBands);
                 smoothLevel = smoothBass = smoothMid = smoothTreble = 0f;
                 smoothLeft = smoothRight = smoothEnergy = beatPulse = trebleTransient = 0f;
                 smoothVocal = smoothVocalWarm = smoothVocalAir = smoothInst = smoothBassPunch = smoothDynamic = 0f;
-                bassAvg = trebleAvg = bassFloor = levelFloor = 0f;
+                bassAvg = trebleAvg = bassFloor = levelFloor = prevCenterRms = 0f;
                 vibeEnergy = vibeBass = vibeVocal = vibeInst = vibeTreble = beatRateHz = 0f;
             }
             lastProcessTimestamp = now;
@@ -247,7 +355,7 @@ public sealed class AudioSpectrumAnalyzer
             if (ch >= 2 && frameCount > 0)
             {
                 float lrSum = leftRms + rightRms;
-                float targetPan = lrSum > 0.001f ? Math.Clamp((rightRms - leftRms) / lrSum, -1f, 1f) : 0f;
+                float targetPan = lrSum > 0.002f ? Math.Clamp((rightRms - leftRms) / lrSum, -1f, 1f) : 0f;
                 stereoPan = LerpFloat(stereoPan, targetPan, dt, 0.09);
             }
             else
@@ -255,8 +363,9 @@ public sealed class AudioSpectrumAnalyzer
                 stereoPan = 0f;
             }
 
-            ComputeBands(sr, ch >= 2, out float rawBass, out float rawMid, out float rawTreble, out float rawVocalWarm, out float rawVocalAir, out float rawInst, out float rawCentroid);
-            UpdateEnvelopesAndBeats(now, dt, rawRms, leftRms, rightRms, rawBass, rawMid, rawTreble, rawVocalWarm, rawVocalAir, rawInst, rawCentroid, firstOrResumed);
+            Span<float> rawBands = stackalloc float[8];
+            ComputeBands(sr, ch >= 2, out float rawBass, out float rawMid, out float rawTreble, out float rawVocalWarm, out float rawVocalAir, out float rawVocalClarity, out float rawInBandSide, out float rawInst, out float rawCentroid, rawBands);
+            UpdateEnvelopesAndBeats(now, dt, rawRms, leftRms, rightRms, rawBass, rawMid, rawTreble, rawVocalWarm, rawVocalAir, rawVocalClarity, rawInBandSide, rawInst, rawCentroid, rawBands, firstOrResumed);
             return SnapshotLocked();
         }
     }
@@ -273,16 +382,26 @@ public sealed class AudioSpectrumAnalyzer
             bool firstOrResumed = lastProcessTimestamp == 0 || IsStale(lastProcessTimestamp);
             if (firstOrResumed)
             {
+                Array.Clear(smoothBands);
                 smoothLevel = smoothBass = smoothMid = smoothTreble = 0f;
                 smoothLeft = smoothRight = smoothEnergy = beatPulse = trebleTransient = 0f;
                 smoothVocal = smoothVocalWarm = smoothVocalAir = smoothInst = smoothBassPunch = smoothDynamic = 0f;
-                bassAvg = trebleAvg = bassFloor = levelFloor = 0f;
+                bassAvg = trebleAvg = bassFloor = levelFloor = prevCenterRms = 0f;
                 vibeEnergy = vibeBass = vibeVocal = vibeInst = vibeTreble = beatRateHz = 0f;
             }
             lastProcessTimestamp = now;
 
             float peak = Sanitize(rawPeak);
-            UpdateEnvelopesAndBeats(now, dt, peak * 0.7f, peak * 0.7f, peak * 0.7f, peak * 0.85f, peak * 0.65f, peak * 0.45f, peak * 0.30f, peak * 0.25f, peak * 0.70f, 0.45f, firstOrResumed);
+            Span<float> rawBands = stackalloc float[8];
+            rawBands[0] = peak * 0.70f;
+            rawBands[1] = peak * 0.85f;
+            rawBands[2] = peak * 0.70f;
+            rawBands[3] = peak * 0.55f;
+            rawBands[4] = peak * 0.45f;
+            rawBands[5] = peak * 0.40f;
+            rawBands[6] = peak * 0.35f;
+            rawBands[7] = peak * 0.25f;
+            UpdateEnvelopesAndBeats(now, dt, peak * 0.7f, peak * 0.7f, peak * 0.7f, peak * 0.85f, peak * 0.65f, peak * 0.45f, peak * 0.30f, peak * 0.25f, 0.65f, peak * 0.30f, peak * 0.70f, 0.45f, rawBands, firstOrResumed);
             return SnapshotLocked();
         }
     }
@@ -341,8 +460,11 @@ public sealed class AudioSpectrumAnalyzer
         out float treble,
         out float vocalWarm,
         out float vocalAir,
+        out float vocalClarity,
+        out float inBandSide,
         out float instrument,
-        out float centroidNorm)
+        out float centroidNorm,
+        Span<float> outBands)
     {
         RunFft(monoRing, midMag);
         if (isStereo)
@@ -353,10 +475,14 @@ public sealed class AudioSpectrumAnalyzer
         double binHz = sampleRate / (double)FftSize;
 
         double bassSq = 0, midSq = 0, trebleSq = 0;
-        double vocalWarmSq = 0, vocalAirSq = 0, instSideSq = 0, instSparkleSq = 0;
-        double vocalSum = 0, vocalPeak = 0;
+        double vocalWarmSq = 0, vocalAirSq = 0, centerPowerSq = 0, inBandSideSq = 0;
+        double instSideSq = 0, instSparkleSq = 0;
+        double vocalSum = 0, vocalPeak = 0, sfmLogSum = 0, sfmArithSum = 0;
         double totalWeightSq = 0, logWeightedSum = 0;
         int bassN = 0, midN = 0, trebleN = 0, vocalWarmN = 0, vocalAirN = 0, instSideN = 0, instSparkleN = 0;
+
+        Span<double> bandSq = stackalloc double[8];
+        Span<int> bandN = stackalloc int[8];
 
         int maxBin = FftSize / 2;
         for (int bin = 1; bin < maxBin; bin++)
@@ -375,6 +501,20 @@ public sealed class AudioSpectrumAnalyzer
                 totalWeightSq += magSq;
             }
 
+            int bIdx = freq switch
+            {
+                < 85 => 0,
+                < 220 => 1,
+                < 450 => 2,
+                < 1100 => 3,
+                < 2800 => 4,
+                < 5500 => 5,
+                < 9500 => 6,
+                _ => 7,
+            };
+            bandSq[bIdx] += magSq;
+            bandN[bIdx]++;
+
             if (freq < 240)
             {
                 bassSq += magSq;
@@ -391,13 +531,24 @@ public sealed class AudioSpectrumAnalyzer
                 trebleN++;
             }
 
-            if (freq >= 300 && freq <= 3400)
+            if (freq >= 260 && freq <= 3600)
             {
-                double centerMag = isStereo ? Math.Max(0.0, mm - 1.10 * sm) : mm;
+                // Coherence-weighted soft Mid-Side mask: cancels hard-panned stereo instruments while preserving stereo-reverb vocals.
+                double ratio = isStereo ? sm / (mm + 1e-6) : 0.0;
+                double centerMask = isStereo ? Math.Clamp(1.0 - ratio * 1.18, 0.0, 1.0) : 1.0;
+                double centerMag = mm * centerMask;
                 double centerSq = centerMag * centerMag;
-                vocalSum += centerMag;
-                if (centerMag > vocalPeak) vocalPeak = centerMag;
-                if (freq < 1100)
+                double mmSq = mm * mm;
+
+                // Measure harmonicity on unmasked Mid magnitude so random Mid-Side bin cancellation cannot fake spectral valleys.
+                vocalSum += mm;
+                if (mm > vocalPeak) vocalPeak = mm;
+                centerPowerSq += centerSq;
+                inBandSideSq += sm * sm * 2.0;
+                sfmLogSum += Math.Log(mmSq + 1e-10);
+                sfmArithSum += mmSq;
+
+                if (freq < 1150)
                 {
                     vocalWarmSq += centerSq;
                     vocalWarmN++;
@@ -421,23 +572,46 @@ public sealed class AudioSpectrumAnalyzer
             }
         }
 
-        bass = bassN > 0 ? (float)Math.Sqrt(bassSq / bassN) : 0f;
-        mid = midN > 0 ? (float)(Math.Sqrt(midSq / midN) * 1.4) : 0f;
-        treble = trebleN > 0 ? (float)(Math.Sqrt(trebleSq / trebleN) * 2.2) : 0f;
+        double[] bandScales = [1.45, 1.65, 1.90, 2.15, 2.40, 2.75, 3.15, 3.60];
+        for (int i = 0; i < 8; i++)
+            outBands[i] = bandN[i] > 0 ? (float)(Math.Sqrt(bandSq[i] / bandN[i]) * bandScales[i]) : 0f;
+
+        bass = bassN > 0 ? (float)(Math.Sqrt(bassSq / bassN) * 1.45) : 0f;
+        mid = midN > 0 ? (float)(Math.Sqrt(midSq / midN) * 1.90) : 0f;
+        treble = trebleN > 0 ? (float)(Math.Sqrt(trebleSq / trebleN) * 2.95) : 0f;
 
         int vocalTotalN = vocalWarmN + vocalAirN;
         double vocalMean = vocalTotalN > 0 ? vocalSum / vocalTotalN : 0.0;
         double crest = vocalMean > 1e-6 ? vocalPeak / vocalMean : 0.0;
-        double tonality = Math.Clamp((crest - 1.35) / 1.4, 0.18, 1.0);
-        double bassSuppression = bass > mid * 2.8f ? 0.28 : 1.0;
-        double vScale = tonality * bassSuppression * 1.75;
+        double geomMean = vocalTotalN > 0 ? Math.Exp(sfmLogSum / vocalTotalN) : 0.0;
+        double arithMean = vocalTotalN > 0 ? sfmArithSum / vocalTotalN : 0.0;
+        double sfm = arithMean > 1e-10 ? Math.Clamp(geomMean / arithMean, 0.0, 1.0) : 1.0;
 
-        vocalWarm = vocalWarmN > 0 ? (float)(Math.Sqrt(vocalWarmSq / vocalWarmN) * vScale) : 0f;
-        vocalAir = vocalAirN > 0 ? (float)(Math.Sqrt(vocalAirSq / vocalAirN) * vScale * 1.15) : 0f;
+        // Apply harmonicity & stereo center dominance AFTER normalization so AGC never boosts flat noise into fake singing.
+        double harmonicity = Math.Clamp((0.34 - sfm) / 0.24, 0.0, 1.0);
+        double crestScore = Math.Clamp((crest - 2.1) / 2.2, 0.0, 1.0);
+        double tonality = Math.Clamp(harmonicity * (0.45 + 0.55 * crestScore), 0.0, 1.0);
+
+        double vocalCenterRms = vocalTotalN > 0 ? Math.Sqrt(centerPowerSq / vocalTotalN) : 0.0;
+        double inBandSideRms = vocalTotalN > 0 ? Math.Sqrt(inBandSideSq / vocalTotalN) : 0.0;
+        double centerDominance = isStereo
+            ? Math.Clamp((vocalCenterRms / (vocalCenterRms + inBandSideRms + 1e-6) - 0.34) / 0.40, 0.0, 1.0)
+            : 1.0;
+
+        double modBonus = Math.Clamp(1.0 + Math.Abs(vocalCenterRms - prevCenterRms) * 12.0, 1.0, 1.25);
+        prevCenterRms = (float)vocalCenterRms;
+
+        double bassSuppression = tonality < 0.35 && bass > mid * 3.5f ? 0.30 : 1.0;
+        vocalClarity = (float)Math.Clamp(tonality * centerDominance * bassSuppression * modBonus, 0.0, 1.0);
+
+        // Keep raw vocal band levels un-gated by clarity so agcVocal tracks true center vocal energy.
+        vocalWarm = vocalWarmN > 0 ? (float)(Math.Sqrt(vocalWarmSq / vocalWarmN) * 2.55) : 0f;
+        vocalAir = vocalAirN > 0 ? (float)(Math.Sqrt(vocalAirSq / vocalAirN) * 2.85) : 0f;
+        inBandSide = (float)inBandSideRms;
 
         double instSideRms = instSideN > 0 ? Math.Sqrt(instSideSq / instSideN) : 0.0;
         double instSparkleRms = instSparkleN > 0 ? Math.Sqrt(instSparkleSq / instSparkleN) : 0.0;
-        instrument = (float)Math.Sqrt(instSideRms * instSideRms + bass * bass * 0.30 + instSparkleRms * instSparkleRms * 0.72);
+        instrument = (float)Math.Sqrt(instSideRms * instSideRms * 1.65 + bass * bass * 0.25 + instSparkleRms * instSparkleRms * 1.15);
 
         centroidNorm = totalWeightSq > 1e-8 ? (float)Math.Clamp(logWeightedSum / totalWeightSq, 0.0, 1.0) : smoothCentroid;
     }
@@ -453,34 +627,50 @@ public sealed class AudioSpectrumAnalyzer
         float rawTreble,
         float rawVocalWarm,
         float rawVocalAir,
+        float rawVocalClarity,
+        float rawInBandSide,
         float rawInst,
         float rawCentroid,
+        ReadOnlySpan<float> rawBands,
         bool firstOrResumed)
     {
-        bool audible = rawRms >= 0.0005f || leftRms >= 0.0005f || rightRms >= 0.0005f || rawBass >= 0.001f || rawMid >= 0.001f || rawTreble >= 0.001f;
+        // Clean noise gate eliminates sub-audible DAC hum from triggering fake spectrum motion.
+        bool audible = rawRms >= 0.0022f || leftRms >= 0.0022f || rightRms >= 0.0022f
+            || rawBass >= 0.003f || rawMid >= 0.003f || rawTreble >= 0.003f;
 
         float rawPeakBand = Math.Max(rawRms * 1.25f, Math.Max(rawBass, Math.Max(rawMid, rawTreble)));
         trackRef = UpdateTrackRef(trackRef, rawPeakBand, dt, audible, 0.05f);
+        midVocalRef = UpdateTrackRef(midVocalRef, Math.Max(rawMid, Math.Max(rawVocalWarm, rawVocalAir)), dt, audible, 0.035f);
 
         agcBass = UpdateAgc(agcBass, rawBass, dt, audible, 0.04f, decaySeconds: 9.0f);
         agcMid = UpdateAgc(agcMid, rawMid, dt, audible, 0.035f, decaySeconds: 9.0f);
         agcTreble = UpdateAgc(agcTreble, rawTreble, dt, audible, 0.03f, decaySeconds: 9.0f);
-        agcVocal = UpdateAgc(agcVocal, Math.Max(rawVocalWarm, rawVocalAir), dt, audible, 0.03f, decaySeconds: 7.5f);
+        agcVocal = UpdateAgc(agcVocal, Math.Max(rawVocalWarm, rawVocalAir), dt, audible, 0.028f, decaySeconds: 7.0f);
         agcInst = UpdateAgc(agcInst, rawInst, dt, audible, 0.035f, decaySeconds: 8.5f);
         agcStereo = UpdateAgc(agcStereo, Math.Max(leftRms, rightRms), dt, audible, 0.035f, decaySeconds: 4.5f);
+
+        for (int i = 0; i < 8; i++)
+        {
+            agcBands[i] = UpdateAgc(agcBands[i], rawBands[i], dt, audible, i <= 2 ? 0.038f : 0.028f, decaySeconds: 8.0f);
+            float bDenom = Math.Max(0.025f, trackRef * 0.45f + agcBands[i] * 0.55f);
+            float normBand = audible ? Math.Clamp(rawBands[i] / bDenom, 0f, 1f) : 0f;
+            smoothBands[i] = Smooth(smoothBands[i], normBand, dt, 0.020, 0.10);
+        }
 
         float denomBass = Math.Max(0.03f, trackRef * 0.52f + agcBass * 0.48f);
         float denomMid = Math.Max(0.03f, trackRef * 0.52f + agcMid * 0.48f);
         float denomTreble = Math.Max(0.025f, trackRef * 0.48f + agcTreble * 0.52f);
-        float denomVocal = Math.Max(0.025f, trackRef * 0.45f + agcVocal * 0.55f);
+        // Vocal denominator is decoupled from sub-bass trackRef so booming kicks don't swallow singing.
+        float denomVocal = Math.Max(0.025f, midVocalRef * 0.42f + agcVocal * 0.58f);
         float denomInst = Math.Max(0.03f, trackRef * 0.50f + agcInst * 0.50f);
 
         float normBass = audible ? Math.Clamp(rawBass / denomBass, 0f, 1f) : 0f;
         float normMid = audible ? Math.Clamp(rawMid / denomMid, 0f, 1f) : 0f;
         float normTreble = audible ? Math.Clamp(rawTreble / denomTreble, 0f, 1f) : 0f;
-        float normVocalWarm = audible ? Math.Clamp(rawVocalWarm / denomVocal, 0f, 1f) : 0f;
-        float normVocalAir = audible ? Math.Clamp(rawVocalAir / denomVocal, 0f, 1f) : 0f;
+        float normVocalWarm = audible ? Math.Clamp(rawVocalWarm / denomVocal, 0f, 1f) * rawVocalClarity : 0f;
+        float normVocalAir = audible ? Math.Clamp(rawVocalAir / denomVocal, 0f, 1f) * rawVocalClarity : 0f;
         float normInst = audible ? Math.Clamp(rawInst / denomInst, 0f, 1f) : 0f;
+        float normInBandSide = audible ? Math.Clamp(rawInBandSide / Math.Max(0.025f, midVocalRef * 0.50f + agcInst * 0.50f), 0f, 1f) : 0f;
         float normVocalRaw = Math.Max(normVocalWarm, normVocalAir * 0.92f);
 
         float normLeft = audible ? Math.Clamp(leftRms / agcStereo, 0f, 1f) : 0f;
@@ -490,25 +680,25 @@ public sealed class AudioSpectrumAnalyzer
         bassFloor = LerpFloat(bassFloor, normBass, dt, 0.75);
         levelFloor = LerpFloat(levelFloor, targetLevel, dt, 0.80);
 
-        smoothBass = Smooth(smoothBass, normBass, dt, 0.028, 0.14);
-        smoothMid = Smooth(smoothMid, normMid, dt, 0.035, 0.15);
-        smoothTreble = Smooth(smoothTreble, normTreble, dt, 0.025, 0.12);
-        smoothLeft = Smooth(smoothLeft, normLeft, dt, 0.030, 0.15);
-        smoothRight = Smooth(smoothRight, normRight, dt, 0.030, 0.15);
-        smoothLevel = Smooth(smoothLevel, targetLevel, dt, 0.035, 0.16);
-        smoothEnergy = Smooth(smoothEnergy, targetLevel, dt, 0.55, 1.60);
+        smoothBass = Smooth(smoothBass, normBass, dt, 0.024, 0.12);
+        smoothMid = Smooth(smoothMid, normMid, dt, 0.028, 0.13);
+        smoothTreble = Smooth(smoothTreble, normTreble, dt, 0.022, 0.11);
+        smoothLeft = Smooth(smoothLeft, normLeft, dt, 0.028, 0.13);
+        smoothRight = Smooth(smoothRight, normRight, dt, 0.028, 0.13);
+        smoothLevel = Smooth(smoothLevel, targetLevel, dt, 0.028, 0.13);
+        smoothEnergy = Smooth(smoothEnergy, targetLevel, dt, 0.45, 1.20);
         if (audible)
             smoothCentroid = Math.Clamp(firstOrResumed ? rawCentroid : LerpFloat(smoothCentroid, rawCentroid, dt, 0.05), 0f, 1f);
 
-        // Clean lyrical vocal gating: strips residual background chord bleed so triggers silence between vocal phrases.
-        float bleed = normInst * 0.24f + 0.05f;
+        // Clean lyrical vocal gating: strips in-band stereo chord bleed while keeping centered singing vivid over bass.
+        float bleed = normInBandSide * 0.22f + 0.04f;
         float cleanWarm = Math.Max(0f, normVocalWarm - bleed);
         float cleanAir = Math.Max(0f, normVocalAir - bleed * 0.90f);
         float cleanVocal = Math.Max(cleanWarm, cleanAir * 0.92f);
-        smoothVocalWarm = Smooth(smoothVocalWarm, cleanWarm, dt, 0.024, 0.095);
-        smoothVocalAir = Smooth(smoothVocalAir, cleanAir, dt, 0.022, 0.085);
-        smoothVocal = Smooth(smoothVocal, cleanVocal, dt, 0.024, 0.095);
-        smoothInst = Smooth(smoothInst, normInst, dt, 0.035, 0.14);
+        smoothVocalWarm = Smooth(smoothVocalWarm, cleanWarm, dt, 0.020, 0.085);
+        smoothVocalAir = Smooth(smoothVocalAir, cleanAir, dt, 0.018, 0.080);
+        smoothVocal = Smooth(smoothVocal, cleanVocal, dt, 0.020, 0.085);
+        smoothInst = Smooth(smoothInst, normInst, dt, 0.028, 0.12);
 
         double avgAlpha = 1.0 - Math.Exp(-dt / 0.35);
         double bassThreshold = Math.Max(0.012, bassAvg * 1.38);
@@ -531,13 +721,13 @@ public sealed class AudioSpectrumAnalyzer
         bassAvg = (float)(bassAvg + (rawBass - bassAvg) * avgAlpha);
 
         float bassExcess = Math.Clamp((normBass - bassFloor * 0.72f) * 2.1f, 0f, 1f);
-        smoothBassPunch = Smooth(smoothBassPunch, Math.Max(beatPulse, bassExcess), dt, 0.020, 0.11);
+        smoothBassPunch = Smooth(smoothBassPunch, Math.Max(beatPulse, bassExcess), dt, 0.018, 0.10);
 
         float levelLift = Math.Max(0f, targetLevel - levelFloor * 0.75f);
         float targetDyn = audible
             ? Math.Clamp(smoothLevel * 0.42f + levelLift * 1.35f + beatPulse * 0.42f, 0f, 1f)
             : 0f;
-        smoothDynamic = Smooth(smoothDynamic, targetDyn, dt, 0.028, 0.14);
+        smoothDynamic = Smooth(smoothDynamic, targetDyn, dt, 0.024, 0.12);
 
         double trebleAlpha = 1.0 - Math.Exp(-dt / 0.24);
         double trebleThreshold = Math.Max(0.009, trebleAvg * 1.36);
@@ -569,27 +759,27 @@ public sealed class AudioSpectrumAnalyzer
         float targetLevel,
         bool beatFired)
     {
-        if (!audible && smoothLevel < 0.03f)
+        if (!audible && smoothLevel < 0.04f)
         {
-            beatRateHz = LerpFloat(beatRateHz, 0f, dt, 1.2);
+            beatRateHz = LerpFloat(beatRateHz, 0f, dt, 0.6);
             currentVibe = AudioMusicVibe.Silent;
             return;
         }
 
-        vibeEnergy = LerpFloat(vibeEnergy, targetLevel, dt, 1.8);
-        vibeBass = LerpFloat(vibeBass, normBass, dt, 1.8);
-        vibeVocal = LerpFloat(vibeVocal, normVocal, dt, 1.8);
-        vibeInst = LerpFloat(vibeInst, normInst, dt, 1.8);
-        vibeTreble = LerpFloat(vibeTreble, normTreble, dt, 1.8);
+        vibeEnergy = LerpFloat(vibeEnergy, targetLevel, dt, 0.95);
+        vibeBass = LerpFloat(vibeBass, normBass, dt, 0.95);
+        vibeVocal = LerpFloat(vibeVocal, normVocal, dt, 0.95);
+        vibeInst = LerpFloat(vibeInst, normInst, dt, 0.95);
+        vibeTreble = LerpFloat(vibeTreble, normTreble, dt, 0.95);
 
-        beatRateHz *= (float)Math.Exp(-dt / 2.5);
+        beatRateHz *= (float)Math.Exp(-dt / 2.2);
         if (beatFired)
             beatRateHz = Math.Min(6.0f, beatRateHz + 0.42f);
 
         AudioMusicVibe candidate;
         if (vibeEnergy < 0.28f && beatRateHz < 0.85f && vibeVocal < 0.34f)
             candidate = AudioMusicVibe.AmbientChill;
-        else if (vibeVocal >= 0.35f && vibeVocal >= vibeBass * 0.82f && beatRateHz < 2.2f)
+        else if (vibeVocal >= 0.34f && vibeVocal >= vibeBass * 0.78f && beatRateHz < 2.2f)
             candidate = AudioMusicVibe.VocalAcoustic;
         else if (vibeBass >= 0.42f && beatRateHz >= 1.25f && vibeBass >= vibeInst * 0.90f)
             candidate = AudioMusicVibe.ElectronicDrop;
@@ -608,7 +798,7 @@ public sealed class AudioSpectrumAnalyzer
         if (candidate != currentVibe)
         {
             double sinceSwitch = lastVibeSwitchTimestamp == 0 ? 10.0 : time.GetElapsedTime(lastVibeSwitchTimestamp, now).TotalSeconds;
-            if (sinceSwitch >= 1.4)
+            if (sinceSwitch >= 0.90)
             {
                 currentVibe = candidate;
                 lastVibeSwitchTimestamp = now;
