@@ -750,28 +750,41 @@ internal sealed class LightingEffectsSection
             {
                 int slot = ControllerRumble.FindPhysicalSlot();
                 var shared = Diagnostics.BrowserTriggerRumble.Shared;
-                bool armed = shared is { Armed: true, Failure: null };
-                testStatusText = armed ? "Pulsing all 4 motors..." : "Pulsing XInput grips...";
+                bool canUseIndependentTriggers = shared is { Armed: true, SupportsTriggerRumble: true, Failure: null };
+                testStatusText = canUseIndependentTriggers ? "Pulsing all 4 motors..." : "Pulsing 2.4G/USB linked motors...";
                 testStatusUntilTick = Environment.TickCount64 + 3500;
                 RefreshTriggerArmState();
 
-                Task<bool> gripTask = ControllerRumble.Test(70, 70, 450);
-                Task<bool> trigTask = armed ? shared!.Play4(0.70, 0.70, 0.95, 0.95, 450) : Task.FromResult(false);
-                bool gripsOk = await gripTask;
-                bool trigOk = await trigTask;
-
-                if (gripsOk && trigOk)
-                    testStatusText = $"4-Motor pulse sent (Slot {slot} Grips + LT/RT Triggers)";
-                else if (gripsOk && !armed)
-                    testStatusText = $"Grips pulsed (Slot {slot}) · Click Arm Triggers + press pad button for LT/RT";
-                else if (gripsOk)
-                    testStatusText = $"Grips pulsed (Slot {slot}) · Trigger route idle";
-                else if (trigOk)
-                    testStatusText = "Triggers pulsed · No XInput slot found for grips";
+                bool trigOk = false;
+                bool gripsOk = false;
+                if (canUseIndependentTriggers)
+                {
+                    trigOk = await shared!.Play4(0.75, 0.75, 0.95, 0.95, 650);
+                    if (trigOk)
+                        await Task.Delay(650);
+                    else
+                        gripsOk = await ControllerRumble.Test(85, 85, 650);
+                }
                 else
-                    testStatusText = "No XInput controller found (check 2.4G dongle or cable)";
-                testStatusUntilTick = Environment.TickCount64 + 4000;
-                if (armed && selectedKind == LightingEffectKind.AudioReactive && selectedAudioHaptics > 0)
+                {
+                    gripsOk = await ControllerRumble.Test(85, 85, 650);
+                }
+
+                if (trigOk)
+                {
+                    string slotTag = slot >= 0 ? $"Slot {slot} " : "";
+                    testStatusText = $"4-Motor pulse sent ({slotTag}Grips + LT/RT Triggers)";
+                }
+                else if (gripsOk)
+                {
+                    testStatusText = $"2.4G/USB pulse sent (Slot {slot}) · Press M + BACK on pad if LT/RT triggers are off (BT mode = independent 4-motor)";
+                }
+                else
+                {
+                    testStatusText = "No XInput controller found (check 2.4G dongle, USB cable, or BT)";
+                }
+                testStatusUntilTick = Environment.TickCount64 + 4500;
+                if (canUseIndependentTriggers && selectedKind == LightingEffectKind.AudioReactive && selectedAudioHaptics > 0)
                     shared!.EnsureFocusForAudioTriggers();
                 RefreshTriggerArmState();
             }
@@ -831,6 +844,7 @@ internal sealed class LightingEffectsSection
         var shared = Diagnostics.BrowserTriggerRumble.Shared;
         shared?.SyncHostWindowActiveOnUiThread();
         bool armed = shared is { Armed: true };
+        bool independentTriggers = shared is { Armed: true, SupportsTriggerRumble: true };
         if (shared == null || shared.Failure != null)
         {
             armTriggersButton.Visibility = Visibility.Visible;
@@ -860,7 +874,7 @@ internal sealed class LightingEffectsSection
         }
         else if (shared == null)
         {
-            nextText = "Grips active via XInput";
+            nextText = "Grips active via XInput · Press M + BACK on pad to link LT/RT triggers";
             nextColor = DS.Brush("DS.TextMuted");
         }
         else if (shared.Failure != null)
@@ -868,16 +882,21 @@ internal sealed class LightingEffectsSection
             nextText = shared.Failure;
             nextColor = DS.Brush("DS.TextMuted");
         }
-        else if (armed)
+        else if (independentTriggers)
         {
             nextText = "4-Motor Armed · Pick Light/Punch/Max to feel Grips + LT/RT";
             nextColor = DS.Brush("DS.AccentHi");
         }
+        else if (armed)
+        {
+            nextText = "2.4G/USB Linked Mode · Press M + BACK on pad to enable LT/RT triggers (BT mode = independent 4-motor)";
+            nextColor = DS.Brush("DS.TextSoft");
+        }
         else
         {
             nextText = shared.WaitingToArm
-                ? "Press any pad button now to unlock LT/RT triggers."
-                : "Click Arm Triggers & press a pad button for LT/RT triggers";
+                ? "Press any pad button now to unlock LT/RT triggers (on 2.4G/USB press M + BACK on pad)."
+                : "2.4G/USB: press M + BACK on pad for LT/RT · BT mode: click Arm Triggers & press a pad button";
             nextColor = DS.Brush("DS.TextMuted");
         }
 
@@ -1120,7 +1139,7 @@ internal sealed class LightingEffectsSection
         try { apps.AddRange(ForegroundApp.Running().Take(6)); } catch { }
         if (apps.Count == 0)
         {
-            runningAppsPanel.Children.Add(Kit.Text("No foreground apps detected — use '+ Add .exe…'.", 12, "DS.TextMuted"));
+            runningAppsPanel.Children.Add(Kit.Text("No foreground apps detected - use '+ Add .exe...'.", 12, "DS.TextMuted"));
             return;
         }
         foreach (var app in apps)

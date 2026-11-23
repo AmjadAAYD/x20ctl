@@ -40,7 +40,8 @@ public sealed class VibrationWorkbench
   if(HasTriggers&&Diagnostics.BrowserTriggerRumble.Shared is {} shared)
   {
    void Armed()=>Test.Dispatcher.BeginInvoke(ShowTriggerState);
-   motorControls.Loaded+=(_,_)=>{shared.ArmedChanged-=Armed;shared.ArmedChanged+=Armed;_=shared.Ready();};motorControls.Unloaded+=(_,_)=>shared.ArmedChanged-=Armed;
+   motorControls.Loaded+=(_,_)=>{shared.ArmedChanged-=Armed;shared.ArmedChanged+=Armed;shared.StateChanged-=Armed;shared.StateChanged+=Armed;_=shared.Ready();};
+   motorControls.Unloaded+=(_,_)=>{shared.ArmedChanged-=Armed;shared.StateChanged-=Armed;};
   }
   ShowTriggerState();
   Readback.TextWrapping=TextWrapping.Wrap;controls.Children.Add(Readback);
@@ -117,39 +118,94 @@ public sealed class VibrationWorkbench
    if(IsTrigger(zone))
    {
     var shared=Diagnostics.BrowserTriggerRumble.Shared;
-    if(shared==null){Readback.Text="Trigger rumble isn't available.";return;}
-    if(!shared.Armed){await shared.Listen();if(shared.Failure!=null){Readback.Text=shared.Failure;return;}Readback.Text="Press any button on the controller to turn on trigger rumble, then click the trigger again.";return;}
-    Readback.Text=$"Buzzing the {name.ToLowerInvariant()} at {percent}%…";
-    bool sent=await shared.Play(zone==Zone.LeftTrigger?percent/100.0:0,zone==Zone.RightTrigger?percent/100.0:0,1000);
-    await Task.Delay(1000);
-    Readback.Text=sent?$"{name} buzzed at {percent}%.":"The controller isn't reachable for trigger rumble right now.";
+    int leftLink=zone==Zone.LeftTrigger?percent:0;
+    int rightLink=zone==Zone.RightTrigger?percent:0;
+    if(shared==null)
+    {
+     Readback.Text=$"Buzzing the {name.ToLowerInvariant()} at {percent}% (2.4G/USB linked channel)...";
+     bool linked=await ControllerRumble.Test(leftLink,rightLink,1000);
+     Readback.Text=linked?$"{name} pulsed at {percent}% via 2.4G/USB linked channel (press M + BACK on pad if trigger vibration is off).":"Trigger rumble isn't available.";
+     return;
+    }
+    if(!shared.Armed)
+    {
+     await shared.Listen();
+     if(shared.Failure!=null)
+     {
+      bool linked=await ControllerRumble.Test(leftLink,rightLink,1000);
+      Readback.Text=linked?$"{name} pulsed at {percent}% via 2.4G/USB linked channel (press M + BACK on pad if trigger vibration is off). {shared.Failure}":shared.Failure;
+      return;
+     }
+     Readback.Text=$"Buzzing the {name.ToLowerInvariant()} at {percent}% (2.4G/USB linked channel)...";
+     bool fallbackSent=await ControllerRumble.Test(leftLink,rightLink,1000);
+     Readback.Text=fallbackSent
+      ?$"{name} pulsed at {percent}% via 2.4G/USB linked channel (press M + BACK on pad if trigger vibration is off). Press any controller button once to detect independent Bluetooth triggers."
+      :"Press any button on the controller to turn on trigger rumble, then click the trigger again.";
+     return;
+    }
+    if(shared is {Armed:true,SupportsTriggerRumble:true,Failure:null})
+    {
+     Readback.Text=$"Buzzing the {name.ToLowerInvariant()} at {percent}%...";
+     bool sent=await shared.Play(zone==Zone.LeftTrigger?percent/100.0:0,zone==Zone.RightTrigger?percent/100.0:0,1000);
+     if(sent)
+     {
+      await Task.Delay(1000);
+      Readback.Text=$"{name} buzzed at {percent}%.";
+     }
+     else
+     {
+      bool linked=await ControllerRumble.Test(leftLink,rightLink,1000);
+      Readback.Text=linked
+       ?$"{name} pulsed at {percent}% via linked channel (press M + BACK on pad if trigger vibration is off, or use Bluetooth mode for independent triggers)."
+       :"The controller isn't reachable for trigger rumble right now.";
+     }
+    }
+    else
+    {
+     Readback.Text=$"Buzzing the {name.ToLowerInvariant()} at {percent}% (2.4G/USB linked channel)...";
+     bool sent=await ControllerRumble.Test(leftLink,rightLink,1000);
+     Readback.Text=sent
+      ?$"{name} pulsed at {percent}% via 2.4G/USB linked channel. Press M + BACK on the controller if trigger vibration is off, or use Bluetooth mode for independent triggers."
+      :"No controller found.";
+    }
    }
    else
    {
-    Readback.Text=$"Buzzing the {name.ToLowerInvariant()} at {percent}%…";
+    Readback.Text=$"Buzzing the {name.ToLowerInvariant()} at {percent}%...";
     bool sent=await ControllerRumble.Test(zone==Zone.LeftGrip?percent:0,zone==Zone.RightGrip?percent:0);
     Readback.Text=sent?$"{name} buzzed at {percent}%.":"No controller found.";
    }
   }
   finally{SetTesting(face,false);}
  }
- /// <summary>All four at once, each at its own strength (the triggers only once trigger rumble is on).</summary>
+ /// <summary>All four at once, each at its own strength (independent 4-motor over Bluetooth Classic, or linked channels on 2.4G/USB).</summary>
  async Task RunAll()
  {
   if(testing||ReviewSandbox.Active)return;
   int Level(Zone zone)=>ZoneStrength(zone)*(int)testAllStrength.Value/100;
   if(zones.Keys.All(z=>Level(z)==0)){Readback.Text="All motors are at 0%.";return;}
-  SelectRegion("All");SetTesting(Test,true);Readback.Text=HasTriggers?"Buzzing all four…":"Buzzing both grips…";
+  SelectRegion("All");SetTesting(Test,true);Readback.Text=HasTriggers?"Buzzing all four...":"Buzzing both grips...";
   try
   {
    var shared=Diagnostics.BrowserTriggerRumble.Shared;
-   var triggerTask=HasTriggers&&shared?.Armed==true
-    ? shared.Play(Level(Zone.LeftTrigger)/100.0,Level(Zone.RightTrigger)/100.0,1000)
-    : Task.FromResult(false);
-   bool grips=await ControllerRumble.Test(Level(Zone.LeftGrip),Level(Zone.RightGrip));
-   bool triggers=await triggerTask;
-   Readback.Text=grips?(triggers?"Grip and trigger test sent.":HasTriggers?"Grip test sent. Click a trigger to turn on trigger rumble.":"Grip test sent.")
-    :triggers?"Trigger test sent. The grips aren't reachable.":"No controller found.";
+   if(HasTriggers&&shared is {Armed:true,SupportsTriggerRumble:true,Failure:null})
+   {
+    bool sent4=await shared.Play4(Level(Zone.LeftGrip)/100.0,Level(Zone.RightGrip)/100.0,Level(Zone.LeftTrigger)/100.0,Level(Zone.RightTrigger)/100.0,1000);
+    if(sent4)
+    {
+     await Task.Delay(1000);
+     Readback.Text="4-motor grip and trigger test sent.";
+     return;
+    }
+   }
+   int leftLevel=HasTriggers?Math.Max(Level(Zone.LeftGrip),Level(Zone.LeftTrigger)):Level(Zone.LeftGrip);
+   int rightLevel=HasTriggers?Math.Max(Level(Zone.RightGrip),Level(Zone.RightTrigger)):Level(Zone.RightGrip);
+   bool grips=await ControllerRumble.Test(leftLevel,rightLevel,1000);
+   Readback.Text=grips
+    ?(HasTriggers
+     ?"2.4G/USB test sent (linked channels) · Press M + BACK on the controller if LT/RT triggers are off, or use Bluetooth mode for independent triggers."
+     :"Grip test sent.")
+    :"No controller found.";
   }
   finally{SetTesting(Test,false);}
  }
@@ -161,10 +217,22 @@ public sealed class VibrationWorkbench
  }
  void ShowTriggerState()
  {
-  bool armed=Diagnostics.BrowserTriggerRumble.Shared?.Armed==true;
   if(!HasTriggers)return;
-  foreach(var zone in new[]{Zone.LeftTrigger,Zone.RightTrigger})zones[zone].Face.ToolTip=armed?null:"Trigger rumble turns on after one button press on the controller";
-  if(armed&&Readback.Text.StartsWith("Press any button on the controller"))Readback.Text="Trigger rumble is on. Click a trigger.";
+  var shared=Diagnostics.BrowserTriggerRumble.Shared;
+  bool armed=shared?.Armed==true;
+  bool independent=shared is {Armed:true,SupportsTriggerRumble:true};
+  string? tip=independent
+   ?null
+   :armed
+    ?"2.4G/USB Linked Mode: pulses linked XInput channel (press M + BACK on pad to toggle LT/RT triggers, or use Bluetooth mode for independent triggers)"
+    :"Trigger rumble: press M + BACK on pad on 2.4G/USB, or press one button on the controller in Bluetooth mode for independent triggers";
+  foreach(var zone in new[]{Zone.LeftTrigger,Zone.RightTrigger})zones[zone].Face.ToolTip=tip;
+  if(armed&&Readback.Text.StartsWith("Press any button on the controller"))
+  {
+   Readback.Text=independent
+    ?"Trigger rumble is on. Click a trigger."
+    :"2.4G/USB Linked Mode detected. Click a trigger to pulse its linked channel (press M + BACK on pad if trigger vibration is off, or use Bluetooth mode for independent triggers).";
+  }
  }
  // Game vibration (PC mode): each motor's share of the game's rumble, a minimum for faint effects, and a live readout
  readonly List<(Slider Slider,TextBlock Label,Func<int> Get,string Unit)> motors=new();
