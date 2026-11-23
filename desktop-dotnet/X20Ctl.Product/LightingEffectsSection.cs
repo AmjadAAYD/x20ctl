@@ -44,13 +44,18 @@ internal sealed class LightingEffectsSection
     private readonly Dictionary<LightingEffectKind, Button> kindButtons = [];
     private readonly Dictionary<int, Button> capButtons = [];
     private readonly Dictionary<AudioReactiveStyle, Button> audioStyleButtons = [];
+    private readonly Dictionary<AudioHapticsMode, Button> audioHapticsModeButtons = [];
     private readonly Dictionary<int, Button> audioHapticsButtons = [];
     private readonly List<string> palette = ["#00FFFF", "#FF00AA", "#3A6CFF"];
 
     private Border? audioStudioPanel;
     private ColumnDefinition? bassFillCol, midFillCol, trebleFillCol;
     private ColumnDefinition? bassEmptyCol, midEmptyCol, trebleEmptyCol;
+    private ColumnDefinition? lgFillCol, rgFillCol, ltFillCol, rtFillCol;
+    private ColumnDefinition? lgEmptyCol, rgEmptyCol, ltEmptyCol, rtEmptyCol;
     private Border? beatBadge;
+    private Button? armTriggersButton;
+    private TextBlock? triggerArmStatusText;
     private readonly DispatcherTimer audioUiTimer = new() { Interval = TimeSpan.FromMilliseconds(60) };
 
     private static readonly LightingEffectKind[] GridKinds =
@@ -85,6 +90,15 @@ internal sealed class LightingEffectsSection
         (AudioReactiveStyle.DropStrobe, "Drop Strobe"),
     ];
 
+    private static readonly (AudioHapticsMode Mode, string Label)[] AudioHapticsModeChoices =
+    [
+        (AudioHapticsMode.QuadConcert, "4D Concert"),
+        (AudioHapticsMode.TriggerPulse, "Trigger Pulse"),
+        (AudioHapticsMode.StereoWave, "Stereo Wave"),
+        (AudioHapticsMode.SubwooferDrop, "Sub Drop"),
+        (AudioHapticsMode.Heartbeat, "Heartbeat"),
+    ];
+
     private static readonly (int Strength, string Label)[] AudioHapticsChoices =
     [
         (0, "Off"),
@@ -96,6 +110,7 @@ internal sealed class LightingEffectsSection
     private LightingEffectKind selectedKind = LightingEffectKind.SmoothHueWave;
     private int selectedWriteCap;
     private AudioReactiveStyle selectedAudioStyle = AudioReactiveStyle.SpectrumFlow;
+    private AudioHapticsMode selectedAudioHapticsMode = AudioHapticsMode.QuadConcert;
     private int selectedAudioHaptics;
     private string selectedRulePresetId = "builtin-hue-sweep";
     private bool syncing;
@@ -138,6 +153,7 @@ internal sealed class LightingEffectsSection
         AudioSensitivity = (int)Math.Round(audioSensSlider.Value),
         AudioStyle = selectedAudioStyle,
         AudioHapticsStrength = selectedAudioHaptics,
+        AudioHapticsStyle = selectedAudioHapticsMode,
         RestoreOnStop = true,
     }.Normalized();
 
@@ -162,6 +178,7 @@ internal sealed class LightingEffectsSection
                 selectedKind = LightingEffectKind.SmoothHueWave;
             selectedWriteCap = Array.Exists(WriteCapChoices, c => c.Cap == spec.MaxSessionWrites) ? spec.MaxSessionWrites : 0;
             selectedAudioStyle = spec.AudioStyle;
+            selectedAudioHapticsMode = spec.AudioHapticsStyle;
             selectedAudioHaptics = Array.Exists(AudioHapticsChoices, c => c.Strength == spec.AudioHapticsStrength) ? spec.AudioHapticsStrength : 0;
             palette.Clear();
             palette.AddRange(spec.Palette);
@@ -221,8 +238,17 @@ internal sealed class LightingEffectsSection
                 selectedKind = kind;
                 if (kind == LightingEffectKind.ScreenAmbient && intervalSlider.Value > 120)
                     intervalSlider.Value = 70;
-                else if (kind == LightingEffectKind.AudioReactive && intervalSlider.Value > 120)
-                    intervalSlider.Value = 65;
+                else if (kind == LightingEffectKind.AudioReactive)
+                {
+                    if (intervalSlider.Value > 120) intervalSlider.Value = 65;
+                    // Upgrade single-colour solid red drafts into a vivid multi-stop Audio concert palette.
+                    if (palette.Count <= 1)
+                    {
+                        palette.Clear();
+                        palette.AddRange(["#FF0040", "#00F5D4", "#3D8BFF", "#FFB800", "#A855F7"]);
+                        RenderPaletteSwatches();
+                    }
+                }
                 UpdateSelectionButtons();
                 UpdateSliderLabels();
                 SyncPreviewDraft();
@@ -241,10 +267,26 @@ internal sealed class LightingEffectsSection
         audioStudioPanel = BuildAudioStudioPanel();
         stack.Children.Add(audioStudioPanel);
         audioUiTimer.Tick += (_, _) => RefreshLiveAudioMeters();
-        stack.Loaded += (_, _) => SyncAudioTimer();
+        void OnTriggerArmChanged()
+        {
+            stack.Dispatcher.BeginInvoke(RefreshTriggerArmState);
+        }
+        stack.Loaded += (_, _) =>
+        {
+            if (Diagnostics.BrowserTriggerRumble.Shared is { } shared)
+            {
+                shared.ArmedChanged -= OnTriggerArmChanged;
+                shared.ArmedChanged += OnTriggerArmChanged;
+                _ = shared.Ready();
+            }
+            RefreshTriggerArmState();
+            SyncAudioTimer();
+        };
         stack.Unloaded += (_, _) =>
         {
             audioUiTimer.Stop();
+            if (Diagnostics.BrowserTriggerRumble.Shared is { } shared)
+                shared.ArmedChanged -= OnTriggerArmChanged;
             if (!LightingEffectsService.Status.IsRunning)
                 SystemAudioLevelSampler.Reset();
         };
@@ -403,10 +445,13 @@ internal sealed class LightingEffectsSection
             LightingWindow.SetSelectedState(btn, cap == selectedWriteCap);
         foreach (var (st, btn) in audioStyleButtons)
             LightingWindow.SetSelectedState(btn, st == selectedAudioStyle);
+        foreach (var (hm, btn) in audioHapticsModeButtons)
+            LightingWindow.SetSelectedState(btn, hm == selectedAudioHapticsMode);
         foreach (var (h, btn) in audioHapticsButtons)
             LightingWindow.SetSelectedState(btn, h == selectedAudioHaptics);
         if (audioStudioPanel != null)
             audioStudioPanel.Visibility = selectedKind == LightingEffectKind.AudioReactive ? Visibility.Visible : Visibility.Collapsed;
+        RefreshTriggerArmState();
         SyncAudioTimer();
     }
 
@@ -525,8 +570,8 @@ internal sealed class LightingEffectsSection
         body.Children.Add(audioSensLabel);
         body.Children.Add(audioSensSlider);
 
-        body.Children.Add(Kit.Text("Bass haptics (physical XInput rumble)", 12.5, "DS.TextSoft").Also(t => t.Margin = new(0, 0, 0, 5)));
-        var hapPanel = new WrapPanel();
+        body.Children.Add(Kit.Text("4-Motor Haptics (Grips + Triggers)", 12.5, "DS.TextSoft").Also(t => t.Margin = new(0, 0, 0, 5)));
+        var hapPanel = new WrapPanel { Margin = new(0, 0, 0, 6) };
         foreach (var (strength, label) in AudioHapticsChoices)
         {
             int captured = strength;
@@ -552,8 +597,151 @@ internal sealed class LightingEffectsSection
         }
         body.Children.Add(Kit.Segments(hapPanel));
 
+        var hapModesWrap = new WrapPanel { Margin = new(-2, 0, -2, 8) };
+        foreach (var (modeVal, label) in AudioHapticsModeChoices)
+        {
+            var captured = modeVal;
+            var btn = new Button
+            {
+                Content = label,
+                Style = DS.Style("ActionButton"),
+                Padding = new(9, 4, 9, 4),
+                Margin = new(2),
+                FontSize = 11,
+                MinHeight = 28,
+                Height = double.NaN,
+            };
+            btn.Click += async (_, _) =>
+            {
+                selectedAudioHapticsMode = captured;
+                UpdateSelectionButtons();
+                SyncPreviewDraft();
+                if (LightingEffectsService.Status.IsRunning)
+                    await LightingEffectsService.ApplyAsync(BuildCurrentEffectSpec());
+            };
+            registerFocus?.Invoke(btn);
+            audioHapticsModeButtons[captured] = btn;
+            hapModesWrap.Children.Add(btn);
+        }
+        body.Children.Add(hapModesWrap);
+
+        // Live 4-motor output telemetry (LG, RG, LT, RT)
+        var motorsRow = new System.Windows.Controls.Primitives.UniformGrid { Columns = 4, Margin = new(-2, 0, -2, 8) };
+        (ColumnDefinition fill, ColumnDefinition empty, FrameworkElement cell) MakeMotorCell(string label, Color col)
+        {
+            var sp = new StackPanel { Margin = new(2, 0, 2, 0) };
+            sp.Children.Add(new TextBlock
+            {
+                Text = label,
+                FontFamily = LightingWindow.MonoFont,
+                FontSize = 10,
+                Foreground = DS.Brush("DS.TextMuted"),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new(0, 0, 0, 2),
+            });
+            var barGrid = new Grid { Height = 6 };
+            var cFill = new ColumnDefinition { Width = new(0.04, GridUnitType.Star) };
+            var cEmpty = new ColumnDefinition { Width = new(0.96, GridUnitType.Star) };
+            barGrid.ColumnDefinitions.Add(cFill);
+            barGrid.ColumnDefinitions.Add(cEmpty);
+            barGrid.Children.Add(new Border { Background = new SolidColorBrush(col), CornerRadius = new(3) });
+            sp.Children.Add(new Border
+            {
+                CornerRadius = new(3),
+                Background = new SolidColorBrush(Color.FromArgb(90, 24, 34, 54)),
+                BorderBrush = DS.Brush("DS.Hairline"),
+                BorderThickness = new(0.5),
+                Child = barGrid,
+            });
+            return (cFill, cEmpty, sp);
+        }
+        (lgFillCol, lgEmptyCol, var lgCell) = MakeMotorCell("L GRIP", Color.FromRgb(0xFF, 0x3B, 0x7F));
+        (rgFillCol, rgEmptyCol, var rgCell) = MakeMotorCell("R GRIP", Color.FromRgb(0x38, 0xBD, 0xF8));
+        (ltFillCol, ltEmptyCol, var ltCell) = MakeMotorCell("L TRIG", Color.FromRgb(0xFB, 0x92, 0x3C));
+        (rtFillCol, rtEmptyCol, var rtCell) = MakeMotorCell("R TRIG", Color.FromRgb(0xA7, 0x8B, 0xFA));
+        motorsRow.Children.Add(lgCell);
+        motorsRow.Children.Add(rgCell);
+        motorsRow.Children.Add(ltCell);
+        motorsRow.Children.Add(rtCell);
+        body.Children.Add(motorsRow);
+
+        var armRow = new DockPanel { Margin = new(0, 2, 0, 0) };
+        armTriggersButton = new Button
+        {
+            Content = "Arm Triggers (4-Motor)",
+            Style = DS.Style("ActionButton"),
+            Padding = new(10, 4, 10, 4),
+            FontSize = 11.5,
+            MinHeight = 28,
+            Height = double.NaN,
+            Margin = new(0, 0, 8, 0),
+        };
+        armTriggersButton.Click += async (_, _) =>
+        {
+            var shared = Diagnostics.BrowserTriggerRumble.Shared;
+            if (shared == null)
+            {
+                if (triggerArmStatusText != null) triggerArmStatusText.Text = "Trigger rumble host unavailable here.";
+                return;
+            }
+            await shared.Listen();
+            RefreshTriggerArmState();
+            if (!shared.Armed && shared.Failure == null && triggerArmStatusText != null)
+                triggerArmStatusText.Text = "Press any controller button now to unlock triggers.";
+        };
+        registerFocus?.Invoke(armTriggersButton);
+        DockPanel.SetDock(armTriggersButton, Dock.Left);
+        armRow.Children.Add(armTriggersButton);
+
+        triggerArmStatusText = new TextBlock
+        {
+            FontSize = 11,
+            Foreground = DS.Brush("DS.TextMuted"),
+            VerticalAlignment = VerticalAlignment.Center,
+            TextWrapping = TextWrapping.Wrap,
+        };
+        armRow.Children.Add(triggerArmStatusText);
+        body.Children.Add(armRow);
+
         box.Child = body;
         return box;
+    }
+
+    private void RefreshTriggerArmState()
+    {
+        if (armTriggersButton == null || triggerArmStatusText == null) return;
+        if (ReviewSandbox.Active)
+        {
+            armTriggersButton.Visibility = Visibility.Collapsed;
+            triggerArmStatusText.Text = "Sandbox mode: simulating all 4 motors";
+            return;
+        }
+        var shared = Diagnostics.BrowserTriggerRumble.Shared;
+        if (shared == null)
+        {
+            armTriggersButton.IsEnabled = false;
+            triggerArmStatusText.Text = "Grips active via XInput";
+            return;
+        }
+        if (shared.Failure != null)
+        {
+            armTriggersButton.IsEnabled = false;
+            triggerArmStatusText.Text = shared.Failure;
+            return;
+        }
+        if (shared.Armed)
+        {
+            armTriggersButton.Visibility = Visibility.Collapsed;
+            triggerArmStatusText.Foreground = DS.Brush("DS.AccentHi");
+            triggerArmStatusText.Text = "4-Motor Armed · Grips + LT/RT Triggers Live";
+        }
+        else
+        {
+            armTriggersButton.Visibility = Visibility.Visible;
+            armTriggersButton.IsEnabled = true;
+            triggerArmStatusText.Foreground = DS.Brush("DS.TextMuted");
+            triggerArmStatusText.Text = "Click Arm & press a pad button for LT/RT triggers";
+        }
     }
 
     private void SyncAudioTimer()
@@ -573,17 +761,25 @@ internal sealed class LightingEffectsSection
     {
         if (selectedKind != LightingEffectKind.AudioReactive) return;
         AudioFrame af;
+        HapticsFrame hf;
         if (ReviewSandbox.Active)
         {
             double t = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0;
-            float b = (float)Math.Clamp(0.2 + 0.75 * Math.Exp(-((t * 2.0) % 1.0) * 5.0), 0.03, 1.0);
-            float m = (float)Math.Clamp(0.25 + 0.55 * (0.5 + 0.5 * Math.Sin(t * 3.1)), 0.03, 1.0);
-            float tr = (float)Math.Clamp(0.15 + 0.65 * (0.5 + 0.5 * Math.Sin(t * 7.4)), 0.03, 1.0);
-            af = new AudioFrame(Math.Max(b, m), b, m, tr, b > 0.65f ? 1f : 0f, 0, 0f);
+            float beatCycle = (float)((t * 2.0) % 1.0);
+            float pulse = MathF.Exp(-beatCycle * 5.0f);
+            float b = Math.Clamp(0.20f + 0.75f * pulse, 0.03f, 1.0f);
+            float m = Math.Clamp(0.25f + 0.55f * (0.5f + 0.5f * MathF.Sin((float)t * 3.1f)), 0.03f, 1.0f);
+            float tr = Math.Clamp(0.15f + 0.65f * (0.5f + 0.5f * MathF.Sin((float)t * 7.4f)), 0.03f, 1.0f);
+            float trSpike = ((t * 4.0) % 1.0) < 0.25 ? 0.85f : 0f;
+            af = new AudioFrame(Math.Max(b, m), b, m, tr, pulse, (int)(t * 2.0), 0f, b, tr, 0.5f, 0.65f, trSpike);
+            hf = AudioHapticsEngine.Evaluate(af, selectedAudioHapticsMode, selectedAudioHaptics, t);
         }
         else
         {
             af = SystemAudioLevelSampler.LatestFrame;
+            hf = selectedAudioHaptics > 0 && LightingEffectsService.Status.IsRunning
+                ? SystemAudioLevelSampler.LatestHaptics
+                : AudioHapticsEngine.Evaluate(af, selectedAudioHapticsMode, selectedAudioHaptics, 0.0);
         }
 
         static void SetBar(ColumnDefinition? fill, ColumnDefinition? empty, float v)
@@ -597,6 +793,10 @@ internal sealed class LightingEffectsSection
         SetBar(bassFillCol, bassEmptyCol, af.Bass);
         SetBar(midFillCol, midEmptyCol, af.Mid);
         SetBar(trebleFillCol, trebleEmptyCol, af.Treble);
+        SetBar(lgFillCol, lgEmptyCol, (float)hf.LeftGrip);
+        SetBar(rgFillCol, rgEmptyCol, (float)hf.RightGrip);
+        SetBar(ltFillCol, ltEmptyCol, (float)hf.LeftTrigger);
+        SetBar(rtFillCol, rtEmptyCol, (float)hf.RightTrigger);
 
         if (beatBadge != null)
         {

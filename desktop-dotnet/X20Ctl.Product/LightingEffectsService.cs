@@ -155,6 +155,8 @@ internal static class LightingEffectsService
             double bass = Math.Clamp(0.25 + 0.70 * beatPulse, 0.0, 1.0);
             double mid = Math.Clamp(0.30 + 0.45 * (0.5 + 0.5 * Math.Sin(t * 3.1)), 0.0, 1.0);
             double treble = Math.Clamp(0.20 + 0.55 * (0.5 + 0.5 * Math.Sin(t * 7.4)), 0.0, 1.0);
+            double trebleSpike = ((t * 4.0) % 1.0) < 0.25 ? 0.85 : 0.0;
+            double centroid = Math.Clamp(0.25 + 0.65 * (0.5 + 0.5 * Math.Sin(t * 1.9)), 0.0, 1.0);
             double level = Math.Clamp(Math.Max(bass * 0.85, Math.Max(mid, treble)), 0.0, 1.0);
             return LightingEffectEngine.Evaluate(spec, elapsed, input with
             {
@@ -164,6 +166,9 @@ internal static class LightingEffectsService
                 AudioTreble = treble,
                 AudioBeatPulse = beatPulse,
                 AudioBeatCount = beatCount,
+                AudioCentroid = centroid,
+                AudioTrebleTransient = trebleSpike,
+                AudioEnergy = 0.65,
             }, pressAge);
         }
         return LightingEffectEngine.Evaluate(spec, elapsed, input, pressAge);

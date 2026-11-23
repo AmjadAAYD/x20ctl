@@ -6,7 +6,8 @@ namespace X20Ctl.Product;
 
 /// <summary>
 /// Real-time Windows WASAPI Loopback PCM capture + 512-point FFT analyzer for Audio Reactive RGB
-/// and optional Bass Haptics, with automatic Core Audio endpoint recovery and peak-meter fallback.
+/// and 4-motor Audio Haptics (Left Grip, Right Grip, Left Trigger, Right Trigger), with WebView2
+/// trigger-rumble streaming and automatic XInput background failover.
 /// </summary>
 internal static class SystemAudioLevelSampler
 {
@@ -41,8 +42,10 @@ internal static class SystemAudioLevelSampler
 
     static int activeRumbleSlot = -1;
     static bool rumbleActive;
+    static bool triggerStreamActive;
 
     public static AudioFrame LatestFrame => Analyzer.CurrentFrame;
+    public static HapticsFrame LatestHaptics { get; private set; }
 
     public static void EnsureStarted()
     {
@@ -72,7 +75,7 @@ internal static class SystemAudioLevelSampler
     {
         EnsureStarted();
         var frame = SampleAudioFrame();
-        UpdateBassHaptics(spec, frame);
+        UpdateAudioHaptics(spec, frame, elapsed.TotalSeconds);
 
         var enriched = input with
         {
@@ -82,6 +85,9 @@ internal static class SystemAudioLevelSampler
             AudioTreble = frame.Treble,
             AudioBeatPulse = frame.BeatPulse,
             AudioBeatCount = frame.BeatCount,
+            AudioCentroid = frame.SpectralCentroid,
+            AudioTrebleTransient = frame.TrebleTransient,
+            AudioEnergy = frame.Energy,
         };
         return LightingEffectEngine.Evaluate(spec, elapsed, enriched, pressAge);
     }
@@ -91,7 +97,6 @@ internal static class SystemAudioLevelSampler
         if (loopbackActive)
             return Analyzer.CurrentFrame;
 
-        // Fallback if WASAPI loopback isn't streaming yet or failed to open on a restricted driver.
         lock (MeterLock)
         {
             long now = Stopwatch.GetTimestamp();
@@ -148,7 +153,7 @@ internal static class SystemAudioLevelSampler
         Analyzer.Reset();
     }
 
-    static void UpdateBassHaptics(LightingEffectSpec spec, AudioFrame frame)
+    static void UpdateAudioHaptics(LightingEffectSpec spec, AudioFrame frame, double elapsedSec)
     {
         if (spec.AudioHapticsStrength <= 0)
         {
@@ -156,21 +161,36 @@ internal static class SystemAudioLevelSampler
             return;
         }
 
-        double scale = Math.Clamp(spec.AudioHapticsStrength, 0, 100) / 100.0;
-        double bassDrive = Math.Max(frame.Bass, frame.BeatPulse * 0.92);
-        double hiDrive = Math.Max(frame.Mid * 0.65, frame.Treble * 0.95);
+        var hf = AudioHapticsEngine.Evaluate(frame, spec.AudioHapticsStyle, spec.AudioHapticsStrength, elapsedSec);
+        LatestHaptics = hf;
 
-        int leftMotor = bassDrive >= 0.08
-            ? (int)Math.Clamp(Math.Round(bassDrive * scale * 65535.0), 0, 65535)
-            : 0;
-        int rightMotor = hiDrive >= 0.14
-            ? (int)Math.Clamp(Math.Round(hiDrive * scale * 0.72 * 65535.0), 0, 65535)
-            : 0;
+        if (hf.IsSilent)
+        {
+            SilenceHaptics();
+            return;
+        }
 
-        ApplyHaptics(leftMotor, rightMotor);
+        var browser = Diagnostics.BrowserTriggerRumble.Shared;
+        if (browser is { Armed: true })
+        {
+            browser.Stream4(hf.LeftGrip, hf.RightGrip, hf.LeftTrigger, hf.RightTrigger, Math.Max(140, spec.StepIntervalMs * 2));
+            triggerStreamActive = true;
+
+            // If X20CTL is backgrounded or Chromium blocks unfocused playEffect, seamlessly fall back to XInput grips.
+            if (browser.StreamLive)
+            {
+                ClearGripXInputOnly();
+                return;
+            }
+        }
+
+        // Fold trigger accent subtly into XInput grips when triggers aren't armed yet or window is unfocused.
+        int leftMotor = (int)Math.Clamp(Math.Round(Math.Max(hf.LeftGrip, hf.LeftTrigger * 0.70) * 65535.0), 0, 65535);
+        int rightMotor = (int)Math.Clamp(Math.Round(Math.Max(hf.RightGrip, hf.RightTrigger * 0.85) * 65535.0), 0, 65535);
+        ApplyXInputGrips(leftMotor, rightMotor);
     }
 
-    static void ApplyHaptics(int leftMotor, int rightMotor)
+    static void ApplyXInputGrips(int leftMotor, int rightMotor)
     {
         lock (HapticsLock)
         {
@@ -201,7 +221,7 @@ internal static class SystemAudioLevelSampler
         }
     }
 
-    static void SilenceHaptics()
+    static void ClearGripXInputOnly()
     {
         lock (HapticsLock)
         {
@@ -209,6 +229,17 @@ internal static class SystemAudioLevelSampler
                 ControllerRumble.Set(activeRumbleSlot, 0, 0);
             rumbleActive = false;
         }
+    }
+
+    static void SilenceHaptics()
+    {
+        LatestHaptics = HapticsFrame.Zero;
+        if (triggerStreamActive)
+        {
+            triggerStreamActive = false;
+            Diagnostics.BrowserTriggerRumble.Shared?.StopStream();
+        }
+        ClearGripXInputOnly();
     }
 
     static void CaptureLoopThreadProc()
@@ -258,7 +289,6 @@ internal static class SystemAudioLevelSampler
                 if (!TryReadWaveFormat(mixFormatPtr, out int channels, out int sampleRate, out int bitsPerSample, out bool isFloat))
                     throw new NotSupportedException("Unsupported WASAPI mix format.");
 
-                // 100 ms shared-mode loopback buffer in 100-ns units.
                 const long hnsRequestedDuration = 1_000_000;
                 int hrInit = audioClient.Initialize(
                     AudioShareModeShared,

@@ -43,7 +43,7 @@ Shows the active controller, player slot, pending draft changes, and your local 
 
 #### RGB & Live Effects (X20 Pro)
 
-Configure 4-zone LED colours (`Left`, `Right`, `Middle`, `Logo`), palette swatches, brightness, Rainbow Wave, Trigger Glow, Stick Heat, Button Flash, Ambient Screen Sync, Audio Reactive RGB, and live Battery gauges. Simultaneous **2.4 GHz dongle (`413D:2131`) + unpaired BLE sync** applies lighting and settings whenever PC Bluetooth is enabled.
+Configure 4-zone LED colours (`Left`, `Right`, `Middle`, `Logo`), palette swatches, brightness, Rainbow Wave, Trigger Glow, Stick Heat, Button Flash, Ambient Screen Sync, Audio Reactive RGB (512-pt FFT with 5 styles and optional 4-motor grip + trigger audio haptics), and live Battery gauges. Simultaneous **2.4 GHz dongle (`413D:2131`) + unpaired BLE sync** applies lighting and settings whenever PC Bluetooth is enabled.
 
 #### Screen (`160x80`, X20 Pro)
 
