@@ -999,6 +999,7 @@ def _build_cta_button_svg(
     border_col: str,
     dot_col: str,
     icon_path: str,
+    shimmer_delay: str = "0s",
 ) -> str:
     w, h = 270, 64
     defs = (
@@ -1008,22 +1009,280 @@ def _build_cta_button_svg(
         f"</linearGradient>"
         f'<linearGradient id="{prefix}_shine" x1="0%" y1="0%" x2="100%" y2="0%">'
         f'<stop offset="0%" stop-color="#FFFFFF" stop-opacity="0"/>'
-        f'<stop offset="50%" stop-color="#FFFFFF" stop-opacity="0.24"/>'
+        f'<stop offset="50%" stop-color="#FFFFFF" stop-opacity="0.28"/>'
         f'<stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>'
         f"</linearGradient>"
+        f'<linearGradient id="{prefix}_sw" x1="0%" y1="0%" x2="100%" y2="25%">'
+        f'<stop offset="0%" stop-color="#FFFFFF" stop-opacity="0"/>'
+        f'<stop offset="45%" stop-color="#FFFFFF" stop-opacity="0"/>'
+        f'<stop offset="50%" stop-color="#FFFFFF" stop-opacity="0.24"/>'
+        f'<stop offset="55%" stop-color="#FFFFFF" stop-opacity="0"/>'
+        f'<stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>'
+        f'<animateTransform attributeName="gradientTransform" type="translate" from="-1.4 0" to="1.4 0" dur="4.2s" begin="{shimmer_delay}" repeatCount="indefinite"/>'
+        f"</linearGradient>"
+        f'<clipPath id="{prefix}_clip"><rect x="1" y="1" width="{w - 2}" height="{h - 2}" rx="12"/></clipPath>'
     )
-    style = f".s{{font-family:{FONT_SANS}}}.m{{font-family:{FONT_MONO}}}"
+    style = (
+        f".s{{font-family:{FONT_SANS}}}.m{{font-family:{FONT_MONO}}}"
+        f"@keyframes {prefix}_p{{0%,100%{{opacity:1}}50%{{opacity:0.35}}}}"
+        f".{prefix}_dot{{animation:{prefix}_p 2s ease-in-out infinite}}"
+        f"@keyframes {prefix}_a{{0%,100%{{transform:translateX(0)}}50%{{transform:translateX(3px)}}}}"
+        f".{prefix}_arr{{animation:{prefix}_a 2.2s ease-in-out infinite}}"
+        "@media (prefers-reduced-motion:reduce){*{animation:none!important}}"
+    )
     body = (
-        f'<rect x="1" y="1" width="{w - 2}" height="{h - 2}" rx="12" fill="url(#{prefix}_bg)" stroke="{border_col}" stroke-opacity="0.65" stroke-width="1.2"/>'
+        f'<g clip-path="url(#{prefix}_clip)">'
+        f'<rect x="1" y="1" width="{w - 2}" height="{h - 2}" rx="12" fill="url(#{prefix}_bg)"/>'
+        f'<rect x="1" y="1" width="{w - 2}" height="{h - 2}" rx="12" fill="url(#{prefix}_sw)"/>'
+        f"</g>"
+        f'<rect x="1" y="1" width="{w - 2}" height="{h - 2}" rx="12" fill="none" stroke="{border_col}" stroke-opacity="0.65" stroke-width="1.2"/>'
         f'<line x1="16" y1="2" x2="{w - 16}" y2="2" stroke="url(#{prefix}_shine)" stroke-width="1"/>'
         f'<rect x="14" y="14" width="36" height="36" rx="9" fill="#060A12" fill-opacity="0.42" stroke="#FFFFFF" stroke-opacity="0.16" stroke-width="1"/>'
         f'<g transform="translate(22 22)">{icon_path}</g>'
         f'<text x="62" y="29" class="s" font-size="15.5" font-weight="700" fill="{TEXT_PRIMARY}">{_esc(title)}</text>'
-        f'<circle cx="66" cy="44" r="2.8" fill="{dot_col}"/>'
+        f'<circle class="{prefix}_dot" cx="66" cy="44" r="2.8" fill="{dot_col}"/>'
         f'<text x="74" y="47.5" class="m" font-size="11" font-weight="500" fill="#DCE8F8">{_esc(subtitle)}</text>'
-        f'<text x="{w - 16}" y="37" text-anchor="end" class="s" font-size="15" font-weight="700" fill="#E2E8F0">→</text>'
+        f'<text class="s {prefix}_arr" x="{w - 18}" y="37" text-anchor="end" font-size="15" font-weight="700" fill="#E2E8F0">→</text>'
     )
     return _wrap_svg(w, h, f"{title} - {subtitle}", defs, body, style)
+
+
+def _build_led_divider_svg() -> str:
+    w, h = 1000, 10
+    defs = (
+        '<linearGradient id="ld_g" x1="0%" y1="0%" x2="100%" y2="0%">'
+        '<stop offset="0%" stop-color="#0EA5E9" stop-opacity="0"/>'
+        '<stop offset="20%" stop-color="#22D3EE" stop-opacity="0.9"/>'
+        '<stop offset="50%" stop-color="#8B5CF6" stop-opacity="0.95"/>'
+        '<stop offset="80%" stop-color="#EC4899" stop-opacity="0.9"/>'
+        '<stop offset="100%" stop-color="#0EA5E9" stop-opacity="0"/>'
+        '<animateTransform attributeName="gradientTransform" type="translate" from="-1 0" to="1 0" dur="5s" repeatCount="indefinite"/>'
+        "</linearGradient>"
+        '<linearGradient id="ld_base" x1="0%" y1="0%" x2="100%" y2="0%">'
+        '<stop offset="0%" stop-color="#1E293B" stop-opacity="0"/>'
+        '<stop offset="15%" stop-color="#334155" stop-opacity="0.6"/>'
+        '<stop offset="85%" stop-color="#334155" stop-opacity="0.6"/>'
+        '<stop offset="100%" stop-color="#1E293B" stop-opacity="0"/>'
+        "</linearGradient>"
+    )
+    body = (
+        f'<rect x="0" y="4" width="{w}" height="2" rx="1" fill="url(#ld_base)"/>'
+        f'<rect x="0" y="3.5" width="{w}" height="3" rx="1.5" fill="url(#ld_g)"/>'
+    )
+    return _wrap_svg(w, h, "Animated RGB LED divider", defs, body, "")
+
+
+def _build_hero_motion_svg(tag: str) -> str:
+    w, h = 1000, 396
+    ver = release_name(tag)
+    blk_raw = _load_cropped_webp_uri(CTRL_DIR / "x20_pro/native/front-full.png", 640)
+    uri, cw, ch = _fit_box(blk_raw, 430, 300)
+    ix = round(735 - cw / 2, 1)
+    iy = round(204 - ch / 2, 1)
+
+    defs = (
+        '<linearGradient id="hm_bg" x1="0%" y1="0%" x2="100%" y2="100%">'
+        '<stop offset="0%" stop-color="#050811"/>'
+        '<stop offset="52%" stop-color="#0B1222"/>'
+        '<stop offset="100%" stop-color="#080D1A"/>'
+        "</linearGradient>"
+        '<radialGradient id="hm_aura" cx="50%" cy="50%" r="50%">'
+        '<stop offset="0%" stop-color="#22D3EE" stop-opacity="0.42">'
+        '<animate attributeName="stop-color" values="#22D3EE;#8B5CF6;#EC4899;#10B981;#22D3EE" dur="9s" repeatCount="indefinite"/>'
+        "</stop>"
+        '<stop offset="60%" stop-color="#3B82F6" stop-opacity="0.14">'
+        '<animate attributeName="stop-color" values="#3B82F6;#6366F1;#F43F5E;#059669;#3B82F6" dur="9s" repeatCount="indefinite"/>'
+        "</stop>"
+        '<stop offset="100%" stop-color="#0B1222" stop-opacity="0"/>'
+        "</radialGradient>"
+        '<linearGradient id="hm_title" x1="0%" y1="0%" x2="100%" y2="0%">'
+        '<stop offset="0%" stop-color="#F8FAFC"/>'
+        '<stop offset="44%" stop-color="#F8FAFC"/>'
+        '<stop offset="50%" stop-color="#7DD3FC"/>'
+        '<stop offset="56%" stop-color="#F8FAFC"/>'
+        '<stop offset="100%" stop-color="#F8FAFC"/>'
+        '<animateTransform attributeName="gradientTransform" type="translate" from="-1.5 0" to="1.5 0" dur="4.5s" repeatCount="indefinite"/>'
+        "</linearGradient>"
+        '<linearGradient id="hm_led" x1="0%" y1="0%" x2="100%" y2="0%">'
+        '<stop offset="0%" stop-color="#22D3EE"/>'
+        '<stop offset="33%" stop-color="#8B5CF6"/>'
+        '<stop offset="66%" stop-color="#EC4899"/>'
+        '<stop offset="100%" stop-color="#22D3EE"/>'
+        '<animateTransform attributeName="gradientTransform" type="translate" from="-1 0" to="1 0" dur="3.6s" repeatCount="indefinite"/>'
+        "</linearGradient>"
+        '<pattern id="hm_grid" width="36" height="36" patternUnits="userSpaceOnUse">'
+        '<path d="M 36 0 L 0 0 0 36" fill="none" stroke="#94A3B8" stroke-opacity="0.08" stroke-width="1"/>'
+        "</pattern>"
+        f'<clipPath id="hm_clip"><rect x="1" y="1" width="{w - 2}" height="{h - 2}" rx="18"/></clipPath>'
+    )
+    style = (
+        f".s{{font-family:{FONT_SANS}}}.m{{font-family:{FONT_MONO}}}"
+        "@keyframes hm_fl{0%,100%{transform:translateY(0px) rotate(-1.5deg)}50%{transform:translateY(-11px) rotate(1.2deg)}}"
+        ".hm_pad{transform-box:fill-box;transform-origin:center;animation:hm_fl 4.6s ease-in-out infinite}"
+        "@keyframes hm_sh{0%,100%{transform:scaleX(1);opacity:0.75}50%{transform:scaleX(0.86);opacity:0.45}}"
+        ".hm_shd{transform-box:fill-box;transform-origin:center;animation:hm_sh 4.6s ease-in-out infinite}"
+        "@keyframes hm_p{0%,100%{opacity:1}50%{opacity:0.3}}"
+        ".hm_dot{animation:hm_p 1.8s ease-in-out infinite}"
+        "@keyframes hm_eq1{0%,100%{height:6px;y:17px}50%{height:18px;y:5px}}"
+        "@keyframes hm_eq2{0%,100%{height:14px;y:9px}50%{height:5px;y:18px}}"
+        "@keyframes hm_eq3{0%,100%{height:9px;y:14px}50%{height:20px;y:3px}}"
+        ".eq1{animation:hm_eq1 0.9s ease-in-out infinite}"
+        ".eq2{animation:hm_eq2 0.75s ease-in-out infinite}"
+        ".eq3{animation:hm_eq3 1.05s ease-in-out infinite}"
+        "@keyframes hm_ring{0%{r:110;opacity:0.45}100%{r:195;opacity:0}}"
+        ".hm_rg{animation:hm_ring 3.2s ease-out infinite}"
+        "@media (prefers-reduced-motion:reduce){*{animation:none!important}}"
+    )
+    body = (
+        f'<g clip-path="url(#hm_clip)">'
+        f'<rect width="{w}" height="{h}" fill="url(#hm_bg)"/>'
+        f'<rect width="{w}" height="{h}" fill="url(#hm_grid)"/>'
+        f'<ellipse cx="735" cy="204" rx="260" ry="185" fill="url(#hm_aura)"/>'
+        f'<circle class="hm_rg" cx="735" cy="204" r="110" fill="none" stroke="#38BDF8" stroke-width="1.2"/>'
+        f'<circle class="hm_rg" cx="735" cy="204" r="110" fill="none" stroke="#A78BFA" stroke-width="1.2" style="animation-delay:1.6s"/>'
+        f'<ellipse class="hm_shd" cx="735" cy="346" rx="145" ry="15" fill="#010308"/>'
+        f'<g class="hm_pad">'
+        f'<image x="{ix}" y="{iy}" width="{cw}" height="{ch}" preserveAspectRatio="xMidYMid meet" href="{uri}" xlink:href="{uri}"/>'
+        f'<g transform="translate(709 102)">'
+        f'<rect width="52" height="26" rx="3" fill="#030712" stroke="#38BDF8" stroke-opacity="0.55" stroke-width="0.9"/>'
+        f'<rect class="eq1" x="7" y="12" width="5" height="11" rx="1.5" fill="#22D3EE"/>'
+        f'<rect class="eq2" x="15" y="8" width="5" height="15" rx="1.5" fill="#60A5FA"/>'
+        f'<rect class="eq3" x="23" y="5" width="5" height="18" rx="1.5" fill="#A78BFA"/>'
+        f'<rect class="eq2" x="31" y="9" width="5" height="14" rx="1.5" fill="#E879F9"/>'
+        f'<rect class="eq1" x="39" y="13" width="5" height="10" rx="1.5" fill="#34D399"/>'
+        f"</g></g>"
+        f'<rect x="46" y="42" width="290" height="28" rx="14" fill="#0F172A" fill-opacity="0.88" stroke="#38BDF8" stroke-opacity="0.35" stroke-width="1"/>'
+        f'<circle class="hm_dot" cx="62" cy="56" r="3.6" fill="#22C55E"/>'
+        f'<text x="74" y="60" class="m" font-size="11" font-weight="600" fill="#CBD5E1" letter-spacing="1.2">1000Hz · 2.4G + UNPAIRED BLE</text>'
+        f'<text x="46" y="150" class="s" font-size="76" font-weight="800" fill="url(#hm_title)" letter-spacing="-2.4">X20CTL</text>'
+        f'<rect x="334" y="106" width="94" height="32" rx="16" fill="#1E293B" stroke="#60A5FA" stroke-opacity="0.55" stroke-width="1"/>'
+        f'<text x="381" y="126.5" text-anchor="middle" class="m" font-size="13.5" font-weight="700" fill="#E2E8F0">{_esc(ver)}</text>'
+        f'<rect x="48" y="170" width="220" height="4.5" rx="2.25" fill="url(#hm_led)"/>'
+        f'<text x="48" y="212" class="s" font-size="22" font-weight="600" fill="#E2E8F0">Desktop Studio for EasySMX Pads</text>'
+        f'<text x="48" y="242" class="s" font-size="14.5" fill="#94A3B8">No KeyLinker phone app. Live Ambient RGB, 160x80 screen,</text>'
+        f'<text x="48" y="264" class="s" font-size="14.5" fill="#94A3B8">curves, M1-M6 paddles, offline Agent XCTL &amp; PC Mode.</text>'
+        f'<rect x="48" y="298" width="136" height="30" rx="8" fill="#111C33" stroke="#94A3B8" stroke-opacity="0.22" stroke-width="1"/>'
+        f'<text x="116" y="317.5" text-anchor="middle" class="m" font-size="11.5" fill="#E2E8F0">Windows 10/11</text>'
+        f'<rect x="194" y="298" width="110" height="30" rx="8" fill="#111C33" stroke="#94A3B8" stroke-opacity="0.22" stroke-width="1"/>'
+        f'<text x="249" y="317.5" text-anchor="middle" class="m" font-size="11.5" fill="#E2E8F0">Linux x64</text>'
+        f'<rect x="314" y="298" width="128" height="30" rx="8" fill="#111C33" stroke="#94A3B8" stroke-opacity="0.22" stroke-width="1"/>'
+        f'<text x="378" y="317.5" text-anchor="middle" class="m" font-size="11.5" fill="#7DD3FC">Zero Telemetry</text>'
+        f"</g>"
+        f'<rect x="1" y="1" width="{w - 2}" height="{h - 2}" rx="18" fill="none" stroke="{BORDER_SILVER}" stroke-opacity="0.20" stroke-width="1.2"/>'
+    )
+    return _wrap_svg(w, h, f"X20CTL {ver}: animated controller studio hero for EasySMX pads", defs, body, style)
+
+
+def _build_protocol_live_svg() -> str:
+    w, h = 1000, 266
+    pad_raw = _load_cropped_webp_uri(CTRL_DIR / "x20_pro/finishes/white/front-full.png", 320)
+    uri, cw, ch = _fit_box(pad_raw, 210, 148)
+    px = round(144 - cw / 2, 1)
+    py = round(142 - ch / 2, 1)
+
+    defs = (
+        '<linearGradient id="pl_bg" x1="0%" y1="0%" x2="100%" y2="100%">'
+        '<stop offset="0%" stop-color="#060A14"/><stop offset="100%" stop-color="#0C1326"/>'
+        "</linearGradient>"
+        f'<clipPath id="pl_clip"><rect x="1" y="1" width="{w - 2}" height="{h - 2}" rx="16"/></clipPath>'
+        '<clipPath id="pl_t1"><rect x="564" y="80" width="0" height="22"><animate attributeName="width" values="0;385;385;0" keyTimes="0;0.24;0.92;1" dur="8s" repeatCount="indefinite"/></rect></clipPath>'
+        '<clipPath id="pl_t2"><rect x="564" y="108" width="0" height="22"><animate attributeName="width" values="0;0;385;385;0" keyTimes="0;0.22;0.46;0.92;1" dur="8s" repeatCount="indefinite"/></rect></clipPath>'
+        '<clipPath id="pl_t3"><rect x="564" y="136" width="0" height="22"><animate attributeName="width" values="0;0;385;385;0" keyTimes="0;0.44;0.68;0.92;1" dur="8s" repeatCount="indefinite"/></rect></clipPath>'
+        '<clipPath id="pl_t4"><rect x="564" y="164" width="0" height="22"><animate attributeName="width" values="0;0;385;385;0" keyTimes="0;0.66;0.88;0.95;1" dur="8s" repeatCount="indefinite"/></rect></clipPath>'
+    )
+    style = (
+        f".s{{font-family:{FONT_SANS}}}.m{{font-family:{FONT_MONO}}}"
+        "@keyframes pl_dash{to{stroke-dashoffset:-48}}"
+        ".pl_w1{stroke-dasharray:8 8;animation:pl_dash 1.2s linear infinite}"
+        ".pl_w2{stroke-dasharray:6 10;animation:pl_dash 1.5s linear infinite}"
+        "@keyframes pl_vib{0%,100%{r:58;opacity:0.55}100%{r:104;opacity:0}}"
+        ".pl_rg{animation:pl_vib 2.2s ease-out infinite}"
+        "@keyframes pl_cur{0%,49%{opacity:1}50%,100%{opacity:0}}"
+        ".pl_bl{animation:pl_cur 0.9s steps(1) infinite}"
+        "@media (prefers-reduced-motion:reduce){*{animation:none!important}}"
+    )
+    body = (
+        f'<g clip-path="url(#pl_clip)">'
+        f'<rect width="{w}" height="{h}" fill="url(#pl_bg)"/>'
+        f'<text x="26" y="32" class="m" font-size="11" font-weight="700" fill="#7DD3FC" letter-spacing="2">LIVE TELEMETRY // SIMULTANEOUS 2.4 GHz DONGLE + UNPAIRED BLE GATT</text>'
+        f'<text x="974" y="32" text-anchor="end" class="m" font-size="11" fill="#64748B">CRC-8 POLY 0xEB · VERIFIED READ-BACK</text>'
+        f'<rect x="24" y="48" width="240" height="194" rx="12" fill="#091020" stroke="#94A3B8" stroke-opacity="0.16" stroke-width="1"/>'
+        f'<circle class="pl_rg" cx="144" cy="142" r="58" fill="none" stroke="#38BDF8" stroke-width="1.4"/>'
+        f'<circle class="pl_rg" cx="144" cy="142" r="58" fill="none" stroke="#E879F9" stroke-width="1.4" style="animation-delay:1.1s"/>'
+        f'<image x="{px}" y="{py}" width="{cw}" height="{ch}" preserveAspectRatio="xMidYMid meet" href="{uri}" xlink:href="{uri}"/>'
+        f'<text x="144" y="226" text-anchor="middle" class="m" font-size="11" fill="#CBD5E1">EasySMX X20 Pro (1020:2006)</text>'
+        f'<path id="pl_p1" d="M 264 112 C 340 112, 420 112, 540 112" fill="none" stroke="#22D3EE" stroke-width="2.2" class="pl_w1"/>'
+        f'<path id="pl_p2" d="M 264 178 C 340 178, 420 178, 540 178" fill="none" stroke="#A78BFA" stroke-width="2.2" class="pl_w2"/>'
+        f'<circle r="4.5" fill="#22D3EE"><animateMotion dur="1.8s" repeatCount="indefinite"><mpath href="#pl_p1"/></animateMotion></circle>'
+        f'<circle r="4.5" fill="#E879F9"><animateMotion dur="2.1s" repeatCount="indefinite"><mpath href="#pl_p2"/></animateMotion></circle>'
+        f'<rect x="328" y="84" width="146" height="22" rx="6" fill="#082F49" stroke="#38BDF8" stroke-opacity="0.55" stroke-width="1"/>'
+        f'<text x="401" y="99" text-anchor="middle" class="m" font-size="10.5" font-weight="600" fill="#7DD3FC">2.4G HID · 1000Hz</text>'
+        f'<rect x="328" y="150" width="146" height="22" rx="6" fill="#2E1065" stroke="#A78BFA" stroke-opacity="0.55" stroke-width="1"/>'
+        f'<text x="401" y="165" text-anchor="middle" class="m" font-size="10.5" font-weight="600" fill="#DDD6FE">BLE GATT · 0x37 / 0xB3</text>'
+        f'<text x="401" y="214" text-anchor="middle" class="m" font-size="10.5" fill="#94A3B8">No Windows BLE pairing needed</text>'
+        f'<rect x="540" y="48" width="436" height="194" rx="12" fill="#050811" stroke="#38BDF8" stroke-opacity="0.28" stroke-width="1"/>'
+        f'<rect x="540" y="48" width="436" height="26" rx="12" fill="#0F172A"/>'
+        f'<circle cx="558" cy="61" r="4" fill="#EF4444"/><circle cx="572" cy="61" r="4" fill="#F59E0B"/><circle cx="586" cy="61" r="4" fill="#22C55E"/>'
+        f'<text x="604" y="65" class="m" font-size="10.5" fill="#94A3B8">x20ctl-engine · live packet monitor</text>'
+        f'<g clip-path="url(#pl_t1)"><text x="564" y="98" class="m" font-size="12" fill="#7DD3FC">&gt; TX 0x91 IDENT  -&gt; X20 Pro FW 1.44 [OK]</text></g>'
+        f'<g clip-path="url(#pl_t2)"><text x="564" y="126" class="m" font-size="12" fill="#E879F9">&gt; TX 0x37 RGB    -&gt; #22D3EE ACK 02DFAA</text></g>'
+        f'<g clip-path="url(#pl_t3)"><text x="564" y="154" class="m" font-size="12" fill="#34D399">&gt; RX 0xB7 VERIFY -&gt; READ-BACK MATCH [OK]</text></g>'
+        f'<g clip-path="url(#pl_t4)"><text x="564" y="182" class="m" font-size="12" fill="#FBBF24">&gt; PC MODE ViGEm  -&gt; Xbox 360 1000Hz LIVE</text></g>'
+        f'<text x="564" y="218" class="m" font-size="11.5" fill="#64748B">$ ready (zero firmware writes) <tspan class="pl_bl" fill="#38BDF8">_</tspan></text>'
+        f"</g>"
+        f'<rect x="1" y="1" width="{w - 2}" height="{h - 2}" rx="16" fill="none" stroke="{BORDER_SILVER}" stroke-opacity="0.16" stroke-width="1"/>'
+    )
+    return _wrap_svg(w, h, "Animated KeyLinker BLE GATT and 2.4 GHz simultaneous packet visualizer", defs, body, style)
+
+
+def _build_lineup_motion_svg() -> str:
+    w, h = 1000, 212
+    cw_box, ch_box, gap = 128, 168, 11
+    sx0 = round((w - (7 * cw_box + 6 * gap)) / 2, 1)
+    defs = (
+        '<linearGradient id="lm_bg" x1="0%" y1="0%" x2="100%" y2="100%">'
+        '<stop offset="0%" stop-color="#060A14"/><stop offset="100%" stop-color="#0C1326"/>'
+        "</linearGradient>"
+        f'<clipPath id="lm_clip"><rect x="1" y="1" width="{w - 2}" height="{h - 2}" rx="16"/></clipPath>'
+    )
+    style = (
+        f".s{{font-family:{FONT_SANS}}}.m{{font-family:{FONT_MONO}}}"
+        "@keyframes lm_fl{0%,100%{transform:translateY(0px)}50%{transform:translateY(-6px)}}"
+        ".lm_p{animation:lm_fl 3.6s ease-in-out infinite}"
+        "@keyframes lm_dt{0%,100%{opacity:1}50%{opacity:0.35}}"
+        ".lm_d{animation:lm_dt 2.2s ease-in-out infinite}"
+        "@media (prefers-reduced-motion:reduce){*{animation:none!important}}"
+    )
+    cards = []
+    for i, (label, path, badge, dot_col, ver_hw) in enumerate(CONTROLLERS_LINEUP):
+        px = round(sx0 + i * (cw_box + gap), 1)
+        py = 22
+        cx = round(px + cw_box / 2, 1)
+        raw = _load_cropped_webp_uri(path, 220)
+        uri, iw, ih = _fit_box(raw, 108, 76)
+        bg = "#111B31" if ver_hw else "#0B1120"
+        op = "0.34" if ver_hw else "0.16"
+        delay = f"-{i * 0.45:.2f}s"
+        tw = len(badge) * 3.0
+        dx = round(cx - tw - 4, 1)
+        cards.append(
+            f'<rect x="{px}" y="{py}" width="{cw_box}" height="{ch_box}" rx="12" fill="{bg}" stroke="{BORDER_SILVER}" stroke-opacity="{op}" stroke-width="1"/>'
+            f'<ellipse cx="{cx}" cy="116" rx="40" ry="5.5" fill="#020307" fill-opacity="0.78"/>'
+            f'<g class="lm_p" style="animation-delay:{delay}">'
+            f'<image x="{round(cx - iw / 2, 1)}" y="{round(74 - ih / 2, 1)}" width="{iw}" height="{ih}" preserveAspectRatio="xMidYMid meet" href="{uri}" xlink:href="{uri}"/>'
+            f"</g>"
+            f'<text x="{cx}" y="144" text-anchor="middle" class="s" font-size="13.5" font-weight="700" fill="{TEXT_PRIMARY}">{_esc(label)}</text>'
+            f'<circle class="lm_d" cx="{dx}" cy="166" r="2.8" fill="{dot_col}" style="animation-delay:{delay}"/>'
+            f'<text x="{round(dx + 7, 1)}" y="169.5" class="m" font-size="10.5" fill="{TEXT_SECONDARY}">{_esc(badge)}</text>'
+        )
+    body = (
+        f'<g clip-path="url(#lm_clip)">'
+        f'<rect width="{w}" height="{h}" fill="url(#lm_bg)"/>'
+        f'{"".join(cards)}'
+        f"</g>"
+        f'<rect x="1" y="1" width="{w - 2}" height="{h - 2}" rx="16" fill="none" stroke="{BORDER_SILVER}" stroke-opacity="0.16" stroke-width="1"/>'
+    )
+    return _wrap_svg(w, h, "Animated showcase of all 7 supported EasySMX controllers", defs, body, style)
 
 
 def build_social_preview(tag: str) -> None:
@@ -1504,6 +1763,7 @@ def generate_all(tag: str, social_preview: bool = False) -> list[Path]:
                 "#93C5FD",
                 "#86EFAC",
                 '<path d="M10 1v11m0 0l-4-4m4 4l4-4M2 16h16" fill="none" stroke="#FFFFFF" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>',
+                shimmer_delay="0s",
             ),
         ),
         (
@@ -1517,6 +1777,7 @@ def generate_all(tag: str, social_preview: bool = False) -> list[Path]:
                 "#F43F75",
                 "#FB7185",
                 '<path d="M10 17C2.5 11.8 1 6.2 4.6 3.5c2.2-1.6 4.4-.5 5.4 1.3 1-1.8 3.2-2.9 5.4-1.3C19 6.2 17.5 11.8 10 17z" fill="#FB7185"/>',
+                shimmer_delay="1.4s",
             ),
         ),
         (
@@ -1530,8 +1791,13 @@ def generate_all(tag: str, social_preview: bool = False) -> list[Path]:
                 "#34D399",
                 "#34D399",
                 '<path d="M4 7h12l1.2 7.5a2.5 2.5 0 0 1-2.5 2.9h-.8a2 2 0 0 1-1.7-1l-1-1.6H8.8l-1 1.6a2 2 0 0 1-1.7 1h-.8a2.5 2.5 0 0 1-2.5-2.9L4 7z" fill="none" stroke="#6EE7B7" stroke-width="1.8" stroke-linejoin="round"/><circle cx="13.5" cy="10.5" r="1" fill="#6EE7B7"/><path d="M6.5 10.5h2M7.5 9.5v2" stroke="#6EE7B7" stroke-width="1.4" stroke-linecap="round"/>',
+                shimmer_delay="2.8s",
             ),
         ),
+        (README_ASSETS / "hero-motion.svg", _build_hero_motion_svg(tag)),
+        (README_ASSETS / "led-divider.svg", _build_led_divider_svg()),
+        (README_ASSETS / "protocol-live.svg", _build_protocol_live_svg()),
+        (README_ASSETS / "lineup-motion.svg", _build_lineup_motion_svg()),
     ]
     for path, content in cta_buttons:
         ET.fromstring(content)
