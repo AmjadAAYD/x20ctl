@@ -15,6 +15,19 @@ internal static class ControllerRumble
         catch (Exception error) when (error is DllNotFoundException or EntryPointNotFoundException) { }
     }
 
+    public static int FindPhysicalSlot()
+    {
+        try
+        {
+            var buffer = new byte[16];
+            return Enumerable.Range(0, 4).FirstOrDefault(i => !PcModeService.IsVirtual(i) && GetState((uint)i, buffer) == 0, -1);
+        }
+        catch (Exception error) when (error is DllNotFoundException or EntryPointNotFoundException)
+        {
+            return -1;
+        }
+    }
+
     /// <summary>Returns whether a controller took the command.</summary>
     public static Task<bool> Test(bool left, bool right, int percent, int ms = 1000) => Test(left ? percent : 0, right ? percent : 0, ms);
 
@@ -23,8 +36,7 @@ internal static class ControllerRumble
     {
         try
         {
-            var buffer = new byte[16];
-            int slot = Enumerable.Range(0, 4).FirstOrDefault(i => !PcModeService.IsVirtual(i) && GetState((uint)i, buffer) == 0, -1);
+            int slot = FindPhysicalSlot();
             if (slot < 0) return false;
             static ushort Level(int percent) => (ushort)(Math.Clamp(percent, 0, 100) * 65535 / 100);
             var on = new Vibration { Left = Level(leftPercent), Right = Level(rightPercent) };

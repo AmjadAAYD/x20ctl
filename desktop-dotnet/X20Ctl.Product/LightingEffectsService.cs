@@ -148,8 +148,23 @@ internal static class LightingEffectsService
         {
             if (!ReviewSandbox.Active)
                 return SystemAudioLevelSampler.Sample(spec, elapsed, input, pressAge);
-            double syntheticBeat = Math.Clamp(0.45 + 0.45 * Math.Sin(elapsed.TotalSeconds * 4.2) + 0.10 * Math.Sin(elapsed.TotalSeconds * 9.1), 0.0, 1.0);
-            return LightingEffectEngine.Evaluate(spec, elapsed, input with { AudioLevel = syntheticBeat }, pressAge);
+            double t = elapsed.TotalSeconds;
+            double beatCycle = (t * 2.0) % 1.0;
+            double beatPulse = Math.Exp(-beatCycle * 5.0);
+            int beatCount = (int)(t * 2.0);
+            double bass = Math.Clamp(0.25 + 0.70 * beatPulse, 0.0, 1.0);
+            double mid = Math.Clamp(0.30 + 0.45 * (0.5 + 0.5 * Math.Sin(t * 3.1)), 0.0, 1.0);
+            double treble = Math.Clamp(0.20 + 0.55 * (0.5 + 0.5 * Math.Sin(t * 7.4)), 0.0, 1.0);
+            double level = Math.Clamp(Math.Max(bass * 0.85, Math.Max(mid, treble)), 0.0, 1.0);
+            return LightingEffectEngine.Evaluate(spec, elapsed, input with
+            {
+                AudioLevel = level,
+                AudioBass = bass,
+                AudioMid = mid,
+                AudioTreble = treble,
+                AudioBeatPulse = beatPulse,
+                AudioBeatCount = beatCount,
+            }, pressAge);
         }
         return LightingEffectEngine.Evaluate(spec, elapsed, input, pressAge);
     }

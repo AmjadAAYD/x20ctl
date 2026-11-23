@@ -31,17 +31,27 @@ internal sealed class LightingEffectsSection
     private readonly Slider minBrightSlider = new() { Minimum = 0, Maximum = 255, Value = 1, SmallChange = 1, LargeChange = 16, TickFrequency = 1, IsSnapToTickEnabled = true, Style = DS.Style("DS.Slider"), Margin = new(0, 2, 0, 6) };
     private readonly Slider intervalSlider = new() { Minimum = 60, Maximum = 1500, Value = 80, SmallChange = 10, LargeChange = 50, TickFrequency = 10, IsSnapToTickEnabled = true, Style = DS.Style("DS.Slider"), Margin = new(0, 2, 0, 8) };
     private readonly Slider idleSlider = new() { Minimum = 5, Maximum = 300, Value = 60, SmallChange = 5, LargeChange = 15, TickFrequency = 5, IsSnapToTickEnabled = true, Style = DS.Style("DS.Slider"), Margin = new(0, 2, 0, 6) };
+    private readonly Slider audioSensSlider = new() { Minimum = 10, Maximum = 100, Value = 65, SmallChange = 5, LargeChange = 15, TickFrequency = 5, IsSnapToTickEnabled = true, Style = DS.Style("DS.Slider"), Margin = new(0, 2, 0, 8) };
 
     private readonly TextBlock maxBrightLabel = Kit.Text("", 13, "DS.TextSoft");
     private readonly TextBlock periodLabel = Kit.Text("", 13, "DS.TextSoft");
     private readonly TextBlock minBrightLabel = Kit.Text("", 12.5, "DS.TextSoft");
     private readonly TextBlock intervalLabel = Kit.Text("", 12.5, "DS.TextSoft");
     private readonly TextBlock idleLabel = Kit.Text("", 12.5, "DS.TextSoft");
+    private readonly TextBlock audioSensLabel = Kit.Text("", 12.5, "DS.TextSoft");
     private readonly TextBlock selectedGameRuleHint = Kit.Text("", 13, "DS.AccentHi").Also(t => { t.TextWrapping = TextWrapping.Wrap; t.Margin = new(0, 0, 0, 6); });
 
     private readonly Dictionary<LightingEffectKind, Button> kindButtons = [];
     private readonly Dictionary<int, Button> capButtons = [];
+    private readonly Dictionary<AudioReactiveStyle, Button> audioStyleButtons = [];
+    private readonly Dictionary<int, Button> audioHapticsButtons = [];
     private readonly List<string> palette = ["#00FFFF", "#FF00AA", "#3A6CFF"];
+
+    private Border? audioStudioPanel;
+    private ColumnDefinition? bassFillCol, midFillCol, trebleFillCol;
+    private ColumnDefinition? bassEmptyCol, midEmptyCol, trebleEmptyCol;
+    private Border? beatBadge;
+    private readonly DispatcherTimer audioUiTimer = new() { Interval = TimeSpan.FromMilliseconds(60) };
 
     private static readonly LightingEffectKind[] GridKinds =
     [
@@ -66,8 +76,27 @@ internal sealed class LightingEffectsSection
         (1000, "1000"),
     ];
 
+    private static readonly (AudioReactiveStyle Style, string Label)[] AudioStyleChoices =
+    [
+        (AudioReactiveStyle.SpectrumFlow, "Spectrum"),
+        (AudioReactiveStyle.BeatShift, "Beat Shift"),
+        (AudioReactiveStyle.BassFire, "Bass Fire"),
+        (AudioReactiveStyle.AuroraDrift, "Aurora"),
+        (AudioReactiveStyle.DropStrobe, "Drop Strobe"),
+    ];
+
+    private static readonly (int Strength, string Label)[] AudioHapticsChoices =
+    [
+        (0, "Off"),
+        (35, "Light 35%"),
+        (65, "Punch 65%"),
+        (100, "Max 100%"),
+    ];
+
     private LightingEffectKind selectedKind = LightingEffectKind.SmoothHueWave;
     private int selectedWriteCap;
+    private AudioReactiveStyle selectedAudioStyle = AudioReactiveStyle.SpectrumFlow;
+    private int selectedAudioHaptics;
     private string selectedRulePresetId = "builtin-hue-sweep";
     private bool syncing;
 
@@ -106,6 +135,9 @@ internal sealed class LightingEffectsSection
         CyclePeriodMs = (int)Math.Round(periodSlider.Value),
         IdleTimeoutSeconds = (int)Math.Round(idleSlider.Value),
         MaxSessionWrites = selectedWriteCap,
+        AudioSensitivity = (int)Math.Round(audioSensSlider.Value),
+        AudioStyle = selectedAudioStyle,
+        AudioHapticsStrength = selectedAudioHaptics,
         RestoreOnStop = true,
     }.Normalized();
 
@@ -129,6 +161,8 @@ internal sealed class LightingEffectsSection
             else
                 selectedKind = LightingEffectKind.SmoothHueWave;
             selectedWriteCap = Array.Exists(WriteCapChoices, c => c.Cap == spec.MaxSessionWrites) ? spec.MaxSessionWrites : 0;
+            selectedAudioStyle = spec.AudioStyle;
+            selectedAudioHaptics = Array.Exists(AudioHapticsChoices, c => c.Strength == spec.AudioHapticsStrength) ? spec.AudioHapticsStrength : 0;
             palette.Clear();
             palette.AddRange(spec.Palette);
             minBrightSlider.Value = spec.MinBrightness;
@@ -136,6 +170,7 @@ internal sealed class LightingEffectsSection
             intervalSlider.Value = spec.StepIntervalMs;
             periodSlider.Value = spec.CyclePeriodMs;
             idleSlider.Value = spec.IdleTimeoutSeconds;
+            audioSensSlider.Value = spec.AudioSensitivity;
         }
         finally
         {
@@ -203,6 +238,17 @@ internal sealed class LightingEffectsSection
         heroGrid.Children.Add(MakeEffectTile(LightingEffectKind.AudioReactive, hero: true));
         stack.Children.Add(heroGrid);
 
+        audioStudioPanel = BuildAudioStudioPanel();
+        stack.Children.Add(audioStudioPanel);
+        audioUiTimer.Tick += (_, _) => RefreshLiveAudioMeters();
+        stack.Loaded += (_, _) => SyncAudioTimer();
+        stack.Unloaded += (_, _) =>
+        {
+            audioUiTimer.Stop();
+            if (!LightingEffectsService.Status.IsRunning)
+                SystemAudioLevelSampler.Reset();
+        };
+
         var grid = new System.Windows.Controls.Primitives.UniformGrid { Columns = 2, Margin = new(-3, 0, -3, 12) };
         foreach (var kind in GridKinds) grid.Children.Add(MakeEffectTile(kind));
         stack.Children.Add(grid);
@@ -254,6 +300,7 @@ internal sealed class LightingEffectsSection
         intervalSlider.ValueChanged += (_, _) => UpdateSliderLabels();
         periodSlider.ValueChanged += (_, _) => { UpdateSliderLabels(); SyncPreviewDraft(); };
         idleSlider.ValueChanged += (_, _) => UpdateSliderLabels();
+        audioSensSlider.ValueChanged += (_, _) => { UpdateSliderLabels(); SyncPreviewDraft(); };
 
         stack.Children.Add(maxBrightLabel);
         stack.Children.Add(maxBrightSlider);
@@ -354,6 +401,208 @@ internal sealed class LightingEffectsSection
             LightingWindow.SetSelectedState(btn, kind == selectedKind);
         foreach (var (cap, btn) in capButtons)
             LightingWindow.SetSelectedState(btn, cap == selectedWriteCap);
+        foreach (var (st, btn) in audioStyleButtons)
+            LightingWindow.SetSelectedState(btn, st == selectedAudioStyle);
+        foreach (var (h, btn) in audioHapticsButtons)
+            LightingWindow.SetSelectedState(btn, h == selectedAudioHaptics);
+        if (audioStudioPanel != null)
+            audioStudioPanel.Visibility = selectedKind == LightingEffectKind.AudioReactive ? Visibility.Visible : Visibility.Collapsed;
+        SyncAudioTimer();
+    }
+
+    private Border BuildAudioStudioPanel()
+    {
+        var box = new Border
+        {
+            CornerRadius = ThemeCatalog.Round(8),
+            BorderBrush = DS.Brush("DS.Hairline"),
+            BorderThickness = new(1),
+            Padding = new(12, 10, 12, 10),
+            Margin = new(0, 4, 0, 10),
+            Background = new SolidColorBrush(ThemeCatalog.Alpha(ThemeCatalog.Current.Night, 195)),
+            Visibility = Visibility.Collapsed,
+        };
+        var body = new StackPanel();
+
+        var headRow = new DockPanel { Margin = new(0, 0, 0, 8) };
+        beatBadge = new Border
+        {
+            CornerRadius = ThemeCatalog.Round(4),
+            Padding = new(7, 2, 7, 2),
+            Background = new SolidColorBrush(Color.FromArgb(40, 0, 229, 255)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(110, 0, 229, 255)),
+            BorderThickness = new(1),
+            Child = Kit.Text("BEAT", 10.5, "DS.Text", FontWeights.Bold),
+        };
+        DockPanel.SetDock(beatBadge, Dock.Right);
+        headRow.Children.Add(beatBadge);
+        headRow.Children.Add(Kit.Text("AUDIO STUDIO · 512-PT FFT", 12, "DS.AccentHi", FontWeights.SemiBold));
+        body.Children.Add(headRow);
+
+        (ColumnDefinition fill, ColumnDefinition empty, Grid row) MakeBandMeter(string label, Color fillColor)
+        {
+            var g = new Grid { Margin = new(0, 0, 0, 5) };
+            g.ColumnDefinitions.Add(new() { Width = new(54) });
+            g.ColumnDefinitions.Add(new() { Width = new(1, GridUnitType.Star) });
+
+            g.Children.Add(new TextBlock
+            {
+                Text = label,
+                FontFamily = LightingWindow.MonoFont,
+                FontSize = 10.5,
+                Foreground = DS.Brush("DS.TextSoft"),
+                VerticalAlignment = VerticalAlignment.Center,
+            });
+
+            var trackGrid = new Grid { Height = 8, VerticalAlignment = VerticalAlignment.Center };
+            var cFill = new ColumnDefinition { Width = new(0.05, GridUnitType.Star) };
+            var cEmpty = new ColumnDefinition { Width = new(0.95, GridUnitType.Star) };
+            trackGrid.ColumnDefinitions.Add(cFill);
+            trackGrid.ColumnDefinitions.Add(cEmpty);
+
+            var fillBar = new Border
+            {
+                Background = new SolidColorBrush(fillColor),
+                CornerRadius = new(3),
+            };
+            trackGrid.Children.Add(fillBar);
+
+            var track = new Border
+            {
+                CornerRadius = new(3),
+                Background = new SolidColorBrush(Color.FromArgb(90, 24, 34, 54)),
+                BorderBrush = DS.Brush("DS.Hairline"),
+                BorderThickness = new(0.5),
+                Child = trackGrid,
+            };
+            Grid.SetColumn(track, 1);
+            g.Children.Add(track);
+            return (cFill, cEmpty, g);
+        }
+
+        (bassFillCol, bassEmptyCol, var bassRow) = MakeBandMeter("BASS", Color.FromRgb(0xFF, 0x33, 0x77));
+        (midFillCol, midEmptyCol, var midRow) = MakeBandMeter("MID", Color.FromRgb(0x00, 0xE5, 0xFF));
+        (trebleFillCol, trebleEmptyCol, var trebleRow) = MakeBandMeter("TREBLE", Color.FromRgb(0xA7, 0x8B, 0xFA));
+        body.Children.Add(bassRow);
+        body.Children.Add(midRow);
+        body.Children.Add(trebleRow);
+
+        body.Children.Add(Kit.Text("Reaction style", 12.5, "DS.TextSoft").Also(t => t.Margin = new(0, 4, 0, 5)));
+        var styleWrap = new WrapPanel { Margin = new(-2, 0, -2, 8) };
+        foreach (var (styleVal, label) in AudioStyleChoices)
+        {
+            var captured = styleVal;
+            var btn = new Button
+            {
+                Content = label,
+                Style = DS.Style("ActionButton"),
+                Padding = new(10, 5, 10, 5),
+                Margin = new(2),
+                FontSize = 11.5,
+                MinHeight = 30,
+                Height = double.NaN,
+            };
+            btn.Click += async (_, _) =>
+            {
+                selectedAudioStyle = captured;
+                if (captured == AudioReactiveStyle.BeatShift && palette.Count < 2)
+                {
+                    palette.Clear();
+                    palette.AddRange(["#00FFFF", "#FF00AA", "#FFAA00", "#00FF9D", "#7C5CFF"]);
+                    RenderPaletteSwatches();
+                }
+                UpdateSelectionButtons();
+                SyncPreviewDraft();
+                if (LightingEffectsService.Status.IsRunning)
+                    await LightingEffectsService.ApplyAsync(BuildCurrentEffectSpec());
+            };
+            registerFocus?.Invoke(btn);
+            audioStyleButtons[captured] = btn;
+            styleWrap.Children.Add(btn);
+        }
+        body.Children.Add(styleWrap);
+
+        body.Children.Add(audioSensLabel);
+        body.Children.Add(audioSensSlider);
+
+        body.Children.Add(Kit.Text("Bass haptics (physical XInput rumble)", 12.5, "DS.TextSoft").Also(t => t.Margin = new(0, 0, 0, 5)));
+        var hapPanel = new WrapPanel();
+        foreach (var (strength, label) in AudioHapticsChoices)
+        {
+            int captured = strength;
+            var btn = new Button
+            {
+                Content = label,
+                Padding = new(10, 5, 10, 5),
+                FontSize = 11.5,
+                MinHeight = 30,
+                Height = double.NaN,
+            };
+            btn.Click += async (_, _) =>
+            {
+                selectedAudioHaptics = captured;
+                UpdateSelectionButtons();
+                SyncPreviewDraft();
+                if (LightingEffectsService.Status.IsRunning)
+                    await LightingEffectsService.ApplyAsync(BuildCurrentEffectSpec());
+            };
+            registerFocus?.Invoke(btn);
+            audioHapticsButtons[captured] = btn;
+            hapPanel.Children.Add(btn);
+        }
+        body.Children.Add(Kit.Segments(hapPanel));
+
+        box.Child = body;
+        return box;
+    }
+
+    private void SyncAudioTimer()
+    {
+        if (selectedKind == LightingEffectKind.AudioReactive && EffectsView is FrameworkElement fe && fe.IsLoaded)
+        {
+            if (!ReviewSandbox.Active) SystemAudioLevelSampler.EnsureStarted();
+            if (!audioUiTimer.IsEnabled) audioUiTimer.Start();
+        }
+        else if (audioUiTimer.IsEnabled)
+        {
+            audioUiTimer.Stop();
+        }
+    }
+
+    private void RefreshLiveAudioMeters()
+    {
+        if (selectedKind != LightingEffectKind.AudioReactive) return;
+        AudioFrame af;
+        if (ReviewSandbox.Active)
+        {
+            double t = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0;
+            float b = (float)Math.Clamp(0.2 + 0.75 * Math.Exp(-((t * 2.0) % 1.0) * 5.0), 0.03, 1.0);
+            float m = (float)Math.Clamp(0.25 + 0.55 * (0.5 + 0.5 * Math.Sin(t * 3.1)), 0.03, 1.0);
+            float tr = (float)Math.Clamp(0.15 + 0.65 * (0.5 + 0.5 * Math.Sin(t * 7.4)), 0.03, 1.0);
+            af = new AudioFrame(Math.Max(b, m), b, m, tr, b > 0.65f ? 1f : 0f, 0, 0f);
+        }
+        else
+        {
+            af = SystemAudioLevelSampler.LatestFrame;
+        }
+
+        static void SetBar(ColumnDefinition? fill, ColumnDefinition? empty, float v)
+        {
+            if (fill == null || empty == null) return;
+            double clamped = Math.Clamp(v, 0.02, 0.99);
+            fill.Width = new(clamped, GridUnitType.Star);
+            empty.Width = new(1.0 - clamped, GridUnitType.Star);
+        }
+
+        SetBar(bassFillCol, bassEmptyCol, af.Bass);
+        SetBar(midFillCol, midEmptyCol, af.Mid);
+        SetBar(trebleFillCol, trebleEmptyCol, af.Treble);
+
+        if (beatBadge != null)
+        {
+            byte alpha = (byte)(af.BeatPulse > 0.30f ? 220 : 40);
+            beatBadge.Background = new SolidColorBrush(Color.FromArgb(alpha, 0, 229, 255));
+        }
     }
 
     private void RenderPaletteSwatches()
@@ -586,6 +835,7 @@ internal sealed class LightingEffectsSection
         minBrightLabel.Text = $"Brightness floor · {minPct:0}% (0x{minB:X2}{(minB == 1 ? " Moonlight" : minB == 0 ? " Off" : "")})";
         intervalLabel.Text = $"Update rate · {intervalSlider.Value:0} ms";
         idleLabel.Text = $"Idle auto-dim · {idleSlider.Value:0} s";
+        audioSensLabel.Text = $"Audio sensitivity · {audioSensSlider.Value:0}%";
     }
 
     private void SaveQuick(bool asSolid)
@@ -712,7 +962,7 @@ internal sealed class LightingEffectsSection
     private static string EffectSubtitle(LightingEffectKind kind) => kind switch
     {
         LightingEffectKind.ScreenAmbient => "Matches colours on your screen",
-        LightingEffectKind.AudioReactive => "Reacts live to PC music & game audio",
+        LightingEffectKind.AudioReactive => "FFT Bass/Mid/Treble, Beat & Haptics",
         LightingEffectKind.SmoothHueWave => "Continuous 360° sweep",
         LightingEffectKind.PaletteFade => "Smooth multi-stop blend",
         LightingEffectKind.PaletteStep => "Clean palette jumps",
