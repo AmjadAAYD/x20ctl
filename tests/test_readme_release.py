@@ -18,9 +18,9 @@ def test_sync_updates_readme_cta_and_plain_twin(tmp_path):
     src_root = Path(__file__).parents[1]
     shutil.copy2(src_root / "README.md", tmp_path / "README.md")
     shutil.copy2(src_root / "README.plain.md", tmp_path / "README.plain.md")
-    (tmp_path / "assets/readme/bg").mkdir(parents=True)
+    (tmp_path / "assets/readme").mkdir(parents=True)
     shutil.copy2(src_root / "assets/readme/btn-download.svg", tmp_path / "assets/readme/btn-download.svg")
-    shutil.copy2(src_root / "assets/readme/bg/hero.svg", tmp_path / "assets/readme/bg/hero.svg")
+    shutil.copy2(src_root / "assets/readme/hero-motion.svg", tmp_path / "assets/readme/hero-motion.svg")
 
     mod = load_sync()
     assert not mod.sync(tmp_path, "v0.025")
@@ -32,7 +32,7 @@ def test_sync_updates_readme_cta_and_plain_twin(tmp_path):
     assert "https://github.com/AmjadAAYD/x20ctl/releases/tag/v0.026" in md_text
     assert "btn-download.svg?v=release-v0.026" in md_text
     assert 'alt="Download V0.026"' in md_text
-    assert "hero.svg?v=release-v0.026" in md_text
+    assert "hero-motion.svg?v=release-v0.026" in md_text
     assert "## Download (V0.026)" in md_text
     assert "https://github.com/AmjadAAYD/x20ctl/releases/download/v0.026/SHA256SUMS.txt" in md_text
     for asset in (
@@ -52,7 +52,7 @@ def test_sync_updates_readme_cta_and_plain_twin(tmp_path):
 
     assert "v0.025" not in md_text and "V0.025" not in md_text
     assert "v0.025" not in plain_text and "V0.025" not in plain_text
-    assert "V0.026" in (tmp_path / "assets/readme/bg/hero.svg").read_text(encoding="utf-8")
+    assert "V0.026" in (tmp_path / "assets/readme/hero-motion.svg").read_text(encoding="utf-8")
     assert "Download V0.026" in (tmp_path / "assets/readme/btn-download.svg").read_text(encoding="utf-8")
 
     assert not mod.sync(tmp_path, "v0.026")
@@ -68,7 +68,7 @@ def test_invalid_tag_does_not_modify_files(tmp_path):
 def test_malformed_slices_leave_readme_unchanged(tmp_path):
     mod = load_sync()
     ar = tmp_path / "assets/readme"
-    (ar / "bg").mkdir(parents=True)
+    ar.mkdir(parents=True)
     for rel in mod.SVG_RELEASE_FILES:
         (ar / rel).write_text("<svg/>", encoding="utf-8")
     original = '<a href="old"><img src="assets/readme/btn-download.svg" alt="Download V0.025"></a>'

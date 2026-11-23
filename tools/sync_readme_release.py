@@ -21,7 +21,7 @@ TAG_RE = r"v\d+\.\d+(?:\.\d+)?"
 
 SVG_RELEASE_FILES = (
     "btn-download.svg",
-    "bg/hero.svg",
+    "hero-motion.svg",
 )
 
 
