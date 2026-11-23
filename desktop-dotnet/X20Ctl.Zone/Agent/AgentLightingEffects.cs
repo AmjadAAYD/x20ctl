@@ -19,7 +19,7 @@ public static class AgentLightingEffects
         if (string.IsNullOrEmpty(raw)) return false;
 
         // Check whether an optional colour word or #hex accompanies the effect name.
-        string? stripped = Regex.Replace(raw, @"\b(rainbow|rainbow\s*0x01|hardware\s*rainbow|off|turn\s*off|dark|breathe|breathing|cycle|cycling|palette\s*fade|fade|moonlight|pulse|ultra\s*dim|hue\s*sweep|hue\s*wave|wave|sweep|strobe|police|dual\s*flash|flash|lava|fire|ember|shimmer|trigger|triggers|stick|sticks|heat|button|action|idle|nightlight|sleep|game\s*auto|(?:audio|music)(?:\s*(?:reactive|sync))?|(?:sound|beat)\s*(?:reactive|sync))\b", " ");
+        string? stripped = Regex.Replace(raw, @"\b(rainbow|rainbow\s*0x01|hardware\s*rainbow|off|turn\s*off|dark|breathe|breathing|cycle|cycling|palette\s*fade|fade|moonlight|pulse|ultra\s*dim|hue\s*sweep|hue\s*wave|wave|sweep|strobe|police|dual\s*flash|flash|lava|fire|ember|shimmer|trigger|triggers|stick|sticks|heat|button|action|idle|nightlight|sleep|game\s*auto|(?:audio|music|sound|beat|bass|drop)\s*(?:reactive|sync|shift|colou?r|fire|aurora|strobe)?)\b", " ");
         stripped = Regex.Replace(stripped, @"\s+", " ").Trim();
         AgentColor? parsedColor = AgentColors.TryParse(stripped, out var c) ? c : null;
 
@@ -61,6 +61,30 @@ public static class AgentLightingEffects
         {
             spec = new LightingEffectSpec { Kind = LightingEffectKind.SmoothHueWave, MaxBrightness = 0xC8, CyclePeriodMs = 6000, StepIntervalMs = 340 }.Normalized();
             summary = "Smooth Hue Sweep";
+            return true;
+        }
+        if (Regex.IsMatch(raw, @"\b(beat\s*(?:shift|colou?r|hop)|drop\s*strobe|beat\s*strobe|club\s*strobe|bass\s*fire|audio\s*fire|(?:music|audio)\s*aurora|(?:audio|music)(?:\s*(?:reactive|sync))?|(?:sound|beat)\s*(?:reactive|sync))\b"))
+        {
+            AudioReactiveStyle style = Regex.IsMatch(raw, @"\b(beat\s*(?:shift|colou?r|hop))\b")
+                ? AudioReactiveStyle.BeatShift
+                : Regex.IsMatch(raw, @"\b(drop\s*strobe|beat\s*strobe|club\s*strobe)\b")
+                    ? AudioReactiveStyle.DropStrobe
+                    : Regex.IsMatch(raw, @"\b(bass\s*fire|audio\s*fire)\b")
+                        ? AudioReactiveStyle.BassFire
+                        : Regex.IsMatch(raw, @"\b((?:music|audio)\s*aurora)\b")
+                            ? AudioReactiveStyle.AuroraDrift
+                            : AudioReactiveStyle.SpectrumFlow;
+            spec = new LightingEffectSpec
+            {
+                Kind = LightingEffectKind.AudioReactive,
+                AudioStyle = style,
+                Palette = [parsedColor?.Hex ?? "#1B5CFF", "#00F5D4", "#FF1E56"],
+                MinBrightness = 0x18,
+                MaxBrightness = 0xFF,
+                StepIntervalMs = 65,
+                AudioSensitivity = 65,
+            }.Normalized();
+            summary = $"Audio Reactive RGB ({style})";
             return true;
         }
         if (Regex.IsMatch(raw, @"\b(strobe|police|dual\s*flash)\b"))
@@ -105,20 +129,6 @@ public static class AgentLightingEffects
             summary = "Ambient Screen Sync";
             return true;
         }
-        if (Regex.IsMatch(raw, @"\b((?:audio|music)(?:\s*(?:reactive|sync))?|(?:sound|beat)\s*(?:reactive|sync))\b"))
-        {
-            spec = new LightingEffectSpec
-            {
-                Kind = LightingEffectKind.AudioReactive,
-                Palette = [parsedColor?.Hex ?? "#1B5CFF", "#00F5D4", "#FF1E56"],
-                MinBrightness = 0x18,
-                MaxBrightness = 0xFF,
-                StepIntervalMs = 65,
-                AudioSensitivity = 65,
-            }.Normalized();
-            summary = "Audio Reactive RGB";
-            return true;
-        }
         if (Regex.IsMatch(raw, @"\b(battery(?:\s+(?:mode|lights?|leds?|level|indicator))?)\b"))
         {
             spec = new LightingEffectSpec { Kind = LightingEffectKind.BatteryLevel, Palette = ["#1EB980"], MaxBrightness = 0xC0 }.Normalized();
@@ -156,7 +166,7 @@ public static class AgentLightingEffects
         if (Regex.IsMatch(s, @"\b(?:pc\s*mode|mouse\s*mode|dead\s*zone|anti[\s-]?dead|curve|turbo|remap|swap|paddle|recoil|drift|reset|slower|faster|speed|open\s+(?:diagnostics|tools|mouse|curves|buttons|macros|vibration|device)|left\s+(?:stick|trigger|bumper)|right\s+(?:stick|trigger|bumper))\b")
             || Regex.IsMatch(s, @"\band\s+(?:make|set|turn|switch|enable|disable|put|swap|remap|reset|open)\b"))
             return null;
-        bool mentionsLights = Regex.IsMatch(s, @"\b(leds?|lights?|lighting|rgb|glow|backlight|rainbow|strobe|moonlight|ember|shimmer|nightlight|ambient|ambilight|screen\s*sync|battery\s*(?:lights?|leds?|mode|level|indicator)|(?:color|colour|palette)\s*(?:jump|fade)|hue\s*(?:sweep|wave)|trigger\s*glow|stick\s*heat|button\s*flash|game\s*auto|audio\s*(?:reactive|sync|mode)|music\s*(?:sync|mode|reactive)|sound\s*(?:reactive|sync)|beat\s*(?:sync|reactive))\b");
+        bool mentionsLights = Regex.IsMatch(s, @"\b(leds?|lights?|lighting|rgb|glow|backlight|rainbow|strobe|moonlight|ember|shimmer|nightlight|ambient|ambilight|screen\s*sync|battery\s*(?:lights?|leds?|mode|level|indicator)|(?:color|colour|palette)\s*(?:jump|fade)|hue\s*(?:sweep|wave)|trigger\s*glow|stick\s*heat|button\s*flash|game\s*auto|audio\s*(?:reactive|sync|mode|fire|aurora)|music\s*(?:sync|mode|reactive|aurora)|sound\s*(?:reactive|sync)|beat\s*(?:sync|reactive|shift|colou?r|strobe)|bass\s*fire|drop\s*strobe|club\s*strobe)\b");
         if (!mentionsLights) return null;
         // Require either a lights-off turn off request or an effect keyword (never swallow colour questions like "change my led colour").
         if (Regex.IsMatch(s, @"\bturn\s+off\b.*\b(leds?|lights?|lighting|rgb)\b") || Regex.IsMatch(s, @"\b(leds?|lights?|rgb)\s+off\b"))

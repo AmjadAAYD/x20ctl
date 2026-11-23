@@ -45,6 +45,10 @@ public sealed class AgentAutocompleteAndRgbTests
     [InlineData("sound reactive", LightingEffectKind.AudioReactive)]
     [InlineData("beat sync", LightingEffectKind.AudioReactive)]
     [InlineData("audio mode", LightingEffectKind.AudioReactive)]
+    [InlineData("beat shift", LightingEffectKind.AudioReactive)]
+    [InlineData("bass fire", LightingEffectKind.AudioReactive)]
+    [InlineData("drop strobe", LightingEffectKind.AudioReactive)]
+    [InlineData("music aurora", LightingEffectKind.AudioReactive)]
     public void AgentLightingEffectsParsesAllStudioAndSyncModes(string text, LightingEffectKind expected)
     {
         Assert.True(AgentLightingEffects.TryParse(text, out var spec, out _));

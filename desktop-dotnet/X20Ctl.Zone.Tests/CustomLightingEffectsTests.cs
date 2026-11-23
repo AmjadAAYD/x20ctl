@@ -367,6 +367,80 @@ public sealed class CustomLightingEffectsTests
         Assert.Equal(LightingRecord.ModeSolid, twoPeak.NativeMode);
     }
 
+    [Fact]
+    public void AudioSpectrumAnalyzer_SeparatesBassAndTrebleDetectsBeatsAndDecaysOnIdle()
+    {
+        static float[] MakeStereoSine(double freqHz, int sampleRate, int frames, float amp)
+        {
+            var buf = new float[frames * 2];
+            for (int i = 0; i < frames; i++)
+            {
+                float s = (float)(amp * Math.Sin(2.0 * Math.PI * freqHz * i / sampleRate));
+                buf[i * 2] = s;
+                buf[i * 2 + 1] = s;
+            }
+            return buf;
+        }
+
+        var clock = new SteppingTimeProvider();
+        var analyzer = new AudioSpectrumAnalyzer(clock);
+
+        var bassBuf = MakeStereoSine(100.0, 48000, 1024, 0.5f);
+        var bassFrame = analyzer.ProcessInterleaved(bassBuf, 2, 48000, 1024.0 / 48000.0);
+        Assert.True(bassFrame.Bass > bassFrame.Treble * 3f, $"Expected Bass >> Treble, got Bass={bassFrame.Bass}, Treble={bassFrame.Treble}");
+        Assert.True(bassFrame.BeatCount >= 1);
+        Assert.True(bassFrame.BeatPulse > 0.7f);
+
+        analyzer.Reset();
+        var trebleBuf = MakeStereoSine(6000.0, 48000, 1024, 0.5f);
+        var trebleFrame = analyzer.ProcessInterleaved(trebleBuf, 2, 48000, 1024.0 / 48000.0);
+        Assert.True(trebleFrame.Treble > trebleFrame.Bass * 3f, $"Expected Treble >> Bass, got Treble={trebleFrame.Treble}, Bass={trebleFrame.Bass}");
+
+        clock.Advance(TimeSpan.FromMilliseconds(600));
+        var idle = analyzer.CurrentFrame;
+        Assert.Equal(0f, idle.Level);
+        Assert.Equal(0f, idle.Bass);
+        Assert.Equal(0f, idle.Treble);
+    }
+
+    [Fact]
+    public void AudioReactiveStyles_ProduceDistinctAnimatedResponses()
+    {
+        var palette = new[] { "#FF0000", "#00FF00", "#0000FF" };
+
+        // SpectrumFlow blends Bass (Red) vs Treble (Blue) dynamically.
+        var specFlow = new LightingEffectSpec { Kind = LightingEffectKind.AudioReactive, AudioStyle = AudioReactiveStyle.SpectrumFlow, Palette = palette, AudioSensitivity = 65 };
+        var bassHit = LightingEffectEngine.Evaluate(specFlow, TimeSpan.Zero, new LightingInputState(0, 0, 0, 0, false, 0, AudioLevel: 0.7, AudioBass: 0.9, AudioMid: 0.05, AudioTreble: 0.05));
+        var hiHit = LightingEffectEngine.Evaluate(specFlow, TimeSpan.Zero, new LightingInputState(0, 0, 0, 0, false, 0, AudioLevel: 0.7, AudioBass: 0.05, AudioMid: 0.05, AudioTreble: 0.9));
+        Assert.True(bassHit.R > bassHit.B);
+        Assert.True(hiHit.B > hiHit.R);
+
+        // BeatShift cycles palette stops per AudioBeatCount.
+        var beatShift = specFlow with { AudioStyle = AudioReactiveStyle.BeatShift };
+        var b0 = LightingEffectEngine.Evaluate(beatShift, TimeSpan.Zero, new LightingInputState(0, 0, 0, 0, false, 0, AudioLevel: 0.6, AudioBeatPulse: 0.9, AudioBeatCount: 0));
+        var b1 = LightingEffectEngine.Evaluate(beatShift, TimeSpan.Zero, new LightingInputState(0, 0, 0, 0, false, 0, AudioLevel: 0.6, AudioBeatPulse: 0.9, AudioBeatCount: 1));
+        var b2 = LightingEffectEngine.Evaluate(beatShift, TimeSpan.Zero, new LightingInputState(0, 0, 0, 0, false, 0, AudioLevel: 0.6, AudioBeatPulse: 0.9, AudioBeatCount: 2));
+        Assert.True(b0.R > b0.G && b0.R > b0.B);
+        Assert.True(b1.G > b1.R && b1.G > b1.B);
+        Assert.True(b2.B > b2.R && b2.B > b2.G);
+
+        // BassFire bursts hot orange/gold on bass kicks.
+        var bassFire = specFlow with { AudioStyle = AudioReactiveStyle.BassFire };
+        var fireHot = LightingEffectEngine.Evaluate(bassFire, TimeSpan.Zero, new LightingInputState(0, 0, 0, 0, false, 0, AudioLevel: 0.9, AudioBass: 0.95, AudioBeatPulse: 0.9));
+        Assert.True(fireHot.R > fireHot.B);
+
+        // AuroraDrift moves smoothly in hue over time + mid energy.
+        var aurora = specFlow with { AudioStyle = AudioReactiveStyle.AuroraDrift };
+        var a0 = LightingEffectEngine.Evaluate(aurora, TimeSpan.Zero, new LightingInputState(0, 0, 0, 0, false, 0, AudioLevel: 0.5, AudioMid: 0.3));
+        var a1 = LightingEffectEngine.Evaluate(aurora, TimeSpan.FromSeconds(3.5), new LightingInputState(0, 0, 0, 0, false, 0, AudioLevel: 0.5, AudioMid: 0.8));
+        Assert.NotEqual(a0.Hex, a1.Hex);
+
+        // DropStrobe hits full MaxBrightness on heavy drops.
+        var dropStrobe = specFlow with { AudioStyle = AudioReactiveStyle.DropStrobe, MaxBrightness = 0xFF };
+        var dropped = LightingEffectEngine.Evaluate(dropStrobe, TimeSpan.Zero, new LightingInputState(0, 0, 0, 0, false, 0, AudioLevel: 0.9, AudioBass: 0.9, AudioBeatPulse: 0.85));
+        Assert.Equal(0xFF, dropped.Brightness);
+    }
+
     sealed class SteppingTimeProvider : TimeProvider
     {
         long ticks = TimeSpan.TicksPerSecond;
