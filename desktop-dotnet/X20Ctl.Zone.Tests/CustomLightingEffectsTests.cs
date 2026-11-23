@@ -559,6 +559,92 @@ public sealed class CustomLightingEffectsTests
         Assert.NotEqual(frame.Hex, sparkle.Hex);
     }
 
+    [Fact]
+    public void AudioSpectrumAnalyzer_IsolatesCenteredVocalsFromHardPannedInstruments()
+    {
+        var clock = new SteppingTimeProvider();
+        var analyzer = new AudioSpectrumAnalyzer(clock);
+
+        // Centered 1000 Hz vocal fundamental (equal Left & Right)
+        var centeredVocal = new float[1024 * 2];
+        for (int i = 0; i < 1024; i++)
+        {
+            float s = (float)(0.5 * Math.Sin(2.0 * Math.PI * 1000.0 * i / 48000.0));
+            centeredVocal[i * 2] = s;
+            centeredVocal[i * 2 + 1] = s;
+        }
+        var vocalFrame = analyzer.ProcessInterleaved(centeredVocal, 2, 48000, 1024.0 / 48000.0);
+        Assert.True(vocalFrame.VocalPresence > 0.50f, $"Expected strong centered vocal presence, got {vocalFrame.VocalPresence}");
+
+        // Hard-panned Left-only 1000 Hz stereo instrument (canceled by Mid - Side gate)
+        analyzer.Reset();
+        var pannedInst = new float[1024 * 2];
+        for (int i = 0; i < 1024; i++)
+            pannedInst[i * 2] = (float)(0.5 * Math.Sin(2.0 * Math.PI * 1000.0 * i / 48000.0));
+
+        clock.Advance(TimeSpan.FromMilliseconds(25));
+        var instFrame = analyzer.ProcessInterleaved(pannedInst, 2, 48000, 1024.0 / 48000.0);
+        Assert.True(instFrame.VocalPresence < 0.15f, $"Expected suppressed vocal presence on hard-panned instrument, got {instFrame.VocalPresence}");
+        Assert.True(instFrame.InstrumentEnergy > instFrame.VocalPresence, $"Expected InstrumentEnergy > VocalPresence, got Inst={instFrame.InstrumentEnergy}, Voc={instFrame.VocalPresence}");
+    }
+
+    [Fact]
+    public void LyricalMusical_SilencesTriggersWithoutVocalsAndFluctuatesWithDynamics()
+    {
+        var instrumental = new AudioFrame(0.65f, 0.75f, 0.45f, 0.30f, 0.85f, 3, 0f,
+            VocalPresence: 0.0f, VocalWarmth: 0.0f, VocalAir: 0.0f,
+            InstrumentEnergy: 0.65f, BassPunch: 0.80f, DynamicContrast: 0.85f, Vibe: AudioMusicVibe.ElectronicDrop);
+        var instHaptics = AudioHapticsEngine.Evaluate(instrumental, AudioHapticsMode.LyricalMusical, 100);
+        Assert.Equal(0.0, instHaptics.LeftTrigger);
+        Assert.Equal(0.0, instHaptics.RightTrigger);
+        Assert.True(instHaptics.LeftGrip > 0.65);
+
+        var verseSoft = instrumental with { BeatPulse = 0.0f, Bass = 0.28f, BassPunch = 0.20f, InstrumentEnergy = 0.25f, DynamicContrast = 0.18f, VocalPresence = 0.72f, VocalWarmth = 0.75f, VocalAir = 0.50f };
+        var chorusPunch = instrumental with { BeatPulse = 0.95f, Bass = 0.88f, BassPunch = 0.92f, InstrumentEnergy = 0.85f, DynamicContrast = 0.95f, VocalPresence = 0.88f, VocalWarmth = 0.85f, VocalAir = 0.80f };
+
+        var lowH = AudioHapticsEngine.Evaluate(verseSoft, AudioHapticsMode.LyricalMusical, 80);
+        var highH = AudioHapticsEngine.Evaluate(chorusPunch, AudioHapticsMode.LyricalMusical, 80);
+        Assert.True(lowH.LeftTrigger >= 0.24 && lowH.RightTrigger >= 0.24);
+        Assert.True(lowH.LeftGrip < highH.LeftGrip * 0.45, $"Expected dynamic grip fluctuation, got Low={lowH.LeftGrip}, High={highH.LeftGrip}");
+    }
+
+    [Fact]
+    public void AutoAdaptive_VariesRgbBrightnessAndChanneledHapticsAcrossMusicVibes()
+    {
+        var rgbSpec = new LightingEffectSpec
+        {
+            Kind = LightingEffectKind.AudioReactive,
+            AudioStyle = AudioReactiveStyle.AutoAdaptive,
+            MinBrightness = 0x10,
+            MaxBrightness = 0xFF,
+            AudioSensitivity = 65,
+        };
+
+        var quietChill = new LightingInputState(0, 0, 0, 0, false, 0,
+            AudioLevel: 0.22, AudioBass: 0.20, AudioMid: 0.24, AudioTreble: 0.18,
+            AudioBeatPulse: 0.0, AudioEnergy: 0.20, AudioDynamic: 0.18, AudioVibe: AudioMusicVibe.AmbientChill);
+        var loudDrop = new LightingInputState(0, 0, 0, 0, false, 0,
+            AudioLevel: 0.90, AudioBass: 0.92, AudioMid: 0.70, AudioTreble: 0.80,
+            AudioBeatPulse: 0.96, AudioBeatCount: 4, AudioEnergy: 0.88, AudioDynamic: 0.95, AudioVibe: AudioMusicVibe.ElectronicDrop);
+
+        var chillFrame = LightingEffectEngine.Evaluate(rgbSpec, TimeSpan.FromSeconds(1.2), quietChill);
+        var dropFrame = LightingEffectEngine.Evaluate(rgbSpec, TimeSpan.FromSeconds(2.4), loudDrop);
+        Assert.True(chillFrame.Brightness < 150, $"Expected restrained brightness on quiet AmbientChill, got {chillFrame.Brightness}");
+        Assert.True(dropFrame.Brightness >= 240, $"Expected peak brightness on ElectronicDrop kick, got {dropFrame.Brightness}");
+
+        var afChill = new AudioFrame(0.22f, 0.20f, 0.24f, 0.18f, 0f, 0, 0f, Energy: 0.20f, VocalPresence: 0f, InstrumentEnergy: 0.22f, BassPunch: 0.15f, DynamicContrast: 0.18f, Vibe: AudioMusicVibe.AmbientChill);
+        var afVocal = new AudioFrame(0.55f, 0.25f, 0.60f, 0.45f, 0.10f, 2, 0f, Energy: 0.50f, VocalPresence: 0.82f, VocalWarmth: 0.85f, VocalAir: 0.68f, InstrumentEnergy: 0.35f, BassPunch: 0.20f, DynamicContrast: 0.55f, Vibe: AudioMusicVibe.VocalAcoustic);
+        var afRock = new AudioFrame(0.80f, 0.65f, 0.75f, 0.78f, 0.85f, 6, 0f, Energy: 0.82f, TrebleTransient: 0.80f, VocalPresence: 0f, InstrumentEnergy: 0.88f, BassPunch: 0.88f, DynamicContrast: 0.85f, Vibe: AudioMusicVibe.RockMetal);
+
+        var hChill = AudioHapticsEngine.Evaluate(afChill, AudioHapticsMode.AutoAdaptive, 100);
+        var hVocal = AudioHapticsEngine.Evaluate(afVocal, AudioHapticsMode.AutoAdaptive, 100);
+        var hRock = AudioHapticsEngine.Evaluate(afRock, AudioHapticsMode.AutoAdaptive, 100);
+
+        Assert.Equal(0.0, hChill.LeftTrigger);
+        Assert.True(hVocal.LeftTrigger > hVocal.LeftGrip, $"Expected vocal triggers to lead grips on VocalAcoustic, got LT={hVocal.LeftTrigger}, LG={hVocal.LeftGrip}");
+        Assert.True(hRock.LeftGrip > hRock.LeftTrigger, $"Expected heavy musical grips on instrumental RockMetal hits, got LG={hRock.LeftGrip}, LT={hRock.LeftTrigger}");
+    }
+
     sealed class SteppingTimeProvider : TimeProvider
     {
         long ticks = TimeSpan.TicksPerSecond;
