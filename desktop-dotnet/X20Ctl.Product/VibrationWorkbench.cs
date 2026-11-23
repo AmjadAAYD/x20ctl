@@ -11,9 +11,9 @@ using X20Ctl.Zone.Lighting;
 namespace X20Ctl.Product;
 
 /// <summary>
-/// Reworked Studio Vibration workspace:
+/// Unified PS5-console Vibration Studio:
 /// Left 1.4* column renders the controller silhouette with live 4-motor edge lighting and real-time output bars;
-/// Right 1* column switches cleanly between Motors &amp; Test, Custom Pattern Lab, and Per-Motor Audio Roles.
+/// Right 1* column flows smoothly in one scrollable view through Motors &amp; Test, Custom Pattern Composer, and Per-Motor Audio Roles.
 /// </summary>
 public sealed class VibrationWorkbench
 {
@@ -28,7 +28,8 @@ public sealed class VibrationWorkbench
     public event Action? Changed;
 
     readonly List<Button> presets = new();
-    readonly ScrollViewer inspectorScroll = new() { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Padding = new(0, 0, 4, 0) };
+    readonly ScrollViewer inspectorScroll = new() { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Padding = new(0, 0, 6, 0) };
+    readonly StackPanel unifiedStack = new() { Margin = new(0, 2, 0, 12) };
     readonly Slider testAllStrength = new() { Minimum = 0, Maximum = 100, Value = 100, TickFrequency = 5, IsSnapToTickEnabled = true };
     public string PreviewRegion { get; private set; } = "All";
     public void SelectRegion(string region) { PreviewRegion = region; Visualizer.SetRegion(region); }
@@ -57,20 +58,16 @@ public sealed class VibrationWorkbench
     public Slider? ZoneSlider(Zone zone) => zones.TryGetValue(zone, out var z) ? z.Slider : null;
     static bool IsTrigger(Zone zone) => zone is Zone.LeftTrigger or Zone.RightTrigger;
 
-    // Right-column Studio section navigation
-    readonly Button[] sectionButtons = new Button[3];
-    readonly Border tabHost = new();
-    readonly FrameworkElement motorsView;
-    readonly FrameworkElement patternsView;
-    readonly FrameworkElement audioRolesView;
-    int activeSection;
+    readonly FrameworkElement motorsSection;
+    readonly FrameworkElement patternsSection;
+    readonly FrameworkElement audioRolesSection;
 
-    // Left-column compact 4-motor live telemetry dock
-    readonly (ColumnDefinition Fill, ColumnDefinition Empty, string Label)[] dockMeters = new (ColumnDefinition, ColumnDefinition, string)[4];
+    // Left-column compact 4-motor live telemetry dock (GPU ScaleTransform meters)
+    readonly ScaleTransform?[] dockMeterScales = new ScaleTransform?[4];
     readonly TextBlock dockStatusText = Kit.Text("Ready", 12, "DS.TextSoft").Also(t => t.TextWrapping = TextWrapping.Wrap);
     readonly Button? dockTriggerSetupBtn;
 
-    // Tab 1: Custom Vibration Pattern Lab
+    // Section 1: Custom Vibration Pattern Lab (clean rectangular hardware sequencer cells)
     readonly VibrationPatternStore patternStore = new(VibrationPatternStore.DefaultPath);
     readonly VibrationPatternPlayer patternPlayer = new();
     readonly System.Windows.Controls.Primitives.UniformGrid patternLibraryGrid = new() { Columns = 2, Margin = new(-3, 0, -3, 10) };
@@ -78,7 +75,7 @@ public sealed class VibrationWorkbench
     readonly Border[,] matrixFillBars = new Border[4, VibrationPattern.DefaultSteps];
     readonly Border[] stepColumnHeaders = new Border[VibrationPattern.DefaultSteps];
     readonly TextBlock[] stepHeaderTexts = new TextBlock[VibrationPattern.DefaultSteps];
-    readonly Dictionary<string, Border> patternCardBorders = new();
+    readonly List<(string Id, Button Card)> patternCardButtons = new();
     readonly Slider patternSpeedSlider = new() { Minimum = 50, Maximum = 400, Value = 115, SmallChange = 5, LargeChange = 25, TickFrequency = 5, IsSnapToTickEnabled = true, Style = DS.Style("DS.Slider") };
     readonly Slider patternStrengthSlider = new() { Minimum = 10, Maximum = 100, Value = 85, SmallChange = 5, LargeChange = 15, TickFrequency = 5, IsSnapToTickEnabled = true, Style = DS.Style("DS.Slider") };
     readonly TextBlock patternNameText = Kit.Text("", 13.5, "DS.Text", FontWeights.SemiBold);
@@ -92,15 +89,23 @@ public sealed class VibrationWorkbench
     bool patternSyncing;
     int activePlayheadStep = -1;
 
-    // Tab 2: Per-Motor Audio Roles & 8-Band Spectrum
-    readonly (RowDefinition Empty, RowDefinition Fill)[] roleSpectrumBars = new (RowDefinition, RowDefinition)[8];
-    ColumnDefinition? roleVocalFill, roleVocalEmpty;
+    // Section 2: Per-Motor Audio Roles & 8-Band Spectrum (GPU transforms)
+    readonly ScaleTransform?[] roleSpectrumScales = new ScaleTransform?[8];
+    ScaleTransform? roleVocalScale;
     Border? roleBeatBadge;
     TextBlock? roleVibeText;
-    readonly (TextBlock Label, TextBlock Desc, ColumnDefinition Fill, ColumnDefinition Empty)[] roleCardUi = new (TextBlock, TextBlock, ColumnDefinition, ColumnDefinition)[4];
+    readonly (TextBlock Label, TextBlock Desc, ScaleTransform Scale)[] roleCardUi = new (TextBlock, TextBlock, ScaleTransform)[4];
     readonly Dictionary<int, Button> audioHapStrengthBtns = new();
     Button? toggleAudioHapBtn;
     readonly DispatcherTimer studioTimer = new() { Interval = TimeSpan.FromMilliseconds(60) };
+
+    static readonly SolidColorBrush BeatActiveBrush = FrozenBrush(220, 0, 229, 255);
+    static readonly SolidColorBrush BeatIdleBrush = FrozenBrush(40, 0, 229, 255);
+    static readonly SolidColorBrush PlayheadActiveBrush = FrozenBrush(145, 0, 229, 255);
+    static readonly SolidColorBrush CellBgBrush = FrozenBrush(185, 13, 21, 38);
+    static readonly SolidColorBrush CellHoverBgBrush = FrozenBrush(215, 24, 38, 66);
+    static readonly SolidColorBrush CellHairlineBrush = FrozenBrush(90, 56, 76, 112);
+    static readonly ControlTemplate SeqCellTemplate = BuildSequencerCellTemplate();
 
     static readonly Color[] MotorColors =
     [
@@ -109,6 +114,37 @@ public sealed class VibrationWorkbench
         Color.FromRgb(0xFB, 0x92, 0x3C), // Left Trigger
         Color.FromRgb(0xA7, 0x8B, 0xFA), // Right Trigger
     ];
+
+    static SolidColorBrush FrozenBrush(byte a, byte r, byte g, byte b)
+    {
+        var br = new SolidColorBrush(Color.FromArgb(a, r, g, b));
+        br.Freeze();
+        return br;
+    }
+
+    static ControlTemplate BuildSequencerCellTemplate()
+    {
+        var border = new FrameworkElementFactory(typeof(Border));
+        border.Name = "CellBd";
+        border.SetValue(Border.CornerRadiusProperty, new CornerRadius(4));
+        border.SetValue(Border.BackgroundProperty, CellBgBrush);
+        border.SetBinding(Border.BorderBrushProperty, new System.Windows.Data.Binding(Control.BorderBrushProperty.Name)
+        {
+            RelativeSource = new System.Windows.Data.RelativeSource(System.Windows.Data.RelativeSourceMode.TemplatedParent),
+        });
+        border.SetValue(Border.BorderThicknessProperty, new Thickness(1));
+        border.SetValue(Border.ClipToBoundsProperty, true);
+        var cp = new FrameworkElementFactory(typeof(ContentPresenter));
+        cp.SetValue(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Stretch);
+        cp.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Stretch);
+        border.AppendChild(cp);
+
+        var tpl = new ControlTemplate(typeof(Button)) { VisualTree = border };
+        var hover = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true };
+        hover.Setters.Add(new Setter(Border.BackgroundProperty, CellHoverBgBrush, "CellBd"));
+        tpl.Triggers.Add(hover);
+        return tpl;
+    }
 
     public VibrationWorkbench(X20Ctl.Zone.VibrationDraft draft, FrameworkElement resources, Action<Button> register, bool animations, string model = "x20")
     {
@@ -122,16 +158,16 @@ public sealed class VibrationWorkbench
 
         Visualizer = new((Geometry)resources.FindResource("ControllerOutline"), animations, model);
 
-        Button MakeButton(string text, Action action)
+        Button MakeButton(string text, Action action, string styleKey = "DS.ConsoleBtn")
         {
             var b = new Button
             {
                 Content = text,
-                Style = DS.Style("ActionButton"),
-                Height = 40,
-                MinHeight = 36,
-                Padding = new(12, 0, 12, 0),
-                Margin = new(0, 4, 6, 4),
+                Style = DS.Style(styleKey),
+                MinHeight = 34,
+                Height = double.NaN,
+                Padding = new(12, 6, 12, 6),
+                Margin = new(0, 3, 6, 3),
                 HorizontalAlignment = HorizontalAlignment.Left,
             };
             b.Click += (_, _) => action();
@@ -139,10 +175,9 @@ public sealed class VibrationWorkbench
             return b;
         }
 
-        Test = MakeButton(HasTriggers ? "Test all four" : "Test both grips", () => _ = RunAll());
-        Test.Style = DS.Style("DS.MotorTile");
+        Test = MakeButton(HasTriggers ? "Test all four" : "Test both grips", () => _ = RunAll(), "DS.MotorTile");
         Test.IsEnabled = !ReviewSandbox.Active;
-        Test.Height = 48;
+        Test.Height = 46;
         Test.HorizontalAlignment = HorizontalAlignment.Stretch;
         Test.Margin = new(0, 4, 0, 8);
 
@@ -166,35 +201,24 @@ public sealed class VibrationWorkbench
         artPanel.Margin = new(0, 0, 16, 0);
         Body.Children.Add(artPanel);
 
-        // Build all 3 inspector tabs
-        motorsView = BuildMotorsTab(MakeButton);
-        patternsView = BuildPatternsTab(MakeButton);
-        audioRolesView = BuildAudioRolesTab(MakeButton);
+        // Unified single-scroll PS5 console inspector on the right (no sub-tabs)
+        motorsSection = BuildMotorsSection(MakeButton);
+        patternsSection = BuildPatternsSection(MakeButton);
+        audioRolesSection = BuildAudioRolesSection(MakeButton);
 
-        var sectionPanel = new StackPanel { Orientation = Orientation.Horizontal };
-        foreach (var (index, label) in new[] { (0, "Motors"), (1, "Patterns"), (2, "Audio Roles") })
-        {
-            int idx = index;
-            var sb = new Button { Content = label, MinWidth = 86 };
-            sb.Click += (_, _) => SelectSection(idx);
-            register(sb);
-            sectionButtons[idx] = sb;
-            sectionPanel.Children.Add(sb);
-        }
-        var header = new StackPanel { Margin = new(0, 0, 0, 12) };
-        header.Children.Add(Kit.Segments(sectionPanel));
+        unifiedStack.Children.Add(motorsSection);
+        unifiedStack.Children.Add(Kit.Rule().Also(r => r.Margin = new(0, 14, 0, 14)));
+        unifiedStack.Children.Add(patternsSection);
+        unifiedStack.Children.Add(Kit.Rule().Also(r => r.Margin = new(0, 14, 0, 14)));
+        unifiedStack.Children.Add(audioRolesSection);
 
-        var rightDock = new DockPanel();
-        DockPanel.SetDock(header, Dock.Top);
-        rightDock.Children.Add(header);
-        inspectorScroll.Content = tabHost;
-        rightDock.Children.Add(inspectorScroll);
-
-        var controlPanel = Kit.Panel(null, null, null, rightDock);
+        inspectorScroll.Content = unifiedStack;
+        var scrollHost = ConsoleUiHelpers.WrapWithScrollHint(inspectorScroll, "Scroll down for Custom Patterns & Audio Roles");
+        var controlPanel = Kit.Panel(null, null, null, scrollHost);
         Grid.SetColumn(controlPanel, 1);
         Body.Children.Add(controlPanel);
 
-        Shelf.Children.Add(Copy("Test motors, sculpt custom 4-motor wave patterns, or assign per-motor audio roles", 13.5));
+        Shelf.Children.Add(Copy("Test motors, sculpt custom 4-motor waves, and assign audio roles in one scrolling Studio", 13.5));
 
         Strength.ValueChanged += (_, _) => { if (!updating) Set((int)Strength.Value); };
 
@@ -238,7 +262,6 @@ public sealed class VibrationWorkbench
             }
         };
 
-        SelectSection(0);
         Refresh();
         SelectRegion("All");
         LoadPatternIntoComposer(VibrationPatternEngine.BuiltIns[0]);
@@ -248,16 +271,23 @@ public sealed class VibrationWorkbench
 
     public void SelectSection(int index)
     {
-        activeSection = Math.Clamp(index, 0, 2);
-        tabHost.Child = activeSection switch
+        int clamped = Math.Clamp(index, 0, 2);
+        FrameworkElement target = clamped switch
         {
-            1 => patternsView,
-            2 => audioRolesView,
-            _ => motorsView,
+            1 => patternsSection,
+            2 => audioRolesSection,
+            _ => motorsSection,
         };
-        for (int i = 0; i < sectionButtons.Length; i++)
-            LightingWindow.SetSelectedState(sectionButtons[i], i == activeSection);
-        SyncStudioTimer();
+        if (clamped == 0)
+        {
+            inspectorScroll.ScrollToTop();
+        }
+        else if (unifiedStack.IsAncestorOf(target))
+        {
+            unifiedStack.UpdateLayout();
+            var pt = target.TransformToAncestor(unifiedStack).Transform(new Point(0, 0));
+            inspectorScroll.ScrollToVerticalOffset(Math.Max(0, pt.Y - 4));
+        }
     }
 
     public void StopPattern()
@@ -318,21 +348,25 @@ public sealed class VibrationWorkbench
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Margin = new(0, 0, 0, 3),
             });
-            var barGrid = new Grid { Height = 7 };
-            var cFill = new ColumnDefinition { Width = new(0.04, GridUnitType.Star) };
-            var cEmpty = new ColumnDefinition { Width = new(0.96, GridUnitType.Star) };
-            barGrid.ColumnDefinitions.Add(cFill);
-            barGrid.ColumnDefinitions.Add(cEmpty);
-            barGrid.Children.Add(new Border { Background = new SolidColorBrush(defs[i].Col), CornerRadius = new(3) });
+            var mScale = new ScaleTransform(0.04, 1.0);
+            var barFill = new Border
+            {
+                Background = new SolidColorBrush(defs[i].Col),
+                CornerRadius = new(3),
+                RenderTransformOrigin = new(0.0, 0.5),
+                RenderTransform = mScale,
+            };
             sp.Children.Add(new Border
             {
+                Height = 7,
+                ClipToBounds = true,
                 CornerRadius = new(3),
                 Background = new SolidColorBrush(Color.FromArgb(90, 24, 34, 54)),
                 BorderBrush = DS.Brush("DS.Hairline"),
                 BorderThickness = new(0.5),
-                Child = barGrid,
+                Child = barFill,
             });
-            dockMeters[i] = (cFill, cEmpty, defs[i].Tag);
+            dockMeterScales[i] = mScale;
             grid.Children.Add(sp);
         }
         stack.Children.Add(grid);
@@ -340,11 +374,11 @@ public sealed class VibrationWorkbench
         return box;
     }
 
-    FrameworkElement BuildMotorsTab(Func<string, Action, Button> makeButton)
+    FrameworkElement BuildMotorsSection(Func<string, Action, string, Button> makeButton)
     {
-        var controls = new StackPanel { Margin = new(0, 2, 0, 8) };
+        var controls = new StackPanel();
         controls.Children.Add(Kit.Section("MOTORS & TEST", 0));
-        controls.Children.Add(Copy("Select a motor tile to feel it, adjust individual strength, or configure PC game rumble.", 13));
+        controls.Children.Add(Copy("Select a motor tile to feel it, drag sliders to set strength, or configure PC game boost.", 13));
         controls.Children.Add(BuildZones(makeButton));
         controls.Children.Add(Test);
 
@@ -357,19 +391,22 @@ public sealed class VibrationWorkbench
 
         if (Draft.PcMode)
         {
-            controls.Children.Add(Kit.Section("GAME RUMBLE BOOST (PC MODE)", 6));
+            controls.Children.Add(Kit.Section("GAME RUMBLE BOOST (PC MODE)", 4));
             controls.Children.Add(value);
             controls.Children.Add(Strength);
-            var choices = new WrapPanel { Margin = new(0, 0, 0, 4) };
+            var choices = new WrapPanel { Margin = new(-2, 0, -2, 6) };
             foreach (int percent in new[] { 0, 50, 100, 150, 200 })
             {
                 int p = percent;
-                var b = makeButton(percent == 0 ? "Off" : percent + "%", () => Set(p));
+                var b = makeButton(percent == 0 ? "Off" : percent + "%", () => Set(p), "DS.ConsoleBtn");
+                b.Margin = new(2);
+                b.MinHeight = 30;
+                b.Padding = new(11, 4, 11, 4);
                 b.Tag = percent;
                 presets.Add(b);
                 choices.Children.Add(b);
             }
-            controls.Children.Add(Kit.Segments(choices));
+            controls.Children.Add(choices);
             controls.Children.Add(BuildGame());
         }
         else
@@ -385,7 +422,7 @@ public sealed class VibrationWorkbench
         return controls;
     }
 
-    UIElement BuildZones(Func<string, Action, Button> button)
+    UIElement BuildZones(Func<string, Action, string, Button> button)
     {
         const double tileSize = 136;
         var grid = new System.Windows.Controls.Primitives.UniformGrid { Columns = 2, Margin = new(0, 2, 0, 4) };
@@ -395,8 +432,7 @@ public sealed class VibrationWorkbench
             bool right = z is Zone.RightTrigger or Zone.RightGrip;
             var pair = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new(3, 0, 3, 10) };
 
-            var face = button(name, () => _ = RunZone(z));
-            face.Style = DS.Style("DS.MotorTile");
+            var face = button(name, () => _ = RunZone(z), "DS.MotorTile");
             face.Width = face.Height = tileSize;
             face.Padding = new(8, 0, 8, 0);
             face.Margin = new(0);
@@ -453,16 +489,15 @@ public sealed class VibrationWorkbench
         return grid;
     }
 
-    FrameworkElement BuildPatternsTab(Func<string, Action, Button> makeButton)
+    FrameworkElement BuildPatternsSection(Func<string, Action, string, Button> makeButton)
     {
-        var stack = new StackPanel { Margin = new(0, 2, 0, 12) };
-        stack.Children.Add(Kit.Section("SIGNATURE PATTERNS", 0));
-        stack.Children.Add(Copy("Choose a unique haptic waveform or sculpt your own 8-step 4-motor beat below.", 12.5));
+        var stack = new StackPanel();
+        stack.Children.Add(Kit.Section("SIGNATURE & CUSTOM PATTERNS", 0));
+        stack.Children.Add(Copy("Choose a unique haptic waveform or sculpt your own 8-step 4-motor beat.", 12.5));
 
         RefreshPatternLibraryCards();
         stack.Children.Add(patternLibraryGrid);
 
-        stack.Children.Add(Kit.Section("CUSTOM PATTERN COMPOSER", 6));
         var composerBox = new Border
         {
             CornerRadius = ThemeCatalog.Round(8),
@@ -476,14 +511,13 @@ public sealed class VibrationWorkbench
         patternDescText.Margin = new(0, 2, 0, 10);
         body.Children.Add(patternDescText);
 
-        // 8-Step x 4-Motor interactive tactile matrix
+        // 8-Step x 4-Motor rectangular hardware sequencer matrix (zero pills)
         int rowCount = HasTriggers ? 4 : 2;
         var matrixGrid = new Grid { Margin = new(0, 0, 0, 10) };
         matrixGrid.ColumnDefinitions.Add(new() { Width = new(56) });
         for (int c = 0; c < VibrationPattern.DefaultSteps; c++)
             matrixGrid.ColumnDefinitions.Add(new() { Width = new(1, GridUnitType.Star) });
 
-        // Step index row
         matrixGrid.RowDefinitions.Add(new() { Height = GridLength.Auto });
         matrixGrid.Children.Add(new TextBlock
         {
@@ -539,34 +573,23 @@ public sealed class VibrationWorkbench
             for (int s = 0; s < VibrationPattern.DefaultSteps; s++)
             {
                 int stepIdx = s;
-                var cellGrid = new Grid();
-                var emptyTrack = new Border
-                {
-                    CornerRadius = new(4),
-                    Background = new SolidColorBrush(Color.FromArgb(85, 22, 32, 52)),
-                };
                 var fillBar = new Border
                 {
-                    CornerRadius = new(3),
+                    CornerRadius = new(2),
                     Height = 0,
                     VerticalAlignment = VerticalAlignment.Bottom,
                     Background = new SolidColorBrush(MotorColors[r]),
                 };
-                cellGrid.Children.Add(emptyTrack);
-                cellGrid.Children.Add(fillBar);
-
                 var cellBtn = new Button
                 {
+                    Template = SeqCellTemplate,
                     Height = 28,
                     MinHeight = 28,
                     Padding = new(0),
                     Margin = new(2, 0, 2, 4),
-                    BorderThickness = new(1),
-                    BorderBrush = DS.Brush("DS.Hairline"),
-                    Background = Brushes.Transparent,
-                    Content = cellGrid,
-                    HorizontalContentAlignment = HorizontalAlignment.Stretch,
-                    VerticalContentAlignment = VerticalAlignment.Stretch,
+                    BorderBrush = CellHairlineBrush,
+                    Cursor = Cursors.Hand,
+                    Content = fillBar,
                     ToolTip = $"Step {s + 1} · {rowNames[r]} (Click cycles 0/35/70/100%, Right-click clears)",
                 };
                 cellBtn.Click += (_, _) => CycleMatrixCell(motorIdx, stepIdx, clearOnly: false);
@@ -603,15 +626,16 @@ public sealed class VibrationWorkbench
         body.Children.Add(patternStrengthLabel);
         body.Children.Add(patternStrengthSlider.Also(s => s.Margin = new(0, 2, 0, 10)));
 
-        var optionsRow = new WrapPanel { Margin = new(0, 0, 0, 8) };
+        var optionsRow = new WrapPanel { Margin = new(-2, 0, -2, 6) };
         patternLoopBtn = makeButton("Loop: On", () =>
         {
             composerPattern = composerPattern with { Loop = !composerPattern.Loop };
             UpdatePatternOptionButtons();
             if (patternPlayer.IsPlaying && !ReviewSandbox.Active)
                 patternPlayer.Play(composerPattern, (int)Math.Round(patternStrengthSlider.Value));
-        });
-        patternLoopBtn.Height = 32; patternLoopBtn.MinHeight = 30; patternLoopBtn.FontSize = 12;
+        }, "DS.ConsoleBtn");
+        patternLoopBtn.Margin = new(2);
+        patternLoopBtn.Height = 32; patternLoopBtn.MinHeight = 30; patternLoopBtn.FontSize = 11.5;
 
         patternRampBtn = makeButton("Shape: Crisp", () =>
         {
@@ -619,27 +643,29 @@ public sealed class VibrationWorkbench
             UpdatePatternOptionButtons();
             if (patternPlayer.IsPlaying && !ReviewSandbox.Active)
                 patternPlayer.Play(composerPattern, (int)Math.Round(patternStrengthSlider.Value));
-        });
-        patternRampBtn.Height = 32; patternRampBtn.MinHeight = 30; patternRampBtn.FontSize = 12;
+        }, "DS.ConsoleBtn");
+        patternRampBtn.Margin = new(2);
+        patternRampBtn.Height = 32; patternRampBtn.MinHeight = 30; patternRampBtn.FontSize = 11.5;
 
         optionsRow.Children.Add(patternLoopBtn);
         optionsRow.Children.Add(patternRampBtn);
         body.Children.Add(optionsRow);
 
-        var transportRow = new WrapPanel { Margin = new(0, 2, 0, 2) };
-        patternPlayBtn = makeButton("Play Pattern", TogglePlayComposerPattern);
-        patternPlayBtn.Style = DS.Style("DS.Primary");
+        var transportRow = new WrapPanel { Margin = new(-2, 4, -2, 0) };
+        patternPlayBtn = makeButton("Play Pattern", TogglePlayComposerPattern, "DS.ConsolePrimary");
         patternPlayBtn.Height = 38;
-        patternPlayBtn.MinWidth = 124;
+        patternPlayBtn.MinHeight = 36;
+        patternPlayBtn.MinWidth = 122;
+        patternPlayBtn.Margin = new(2);
         patternPlayBtn.IsEnabled = !ReviewSandbox.Active;
         transportRow.Children.Add(patternPlayBtn);
 
-        var randBtn = makeButton("Randomize", RandomizeComposerPattern);
-        randBtn.Height = 38;
-        var clearBtn = makeButton("Clear", ClearComposerPattern);
-        clearBtn.Height = 38;
-        var saveBtn = makeButton("+ Save Pattern", SaveComposerPatternWithPrompt);
-        saveBtn.Height = 38;
+        var randBtn = makeButton("Randomize", RandomizeComposerPattern, "DS.ConsoleBtn");
+        randBtn.Height = 38; randBtn.Margin = new(2);
+        var clearBtn = makeButton("Clear", ClearComposerPattern, "DS.ConsoleBtn");
+        clearBtn.Height = 38; clearBtn.Margin = new(2);
+        var saveBtn = makeButton("+ Save Pattern", SaveComposerPatternWithPrompt, "DS.ConsoleBtn");
+        saveBtn.Height = 38; saveBtn.Margin = new(2);
         transportRow.Children.Add(randBtn);
         transportRow.Children.Add(clearBtn);
         transportRow.Children.Add(saveBtn);
@@ -650,16 +676,16 @@ public sealed class VibrationWorkbench
         return stack;
     }
 
-    FrameworkElement BuildAudioRolesTab(Func<string, Action, Button> makeButton)
+    FrameworkElement BuildAudioRolesSection(Func<string, Action, string, Button> makeButton)
     {
-        var stack = new StackPanel { Margin = new(0, 2, 0, 12) };
+        var stack = new StackPanel();
 
         var head = new DockPanel { Margin = new(0, 0, 0, 8) };
         roleBeatBadge = new Border
         {
-            CornerRadius = ThemeCatalog.Round(4),
+            CornerRadius = new(4),
             Padding = new(7, 2, 7, 2),
-            Background = new SolidColorBrush(Color.FromArgb(40, 0, 229, 255)),
+            Background = BeatIdleBrush,
             BorderBrush = new SolidColorBrush(Color.FromArgb(110, 0, 229, 255)),
             BorderThickness = new(1),
             Child = Kit.Text("BEAT", 10.5, "DS.Text", FontWeights.Bold),
@@ -670,7 +696,7 @@ public sealed class VibrationWorkbench
         roleVibeText = Kit.Text("IDLE", 10.5, "DS.AccentHi", FontWeights.Bold);
         var vibeBadge = new Border
         {
-            CornerRadius = ThemeCatalog.Round(4),
+            CornerRadius = new(4),
             Padding = new(7, 2, 7, 2),
             Margin = new(0, 0, 6, 0),
             Background = new SolidColorBrush(Color.FromArgb(36, 167, 139, 250)),
@@ -683,7 +709,7 @@ public sealed class VibrationWorkbench
         head.Children.Add(Kit.Section("LIVE SPECTRUM · 1024-PT FFT", 0));
         stack.Children.Add(head);
 
-        // 8-band real-time FFT bar chart
+        // GPU-transformed 8-band real-time FFT bar chart
         var specCard = new Border
         {
             CornerRadius = ThemeCatalog.Round(8),
@@ -713,20 +739,21 @@ public sealed class VibrationWorkbench
             var barBox = new Border
             {
                 Height = 42,
+                ClipToBounds = true,
                 CornerRadius = new(4),
                 Background = new SolidColorBrush(Color.FromArgb(90, 24, 34, 54)),
                 BorderBrush = DS.Brush("DS.Hairline"),
                 BorderThickness = new(0.5),
             };
-            var vGrid = new Grid();
-            var rEmpty = new RowDefinition { Height = new(0.92, GridUnitType.Star) };
-            var rFill = new RowDefinition { Height = new(0.08, GridUnitType.Star) };
-            vGrid.RowDefinitions.Add(rEmpty);
-            vGrid.RowDefinitions.Add(rFill);
-            var fillBar = new Border { Background = new SolidColorBrush(cols[b]), CornerRadius = new(3) };
-            Grid.SetRow(fillBar, 1);
-            vGrid.Children.Add(fillBar);
-            barBox.Child = vGrid;
+            var sScale = new ScaleTransform(1.0, 0.05);
+            var fillBar = new Border
+            {
+                Background = new SolidColorBrush(cols[b]),
+                CornerRadius = new(3),
+                RenderTransformOrigin = new(0.5, 1.0),
+                RenderTransform = sScale,
+            };
+            barBox.Child = fillBar;
             colSp.Children.Add(barBox);
             colSp.Children.Add(new TextBlock
             {
@@ -737,7 +764,7 @@ public sealed class VibrationWorkbench
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Margin = new(0, 3, 0, 0),
             });
-            roleSpectrumBars[b] = (rEmpty, rFill);
+            roleSpectrumScales[b] = sScale;
             eqGrid.Children.Add(colSp);
         }
         specBody.Children.Add(eqGrid);
@@ -753,19 +780,23 @@ public sealed class VibrationWorkbench
             Foreground = DS.Brush("DS.TextSoft"),
             VerticalAlignment = VerticalAlignment.Center,
         });
-        var vTrackGrid = new Grid { Height = 8 };
-        roleVocalFill = new ColumnDefinition { Width = new(0.04, GridUnitType.Star) };
-        roleVocalEmpty = new ColumnDefinition { Width = new(0.96, GridUnitType.Star) };
-        vTrackGrid.ColumnDefinitions.Add(roleVocalFill);
-        vTrackGrid.ColumnDefinitions.Add(roleVocalEmpty);
-        vTrackGrid.Children.Add(new Border { Background = new SolidColorBrush(Color.FromRgb(0xFB, 0xBF, 0x24)), CornerRadius = new(3) });
+        roleVocalScale = new ScaleTransform(0.04, 1.0);
+        var vFill = new Border
+        {
+            Background = new SolidColorBrush(Color.FromRgb(0xFB, 0xBF, 0x24)),
+            CornerRadius = new(3),
+            RenderTransformOrigin = new(0.0, 0.5),
+            RenderTransform = roleVocalScale,
+        };
         var vTrack = new Border
         {
+            Height = 8,
+            ClipToBounds = true,
             CornerRadius = new(3),
             Background = new SolidColorBrush(Color.FromArgb(90, 24, 34, 54)),
             BorderBrush = DS.Brush("DS.Hairline"),
             BorderThickness = new(0.5),
-            Child = vTrackGrid,
+            Child = vFill,
         };
         Grid.SetColumn(vTrack, 1);
         vocalRow.Children.Add(vTrack);
@@ -776,8 +807,7 @@ public sealed class VibrationWorkbench
         stack.Children.Add(Kit.Section("PER-MOTOR AUDIO ROLES", 2));
         stack.Children.Add(Copy("Give each grip and trigger its own dedicated audio element.", 12.5));
 
-        // 1-click quick role templates
-        var quickRow = new WrapPanel { Margin = new(0, 0, 0, 8) };
+        var quickRow = new WrapPanel { Margin = new(-2, 0, -2, 8) };
         foreach (var (presetName, map) in new[]
         {
             ("Auto", MotorRoleMap.Default),
@@ -788,7 +818,8 @@ public sealed class VibrationWorkbench
         })
         {
             var captured = map;
-            var pb = makeButton(presetName, () => SetMotorRoles(captured));
+            var pb = makeButton(presetName, () => SetMotorRoles(captured), "DS.ConsoleBtn");
+            pb.Margin = new(2);
             pb.Height = 30; pb.MinHeight = 28; pb.FontSize = 11.5; pb.Padding = new(10, 4, 10, 4);
             quickRow.Children.Add(pb);
         }
@@ -821,16 +852,16 @@ public sealed class VibrationWorkbench
 
             var headerRow = new DockPanel { Margin = new(0, 0, 0, 4) };
             var cycleControls = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            var prevBtn = makeButton("<", () => CycleSingleMotorRole(idx, -1));
-            prevBtn.Height = 28; prevBtn.MinHeight = 26; prevBtn.Padding = new(9, 2, 9, 2); prevBtn.Margin = new(0, 0, 4, 0);
+            var prevBtn = makeButton("<", () => CycleSingleMotorRole(idx, -1), "DS.ConsoleStepBtn");
+            prevBtn.Margin = new(0, 0, 4, 0);
             var roleVal = Kit.Text("Auto (Vibe)", 12.5, "DS.AccentHi", FontWeights.SemiBold).Also(t =>
             {
                 t.VerticalAlignment = VerticalAlignment.Center;
                 t.MinWidth = 112;
                 t.TextAlignment = TextAlignment.Center;
             });
-            var nextBtn = makeButton(">", () => CycleSingleMotorRole(idx, 1));
-            nextBtn.Height = 28; nextBtn.MinHeight = 26; nextBtn.Padding = new(9, 2, 9, 2); nextBtn.Margin = new(4, 0, 0, 0);
+            var nextBtn = makeButton(">", () => CycleSingleMotorRole(idx, 1), "DS.ConsoleStepBtn");
+            nextBtn.Margin = new(4, 0, 0, 0);
             cycleControls.Children.Add(prevBtn);
             cycleControls.Children.Add(roleVal);
             cycleControls.Children.Add(nextBtn);
@@ -857,17 +888,21 @@ public sealed class VibrationWorkbench
             var descText = Kit.Text("", 11.5, "DS.TextMuted").Also(t => { t.TextWrapping = TextWrapping.Wrap; t.Margin = new(0, 0, 8, 0); });
             subGrid.Children.Add(descText);
 
-            var mGrid = new Grid { Height = 6, VerticalAlignment = VerticalAlignment.Center };
-            var mFill = new ColumnDefinition { Width = new(0.04, GridUnitType.Star) };
-            var mEmpty = new ColumnDefinition { Width = new(0.96, GridUnitType.Star) };
-            mGrid.ColumnDefinitions.Add(mFill);
-            mGrid.ColumnDefinitions.Add(mEmpty);
-            mGrid.Children.Add(new Border { Background = new SolidColorBrush(motorDefs[idx].Col), CornerRadius = new(3) });
+            var mScale = new ScaleTransform(0.04, 1.0);
+            var mFill = new Border
+            {
+                Background = new SolidColorBrush(motorDefs[idx].Col),
+                CornerRadius = new(3),
+                RenderTransformOrigin = new(0.0, 0.5),
+                RenderTransform = mScale,
+            };
             var mTrack = new Border
             {
+                Height = 6,
+                ClipToBounds = true,
                 CornerRadius = new(3),
                 Background = new SolidColorBrush(Color.FromArgb(90, 24, 34, 54)),
-                Child = mGrid,
+                Child = mFill,
                 VerticalAlignment = VerticalAlignment.Center,
             };
             Grid.SetColumn(mTrack, 1);
@@ -877,41 +912,34 @@ public sealed class VibrationWorkbench
             cardGrid.Children.Add(subGrid);
             card.Child = cardGrid;
             stack.Children.Add(card);
-            roleCardUi[idx] = (roleVal, descText, mFill, mEmpty);
+            roleCardUi[idx] = (roleVal, descText, mScale);
         }
 
-        // Quick Audio Haptics power selector right inside Audio Roles tab
         stack.Children.Add(Kit.Section("AUDIO HAPTICS OUTPUT", 4));
-        var hapChoicesWrap = new WrapPanel { Margin = new(0, 0, 0, 8) };
+        var hapChoicesWrap = new WrapPanel { Margin = new(-2, 0, -2, 8) };
         foreach (var (pct, label) in new (int, string)[] { (0, "Off"), (35, "Light 35%"), (65, "Punch 65%"), (100, "Max 100%") })
         {
             int captured = pct;
-            var hb = makeButton(label, async () => await SetAudioHapticsStrengthAsync(captured));
-            hb.Height = 32; hb.MinHeight = 30; hb.FontSize = 11.5; hb.Margin = new(0);
+            var hb = makeButton(label, async () => await SetAudioHapticsStrengthAsync(captured), "DS.ConsoleBtn");
+            hb.Height = 32; hb.MinHeight = 30; hb.FontSize = 11.5; hb.Margin = new(2);
             audioHapStrengthBtns[captured] = hb;
             hapChoicesWrap.Children.Add(hb);
         }
-        stack.Children.Add(Kit.Segments(hapChoicesWrap));
+        stack.Children.Add(hapChoicesWrap);
 
-        var hapActionRow = new WrapPanel { Margin = new(0, 8, 0, 0) };
+        var hapActionRow = new WrapPanel { Margin = new(-2, 4, -2, 0) };
         toggleAudioHapBtn = makeButton("Start Live Audio Haptics", async () =>
         {
             if (LightingEffectsService.Status.IsRunning && LightingEffectsService.CurrentSpec.Kind == LightingEffectKind.AudioReactive)
                 await LightingEffectsService.StopAsync(restoreBaseline: true);
             else
                 await StartAudioHapticsWithCurrentRolesAsync();
-        });
-        toggleAudioHapBtn.Style = DS.Style("DS.Primary");
-        toggleAudioHapBtn.Height = 36;
+        }, "DS.ConsolePrimary");
+        toggleAudioHapBtn.Height = 38;
+        toggleAudioHapBtn.MinHeight = 36;
+        toggleAudioHapBtn.Margin = new(2);
         toggleAudioHapBtn.IsEnabled = !ReviewSandbox.Active;
         hapActionRow.Children.Add(toggleAudioHapBtn);
-
-        if (HasTriggers)
-        {
-            var setupBtn = makeButton("Trigger Setup (M + Back)", OpenTriggerGuide);
-            setupBtn.Height = 36;
-            hapActionRow.Children.Add(setupBtn);
-        }
         stack.Children.Add(hapActionRow);
 
         return stack;
@@ -920,7 +948,7 @@ public sealed class VibrationWorkbench
     void RefreshPatternLibraryCards()
     {
         patternLibraryGrid.Children.Clear();
-        patternCardBorders.Clear();
+        patternCardButtons.Clear();
 
         IEnumerable<VibrationPattern> all = VibrationPatternEngine.BuiltIns.Concat(patternStore.Patterns);
         foreach (var pat in all)
@@ -928,7 +956,7 @@ public sealed class VibrationWorkbench
             var captured = pat;
             var title = Kit.Text(pat.Name, 12.5, "DS.Text", FontWeights.SemiBold).Also(t => t.TextTrimming = TextTrimming.CharacterEllipsis);
             var sub = Kit.Text($"{pat.Category} · {pat.StepMs} ms{(pat.Loop ? " · Loop" : "")}", 10.5, "DS.TextMuted");
-            var sp = new StackPanel { Children = { title, sub } };
+            var sp = new StackPanel { Margin = new(6, 0, 0, 0), Children = { title, sub } };
 
             var cardGrid = new Grid();
             cardGrid.ColumnDefinitions.Add(new() { Width = new(1, GridUnitType.Star) });
@@ -937,10 +965,10 @@ public sealed class VibrationWorkbench
 
             var faceBtn = new Button
             {
-                Style = DS.Style("ActionButton"),
+                Style = DS.Style("DS.ConsoleCard"),
                 HorizontalContentAlignment = HorizontalAlignment.Stretch,
                 HorizontalAlignment = HorizontalAlignment.Stretch,
-                Padding = new(10, 7, 10, 7),
+                Padding = new(10, 8, 10, 8),
                 MinHeight = 46,
                 Height = double.NaN,
                 Margin = new(3),
@@ -953,11 +981,12 @@ public sealed class VibrationWorkbench
                 var delBtn = new Button
                 {
                     Content = "×",
-                    Style = DS.Style("ActionButton"),
+                    Style = DS.Style("DS.ConsoleStepBtn"),
                     FontSize = 12,
                     Padding = new(5, 0, 5, 0),
-                    MinHeight = 20,
-                    Height = 20,
+                    MinHeight = 22,
+                    Height = 22,
+                    MinWidth = 22,
                     VerticalAlignment = VerticalAlignment.Center,
                 };
                 delBtn.Click += (_, e) =>
@@ -982,9 +1011,8 @@ public sealed class VibrationWorkbench
             };
 
             patternLibraryGrid.Children.Add(faceBtn);
-            if (faceBtn.BorderBrush != null) { }
             LightingWindow.SetSelectedState(faceBtn, composerPattern.Id == pat.Id);
-            patternCardBorders[pat.Id] = new Border { Tag = faceBtn };
+            patternCardButtons.Add((pat.Id, faceBtn));
         }
     }
 
@@ -1006,11 +1034,8 @@ public sealed class VibrationWorkbench
         {
             patternSyncing = false;
         }
-        foreach (var (id, holder) in patternCardBorders)
-        {
-            if (holder.Tag is Button btn)
-                LightingWindow.SetSelectedState(btn, id == composerPattern.Id);
-        }
+        foreach (var (id, btn) in patternCardButtons)
+            LightingWindow.SetSelectedState(btn, id == composerPattern.Id);
     }
 
     void UpdatePatternOptionButtons()
@@ -1062,9 +1087,7 @@ public sealed class VibrationWorkbench
         {
             bool activeCol = s == activePlayheadStep;
             if (stepColumnHeaders[s] != null)
-                stepColumnHeaders[s].Background = activeCol
-                    ? new SolidColorBrush(Color.FromArgb(140, 0, 229, 255))
-                    : Brushes.Transparent;
+                stepColumnHeaders[s].Background = activeCol ? PlayheadActiveBrush : Brushes.Transparent;
             if (stepHeaderTexts[s] != null)
                 stepHeaderTexts[s].Foreground = activeCol ? DS.Brush("DS.Text") : DS.Brush("DS.TextMuted");
         }
@@ -1083,13 +1106,13 @@ public sealed class VibrationWorkbench
                 if (matrixFillBars[r, s] is { } bar)
                 {
                     bar.Height = val <= 0 ? 0 : Math.Max(4, val / 100.0 * 24.0);
-                    bar.Opacity = val <= 0 ? 0.0 : (0.45 + 0.55 * val / 100.0);
+                    bar.Opacity = val <= 0 ? 0.0 : (0.50 + 0.50 * val / 100.0);
                 }
                 if (matrixButtons[r, s] is { } btn)
                 {
                     btn.BorderBrush = s == activePlayheadStep
                         ? DS.Brush("DS.AccentHi")
-                        : (val > 0 ? new SolidColorBrush(Color.FromArgb(140, MotorColors[r].R, MotorColors[r].G, MotorColors[r].B)) : DS.Brush("DS.Hairline"));
+                        : (val > 0 ? new SolidColorBrush(Color.FromArgb(145, MotorColors[r].R, MotorColors[r].G, MotorColors[r].B)) : CellHairlineBrush);
                 }
             }
         }
@@ -1108,7 +1131,6 @@ public sealed class VibrationWorkbench
     {
         if (ReviewSandbox.Active) return;
 
-        // If live Audio Haptics was actively driving rumble, pause its rumble stream cleanly so pattern doesn't fight it.
         if (LightingEffectsService.Status.IsRunning &&
             LightingEffectsService.CurrentSpec is { Kind: LightingEffectKind.AudioReactive, AudioHapticsStrength: > 0 } runningSpec)
         {
@@ -1168,7 +1190,6 @@ public sealed class VibrationWorkbench
                 HasTriggers ? paletteLevels[rng.Next(paletteLevels.Length)] : 0,
                 HasTriggers ? paletteLevels[rng.Next(paletteLevels.Length)] : 0);
         }
-        // Guarantee at least one vibrant signature step so Randomize never yields all zeros.
         nextSteps[0] = new(90, 40, HasTriggers ? 80 : 0, 0);
         composerPattern = (composerPattern with
         {
@@ -1309,7 +1330,6 @@ public sealed class VibrationWorkbench
         var roles = spec.AudioMotorRoles;
         MotorAudioRole[] roleVals = [roles.LeftGrip, roles.RightGrip, roles.LeftTrigger, roles.RightTrigger];
 
-        // Update tile badges in Motors tab
         foreach (var (z, name) in zoneNames)
         {
             if (!zones.TryGetValue(z, out var ui)) continue;
@@ -1323,7 +1343,6 @@ public sealed class VibrationWorkbench
             ui.RoleTag.Text = $"Role: {AudioHapticsEngine.RoleShortLabel(r)}";
         }
 
-        // Update Audio Roles tab cards
         for (int i = 0; i < (HasTriggers ? 4 : 2); i++)
         {
             if (roleCardUi[i].Label == null) continue;
@@ -1343,11 +1362,9 @@ public sealed class VibrationWorkbench
 
     void SyncStudioTimer()
     {
-        bool needTimer = Body.IsLoaded && (activeSection == 2 || (LightingEffectsService.Status.IsRunning && LightingEffectsService.CurrentSpec.Kind == LightingEffectKind.AudioReactive));
+        bool needTimer = Body.IsLoaded && !ReviewSandbox.Active;
         if (needTimer)
         {
-            if (activeSection == 2 && !ReviewSandbox.Active)
-                SystemAudioLevelSampler.EnsureStarted();
             if (!studioTimer.IsEnabled) studioTimer.Start();
         }
         else if (studioTimer.IsEnabled)
@@ -1358,48 +1375,41 @@ public sealed class VibrationWorkbench
 
     void RefreshLiveStudioTelemetry()
     {
-        AudioFrame af;
-        HapticsFrame hf;
-        var spec = LightingEffectsService.CurrentSpec;
+        if (ReviewSandbox.Active || !Body.IsVisible) return;
 
-        if (ReviewSandbox.Active)
+        var spec = LightingEffectsService.CurrentSpec;
+        bool runningAudio = LightingEffectsService.Status.IsRunning && spec.Kind == LightingEffectKind.AudioReactive;
+        bool audioSectionVisible = inspectorScroll.VerticalOffset >= 260;
+        AudioFrame af;
+        if (runningAudio)
         {
-            double t = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0;
-            float beatCycle = (float)((t * 2.0) % 1.0);
-            float pulse = MathF.Exp(-beatCycle * 5.0f);
-            float b = Math.Clamp(0.20f + 0.75f * pulse, 0.03f, 1.0f);
-            float m = Math.Clamp(0.25f + 0.55f * (0.5f + 0.5f * MathF.Sin((float)t * 3.1f)), 0.03f, 1.0f);
-            float tr = Math.Clamp(0.15f + 0.65f * (0.5f + 0.5f * MathF.Sin((float)t * 7.4f)), 0.03f, 1.0f);
-            float voc = Math.Clamp(0.45f + 0.40f * MathF.Sin((float)t * 2.1f), 0.0f, 1.0f);
-            var s8 = new AudioSpectrum8(b, Math.Clamp(b * 0.85f, 0.04f, 1f), Math.Clamp(m * 0.82f, 0.04f, 1f), voc, Math.Clamp(voc * 0.88f, 0.04f, 1f), Math.Clamp(tr * 0.8f, 0.04f, 1f), tr, Math.Clamp(tr * 0.65f, 0.04f, 1f));
-            af = new AudioFrame(Math.Max(b, m), b, m, tr, pulse, (int)(t * 2.0), 0f, b, tr, 0.5f, 0.65f, 0.4f, voc, voc, voc * 0.85f, m, Math.Max(pulse, b * 0.7f), Math.Max(b, m), AudioMusicVibe.GroovePop, s8);
-            hf = AudioHapticsEngine.Evaluate(af, spec.AudioHapticsStyle, Math.Max(65, spec.AudioHapticsStrength), spec.AudioMotorRoles, t);
+            af = SystemAudioLevelSampler.LatestFrame;
+        }
+        else if (audioSectionVisible)
+        {
+            SystemAudioLevelSampler.EnsureStarted();
+            af = SystemAudioLevelSampler.SampleAudioFrame();
         }
         else
         {
-            af = activeSection == 2 ? SystemAudioLevelSampler.SampleAudioFrame() : SystemAudioLevelSampler.LatestFrame;
-            hf = LightingEffectsService.Status.IsRunning && spec.Kind == LightingEffectKind.AudioReactive && spec.AudioHapticsStrength > 0
-                ? SystemAudioLevelSampler.LatestHaptics
-                : AudioHapticsEngine.Evaluate(af, spec.AudioHapticsStyle, Math.Max(spec.AudioHapticsStrength, activeSection == 2 ? 75 : 0), spec.AudioMotorRoles, 0.0);
+            af = default;
         }
+        HapticsFrame hf = runningAudio && spec.AudioHapticsStrength > 0
+            ? SystemAudioLevelSampler.LatestHaptics
+            : AudioHapticsEngine.Evaluate(af, spec.AudioHapticsStyle, Math.Max(spec.AudioHapticsStrength, audioSectionVisible ? 75 : 0), spec.AudioMotorRoles, 0.0);
 
         for (int i = 0; i < 8; i++)
         {
-            if (roleSpectrumBars[i].Fill == null || roleSpectrumBars[i].Empty == null) continue;
-            double v = Math.Clamp(af.Spectrum[i], 0.04, 0.98);
-            roleSpectrumBars[i].Empty.Height = new(1.0 - v, GridUnitType.Star);
-            roleSpectrumBars[i].Fill.Height = new(v, GridUnitType.Star);
+            if (roleSpectrumScales[i] is { } st)
+                st.ScaleY = Math.Clamp(af.Spectrum[i], 0.04, 0.98);
         }
-        if (roleVocalFill != null && roleVocalEmpty != null)
-        {
-            double v = Math.Clamp(af.VocalPresence, 0.04, 0.98);
-            roleVocalFill.Width = new(v, GridUnitType.Star);
-            roleVocalEmpty.Width = new(1.0 - v, GridUnitType.Star);
-        }
+        if (roleVocalScale != null)
+            roleVocalScale.ScaleX = Math.Clamp(af.VocalPresence, 0.04, 0.98);
         if (roleBeatBadge != null)
         {
-            byte alpha = (byte)(af.BeatPulse > 0.30f ? 220 : 40);
-            roleBeatBadge.Background = new SolidColorBrush(Color.FromArgb(alpha, 0, 229, 255));
+            var nextBeat = af.BeatPulse > 0.30f ? BeatActiveBrush : BeatIdleBrush;
+            if (!ReferenceEquals(roleBeatBadge.Background, nextBeat))
+                roleBeatBadge.Background = nextBeat;
         }
         if (roleVibeText != null)
         {
@@ -1419,24 +1429,15 @@ public sealed class VibrationWorkbench
         double[] mVals = [hf.LeftGrip, hf.RightGrip, hf.LeftTrigger, hf.RightTrigger];
         for (int i = 0; i < (HasTriggers ? 4 : 2); i++)
         {
-            if (roleCardUi[i].Fill == null || roleCardUi[i].Empty == null) continue;
-            double mv = Math.Clamp(mVals[i], 0.04, 0.98);
-            roleCardUi[i].Fill.Width = new(mv, GridUnitType.Star);
-            roleCardUi[i].Empty.Width = new(1.0 - mv, GridUnitType.Star);
+            if (roleCardUi[i].Scale is { } ms)
+                ms.ScaleX = Math.Clamp(mVals[i], 0.04, 0.98);
         }
 
-        if (!patternPlayer.IsPlaying && !testing && !ReviewSandbox.Active)
+        if (!patternPlayer.IsPlaying && !testing && runningAudio && spec.AudioHapticsStrength > 0)
         {
-            if (LightingEffectsService.Status.IsRunning && spec.Kind == LightingEffectKind.AudioReactive && spec.AudioHapticsStrength > 0)
-            {
-                SetDockBars(hf);
-                dockStatusText.Text = SystemAudioLevelSampler.HapticsPathSummary;
-                Visualizer.SetLiveMotors(hf.LeftGrip, hf.RightGrip, hf.LeftTrigger, hf.RightTrigger);
-            }
-            else if (activeSection == 2)
-            {
-                SetDockBars(hf);
-            }
+            SetDockBars(hf);
+            dockStatusText.Text = SystemAudioLevelSampler.HapticsPathSummary;
+            Visualizer.SetLiveMotors(hf.LeftGrip, hf.RightGrip, hf.LeftTrigger, hf.RightTrigger);
         }
     }
 
@@ -1446,10 +1447,8 @@ public sealed class VibrationWorkbench
         int count = HasTriggers ? 4 : 2;
         for (int i = 0; i < count; i++)
         {
-            if (dockMeters[i].Fill == null || dockMeters[i].Empty == null) continue;
-            double v = Math.Clamp(vals[i], 0.04, 0.98);
-            dockMeters[i].Fill.Width = new(v, GridUnitType.Star);
-            dockMeters[i].Empty.Width = new(1.0 - v, GridUnitType.Star);
+            if (dockMeterScales[i] is { } st)
+                st.ScaleX = Math.Clamp(vals[i], 0.04, 0.98);
         }
     }
 
@@ -1648,7 +1647,7 @@ public sealed class VibrationWorkbench
 
     UIElement BuildGame()
     {
-        var panel = new StackPanel { Margin = new(0, 18, 0, 0) };
+        var panel = new StackPanel { Margin = new(0, 14, 0, 0) };
         panel.Children.Add(Kit.Section("GAME VIBRATION", 0));
         panel.Children.Add(Copy("What the game asks for, and what your controller gets.", 13));
         string[] names = ["Left motor · game", "Left motor · controller", "Right motor · game", "Right motor · controller"];

@@ -28,10 +28,10 @@ internal sealed class LightingWindow : Window
     readonly TextBlock brightnessValue = Kit.Text("100%", 13, "DS.Text", FontWeights.SemiBold);
 
     readonly TextBlock liveReadout = Kit.Text("", 13.5, "DS.TextSoft", FontWeights.SemiBold);
-    readonly TextBlock status = Kit.Text("Ready · Select a colour or effect, then click Apply.", 12.5, "DS.TextMuted");
-    readonly Button read = new() { Content = "Read controller", Style = DS.Style("ActionButton"), Padding = new(12, 6, 12, 6), FontSize = 12.5, MinHeight = 32, Height = double.NaN };
-    readonly Button stopEffect = new() { Content = "Stop effect", Style = DS.Style("ActionButton"), Padding = new(12, 6, 12, 6), FontSize = 12.5, MinHeight = 32, Height = double.NaN, Margin = new(6, 0, 0, 0), Visibility = Visibility.Collapsed };
-    readonly Button apply = new() { Content = "Apply", Style = DS.Style("DS.Primary"), HorizontalAlignment = HorizontalAlignment.Stretch, Height = 44 };
+    readonly TextBlock status = Kit.Text("Ready · Select a colour, live effect, or audio mode, then click Apply.", 12.5, "DS.TextMuted");
+    readonly Button read = new() { Content = "Read controller", Style = DS.Style("DS.ConsoleBtn"), Padding = new(13, 6, 13, 6), FontSize = 12.5, MinHeight = 32, Height = double.NaN };
+    readonly Button stopEffect = new() { Content = "Stop effect", Style = DS.Style("DS.ConsoleBtn"), Padding = new(13, 6, 13, 6), FontSize = 12.5, MinHeight = 32, Height = double.NaN, Margin = new(6, 0, 0, 0), Visibility = Visibility.Collapsed };
+    readonly Button apply = new() { Content = "Apply", Style = DS.Style("DS.ConsolePrimary"), HorizontalAlignment = HorizontalAlignment.Stretch, Height = 44 };
 
     readonly List<(Button Button, int Rgb)> swatches = [];
     readonly List<(byte ByteLevel, Button Button)> brightnessStops = [];
@@ -39,8 +39,8 @@ internal sealed class LightingWindow : Window
     readonly Button[] levelButtons = new Button[4];
     readonly int[] levelColours = (int[])BatteryLightingService.Load().Colours.Clone();
 
-    readonly Button[] sectionButtons = new Button[3];
-    readonly Border tabHost = new();
+    readonly ScrollViewer rightScroll = new() { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Padding = new(0, 0, 6, 0) };
+    readonly StackPanel unifiedStack = new();
     readonly FrameworkElement colourView;
     readonly LightingEffectsSection effectsSection;
     readonly Action<Button>? registerFocus;
@@ -115,40 +115,39 @@ internal sealed class LightingWindow : Window
         leftPanel.Margin = new(0, 0, 16, 0);
         root.Children.Add(leftPanel);
 
-        // Right inspector column (Segments + active tab + single primary Apply footer)
+        // Right inspector column: unified scrollable PS5 console workspace (Colour + Effects + Presets in one view)
         colourView = BuildColourView();
         effectsSection = new LightingEffectsSection(
             () => selected,
-            rgbVal => SetColour(rgbVal),
+            rgbVal => { activeSection = 0; SetColour(rgbVal); },
             () => Math.Max((byte)0x08, level),
             registerFocus,
-            () => UpdateStatusAndVisual());
+            () =>
+            {
+                if (effectsSection is null) return;
+                activeSection = 1;
+                UpdateStatusAndVisual();
+            });
 
-        var sectionPanel = new StackPanel { Orientation = Orientation.Horizontal };
-        foreach (var (index, label) in new[] { (0, "Colour"), (1, "Effects"), (2, "Auto") })
-        {
-            int idx = index;
-            var btn = new Button { Content = label, MinWidth = 76 };
-            btn.Click += (_, _) => SelectSection(idx);
-            sectionButtons[idx] = btn;
-            sectionPanel.Children.Add(btn);
-        }
-        var header = new StackPanel { Margin = new(0, 0, 0, 14) };
-        header.Children.Add(Kit.Segments(sectionPanel));
-        foreach (var sb in sectionButtons) registerFocus?.Invoke(sb);
+        unifiedStack.Children.Add(colourView);
+        unifiedStack.Children.Add(Kit.Rule().Also(r => r.Margin = new(0, 14, 0, 14)));
+        unifiedStack.Children.Add(effectsSection.EffectsView);
+        unifiedStack.Children.Add(Kit.Rule().Also(r => r.Margin = new(0, 14, 0, 14)));
+        unifiedStack.Children.Add(effectsSection.AutoView);
+        rightScroll.Content = unifiedStack;
+
+        var scrollWithHint = ConsoleUiHelpers.WrapWithScrollHint(rightScroll, "Scroll down for Effects, Audio & Presets");
 
         var footer = new StackPanel();
-        footer.Children.Add(Kit.Rule().Also(r => r.Margin = new(0, 12, 0, 10)));
+        footer.Children.Add(Kit.Rule().Also(r => r.Margin = new(0, 10, 0, 10)));
         footer.Children.Add(Kit.Text("Keep the controller awake · works over Dongle or Bluetooth.", 12, "DS.TextMuted")
-            .Also(t => { t.TextWrapping = TextWrapping.Wrap; t.Margin = new(0, 0, 0, 10); }));
+            .Also(t => { t.TextWrapping = TextWrapping.Wrap; t.Margin = new(0, 0, 0, 8); }));
         footer.Children.Add(apply);
 
         var rightDock = new DockPanel();
-        DockPanel.SetDock(header, Dock.Top);
         DockPanel.SetDock(footer, Dock.Bottom);
-        rightDock.Children.Add(header);
         rightDock.Children.Add(footer);
-        rightDock.Children.Add(new ScrollViewer { Content = tabHost, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Padding = new(0, 0, 4, 0) });
+        rightDock.Children.Add(scrollWithHint);
 
         var rightPanel = Kit.Panel(null, null, null, rightDock, new Thickness(20));
         Grid.SetColumn(rightPanel, 1);
@@ -160,6 +159,7 @@ internal sealed class LightingWindow : Window
         apply.Click += async (_, _) => await ApplyCurrentTabAsync();
         modes.SelectionChanged += (_, _) =>
         {
+            activeSection = 0;
             apply.IsEnabled = !busy && modes.SelectedIndex >= 0;
             batteryPanel.Visibility = BatterySelected ? Visibility.Visible : Visibility.Collapsed;
             if (BatterySelected) EditLevel(editingLevel);
@@ -171,7 +171,7 @@ internal sealed class LightingWindow : Window
 
         void OnServiceChanged()
         {
-            tabHost.Dispatcher.BeginInvoke(UpdateStatusAndVisual, DispatcherPriority.Background);
+            rightScroll.Dispatcher.BeginInvoke(UpdateStatusAndVisual, DispatcherPriority.Background);
         }
         root.Loaded += (_, _) =>
         {
@@ -284,11 +284,11 @@ internal sealed class LightingWindow : Window
         };
         stack.Children.Add(brightness);
 
-        var stopsRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new(0, 2, 0, 6) };
+        var stopsRow = new WrapPanel { Margin = new(0, 2, 0, 4) };
         foreach (var (byteLevel, label) in new (byte, string)[]
         {
             (0x00, "Off"),
-            (0x01, "1%"),
+            (0x01, "1% Moonlight"),
             (0x40, "25%"),
             (0x80, "50%"),
             (0xff, "100%"),
@@ -298,17 +298,19 @@ internal sealed class LightingWindow : Window
             var btn = new Button
             {
                 Content = label,
+                Style = DS.Style("DS.ConsoleBtn"),
                 MinHeight = 30,
                 Height = 30,
-                Padding = new(10, 4, 10, 4),
+                Padding = new(11, 4, 11, 4),
+                Margin = new(0, 0, 5, 4),
                 FontSize = 12,
             };
-            btn.Click += (_, _) => { if (!busy) { ShowLevel(captured); UpdateStatusAndVisual(); } };
+            btn.Click += (_, _) => { if (!busy) { activeSection = 0; ShowLevel(captured); UpdateStatusAndVisual(); } };
             registerFocus?.Invoke(btn);
             stopsRow.Children.Add(btn);
             brightnessStops.Add((captured, btn));
         }
-        stack.Children.Add(Kit.Segments(stopsRow));
+        stack.Children.Add(stopsRow);
 
         // Conditional Battery 1/4..4/4 threshold mapper
         batteryPanel.Children.Add(Kit.Text("Battery level colours (1/4 to 4/4)", 13, "DS.TextSoft").Also(t => t.Margin = new(0, 2, 0, 6)));
@@ -336,8 +338,8 @@ internal sealed class LightingWindow : Window
         batteryPanel.Children.Add(gauge);
         stack.Children.Add(batteryPanel);
 
-        square.Changed += (x, y) => { saturation = x; value = 1 - y; Refresh(); };
-        hueStrip.Changed += (_, y) => { hue = y * 360; Refresh(); };
+        square.Changed += (x, y) => { activeSection = 0; saturation = x; value = 1 - y; Refresh(); };
+        hueStrip.Changed += (_, y) => { activeSection = 0; hue = y * 360; Refresh(); };
         hex.LostFocus += (_, _) => CommitHex();
         hex.KeyDown += (_, e) => { if (e.Key == Key.Enter) { CommitHex(); e.Handled = true; } };
 
@@ -365,20 +367,39 @@ internal sealed class LightingWindow : Window
     {
         activeSection = Math.Clamp(index, 0, 2);
         if (activeSection == 1) effectsSection.PreviewCurrentDraftIfIdle();
-        tabHost.Child = activeSection switch
+
+        FrameworkElement target = activeSection switch
         {
             0 => colourView,
             1 => effectsSection.EffectsView,
             _ => effectsSection.AutoView,
         };
-        for (int i = 0; i < sectionButtons.Length; i++)
-            SetSelectedState(sectionButtons[i], i == activeSection);
-
+        if (activeSection == 0)
+        {
+            rightScroll.ScrollToTop();
+        }
+        else if (unifiedStack.IsAncestorOf(target))
+        {
+            unifiedStack.UpdateLayout();
+            var pt = target.TransformToAncestor(unifiedStack).Transform(new Point(0, 0));
+            rightScroll.ScrollToVerticalOffset(Math.Max(0, pt.Y - 4));
+        }
         UpdateStatusAndVisual();
     }
 
     internal static void SetSelectedState(Button button, bool selected)
     {
+        ConsoleUiHelpers.SetIsSelected(button, selected);
+        var btnStyle = button.Style;
+        if (btnStyle != null && (ReferenceEquals(btnStyle, DS.Style("DS.ConsoleBtn"))
+            || ReferenceEquals(btnStyle, DS.Style("DS.ConsoleCard"))
+            || ReferenceEquals(btnStyle, DS.Style("DS.ConsoleStepBtn"))
+            || ReferenceEquals(btnStyle, DS.Style("DS.ConsolePrimary"))))
+        {
+            button.ClearValue(Control.BackgroundProperty);
+            button.ClearValue(Control.ForegroundProperty);
+            return;
+        }
         if (selected)
         {
             button.Background = new SolidColorBrush(ThemeCatalog.Current.Accent);
@@ -508,9 +529,12 @@ internal sealed class LightingWindow : Window
             return;
         }
 
-        visual.SetEffectMode(true, activeSection == 1 ? effectsSection.SelectedKind : LightingEffectsService.CurrentSpec.Kind);
+        var activeKind = activeSection == 1 && effectsSection is not null
+            ? effectsSection.SelectedKind
+            : LightingEffectsService.CurrentSpec.Kind;
+        visual.SetEffectMode(true, activeKind);
         var frame = LightingEffectsService.EvaluatePreview();
-        string modeName = activeSection == 1 && !st.IsRunning
+        string modeName = activeSection == 1 && !st.IsRunning && effectsSection is not null
             ? LightingEffectsSection.ShortEffectName(effectsSection.SelectedKind)
             : LightingEffectsSection.ShortEffectName(LightingEffectsService.CurrentSpec.Kind);
         string stateTag = st.IsRunning
@@ -616,18 +640,28 @@ internal sealed class LightingWindow : Window
                 var brush = new LinearGradientBrush { StartPoint = new(0, 0), EndPoint = new(0, 1) };
                 for (int i = 0; i <= 6; i++)
                     brush.GradientStops.Add(new(ToColour(ColourPalette.FromHsv(i * 60, 1, 1)), i / 6d));
+                brush.Freeze();
                 dc.DrawRectangle(brush, null, bounds);
-                dc.DrawRectangle(null, new Pen(Brushes.White, 2), new Rect(0, Math.Clamp(y * ActualHeight - 3, 0, Math.Max(0, ActualHeight - 6)), ActualWidth, 6));
+                var pWhite = new Pen(Brushes.White, 2); pWhite.Freeze();
+                dc.DrawRectangle(null, pWhite, new Rect(0, Math.Clamp(y * ActualHeight - 3, 0, Math.Max(0, ActualHeight - 6)), ActualWidth, 6));
             }
             else
             {
-                dc.DrawRectangle(new LinearGradientBrush(Colors.White, ToColour(ColourPalette.FromHsv(hue, 1, 1)), 0), null, bounds);
-                dc.DrawRectangle(new LinearGradientBrush(Colors.Transparent, Colors.Black, 90), null, bounds);
+                var b1 = new LinearGradientBrush(Colors.White, ToColour(ColourPalette.FromHsv(hue, 1, 1)), 0); b1.Freeze();
+                var b2 = new LinearGradientBrush(Colors.Transparent, Colors.Black, 90); b2.Freeze();
+                var pBlack = new Pen(Brushes.Black, 3); pBlack.Freeze();
+                var pWhite = new Pen(Brushes.White, 1.5); pWhite.Freeze();
+                dc.DrawRectangle(b1, null, bounds);
+                dc.DrawRectangle(b2, null, bounds);
                 var pt = new Point(x * ActualWidth, y * ActualHeight);
-                dc.DrawEllipse(null, new Pen(Brushes.Black, 3), pt, 5, 5);
-                dc.DrawEllipse(null, new Pen(Brushes.White, 1.5), pt, 5, 5);
+                dc.DrawEllipse(null, pBlack, pt, 5, 5);
+                dc.DrawEllipse(null, pWhite, pt, 5, 5);
             }
-            if (IsKeyboardFocused) dc.DrawRectangle(null, new Pen(Brushes.White, 1.5), bounds);
+            if (IsKeyboardFocused)
+            {
+                var pf = new Pen(Brushes.White, 1.5); pf.Freeze();
+                dc.DrawRectangle(null, pf, bounds);
+            }
         }
 
         void Pick(Point p)

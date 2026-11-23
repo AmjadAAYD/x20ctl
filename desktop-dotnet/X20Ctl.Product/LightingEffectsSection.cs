@@ -49,14 +49,21 @@ internal sealed class LightingEffectsSection
     private readonly List<string> palette = ["#00FFFF", "#FF00AA", "#3A6CFF"];
 
     private Border? audioStudioPanel;
-    private ColumnDefinition? bassFillCol, midFillCol, trebleFillCol, vocalFillCol;
-    private ColumnDefinition? bassEmptyCol, midEmptyCol, trebleEmptyCol, vocalEmptyCol;
-    private readonly (RowDefinition Empty, RowDefinition Fill)[] spectrumBars = new (RowDefinition, RowDefinition)[8];
-    private ColumnDefinition? lgFillCol, rgFillCol, ltFillCol, rtFillCol;
-    private ColumnDefinition? lgEmptyCol, rgEmptyCol, ltEmptyCol, rtEmptyCol;
+    private ScaleTransform? bassScale, midScale, trebleScale, vocalScale;
+    private readonly ScaleTransform?[] spectrumScales = new ScaleTransform?[8];
+    private ScaleTransform? lgScale, rgScale, ltScale, rtScale;
     private Button? roleLgBtn, roleRgBtn, roleLtBtn, roleRtBtn, roleResetBtn;
     private Border? beatBadge;
+    private static readonly SolidColorBrush BeatActiveBrush = CreateFrozenBrush(220, 0, 229, 255);
+    private static readonly SolidColorBrush BeatIdleBrush = CreateFrozenBrush(40, 0, 229, 255);
     private TextBlock? vibeBadgeText;
+
+    private static SolidColorBrush CreateFrozenBrush(byte a, byte r, byte g, byte b)
+    {
+        var br = new SolidColorBrush(Color.FromArgb(a, r, g, b));
+        br.Freeze();
+        return br;
+    }
     private Button? armTriggersButton;
     private Button? test4MotorButton;
     private TextBlock? triggerArmStatusText;
@@ -234,11 +241,11 @@ internal sealed class LightingEffectsSection
                 TextTrimming = TextTrimming.CharacterEllipsis,
                 Margin = new(0, 1, 0, 0),
             };
-            var content = new StackPanel { Children = { title, sub } };
+            var content = new StackPanel { Margin = new(6, 0, 0, 0), Children = { title, sub } };
             var btn = new Button
             {
                 Content = content,
-                Style = DS.Style("ActionButton"),
+                Style = DS.Style("DS.ConsoleCard"),
                 HorizontalContentAlignment = HorizontalAlignment.Stretch,
                 Padding = hero ? new Thickness(12, 10, 12, 10) : new Thickness(11, 8, 11, 8),
                 Margin = new Thickness(3),
@@ -426,15 +433,17 @@ internal sealed class LightingEffectsSection
         advanced.Children.Add(idleSlider);
         advanced.Children.Add(Kit.Text("Session write cap", 12.5, "DS.TextSoft").Also(t => t.Margin = new(0, 2, 0, 4)));
 
-        var capsPanel = new WrapPanel();
+        var capsPanel = new WrapPanel { Margin = new(-2, 0, -2, 0) };
         foreach (var (cap, label) in WriteCapChoices)
         {
             int captured = cap;
             var btn = new Button
             {
                 Content = label,
+                Style = DS.Style("DS.ConsoleBtn"),
                 Padding = new(10, 5, 10, 5),
-                FontSize = 12,
+                Margin = new(2),
+                FontSize = 11.5,
                 MinHeight = 30,
                 Height = double.NaN,
             };
@@ -443,7 +452,7 @@ internal sealed class LightingEffectsSection
             capButtons[captured] = btn;
             capsPanel.Children.Add(btn);
         }
-        advanced.Children.Add(Kit.Segments(capsPanel));
+        advanced.Children.Add(capsPanel);
 
         stack.Children.Add(new Expander
         {
@@ -599,19 +608,21 @@ internal sealed class LightingEffectsSection
             {
                 Height = 28,
                 CornerRadius = new(3),
+                ClipToBounds = true,
                 Background = new SolidColorBrush(Color.FromArgb(90, 24, 34, 54)),
                 BorderBrush = DS.Brush("DS.Hairline"),
                 BorderThickness = new(0.5),
             };
-            var vGrid = new Grid();
-            var rEmpty = new RowDefinition { Height = new(0.92, GridUnitType.Star) };
-            var rFill = new RowDefinition { Height = new(0.08, GridUnitType.Star) };
-            vGrid.RowDefinitions.Add(rEmpty);
-            vGrid.RowDefinitions.Add(rFill);
-            var fillBar = new Border { Background = new SolidColorBrush(bandColors[b]), CornerRadius = new(2) };
-            Grid.SetRow(fillBar, 1);
-            vGrid.Children.Add(fillBar);
-            barBox.Child = vGrid;
+            var barScale = new ScaleTransform(1.0, 0.05);
+            var fillBar = new Border
+            {
+                Background = new SolidColorBrush(bandColors[b]),
+                CornerRadius = new(2),
+                VerticalAlignment = VerticalAlignment.Stretch,
+                RenderTransformOrigin = new(0.5, 1.0),
+                RenderTransform = barScale,
+            };
+            barBox.Child = fillBar;
             colSp.Children.Add(barBox);
             colSp.Children.Add(new TextBlock
             {
@@ -622,12 +633,12 @@ internal sealed class LightingEffectsSection
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Margin = new(0, 2, 0, 0),
             });
-            spectrumBars[b] = (rEmpty, rFill);
+            spectrumScales[b] = barScale;
             eqGrid.Children.Add(colSp);
         }
         body.Children.Add(eqGrid);
 
-        (ColumnDefinition fill, ColumnDefinition empty, Grid row) MakeBandMeter(string label, Color fillColor)
+        (ScaleTransform scale, Grid row) MakeBandMeter(string label, Color fillColor)
         {
             var g = new Grid { Margin = new(0, 0, 0, 5) };
             g.ColumnDefinitions.Add(new() { Width = new(54) });
@@ -642,36 +653,36 @@ internal sealed class LightingEffectsSection
                 VerticalAlignment = VerticalAlignment.Center,
             });
 
-            var trackGrid = new Grid { Height = 8, VerticalAlignment = VerticalAlignment.Center };
-            var cFill = new ColumnDefinition { Width = new(0.05, GridUnitType.Star) };
-            var cEmpty = new ColumnDefinition { Width = new(0.95, GridUnitType.Star) };
-            trackGrid.ColumnDefinitions.Add(cFill);
-            trackGrid.ColumnDefinitions.Add(cEmpty);
-
+            var sTransform = new ScaleTransform(0.04, 1.0);
             var fillBar = new Border
             {
                 Background = new SolidColorBrush(fillColor),
                 CornerRadius = new(3),
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                RenderTransformOrigin = new(0.0, 0.5),
+                RenderTransform = sTransform,
             };
-            trackGrid.Children.Add(fillBar);
 
             var track = new Border
             {
+                Height = 8,
+                ClipToBounds = true,
+                VerticalAlignment = VerticalAlignment.Center,
                 CornerRadius = new(3),
                 Background = new SolidColorBrush(Color.FromArgb(90, 24, 34, 54)),
                 BorderBrush = DS.Brush("DS.Hairline"),
                 BorderThickness = new(0.5),
-                Child = trackGrid,
+                Child = fillBar,
             };
             Grid.SetColumn(track, 1);
             g.Children.Add(track);
-            return (cFill, cEmpty, g);
+            return (sTransform, g);
         }
 
-        (bassFillCol, bassEmptyCol, var bassRow) = MakeBandMeter("BASS", Color.FromRgb(0xFF, 0x33, 0x77));
-        (midFillCol, midEmptyCol, var midRow) = MakeBandMeter("MID", Color.FromRgb(0x00, 0xE5, 0xFF));
-        (trebleFillCol, trebleEmptyCol, var trebleRow) = MakeBandMeter("TREBLE", Color.FromRgb(0xA7, 0x8B, 0xFA));
-        (vocalFillCol, vocalEmptyCol, var vocalRow) = MakeBandMeter("VOCAL", Color.FromRgb(0xFB, 0xBF, 0x24));
+        (bassScale, var bassRow) = MakeBandMeter("BASS", Color.FromRgb(0xFF, 0x33, 0x77));
+        (midScale, var midRow) = MakeBandMeter("MID", Color.FromRgb(0x00, 0xE5, 0xFF));
+        (trebleScale, var trebleRow) = MakeBandMeter("TREBLE", Color.FromRgb(0xA7, 0x8B, 0xFA));
+        (vocalScale, var vocalRow) = MakeBandMeter("VOCAL", Color.FromRgb(0xFB, 0xBF, 0x24));
         body.Children.Add(bassRow);
         body.Children.Add(midRow);
         body.Children.Add(trebleRow);
@@ -685,7 +696,7 @@ internal sealed class LightingEffectsSection
             var btn = new Button
             {
                 Content = label,
-                Style = DS.Style("ActionButton"),
+                Style = DS.Style("DS.ConsoleBtn"),
                 Padding = new(10, 5, 10, 5),
                 Margin = new(2),
                 FontSize = 11.5,
@@ -715,14 +726,16 @@ internal sealed class LightingEffectsSection
         body.Children.Add(audioSensSlider);
 
         body.Children.Add(Kit.Text("4-Motor Haptics (Grips + Triggers)", 12.5, "DS.TextSoft").Also(t => t.Margin = new(0, 0, 0, 5)));
-        var hapPanel = new WrapPanel { Margin = new(0, 0, 0, 6) };
+        var hapPanel = new WrapPanel { Margin = new(-2, 0, -2, 6) };
         foreach (var (strength, label) in AudioHapticsChoices)
         {
             int captured = strength;
             var btn = new Button
             {
                 Content = label,
+                Style = DS.Style("DS.ConsoleBtn"),
                 Padding = new(10, 5, 10, 5),
+                Margin = new(2),
                 FontSize = 11.5,
                 MinHeight = 30,
                 Height = double.NaN,
@@ -745,7 +758,7 @@ internal sealed class LightingEffectsSection
             audioHapticsButtons[captured] = btn;
             hapPanel.Children.Add(btn);
         }
-        body.Children.Add(Kit.Segments(hapPanel));
+        body.Children.Add(hapPanel);
 
         var hapModesWrap = new WrapPanel { Margin = new(-2, 0, -2, 8) };
         foreach (var (modeVal, label) in AudioHapticsModeChoices)
@@ -754,7 +767,7 @@ internal sealed class LightingEffectsSection
             var btn = new Button
             {
                 Content = label,
-                Style = DS.Style("ActionButton"),
+                Style = DS.Style("DS.ConsoleBtn"),
                 Padding = new(9, 4, 9, 4),
                 Margin = new(2),
                 FontSize = 11,
@@ -774,9 +787,9 @@ internal sealed class LightingEffectsSection
         }
         body.Children.Add(hapModesWrap);
 
-        // Live 4-motor output telemetry (LG, RG, LT, RT)
+        // Live 4-motor output telemetry (LG, RG, LT, RT) using GPU transforms
         var motorsRow = new System.Windows.Controls.Primitives.UniformGrid { Columns = 4, Margin = new(-2, 0, -2, 8) };
-        (ColumnDefinition fill, ColumnDefinition empty, FrameworkElement cell) MakeMotorCell(string label, Color col)
+        (ScaleTransform scale, FrameworkElement cell) MakeMotorCell(string label, Color col)
         {
             var sp = new StackPanel { Margin = new(2, 0, 2, 0) };
             sp.Children.Add(new TextBlock
@@ -788,26 +801,30 @@ internal sealed class LightingEffectsSection
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Margin = new(0, 0, 0, 2),
             });
-            var barGrid = new Grid { Height = 6 };
-            var cFill = new ColumnDefinition { Width = new(0.04, GridUnitType.Star) };
-            var cEmpty = new ColumnDefinition { Width = new(0.96, GridUnitType.Star) };
-            barGrid.ColumnDefinitions.Add(cFill);
-            barGrid.ColumnDefinitions.Add(cEmpty);
-            barGrid.Children.Add(new Border { Background = new SolidColorBrush(col), CornerRadius = new(3) });
+            var mScale = new ScaleTransform(0.04, 1.0);
+            var barFill = new Border
+            {
+                Background = new SolidColorBrush(col),
+                CornerRadius = new(3),
+                RenderTransformOrigin = new(0.0, 0.5),
+                RenderTransform = mScale,
+            };
             sp.Children.Add(new Border
             {
+                Height = 6,
+                ClipToBounds = true,
                 CornerRadius = new(3),
                 Background = new SolidColorBrush(Color.FromArgb(90, 24, 34, 54)),
                 BorderBrush = DS.Brush("DS.Hairline"),
                 BorderThickness = new(0.5),
-                Child = barGrid,
+                Child = barFill,
             });
-            return (cFill, cEmpty, sp);
+            return (mScale, sp);
         }
-        (lgFillCol, lgEmptyCol, var lgCell) = MakeMotorCell("L GRIP", Color.FromRgb(0xFF, 0x3B, 0x7F));
-        (rgFillCol, rgEmptyCol, var rgCell) = MakeMotorCell("R GRIP", Color.FromRgb(0x38, 0xBD, 0xF8));
-        (ltFillCol, ltEmptyCol, var ltCell) = MakeMotorCell("L TRIG", Color.FromRgb(0xFB, 0x92, 0x3C));
-        (rtFillCol, rtEmptyCol, var rtCell) = MakeMotorCell("R TRIG", Color.FromRgb(0xA7, 0x8B, 0xFA));
+        (lgScale, var lgCell) = MakeMotorCell("L GRIP", Color.FromRgb(0xFF, 0x3B, 0x7F));
+        (rgScale, var rgCell) = MakeMotorCell("R GRIP", Color.FromRgb(0x38, 0xBD, 0xF8));
+        (ltScale, var ltCell) = MakeMotorCell("L TRIG", Color.FromRgb(0xFB, 0x92, 0x3C));
+        (rtScale, var rtCell) = MakeMotorCell("R TRIG", Color.FromRgb(0xA7, 0x8B, 0xFA));
         motorsRow.Children.Add(lgCell);
         motorsRow.Children.Add(rgCell);
         motorsRow.Children.Add(ltCell);
@@ -821,7 +838,7 @@ internal sealed class LightingEffectsSection
             UpdateSelectionButtons();
             SyncPreviewDraft();
             await ApplyOrHotUpdateAudioAsync();
-        }).Also(b => { b.Padding = new(8, 2, 8, 2); b.FontSize = 10.5; b.MinHeight = 22; });
+        }).Also(b => { b.Padding = new(8, 2, 8, 2); b.FontSize = 10.5; b.MinHeight = 24; });
         DockPanel.SetDock(roleResetBtn, Dock.Right);
         roleHead.Children.Add(roleResetBtn);
         roleHead.Children.Add(Kit.Text("Motor roles (click to assign)", 11.5, "DS.TextSoft").Also(t => t.VerticalAlignment = VerticalAlignment.Center));
@@ -831,11 +848,11 @@ internal sealed class LightingEffectsSection
         {
             var btn = new Button
             {
-                Style = DS.Style("ActionButton"),
+                Style = DS.Style("DS.ConsoleBtn"),
                 Padding = new(8, 4, 8, 4),
                 Margin = new(2),
                 FontSize = 11,
-                MinHeight = 26,
+                MinHeight = 28,
                 Height = double.NaN,
                 ToolTip = $"Click to cycle custom musical role for {motorName}",
             };
@@ -864,10 +881,10 @@ internal sealed class LightingEffectsSection
         armTriggersButton = new Button
         {
             Content = "Enable Triggers",
-            Style = DS.Style("ActionButton"),
-            Padding = new(10, 4, 10, 4),
+            Style = DS.Style("DS.ConsoleBtn"),
+            Padding = new(11, 5, 11, 5),
             FontSize = 11.5,
-            MinHeight = 28,
+            MinHeight = 30,
             Height = double.NaN,
             Margin = new(0, 0, 6, 4),
         };
@@ -900,10 +917,10 @@ internal sealed class LightingEffectsSection
         test4MotorButton = new Button
         {
             Content = "Test 4-Motor",
-            Style = DS.Style("ActionButton"),
-            Padding = new(10, 4, 10, 4),
+            Style = DS.Style("DS.ConsoleBtn"),
+            Padding = new(11, 5, 11, 5),
             FontSize = 11.5,
-            MinHeight = 28,
+            MinHeight = 30,
             Height = double.NaN,
             Margin = new(0, 0, 0, 4),
         };
@@ -1123,32 +1140,29 @@ internal sealed class LightingEffectsSection
 
         for (int i = 0; i < 8; i++)
         {
-            double v = Math.Clamp(af.Spectrum[i], 0.04, 0.98);
-            spectrumBars[i].Empty.Height = new(1.0 - v, GridUnitType.Star);
-            spectrumBars[i].Fill.Height = new(v, GridUnitType.Star);
+            if (spectrumScales[i] is { } st)
+                st.ScaleY = Math.Clamp(af.Spectrum[i], 0.04, 0.98);
         }
 
-        static void SetBar(ColumnDefinition? fill, ColumnDefinition? empty, float v)
+        static void SetScale(ScaleTransform? st, double v)
         {
-            if (fill == null || empty == null) return;
-            double clamped = Math.Clamp(v, 0.02, 0.99);
-            fill.Width = new(clamped, GridUnitType.Star);
-            empty.Width = new(1.0 - clamped, GridUnitType.Star);
+            if (st != null) st.ScaleX = Math.Clamp(v, 0.02, 0.99);
         }
 
-        SetBar(bassFillCol, bassEmptyCol, af.Bass);
-        SetBar(midFillCol, midEmptyCol, af.Mid);
-        SetBar(trebleFillCol, trebleEmptyCol, af.Treble);
-        SetBar(vocalFillCol, vocalEmptyCol, af.VocalPresence);
-        SetBar(lgFillCol, lgEmptyCol, (float)hf.LeftGrip);
-        SetBar(rgFillCol, rgEmptyCol, (float)hf.RightGrip);
-        SetBar(ltFillCol, ltEmptyCol, (float)hf.LeftTrigger);
-        SetBar(rtFillCol, rtEmptyCol, (float)hf.RightTrigger);
+        SetScale(bassScale, af.Bass);
+        SetScale(midScale, af.Mid);
+        SetScale(trebleScale, af.Treble);
+        SetScale(vocalScale, af.VocalPresence);
+        SetScale(lgScale, hf.LeftGrip);
+        SetScale(rgScale, hf.RightGrip);
+        SetScale(ltScale, hf.LeftTrigger);
+        SetScale(rtScale, hf.RightTrigger);
 
         if (beatBadge != null)
         {
-            byte alpha = (byte)(af.BeatPulse > 0.30f ? 220 : 40);
-            beatBadge.Background = new SolidColorBrush(Color.FromArgb(alpha, 0, 229, 255));
+            var nextBeat = af.BeatPulse > 0.30f ? BeatActiveBrush : BeatIdleBrush;
+            if (!ReferenceEquals(beatBadge.Background, nextBeat))
+                beatBadge.Background = nextBeat;
         }
 
         if (vibeBadgeText != null)
@@ -1218,7 +1232,7 @@ internal sealed class LightingEffectsSection
                     Content = "×",
                     Padding = new(5, 0, 5, 0),
                     FontSize = 12,
-                    Style = DS.Style("ActionButton"),
+                    Style = DS.Style("DS.ConsoleStepBtn"),
                     MinHeight = 20,
                     Height = 20,
                 };
@@ -1471,9 +1485,9 @@ internal sealed class LightingEffectsSection
         };
         var input = new TextBox { Text = initial, Padding = new(10, 7, 10, 7), Margin = new(0, 6, 0, 14) };
         input.SelectAll();
-        var ok = new Button { Content = "Save", Style = DS.Style("DS.Primary"), Padding = new(16, 7, 16, 7), Margin = new(0, 0, 8, 0), IsDefault = true };
+        var ok = new Button { Content = "Save", Style = DS.Style("DS.ConsolePrimary"), MinHeight = 34, Padding = new(16, 6, 16, 6), Margin = new(0, 0, 8, 0), IsDefault = true };
         ok.Click += (_, _) => { if (!string.IsNullOrWhiteSpace(input.Text)) { result = input.Text.Trim(); win.DialogResult = true; } };
-        var cancel = new Button { Content = "Cancel", Style = DS.Style("ActionButton"), Padding = new(14, 7, 14, 7), IsCancel = true };
+        var cancel = new Button { Content = "Cancel", Style = DS.Style("DS.ConsoleBtn"), Padding = new(14, 6, 14, 6), IsCancel = true };
         win.Content = new StackPanel
         {
             Margin = new(18),
@@ -1492,9 +1506,9 @@ internal sealed class LightingEffectsSection
         var btn = new Button
         {
             Content = text,
-            Style = DS.Style("ActionButton"),
+            Style = DS.Style("DS.ConsoleBtn"),
             Padding = new(10, 5, 10, 5),
-            FontSize = 12,
+            FontSize = 11.5,
             MinHeight = 30,
             Height = double.NaN,
         };
