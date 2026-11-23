@@ -440,6 +440,8 @@ public sealed partial class ProductHost : Grid
                 if(NativeInputStudio!.ManagementPage=="Tester")NativeInputStudio!.Tester?.ReceiveNative(value);nativeArmed=false;return;
             }
             if(!connected||Window.GetWindow(this)?.IsActive!=true){nativeArmed=false;return;}if(!nativeArmed){if(now.Count==0)nativeArmed=true;return;}
+            // Let the one-time trigger-arm button press reach WebView2 without UI navigation stealing focus.
+            if(Diagnostics.BrowserTriggerRumble.Shared is { WaitingToArm: true }) return;
             if(NativeInputStudio?.CanEngageRemap==true && Settings==null && pressed.Contains("R3")){NativeInputStudio.BeginRemapCapture();return;}
             if(Intro!=null){if(pressed.Contains("B"))Intro.Finish();else if(pressed.Contains("Y"))Intro.ToggleMute();return;}
             if(Settings!=null)
