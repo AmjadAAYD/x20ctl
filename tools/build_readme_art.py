@@ -990,6 +990,42 @@ def build_guide_header_svg(
     return _wrap_svg(w, h, f"{title} — {subtitle}", defs, body, style)
 
 
+def _build_cta_button_svg(
+    prefix: str,
+    title: str,
+    subtitle: str,
+    accent_top: str,
+    accent_bot: str,
+    border_col: str,
+    dot_col: str,
+    icon_path: str,
+) -> str:
+    w, h = 270, 64
+    defs = (
+        f'<linearGradient id="{prefix}_bg" x1="0%" y1="0%" x2="0%" y2="100%">'
+        f'<stop offset="0%" stop-color="{accent_top}"/>'
+        f'<stop offset="100%" stop-color="{accent_bot}"/>'
+        f"</linearGradient>"
+        f'<linearGradient id="{prefix}_shine" x1="0%" y1="0%" x2="100%" y2="0%">'
+        f'<stop offset="0%" stop-color="#FFFFFF" stop-opacity="0"/>'
+        f'<stop offset="50%" stop-color="#FFFFFF" stop-opacity="0.24"/>'
+        f'<stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>'
+        f"</linearGradient>"
+    )
+    style = f".s{{font-family:{FONT_SANS}}}.m{{font-family:{FONT_MONO}}}"
+    body = (
+        f'<rect x="1" y="1" width="{w - 2}" height="{h - 2}" rx="12" fill="url(#{prefix}_bg)" stroke="{border_col}" stroke-opacity="0.65" stroke-width="1.2"/>'
+        f'<line x1="16" y1="2" x2="{w - 16}" y2="2" stroke="url(#{prefix}_shine)" stroke-width="1"/>'
+        f'<rect x="14" y="14" width="36" height="36" rx="9" fill="#060A12" fill-opacity="0.42" stroke="#FFFFFF" stroke-opacity="0.16" stroke-width="1"/>'
+        f'<g transform="translate(22 22)">{icon_path}</g>'
+        f'<text x="62" y="29" class="s" font-size="15.5" font-weight="700" fill="{TEXT_PRIMARY}">{_esc(title)}</text>'
+        f'<circle cx="66" cy="44" r="2.8" fill="{dot_col}"/>'
+        f'<text x="74" y="47.5" class="m" font-size="11" font-weight="500" fill="#DCE8F8">{_esc(subtitle)}</text>'
+        f'<text x="{w - 16}" y="37" text-anchor="end" class="s" font-size="15" font-weight="700" fill="#E2E8F0">→</text>'
+    )
+    return _wrap_svg(w, h, f"{title} - {subtitle}", defs, body, style)
+
+
 def build_social_preview(tag: str) -> None:
     from playwright.sync_api import sync_playwright
 
@@ -1452,6 +1488,52 @@ def generate_all(tag: str, social_preview: bool = False) -> list[Path]:
         ),
     ]
     for path, content in guides:
+        ET.fromstring(content)
+        path.write_text(content, encoding="utf-8")
+        written.append(path)
+
+    cta_buttons = [
+        (
+            README_ASSETS / "btn-download.svg",
+            _build_cta_button_svg(
+                "ctadl",
+                f"Download {ver}",
+                "Windows & Linux",
+                "#2563EB",
+                "#1D4ED8",
+                "#93C5FD",
+                "#86EFAC",
+                '<path d="M10 1v11m0 0l-4-4m4 4l4-4M2 16h16" fill="none" stroke="#FFFFFF" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>',
+            ),
+        ),
+        (
+            README_ASSETS / "btn-kofi.svg",
+            _build_cta_button_svg(
+                "ctakofi",
+                "Support on Ko-fi",
+                "ko-fi.com/x20ctl",
+                "#1D263B",
+                "#121828",
+                "#F43F75",
+                "#FB7185",
+                '<path d="M10 17C2.5 11.8 1 6.2 4.6 3.5c2.2-1.6 4.4-.5 5.4 1.3 1-1.8 3.2-2.9 5.4-1.3C19 6.2 17.5 11.8 10 17z" fill="#FB7185"/>',
+            ),
+        ),
+        (
+            README_ASSETS / "btn-easysmx.svg",
+            _build_cta_button_svg(
+                "ctasmx",
+                "Buy EasySMX",
+                "10% supports X20CTL",
+                "#0F3B2E",
+                "#08251D",
+                "#34D399",
+                "#34D399",
+                '<path d="M4 7h12l1.2 7.5a2.5 2.5 0 0 1-2.5 2.9h-.8a2 2 0 0 1-1.7-1l-1-1.6H8.8l-1 1.6a2 2 0 0 1-1.7 1h-.8a2.5 2.5 0 0 1-2.5-2.9L4 7z" fill="none" stroke="#6EE7B7" stroke-width="1.8" stroke-linejoin="round"/><circle cx="13.5" cy="10.5" r="1" fill="#6EE7B7"/><path d="M6.5 10.5h2M7.5 9.5v2" stroke="#6EE7B7" stroke-width="1.4" stroke-linecap="round"/>',
+            ),
+        ),
+    ]
+    for path, content in cta_buttons:
         ET.fromstring(content)
         path.write_text(content, encoding="utf-8")
         written.append(path)
