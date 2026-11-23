@@ -51,8 +51,10 @@ internal sealed class LightingEffectsSection
     private Border? audioStudioPanel;
     private ColumnDefinition? bassFillCol, midFillCol, trebleFillCol, vocalFillCol;
     private ColumnDefinition? bassEmptyCol, midEmptyCol, trebleEmptyCol, vocalEmptyCol;
+    private readonly (RowDefinition Empty, RowDefinition Fill)[] spectrumBars = new (RowDefinition, RowDefinition)[8];
     private ColumnDefinition? lgFillCol, rgFillCol, ltFillCol, rtFillCol;
     private ColumnDefinition? lgEmptyCol, rgEmptyCol, ltEmptyCol, rtEmptyCol;
+    private Button? roleLgBtn, roleRgBtn, roleLtBtn, roleRtBtn, roleResetBtn;
     private Border? beatBadge;
     private TextBlock? vibeBadgeText;
     private Button? armTriggersButton;
@@ -61,6 +63,7 @@ internal sealed class LightingEffectsSection
     private string? testStatusText;
     private long testStatusUntilTick;
     private readonly DispatcherTimer audioUiTimer = new() { Interval = TimeSpan.FromMilliseconds(60) };
+    private MotorRoleMap selectedMotorRoles = MotorRoleMap.Default;
 
     private static readonly LightingEffectKind[] GridKinds =
     [
@@ -161,6 +164,7 @@ internal sealed class LightingEffectsSection
         AudioStyle = selectedAudioStyle,
         AudioHapticsStrength = selectedAudioHaptics,
         AudioHapticsStyle = selectedAudioHapticsMode,
+        AudioMotorRoles = selectedMotorRoles,
         RestoreOnStop = true,
     }.Normalized();
 
@@ -187,6 +191,7 @@ internal sealed class LightingEffectsSection
             selectedAudioStyle = spec.AudioStyle;
             selectedAudioHapticsMode = spec.AudioHapticsStyle;
             selectedAudioHaptics = Array.Exists(AudioHapticsChoices, c => c.Strength == spec.AudioHapticsStrength) ? spec.AudioHapticsStrength : 0;
+            selectedMotorRoles = spec.AudioMotorRoles;
             palette.Clear();
             palette.AddRange(spec.Palette);
             minBrightSlider.Value = spec.MinBrightness;
@@ -290,8 +295,26 @@ internal sealed class LightingEffectsSection
                 RefreshTriggerArmState();
             });
         }
+        void OnServiceChanged()
+        {
+            stack.Dispatcher.BeginInvoke(() =>
+            {
+                var svcSpec = LightingEffectsService.CurrentSpec;
+                if (svcSpec.AudioMotorRoles != selectedMotorRoles || svcSpec.AudioHapticsStrength != selectedAudioHaptics)
+                {
+                    syncing = true;
+                    selectedMotorRoles = svcSpec.AudioMotorRoles;
+                    selectedAudioHaptics = Array.Exists(AudioHapticsChoices, c => c.Strength == svcSpec.AudioHapticsStrength) ? svcSpec.AudioHapticsStrength : selectedAudioHaptics;
+                    syncing = false;
+                    UpdateSelectionButtons();
+                }
+            });
+        }
         stack.Loaded += (_, _) =>
         {
+            LightingEffectsService.Changed -= OnServiceChanged;
+            LightingEffectsService.Changed += OnServiceChanged;
+            OnServiceChanged();
             if (Diagnostics.BrowserTriggerRumble.Shared is { } shared)
             {
                 shared.ArmedChanged -= OnTriggerArmChanged;
@@ -306,6 +329,7 @@ internal sealed class LightingEffectsSection
         stack.Unloaded += (_, _) =>
         {
             audioUiTimer.Stop();
+            LightingEffectsService.Changed -= OnServiceChanged;
             if (Diagnostics.BrowserTriggerRumble.Shared is { } shared)
             {
                 shared.ArmedChanged -= OnTriggerArmChanged;
@@ -488,10 +512,27 @@ internal sealed class LightingEffectsSection
             LightingWindow.SetSelectedState(btn, hm == selectedAudioHapticsMode);
         foreach (var (h, btn) in audioHapticsButtons)
             LightingWindow.SetSelectedState(btn, h == selectedAudioHaptics);
+        UpdateRoleButtons();
         if (audioStudioPanel != null)
             audioStudioPanel.Visibility = selectedKind == LightingEffectKind.AudioReactive ? Visibility.Visible : Visibility.Collapsed;
         RefreshTriggerArmState();
         SyncAudioTimer();
+    }
+
+    private void UpdateRoleButtons()
+    {
+        void SetBtn(Button? b, string motorTag, MotorAudioRole role)
+        {
+            if (b == null) return;
+            b.Content = $"{motorTag}: {AudioHapticsEngine.RoleShortLabel(role)}";
+            LightingWindow.SetSelectedState(b, role != MotorAudioRole.Auto);
+        }
+        SetBtn(roleLgBtn, "LG", selectedMotorRoles.LeftGrip);
+        SetBtn(roleRgBtn, "RG", selectedMotorRoles.RightGrip);
+        SetBtn(roleLtBtn, "LT", selectedMotorRoles.LeftTrigger);
+        SetBtn(roleRtBtn, "RT", selectedMotorRoles.RightTrigger);
+        if (roleResetBtn != null)
+            roleResetBtn.IsEnabled = !selectedMotorRoles.IsAllAuto;
     }
 
     private Border BuildAudioStudioPanel()
@@ -534,8 +575,57 @@ internal sealed class LightingEffectsSection
         };
         DockPanel.SetDock(vibeBadge, Dock.Right);
         headRow.Children.Add(vibeBadge);
-        headRow.Children.Add(Kit.Text("AUDIO STUDIO · 512-PT FFT", 12, "DS.AccentHi", FontWeights.SemiBold));
+        headRow.Children.Add(Kit.Text("AUDIO STUDIO · 1024-PT FFT", 12, "DS.AccentHi", FontWeights.SemiBold));
         body.Children.Add(headRow);
+
+        // Live 8-band real-time FFT spectrum strip (Sub..Air)
+        string[] bandLabels = ["SUB", "KCK", "LMD", "VX1", "VX2", "PRS", "TRB", "AIR"];
+        Color[] bandColors =
+        [
+            Color.FromRgb(0xFF, 0x2E, 0x63),
+            Color.FromRgb(0xFF, 0x5E, 0x3A),
+            Color.FromRgb(0xFF, 0xB8, 0x00),
+            Color.FromRgb(0xFB, 0xBF, 0x24),
+            Color.FromRgb(0x22, 0xD3, 0xEE),
+            Color.FromRgb(0x38, 0xBD, 0xF8),
+            Color.FromRgb(0x81, 0x8C, 0xF8),
+            Color.FromRgb(0xC0, 0x84, 0xFC),
+        ];
+        var eqGrid = new System.Windows.Controls.Primitives.UniformGrid { Columns = 8, Margin = new(-2, 0, -2, 8) };
+        for (int b = 0; b < 8; b++)
+        {
+            var colSp = new StackPanel { Margin = new(2, 0, 2, 0) };
+            var barBox = new Border
+            {
+                Height = 28,
+                CornerRadius = new(3),
+                Background = new SolidColorBrush(Color.FromArgb(90, 24, 34, 54)),
+                BorderBrush = DS.Brush("DS.Hairline"),
+                BorderThickness = new(0.5),
+            };
+            var vGrid = new Grid();
+            var rEmpty = new RowDefinition { Height = new(0.92, GridUnitType.Star) };
+            var rFill = new RowDefinition { Height = new(0.08, GridUnitType.Star) };
+            vGrid.RowDefinitions.Add(rEmpty);
+            vGrid.RowDefinitions.Add(rFill);
+            var fillBar = new Border { Background = new SolidColorBrush(bandColors[b]), CornerRadius = new(2) };
+            Grid.SetRow(fillBar, 1);
+            vGrid.Children.Add(fillBar);
+            barBox.Child = vGrid;
+            colSp.Children.Add(barBox);
+            colSp.Children.Add(new TextBlock
+            {
+                Text = bandLabels[b],
+                FontFamily = LightingWindow.MonoFont,
+                FontSize = 8.5,
+                Foreground = DS.Brush("DS.TextMuted"),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new(0, 2, 0, 0),
+            });
+            spectrumBars[b] = (rEmpty, rFill);
+            eqGrid.Children.Add(colSp);
+        }
+        body.Children.Add(eqGrid);
 
         (ColumnDefinition fill, ColumnDefinition empty, Grid row) MakeBandMeter(string label, Color fillColor)
         {
@@ -723,6 +813,52 @@ internal sealed class LightingEffectsSection
         motorsRow.Children.Add(ltCell);
         motorsRow.Children.Add(rtCell);
         body.Children.Add(motorsRow);
+
+        var roleHead = new DockPanel { Margin = new(0, 0, 0, 4) };
+        roleResetBtn = SmallButton("Reset Auto", async () =>
+        {
+            selectedMotorRoles = MotorRoleMap.Default;
+            UpdateSelectionButtons();
+            SyncPreviewDraft();
+            await ApplyOrHotUpdateAudioAsync();
+        }).Also(b => { b.Padding = new(8, 2, 8, 2); b.FontSize = 10.5; b.MinHeight = 22; });
+        DockPanel.SetDock(roleResetBtn, Dock.Right);
+        roleHead.Children.Add(roleResetBtn);
+        roleHead.Children.Add(Kit.Text("Motor roles (click to assign)", 11.5, "DS.TextSoft").Also(t => t.VerticalAlignment = VerticalAlignment.Center));
+        body.Children.Add(roleHead);
+
+        Button MakeRoleBtn(string motorName, Func<MotorAudioRole> getter, Func<MotorAudioRole, MotorRoleMap> updater)
+        {
+            var btn = new Button
+            {
+                Style = DS.Style("ActionButton"),
+                Padding = new(8, 4, 8, 4),
+                Margin = new(2),
+                FontSize = 11,
+                MinHeight = 26,
+                Height = double.NaN,
+                ToolTip = $"Click to cycle custom musical role for {motorName}",
+            };
+            btn.Click += async (_, _) =>
+            {
+                selectedMotorRoles = updater(AudioHapticsEngine.CycleRole(getter(), 1));
+                UpdateSelectionButtons();
+                SyncPreviewDraft();
+                await ApplyOrHotUpdateAudioAsync();
+            };
+            registerFocus?.Invoke(btn);
+            return btn;
+        }
+        roleLgBtn = MakeRoleBtn("Left Grip", () => selectedMotorRoles.LeftGrip, r => selectedMotorRoles with { LeftGrip = r });
+        roleRgBtn = MakeRoleBtn("Right Grip", () => selectedMotorRoles.RightGrip, r => selectedMotorRoles with { RightGrip = r });
+        roleLtBtn = MakeRoleBtn("Left Trigger", () => selectedMotorRoles.LeftTrigger, r => selectedMotorRoles with { LeftTrigger = r });
+        roleRtBtn = MakeRoleBtn("Right Trigger", () => selectedMotorRoles.RightTrigger, r => selectedMotorRoles with { RightTrigger = r });
+        var roleGrid = new System.Windows.Controls.Primitives.UniformGrid { Columns = 2, Margin = new(-2, 0, -2, 8) };
+        roleGrid.Children.Add(roleLgBtn);
+        roleGrid.Children.Add(roleRgBtn);
+        roleGrid.Children.Add(roleLtBtn);
+        roleGrid.Children.Add(roleRtBtn);
+        body.Children.Add(roleGrid);
 
         var armButtons = new WrapPanel { Margin = new(0, 2, 0, 4) };
         armTriggersButton = new Button
@@ -964,16 +1100,32 @@ internal sealed class LightingEffectsSection
             float tr = Math.Clamp(0.15f + 0.65f * (0.5f + 0.5f * MathF.Sin((float)t * 7.4f)), 0.03f, 1.0f);
             float trSpike = ((t * 4.0) % 1.0) < 0.25 ? 0.85f : 0f;
             float voc = Math.Clamp(0.45f + 0.40f * MathF.Sin((float)t * 2.1f), 0.0f, 1.0f);
-            af = new AudioFrame(Math.Max(b, m), b, m, tr, pulse, (int)(t * 2.0), 0f, b, tr, 0.5f, 0.65f, trSpike, voc, voc, voc * 0.85f, m, Math.Max(pulse, b * 0.7f), Math.Max(b, m), AudioMusicVibe.GroovePop);
-            hf = AudioHapticsEngine.Evaluate(af, selectedAudioHapticsMode, selectedAudioHaptics, t);
+            var spec8 = new AudioSpectrum8(
+                b,
+                Math.Clamp(b * 0.85f, 0.04f, 1.0f),
+                Math.Clamp(m * 0.82f, 0.04f, 1.0f),
+                voc,
+                Math.Clamp(voc * 0.88f, 0.04f, 1.0f),
+                Math.Clamp(tr * 0.80f, 0.04f, 1.0f),
+                tr,
+                Math.Clamp(tr * 0.65f, 0.04f, 1.0f));
+            af = new AudioFrame(Math.Max(b, m), b, m, tr, pulse, (int)(t * 2.0), 0f, b, tr, 0.5f, 0.65f, trSpike, voc, voc, voc * 0.85f, m, Math.Max(pulse, b * 0.7f), Math.Max(b, m), AudioMusicVibe.GroovePop, spec8);
+            hf = AudioHapticsEngine.Evaluate(af, selectedAudioHapticsMode, selectedAudioHaptics, selectedMotorRoles, t);
         }
         else
         {
             af = SystemAudioLevelSampler.LatestFrame;
             hf = selectedAudioHaptics > 0 && LightingEffectsService.Status.IsRunning
                 ? SystemAudioLevelSampler.LatestHaptics
-                : AudioHapticsEngine.Evaluate(af, selectedAudioHapticsMode, selectedAudioHaptics, 0.0);
+                : AudioHapticsEngine.Evaluate(af, selectedAudioHapticsMode, selectedAudioHaptics, selectedMotorRoles, 0.0);
             RefreshTriggerArmState();
+        }
+
+        for (int i = 0; i < 8; i++)
+        {
+            double v = Math.Clamp(af.Spectrum[i], 0.04, 0.98);
+            spectrumBars[i].Empty.Height = new(1.0 - v, GridUnitType.Star);
+            spectrumBars[i].Fill.Height = new(v, GridUnitType.Star);
         }
 
         static void SetBar(ColumnDefinition? fill, ColumnDefinition? empty, float v)
@@ -1303,7 +1455,7 @@ internal sealed class LightingEffectsSection
         catch { }
     }
 
-    private static string? PromptText(string title, string label, string initial)
+    internal static string? PromptText(string title, string label, string initial)
     {
         string? result = null;
         var win = new Window

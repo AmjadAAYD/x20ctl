@@ -17,6 +17,8 @@ public sealed class VibrationVisual : Grid
     private TimeSpan started, last;
     private bool rendering;
     private readonly TranslateTransform shake = new();
+    private bool hasLiveMotors;
+    private double liveLg, liveRg, liveLt, liveRt;
     public int Strength => strength;
     public bool IsRunning { get; private set; }
     public bool ReducedMotion => !animations;
@@ -42,6 +44,51 @@ public sealed class VibrationVisual : Grid
     public void SetRegion(string region){over.Region=region;over.InvalidateVisual();}
     public void SetStrength(int percent) { if (percent == strength) return; strength = percent; UpdateClock(); }
 
+    public void SetLiveMotors(double leftGrip, double rightGrip, double leftTrigger, double rightTrigger)
+    {
+        liveLg = Math.Clamp(leftGrip, 0.0, 1.0);
+        liveRg = Math.Clamp(rightGrip, 0.0, 1.0);
+        liveLt = Math.Clamp(leftTrigger, 0.0, 1.0);
+        liveRt = Math.Clamp(rightTrigger, 0.0, 1.0);
+        hasLiveMotors = liveLg > 0.005 || liveRg > 0.005 || liveLt > 0.005 || liveRt > 0.005;
+        over.SetLiveMotors(hasLiveMotors, liveLg, liveRg, liveLt, liveRt);
+        behind.SetLiveMotors(hasLiveMotors, liveLg, liveRg, liveLt, liveRt);
+        if (hasLiveMotors && !IsRunning && IsVisible)
+        {
+            if (animations)
+            {
+                IsRunning = true;
+                started = TimeSpan.Zero;
+                rendering = true;
+                CompositionTarget.Rendering += Tick;
+            }
+            else
+            {
+                behind.Draw(strength, 0, false);
+                over.Draw(strength, 0, false);
+            }
+        }
+        else if (!hasLiveMotors && strength == 0)
+        {
+            Stop();
+        }
+        else if (!animations)
+        {
+            behind.Draw(strength, 0, false);
+            over.Draw(strength, 0, false);
+        }
+    }
+
+    public void ClearLiveMotors()
+    {
+        if (!hasLiveMotors) return;
+        hasLiveMotors = false;
+        liveLg = liveRg = liveLt = liveRt = 0;
+        over.SetLiveMotors(false, 0, 0, 0, 0);
+        behind.SetLiveMotors(false, 0, 0, 0, 0);
+        UpdateClock();
+    }
+
     private void Stop()
     {
         if (rendering) { CompositionTarget.Rendering -= Tick; rendering = false; }
@@ -51,8 +98,13 @@ public sealed class VibrationVisual : Grid
     private void UpdateClock()
     {
         Stop();
-        if (strength == 0 || !IsVisible) return;
-        if (!animations) { double s = strength / 100.0; Levels?.Invoke(s, s); return; }
+        if ((strength == 0 && !hasLiveMotors) || !IsVisible) return;
+        if (!animations)
+        {
+            double s = hasLiveMotors ? Math.Max(liveLg, liveRg) : strength / 100.0;
+            Levels?.Invoke(hasLiveMotors ? liveLg : s, hasLiveMotors ? liveRg : s);
+            return;
+        }
         IsRunning = true; started = TimeSpan.Zero; rendering = true; CompositionTarget.Rendering += Tick;
     }
     private void Tick(object? sender, EventArgs e)
@@ -64,7 +116,7 @@ public sealed class VibrationVisual : Grid
         behind.Draw(strength, t, true); over.Draw(strength, t, true);
         // the meters breathe with the preview: the heavy motor rolls slowly, the light one flutters
         // a motor holds a level: the meters are fixed at the strength, and the picture shakes, harder as it rises
-        Levels?.Invoke(s, s);
+        Levels?.Invoke(hasLiveMotors ? liveLg : s, hasLiveMotors ? liveRg : s);
 
     }
 
@@ -81,6 +133,12 @@ public sealed class VibrationVisual : Grid
         private readonly List<Track> tracks; private readonly bool front;
         public string Region {get;set;}="Both grips";
         private int strength; private double time; private bool moving;
+        private bool liveMode; private double liveLg, liveRg, liveLt, liveRt;
+        public void SetLiveMotors(bool active, double lg, double rg, double lt, double rt)
+        {
+            liveMode = active; liveLg = lg; liveRg = rg; liveLt = lt; liveRt = rt;
+            InvalidateVisual();
+        }
         private static readonly Color Deep = ThemeCatalog.R(Color.FromRgb(56, 132, 255)), Ice = ThemeCatalog.R(Color.FromRgb(170, 214, 255)), White = ThemeCatalog.R(Color.FromRgb(240, 247, 255));
         public Track? Rim { get; init; }
         public List<ControllerOutlines.Island> Parts { get; init; } = [];
@@ -187,22 +245,23 @@ public sealed class VibrationVisual : Grid
         }
         protected override void OnRender(DrawingContext dc)
         {
-            if (strength == 0 || tracks.Count == 0) return;
+            if (strength == 0 && !liveMode) return;
+            if (tracks.Count == 0 && Parts.Count == 0) return;
             // owner direction 10 Oct 2026: no comets or ripples, just a fast heartbeat on each motor's outline
             double s = strength / 100.0;
-            if (!front || Parts.Count == 0) return;
-            // owner's references, 13 Oct 2026: the controller's edge round each grip glows like a lit edge, a smooth gradient
-            // of the model's own LED colours that fades out at both ends, and over it a brighter neon pulse travels down. Strength sets how fast and how often the pulse runs and how bright it is.
-            // The bumper outlines echo their grip about 80 ms later. Today one strength drives both sides; each side keeps its
-            // own clock so separate motor values can drive them apart.
-            double left = s, right = s;
+            if (!front) return;
+            double left = liveMode ? liveLg : s, right = liveMode ? liveRg : s;
             if (Body != null) dc.PushClip(Body);
             foreach (var part in Parts)
             {
-                if(!part.Grip)continue;
-                if(Region=="Left grip"&&!part.Left || Region=="Right grip"&&part.Left)continue;
-                double m = part.Left ? left : right; if (m <= 0) continue;
-                double railCore = part.Grip ? 5 : 3.8, lit = .6 + .4 * m;
+                if (!part.Grip && !liveMode) continue;
+                if (Region == "Left grip" && !(part.Grip && part.Left)) continue;
+                if (Region == "Right grip" && !(part.Grip && !part.Left)) continue;
+                double m = part.Grip
+                    ? (part.Left ? left : right)
+                    : (part.Left ? liveLt : liveRt);
+                if (m <= 0.005) continue;
+                double railCore = part.Grip ? 5 : 4.2, lit = .6 + .4 * m;
                 EdgeGlow(dc, part, 60 * lit, railCore * 4, false);
                 EdgeGlow(dc, part, 250 * lit, railCore, false);
                 EdgeGlow(dc, part, 230 * lit, railCore * .4, true);
@@ -215,6 +274,18 @@ public sealed class VibrationVisual : Grid
                     if (m > .6) Pulse(dc, part, ((phase - .5 + 1) % 1) / travel, m, .45 * (m - .6) / .4, time);
                 }
                 Pulse(dc, part, q, m, 1, moving ? time : 0);
+            }
+            if (liveMode)
+            {
+                foreach (var track in tracks.Where(t => !t.Grip))
+                {
+                    double trig = track.Direction >= 0 ? liveLt : liveRt;
+                    if (trig <= 0.005) continue;
+                    Color baseCol = track.Direction >= 0 ? Color.FromRgb(251, 146, 60) : Color.FromRgb(167, 139, 250);
+                    dc.DrawGeometry(new SolidColorBrush(Color.FromArgb((byte)Math.Clamp(trig * 95, 0, 120), baseCol.R, baseCol.G, baseCol.B)),
+                        new Pen(new SolidColorBrush(Color.FromArgb((byte)Math.Clamp(120 + trig * 135, 0, 255), baseCol.R, baseCol.G, baseCol.B)), 4.5 + trig * 3.5),
+                        track.Shape);
+                }
             }
             if (Body != null) dc.Pop();
         }

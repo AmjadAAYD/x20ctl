@@ -43,7 +43,7 @@ Shows the active controller, player slot, pending draft changes, and your local 
 
 #### RGB & Live Effects (X20 Pro)
 
-Configure 4-zone LED colours (`Left`, `Right`, `Middle`, `Logo`), palette swatches, brightness, Rainbow Wave, Trigger Glow, Stick Heat, Button Flash, Ambient Screen Sync, Audio Reactive RGB (512-pt Mid-Side FFT with 6 styles including **Auto** vibe detection, Lyrical triggers / Musical grips separation, and 4-motor audio haptics), and live Battery gauges. Simultaneous **2.4 GHz dongle (`413D:2131`) + unpaired BLE sync** applies lighting and settings whenever PC Bluetooth is enabled.
+Configure 4-zone LED colours (`Left`, `Right`, `Middle`, `Logo`), palette swatches, brightness, Rainbow Wave, Trigger Glow, Stick Heat, Button Flash, Ambient Screen Sync, Audio Reactive RGB (1024-pt Mid-Side FFT with 8 live spectrum bands, harmonic vocal separation, immediate silence decay, 6 reactive styles including **Auto** vibe detection, and per-motor audio role assignment), and live Battery gauges. Simultaneous **2.4 GHz dongle (`413D:2131`) + unpaired BLE sync** applies lighting and settings whenever PC Bluetooth is enabled.
 
 #### Screen (`160x80`, X20 Pro)
 
@@ -63,7 +63,11 @@ Step-by-step macro timeline for rear paddles (`M1–M4` on X20, `M1–M6` on X20
 
 #### Vibration
 
-Independent grip and trigger motor sliders (`Left/Right grip`, `Left/Right trigger`), isolated motor previews, and PC Mode game rumble amplification up to `200%`. On the X20 Pro over 2.4 GHz dongle or wired USB, press **M + BACK** on the controller to toggle LT/RT trigger vibration ON (linked to the left/right channels), or connect in Bluetooth mode (`Screen -> Mode -> BT`) for independent 4-motor trigger addressing.
+Reworked 3-tab Studio workbench (**Motors**, **Patterns**, **Audio Roles**) with live 4-motor edge lighting and real-time output bars:
+
+- **Motors & Test:** Independent grip and trigger motor sliders (`Left/Right grip`, `Left/Right trigger`), per-motor role badges, isolated hardware tests, and PC Mode game rumble amplification up to `200%`. On 2.4 GHz dongle or wired USB, open **Trigger Setup (M + Back)** in the dock and hold **M + BACK** on the controller to toggle LT/RT triggers ON, or use Bluetooth mode (`Screen -> Mode -> BT`) for independent 4-motor trigger control.
+- **Unique Custom Pattern Composer:** 8 built-in signature waves (`Heartbeat Pulse`, `Engine Rev`, `Rainstorm Ripple`, `Sword Parry`, `Cinema Bass Drop`, `360 Spatial Sweep`, `Mech Reload`, `Zen Breath`) plus an interactive 8-step x 4-motor sequencer (`0/35/70/100%`), adjustable step speed (`50-400 ms`), smooth/crisp waveforms, loop control, and local saved patterns.
+- **Per-Motor Audio Roles:** Live 8-band 1024-pt FFT spectrum (`SUB..AIR` + harmonic `VOCAL` detector) where each grip and trigger can be assigned its own dedicated role (`Sub Bass & Kick`, `Lead Vocals`, `Vocal Harmonics`, `Instruments`, `Snare & Hi-Hat`, `Stereo Left/Right`, `Full Beat`, `Auto`, or `Off`).
 
 #### PC mode
 

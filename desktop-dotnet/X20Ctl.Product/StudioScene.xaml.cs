@@ -914,7 +914,7 @@ public partial class StudioScene : UserControl
         ResetCurveChoice.Visibility=CurveMoreChoice.Visibility=Visibility.Collapsed;
         RootLayout.RowDefinitions[4].Height=new(value?54:184);
         if(value){DraftBar.Visibility=Visibility.Collapsed;RootLayout.RowDefinitions[2].Height=new(0);Apply.Visibility=StatusNote.Visibility=Visibility.Collapsed;if(Vibration==null){Vibration=new(vibrationDraft,this,RegisterFocus,animate,Model.Id);ModelProfiles.Wear(Vibration.Body,Model.Id,"Vibration",Draft.PcMode);VibrationBodyHost.Children.Add(Vibration.Body);VibrationShelfHost.Children.Add(Vibration.Shelf);Vibration.Changed+=UpdateVibrationContext;}UpdateVibrationContext();EnterMotion(VibrationBodyHost,14,220);EnterMotion(VibrationShelfHost,14,220);}
-        else RefreshEditor();UpdateButtonsPage();
+        else {Vibration?.StopPattern();RefreshEditor();}UpdateButtonsPage();
     }
     private void UpdateVibrationContext(){if(!IsVibration)return;ChangeCount.Text="Vibration · Test on the controller";DraftChip.Text="Vibration";PrimaryHint.Text=" Adjust strength";OverviewHint.Text=" Reset draft";VibrationResetChoice.IsEnabled=vibrationDraft.Modified;Apply.IsEnabled=false;
         // PC mode (owner, 7 Nov 2026): the strength is how much of a game's vibration reaches the pad, saved with Apply like the other tabs
