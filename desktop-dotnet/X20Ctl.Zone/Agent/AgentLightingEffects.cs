@@ -78,7 +78,9 @@ public static class AgentLightingEffects
             {
                 Kind = LightingEffectKind.AudioReactive,
                 AudioStyle = style,
-                Palette = [parsedColor?.Hex ?? "#1B5CFF", "#00F5D4", "#FF1E56"],
+                Palette = parsedColor != null
+                    ? [parsedColor.Hex, "#00F5D4", "#3D8BFF", "#FFB800", "#A855F7"]
+                    : ["#FF0040", "#00F5D4", "#3D8BFF", "#FFB800", "#A855F7"],
                 MinBrightness = 0x18,
                 MaxBrightness = 0xFF,
                 StepIntervalMs = 65,

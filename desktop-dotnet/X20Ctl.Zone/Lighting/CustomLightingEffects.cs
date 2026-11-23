@@ -54,7 +54,10 @@ public readonly record struct LightingInputState(
     double AudioMid = 0.0,
     double AudioTreble = 0.0,
     double AudioBeatPulse = 0.0,
-    int AudioBeatCount = 0);
+    int AudioBeatCount = 0,
+    double AudioCentroid = 0.5,
+    double AudioTrebleTransient = 0.0,
+    double AudioEnergy = 0.0);
 
 public sealed record LightingEffectSpec
 {
@@ -75,6 +78,7 @@ public sealed record LightingEffectSpec
     public int AudioSensitivity { get; init; } = 65;
     public AudioReactiveStyle AudioStyle { get; init; } = AudioReactiveStyle.SpectrumFlow;
     public int AudioHapticsStrength { get; init; } = 0;
+    public AudioHapticsMode AudioHapticsStyle { get; init; } = AudioHapticsMode.QuadConcert;
 
     public bool IsNativeMode => Kind is LightingEffectKind.Solid or LightingEffectKind.NativeRainbow
         or LightingEffectKind.NativeBreathe or LightingEffectKind.NativeCycle or LightingEffectKind.NativeOff;
@@ -275,7 +279,7 @@ public static class LightingEffectEngine
         {
             Kind = LightingEffectKind.AudioReactive,
             AudioStyle = AudioReactiveStyle.SpectrumFlow,
-            Palette = ["#1B5CFF", "#00F5D4", "#FF1E56"],
+            Palette = ["#FF0040", "#00F5D4", "#3D8BFF", "#FFB800", "#A855F7"],
             MinBrightness = 0x18,
             MaxBrightness = 0xFF,
             StepIntervalMs = 65,
@@ -462,10 +466,14 @@ public static class LightingEffectEngine
         double mid = hasBands ? Math.Clamp(input.AudioMid * gain, 0.0, 1.0) : level * 0.7;
         double treble = hasBands ? Math.Clamp(input.AudioTreble * gain, 0.0, 1.0) : level * 0.45;
         double beat = Math.Clamp(input.AudioBeatPulse, 0.0, 1.0);
+        double transient = Math.Clamp(input.AudioTrebleTransient, 0.0, 1.0);
+        double centroid = Math.Clamp(input.AudioCentroid, 0.0, 1.0);
+        double energy = Math.Clamp(Math.Max(input.AudioEnergy, level), 0.0, 1.0);
 
         var c0 = LightingEffectSpec.ParseRgb(spec.Palette[0]);
         var c1 = spec.Palette.Length > 1 ? LightingEffectSpec.ParseRgb(spec.Palette[1]) : c0;
         var c2 = spec.Palette.Length > 2 ? LightingEffectSpec.ParseRgb(spec.Palette[2]) : c1;
+        var cLast = LightingEffectSpec.ParseRgb(spec.Palette[^1]);
 
         switch (spec.AudioStyle)
         {
@@ -479,47 +487,50 @@ public static class LightingEffectEngine
                 }
                 else
                 {
-                    var shifted = HsvToRgb((input.AudioBeatCount * 72.0 + sec * 8.0) % 360.0, 1.0, 1.0);
+                    // Jump by 115 deg across the HSV color wheel on each beat so colors stay vivid (no white/pink wash).
+                    var shifted = HsvToRgb((input.AudioBeatCount * 115.0 + sec * 10.0) % 360.0, 1.0, 1.0);
                     baseCol = input.AudioBeatCount == 0 ? c0 : shifted;
                 }
-                double pulseEnergy = Math.Clamp(Math.Max(beat, Math.Max(bass * 0.85, mid * 0.55)), 0.0, 1.0);
-                var lit = LerpRgb(baseCol, (255, 255, 255), beat * 0.25);
-                return new(lit.R, lit.G, lit.B, LerpByte(minB, maxB, pulseEnergy));
+                // Accent crisp hi-hat sparkles between kicks without washing out red to pink.
+                var col = transient > 0.58 && beat < 0.30
+                    ? HsvToRgb((RgbToHue(baseCol) + 150.0) % 360.0, 1.0, 1.0)
+                    : baseCol;
+                double punchEnergy = Math.Clamp(Math.Max(beat, Math.Max(Math.Pow(bass, 1.4) * 0.80, mid * 0.50)), 0.0, 1.0);
+                return new(col.R, col.G, col.B, LerpByte(minB, maxB, punchEnergy));
             }
             case AudioReactiveStyle.BassFire:
             {
-                (byte R, byte G, byte B) deepEmber = (110, 12, 0);
+                (byte R, byte G, byte B) deepEmber = (120, 10, 0);
                 var cool = spec.Palette.Length > 1 ? c0 : deepEmber;
-                (byte R, byte G, byte B) flame = (255, 82, 0);
-                (byte R, byte G, byte B) flare = (255, 228, 120);
-                double heat = Math.Clamp(bass * 0.82 + beat * 0.42, 0.0, 1.0);
+                (byte R, byte G, byte B) flame = (255, 72, 0);
+                (byte R, byte G, byte B) flare = (255, 210, 16);
+                double heat = Math.Clamp(Math.Pow(bass, 1.15) * 0.82 + beat * 0.48, 0.0, 1.0);
                 var ember = heat <= 0.55
-                    ? LerpRgb(cool, flame, heat / 0.55)
-                    : LerpRgb(flame, flare, (heat - 0.55) / 0.45);
-                double crackle = Math.Clamp(heat * 0.85 + treble * 0.28 * (0.5 + 0.5 * Math.Sin(sec * 24.0)), 0.0, 1.0);
+                    ? LerpHsv(cool, flame, heat / 0.55)
+                    : LerpHsv(flame, flare, (heat - 0.55) / 0.45);
+                double crackle = Math.Clamp(heat * 0.85 + Math.Max(treble, transient) * 0.30 * (0.5 + 0.5 * Math.Sin(sec * 24.0)), 0.0, 1.0);
                 return new(ember.R, ember.G, ember.B, LerpByte(minB, maxB, crackle));
             }
             case AudioReactiveStyle.AuroraDrift:
             {
-                double hue = (sec * 18.0 + input.AudioBeatCount * 22.0 + mid * 95.0) % 360.0;
-                double hue2 = (hue + 55.0 + treble * 75.0) % 360.0;
-                var a = HsvToRgb(hue, 0.92, 1.0);
-                var b = HsvToRgb(hue2, 0.88, 1.0);
-                double mix = Math.Clamp(0.25 + treble * 0.75, 0.0, 1.0);
-                var aurora = LerpRgb(a, b, mix);
-                double bloom = Math.Clamp(Math.Max(bass * 0.85, Math.Max(mid * 0.75, beat * 0.9)), 0.12, 1.0);
+                double hue = (sec * 22.0 + input.AudioBeatCount * 28.0 + centroid * 140.0 + mid * 85.0) % 360.0;
+                double hue2 = (hue + 72.0 + treble * 95.0) % 360.0;
+                var a = HsvToRgb(hue, 0.96, 1.0);
+                var b = HsvToRgb(hue2, 0.95, 1.0);
+                double mix = Math.Clamp(0.20 + treble * 0.80, 0.0, 1.0);
+                var aurora = LerpHsv(a, b, mix);
+                double bloom = Math.Clamp(Math.Max(bass * 0.85, Math.Max(mid * 0.72, beat * 0.92)), 0.10, 1.0);
                 return new(aurora.R, aurora.G, aurora.B, LerpByte(minB, maxB, bloom));
             }
             case AudioReactiveStyle.DropStrobe:
             {
-                bool drop = beat > 0.36 || (bass + treble) > 1.20;
+                bool drop = beat > 0.36 || (bass + treble) > 1.15;
                 int toggle = ((int)(sec * 1000.0 / Math.Max(60, spec.StepIntervalMs))) & 1;
-                (byte R, byte G, byte B) white = (255, 255, 255);
                 (byte R, byte G, byte B) col = drop
-                    ? (toggle == 0 ? c2 : white)
-                    : LerpRgb(c0, c1, Math.Clamp(mid, 0.0, 1.0));
-                double energy = drop ? 1.0 : Math.Clamp(level * 0.55, 0.0, 1.0);
-                return new(col.R, col.G, col.B, LerpByte(minB, maxB, energy));
+                    ? (toggle == 0 ? cLast : c1)
+                    : LerpHsv(c0, c2, Math.Clamp(mid * 0.7 + centroid * 0.3, 0.0, 1.0));
+                double bri = drop ? 1.0 : Math.Clamp(level * 0.48, 0.0, 1.0);
+                return new(col.R, col.G, col.B, LerpByte(minB, maxB, bri));
             }
             case AudioReactiveStyle.SpectrumFlow:
             default:
@@ -537,20 +548,88 @@ public static class LightingEffectEngine
                     return new(r, g, b, LerpByte(minB, maxB, level));
                 }
 
-                // Multi-band spectral colour mixer: weighted blend across Bass / Mid / Treble palette stops.
-                double wBass = bass * 1.45 + 0.06;
-                double wMid = mid * 1.25;
-                double wTreble = treble * 1.35;
-                double wTotal = wBass + wMid + wTreble;
+                // Single unified 2-LED hardware strip: never average RGB into muddy pink.
+                // 1) Sharpened winner-takes-all dominance across Bass / Mid / Treble in saturated HSV space.
+                double wB = Math.Pow(bass + 0.04, 2.6);
+                double wM = Math.Pow(mid + 0.04, 2.6) * 1.18;
+                double wT = Math.Pow(treble + 0.04, 2.6) * 1.32;
+                double wSum = wB + wM + wT;
 
-                byte rMix = ClampByte((c0.R * wBass + c1.R * wMid + c2.R * wTreble) / wTotal);
-                byte gMix = ClampByte((c0.G * wBass + c1.G * wMid + c2.G * wTreble) / wTotal);
-                byte bMix = ClampByte((c0.B * wBass + c1.B * wMid + c2.B * wTreble) / wTotal);
-                var mixed = LerpRgb((rMix, gMix, bMix), (255, 255, 255), beat * 0.28);
+                // Spectral position 0..1 cleanly biased by whichever band just dominated + spectral centroid.
+                double domPos = wSum > 1e-6 ? (wM * 0.5 + wT * 1.0) / wSum : 0.5;
+                double specPos = Math.Clamp(domPos * 0.72 + centroid * 0.28, 0.0, 1.0);
 
-                double activeEnergy = Math.Clamp(Math.Max(level, Math.Max(bass * 0.92, Math.Max(mid * 0.85, beat * 0.90))), 0.0, 1.0);
-                return new(mixed.R, mixed.G, mixed.B, LerpByte(minB, maxB, activeEnergy));
+                (byte R, byte G, byte B) mainCol;
+                if (spec.Palette.Length >= 3)
+                {
+                    // Rotate slightly by beat energy on loud drops while sampling saturated HSV stops across Palette.
+                    double shift = energy > 0.55 ? (Math.Abs(input.AudioBeatCount) % spec.Palette.Length) * 0.14 : 0.0;
+                    mainCol = SamplePaletteHsv(spec.Palette, (specPos + shift) % 1.0);
+                }
+                else
+                {
+                    double calmBase = 195.0; // Deep cyan/ocean cool anchor when quiet
+                    double dynamicHue = (calmBase + specPos * 165.0 + sec * (energy * 14.0) + input.AudioBeatCount * 22.0) % 360.0;
+                    mainCol = HsvToRgb(dynamicHue, 1.0, 1.0);
+                }
+
+                // 2) Temporal instrument separation: flash sharp hi-hat/treble hits into contrasting pure hue right between bass kicks.
+                if (transient > 0.46 && treble > bass * 0.65)
+                {
+                    double sparkleHue = (RgbToHue(mainCol) + 135.0) % 360.0;
+                    mainCol = HsvToRgb(sparkleHue, 1.0, 1.0);
+                }
+
+                // 3) High-contrast dynamics (dip low between beats so drops and kicks hit visually hard).
+                double kickEnergy = Math.Clamp(Math.Max(beat * 0.98, Math.Max(Math.Pow(bass, 1.35) * 0.90, Math.Max(mid * 0.78, transient * 0.90))), 0.0, 1.0);
+                return new(mainCol.R, mainCol.G, mainCol.B, LerpByte(minB, maxB, kickEnergy));
             }
         }
+    }
+
+    static double RgbToHue((byte R, byte G, byte B) rgb)
+    {
+        double r = rgb.R / 255.0, g = rgb.G / 255.0, b = rgb.B / 255.0;
+        double max = Math.Max(r, Math.Max(g, b));
+        double min = Math.Min(r, Math.Min(g, b));
+        double d = max - min;
+        if (d < 1e-5) return 0.0;
+        double h = max == r ? (g - b) / d + (g < b ? 6.0 : 0.0)
+            : max == g ? (b - r) / d + 2.0
+            : (r - g) / d + 4.0;
+        return h * 60.0;
+    }
+
+    static (byte R, byte G, byte B) LerpHsv((byte R, byte G, byte B) a, (byte R, byte G, byte B) b, double t)
+    {
+        double k = Math.Clamp(t, 0.0, 1.0);
+        double ha = RgbToHue(a), hb = RgbToHue(b);
+        double dh = hb - ha;
+        if (dh > 180.0) dh -= 360.0;
+        else if (dh < -180.0) dh += 360.0;
+        double h = (ha + dh * k + 360.0) % 360.0;
+
+        double maxA = Math.Max(a.R, Math.Max(a.G, a.B)) / 255.0;
+        double minA = Math.Min(a.R, Math.Min(a.G, a.B)) / 255.0;
+        double satA = maxA > 1e-4 ? (maxA - minA) / maxA : 0.0;
+
+        double maxB = Math.Max(b.R, Math.Max(b.G, b.B)) / 255.0;
+        double minB = Math.Min(b.R, Math.Min(b.G, b.B)) / 255.0;
+        double satB = maxB > 1e-4 ? (maxB - minB) / maxB : 0.0;
+
+        double sat = satA + (satB - satA) * k;
+        double val = maxA + (maxB - maxA) * k;
+        return HsvToRgb(h, sat, val);
+    }
+
+    static (byte R, byte G, byte B) SamplePaletteHsv(string[] palette, double t)
+    {
+        if (palette.Length == 1) return LightingEffectSpec.ParseRgb(palette[0]);
+        double wrapped = ((t % 1.0) + 1.0) % 1.0;
+        double scaled = wrapped * (palette.Length - 1);
+        int i0 = Math.Clamp((int)Math.Floor(scaled), 0, palette.Length - 1);
+        int i1 = Math.Clamp(i0 + 1, 0, palette.Length - 1);
+        double frac = scaled - Math.Floor(scaled);
+        return LerpHsv(LightingEffectSpec.ParseRgb(palette[i0]), LightingEffectSpec.ParseRgb(palette[i1]), frac);
     }
 }

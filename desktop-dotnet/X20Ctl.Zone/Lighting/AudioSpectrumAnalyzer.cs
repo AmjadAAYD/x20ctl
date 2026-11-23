@@ -1,7 +1,7 @@
 namespace X20Ctl.Zone.Lighting;
 
 /// <summary>
-/// Live multi-band audio analysis snapshot produced by <see cref="AudioSpectrumAnalyzer"/>.
+/// Live multi-band stereo audio analysis snapshot produced by <see cref="AudioSpectrumAnalyzer"/>.
 /// </summary>
 public readonly record struct AudioFrame(
     float Level,
@@ -10,12 +10,17 @@ public readonly record struct AudioFrame(
     float Treble,
     float BeatPulse,
     int BeatCount,
-    float StereoPan);
+    float StereoPan,
+    float LeftLevel = 0f,
+    float RightLevel = 0f,
+    float SpectralCentroid = 0.5f,
+    float Energy = 0f,
+    float TrebleTransient = 0f);
 
 /// <summary>
 /// Zero-allocation, thread-safe 512-point Hann-windowed Radix-2 FFT spectral analyzer
-/// splitting live audio into Bass (20-280 Hz), Mid (280-2000 Hz), and Treble (2000-14000 Hz),
-/// with adaptive auto-gain normalization (AGC) and spectral-flux beat onset detection.
+/// splitting live stereo audio into Bass (20-280 Hz), Mid (280-2000 Hz), and Treble (2000-14000 Hz),
+/// with stereo left/right levels, log spectral centroid, beat onset detection, and treble transient detection.
 /// </summary>
 public sealed class AudioSpectrumAnalyzer
 {
@@ -23,6 +28,7 @@ public sealed class AudioSpectrumAnalyzer
     public const double IdleSeconds = 0.50;
     public const double BeatCooldownSeconds = 0.16;
 
+    static readonly double MaxLogSpan = Math.Log2(12000.0 / 20.0);
     static readonly float[] HannWindow = BuildHannWindow(FftSize);
     static readonly int[] BitReverseTable = BuildBitReverseTable(FftSize);
     static readonly (float[] Cos, float[] Sin)[] StageTwiddles = BuildStageTwiddles(FftSize);
@@ -36,17 +42,25 @@ public sealed class AudioSpectrumAnalyzer
     int ringPos;
     long lastProcessTimestamp;
     long lastBeatTimestamp;
+    long lastTrebleTimestamp;
 
     float agcBass = 0.04f;
     float agcMid = 0.04f;
     float agcTreble = 0.04f;
+    float agcStereo = 0.04f;
     float bassAvg;
+    float trebleAvg;
 
     float smoothLevel;
     float smoothBass;
     float smoothMid;
     float smoothTreble;
+    float smoothLeft;
+    float smoothRight;
+    float smoothCentroid = 0.5f;
+    float smoothEnergy;
     float beatPulse;
+    float trebleTransient;
     int beatCount;
     float stereoPan;
 
@@ -62,8 +76,20 @@ public sealed class AudioSpectrumAnalyzer
             lock (gate)
             {
                 if (IsStale(lastProcessTimestamp))
-                    return new AudioFrame(0f, 0f, 0f, 0f, 0f, beatCount, 0f);
-                return new AudioFrame(smoothLevel, smoothBass, smoothMid, smoothTreble, beatPulse, beatCount, stereoPan);
+                    return new AudioFrame(0f, 0f, 0f, 0f, 0f, beatCount, 0f, 0f, 0f, 0.5f, 0f, 0f);
+                return new AudioFrame(
+                    smoothLevel,
+                    smoothBass,
+                    smoothMid,
+                    smoothTreble,
+                    beatPulse,
+                    beatCount,
+                    stereoPan,
+                    smoothLeft,
+                    smoothRight,
+                    smoothCentroid,
+                    smoothEnergy,
+                    trebleTransient);
             }
         }
     }
@@ -76,15 +102,23 @@ public sealed class AudioSpectrumAnalyzer
             ringPos = 0;
             lastProcessTimestamp = 0;
             lastBeatTimestamp = 0;
+            lastTrebleTimestamp = 0;
             agcBass = 0.04f;
             agcMid = 0.04f;
             agcTreble = 0.04f;
+            agcStereo = 0.04f;
             bassAvg = 0f;
+            trebleAvg = 0f;
             smoothLevel = 0f;
             smoothBass = 0f;
             smoothMid = 0f;
             smoothTreble = 0f;
+            smoothLeft = 0f;
+            smoothRight = 0f;
+            smoothCentroid = 0.5f;
+            smoothEnergy = 0f;
             beatPulse = 0f;
+            trebleTransient = 0f;
             beatCount = 0;
             stereoPan = 0f;
         }
@@ -101,10 +135,12 @@ public sealed class AudioSpectrumAnalyzer
         lock (gate)
         {
             long now = time.GetTimestamp();
-            if (IsStale(lastProcessTimestamp))
+            bool firstOrResumed = lastProcessTimestamp == 0 || IsStale(lastProcessTimestamp);
+            if (firstOrResumed)
             {
-                smoothLevel = smoothBass = smoothMid = smoothTreble = beatPulse = 0f;
-                bassAvg = 0f;
+                smoothLevel = smoothBass = smoothMid = smoothTreble = 0f;
+                smoothLeft = smoothRight = smoothEnergy = beatPulse = trebleTransient = 0f;
+                bassAvg = trebleAvg = 0f;
             }
             lastProcessTimestamp = now;
 
@@ -133,23 +169,36 @@ public sealed class AudioSpectrumAnalyzer
             }
 
             float rawRms = frameCount > 0 ? (float)Math.Sqrt(sumMonoSq / frameCount) : 0f;
+            float leftRms = frameCount > 0 ? (float)Math.Sqrt(sumLeftSq / frameCount) : 0f;
+            float rightRms = frameCount > 0 ? (float)Math.Sqrt(sumRightSq / frameCount) : 0f;
+
             if (ch >= 2 && frameCount > 0)
             {
-                float lRms = (float)Math.Sqrt(sumLeftSq / frameCount);
-                float rRms = (float)Math.Sqrt(sumRightSq / frameCount);
-                float lrSum = lRms + rRms;
-                float targetPan = lrSum > 0.001f ? Math.Clamp((rRms - lRms) / lrSum, -1f, 1f) : 0f;
-                stereoPan = LerpFloat(stereoPan, targetPan, dt, 0.12);
+                float lrSum = leftRms + rightRms;
+                float targetPan = lrSum > 0.001f ? Math.Clamp((rightRms - leftRms) / lrSum, -1f, 1f) : 0f;
+                stereoPan = LerpFloat(stereoPan, targetPan, dt, 0.09);
             }
             else
             {
                 stereoPan = 0f;
             }
 
-            ComputeBands(sr, out float rawBass, out float rawMid, out float rawTreble);
-            UpdateEnvelopesAndBeats(now, dt, rawRms, rawBass, rawMid, rawTreble);
+            ComputeBands(sr, out float rawBass, out float rawMid, out float rawTreble, out float rawCentroid);
+            UpdateEnvelopesAndBeats(now, dt, rawRms, leftRms, rightRms, rawBass, rawMid, rawTreble, rawCentroid, firstOrResumed);
 
-            return new AudioFrame(smoothLevel, smoothBass, smoothMid, smoothTreble, beatPulse, beatCount, stereoPan);
+            return new AudioFrame(
+                smoothLevel,
+                smoothBass,
+                smoothMid,
+                smoothTreble,
+                beatPulse,
+                beatCount,
+                stereoPan,
+                smoothLeft,
+                smoothRight,
+                smoothCentroid,
+                smoothEnergy,
+                trebleTransient);
         }
     }
 
@@ -162,20 +211,34 @@ public sealed class AudioSpectrumAnalyzer
         lock (gate)
         {
             long now = time.GetTimestamp();
-            if (IsStale(lastProcessTimestamp))
+            bool firstOrResumed = lastProcessTimestamp == 0 || IsStale(lastProcessTimestamp);
+            if (firstOrResumed)
             {
-                smoothLevel = smoothBass = smoothMid = smoothTreble = beatPulse = 0f;
-                bassAvg = 0f;
+                smoothLevel = smoothBass = smoothMid = smoothTreble = 0f;
+                smoothLeft = smoothRight = smoothEnergy = beatPulse = trebleTransient = 0f;
+                bassAvg = trebleAvg = 0f;
             }
             lastProcessTimestamp = now;
 
             float peak = Sanitize(rawPeak);
-            UpdateEnvelopesAndBeats(now, dt, peak * 0.7f, peak * 0.85f, peak * 0.65f, peak * 0.45f);
-            return new AudioFrame(smoothLevel, smoothBass, smoothMid, smoothTreble, beatPulse, beatCount, 0f);
+            UpdateEnvelopesAndBeats(now, dt, peak * 0.7f, peak * 0.7f, peak * 0.7f, peak * 0.85f, peak * 0.65f, peak * 0.45f, 0.45f, firstOrResumed);
+            return new AudioFrame(
+                smoothLevel,
+                smoothBass,
+                smoothMid,
+                smoothTreble,
+                beatPulse,
+                beatCount,
+                0f,
+                smoothLeft,
+                smoothRight,
+                smoothCentroid,
+                smoothEnergy,
+                trebleTransient);
         }
     }
 
-    void ComputeBands(int sampleRate, out float bass, out float mid, out float treble)
+    void ComputeBands(int sampleRate, out float bass, out float mid, out float treble, out float centroidNorm)
     {
         for (int i = 0; i < FftSize; i++)
         {
@@ -185,7 +248,6 @@ public sealed class AudioSpectrumAnalyzer
             fftImag[dst] = 0f;
         }
 
-        // In-place iterative Cooley-Tukey Radix-2 FFT.
         for (int stage = 0; stage < StageTwiddles.Length; stage++)
         {
             int half = 1 << stage;
@@ -216,6 +278,7 @@ public sealed class AudioSpectrumAnalyzer
         double scale = 4.0 / FftSize;
 
         double bassSq = 0, midSq = 0, trebleSq = 0;
+        double totalWeightSq = 0, logWeightedSum = 0;
         int bassN = 0, midN = 0, trebleN = 0;
 
         int maxBin = FftSize / 2;
@@ -227,6 +290,13 @@ public sealed class AudioSpectrumAnalyzer
             double re = fftReal[bin] * scale;
             double im = fftImag[bin] * scale;
             double magSq = re * re + im * im;
+
+            if (freq <= 12000)
+            {
+                double logPos = Math.Clamp(Math.Log2(freq / 20.0) / MaxLogSpan, 0.0, 1.0);
+                logWeightedSum += logPos * magSq;
+                totalWeightSq += magSq;
+            }
 
             if (freq < 280)
             {
@@ -245,35 +315,53 @@ public sealed class AudioSpectrumAnalyzer
             }
         }
 
-        // Scale per-band RMS into well-behaved 0..1 dynamic range before AGC.
         bass = bassN > 0 ? (float)Math.Sqrt(bassSq / bassN) : 0f;
         mid = midN > 0 ? (float)(Math.Sqrt(midSq / midN) * 1.4) : 0f;
         treble = trebleN > 0 ? (float)(Math.Sqrt(trebleSq / trebleN) * 2.2) : 0f;
+        centroidNorm = totalWeightSq > 1e-8 ? (float)Math.Clamp(logWeightedSum / totalWeightSq, 0.0, 1.0) : smoothCentroid;
     }
 
-    void UpdateEnvelopesAndBeats(long now, double dt, float rawRms, float rawBass, float rawMid, float rawTreble)
+    void UpdateEnvelopesAndBeats(
+        long now,
+        double dt,
+        float rawRms,
+        float leftRms,
+        float rightRms,
+        float rawBass,
+        float rawMid,
+        float rawTreble,
+        float rawCentroid,
+        bool firstOrResumed)
     {
-        bool audible = rawRms >= 0.0005f || rawBass >= 0.001f || rawMid >= 0.001f || rawTreble >= 0.001f;
+        bool audible = rawRms >= 0.0005f || leftRms >= 0.0005f || rightRms >= 0.0005f || rawBass >= 0.001f || rawMid >= 0.001f || rawTreble >= 0.001f;
 
         agcBass = UpdateAgc(agcBass, rawBass, dt, audible, 0.04f);
         agcMid = UpdateAgc(agcMid, rawMid, dt, audible, 0.035f);
         agcTreble = UpdateAgc(agcTreble, rawTreble, dt, audible, 0.03f);
+        agcStereo = UpdateAgc(agcStereo, Math.Max(leftRms, rightRms), dt, audible, 0.035f);
 
         float normBass = audible ? Math.Clamp(rawBass / agcBass, 0f, 1f) : 0f;
         float normMid = audible ? Math.Clamp(rawMid / agcMid, 0f, 1f) : 0f;
         float normTreble = audible ? Math.Clamp(rawTreble / agcTreble, 0f, 1f) : 0f;
+        float normLeft = audible ? Math.Clamp(leftRms / agcStereo, 0f, 1f) : 0f;
+        float normRight = audible ? Math.Clamp(rightRms / agcStereo, 0f, 1f) : 0f;
         float targetLevel = Math.Clamp(Math.Max(normBass * 0.55f + normMid * 0.30f + normTreble * 0.25f, Math.Max(normBass, normMid * 0.9f)), 0f, 1f);
 
-        smoothBass = Smooth(smoothBass, normBass, dt, 0.032, 0.16);
-        smoothMid = Smooth(smoothMid, normMid, dt, 0.040, 0.17);
-        smoothTreble = Smooth(smoothTreble, normTreble, dt, 0.030, 0.14);
-        smoothLevel = Smooth(smoothLevel, targetLevel, dt, 0.040, 0.18);
+        smoothBass = Smooth(smoothBass, normBass, dt, 0.030, 0.15);
+        smoothMid = Smooth(smoothMid, normMid, dt, 0.038, 0.16);
+        smoothTreble = Smooth(smoothTreble, normTreble, dt, 0.028, 0.13);
+        smoothLeft = Smooth(smoothLeft, normLeft, dt, 0.030, 0.15);
+        smoothRight = Smooth(smoothRight, normRight, dt, 0.030, 0.15);
+        smoothLevel = Smooth(smoothLevel, targetLevel, dt, 0.038, 0.17);
+        smoothEnergy = Smooth(smoothEnergy, targetLevel, dt, 0.55, 1.60);
+        if (audible)
+            smoothCentroid = Math.Clamp(firstOrResumed ? rawCentroid : LerpFloat(smoothCentroid, rawCentroid, dt, 0.05), 0f, 1f);
 
         double avgAlpha = 1.0 - Math.Exp(-dt / 0.35);
-        double threshold = Math.Max(0.012, bassAvg * 1.38);
+        double bassThreshold = Math.Max(0.012, bassAvg * 1.38);
         double sinceBeat = lastBeatTimestamp == 0 ? 10.0 : time.GetElapsedTime(lastBeatTimestamp, now).TotalSeconds;
 
-        if (audible && rawBass > threshold && sinceBeat >= BeatCooldownSeconds)
+        if (audible && rawBass > bassThreshold && sinceBeat >= BeatCooldownSeconds)
         {
             beatPulse = 1.0f;
             beatCount++;
@@ -284,8 +372,23 @@ public sealed class AudioSpectrumAnalyzer
             beatPulse *= (float)Math.Exp(-dt / 0.13);
             if (beatPulse < 0.005f) beatPulse = 0f;
         }
-
         bassAvg = (float)(bassAvg + (rawBass - bassAvg) * avgAlpha);
+
+        double trebleAlpha = 1.0 - Math.Exp(-dt / 0.24);
+        double trebleThreshold = Math.Max(0.009, trebleAvg * 1.36);
+        double sinceTreble = lastTrebleTimestamp == 0 ? 10.0 : time.GetElapsedTime(lastTrebleTimestamp, now).TotalSeconds;
+
+        if (audible && rawTreble > trebleThreshold && sinceTreble >= 0.09)
+        {
+            trebleTransient = 1.0f;
+            lastTrebleTimestamp = now;
+        }
+        else
+        {
+            trebleTransient *= (float)Math.Exp(-dt / 0.085);
+            if (trebleTransient < 0.005f) trebleTransient = 0f;
+        }
+        trebleAvg = (float)(trebleAvg + (rawTreble - trebleAvg) * trebleAlpha);
     }
 
     static float UpdateAgc(float currentAgc, float rawBand, double dt, bool audible, float floor)

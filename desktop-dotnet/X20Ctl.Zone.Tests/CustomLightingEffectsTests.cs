@@ -441,6 +441,89 @@ public sealed class CustomLightingEffectsTests
         Assert.Equal(0xFF, dropped.Brightness);
     }
 
+    [Fact]
+    public void AudioSpectrumAnalyzer_TracksStereoPanCentroidAndTrebleTransients()
+    {
+        var clock = new SteppingTimeProvider();
+        var analyzer = new AudioSpectrumAnalyzer(clock);
+
+        // Pure left-channel 100 Hz bass sine
+        var leftOnly = new float[1024 * 2];
+        for (int i = 0; i < 1024; i++)
+            leftOnly[i * 2] = (float)(0.6 * Math.Sin(2.0 * Math.PI * 100.0 * i / 48000.0));
+
+        var fLeft = analyzer.ProcessInterleaved(leftOnly, 2, 48000, 1024.0 / 48000.0);
+        Assert.True(fLeft.LeftLevel > fLeft.RightLevel * 3f, $"Expected Left >> Right, got L={fLeft.LeftLevel}, R={fLeft.RightLevel}");
+        Assert.InRange(fLeft.SpectralCentroid, 0f, 0.45f);
+
+        // Pure right-channel 6000 Hz treble spike
+        analyzer.Reset();
+        var rightTreble = new float[1024 * 2];
+        for (int i = 0; i < 1024; i++)
+            rightTreble[i * 2 + 1] = (float)(0.6 * Math.Sin(2.0 * Math.PI * 6000.0 * i / 48000.0));
+
+        clock.Advance(TimeSpan.FromMilliseconds(25));
+        var fRight = analyzer.ProcessInterleaved(rightTreble, 2, 48000, 1024.0 / 48000.0);
+        Assert.True(fRight.RightLevel > fRight.LeftLevel * 3f, $"Expected Right >> Left, got R={fRight.RightLevel}, L={fRight.LeftLevel}");
+        Assert.True(fRight.SpectralCentroid > 0.70f, $"Expected high centroid for 6 kHz, got {fRight.SpectralCentroid}");
+        Assert.True(fRight.TrebleTransient > 0.70f, $"Expected sharp treble onset spike, got {fRight.TrebleTransient}");
+    }
+
+    [Fact]
+    public void AudioHapticsEngine_DrivesAllFourMotorsAcrossFiveModesAndZerosWhenSilent()
+    {
+        Assert.True(AudioHapticsEngine.Evaluate(new AudioFrame(0.9f, 0.9f, 0.5f, 0.9f, 1f, 1, 0f), AudioHapticsMode.QuadConcert, 0).IsSilent);
+        Assert.True(AudioHapticsEngine.Evaluate(new AudioFrame(0f, 0f, 0f, 0f, 0f, 0, 0f), AudioHapticsMode.QuadConcert, 100).IsSilent);
+
+        var leftHeavy = new AudioFrame(0.8f, 0.85f, 0.4f, 0.9f, 0.9f, 2, -0.8f, LeftLevel: 0.95f, RightLevel: 0.05f, Energy: 0.8f, TrebleTransient: 0.95f);
+        var qc = AudioHapticsEngine.Evaluate(leftHeavy, AudioHapticsMode.QuadConcert, 100);
+        Assert.True(qc.LeftGrip > 0.7 && qc.LeftTrigger > 0.7 && qc.RightTrigger > 0.7);
+
+        var tp = AudioHapticsEngine.Evaluate(leftHeavy with { Bass = 0.2f, BeatPulse = 0.1f, Treble = 0.9f, TrebleTransient = 1.0f }, AudioHapticsMode.TriggerPulse, 100);
+        Assert.True(tp.RightTrigger > tp.LeftGrip);
+
+        var sw = AudioHapticsEngine.Evaluate(leftHeavy, AudioHapticsMode.StereoWave, 100);
+        Assert.True(sw.LeftGrip > sw.RightGrip, $"Expected LeftGrip > RightGrip on left-panned audio, got LG={sw.LeftGrip}, RG={sw.RightGrip}");
+
+        var calmVerse = new AudioFrame(0.25f, 0.25f, 0.35f, 0.40f, 0.0f, 0, 0f, Energy: 0.20f);
+        var dropCalm = AudioHapticsEngine.Evaluate(calmVerse, AudioHapticsMode.SubwooferDrop, 100);
+        Assert.Equal(0.0, dropCalm.LeftGrip);
+        Assert.True(dropCalm.RightTrigger > 0.0);
+
+        // Heartbeat Lub (triggers first at BeatPulse peak) then Dub (grips in decay).
+        var lub = AudioHapticsEngine.Evaluate(leftHeavy with { BeatPulse = 0.90f }, AudioHapticsMode.Heartbeat, 100);
+        var dub = AudioHapticsEngine.Evaluate(leftHeavy with { BeatPulse = 0.35f, Bass = 0.7f, TrebleTransient = 0f }, AudioHapticsMode.Heartbeat, 100);
+        Assert.True(lub.LeftTrigger > lub.LeftGrip);
+        Assert.True(dub.LeftGrip > dub.LeftTrigger);
+    }
+
+    [Fact]
+    public void SpectrumFlowHsv_StaysVividSaturatedAcrossDominantBandsAndFlashesOnTrebleSparkle()
+    {
+        var spec = new LightingEffectSpec
+        {
+            Kind = LightingEffectKind.AudioReactive,
+            AudioStyle = AudioReactiveStyle.SpectrumFlow,
+            Palette = ["#FF0040", "#00F5D4", "#FFB800"],
+            AudioSensitivity = 65,
+        };
+
+        var frame = LightingEffectEngine.Evaluate(spec, TimeSpan.Zero, new LightingInputState(
+            0, 0, 0, 0, false, 0,
+            AudioLevel: 0.8, AudioBass: 0.85, AudioMid: 0.80, AudioTreble: 0.80,
+            AudioBeatPulse: 0.9, AudioBeatCount: 1, AudioCentroid: 0.5));
+        byte minChannel = Math.Min(frame.R, Math.Min(frame.G, frame.B));
+        byte maxChannel = Math.Max(frame.R, Math.Max(frame.G, frame.B));
+        // HSV mixing keeps a high saturation contrast (no muddy washed-out pink/white).
+        Assert.True(maxChannel - minChannel >= 120, $"Expected vivid saturated output, got {frame.Hex}");
+
+        var sparkle = LightingEffectEngine.Evaluate(spec, TimeSpan.Zero, new LightingInputState(
+            0, 0, 0, 0, false, 0,
+            AudioLevel: 0.75, AudioBass: 0.3, AudioMid: 0.4, AudioTreble: 0.95,
+            AudioBeatPulse: 0.1, AudioBeatCount: 1, AudioCentroid: 0.85, AudioTrebleTransient: 0.92));
+        Assert.NotEqual(frame.Hex, sparkle.Hex);
+    }
+
     sealed class SteppingTimeProvider : TimeProvider
     {
         long ticks = TimeSpan.TicksPerSecond;
