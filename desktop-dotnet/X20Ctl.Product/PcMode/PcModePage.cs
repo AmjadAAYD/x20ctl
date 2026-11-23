@@ -212,6 +212,17 @@ public sealed partial class PcModePage : Border
             {
                 string? copy = store.ResetSettings(); service.Reload();
                 loading = true; ListProfiles(); Fill(store.Get(StoreKey)); loading = false;
+        AllowDrop = true;
+        DragOver += (_, e) =>
+        {
+            e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None;
+            e.Handled = true;
+        };
+        Drop += (_, e) =>
+        {
+            if (e.Data.GetData(DataFormats.FileDrop) is string[] files && files.Length > 0)
+                TryImportPath(files[0]);
+        };
                 resetConfirm.Visibility = Visibility.Collapsed;
                 saved!.Text = "Every setting is back to default and applied." + (copy == null ? "" : " Your old settings are kept in " + Path.GetFileName(copy) + ".");
                 ProfileChanged?.Invoke(); Refresh();
@@ -319,6 +330,17 @@ public sealed partial class PcModePage : Border
         ShowSection(stack, gamesAt, turboAt, testAt, shareAt);
 
         loading = true; ListProfiles(); Fill(store.Get(StoreKey)); loading = false;
+        AllowDrop = true;
+        DragOver += (_, e) =>
+        {
+            e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None;
+            e.Handled = true;
+        };
+        Drop += (_, e) =>
+        {
+            if (e.Data.GetData(DataFormats.FileDrop) is string[] files && files.Length > 0)
+                TryImportPath(files[0]);
+        };
         // the service outlives this page: listen only while shown
         Action changed = () => Dispatcher.BeginInvoke(Refresh);
         Action elsewhere = () => { syncing = true; enable.IsChecked = service.Enabled && !service.Suspended; syncing = false; Refresh(); };
@@ -526,14 +548,28 @@ public sealed partial class PcModePage : Border
 
     void ImportFile()
     {
-        var dialog = new OpenFileDialog { Filter = "X20CTL PC mode settings (*.x20pc)|*.x20pc|All files|*.*" };
+        var dialog = new OpenFileDialog
+        {
+            Filter = "Controller profiles (*.x20pc;*.xml;*.vdf)|*.x20pc;*.xml;*.vdf|X20CTL (*.x20pc)|*.x20pc|DS4Windows (*.xml)|*.xml|Steam Input (*.vdf)|*.vdf|All files|*.*",
+        };
         if (dialog.ShowDialog() != true) return;
+        TryImportPath(dialog.FileName);
+    }
+
+    void TryImportPath(string filePath)
+    {
         try
         {
-            if (new FileInfo(dialog.FileName).Length > 64 * 1024) throw new InvalidDataException("That file is too big to be PC mode settings.");
-            Apply(PcModeShare.FromJson(File.ReadAllText(dialog.FileName)), "file");
+            if (new FileInfo(filePath).Length > ExternalProfileImporter.MaxImportBytes)
+                throw new InvalidDataException("That file is too big to be controller settings.");
+            var res = ExternalProfileImporter.Import(filePath, File.ReadAllText(filePath));
+            Apply(res.Profile, $"{res.SourceFormat} ({Path.GetFileName(filePath)})");
+            saved.Text = res.Summary + " " + saved.Text;
         }
-        catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException) { saved.Text = "Couldn't use that file: " + error.Message; }
+        catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException)
+        {
+            saved.Text = "Couldn't use that file: " + error.Message;
+        }
     }
 
     void CopyCode()

@@ -43,7 +43,7 @@ Shows the active controller, player slot, pending draft changes, and your local 
 
 #### RGB & Live Effects (X20 Pro)
 
-Configure 4-zone LED colours (`Left`, `Right`, `Middle`, `Logo`), palette swatches, brightness, Rainbow Wave, Trigger Glow, Stick Heat, Button Flash, Ambient Screen Sync, Audio Reactive RGB (1024-pt Mid-Side FFT with 8 live spectrum bands, harmonic vocal separation, immediate silence decay, 6 reactive styles including **Auto** vibe detection, and per-motor audio role assignment), and live Battery gauges. Simultaneous **2.4 GHz dongle (`413D:2131`) + unpaired BLE sync** applies lighting and settings whenever PC Bluetooth is enabled.
+Single scrollable console workspace unifying solid/native LEDs, live effects, Audio Studio (1024-pt Mid-Side FFT with 8 live spectrum bands, harmonic vocal separation, immediate silence decay, 6 reactive styles including **Auto** vibe detection, and per-motor audio role assignment), saved presets, foreground game auto-switch, and Battery gauges. Simultaneous **2.4 GHz dongle (`413D:2131`) + unpaired BLE sync** applies lighting and settings whenever PC Bluetooth is enabled.
 
 #### Screen (`160x80`, X20 Pro)
 
@@ -63,7 +63,7 @@ Step-by-step macro timeline for rear paddles (`M1–M4` on X20, `M1–M6` on X20
 
 #### Vibration
 
-Reworked 3-tab Studio workbench (**Motors**, **Patterns**, **Audio Roles**) with live 4-motor edge lighting and real-time output bars:
+Single scrollable console workbench with live 4-motor edge lighting and real-time GPU output meters:
 
 - **Motors & Test:** Independent grip and trigger motor sliders (`Left/Right grip`, `Left/Right trigger`), per-motor role badges, isolated hardware tests, and PC Mode game rumble amplification up to `200%`. On 2.4 GHz dongle or wired USB, open **Trigger Setup (M + Back)** in the dock and hold **M + BACK** on the controller to toggle LT/RT triggers ON, or use Bluetooth mode (`Screen -> Mode -> BT`) for independent 4-motor trigger control.
 - **Unique Custom Pattern Composer:** 8 built-in signature waves (`Heartbeat Pulse`, `Engine Rev`, `Rainstorm Ripple`, `Sword Parry`, `Cinema Bass Drop`, `360 Spatial Sweep`, `Mech Reload`, `Zen Breath`) plus an interactive 8-step x 4-motor sequencer (`0/35/70/100%`), adjustable step speed (`50-400 ms`), smooth/crisp waveforms, loop control, and local saved patterns.
@@ -77,7 +77,7 @@ PC mode sits between your physical controller and games on Windows and Linux, ap
 - **Up to four controllers at once:** Each of the 4 player slots keeps its own settings, profiles, and virtual controller.
 - **Settings per game:** Assign a profile to any installed game so X20CTL switches automatically while that game is in front and returns to *Every game* otherwise.
 - **Switch settings off mid-game:** Hold **View + Menu** for a second to pause/disable PC mode in the middle of a game, and hold it again to turn settings back on. Closing X20CTL restores your pad immediately.
-- **Share settings with a friend:** Export or import any profile as a file or short share code: only controller settings are included, never personal data.
+- **Share or import settings:** Export any profile as `.x20pc` or short share code, or import **DS4Windows (`.xml`)** and **Steam Input (`.vdf`)** controller configs directly (or drag and drop them into PC mode).
 - **Drivers on Windows:** On first use, PC mode installs two signed Nefarius drivers from hashes verified inside the installer: [ViGEmBus](https://github.com/nefarius/ViGEmBus) (`1.22.0`, virtual controller) and [HidHide](https://github.com/nefarius/HidHide) (`1.5.230`, hides the physical controller from double input). Remove either driver anytime in Windows Settings → Apps.
 - **Back paddles and turbo warning:** On pads whose rear paddles duplicate face/shoulder inputs, bind an unused button to play the macro slot in PC mode. **Turbo and macros can get you banned in online games** - check each game's rules before using them.
 
@@ -147,6 +147,7 @@ Official builds from [**Release V0.025**](https://github.com/AmjadAAYD/x20ctl/re
 - **Thanks to [Edgard (edgardmessias)](https://github.com/edgardmessias)** for decoding the X10 Bluetooth protocol in [EasyGamepad](https://github.com/edgardmessias/easygamepad).
 - **Thanks to [Monratis](https://github.com/Monratis)** for resolving simultaneous mouse/gamepad focus and testing X20 Pro hardware support.
 - **Thanks to [shazzaam7](https://github.com/shazzaam7)** for audio-reactive RGB envelope design inspiration from [DualSenseClient](https://github.com/DualSenseClient/DualSenseClient) (GPL-3.0).
+- **Thanks to [hifihedgehog](https://github.com/hifihedgehog)** for external profile import UX inspiration from [PadForge](https://github.com/hifihedgehog/PadForge).
 - Console layout inspired by [ApexSenseBridge (Kayn arts)](https://github.com/ReynArts/ApexSenseBridge); mouse layout defaults inspired by [Gopher360](https://github.com/Tylemagne/Gopher360). Support development on [Ko-fi](https://ko-fi.com/x20ctl).
 
 ## License
