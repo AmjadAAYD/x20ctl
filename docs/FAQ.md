@@ -34,4 +34,5 @@ Switch the controller back from DirectInput (`STK-7024X`) to **XInput** mode, th
 
 ### How can I support X20CTL?
 - Star the [GitHub repository](https://github.com/AmjadAAYD/x20ctl) so more EasySMX owners can find it.
+- Follow [@AmjadCTL on X](https://x.com/AmjadCTL) for update previews and release announcements.
 - Support development directly on [Ko-fi](https://ko-fi.com/x20ctl) or shop via the [EasySMX referral link](https://www.easysmx.com/?ref=X20CTL).
