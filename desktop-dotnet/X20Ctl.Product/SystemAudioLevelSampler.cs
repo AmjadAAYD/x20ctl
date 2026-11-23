@@ -175,8 +175,8 @@ internal static class SystemAudioLevelSampler
         }
 
         var browser = Diagnostics.BrowserTriggerRumble.Shared;
-        bool canUseTriggers = browser is { Armed: true, Failure: null, SupportsTriggerRumble: true };
-        bool triggersForegroundLive = canUseTriggers && browser!.IsHostWindowActive;
+        bool canAttemptTriggerStream = browser is { Armed: true, Failure: null, SupportsTriggerRumble: true, IsHostWindowActive: true };
+        bool streamConfirmedLive = canAttemptTriggerStream && browser!.StreamLive && browser.HasDocumentFocus;
 
         var hf = AudioHapticsEngine.Evaluate(frame, spec.AudioHapticsStyle, spec.AudioHapticsStrength, elapsedSec);
         LatestHaptics = hf;
@@ -186,46 +186,26 @@ internal static class SystemAudioLevelSampler
             SilenceHaptics();
             int probedSlot = ControllerRumble.FindPhysicalSlot();
             Volatile.Write(ref lastKnownSlot, probedSlot);
-            UpdateHapticsSummary(probedSlot, browser, triggersForegroundLive);
+            UpdateHapticsSummary(probedSlot, browser, streamConfirmedLive);
             return;
         }
 
-        // Always drive XInput grips; keep grips separated when foreground trigger streaming is active,
-        // otherwise fold trigger accents into grips so background music or unarmed pads still feel every hit.
-        double gripL = triggersForegroundLive ? hf.LeftGrip : Math.Max(hf.LeftGrip, hf.LeftTrigger * 0.72);
-        double gripR = triggersForegroundLive ? hf.RightGrip : Math.Max(hf.RightGrip, hf.RightTrigger * 0.85);
-        int leftMotor = (int)Math.Clamp(Math.Round(gripL * 65535.0), 0, 65535);
-        int rightMotor = (int)Math.Clamp(Math.Round(gripR * 65535.0), 0, 65535);
-        int activeSlot = ApplyXInputGrips(leftMotor, rightMotor);
-
-        if (triggersForegroundLive)
+        if (canAttemptTriggerStream)
         {
             long now = Environment.TickCount64;
             long elapsedSinceDispatch = lastTriggerDispatchTick == 0 ? 1000 : now - lastTriggerDispatchTick;
-            bool hasTriggerDrive = hf.LeftTrigger > 0.01 || hf.RightTrigger > 0.01;
+            bool sharpOnset = (hf.LeftTrigger - lastSentLt >= 0.18 || hf.RightTrigger - lastSentRt >= 0.18) && elapsedSinceDispatch >= 35;
 
-            if (hasTriggerDrive)
+            if (!triggerStreamActive || elapsedSinceDispatch >= 65 || sharpOnset)
             {
-                bool sharpOnset = (hf.LeftTrigger - lastSentLt >= 0.24 || hf.RightTrigger - lastSentRt >= 0.24) && elapsedSinceDispatch >= 65;
-                if (!triggerStreamActive || elapsedSinceDispatch >= 115 || sharpOnset)
-                {
-                    browser!.Stream4(hf.LeftGrip, hf.RightGrip, hf.LeftTrigger, hf.RightTrigger, 240);
-                    triggerStreamActive = true;
-                    lastTriggerDispatchTick = now;
-                    lastSentLt = hf.LeftTrigger;
-                    lastSentRt = hf.RightTrigger;
-                }
-                triggersStreamingLive = browser!.StreamLive || browser.HasDocumentFocus;
-            }
-            else if (triggerStreamActive)
-            {
-                browser!.Stream4(hf.LeftGrip, hf.RightGrip, 0, 0, 60);
-                triggerStreamActive = false;
-                triggersStreamingLive = false;
+                browser!.Stream4(hf.LeftGrip, hf.RightGrip, hf.LeftTrigger, hf.RightTrigger, 160);
+                triggerStreamActive = true;
                 lastTriggerDispatchTick = now;
-                lastSentLt = 0;
-                lastSentRt = 0;
+                lastSentLt = hf.LeftTrigger;
+                lastSentRt = hf.RightTrigger;
             }
+            streamConfirmedLive = browser!.StreamLive && browser.HasDocumentFocus;
+            triggersStreamingLive = streamConfirmedLive;
         }
         else if (triggerStreamActive)
         {
@@ -240,14 +220,34 @@ internal static class SystemAudioLevelSampler
             triggersStreamingLive = false;
         }
 
-        UpdateHapticsSummary(activeSlot, browser, triggersForegroundLive);
+        int activeSlot;
+        if (streamConfirmedLive)
+        {
+            // When 4-motor Bluetooth Classic trigger-rumble is actively streaming via WebView2, do NOT call XInputSetState
+            // concurrently because XInputSetState sends LT=0, RT=0 and wipes out trigger vibration.
+            ClearGripXInputOnly();
+            activeSlot = ControllerRumble.FindPhysicalSlot();
+            Volatile.Write(ref lastKnownSlot, activeSlot);
+        }
+        else
+        {
+            // On 2.4G/USB (or when backgrounded/unfocused), fold full trigger energy into Left/Right XInput channels
+            // so physical trigger motors linked via M + BACK receive every kick, snare, and hi-hat at full strength.
+            double gripL = Math.Max(hf.LeftGrip, hf.LeftTrigger * 0.95);
+            double gripR = Math.Max(hf.RightGrip, hf.RightTrigger * 1.0);
+            int leftMotor = (int)Math.Clamp(Math.Round(gripL * 65535.0), 0, 65535);
+            int rightMotor = (int)Math.Clamp(Math.Round(gripR * 65535.0), 0, 65535);
+            activeSlot = ApplyXInputGrips(leftMotor, rightMotor);
+        }
+
+        UpdateHapticsSummary(activeSlot, browser, streamConfirmedLive);
     }
 
-    static void UpdateHapticsSummary(int slot, Diagnostics.BrowserTriggerRumble? browser, bool triggersForegroundLive)
+    static void UpdateHapticsSummary(int slot, Diagnostics.BrowserTriggerRumble? browser, bool streamConfirmedLive)
     {
-        if (slot < 0)
+        if (slot < 0 && browser is not { Armed: true, SupportsTriggerRumble: true })
         {
-            HapticsPathSummary = "No XInput pad found · check 2.4G dongle or cable";
+            HapticsPathSummary = "No XInput pad found · check 2.4G dongle, USB cable, or BT";
             return;
         }
         if (browser == null)
@@ -260,26 +260,27 @@ internal static class SystemAudioLevelSampler
             HapticsPathSummary = $"Grips live (Slot {slot}) · {browser.Failure}";
             return;
         }
+        if (browser is { Armed: true, SupportsTriggerRumble: false })
+        {
+            HapticsPathSummary = $"2.4G/USB Linked Mode (Slot {slot}) · Press M + BACK on pad to toggle LT/RT triggers ON (or use BT mode for independent 4-motor)";
+            return;
+        }
         if (!browser.Armed)
         {
             HapticsPathSummary = browser.WaitingToArm
-                ? $"Grips live (Slot {slot}) · Press any pad button now for LT/RT"
-                : $"Grips live (Slot {slot}) · Click Arm Triggers for LT/RT";
+                ? $"2.4G/USB Linked (Slot {slot}, M + BACK for LT/RT) · Press any pad button now to detect BT 4-motor"
+                : $"2.4G/USB Linked Mode (Slot {slot}) · Press M + BACK on pad to toggle LT/RT triggers ON (or click Arm Triggers in BT mode)";
             return;
         }
-        if (!browser.SupportsTriggerRumble)
+        if (!browser.IsHostWindowActive)
         {
-            HapticsPathSummary = $"Grips live (Slot {slot}) · Pad reports dual-rumble only";
+            HapticsPathSummary = $"Grips live (Slot {slot}) · BT 4-motor triggers paused in background";
             return;
         }
-        if (!triggersForegroundLive || !browser.IsHostWindowActive)
+        if (streamConfirmedLive || browser.StreamLive)
         {
-            HapticsPathSummary = $"Grips live (Slot {slot}) · Triggers paused in background";
-            return;
-        }
-        if (triggersStreamingLive || browser.StreamLive || browser.HasDocumentFocus)
-        {
-            HapticsPathSummary = $"4-Motor Live (Slot {slot} Grips + LT/RT Triggers)";
+            string slotTag = slot >= 0 ? $"Slot {slot} " : "";
+            HapticsPathSummary = $"4-Motor Live ({slotTag}Grips + LT/RT Triggers)";
             return;
         }
         HapticsPathSummary = $"Grips live (Slot {slot}) · Trigger state: {browser.LastStreamState}";
