@@ -140,10 +140,19 @@ internal static class LightingEffectsService
         return frame;
     }
 
-    static LightingFrame EvaluateFrame(LightingEffectSpec spec, TimeSpan elapsed, LightingInputState input, TimeSpan? pressAge) =>
-        spec.Kind == LightingEffectKind.ScreenAmbient && !ReviewSandbox.Active
-            ? ScreenAmbientSampler.Sample(spec)
-            : LightingEffectEngine.Evaluate(spec, elapsed, input, pressAge);
+    static LightingFrame EvaluateFrame(LightingEffectSpec spec, TimeSpan elapsed, LightingInputState input, TimeSpan? pressAge)
+    {
+        if (spec.Kind == LightingEffectKind.ScreenAmbient && !ReviewSandbox.Active)
+            return ScreenAmbientSampler.Sample(spec);
+        if (spec.Kind == LightingEffectKind.AudioReactive)
+        {
+            if (!ReviewSandbox.Active)
+                return SystemAudioLevelSampler.Sample(spec, elapsed, input, pressAge);
+            double syntheticBeat = Math.Clamp(0.45 + 0.45 * Math.Sin(elapsed.TotalSeconds * 4.2) + 0.10 * Math.Sin(elapsed.TotalSeconds * 9.1), 0.0, 1.0);
+            return LightingEffectEngine.Evaluate(spec, elapsed, input with { AudioLevel = syntheticBeat }, pressAge);
+        }
+        return LightingEffectEngine.Evaluate(spec, elapsed, input, pressAge);
+    }
 
     public static void SetPreviewDraft(LightingEffectSpec draftSpec)
     {
@@ -339,6 +348,7 @@ internal static class LightingEffectsService
         {
             try { await task; } catch { }
         }
+        SystemAudioLevelSampler.Reset();
         restoreOnCancel = false;
     }
 

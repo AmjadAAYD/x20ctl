@@ -124,7 +124,7 @@ internal sealed class LightingEffectsSection
         syncing = true;
         try
         {
-            if (spec.Kind == LightingEffectKind.ScreenAmbient || Array.IndexOf(GridKinds, spec.Kind) >= 0)
+            if (spec.Kind == LightingEffectKind.ScreenAmbient || spec.Kind == LightingEffectKind.AudioReactive || Array.IndexOf(GridKinds, spec.Kind) >= 0)
                 selectedKind = spec.Kind;
             else
                 selectedKind = LightingEffectKind.SmoothHueWave;
@@ -155,9 +155,9 @@ internal sealed class LightingEffectsSection
         {
             var title = new TextBlock
             {
-                Text = hero ? "Ambient Screen Sync" : ShortEffectName(kind),
+                Text = ShortEffectName(kind),
                 FontFamily = DS.Display,
-                FontSize = hero ? 14.5 : 13.5,
+                FontSize = hero ? 14 : 13.5,
                 FontWeight = FontWeights.SemiBold,
                 TextTrimming = TextTrimming.CharacterEllipsis,
             };
@@ -176,8 +176,8 @@ internal sealed class LightingEffectsSection
                 Content = content,
                 Style = DS.Style("ActionButton"),
                 HorizontalContentAlignment = HorizontalAlignment.Stretch,
-                Padding = hero ? new Thickness(14, 10, 14, 10) : new Thickness(11, 8, 11, 8),
-                Margin = hero ? new Thickness(0, 0, 0, 6) : new Thickness(3),
+                Padding = hero ? new Thickness(12, 10, 12, 10) : new Thickness(11, 8, 11, 8),
+                Margin = new Thickness(3),
                 MinHeight = hero ? 52 : 48,
                 Height = double.NaN,
             };
@@ -186,6 +186,8 @@ internal sealed class LightingEffectsSection
                 selectedKind = kind;
                 if (kind == LightingEffectKind.ScreenAmbient && intervalSlider.Value > 120)
                     intervalSlider.Value = 70;
+                else if (kind == LightingEffectKind.AudioReactive && intervalSlider.Value > 120)
+                    intervalSlider.Value = 65;
                 UpdateSelectionButtons();
                 UpdateSliderLabels();
                 SyncPreviewDraft();
@@ -196,7 +198,10 @@ internal sealed class LightingEffectsSection
             return btn;
         }
 
-        stack.Children.Add(MakeEffectTile(LightingEffectKind.ScreenAmbient, hero: true));
+        var heroGrid = new System.Windows.Controls.Primitives.UniformGrid { Columns = 2, Margin = new(-3, 0, -3, 3) };
+        heroGrid.Children.Add(MakeEffectTile(LightingEffectKind.ScreenAmbient, hero: true));
+        heroGrid.Children.Add(MakeEffectTile(LightingEffectKind.AudioReactive, hero: true));
+        stack.Children.Add(heroGrid);
 
         var grid = new System.Windows.Controls.Primitives.UniformGrid { Columns = 2, Margin = new(-3, 0, -3, 12) };
         foreach (var kind in GridKinds) grid.Children.Add(MakeEffectTile(kind));
@@ -689,6 +694,7 @@ internal sealed class LightingEffectsSection
     internal static string ShortEffectName(LightingEffectKind kind) => kind switch
     {
         LightingEffectKind.ScreenAmbient => "Ambient Screen Sync",
+        LightingEffectKind.AudioReactive => "Audio Reactive RGB",
         LightingEffectKind.SmoothHueWave => "Rainbow Wave",
         LightingEffectKind.PaletteFade => "Color Fade",
         LightingEffectKind.PaletteStep => "Color Jump",
@@ -706,6 +712,7 @@ internal sealed class LightingEffectsSection
     private static string EffectSubtitle(LightingEffectKind kind) => kind switch
     {
         LightingEffectKind.ScreenAmbient => "Matches colours on your screen",
+        LightingEffectKind.AudioReactive => "Reacts live to PC music & game audio",
         LightingEffectKind.SmoothHueWave => "Continuous 360° sweep",
         LightingEffectKind.PaletteFade => "Smooth multi-stop blend",
         LightingEffectKind.PaletteStep => "Clean palette jumps",

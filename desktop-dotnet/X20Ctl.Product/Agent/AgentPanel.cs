@@ -1310,7 +1310,7 @@ public sealed partial class AgentPanel
     {
         if (activeVisualEffect == null) { rgbVisualTimer.Stop(); return; }
         Color c;
-        if (activeVisualEffect.Kind == X20Ctl.Zone.Lighting.LightingEffectKind.ScreenAmbient && LightingEffectsService.Status.IsRunning)
+        if (activeVisualEffect.Kind is X20Ctl.Zone.Lighting.LightingEffectKind.ScreenAmbient or X20Ctl.Zone.Lighting.LightingEffectKind.AudioReactive && LightingEffectsService.Status.IsRunning)
         {
             var f = LightingEffectsService.PreviewFrame;
             c = Color.FromRgb(f.R, f.G, f.B);
