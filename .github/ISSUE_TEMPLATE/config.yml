@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: FAQ & Quick Answers
+    url: https://github.com/AmjadAAYD/x20ctl/blob/main/docs/FAQ.md
+    about: Common questions about KeyLinker, 2.4 GHz dongle + BLE, SmartScreen, and PC Mode
+  - name: Troubleshooting Guide
+    url: https://github.com/AmjadAAYD/x20ctl/blob/main/IF-YOUR-CONTROLLER-ISNT-WORKING.md
+    about: Quick fixes for XInput/DInput, Bluetooth discovery, HidHide, and Linux permissions
+  - name: GitHub Discussions
+    url: https://github.com/AmjadAAYD/x20ctl/discussions
+    about: Ask questions, share setups, or discuss controller compatibility

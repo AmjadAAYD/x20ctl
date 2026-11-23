@@ -1,0 +1,17 @@
+name: Feature Request
+description: Suggest a new capability or studio improvement for X20CTL
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Feature Description
+      description: What would you like X20CTL to do, and how would it help your workflow?
+    validations:
+      required: true
+  - type: input
+    id: controller
+    attributes:
+      label: Target Controller / Platform
+      placeholder: e.g. EasySMX X20 Pro on Windows 11

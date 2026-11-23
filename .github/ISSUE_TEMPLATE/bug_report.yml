@@ -1,0 +1,63 @@
+name: Bug Report
+description: Report a problem with X20CTL on Windows or Linux
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please check the [FAQ](https://github.com/AmjadAAYD/x20ctl/blob/main/docs/FAQ.md) and [Troubleshooting Guide](https://github.com/AmjadAAYD/x20ctl/blob/main/IF-YOUR-CONTROLLER-ISNT-WORKING.md) first.
+  - type: input
+    id: version
+    attributes:
+      label: X20CTL Version
+      placeholder: e.g. V0.025
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      options:
+        - Windows 11
+        - Windows 10
+        - Linux (AppImage / Flatpak / Tarball)
+    validations:
+      required: true
+  - type: dropdown
+    id: controller
+    attributes:
+      label: Controller Model
+      options:
+        - EasySMX X20 Pro
+        - EasySMX X20
+        - EasySMX X15
+        - EasySMX X10
+        - EasySMX X05 Pro
+        - EasySMX D10
+        - EasySMX Dune 8K
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: connection
+    attributes:
+      label: Connection Mode
+      options:
+        - 2.4 GHz Dongle (+ BLE)
+        - Bluetooth
+        - Wired USB
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Describe the bug and steps to reproduce it.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or Controller Check Report
+      description: Paste any relevant log output or attach a Controller Check ZIP if applicable.

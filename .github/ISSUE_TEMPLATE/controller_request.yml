@@ -1,0 +1,28 @@
+name: Request Controller Support
+description: Submit hardware scan data to add or verify support for an EasySMX / KeyLinker controller
+title: "[Controller]: "
+labels: ["controller-support"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        X20CTL never guesses hardware writes. To add native BLE or USB support for a controller, run **Controller Check** inside X20CTL (or use the standalone [Controller Scan Kit](https://github.com/AmjadAAYD/x20ctl/tree/main/docs/controller-scan-kit)) and attach the generated ZIP report.
+  - type: input
+    id: model
+    attributes:
+      label: Controller Name & Model
+      placeholder: e.g. EasySMX X15 / X10 / X05 Pro
+    validations:
+      required: true
+  - type: input
+    id: ids
+    attributes:
+      label: USB VID:PID and/or BLE Name (if known)
+      placeholder: e.g. 413D:2131 / EasySMX X20Pro
+  - type: textarea
+    id: notes
+    attributes:
+      label: Details & Scan Report
+      description: Attach your Controller Check ZIP or paste scan findings here.
+    validations:
+      required: true
