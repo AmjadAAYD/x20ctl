@@ -608,18 +608,37 @@ def _render_demo(y0: float, total_h: int, softboxes: list[_Softbox], beams: list
 
 
 def _render_intro(y0: float, total_h: int, softboxes: list[_Softbox], beams: list[str]) -> tuple[str, int]:
-    h = 220
+    h = 332
     defs_bg, bg_g = _obsidian_bg(0, y0, W, h, total_h, softboxes, beams, "c_intro")
     style = f".s{{font-family:{FONT_SANS}}}.m{{font-family:{FONT_MONO}}}"
+    adv = [
+        ("01 // NO PHONE APP", "No KeyLinker Needed", "Edit pads on PC over BLE or 2.4G"),
+        ("02 // ZERO BLOAT", "Single Portable EXE", "No account, no background bloat"),
+        ("03 // UNLOCKS PRO", "Ambient & 160x80 LCD", "Screen Sync, GIFs & Agent XCTL"),
+        ("04 // VERIFIED SAFE", "Read-Back Checked", "Never flashes controller firmware"),
+    ]
+    cw, ch, gap = 218.5, 96, 10
+    cards = []
+    for idx, (tag_t, head_t, sub_t) in enumerate(adv):
+        cx = round(MARGIN + idx * (cw + gap), 1)
+        cy = 214
+        cards.append(
+            f'<rect x="{cx}" y="{cy}" width="{cw}" height="{ch}" rx="10" fill="{CARD_FILL}" fill-opacity="0.92" stroke="{BORDER_SILVER}" stroke-opacity="0.16" stroke-width="1"/>'
+            f'<text x="{cx + 14}" y="{cy + 23}" class="m" font-size="10" font-weight="600" fill="#7DD3FC" letter-spacing="1.2">{_esc(tag_t)}</text>'
+            f'<text x="{cx + 14}" y="{cy + 48}" class="s" font-size="14.5" font-weight="700" fill="{TEXT_PRIMARY}">{_esc(head_t)}</text>'
+            f'<text x="{cx + 14}" y="{cy + 71}" class="s" font-size="12" fill="{TEXT_SECONDARY}">{_esc(sub_t)}</text>'
+        )
+
     body = (
         f"{bg_g}"
         f'<rect x="{MARGIN}" y="12" width="{CONTENT_W}" height="64" rx="12" fill="{CARD_FILL}" fill-opacity="0.90" stroke="{BORDER_SILVER}" stroke-opacity="0.14" stroke-width="1"/>'
         f'<rect x="{MARGIN}" y="22" width="3" height="44" rx="1.5" fill="#60A5FA"/>'
         f'<text x="{MARGIN + 18}" y="38" class="s" font-size="13" fill="{TEXT_SECONDARY}"><tspan font-weight="700" fill="{TEXT_PRIMARY}">Independent project.</tspan> X20CTL is open-source software. EasySMX supplied an X20 Pro to help develop it,</text>'
         f'<text x="{MARGIN + 18}" y="58" class="s" font-size="13" fill="{TEXT_SECONDARY}">but the app is not made, endorsed, sponsored or supported by EasySMX.</text>'
-        f"{_section_heading('ARCHIVE // 01', 'WHAT IT IS', 'WINDOWS · LINUX · OFFLINE', y=104)}"
-        f'<text x="{MARGIN}" y="168" class="s" font-size="14" fill="{TEXT_SECONDARY}">A desktop studio for EasySMX pads on Windows (.NET 10 WPF + C++) and Linux (Avalonia). Remap front &amp; rear paddles,</text>'
-        f'<text x="{MARGIN}" y="190" class="s" font-size="14" fill="{TEXT_SECONDARY}">sculpt stick/trigger curves, tune X20 Pro RGB lighting &amp; its 160x80 screen, or run low-latency PC Mode for up to 4 players.</text>'
+        f"{_section_heading('ARCHIVE // 01', 'WHAT IT IS & WHY X20CTL', 'WINDOWS · LINUX · OFFLINE', y=104)}"
+        f'<text x="{MARGIN}" y="168" class="s" font-size="14" fill="{TEXT_SECONDARY}">A lightweight desktop alternative to KeyLinker on Windows (.NET 10 WPF + C++) and Linux (Avalonia). Remap paddles,</text>'
+        f'<text x="{MARGIN}" y="190" class="s" font-size="14" fill="{TEXT_SECONDARY}">sculpt stick/trigger curves, tune X20 Pro RGB &amp; its 160x80 screen, or run low-latency PC Mode for up to 4 players.</text>'
+        f'{"".join(cards)}'
     )
     return _wrap_svg(W, h, "Independent project notice and overview of X20CTL", defs_bg, body, style), h
 
@@ -1038,7 +1057,7 @@ def generate_all(tag: str, social_preview: bool = False) -> list[Path]:
         ("thanks", 288),
         ("thanks_links", 52),
         ("demo", 606),
-        ("intro", 220),
+        ("intro", 332),
         ("spot_1", 640),
         ("spot_2", 640),
         ("spot_3", 640),
@@ -1331,10 +1350,12 @@ def generate_all(tag: str, social_preview: bool = False) -> list[Path]:
         softboxes,
         beams,
         [
+            ("FAQ & Quick Answers", "FAQ and quick answers", False),
             ("Privacy policy", "Privacy policy", False),
             ("Controller troubleshooting", "Controller troubleshooting", False),
+            ("GitHub Discussions", "GitHub Discussions", False),
         ],
-        btn_widths=[240, 280],
+        btn_widths=[214, 198, 252, 210],
         gap=10,
     )
     slices.update(s_loc)
@@ -1417,6 +1438,16 @@ def generate_all(tag: str, social_preview: bool = False) -> list[Path]:
                 "X20CTL Studio on Linux",
                 "AppImage, Flatpak, tarballs, exclusive evdev capture & /dev/uinput rules",
                 "x20/native/front-full.png",
+            ),
+        ),
+        (
+            README_ASSETS / "header-faq.svg",
+            build_guide_header_svg(
+                "hfaq",
+                "FREQUENTLY ASKED QUESTIONS",
+                "X20CTL FAQ",
+                "KeyLinker comparison, safety, SmartScreen, 2.4 GHz + BLE sync, and PC Mode",
+                "x20_pro/native/front-full.png",
             ),
         ),
     ]
