@@ -99,6 +99,11 @@ internal static class SystemAudioLevelSampler
             AudioCentroid = frame.SpectralCentroid,
             AudioTrebleTransient = frame.TrebleTransient,
             AudioEnergy = frame.Energy,
+            AudioVocal = frame.VocalPresence,
+            AudioInstrument = frame.InstrumentEnergy,
+            AudioBassPunch = frame.BassPunch,
+            AudioDynamic = frame.DynamicContrast,
+            AudioVibe = frame.Vibe,
         };
         return LightingEffectEngine.Evaluate(spec, elapsed, enriched, pressAge);
     }
@@ -231,10 +236,22 @@ internal static class SystemAudioLevelSampler
         }
         else
         {
-            // On 2.4G/USB (or when backgrounded/unfocused), fold full trigger energy into Left/Right XInput channels
-            // so physical trigger motors linked via M + BACK receive every kick, snare, and hi-hat at full strength.
-            double gripL = Math.Max(hf.LeftGrip, hf.LeftTrigger * 0.95);
-            double gripR = Math.Max(hf.RightGrip, hf.RightTrigger * 1.0);
+            // On 2.4G/USB (or when backgrounded/unfocused), route musical rhythm to Left and lyrical vocals/melody to Right
+            // in AutoAdaptive / LyricalMusical modes so both channels stay separated and musical without buzzing constantly.
+            double gripL;
+            double gripR;
+            if (spec.AudioHapticsStyle is AudioHapticsMode.LyricalMusical or AudioHapticsMode.AutoAdaptive)
+            {
+                gripL = Math.Max(hf.LeftGrip, hf.RightGrip * 0.45);
+                gripR = hf.LeftTrigger > 0.01 || hf.RightTrigger > 0.01
+                    ? Math.Max(hf.LeftTrigger, hf.RightTrigger)
+                    : hf.RightGrip * 0.55;
+            }
+            else
+            {
+                gripL = Math.Max(hf.LeftGrip, hf.LeftTrigger * 0.90);
+                gripR = Math.Max(hf.RightGrip, hf.RightTrigger * 0.95);
+            }
             int leftMotor = (int)Math.Clamp(Math.Round(gripL * 65535.0), 0, 65535);
             int rightMotor = (int)Math.Clamp(Math.Round(gripR * 65535.0), 0, 65535);
             activeSlot = ApplyXInputGrips(leftMotor, rightMotor);

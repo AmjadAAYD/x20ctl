@@ -129,6 +129,7 @@ public sealed class VibrationWorkbench
     }
     if(!shared.Armed)
     {
+     TriggerEnableGuideDialog.Show(Window.GetWindow(Body),force:false);
      await shared.Listen();
      if(shared.Failure!=null)
      {

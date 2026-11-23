@@ -158,6 +158,7 @@ internal static class LightingEffectsService
             double trebleSpike = ((t * 4.0) % 1.0) < 0.25 ? 0.85 : 0.0;
             double centroid = Math.Clamp(0.25 + 0.65 * (0.5 + 0.5 * Math.Sin(t * 1.9)), 0.0, 1.0);
             double level = Math.Clamp(Math.Max(bass * 0.85, Math.Max(mid, treble)), 0.0, 1.0);
+            double vocal = Math.Clamp(0.45 + 0.40 * Math.Sin(t * 2.1), 0.0, 1.0);
             return LightingEffectEngine.Evaluate(spec, elapsed, input with
             {
                 AudioLevel = level,
@@ -169,6 +170,11 @@ internal static class LightingEffectsService
                 AudioCentroid = centroid,
                 AudioTrebleTransient = trebleSpike,
                 AudioEnergy = 0.65,
+                AudioVocal = vocal,
+                AudioInstrument = mid,
+                AudioBassPunch = Math.Max(beatPulse, bass * 0.7),
+                AudioDynamic = level,
+                AudioVibe = AudioMusicVibe.GroovePop,
             }, pressAge);
         }
         return LightingEffectEngine.Evaluate(spec, elapsed, input, pressAge);

@@ -49,11 +49,12 @@ internal sealed class LightingEffectsSection
     private readonly List<string> palette = ["#00FFFF", "#FF00AA", "#3A6CFF"];
 
     private Border? audioStudioPanel;
-    private ColumnDefinition? bassFillCol, midFillCol, trebleFillCol;
-    private ColumnDefinition? bassEmptyCol, midEmptyCol, trebleEmptyCol;
+    private ColumnDefinition? bassFillCol, midFillCol, trebleFillCol, vocalFillCol;
+    private ColumnDefinition? bassEmptyCol, midEmptyCol, trebleEmptyCol, vocalEmptyCol;
     private ColumnDefinition? lgFillCol, rgFillCol, ltFillCol, rtFillCol;
     private ColumnDefinition? lgEmptyCol, rgEmptyCol, ltEmptyCol, rtEmptyCol;
     private Border? beatBadge;
+    private TextBlock? vibeBadgeText;
     private Button? armTriggersButton;
     private Button? test4MotorButton;
     private TextBlock? triggerArmStatusText;
@@ -86,6 +87,7 @@ internal sealed class LightingEffectsSection
 
     private static readonly (AudioReactiveStyle Style, string Label)[] AudioStyleChoices =
     [
+        (AudioReactiveStyle.AutoAdaptive, "Auto"),
         (AudioReactiveStyle.SpectrumFlow, "Spectrum"),
         (AudioReactiveStyle.BeatShift, "Beat Shift"),
         (AudioReactiveStyle.BassFire, "Bass Fire"),
@@ -95,6 +97,8 @@ internal sealed class LightingEffectsSection
 
     private static readonly (AudioHapticsMode Mode, string Label)[] AudioHapticsModeChoices =
     [
+        (AudioHapticsMode.AutoAdaptive, "Auto"),
+        (AudioHapticsMode.LyricalMusical, "Lyrical"),
         (AudioHapticsMode.QuadConcert, "4D Concert"),
         (AudioHapticsMode.TriggerPulse, "Trigger Pulse"),
         (AudioHapticsMode.StereoWave, "Stereo Wave"),
@@ -112,8 +116,8 @@ internal sealed class LightingEffectsSection
 
     private LightingEffectKind selectedKind = LightingEffectKind.SmoothHueWave;
     private int selectedWriteCap;
-    private AudioReactiveStyle selectedAudioStyle = AudioReactiveStyle.SpectrumFlow;
-    private AudioHapticsMode selectedAudioHapticsMode = AudioHapticsMode.QuadConcert;
+    private AudioReactiveStyle selectedAudioStyle = AudioReactiveStyle.AutoAdaptive;
+    private AudioHapticsMode selectedAudioHapticsMode = AudioHapticsMode.AutoAdaptive;
     private int selectedAudioHaptics;
     private string selectedRulePresetId = "builtin-hue-sweep";
     private bool syncing;
@@ -516,6 +520,20 @@ internal sealed class LightingEffectsSection
         };
         DockPanel.SetDock(beatBadge, Dock.Right);
         headRow.Children.Add(beatBadge);
+
+        vibeBadgeText = Kit.Text("IDLE", 10.5, "DS.AccentHi", FontWeights.Bold);
+        var vibeBadge = new Border
+        {
+            CornerRadius = ThemeCatalog.Round(4),
+            Padding = new(7, 2, 7, 2),
+            Margin = new(0, 0, 6, 0),
+            Background = new SolidColorBrush(Color.FromArgb(36, 167, 139, 250)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(110, 167, 139, 250)),
+            BorderThickness = new(1),
+            Child = vibeBadgeText,
+        };
+        DockPanel.SetDock(vibeBadge, Dock.Right);
+        headRow.Children.Add(vibeBadge);
         headRow.Children.Add(Kit.Text("AUDIO STUDIO · 512-PT FFT", 12, "DS.AccentHi", FontWeights.SemiBold));
         body.Children.Add(headRow);
 
@@ -563,9 +581,11 @@ internal sealed class LightingEffectsSection
         (bassFillCol, bassEmptyCol, var bassRow) = MakeBandMeter("BASS", Color.FromRgb(0xFF, 0x33, 0x77));
         (midFillCol, midEmptyCol, var midRow) = MakeBandMeter("MID", Color.FromRgb(0x00, 0xE5, 0xFF));
         (trebleFillCol, trebleEmptyCol, var trebleRow) = MakeBandMeter("TREBLE", Color.FromRgb(0xA7, 0x8B, 0xFA));
+        (vocalFillCol, vocalEmptyCol, var vocalRow) = MakeBandMeter("VOCAL", Color.FromRgb(0xFB, 0xBF, 0x24));
         body.Children.Add(bassRow);
         body.Children.Add(midRow);
         body.Children.Add(trebleRow);
+        body.Children.Add(vocalRow);
 
         body.Children.Add(Kit.Text("Reaction style", 12.5, "DS.TextSoft").Also(t => t.Margin = new(0, 4, 0, 5)));
         var styleWrap = new WrapPanel { Margin = new(-2, 0, -2, 8) };
@@ -619,9 +639,16 @@ internal sealed class LightingEffectsSection
             };
             btn.Click += async (_, _) =>
             {
+                bool enabling = captured > 0 && selectedAudioHaptics == 0;
                 selectedAudioHaptics = captured;
                 UpdateSelectionButtons();
                 SyncPreviewDraft();
+                if (!ReviewSandbox.Active && (enabling || (captured > 0 && !TriggerEnableGuideDialog.ShownThisSession)))
+                {
+                    TriggerEnableGuideDialog.Show(Window.GetWindow(EffectsView), force: false);
+                    if (Diagnostics.BrowserTriggerRumble.Shared is { Armed: false, Failure: null } shared)
+                        await shared.Listen();
+                }
                 await ApplyOrHotUpdateAudioAsync(autoStartIfStopped: captured > 0);
             };
             registerFocus?.Invoke(btn);
@@ -700,7 +727,7 @@ internal sealed class LightingEffectsSection
         var armButtons = new WrapPanel { Margin = new(0, 2, 0, 4) };
         armTriggersButton = new Button
         {
-            Content = "Arm Triggers (4-Motor)",
+            Content = "Enable Triggers",
             Style = DS.Style("ActionButton"),
             Padding = new(10, 4, 10, 4),
             FontSize = 11.5,
@@ -710,18 +737,19 @@ internal sealed class LightingEffectsSection
         };
         armTriggersButton.Click += async (_, _) =>
         {
+            TriggerEnableGuideDialog.Show(Window.GetWindow(EffectsView), force: true);
             var shared = Diagnostics.BrowserTriggerRumble.Shared;
             if (shared == null)
             {
-                testStatusText = "Trigger rumble host unavailable here.";
-                testStatusUntilTick = Environment.TickCount64 + 3500;
+                testStatusText = "Press M + Back on your pad to toggle 2.4G/USB trigger vibration.";
+                testStatusUntilTick = Environment.TickCount64 + 4500;
                 RefreshTriggerArmState();
                 return;
             }
             await shared.Listen();
             if (!shared.Armed && shared.Failure == null)
             {
-                testStatusText = "Press any controller button now to unlock LT/RT triggers.";
+                testStatusText = "Press any controller button now, then hold M + Back.";
                 testStatusUntilTick = Environment.TickCount64 + 20_000;
             }
             else
@@ -845,18 +873,20 @@ internal sealed class LightingEffectsSection
         shared?.SyncHostWindowActiveOnUiThread();
         bool armed = shared is { Armed: true };
         bool independentTriggers = shared is { Armed: true, SupportsTriggerRumble: true };
+        armTriggersButton.Visibility = Visibility.Visible;
         if (shared == null || shared.Failure != null)
         {
-            armTriggersButton.Visibility = Visibility.Visible;
-            armTriggersButton.IsEnabled = false;
+            armTriggersButton.Content = "Trigger Setup";
+            armTriggersButton.IsEnabled = true;
         }
         else if (armed)
         {
-            armTriggersButton.Visibility = Visibility.Collapsed;
+            armTriggersButton.Content = "Trigger Setup";
+            armTriggersButton.IsEnabled = true;
         }
         else
         {
-            armTriggersButton.Visibility = Visibility.Visible;
+            armTriggersButton.Content = "Enable Triggers";
             armTriggersButton.IsEnabled = true;
         }
 
@@ -933,7 +963,8 @@ internal sealed class LightingEffectsSection
             float m = Math.Clamp(0.25f + 0.55f * (0.5f + 0.5f * MathF.Sin((float)t * 3.1f)), 0.03f, 1.0f);
             float tr = Math.Clamp(0.15f + 0.65f * (0.5f + 0.5f * MathF.Sin((float)t * 7.4f)), 0.03f, 1.0f);
             float trSpike = ((t * 4.0) % 1.0) < 0.25 ? 0.85f : 0f;
-            af = new AudioFrame(Math.Max(b, m), b, m, tr, pulse, (int)(t * 2.0), 0f, b, tr, 0.5f, 0.65f, trSpike);
+            float voc = Math.Clamp(0.45f + 0.40f * MathF.Sin((float)t * 2.1f), 0.0f, 1.0f);
+            af = new AudioFrame(Math.Max(b, m), b, m, tr, pulse, (int)(t * 2.0), 0f, b, tr, 0.5f, 0.65f, trSpike, voc, voc, voc * 0.85f, m, Math.Max(pulse, b * 0.7f), Math.Max(b, m), AudioMusicVibe.GroovePop);
             hf = AudioHapticsEngine.Evaluate(af, selectedAudioHapticsMode, selectedAudioHaptics, t);
         }
         else
@@ -956,6 +987,7 @@ internal sealed class LightingEffectsSection
         SetBar(bassFillCol, bassEmptyCol, af.Bass);
         SetBar(midFillCol, midEmptyCol, af.Mid);
         SetBar(trebleFillCol, trebleEmptyCol, af.Treble);
+        SetBar(vocalFillCol, vocalEmptyCol, af.VocalPresence);
         SetBar(lgFillCol, lgEmptyCol, (float)hf.LeftGrip);
         SetBar(rgFillCol, rgEmptyCol, (float)hf.RightGrip);
         SetBar(ltFillCol, ltEmptyCol, (float)hf.LeftTrigger);
@@ -965,6 +997,21 @@ internal sealed class LightingEffectsSection
         {
             byte alpha = (byte)(af.BeatPulse > 0.30f ? 220 : 40);
             beatBadge.Background = new SolidColorBrush(Color.FromArgb(alpha, 0, 229, 255));
+        }
+
+        if (vibeBadgeText != null)
+        {
+            string vibeLabel = af.Vibe switch
+            {
+                AudioMusicVibe.AmbientChill => "AUTO: CHILL",
+                AudioMusicVibe.VocalAcoustic => "AUTO: VOCAL",
+                AudioMusicVibe.ElectronicDrop => "AUTO: DROP",
+                AudioMusicVibe.RockMetal => "AUTO: ROCK",
+                AudioMusicVibe.GroovePop => "AUTO: GROOVE",
+                _ => "IDLE",
+            };
+            if (vibeBadgeText.Text != vibeLabel)
+                vibeBadgeText.Text = vibeLabel;
         }
     }
 
