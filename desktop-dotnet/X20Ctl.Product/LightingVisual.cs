@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -10,10 +11,11 @@ namespace X20Ctl.Product;
 /// <summary>
 /// Hardware-native RGB visualizer wrapping the real X20 Pro <see cref="PhotoController"/> photo:
 /// dual thumbstick ring LEDs at catalog stick centers plus body-clipped grip/shoulder rim glow.
+/// Optimized with ~30 FPS throttling and pre-allocated mutable brushes to avoid GC churn.
 /// </summary>
 internal sealed class LightingVisual : Grid
 {
-    // X20 Pro stick centers in the standard 1536×1024 controller coordinate space.
+    // X20 Pro stick centers in the standard 1536x1024 controller coordinate space.
     private static readonly Point LeftStickCenter = new(433.0, 310.0);
     private static readonly Point RightStickCenter = new(942.0, 486.0);
     private const double StickRingRadius = 78.0;
@@ -25,12 +27,22 @@ internal sealed class LightingVisual : Grid
     private readonly List<RingLayer> stickRings = new();
     private readonly List<IslandGlow> edgeIslands = new();
 
+    private readonly SolidColorBrush[,] ringBrushes = new SolidColorBrush[2, 3];
+    private readonly SolidColorBrush edgeHaloBrush = new(Colors.Transparent);
+    private readonly SolidColorBrush edgeBloomBrush = new(Colors.Transparent);
+    private readonly SolidColorBrush edgeCoreBrush = new(Colors.Transparent);
+
     private readonly bool animate;
     private bool rendering;
     private bool streamRunning;
     private LightingFrame staticFrame = new(0xff, 0x00, 0x00, 0x50, LightingRecord.ModeSolid);
     private LightingEffectKind? activeKind;
     private string currentFinish;
+
+    private long lastRenderTick;
+    private Color lastLeft = Colors.Transparent, lastRight = Colors.Transparent;
+    private byte lastBright;
+    private bool lastWasSolid;
 
     private sealed record RingLayer(Ellipse Halo, Ellipse Bloom, Ellipse Core);
     private sealed record IslandGlow(Path Halo, Path Bloom, Path Core);
@@ -43,6 +55,10 @@ internal sealed class LightingVisual : Grid
         IsHitTestVisible = false;
         currentFinish = PadColours.Active("x20_pro");
 
+        for (int i = 0; i < 2; i++)
+            for (int j = 0; j < 3; j++)
+                ringBrushes[i, j] = new SolidColorBrush(Colors.Transparent);
+
         Children.Add(photo);
 
         if (ControllerOutlines.LoadSilhouette("x20_pro", currentFinish) is { } silhouette)
@@ -50,9 +66,9 @@ internal sealed class LightingVisual : Grid
 
         foreach (var island in ControllerOutlines.LoadIslands("x20_pro", currentFinish))
         {
-            var halo = new Path { Data = island.Line, StrokeThickness = 42, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, StrokeLineJoin = PenLineJoin.Round, Opacity = 0 };
-            var bloom = new Path { Data = island.Line, StrokeThickness = 18, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, StrokeLineJoin = PenLineJoin.Round, Opacity = 0 };
-            var core = new Path { Data = island.Line, StrokeThickness = 5, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, StrokeLineJoin = PenLineJoin.Round, Opacity = 0 };
+            var halo = new Path { Data = island.Line, Stroke = edgeHaloBrush, StrokeThickness = 42, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, StrokeLineJoin = PenLineJoin.Round, Opacity = 0 };
+            var bloom = new Path { Data = island.Line, Stroke = edgeBloomBrush, StrokeThickness = 18, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, StrokeLineJoin = PenLineJoin.Round, Opacity = 0 };
+            var core = new Path { Data = island.Line, Stroke = edgeCoreBrush, StrokeThickness = 5, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, StrokeLineJoin = PenLineJoin.Round, Opacity = 0 };
             edgeGlowLayer.Children.Add(halo);
             edgeGlowLayer.Children.Add(bloom);
             edgeGlowLayer.Children.Add(core);
@@ -61,8 +77,8 @@ internal sealed class LightingVisual : Grid
 
         Children.Add(edgeGlowLayer);
 
-        AddStickRing(LeftStickCenter);
-        AddStickRing(RightStickCenter);
+        AddStickRing(LeftStickCenter, 0);
+        AddStickRing(RightStickCenter, 1);
         Children.Add(ringLayer);
 
         Loaded += (_, _) => UpdateSubscription();
@@ -72,15 +88,16 @@ internal sealed class LightingVisual : Grid
         RenderCurrentState();
     }
 
-    private void AddStickRing(Point center)
+    private void AddStickRing(Point center, int idx)
     {
-        Ellipse MakeRing(double thickness)
+        Ellipse MakeRing(double thickness, SolidColorBrush stroke)
         {
             var ellipse = new Ellipse
             {
                 Width = StickRingRadius * 2,
                 Height = StickRingRadius * 2,
                 StrokeThickness = thickness,
+                Stroke = stroke,
                 Fill = null,
                 Opacity = 0,
             };
@@ -90,7 +107,10 @@ internal sealed class LightingVisual : Grid
             return ellipse;
         }
 
-        stickRings.Add(new RingLayer(MakeRing(26), MakeRing(12), MakeRing(4.2)));
+        stickRings.Add(new RingLayer(
+            MakeRing(26, ringBrushes[idx, 0]),
+            MakeRing(12, ringBrushes[idx, 1]),
+            MakeRing(4.2, ringBrushes[idx, 2])));
     }
 
     public void SetStaticFrame(byte r, byte g, byte b, byte brightness, byte nativeMode = LightingRecord.ModeSolid)
@@ -120,6 +140,7 @@ internal sealed class LightingVisual : Grid
         bool want = ShouldAnimate;
         if (want && !rendering)
         {
+            lastRenderTick = 0;
             CompositionTarget.Rendering += OnRenderTick;
             rendering = true;
         }
@@ -136,7 +157,14 @@ internal sealed class LightingVisual : Grid
         rendering = false;
     }
 
-    private void OnRenderTick(object? sender, EventArgs e) => RenderCurrentState();
+    private void OnRenderTick(object? sender, EventArgs e)
+    {
+        long now = Stopwatch.GetTimestamp();
+        if (lastRenderTick != 0 && Stopwatch.GetElapsedTime(lastRenderTick, now).TotalMilliseconds < 32.0)
+            return;
+        lastRenderTick = now;
+        RenderCurrentState();
+    }
 
     private void RenderCurrentState()
     {
@@ -201,6 +229,9 @@ internal sealed class LightingVisual : Grid
 
     private void PaintOff()
     {
+        if (lastBright == 0 && lastWasSolid) return;
+        lastBright = 0;
+        lastWasSolid = true;
         foreach (var r in stickRings) r.Halo.Opacity = r.Bloom.Opacity = r.Core.Opacity = 0;
         foreach (var e in edgeIslands) e.Halo.Opacity = e.Bloom.Opacity = e.Core.Opacity = 0;
     }
@@ -214,6 +245,15 @@ internal sealed class LightingVisual : Grid
     private void PaintDualColor(Color leftColor, Color rightColor, byte brightness)
     {
         if (brightness == 0) { PaintOff(); return; }
+        if (lastWasSolid && lastLeft == leftColor && lastRight == rightColor && lastBright == brightness)
+            return;
+
+        bool needAttachOrOpacity = !lastWasSolid || lastBright == 0;
+        lastLeft = leftColor;
+        lastRight = rightColor;
+        lastBright = brightness;
+        lastWasSolid = true;
+
         double level = Math.Clamp(0.18 + 0.82 * (brightness / 255.0), 0.18, 1.0);
 
         for (int i = 0; i < stickRings.Count; i++)
@@ -224,15 +264,19 @@ internal sealed class LightingVisual : Grid
                 (byte)Math.Min(255, c.G + (255 - c.G) * 0.35),
                 (byte)Math.Min(255, c.B + (255 - c.B) * 0.35));
 
-            var haloBrush = new SolidColorBrush(Color.FromArgb((byte)Math.Round(70 * level), c.R, c.G, c.B));
-            var bloomBrush = new SolidColorBrush(Color.FromArgb((byte)Math.Round(170 * level), c.R, c.G, c.B));
-            var coreBrush = new SolidColorBrush(Color.FromArgb((byte)Math.Round(245 * level), brightCore.R, brightCore.G, brightCore.B));
-            haloBrush.Freeze(); bloomBrush.Freeze(); coreBrush.Freeze();
+            ringBrushes[i, 0].Color = Color.FromArgb((byte)Math.Round(70 * level), c.R, c.G, c.B);
+            ringBrushes[i, 1].Color = Color.FromArgb((byte)Math.Round(170 * level), c.R, c.G, c.B);
+            ringBrushes[i, 2].Color = Color.FromArgb((byte)Math.Round(245 * level), brightCore.R, brightCore.G, brightCore.B);
 
             var ring = stickRings[i];
-            ring.Halo.Stroke = haloBrush; ring.Halo.Opacity = 1;
-            ring.Bloom.Stroke = bloomBrush; ring.Bloom.Opacity = 1;
-            ring.Core.Stroke = coreBrush; ring.Core.Opacity = 1;
+            if (!ReferenceEquals(ring.Halo.Stroke, ringBrushes[i, 0]))
+            {
+                ring.Halo.Stroke = ringBrushes[i, 0];
+                ring.Bloom.Stroke = ringBrushes[i, 1];
+                ring.Core.Stroke = ringBrushes[i, 2];
+            }
+            if (needAttachOrOpacity)
+                ring.Halo.Opacity = ring.Bloom.Opacity = ring.Core.Opacity = 1;
         }
 
         var avg = Color.FromRgb(
@@ -240,22 +284,28 @@ internal sealed class LightingVisual : Grid
             (byte)((leftColor.G + rightColor.G) / 2),
             (byte)((leftColor.B + rightColor.B) / 2));
 
-        var edgeHalo = new SolidColorBrush(Color.FromArgb((byte)Math.Round(34 * level), avg.R, avg.G, avg.B));
-        var edgeBloom = new SolidColorBrush(Color.FromArgb((byte)Math.Round(82 * level), avg.R, avg.G, avg.B));
-        var edgeCore = new SolidColorBrush(Color.FromArgb((byte)Math.Round(135 * level), avg.R, avg.G, avg.B));
-        edgeHalo.Freeze(); edgeBloom.Freeze(); edgeCore.Freeze();
+        edgeHaloBrush.Color = Color.FromArgb((byte)Math.Round(34 * level), avg.R, avg.G, avg.B);
+        edgeBloomBrush.Color = Color.FromArgb((byte)Math.Round(82 * level), avg.R, avg.G, avg.B);
+        edgeCoreBrush.Color = Color.FromArgb((byte)Math.Round(135 * level), avg.R, avg.G, avg.B);
 
         foreach (var island in edgeIslands)
         {
-            island.Halo.Stroke = edgeHalo; island.Halo.Opacity = 1;
-            island.Bloom.Stroke = edgeBloom; island.Bloom.Opacity = 1;
-            island.Core.Stroke = edgeCore; island.Core.Opacity = 1;
+            if (!ReferenceEquals(island.Halo.Stroke, edgeHaloBrush))
+            {
+                island.Halo.Stroke = edgeHaloBrush;
+                island.Bloom.Stroke = edgeBloomBrush;
+                island.Core.Stroke = edgeCoreBrush;
+            }
+            if (needAttachOrOpacity)
+                island.Halo.Opacity = island.Bloom.Opacity = island.Core.Opacity = 1;
         }
     }
 
     private void PaintSpectrum(byte brightness)
     {
         if (brightness == 0) { PaintOff(); return; }
+        lastWasSolid = false;
+        lastBright = brightness;
         double level = Math.Clamp(0.22 + 0.78 * (brightness / 255.0), 0.22, 1.0);
 
         Brush RingSpectrum(double alpha, double offset)

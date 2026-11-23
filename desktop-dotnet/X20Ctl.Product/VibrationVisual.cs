@@ -109,15 +109,14 @@ public sealed class VibrationVisual : Grid
     }
     private void Tick(object? sender, EventArgs e)
     {
-        var now = ((RenderingEventArgs)e).RenderingTime; if (now == last) return; last = now;
+        var now = ((RenderingEventArgs)e).RenderingTime;
+        if (last != TimeSpan.Zero && (now - last).TotalSeconds < 0.032) return;
+        last = now;
         if (started == TimeSpan.Zero) started = now;
         double t = (now - started).TotalSeconds, s = strength / 100.0;
         Phase = t % 1;
         behind.Draw(strength, t, true); over.Draw(strength, t, true);
-        // the meters breathe with the preview: the heavy motor rolls slowly, the light one flutters
-        // a motor holds a level: the meters are fixed at the strength, and the picture shakes, harder as it rises
         Levels?.Invoke(hasLiveMotors ? liveLg : s, hasLiveMotors ? liveRg : s);
-
     }
 
     /// <summary>A contour resampled at an even step, with outward normals, so light can travel along it smoothly.</summary>
@@ -282,9 +281,13 @@ public sealed class VibrationVisual : Grid
                     double trig = track.Direction >= 0 ? liveLt : liveRt;
                     if (trig <= 0.005) continue;
                     Color baseCol = track.Direction >= 0 ? Color.FromRgb(251, 146, 60) : Color.FromRgb(167, 139, 250);
-                    dc.DrawGeometry(new SolidColorBrush(Color.FromArgb((byte)Math.Clamp(trig * 95, 0, 120), baseCol.R, baseCol.G, baseCol.B)),
-                        new Pen(new SolidColorBrush(Color.FromArgb((byte)Math.Clamp(120 + trig * 135, 0, 255), baseCol.R, baseCol.G, baseCol.B)), 4.5 + trig * 3.5),
-                        track.Shape);
+                    var fill = new SolidColorBrush(Color.FromArgb((byte)Math.Clamp(trig * 95, 0, 120), baseCol.R, baseCol.G, baseCol.B));
+                    fill.Freeze();
+                    var strokeBrush = new SolidColorBrush(Color.FromArgb((byte)Math.Clamp(120 + trig * 135, 0, 255), baseCol.R, baseCol.G, baseCol.B));
+                    strokeBrush.Freeze();
+                    var pen = new Pen(strokeBrush, 4.5 + trig * 3.5);
+                    pen.Freeze();
+                    dc.DrawGeometry(fill, pen, track.Shape);
                 }
             }
             if (Body != null) dc.Pop();
@@ -317,16 +320,19 @@ public sealed class VibrationVisual : Grid
             // width (never in opacity) down to the line's own width, so it stays covered end to end.
             double span = part.Length * (part.Grip ? .55 : .6), head = part.Closed ? part.Length * q : (part.Length + span) * q;
             double core = part.Grip ? 8.5 : 6, rail = part.Grip ? 6.5 : 4.5;
-            for (int i = 0; i + 1 < part.Points.Length; i++)
+            int stride = part.Points.Length > 44 ? 2 : 1;
+            for (int i = 0; i + stride < part.Points.Length; i += stride)
             {
                 double behind = head - part.Along[i]; if (behind < 0) { if (!part.Closed) continue; behind += part.Length; } // a loop: the tail wraps past the start
                 if (behind > span) continue;
                 double x = 1 - behind / span, taper = Math.Clamp(Math.Min(x, 1 - x) / .12, 0, 1); taper = taper * taper * (3 - 2 * taper);
                 double width = rail + (core - rail) * taper;
                 var c = Rgb(Palette, part.Along[i] / part.Length * .9 + time * .05);
-                Neon(dc, c, 70 * taper * weight * (.6 + .4 * m), width * 2.6, part.Points[i], part.Points[i + 1]);
-                Neon(dc, c, 255, width, part.Points[i], part.Points[i + 1]);
-                Neon(dc, Mix(c, Colors.White, .7), 255, width * .38, part.Points[i], part.Points[i + 1]);
+                var ptA = part.Points[i];
+                var ptB = part.Points[i + stride];
+                Neon(dc, c, 70 * taper * weight * (.6 + .4 * m), width * 2.6, ptA, ptB);
+                Neon(dc, c, 255, width, ptA, ptB);
+                Neon(dc, Mix(c, Colors.White, .7), 255, width * .38, ptA, ptB);
             }
         }        /// <summary>A polyline through <paramref name="count"/> points starting at <paramref name="start"/>, wrapping round the contour.</summary>
         private static StreamGeometry Poly(Point[] points, int start, int count, bool closed)
@@ -354,10 +360,19 @@ public sealed class VibrationVisual : Grid
                 var c = Rgb(Palette, t * .9); if (hot) c = Mix(c, Colors.White, .75);
                 brush.GradientStops.Add(new GradientStop(Color.FromArgb((byte)Math.Clamp(alpha * fade * fade * (3 - 2 * fade), 0, 255), c.R, c.G, c.B), t));
             }
-            dc.DrawGeometry(null, new Pen(brush, width) { LineJoin = PenLineJoin.Round, StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round }, part.Line);
+            brush.Freeze();
+            var pen = new Pen(brush, width) { LineJoin = PenLineJoin.Round, StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round };
+            pen.Freeze();
+            dc.DrawGeometry(null, pen, part.Line);
         }
-        private static void Neon(DrawingContext dc, Color c, double alpha, double width, Point a, Point b) =>
-            dc.DrawLine(new Pen(new SolidColorBrush(Color.FromArgb((byte)Math.Clamp(alpha, 0, 255), c.R, c.G, c.B)), width) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round }, a, b);
+        private static void Neon(DrawingContext dc, Color c, double alpha, double width, Point a, Point b)
+        {
+            var brush = new SolidColorBrush(Color.FromArgb((byte)Math.Clamp(alpha, 0, 255), c.R, c.G, c.B));
+            brush.Freeze();
+            var pen = new Pen(brush, width) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round };
+            pen.Freeze();
+            dc.DrawLine(pen, a, b);
+        }
         private static Color Mix(Color a, Color b, double k) => Color.FromRgb((byte)(a.R + (b.R - a.R) * k), (byte)(a.G + (b.G - a.G) * k), (byte)(a.B + (b.B - a.B) * k));
     }
 }

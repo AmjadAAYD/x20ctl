@@ -147,6 +147,131 @@
     <Setter Property="Width" Value="46" /><Setter Property="Height" Value="46" /><Setter Property="Padding" Value="0" /><Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets" /><Setter Property="FontSize" Value="16" />
   </Style>
 
+  <!-- ===== PS5 Console Architectural Controls (crisp geometric glass panels, zero pills) ===== -->
+  <LinearGradientBrush x:Key="Console.CardFill" StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#19243B" Offset="0"/><GradientStop Color="#121A2C" Offset="1"/></LinearGradientBrush>
+  <LinearGradientBrush x:Key="Console.CardHover" StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#22314F" Offset="0"/><GradientStop Color="#18243D" Offset="1"/></LinearGradientBrush>
+  <LinearGradientBrush x:Key="Console.CardSelected" StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#1D3661" Offset="0"/><GradientStop Color="#132544" Offset="1"/></LinearGradientBrush>
+  <LinearGradientBrush x:Key="Console.PrimaryFill" StartPoint="0,0" EndPoint="1,0"><GradientStop Color="#3D8BFF" Offset="0"/><GradientStop Color="#246CE0" Offset="1"/></LinearGradientBrush>
+
+  <Style x:Key="DS.ConsoleBtn" TargetType="Button">
+    <Setter Property="FontFamily" Value="{StaticResource DS.FontBody}"/>
+    <Setter Property="FontSize" Value="12.5"/>
+    <Setter Property="FontWeight" Value="SemiBold"/>
+    <Setter Property="Foreground" Value="#DCE6F8"/>
+    <Setter Property="Background" Value="#172238"/>
+    <Setter Property="BorderBrush" Value="#2E4063"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="Padding" Value="13,6"/>
+    <Setter Property="MinHeight" Value="34"/>
+    <Setter Property="Cursor" Value="Hand"/>
+    <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+    <Setter Property="HorizontalContentAlignment" Value="Center"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Button">
+          <Border x:Name="Frame" CornerRadius="6" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}">
+            <Grid>
+              <Border x:Name="Sheen" CornerRadius="5" VerticalAlignment="Top" Height="1" Background="#28FFFFFF" IsHitTestVisible="False"/>
+              <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center">
+                <ContentPresenter.Resources><Style TargetType="TextBlock" BasedOn="{StaticResource DS.InheritText}"/></ContentPresenter.Resources>
+              </ContentPresenter>
+            </Grid>
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Frame" Property="Background" Value="#21314F"/>
+              <Setter TargetName="Frame" Property="BorderBrush" Value="#4F74AE"/>
+            </Trigger>
+            <Trigger Property="local:ConsoleUiHelpers.IsSelected" Value="True">
+              <Setter TargetName="Frame" Property="Background" Value="{StaticResource Console.CardSelected}"/>
+              <Setter TargetName="Frame" Property="BorderBrush" Value="#5AA2FF"/>
+              <Setter Property="Foreground" Value="#FFFFFF"/>
+            </Trigger>
+            <Trigger Property="IsKeyboardFocused" Value="True">
+              <Setter TargetName="Frame" Property="BorderBrush" Value="#B5DBFF"/>
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+              <Setter TargetName="Frame" Property="Opacity" Value=".86"/>
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Opacity" Value=".42"/>
+              <Setter Property="Cursor" Value="Arrow"/>
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <Style x:Key="DS.ConsoleStepBtn" TargetType="Button" BasedOn="{StaticResource DS.ConsoleBtn}">
+    <Setter Property="Padding" Value="6,2"/>
+    <Setter Property="MinHeight" Value="28"/>
+    <Setter Property="MinWidth" Value="28"/>
+    <Setter Property="FontSize" Value="12"/>
+  </Style>
+
+  <Style x:Key="DS.ConsolePrimary" TargetType="Button" BasedOn="{StaticResource DS.ConsoleBtn}">
+    <Setter Property="Background" Value="{StaticResource Console.PrimaryFill}"/>
+    <Setter Property="BorderBrush" Value="#6FB2FF"/>
+    <Setter Property="Foreground" Value="#FFFFFF"/>
+    <Setter Property="FontFamily" Value="{StaticResource DS.FontDisplay}"/>
+    <Setter Property="FontSize" Value="14"/>
+    <Setter Property="MinHeight" Value="42"/>
+    <Setter Property="Padding" Value="18,8"/>
+  </Style>
+
+  <Style x:Key="DS.ConsoleCard" TargetType="Button">
+    <Setter Property="FontFamily" Value="{StaticResource DS.FontBody}"/>
+    <Setter Property="FontSize" Value="13"/>
+    <Setter Property="FontWeight" Value="SemiBold"/>
+    <Setter Property="Foreground" Value="{StaticResource DS.Text}"/>
+    <Setter Property="Background" Value="{StaticResource Console.CardFill}"/>
+    <Setter Property="BorderBrush" Value="#2A3A58"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="Padding" Value="12,9"/>
+    <Setter Property="MinHeight" Value="48"/>
+    <Setter Property="Cursor" Value="Hand"/>
+    <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Button">
+          <Border x:Name="Frame" CornerRadius="8" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}">
+            <Grid>
+              <Border x:Name="Sheen" CornerRadius="7" VerticalAlignment="Top" Height="1" Background="#1EFFFFFF" IsHitTestVisible="False"/>
+              <Border x:Name="AccentBar" Width="3" Margin="0,6,0,6" HorizontalAlignment="Left" CornerRadius="1.5" Background="#5AA2FF" Opacity="0" IsHitTestVisible="False"/>
+              <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center">
+                <ContentPresenter.Resources><Style TargetType="TextBlock" BasedOn="{StaticResource DS.InheritText}"/></ContentPresenter.Resources>
+              </ContentPresenter>
+            </Grid>
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Frame" Property="Background" Value="{StaticResource Console.CardHover}"/>
+              <Setter TargetName="Frame" Property="BorderBrush" Value="#4D71AB"/>
+            </Trigger>
+            <Trigger Property="local:ConsoleUiHelpers.IsSelected" Value="True">
+              <Setter TargetName="Frame" Property="Background" Value="{StaticResource Console.CardSelected}"/>
+              <Setter TargetName="Frame" Property="BorderBrush" Value="#5AA2FF"/>
+              <Setter TargetName="AccentBar" Property="Opacity" Value="1"/>
+              <Setter Property="Foreground" Value="#FFFFFF"/>
+            </Trigger>
+            <Trigger Property="IsKeyboardFocused" Value="True">
+              <Setter TargetName="Frame" Property="BorderBrush" Value="#B5DBFF"/>
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+              <Setter TargetName="Frame" Property="Opacity" Value=".88"/>
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Opacity" Value=".45"/>
+              <Setter Property="Cursor" Value="Arrow"/>
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
   <!-- ===== Pills (segmented choices, as in the scanner concepts) ===== -->
   <Style x:Key="DS.Pill" TargetType="RadioButton">
     <Setter Property="FontFamily" Value="{StaticResource DS.FontDisplay}" /><Setter Property="FontSize" Value="16" /><Setter Property="FontWeight" Value="SemiBold" /><Setter Property="Foreground" Value="{StaticResource DS.TextSoft}" />
@@ -198,23 +323,31 @@
     </ControlTemplate></Setter.Value></Setter>
   </Style>
 
-  <!-- ===== Slider (luminous fill + white thumb) ===== -->
+  <!-- ===== Slider (full hit-test track, smooth click+drag, zero DropShadow shader overhead) ===== -->
   <Style x:Key="DS.SliderThumb" TargetType="Thumb">
     <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Thumb">
-      <Ellipse Width="22" Height="22" Fill="White"><Ellipse.Effect><DropShadowEffect Color="{StaticResource DS.C.AccentGlow}" BlurRadius="14" ShadowDepth="0" Opacity=".9" /></Ellipse.Effect></Ellipse>
+      <Grid Width="24" Height="24" Background="Transparent" Cursor="Hand">
+        <Ellipse x:Name="Halo" Width="22" Height="22" Fill="#365AA2FF" />
+        <Ellipse x:Name="Core" Width="14" Height="14" Fill="#F4F8FF" Stroke="#3D8BFF" StrokeThickness="1.5" />
+      </Grid>
+      <ControlTemplate.Triggers>
+        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Halo" Property="Fill" Value="#5C5AA2FF" /><Setter TargetName="Core" Property="Width" Value="16" /><Setter TargetName="Core" Property="Height" Value="16" /></Trigger>
+        <Trigger Property="IsDragging" Value="True"><Setter TargetName="Halo" Property="Fill" Value="#7A5AA2FF" /><Setter TargetName="Core" Property="Fill" Value="#FFFFFF" /></Trigger>
+      </ControlTemplate.Triggers>
     </ControlTemplate></Setter.Value></Setter>
   </Style>
   <Style x:Key="DS.SliderRepeat" TargetType="RepeatButton">
     <Setter Property="Focusable" Value="False" /><Setter Property="IsTabStop" Value="False" />
-    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="RepeatButton"><Border Background="Transparent" /></ControlTemplate></Setter.Value></Setter>
+    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="RepeatButton"><Grid Background="Transparent" /></ControlTemplate></Setter.Value></Setter>
   </Style>
   <Style x:Key="DS.Slider" TargetType="Slider">
     <Setter Property="FocusVisualStyle" Value="{StaticResource DS.NoFocusVisual}" /><Setter Property="Height" Value="30" /><Setter Property="IsMoveToPointEnabled" Value="True" />
+    <Setter Property="local:SmoothSliderBehavior.EnableTrackDrag" Value="True" />
     <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Slider">
-      <Grid VerticalAlignment="Center">
-        <Border x:Name="TrackBg" Height="6" CornerRadius="3" Background="{StaticResource DS.Track}" />
-        <Track x:Name="PART_Track">
-          <Track.DecreaseRepeatButton><RepeatButton Style="{StaticResource DS.SliderRepeat}" Command="Slider.DecreaseLarge"><RepeatButton.Template><ControlTemplate TargetType="RepeatButton"><Border Height="6" CornerRadius="3" Background="{StaticResource DS.AccentFill}" /></ControlTemplate></RepeatButton.Template></RepeatButton></Track.DecreaseRepeatButton>
+      <Grid Background="Transparent" VerticalAlignment="Stretch" Cursor="Hand">
+        <Border x:Name="TrackBg" Height="6" VerticalAlignment="Center" CornerRadius="3" Background="{StaticResource DS.Track}" />
+        <Track x:Name="PART_Track" VerticalAlignment="Center">
+          <Track.DecreaseRepeatButton><RepeatButton Style="{StaticResource DS.SliderRepeat}" Command="Slider.DecreaseLarge"><RepeatButton.Template><ControlTemplate TargetType="RepeatButton"><Grid Height="30" Background="Transparent"><Border Height="6" VerticalAlignment="Center" CornerRadius="3" Background="{StaticResource DS.AccentFill}" /></Grid></ControlTemplate></RepeatButton.Template></RepeatButton></Track.DecreaseRepeatButton>
           <Track.IncreaseRepeatButton><RepeatButton Style="{StaticResource DS.SliderRepeat}" Command="Slider.IncreaseLarge" /></Track.IncreaseRepeatButton>
           <Track.Thumb><Thumb Style="{StaticResource DS.SliderThumb}" /></Track.Thumb>
         </Track>
@@ -242,15 +375,15 @@
     <Setter Property="Width" Value="32"/>
     <Setter Property="Height" Value="Auto"/>
     <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Slider">
-      <Grid>
-        <Border x:Name="TrackBg" Width="8" CornerRadius="4" Background="{StaticResource DS.Track}"/>
-        <Track x:Name="PART_Track" Orientation="{TemplateBinding Orientation}">
-          <Track.DecreaseRepeatButton><RepeatButton Style="{StaticResource DS.SliderRepeat}" Command="Slider.DecreaseLarge"><RepeatButton.Template><ControlTemplate TargetType="RepeatButton"><Border Width="8" CornerRadius="4" Background="{StaticResource DS.AccentFill}"/></ControlTemplate></RepeatButton.Template></RepeatButton></Track.DecreaseRepeatButton>
+      <Grid Background="Transparent" HorizontalAlignment="Stretch" Cursor="Hand">
+        <Border x:Name="TrackBg" Width="6" HorizontalAlignment="Center" CornerRadius="3" Background="{StaticResource DS.Track}"/>
+        <Track x:Name="PART_Track" Orientation="{TemplateBinding Orientation}" HorizontalAlignment="Center">
+          <Track.DecreaseRepeatButton><RepeatButton Style="{StaticResource DS.SliderRepeat}" Command="Slider.DecreaseLarge"><RepeatButton.Template><ControlTemplate TargetType="RepeatButton"><Grid Width="32" Background="Transparent"><Border Width="6" HorizontalAlignment="Center" CornerRadius="3" Background="{StaticResource DS.AccentFill}"/></Grid></ControlTemplate></RepeatButton.Template></RepeatButton></Track.DecreaseRepeatButton>
           <Track.IncreaseRepeatButton><RepeatButton Style="{StaticResource DS.SliderRepeat}" Command="Slider.IncreaseLarge"/></Track.IncreaseRepeatButton>
           <Track.Thumb><Thumb Style="{StaticResource DS.SliderThumb}"/></Track.Thumb>
         </Track>
       </Grid>
-      <ControlTemplate.Triggers><Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="TrackBg" Property="Background" Value="#3C4C78"/></Trigger></ControlTemplate.Triggers>
+      <ControlTemplate.Triggers><Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="TrackBg" Property="Background" Value="#3C4C78"/></Trigger><Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value=".4" /></Trigger></ControlTemplate.Triggers>
     </ControlTemplate></Setter.Value></Setter>
   </Style>
 
