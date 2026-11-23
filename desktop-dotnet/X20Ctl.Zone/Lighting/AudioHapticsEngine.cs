@@ -125,16 +125,23 @@ public static class AudioHapticsEngine
                 break;
         }
 
-        static double Gate(double v, double gain)
+        static double GateGrip(double v, double gain)
         {
             double scaled = Math.Clamp(v * gain, 0.0, 1.0);
             return scaled >= 0.06 ? scaled : 0.0;
         }
 
+        static double GateTrigger(double v, double gain)
+        {
+            double scaled = Math.Clamp(v * gain, 0.0, 1.0);
+            if (scaled < 0.06) return 0.0;
+            return Math.Clamp(0.24 + 0.76 * ((scaled - 0.06) / 0.94), 0.0, 1.0);
+        }
+
         return new HapticsFrame(
-            Gate(lg, scale),
-            Gate(rg, scale),
-            Gate(lt, scale),
-            Gate(rt, scale));
+            GateGrip(lg, scale),
+            GateGrip(rg, scale),
+            GateTrigger(lt, scale),
+            GateTrigger(rt, scale));
     }
 }

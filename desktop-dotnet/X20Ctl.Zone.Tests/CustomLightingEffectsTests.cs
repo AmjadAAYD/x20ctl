@@ -511,6 +511,13 @@ public sealed class CustomLightingEffectsTests
         var whisper = new AudioFrame(0.05f, 0.05f, 0.05f, 0.05f, 0f, 0, 0f);
         var gated = AudioHapticsEngine.Evaluate(whisper, AudioHapticsMode.QuadConcert, 35);
         Assert.True(gated.IsSilent);
+
+        // Above-threshold trigger signals at Light (35%) overcome the 24% ERM trigger stiction floor.
+        var lightHit = new AudioFrame(0.30f, 0.30f, 0.25f, 0.30f, 0.25f, 1, 0f, LeftLevel: 0.3f, RightLevel: 0.3f, TrebleTransient: 0.25f);
+        var lightEval = AudioHapticsEngine.Evaluate(lightHit, AudioHapticsMode.TriggerPulse, 35);
+        Assert.InRange(lightEval.LeftTrigger, 0.24, 1.0);
+        Assert.InRange(lightEval.RightTrigger, 0.24, 1.0);
+        Assert.True(lightEval.LeftTrigger > lightEval.LeftGrip);
     }
 
     [Fact]
