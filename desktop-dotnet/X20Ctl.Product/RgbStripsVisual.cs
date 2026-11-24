@@ -264,20 +264,31 @@ function drawStrip(x, y, w, h, seed, tSec, label) {
   ctx.fill();
   ctx.stroke();
 
-  const pad = 4, innerW = w - pad * 2, gap = 3;
+  const pad = 4, innerW = w - pad * 2, gap = 2.5;
   const segW = (innerW - gap * (leds - 1)) / leds;
   for (let i = 0; i < leds; i++) {
     const u = i / (leds - 1);
     const [r, g, b, alpha] = ledSample((u + seed * 0.25) % 1.0, tSec);
-    ctx.fillStyle = `rgba(${r},${g},${b},${Math.min(1, 0.16 + alpha * 0.84)})`;
+    ctx.fillStyle = `rgba(${r},${g},${b},${Math.min(1, 0.20 + alpha * 0.80)})`;
     ctx.beginPath();
-    ctx.roundRect(x + pad + i * (segW + gap), y + 4, Math.max(2, segW), h - 8, 2);
+    ctx.roundRect(x + pad + i * (segW + gap), y + 4, Math.max(2, segW), h - 8, 3);
     ctx.fill();
   }
 
+  // Soft frosted acrylic diffuser core across the strip
+  const diff = ctx.createLinearGradient(x, y, x + w, y);
+  const c0 = ledSample(seed * 0.25, tSec), c1 = ledSample((0.5 + seed * 0.25) % 1.0, tSec), c2 = ledSample((1.0 + seed * 0.25) % 1.0, tSec);
+  diff.addColorStop(0, `rgba(${c0[0]},${c0[1]},${c0[2]},${c0[3] * 0.34})`);
+  diff.addColorStop(0.5, `rgba(${c1[0]},${c1[1]},${c1[2]},${c1[3] * 0.44})`);
+  diff.addColorStop(1, `rgba(${c2[0]},${c2[1]},${c2[2]},${c2[3] * 0.34})`);
+  ctx.fillStyle = diff;
+  ctx.beginPath();
+  ctx.roundRect(x + 2, y + 2, w - 4, h - 4, 3);
+  ctx.fill();
+
   ctx.fillStyle = themeMuted;
   ctx.font = '600 9.5px Consolas, monospace';
-  ctx.fillText(label, x, y - 5);
+  ctx.fillText(label, x, y - 6);
 }
 
 function render(ms) {
@@ -301,11 +312,12 @@ function render(ms) {
 
   const t = ms * 0.001;
   const m = 18;
-  const usableH = H - 28;
-  const stripH = Math.max(18, Math.min(26, usableH * 0.18));
-  drawStrip(m, 22, W - m * 2, stripH, 0.0, t, 'LEFT GRIP STRIP');
-  drawStrip(m, 22 + usableH * 0.34, W - m * 2, stripH, 0.33, t, 'STICK RINGS & CENTER BRIDGE');
-  drawStrip(m, 22 + usableH * 0.68, W - m * 2, stripH, 0.66, t, 'RIGHT GRIP STRIP');
+  const usableH = H - 30;
+  const stripH = Math.max(22, Math.min(34, usableH * 0.26));
+  const y1 = Math.max(24, H * 0.28 - stripH * 0.5);
+  const y2 = Math.max(y1 + stripH + 26, H * 0.68 - stripH * 0.5);
+  drawStrip(m, y1, W - m * 2, stripH, 0.0, t, 'LEFT LED STRIP');
+  drawStrip(m, y2, W - m * 2, stripH, 0.5, t, 'RIGHT LED STRIP');
 
   requestAnimationFrame(render);
 }
@@ -388,11 +400,11 @@ requestAnimationFrame(render);
             aura.Freeze();
             dc.DrawEllipse(aura, null, new Point(w * 0.5, h * 0.52), w * 0.52, h * 0.48);
 
-            string[] labels = ["LEFT GRIP STRIP", "STICK RINGS & CENTER BRIDGE", "RIGHT GRIP STRIP"];
+            string[] labels = ["LEFT LED STRIP", "RIGHT LED STRIP"];
             double marginX = 14;
             double innerW = Math.Max(40, w - marginX * 2);
-            double slotH = (h - 14) / 3.0;
-            double barH = Math.Clamp(slotH * 0.44, 14, 22);
+            double slotH = (h - 14) / 2.0;
+            double barH = Math.Clamp(slotH * 0.44, 22, 32);
             const int leds = 16;
 
             var shellBrush = new SolidColorBrush(Color.FromArgb(145, t.Deep.R, t.Deep.G, t.Deep.B));
@@ -402,24 +414,24 @@ requestAnimationFrame(render);
             var labelBrush = new SolidColorBrush(Color.FromArgb(205, t.Muted.R, t.Muted.G, t.Muted.B));
             labelBrush.Freeze();
 
-            for (int row = 0; row < 3; row++)
+            for (int row = 0; row < 2; row++)
             {
-                double topY = 8 + row * slotH;
+                double topY = 12 + row * slotH;
                 var ft = new FormattedText(labels[row], CultureInfo.CurrentUICulture, FlowDirection.LeftToRight, Mono, 9.5, labelBrush, dpi);
                 dc.DrawText(ft, new Point(marginX, topY));
 
-                double barY = topY + ft.Height + 3;
-                dc.DrawRoundedRectangle(shellBrush, rulePen, new Rect(marginX, barY, innerW, barH), 4, 4);
+                double barY = topY + ft.Height + 5;
+                dc.DrawRoundedRectangle(shellBrush, rulePen, new Rect(marginX, barY, innerW, barH), 5, 5);
 
                 double pad = 4;
                 double gap = 3;
                 double ledW = Math.Max(2, (innerW - pad * 2 - gap * (leds - 1)) / leds);
                 for (int i = 0; i < leds; i++)
                 {
-                    var ledCol = SampleLed(i / (double)(leds - 1), row * 0.33, out double la);
+                    var ledCol = SampleLed(i / (double)(leds - 1), row * 0.5, out double la);
                     var b = new SolidColorBrush(Color.FromArgb((byte)Math.Clamp(la * 255, 25, 255), ledCol.R, ledCol.G, ledCol.B));
                     b.Freeze();
-                    dc.DrawRoundedRectangle(b, null, new Rect(marginX + pad + i * (ledW + gap), barY + 3, ledW, Math.Max(6, barH - 6)), 2, 2);
+                    dc.DrawRoundedRectangle(b, null, new Rect(marginX + pad + i * (ledW + gap), barY + 4, ledW, Math.Max(8, barH - 8)), 3, 3);
                 }
             }
         }
