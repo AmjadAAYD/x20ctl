@@ -45,6 +45,7 @@ public sealed class TrayIcon : IDisposable
 
     public void HideToTray()
     {
+        App.CloseAllTooltips();
         window.Hide();
     }
     public void Restore()

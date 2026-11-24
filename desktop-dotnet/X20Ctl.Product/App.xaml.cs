@@ -8,7 +8,12 @@ public partial class App : Application
     // keyboard focus, so focus moved while X20CTL was in the background put one over whatever was on screen. Tooltips now
     // open only while one of X20CTL's windows is active, and close the moment none is.
     static readonly HashSet<System.Windows.Controls.ToolTip> openTips = [];
-    static bool Inside => Current?.Windows.OfType<Window>().Any(w => w.IsActive) == true;
+    static bool Inside => Current?.Windows.OfType<Window>().Any(w => w.IsVisible && w.WindowState != WindowState.Minimized && w.IsActive) == true;
+    internal static void CloseAllTooltips()
+    {
+        foreach (var tip in openTips.ToArray())
+            tip.IsOpen = false;
+    }
     static void KeepTooltipsInside()
     {
         EventManager.RegisterClassHandler(typeof(FrameworkElement), FrameworkElement.ToolTipOpeningEvent,
@@ -17,7 +22,7 @@ public partial class App : Application
             new RoutedEventHandler((s, _) => { var tip = (System.Windows.Controls.ToolTip)s; if (!Inside) tip.IsOpen = false; else openTips.Add(tip); }));
         EventManager.RegisterClassHandler(typeof(System.Windows.Controls.ToolTip), System.Windows.Controls.ToolTip.ClosedEvent,
             new RoutedEventHandler((s, _) => openTips.Remove((System.Windows.Controls.ToolTip)s)));
-        Current.Deactivated += (_, _) => { foreach (var tip in openTips.ToArray()) tip.IsOpen = false; };
+        Current.Deactivated += (_, _) => CloseAllTooltips();
     }
 
     private async void OnStartup(object sender, StartupEventArgs e)

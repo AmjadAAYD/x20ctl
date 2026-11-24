@@ -21,6 +21,7 @@ public sealed class ProductWindow : Window
     private const int HapticsHotkeyId = 0x2048;
     private bool hapticsHotkeyRegistered;
     private DateTimeOffset lastEcoBleRefreshUtc = DateTimeOffset.MinValue;
+    private DateTimeOffset lastEcoBatteryPollUtc = DateTimeOffset.MinValue;
     public DesignStage Stage { get; } = new();
     private readonly WindowChrome chrome = new(){CaptionHeight=58,ResizeBorderThickness=new(0),GlassFrameThickness=new(0),CornerRadius=new(16),UseAeroCaptionButtons=false};
     public ProductWindow(bool reducedMotion=false,string? assignmentPath=null,bool startMaximized=true,bool firstRun=false,Action<string>? openSupport=null,bool nativeEngine=false,bool fullscreen=false,bool trayIcon=false)
@@ -52,16 +53,22 @@ public sealed class ProductWindow : Window
         Loaded+=(_,_)=>{if(StartsMaximized&&WindowState!=WindowState.Maximized)WindowState=WindowState.Maximized;if(WindowState==WindowState.Maximized)ApplyWorkArea();if(nativeEngine)_=Host.InitializeNativeEngineAsync();Host.RequestAutomaticTelemetryRefresh();};
         // hidden in the tray or minimized, nothing is drawn: the stage leaves the render tree, so its endless background
         // motion stops costing CPU while PC mode runs for hours (its animations keep their place and resume on return)
-        void Rest(){Stage.Visibility=IsVisible&&WindowState!=WindowState.Minimized?Visibility.Visible:Visibility.Hidden;}
+        void Rest()
+        {
+            bool shown = IsVisible && WindowState != WindowState.Minimized;
+            if (!shown) App.CloseAllTooltips();
+            Stage.Visibility = shown ? Visibility.Visible : Visibility.Hidden;
+        }
         IsVisibleChanged+=(_,_)=>Rest();StateChanged+=(_,_)=>Rest();
         // fullscreen follows the focus: covering the monitor (and telling the shell so, which is what makes it hide the
         // taskbar for sure) only while this window is the active one; otherwise it sits above the taskbar
-        Activated+=(_,_)=>FitToFocus();Deactivated+=(_,_)=>FitToFocus();
+        Activated+=(_,_)=>FitToFocus();Deactivated+=(_,_)=>{App.CloseAllTooltips();FitToFocus();};
         Closed+=async(_,_)=>{
+            App.CloseAllTooltips();
             if(hapticsHotkeyRegistered){var hwnd=new WindowInteropHelper(this).Handle;if(hwnd!=IntPtr.Zero)UnregisterHotKey(hwnd,HapticsHotkeyId);hapticsHotkeyRegistered=false;}
             tray?.Dispose();batteryTimer?.Stop();liveBatteryTimer?.Stop();Host.MouseMode?.Dispose();Host.PcMode?.Dispose();await Host.StopNativeEngineAsync();};
         // the tray icon (WinForms, about 0.1 s to start) comes once the window has drawn, so it never holds back the first frame
-        if(trayIcon){Closing+=(_,e)=>{if(tray==null||tray.Quitting)return;e.Cancel=true;tray.HideToTray();};ContentRendered+=(_,_)=>Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle,new Action(()=>{
+        if(trayIcon){Closing+=(_,e)=>{App.CloseAllTooltips();if(tray==null||tray.Quitting)return;e.Cancel=true;tray.HideToTray();};ContentRendered+=(_,_)=>Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle,new Action(()=>{
             if(tray!=null)return;tray=new TrayIcon(this);
             if(Host.PcMode is{} pc){string Status()=>pc.State==PcModeState.Active?(pc.Suspended?"X20CTL · PC mode paused":"X20CTL · PC mode active"):"X20CTL · Controller Studio";tray.SetStatus(Status());pc.Changed+=()=>Dispatcher.BeginInvoke(()=>tray?.SetStatus(Status()));pc.Notice+=text=>Dispatcher.BeginInvoke(()=>tray?.Notify("PC mode",text));}
             if(Host.MouseMode is{} mouse){tray.AddToggle("Controller as mouse",()=>mouse.Active,on=>mouse.Active=on);mouse.Notice+=text=>Dispatcher.BeginInvoke(()=>tray?.Notify("Controller as mouse",text));}
@@ -132,7 +139,15 @@ public sealed class ProductWindow : Window
         }
         if(Host.PcMode is {} pc)pc.EnabledChanged+=ShowTrayBattery;
         Host.TelemetryRefreshed+=Read;WatchLiveBattery();
-        batteryTimer=new(System.Windows.Threading.DispatcherPriority.Background){Interval=TimeSpan.FromMinutes(2)};batteryTimer.Tick+=(_,_)=>Read();batteryTimer.Start();Read();
+        batteryTimer=new(System.Windows.Threading.DispatcherPriority.Background){Interval=TimeSpan.FromMinutes(2)};
+        batteryTimer.Tick+=(_,_)=>
+        {
+            var now=DateTimeOffset.UtcNow;
+            if(UniversalHapticsService.IsPowerSavingActive&&(now-lastEcoBatteryPollUtc).TotalMinutes<5)return;
+            lastEcoBatteryPollUtc=now;
+            Read();
+        };
+        batteryTimer.Start();Read();
     }
     /// <summary>Home / Guide: show X20CTL fullscreen in front of everything (from the tray too), then go to the Dashboard.</summary>
     public void BringHome()
