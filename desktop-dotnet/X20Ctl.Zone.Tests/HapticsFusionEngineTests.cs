@@ -536,4 +536,130 @@ public sealed class HapticsFusionEngineTests
         Assert.True(peakLg >= 0.40, $"Expected punchy custom-role LeftGrip >= 0.40 on loud drop, got {peakLg:F4}");
         Assert.True(peakLt >= 0.30, $"Expected expressive custom-role vocal trigger >= 0.30 on loud chorus, got {peakLt:F4}");
     }
+
+    [Fact]
+    public void MusicMode_VocalsDriveHighWaspTrigger_InstrumentalCapsAtMid()
+    {
+        var engine = new HapticsFusionEngine();
+        var tuning = HapticsTuning.DefaultFor(HapticsGenreProfile.Music);
+        var pad = new LivePadInput(0, 0, 0, 0, 0, 0, 0, false);
+
+        var vocalAudio = new AudioFrame() with
+        {
+            Level = 0.90f,
+            Bass = 0.65f,
+            Mid = 0.85f,
+            Treble = 0.68f,
+            BeatPulse = 0.70f,
+            VocalPresence = 0.90f,
+            VocalWarmth = 0.88f,
+            VocalAir = 0.82f,
+            InstrumentEnergy = 0.70f,
+            DynamicContrast = 0.85f,
+            RawRms = 0.22f,
+            RawPeakSpike = 0.06f,
+            Spectrum = new AudioSpectrum8(0.4f, 0.6f, 0.7f, 0.9f, 0.85f, 0.6f, 0.4f, 0.3f),
+        };
+
+        double peakVocalTrig = 0;
+        for (int i = 0; i < 20; i++)
+        {
+            var e = engine.Evaluate(vocalAudio, pad, HapticsGenreProfile.Music, tuning, dtSeconds: 0.02);
+            peakVocalTrig = Math.Max(peakVocalTrig, Math.Max(e.Motors.LeftTrigger, e.Motors.RightTrigger));
+        }
+
+        // Singer stops singing -> loud instrumental section only
+        var instOnly = vocalAudio with
+        {
+            VocalPresence = 0f,
+            VocalWarmth = 0f,
+            VocalAir = 0f,
+            BeatPulse = 0.85f,
+            BassPunch = 0.85f,
+            InstrumentEnergy = 0.88f,
+            RawRms = 0.22f,
+            Spectrum = new AudioSpectrum8(0.6f, 0.8f, 0.7f, 0.2f, 0.2f, 0.4f, 0.5f, 0.3f),
+        };
+
+        // Let vocal classifier release envelope settle cleanly before sampling instrumental cap
+        for (int i = 0; i < 25; i++)
+            engine.Evaluate(instOnly, pad, HapticsGenreProfile.Music, tuning, dtSeconds: 0.02);
+
+        double peakInstTrig = 0;
+        for (int i = 0; i < 25; i++)
+        {
+            var e = engine.Evaluate(instOnly, pad, HapticsGenreProfile.Music, tuning, dtSeconds: 0.02);
+            peakInstTrig = Math.Max(peakInstTrig, Math.Max(e.Motors.LeftTrigger, e.Motors.RightTrigger));
+        }
+
+        Assert.True(peakVocalTrig >= 0.55, $"Expected strong vocal trigger peak >= 0.55, got {peakVocalTrig:F4}");
+        Assert.True(peakInstTrig is > 0.10 and <= 0.46, $"Expected instrumental trigger capped in mid (0.10, 0.46], got {peakInstTrig:F4}");
+        Assert.True(peakVocalTrig > peakInstTrig + 0.20, $"Expected vocal trigger ({peakVocalTrig:F4}) > instrumental mid ({peakInstTrig:F4}) + 0.20");
+    }
+
+    [Fact]
+    public void MusicMode_TriggersFluctuateDynamicallyOverTime()
+    {
+        var engine = new HapticsFusionEngine();
+        var tuning = HapticsTuning.DefaultFor(HapticsGenreProfile.Music);
+        var pad = new LivePadInput(0, 0, 0, 0, 0, 0, 0, false);
+
+        var vocalAudio = new AudioFrame() with
+        {
+            Level = 0.88f,
+            Bass = 0.60f,
+            Mid = 0.82f,
+            Treble = 0.65f,
+            BeatPulse = 0.60f,
+            VocalPresence = 0.85f,
+            VocalWarmth = 0.84f,
+            VocalAir = 0.78f,
+            InstrumentEnergy = 0.68f,
+            DynamicContrast = 0.75f,
+            SpectralCentroid = 0.52f,
+            RawRms = 0.20f,
+            RawPeakSpike = 0.04f,
+            Spectrum = new AudioSpectrum8(0.4f, 0.5f, 0.7f, 0.85f, 0.8f, 0.5f, 0.4f, 0.2f),
+        };
+
+        double minTrig = 1.0, maxTrig = 0.0;
+        for (int i = 0; i < 45; i++)
+        {
+            var e = engine.Evaluate(vocalAudio, pad, HapticsGenreProfile.Music, tuning, dtSeconds: 0.02);
+            if (i >= 5)
+            {
+                minTrig = Math.Min(minTrig, e.Motors.LeftTrigger);
+                maxTrig = Math.Max(maxTrig, e.Motors.LeftTrigger);
+            }
+        }
+
+        Assert.True(maxTrig - minTrig >= 0.12, $"Expected dynamic trigger fluctuation >= 0.12, got min={minTrig:F4}, max={maxTrig:F4}");
+    }
+
+    [Fact]
+    public void AudioHapticsEngine_ElectronicDropInstrumental_CapsTriggersAtMid()
+    {
+        var dropInst = new AudioFrame(
+            Level: 0.92f,
+            Bass: 0.90f,
+            Mid: 0.75f,
+            Treble: 0.82f,
+            BeatPulse: 0.90f,
+            BeatCount: 4,
+            StereoPan: 0f,
+            Energy: 0.85f,
+            TrebleTransient: 0.85f,
+            VocalPresence: 0.0f,
+            InstrumentEnergy: 0.85f,
+            BassPunch: 0.90f,
+            DynamicContrast: 0.90f,
+            Vibe: AudioMusicVibe.ElectronicDrop,
+            RawRms: 0.22f,
+            RawPeakSpike: 0.09f);
+
+        var h = AudioHapticsEngine.Evaluate(dropInst, AudioHapticsMode.AutoAdaptive, 100, elapsedSeconds: 0.25);
+        Assert.True(h.LeftGrip >= 0.55, $"Expected strong LeftGrip drop punch, got {h.LeftGrip:F4}");
+        Assert.True(h.LeftTrigger <= 0.46, $"Expected instrumental LeftTrigger <= 0.46, got {h.LeftTrigger:F4}");
+        Assert.True(h.RightTrigger <= 0.46, $"Expected instrumental RightTrigger <= 0.46, got {h.RightTrigger:F4}");
+    }
 }

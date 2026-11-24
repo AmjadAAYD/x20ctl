@@ -216,18 +216,27 @@ public static class AudioHapticsEngine
                         }
                         else
                         {
-                            bool bigDrop = beat > 0.55 && energy > 0.52;
-                            lt = bigDrop ? beat * 0.85 : 0.0;
-                            rt = bigDrop || transient > 0.58 ? Math.Max(transient * 0.82, beat * 0.65) : 0.0;
+                            double midWave = 0.55 + 0.45 * (0.5 + 0.5 * Math.Sin(elapsedSeconds * 7.5));
+                            lt = Math.Clamp((0.12 + 0.20 * beat) * dynCurve * midWave, 0.0, 0.34);
+                            rt = Math.Clamp((0.12 + 0.20 * Math.Max(transient, beat * 0.85)) * dynCurve * midWave, 0.0, 0.34);
                         }
                         break;
 
                     case AudioMusicVibe.RockMetal:
-                        // Transient-first punch: ignore steady distorted guitar drone, punch grips on kick/snare/riff spikes, triggers lead vocal.
+                        // Transient-first punch: ignore steady distorted guitar drone, punch grips on kick/snare/riff spikes, triggers lead vocal (mid cap without vocals).
                         lg = Math.Max(beat * 0.96, Math.Pow(effBassPunch, 1.45) * 0.88) * dynCurve;
                         rg = Math.Max(transient * 0.92, Math.Pow(treble, 1.75) * 0.72) * dynCurve;
-                        lt = vocal >= 0.06 ? Math.Clamp(Math.Pow(vocalWarm, 1.10), 0.0, 1.0) : 0.0;
-                        rt = vocal >= 0.06 ? Math.Clamp(Math.Pow(vocalAir, 1.15), 0.0, 1.0) : 0.0;
+                        if (vocal >= 0.06)
+                        {
+                            lt = Math.Clamp(Math.Pow(vocalWarm, 1.10), 0.0, 1.0);
+                            rt = Math.Clamp(Math.Pow(vocalAir, 1.15), 0.0, 1.0);
+                        }
+                        else
+                        {
+                            double midWave = 0.55 + 0.45 * (0.5 + 0.5 * Math.Sin(elapsedSeconds * 7.5));
+                            lt = Math.Clamp((0.11 + 0.19 * beat) * dynCurve * midWave, 0.0, 0.32);
+                            rt = Math.Clamp((0.11 + 0.19 * Math.Max(transient, treble * 0.65)) * dynCurve * midWave, 0.0, 0.32);
+                        }
                         break;
 
                     case AudioMusicVibe.GroovePop:
@@ -361,6 +370,11 @@ public static class AudioHapticsEngine
                 rg *= rgScale;
                 lt *= rgScale;
                 rt *= rgScale;
+                if (vocal < 0.06 && roles.IsAllAuto)
+                {
+                    lt = Math.Min(lt, 0.34);
+                    rt = Math.Min(rt, 0.34);
+                }
             }
         }
 

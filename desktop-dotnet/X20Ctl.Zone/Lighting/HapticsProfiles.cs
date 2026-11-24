@@ -104,7 +104,7 @@ public sealed record HapticsTuning
             ImpactPunch = 75,
             DynamicContrast = 82,
             VocalFocus = 85,
-            TriggerBalance = 85,
+            TriggerBalance = 95,
             ComfortTier = HapticsComfortTier.Balanced,
         },
         HapticsGenreProfile.Cinema => new()
