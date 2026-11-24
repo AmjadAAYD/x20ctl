@@ -72,6 +72,7 @@ public sealed class MacroWorkbench
     private readonly TextBlock zoomLabel=new(){Text="100%",FontSize=13.5,FontWeight=FontWeights.SemiBold,Width=48,TextAlignment=TextAlignment.Center,VerticalAlignment=VerticalAlignment.Center};
     private bool updating;
     private Window? previewWindow;
+    private IReadOnlyList<MacroEvent>? copiedSequence;
     private static readonly Color PauseTone=ThemeCatalog.R(Color.FromRgb(150,165,192));
     private sealed record TriggerPick(string Key,string Value){public override string ToString()=>Value;}
     private readonly ComboBox trigger=new(){MinHeight=36,FontSize=14,SelectedValuePath="Key",ToolTip="PC mode can't see a back paddle. Pick the button that plays this slot; it plays the macro instead of its usual job."};
@@ -106,22 +107,25 @@ public sealed class MacroWorkbench
         DockPanel.SetDock(rail,System.Windows.Controls.Dock.Bottom);paddleBody.Children.Add(rail);paddleBody.Children.Add(rear);
         top.Children.Add(Kit.Panel(Draft.PhysicalSlots.Count==0?"PC macro slots":"Programmable buttons",Draft.PcMode?"Pick a slot, then the button that plays it":"Pick the paddle that plays this sequence",null,paddleBody));
 
-        // right: heading and actions, event cards, lane timeline, footer
-        var page=new Grid();page.RowDefinitions.Add(new(){Height=GridLength.Auto});page.RowDefinitions.Add(new(){Height=GridLength.Auto});page.RowDefinitions.Add(new());page.RowDefinitions.Add(new(){Height=GridLength.Auto});
+        // right: heading and actions, event cards, lane timeline, footer, quick templates
+        var page=new Grid();page.RowDefinitions.Add(new(){Height=GridLength.Auto});page.RowDefinitions.Add(new(){Height=GridLength.Auto});page.RowDefinitions.Add(new());page.RowDefinitions.Add(new(){Height=GridLength.Auto});page.RowDefinitions.Add(new(){Height=GridLength.Auto});
         var header=new DockPanel();page.Children.Add(header);
-        add=Button("+ Add event",Add,"PrimaryButton");preview=Button("Preview timeline",Preview,"ActionButton");
-        foreach(var b in new[]{add,preview}){b.Height=44;b.MinHeight=0;b.Padding=new(22,0,22,0);b.FontSize=15;b.Margin=new(0,0,10,0);}
+        add=Button("+ Add event",Add,"DS.ConsolePrimary");preview=Button("Preview",Preview,"DS.ConsoleBtn");
+        foreach(var b in new[]{add,preview}){b.Height=38;b.MinHeight=0;b.Padding=new(16,0,16,0);b.FontSize=13.5;b.Margin=new(0,0,8,0);}
         preview.ToolTip="Plays the timeline on screen only. Nothing is sent to the controller or to Windows.";
-        var more=new Button{Content="",Style=DS.Style("DS.ActionRound"),Width=44,Height=44,MinHeight=0,ToolTip="More macro actions"};focusRegistration(more);var menu=new ContextMenu();
-        var clearMenu=new MenuItem {Header="Clear this slot"};clearMenu.Click+=(_,_)=>Guard(Clear);menu.Items.Add(clearMenu);more.ContextMenu=menu;more.Click+=(_,_)=>{clearMenu.IsEnabled=Draft[Slot].Count>0;menu.PlacementTarget=more;menu.Placement=PlacementMode.Bottom;menu.IsOpen=true;};
-                Record=new Button{Style=DS.Style("ActionButton"),Height=44,MinHeight=0,Padding=new(18,0,20,0),Margin=new(0,0,10,0),ToolTip="Play the sequence on your controller and it becomes this slot's events (read-only input; nothing is sent)",
-            Content=new StackPanel{Orientation=Orientation.Horizontal,Children={new Ellipse{Width=11,Height=11,Fill=new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(255,72,96))),Margin=new(0,0,10,0),VerticalAlignment=VerticalAlignment.Center,Effect=new DropShadowEffect{Color=ThemeCatalog.R(Color.FromRgb(255,72,96)),BlurRadius=10,ShadowDepth=0,Opacity=.9}},new TextBlock{Text="Record",FontFamily=DS.Display,FontSize=15,FontWeight=FontWeights.SemiBold,Foreground=DS.Brush("DS.Text"),VerticalAlignment=VerticalAlignment.Center}}}};
+        var more=new Button{Content="",Style=DS.Style("DS.ConsoleStepBtn"),FontFamily=new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"),Width=38,Height=38,MinHeight=0,ToolTip="More macro actions"};focusRegistration(more);var menu=new ContextMenu();
+        var copyMenu=new MenuItem{Header="Copy this slot"};copyMenu.Click+=(_,_)=>Guard(()=>{copiedSequence=Draft[Slot].Select(e=>e with{Id=Guid.NewGuid()}).ToArray();notice.Text=$"Copied {copiedSequence.Count} event{(copiedSequence.Count==1?"":"s")} from {Slot}.";});menu.Items.Add(copyMenu);
+        var pasteMenu=new MenuItem{Header="Paste into this slot"};pasteMenu.Click+=(_,_)=>Guard(()=>{if(!Draft.CanEdit){notice.Text=ReadOnly;return;}if(copiedSequence is not{Count:>0}){notice.Text="Copy a slot first.";return;}StopPreview();var pasted=copiedSequence.Select(e=>e with{Id=Guid.NewGuid()}).ToArray();Draft.Replace(Slot,pasted);SelectedIndex=pasted.Length>0?0:-1;Refresh();Changed?.Invoke();notice.Text=$"Pasted {pasted.Length} event{(pasted.Length==1?"":"s")} into {Slot}.";});menu.Items.Add(pasteMenu);
+        menu.Items.Add(new Separator());
+        var clearMenu=new MenuItem {Header="Clear this slot"};clearMenu.Click+=(_,_)=>Guard(Clear);menu.Items.Add(clearMenu);more.ContextMenu=menu;more.Click+=(_,_)=>{copyMenu.IsEnabled=Draft[Slot].Count>0;pasteMenu.IsEnabled=Draft.CanEdit && copiedSequence is{Count:>0};clearMenu.IsEnabled=Draft.CanEdit && Draft[Slot].Count>0;menu.PlacementTarget=more;menu.Placement=PlacementMode.Bottom;menu.IsOpen=true;};
+        Record=new Button{Style=DS.Style("DS.ConsoleBtn"),Height=38,MinHeight=0,Padding=new(14,0,14,0),Margin=new(0,0,8,0),ToolTip="Play the sequence on your controller and it becomes this slot's events (read-only input; nothing is sent)",
+            Content=new StackPanel{Orientation=Orientation.Horizontal,Children={new Ellipse{Width=9,Height=9,Fill=new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(255,72,96))),Margin=new(0,0,8,0),VerticalAlignment=VerticalAlignment.Center,Effect=new DropShadowEffect{Color=ThemeCatalog.R(Color.FromRgb(255,72,96)),BlurRadius=10,ShadowDepth=0,Opacity=.9}},new TextBlock{Text="Record",FontFamily=DS.Display,FontSize=13.5,FontWeight=FontWeights.SemiBold,Foreground=DS.Brush("DS.Text"),VerticalAlignment=VerticalAlignment.Center}}}};
         Record.Click+=(_,_)=>ToggleRecording();focusRegistration(Record);Record.IsEnabled=Draft.CanEdit;
-        var read=new Button{Style=DS.Style("ActionButton"),Height=44,MinHeight=0,Padding=new(18,0,20,0),Margin=new(0,0,10,0),ToolTip="Read the macro stored on the controller into this slot",
-            Content=new StackPanel{Orientation=Orientation.Horizontal,Children={Kit.Icon("\uE896",14,"DS.Text").Also(i=>i.Margin=new(0,0,10,0)),new TextBlock{Text="Read controller",FontFamily=DS.Display,FontSize=15,FontWeight=FontWeights.SemiBold,Foreground=DS.Brush("DS.Text"),VerticalAlignment=VerticalAlignment.Center}}}};
+        var read=new Button{Style=DS.Style("DS.ConsoleBtn"),Height=38,MinHeight=0,Padding=new(14,0,14,0),Margin=new(0,0,8,0),ToolTip="Read the macro stored on the controller into this slot",
+            Content=new StackPanel{Orientation=Orientation.Horizontal,Children={Kit.Icon("\uE896",13,"DS.Text").Also(i=>i.Margin=new(0,0,8,0)),new TextBlock{Text="Read pad",FontFamily=DS.Display,FontSize=13.5,FontWeight=FontWeights.SemiBold,Foreground=DS.Brush("DS.Text"),VerticalAlignment=VerticalAlignment.Center}}}};
         read.Click+=async(_,_)=>{read.IsEnabled=false;try{await ReadController();}finally{read.IsEnabled=true;}};focusRegistration(read);
-        applyButton=new Button{Style=DS.Style("ActionButton"),Height=44,MinHeight=0,Padding=new(18,0,20,0),Margin=new(0,0,10,0),Visibility=Visibility.Collapsed,
-            Content=new TextBlock{Text="Apply to controller",FontFamily=DS.Display,FontSize=15,FontWeight=FontWeights.SemiBold,Foreground=DS.Brush("DS.Text"),VerticalAlignment=VerticalAlignment.Center}};
+        applyButton=new Button{Style=DS.Style("DS.ConsolePrimary"),Height=38,MinHeight=0,Padding=new(14,0,14,0),Margin=new(0,0,8,0),Visibility=Visibility.Collapsed,
+            Content=new TextBlock{Text="Apply to controller",FontFamily=DS.Display,FontSize=13.5,FontWeight=FontWeights.SemiBold,Foreground=DS.Brush("DS.Text"),VerticalAlignment=VerticalAlignment.Center}};
         applyButton.Click+=async(_,_)=>{if(applyToController==null)return;applyButton.IsEnabled=false;try{await applyToController(text=>notice.Text=text);}finally{applyButton.IsEnabled=true;}};focusRegistration(applyButton);
         var workspaceActions=new StackPanel {Orientation=Orientation.Horizontal,VerticalAlignment=VerticalAlignment.Center,Children={Record,read,applyButton,add,preview,more}};DockPanel.SetDock(workspaceActions,System.Windows.Controls.Dock.Right);header.Children.Add(workspaceActions);
         header.Children.Add(new StackPanel {VerticalAlignment=VerticalAlignment.Center,Children={heading,summary}});
@@ -129,10 +133,10 @@ public sealed class MacroWorkbench
         sequenceViewport.PreviewMouseWheel+=(_,e)=>{if(steps.Count>0)Select(Math.Clamp(SelectedIndex-Math.Sign(e.Delta),0,steps.Count-1));e.Handled=true;};
         sequenceViewport.ScrollChanged+=(_,_)=>MaskPartialCards();
         timeline.Content=timelineCanvas;
-        // the lane names sit on their own rounded chips in a column that fades into the timeline behind it
+        // the lane names sit on their own sleek labels in a column that fades into the timeline behind it
         var laneColumn=new Border {Width=124,HorizontalAlignment=HorizontalAlignment.Left,IsHitTestVisible=false,CornerRadius=new(12,0,0,12),Child=laneLabels,
             Background=new LinearGradientBrush(new GradientStopCollection{new GradientStop(ThemeCatalog.R(Color.FromArgb(250,11,19,42)),0),new GradientStop(ThemeCatalog.R(Color.FromArgb(250,11,19,42)),.86),new GradientStop(ThemeCatalog.R(Color.FromArgb(0,11,19,42)),1)},new Point(0,0),new Point(1,0))};
-        var addFirst=Button("+ Add first event",Add,"PrimaryButton");addFirst.Height=46;addFirst.MinHeight=0;addFirst.Padding=new(26,0,26,0);addFirst.FontSize=15;addFirst.HorizontalAlignment=HorizontalAlignment.Center;addFirst.IsEnabled=Draft.CanEdit;addFirst.Margin=new(0,16,0,0);
+        var addFirst=Button("+ Add first event",Add,"DS.ConsolePrimary");addFirst.Height=40;addFirst.MinHeight=0;addFirst.Padding=new(22,0,22,0);addFirst.FontSize=14;addFirst.HorizontalAlignment=HorizontalAlignment.Center;addFirst.IsEnabled=Draft.CanEdit;addFirst.Margin=new(0,14,0,0);
         var ring=new Grid {Width=58,Height=58,HorizontalAlignment=HorizontalAlignment.Center,Margin=new(0,0,0,12),Children={new Ellipse {Fill=new RadialGradientBrush(ThemeCatalog.R(Color.FromArgb(70,61,139,255)),ThemeCatalog.R(Color.FromArgb(0,61,139,255))),Margin=new(-16)},new Ellipse {Stroke=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(150,125,182,255))),StrokeThickness=1.5,Fill=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(40,30,60,130)))},Kit.Icon("",22,"DS.AccentHi").Also(i=>i.HorizontalAlignment=HorizontalAlignment.Center)}};
         empty.Children.Add(ring);empty.Children.Add(Kit.Text("No events in this sequence yet",20,"DS.Text",FontWeights.SemiBold).Also(t=>t.HorizontalAlignment=HorizontalAlignment.Center));
         empty.Children.Add(Kit.Text("An event is what the paddle presses, and for how long. Add one, then pick its buttons below.",14,"DS.TextSoft").Also(t=>{t.HorizontalAlignment=HorizontalAlignment.Center;t.Margin=new(0,4,0,0);}));empty.Children.Add(addFirst);
@@ -141,8 +145,24 @@ public sealed class MacroWorkbench
         var timeFooter=new DockPanel {Margin=new(2,10,0,0)};var zoomTools=new StackPanel{Orientation=Orientation.Horizontal,VerticalAlignment=VerticalAlignment.Center};DockPanel.SetDock(zoomTools,System.Windows.Controls.Dock.Right);timeFooter.Children.Add(zoomTools);
         zoomTools.Children.Add(Kit.Text("Timeline zoom",13.5,"DS.TextSoft").Also(t=>t.Margin=new(0,0,10,0)));
         foreach(var (glyph,delta,tip) in new[]{("",-.5,"Zoom out: fit more of the sequence"),("",.5,"Zoom in: stretch short events so they are easier to read")})
-        {var button=new Button{Content=glyph,Style=DS.Style("DS.ActionRound"),Width=32,Height=32,MinHeight=0,FontSize=13,ToolTip=tip};button.Click+=(_,_)=>SetZoom(zoom+delta);focusRegistration(button);zoomTools.Children.Add(button);if(delta<0)zoomTools.Children.Add(zoomLabel);}
+        {var button=new Button{Content=glyph,Style=DS.Style("DS.ConsoleStepBtn"),FontFamily=new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"),Width=32,Height=30,MinHeight=0,FontSize=12.5,ToolTip=tip};button.Click+=(_,_)=>SetZoom(zoom+delta);focusRegistration(button);zoomTools.Children.Add(button);if(delta<0)zoomTools.Children.Add(zoomLabel);}
         timeFooter.Children.Add(notice);Grid.SetRow(timeFooter,3);page.Children.Add(timeFooter);
+
+        var templatesBar=new WrapPanel{Margin=new(2,8,0,0),VerticalAlignment=VerticalAlignment.Center};
+        templatesBar.Children.Add(Kit.Text("Quick presets",12,"DS.TextMuted",FontWeights.SemiBold).Also(t=>{t.VerticalAlignment=VerticalAlignment.Center;t.Margin=new(0,0,10,0);}));
+        void ApplyQuickPreset(string title,params MacroEvent[] stepsToLoad)=>Guard(()=>{if(!Draft.CanEdit){notice.Text=ReadOnly;return;}StopPreview();var items=stepsToLoad.Select(e=>e with{Id=Guid.NewGuid()}).ToArray();Draft.Replace(Slot,items);SelectedIndex=items.Length>0?0:-1;Refresh();Changed?.Invoke();notice.Text=$"Loaded preset '{title}' into {Slot}.";});
+        (string Label,Action Run)[] presetDefs=[
+            ("Rapid Fire (RT)",()=>ApplyQuickPreset("Rapid Fire (RT)",new MacroEvent(Guid.Empty,["RT"],StickHeading.Neutral,StickHeading.Neutral,40,35),new MacroEvent(Guid.Empty,["RT"],StickHeading.Neutral,StickHeading.Neutral,40,35),new MacroEvent(Guid.Empty,["RT"],StickHeading.Neutral,StickHeading.Neutral,40,35))),
+            ("Drop Shot (B + RT)",()=>ApplyQuickPreset("Drop Shot (B + RT)",new MacroEvent(Guid.Empty,["B"],StickHeading.Neutral,StickHeading.Neutral,55,20),new MacroEvent(Guid.Empty,["RT"],StickHeading.Neutral,StickHeading.Neutral,90,25))),
+            ("Auto Sprint (L3)",()=>ApplyQuickPreset("Auto Sprint (L3)",new MacroEvent(Guid.Empty,["L3"],StickHeading.Up,StickHeading.Neutral,60,15))),
+            ("Jump Shot (A + RT)",()=>ApplyQuickPreset("Jump Shot (A + RT)",new MacroEvent(Guid.Empty,["A"],StickHeading.Neutral,StickHeading.Neutral,65,15),new MacroEvent(Guid.Empty,["RT"],StickHeading.Neutral,StickHeading.Neutral,85,25))),
+        ];
+        foreach(var(lbl,run) in presetDefs)
+        {
+            var pb=Button(lbl,run,"DS.ConsoleBtn");pb.Height=28;pb.MinHeight=0;pb.Padding=new(10,0,10,0);pb.FontSize=11.5;pb.Margin=new(0,0,6,2);pb.IsEnabled=Draft.CanEdit;
+            templatesBar.Children.Add(pb);
+        }
+        Grid.SetRow(templatesBar,4);page.Children.Add(templatesBar);
         var right=Kit.Panel(null,null,null,page);Grid.SetColumn(right,2);top.Children.Add(right);
 
         remove=Button("Delete event",Remove);earlier=Button("← Move earlier",()=>Move(-1));later=Button("Move later →",()=>Move(1));clear=Button("Clear slot",Clear);
@@ -282,7 +302,7 @@ public sealed class MacroWorkbench
     }
     private void AdjustTime(bool isPause,int delta){if(SelectedIndex<0)return;var step=Draft[Slot][SelectedIndex];Update(isPause?step with {PauseMs=Math.Clamp(step.PauseMs+delta,0,327675)}:step with {HoldMs=Math.Clamp(step.HoldMs+delta,0,327675)});}
     private void UpdateEventSelection(){for(int i=0;i<steps.Count;i++){bool selected=i==SelectedIndex,active=IsPreviewing && i==PreviewIndex;steps[i].Background=active?new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(51,127,190))):Fill(selected);steps[i].BorderBrush=active?Brushes.White:selected?Brushes.LightSkyBlue:new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(30,255,255,255)));steps[i].BorderThickness=new(selected||active?1.5:1);if(!steps[i].IsKeyboardFocused)steps[i].Effect=selected||active?new DropShadowEffect {Color=ThemeCatalog.R(Color.FromRgb(46,119,217)),BlurRadius=18,ShadowDepth=3,Opacity=.45}:null;}}
-    private Button Button(string text,Action action,string style="ConsoleAction") {var button=new Button {Content=text,Style=(Style)resources.FindResource(style)};button.Click+=(_,_)=>Guard(action);focusRegistration(button);return button;}
+    private Button Button(string text,Action action,string style="DS.ConsoleBtn") {var button=new Button {Content=text,Style=DS.Style(style)};button.Click+=(_,_)=>Guard(action);focusRegistration(button);return button;}
     private void Guard(Action action) {try {action();}catch(Exception e) when(e is ArgumentException or InvalidOperationException){notice.Text=e.Message;}}
     internal void SetTrigger(string? button) { if (!Draft.PcMode || !Draft.CanEdit) return; Draft.SetTrigger(Slot, button); Refresh(); Changed?.Invoke(); }
     public void SelectSlot(string slot) {if(!Draft.SlotNames.Contains(slot))throw new ArgumentException("This model has no such macro slot.",nameof(slot));StopPreview();Slot=slot;SelectedIndex=Draft[slot].Count==0?-1:0;Refresh();Changed?.Invoke();}
@@ -366,7 +386,7 @@ public sealed class MacroWorkbench
         catch(Exception error) when(error is IOException or TimeoutException or FormatException or ArgumentException or InvalidOperationException or System.Runtime.InteropServices.COMException){Say("Couldn't read the controller: "+error.Message);}
     }
     public void Preview() {if(IsPreviewing){StopPreview();return;}if(Draft.Duration(Slot)<=0)return;clock.Restart();timer.Start();preview.Content="Stop preview";notice.Text="Timeline preview only · No controller or Windows input is emitted.";UpdatePlayhead();}
-    public void StopPreview() {timer.Stop();clock.Stop();PreviewIndex=-1;PreviewIsPause=false;preview.Content="Preview timeline";playhead.Visibility=Visibility.Collapsed;UpdateEventSelection();UpdateLaneHighlight();if(SelectedIndex>=0)SnapTo(SelectedIndex);}
+    public void StopPreview() {timer.Stop();clock.Stop();PreviewIndex=-1;PreviewIsPause=false;preview.Content="Preview";playhead.Visibility=Visibility.Collapsed;UpdateEventSelection();UpdateLaneHighlight();if(SelectedIndex>=0)SnapTo(SelectedIndex);}
     private void Deactivated(object? sender,EventArgs e)=>StopPreview();
     public void FocusSelection() {if(SelectedIndex>=0 && SelectedIndex<steps.Count)steps[SelectedIndex].Focus();else slots.Single(b=>Equals(b.Tag,Slot)).Focus();}
     public bool HandleKey(KeyEventArgs e)
@@ -409,7 +429,7 @@ public sealed class MacroWorkbench
         foreach(var (label,row,tone) in new[]{("Buttons",0,Kit.Blue),("Left stick",1,Kit.Ice),("Right stick",2,Kit.Ice),("Pause",3,PauseTone)})
         {
             double chip=Math.Min(32,Math.Max(10,lane-6));
-            var name=new Border {Width=110,Height=chip,CornerRadius=new(chip/2),Padding=new(12,0,10,0),BorderThickness=new(1),BorderBrush=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(36,255,255,255))),Background=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(24,255,255,255))),
+            var name=new Border {Width=110,Height=chip,CornerRadius=ThemeCatalog.Round(5),Padding=new(12,0,10,0),BorderThickness=new(1),BorderBrush=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(36,255,255,255))),Background=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(24,255,255,255))),
                 Child=new StackPanel {Orientation=Orientation.Horizontal,VerticalAlignment=VerticalAlignment.Center,Children={new Ellipse {Width=7,Height=7,Fill=new SolidColorBrush(tone),Margin=new(0,0,9,0),VerticalAlignment=VerticalAlignment.Center},new TextBlock {Text=label,FontSize=13,FontWeight=FontWeights.SemiBold,Foreground=DS.Brush("DS.Text"),VerticalAlignment=VerticalAlignment.Center}}}};
             Canvas.SetLeft(name,8);Canvas.SetTop(name,24+row*lane+(lane-chip)/2);if(chip>=20)laneLabels.Children.Add(name);
             timelineCanvas.Children.Add(new Line {X1=124,X2=width+132,Y1=24+row*lane,Y2=24+row*lane,Stroke=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(40,119,151,202)))});
