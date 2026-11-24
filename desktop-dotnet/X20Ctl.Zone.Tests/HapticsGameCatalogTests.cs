@@ -29,6 +29,12 @@ public sealed class HapticsGameCatalogTests
         Assert.Null(code.Profile);
         Assert.True(code.IsIgnored);
 
+        Assert.True(HapticsGameCatalog.Resolve("WINWORD.EXE").IsIgnored);
+        Assert.True(HapticsGameCatalog.Resolve("Telegram.exe").IsIgnored);
+        Assert.Equal(HapticsGenreProfile.RpgMelee, HapticsGameCatalog.Resolve("LiesOfP-Win64-Shipping.exe").Profile);
+        Assert.Equal(HapticsGenreProfile.Racing, HapticsGameCatalog.Resolve("F1_25.exe").Profile);
+        Assert.Equal(HapticsGenreProfile.SportsArcade, HapticsGameCatalog.Resolve("silksong.exe").Profile);
+
         var unknown = HapticsGameCatalog.Resolve("MyCustomIndieRacer2026.exe", "Indie Game");
         Assert.Null(unknown.Profile);
         Assert.False(unknown.IsIgnored);
@@ -64,6 +70,8 @@ public sealed class HapticsGameCatalogTests
 
             var (_, unknownNew, _) = reloaded.ResolveActive("BrandNewUnknownGame.exe");
             Assert.True(unknownNew);
+            Assert.True(reloaded.IsAppIgnored("Discord.exe"));
+            Assert.False(reloaded.IsAppIgnored("MyCustomShooter.exe"));
 
             var tuning = reloaded.GetTuning(HapticsGenreProfile.Racing);
             Assert.Equal(62, tuning.MasterIntensity);

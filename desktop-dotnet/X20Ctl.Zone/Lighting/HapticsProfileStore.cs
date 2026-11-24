@@ -124,6 +124,14 @@ public sealed class HapticsProfileStore
         }
     }
 
+    public bool IsAppIgnored(string? exe)
+    {
+        string key = NormalizeExe(exe);
+        if (key.Length == 0) return false;
+        lock (gate)
+            return config.IgnoredExes.Contains(key);
+    }
+
     public HapticsTuning GetTuning(HapticsGenreProfile profile)
     {
         lock (gate)

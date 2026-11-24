@@ -391,4 +391,149 @@ public sealed class HapticsFusionEngineTests
         Assert.True(h.RightGrip <= 0.16, $"Expected faint RightGrip <= 0.16 on quiet RawRms, got {h.RightGrip:F4}");
         Assert.True(h.LeftTrigger <= 0.15, $"Expected faint LeftTrigger <= 0.15 on quiet RawRms, got {h.LeftTrigger:F4}");
     }
+
+    [Fact]
+    public void AutoDesktopQuietIntro_ResolvesMusicWithoutMenuMuting()
+    {
+        var engine = new HapticsFusionEngine();
+        var tuning = HapticsTuning.DefaultFor(HapticsGenreProfile.Auto);
+        var pad = new LivePadInput(0, 0, 0, 0, 0, 0, 0, false, CursorVisible: true, IsIdle: true, IsGameForeground: false);
+        var quietMusic = new AudioFrame() with
+        {
+            Level = 0.72f,
+            Bass = 0.45f,
+            Mid = 0.65f,
+            Treble = 0.48f,
+            InstrumentEnergy = 0.62f,
+            VocalPresence = 0.55f,
+            DynamicContrast = 0.45f,
+            RawRms = 0.025f,
+            RawPeakSpike = 0.004f,
+            Spectrum = new AudioSpectrum8(0.2f, 0.3f, 0.5f, 0.5f, 0.4f, 0.3f, 0.2f, 0.1f),
+        };
+
+        HapticsEvaluation eval = default;
+        for (int i = 0; i < 15; i++)
+            eval = engine.Evaluate(quietMusic, pad, HapticsGenreProfile.Auto, tuning, dtSeconds: 0.02);
+
+        Assert.Equal(HapticsGenreProfile.Music, eval.ResolvedProfile);
+        Assert.False(eval.IsMenuMuted);
+        Assert.Equal(0.0, eval.Motors.LeftGrip, 3);
+        Assert.True(eval.Motors.RightGrip is > 0.008 and <= 0.16, $"Expected faint RightGrip on desktop quiet intro, got {eval.Motors.RightGrip:F4}");
+    }
+
+    [Fact]
+    public void ActiveGameplayWithVisibleCursor_DoesNotFalseMute()
+    {
+        var engine = new HapticsFusionEngine();
+        var tuning = HapticsTuning.DefaultFor(HapticsGenreProfile.RpgMelee) with { MenuAutoMute = true };
+        var cursorMenuPad = new LivePadInput(0, 0, 0, 0, 0, 0, 0, false, CursorVisible: true, IsIdle: false, IsGameForeground: true);
+        var calmAudio = new AudioFrame() with
+        {
+            Level = 0.45f,
+            Mid = 0.40f,
+            InstrumentEnergy = 0.45f,
+            RawRms = 0.04f,
+            Spectrum = new AudioSpectrum8(0.2f, 0.2f, 0.3f, 0.3f, 0.2f, 0.2f, 0.1f, 0.1f),
+        };
+
+        for (int i = 0; i < 20; i++)
+            engine.Evaluate(calmAudio, cursorMenuPad, HapticsGenreProfile.RpgMelee, tuning, dtSeconds: 0.05);
+
+        var activeActionPad = new LivePadInput(0, 0.85, 0, 0, 0, 0, 1, true, CursorVisible: true, IsIdle: false, PressedButtons: PadActionButtons.X, IsGameForeground: true);
+        var activeEval = engine.Evaluate(calmAudio, activeActionPad, HapticsGenreProfile.RpgMelee, tuning, dtSeconds: 0.02);
+
+        Assert.False(activeEval.IsMenuMuted);
+        Assert.True(activeEval.Motors.RightGrip > 0.01, $"Expected active melee swing RightGrip despite cursor overlay, got {activeEval.Motors.RightGrip:F4}");
+    }
+
+    [Fact]
+    public void RpgMelee_RbLightAttack_RtHeavyAttack_AndDamageThud_DifferentiateCleanly()
+    {
+        var engine = new HapticsFusionEngine();
+        var tuning = new HapticsTuning { ComfortTier = HapticsComfortTier.Balanced, MasterIntensity = 85, ImpactPunch = 85 };
+
+        var rbPad = new LivePadInput(0, 0.3, 0, 0, 0, 0, 1, true, PressedButtons: PadActionButtons.RB, IsGameForeground: true);
+        var rbEval = engine.Evaluate(SilentFrame, rbPad, HapticsGenreProfile.RpgMelee, tuning, dtSeconds: 0.02);
+        Assert.True(rbEval.Motors.RightGrip > 0.08, $"Expected RB light attack RightGrip, got {rbEval.Motors.RightGrip:F4}");
+        Assert.Equal(0.0, rbEval.Motors.LeftGrip, 3);
+        Assert.Equal(0.0, rbEval.Motors.LeftTrigger, 3);
+        Assert.Equal(0.0, rbEval.Motors.RightTrigger, 3);
+
+        engine.Reset();
+        var rtPad = new LivePadInput(0, 0.3, 0, 0, 0, 0.85, 0, true, IsGameForeground: true);
+        var rtEval = engine.Evaluate(SilentFrame, rtPad, HapticsGenreProfile.RpgMelee, tuning, dtSeconds: 0.02);
+        Assert.True(rtEval.Motors.RightGrip > rtEval.Motors.LeftGrip && rtEval.Motors.LeftGrip > 0.05,
+            $"Expected RT heavy attack RG ({rtEval.Motors.RightGrip:F4}) > LG ({rtEval.Motors.LeftGrip:F4}) > 0.05");
+        Assert.Equal(0.0, rtEval.Motors.LeftTrigger, 3);
+        Assert.Equal(0.0, rtEval.Motors.RightTrigger, 3);
+
+        engine.Reset();
+        var idlePad = new LivePadInput(0, 0, 0, 0, 0, 0, 0, false, IsGameForeground: true);
+        var hitAudio = new AudioFrame() with
+        {
+            Level = 0.72f,
+            Bass = 0.65f,
+            Mid = 0.55f,
+            InstrumentEnergy = 0.30f,
+            RawRms = 0.095f,
+            RawPeakSpike = 0.085f,
+            Spectrum = new AudioSpectrum8(0.4f, 0.6f, 0.5f, 0.3f, 0.2f, 0.2f, 0.1f, 0.1f),
+        };
+        var dmgEval = engine.Evaluate(hitAudio, idlePad, HapticsGenreProfile.RpgMelee, tuning, dtSeconds: 0.02);
+        Assert.True(dmgEval.Motors.RightGrip > 0.08 && dmgEval.Motors.LeftGrip > 0.05,
+            $"Expected damage thud feel on grips, got RG={dmgEval.Motors.RightGrip:F4}, LG={dmgEval.Motors.LeftGrip:F4}");
+        Assert.Equal(0.0, dmgEval.Motors.LeftTrigger, 3);
+        Assert.Equal(0.0, dmgEval.Motors.RightTrigger, 3);
+    }
+
+    [Fact]
+    public void MusicMode_CustomMotorRoles_AvoidsDoubleLoudnessCrushing()
+    {
+        var engine = new HapticsFusionEngine();
+        var tuning = HapticsTuning.DefaultFor(HapticsGenreProfile.Music) with { MasterIntensity = 85, ComfortTier = HapticsComfortTier.Balanced };
+        var roles = new MotorRoleMap(MotorAudioRole.SubBassKick, MotorAudioRole.Instruments, MotorAudioRole.LeadVocals, MotorAudioRole.SnareHiHat);
+        var pad = new LivePadInput(0, 0, 0, 0, 0, 0, 0, false);
+
+        var quietAudio = new AudioFrame() with
+        {
+            Level = 0.80f,
+            Bass = 0.75f,
+            Mid = 0.75f,
+            Treble = 0.60f,
+            BeatPulse = 0.60f,
+            InstrumentEnergy = 0.80f,
+            VocalPresence = 0.75f,
+            DynamicContrast = 0.60f,
+            RawRms = 0.025f,
+            RawPeakSpike = 0.004f,
+            Spectrum = new AudioSpectrum8(0.4f, 0.5f, 0.6f, 0.6f, 0.5f, 0.4f, 0.3f, 0.2f),
+        };
+        var quietEval = engine.Evaluate(quietAudio, pad, HapticsGenreProfile.Music, tuning, roles, dtSeconds: 0.02);
+        Assert.Equal(0.0, quietEval.Motors.LeftGrip, 3);
+        Assert.True(quietEval.Motors.RightGrip <= 0.16, $"Expected faint custom-role RightGrip <= 0.16 on quiet audio, got {quietEval.Motors.RightGrip:F4}");
+
+        var loudAudio = quietAudio with
+        {
+            Level = 0.95f,
+            Bass = 0.92f,
+            BeatPulse = 0.96f,
+            BassPunch = 0.95f,
+            VocalPresence = 0.90f,
+            VocalWarmth = 0.90f,
+            DynamicContrast = 0.92f,
+            RawRms = 0.24f,
+            RawPeakSpike = 0.10f,
+        };
+        double peakLg = 0, peakLt = 0;
+        for (int i = 0; i < 12; i++)
+        {
+            var e = engine.Evaluate(loudAudio, pad, HapticsGenreProfile.Music, tuning, roles, dtSeconds: 0.02);
+            peakLg = Math.Max(peakLg, e.Motors.LeftGrip);
+            peakLt = Math.Max(peakLt, e.Motors.LeftTrigger);
+        }
+
+        Assert.True(peakLg >= 0.40, $"Expected punchy custom-role LeftGrip >= 0.40 on loud drop, got {peakLg:F4}");
+        Assert.True(peakLt >= 0.30, $"Expected expressive custom-role vocal trigger >= 0.30 on loud chorus, got {peakLt:F4}");
+    }
 }

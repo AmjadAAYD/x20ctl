@@ -24,6 +24,12 @@ public static class HapticsGameCatalog
         "steam.exe", "steamwebhelper.exe", "epicgameslauncher.exe", "eadesktop.exe",
         "upc.exe", "galaxyclient.exe", "battlenet.exe", "riotclientservices.exe",
         "nvidia app.exe", "nvcontainer.exe", "msedgewebview2.exe",
+        "winword.exe", "excel.exe", "powerpnt.exe", "onenote.exe", "outlook.exe", "thunderbird.exe",
+        "telegram.exe", "whatsapp.exe", "signal.exe", "blender.exe", "photoshop.exe", "audacity.exe",
+        "everything.exe", "7zfm.exe", "winrar.exe", "calculatorapp.exe", "mspaint.exe",
+        "snippingtool.exe", "screenclippinghost.exe", "photos.exe", "microsoft.photos.exe",
+        "lghub.exe", "icue.exe", "razercentral.exe", "armourycrate.exe", "rtss.exe",
+        "msiafterburner.exe", "hwinfo64.exe",
     };
 
     static readonly HashSet<string> BrowserExes = new(StringComparer.OrdinalIgnoreCase)
@@ -34,13 +40,14 @@ public static class HapticsGameCatalog
     static readonly Dictionary<string, (HapticsGenreProfile Profile, string Name, bool IsMedia)> KnownApps =
         new(StringComparer.OrdinalIgnoreCase)
         {
-            // Racing & Driving (18)
+            // Racing & Driving
             ["forzahorizon5.exe"] = (HapticsGenreProfile.Racing, "Forza Horizon 5", false),
             ["forzahorizon4.exe"] = (HapticsGenreProfile.Racing, "Forza Horizon 4", false),
             ["forza_gaming.desktop.x64_release_final.exe"] = (HapticsGenreProfile.Racing, "Forza Motorsport", false),
             ["acs.exe"] = (HapticsGenreProfile.Racing, "Assetto Corsa", false),
             ["ac2-win64-shipping.exe"] = (HapticsGenreProfile.Racing, "Assetto Corsa Competizione", false),
             ["assettocorsaevo.exe"] = (HapticsGenreProfile.Racing, "Assetto Corsa EVO", false),
+            ["f1_25.exe"] = (HapticsGenreProfile.Racing, "EA Sports F1 25", false),
             ["f1_24.exe"] = (HapticsGenreProfile.Racing, "EA Sports F1 24", false),
             ["f1_23.exe"] = (HapticsGenreProfile.Racing, "F1 23", false),
             ["f1_22.exe"] = (HapticsGenreProfile.Racing, "F1 22", false),
@@ -57,8 +64,11 @@ public static class HapticsGameCatalog
             ["wreckfest_x64.exe"] = (HapticsGenreProfile.Racing, "Wreckfest", false),
             ["kartkraft.exe"] = (HapticsGenreProfile.Racing, "KartKraft", false),
             ["snowrunner.exe"] = (HapticsGenreProfile.Racing, "SnowRunner", false),
+            ["trackmania.exe"] = (HapticsGenreProfile.Racing, "Trackmania", false),
+            ["le mans ultimate.exe"] = (HapticsGenreProfile.Racing, "Le Mans Ultimate", false),
+            ["carx drift racing online.exe"] = (HapticsGenreProfile.Racing, "CarX Drift Racing Online", false),
 
-            // FPS & Action Shooters (25)
+            // FPS & Action Shooters
             ["cod.exe"] = (HapticsGenreProfile.FpsAction, "Call of Duty", false),
             ["modernwarfare.exe"] = (HapticsGenreProfile.FpsAction, "Call of Duty: Modern Warfare", false),
             ["cs2.exe"] = (HapticsGenreProfile.FpsAction, "Counter-Strike 2", false),
@@ -84,8 +94,18 @@ public static class HapticsGameCatalog
             ["re4.exe"] = (HapticsGenreProfile.FpsAction, "Resident Evil 4", false),
             ["spider-man.exe"] = (HapticsGenreProfile.FpsAction, "Marvel's Spider-Man", false),
             ["spiderman2.exe"] = (HapticsGenreProfile.FpsAction, "Marvel's Spider-Man 2", false),
+            ["marvelrivals-win64-shipping.exe"] = (HapticsGenreProfile.FpsAction, "Marvel Rivals", false),
+            ["discovery.exe"] = (HapticsGenreProfile.FpsAction, "THE FINALS", false),
+            ["tlou-i.exe"] = (HapticsGenreProfile.FpsAction, "The Last of Us Part I", false),
+            ["tlou-ii.exe"] = (HapticsGenreProfile.FpsAction, "The Last of Us Part II", false),
+            ["alanwake2.exe"] = (HapticsGenreProfile.FpsAction, "Alan Wake 2", false),
+            ["control_dx12.exe"] = (HapticsGenreProfile.FpsAction, "Control", false),
+            ["silenthill2-win64-shipping.exe"] = (HapticsGenreProfile.FpsAction, "Silent Hill 2", false),
+            ["horizonforbiddenwest.exe"] = (HapticsGenreProfile.FpsAction, "Horizon Forbidden West", false),
+            ["nms.exe"] = (HapticsGenreProfile.FpsAction, "No Man's Sky", false),
+            ["subnautica.exe"] = (HapticsGenreProfile.FpsAction, "Subnautica", false),
 
-            // RPG & Melee Action (18)
+            // RPG & Melee Action
             ["eldenring.exe"] = (HapticsGenreProfile.RpgMelee, "ELDEN RING", false),
             ["sekiro.exe"] = (HapticsGenreProfile.RpgMelee, "Sekiro: Shadows Die Twice", false),
             ["darksoulsiii.exe"] = (HapticsGenreProfile.RpgMelee, "DARK SOULS III", false),
@@ -104,8 +124,26 @@ public static class HapticsGameCatalog
             ["starrail.exe"] = (HapticsGenreProfile.RpgMelee, "Honkai: Star Rail", false),
             ["zenlesszonezero.exe"] = (HapticsGenreProfile.RpgMelee, "Zenless Zone Zero", false),
             ["palworld-win64-shipping.exe"] = (HapticsGenreProfile.RpgMelee, "Palworld", false),
+            ["liesofp-win64-shipping.exe"] = (HapticsGenreProfile.RpgMelee, "Lies of P", false),
+            ["sandfall-win64-shipping.exe"] = (HapticsGenreProfile.RpgMelee, "Clair Obscur: Expedition 33", false),
+            ["armoredcore6.exe"] = (HapticsGenreProfile.RpgMelee, "ARMORED CORE VI", false),
+            ["nierautomata.exe"] = (HapticsGenreProfile.RpgMelee, "NieR:Automata", false),
+            ["devilmaycry5.exe"] = (HapticsGenreProfile.RpgMelee, "Devil May Cry 5", false),
+            ["ff7rebirth_.exe"] = (HapticsGenreProfile.RpgMelee, "FINAL FANTASY VII REBIRTH", false),
+            ["ffxvi.exe"] = (HapticsGenreProfile.RpgMelee, "FINAL FANTASY XVI", false),
+            ["diablo iv.exe"] = (HapticsGenreProfile.RpgMelee, "Diablo IV", false),
+            ["pathofexile_x64steam.exe"] = (HapticsGenreProfile.RpgMelee, "Path of Exile", false),
+            ["pathofexile2.exe"] = (HapticsGenreProfile.RpgMelee, "Path of Exile 2", false),
+            ["skyrimse.exe"] = (HapticsGenreProfile.RpgMelee, "Skyrim Special Edition", false),
+            ["fallout4.exe"] = (HapticsGenreProfile.RpgMelee, "Fallout 4", false),
+            ["oblivionremastered-win64-shipping.exe"] = (HapticsGenreProfile.RpgMelee, "Oblivion Remastered", false),
+            ["kcd2.exe"] = (HapticsGenreProfile.RpgMelee, "Kingdom Come: Deliverance II", false),
+            ["acshadows.exe"] = (HapticsGenreProfile.RpgMelee, "Assassin's Creed Shadows", false),
+            ["acmirage.exe"] = (HapticsGenreProfile.RpgMelee, "Assassin's Creed Mirage", false),
+            ["terraria.exe"] = (HapticsGenreProfile.RpgMelee, "Terraria", false),
+            ["stardew valley.exe"] = (HapticsGenreProfile.RpgMelee, "Stardew Valley", false),
 
-            // Sports & Arcade Fighting (10)
+            // Sports & Arcade Fighting
             ["fc25.exe"] = (HapticsGenreProfile.SportsArcade, "EA Sports FC 25", false),
             ["fc24.exe"] = (HapticsGenreProfile.SportsArcade, "EA Sports FC 24", false),
             ["nba2k25.exe"] = (HapticsGenreProfile.SportsArcade, "NBA 2K25", false),
@@ -115,7 +153,13 @@ public static class HapticsGameCatalog
             ["mk12.exe"] = (HapticsGenreProfile.SportsArcade, "Mortal Kombat 1", false),
             ["ggst-win64-shipping.exe"] = (HapticsGenreProfile.SportsArcade, "Guilty Gear Strive", false),
             ["hollow_knight.exe"] = (HapticsGenreProfile.SportsArcade, "Hollow Knight", false),
+            ["silksong.exe"] = (HapticsGenreProfile.SportsArcade, "Hollow Knight: Silksong", false),
+            ["hollow knight silksong.exe"] = (HapticsGenreProfile.SportsArcade, "Hollow Knight: Silksong", false),
             ["celeste.exe"] = (HapticsGenreProfile.SportsArcade, "Celeste", false),
+            ["deadcells.exe"] = (HapticsGenreProfile.SportsArcade, "Dead Cells", false),
+            ["oriwotw.exe"] = (HapticsGenreProfile.SportsArcade, "Ori and the Will of the Wisps", false),
+            ["cuphead.exe"] = (HapticsGenreProfile.SportsArcade, "Cuphead", false),
+            ["wwe2k25.exe"] = (HapticsGenreProfile.SportsArcade, "WWE 2K25", false),
 
             // Music Players (7)
             ["spotify.exe"] = (HapticsGenreProfile.Music, "Spotify", true),
