@@ -23,6 +23,7 @@ internal static class UniversalHapticsService
 
     static double padLx, padLy, padRx, padRy, padLt, padRt;
     static int padHeld;
+    static PadActionButtons pendingActionButtons;
     static DateTimeOffset lastInputUtc = DateTimeOffset.UtcNow;
     static DateTimeOffset lastNewPressUtc = DateTimeOffset.MinValue;
     static DateTimeOffset demoUntilUtc = DateTimeOffset.MinValue;
@@ -152,13 +153,13 @@ internal static class UniversalHapticsService
         Changed?.Invoke();
     }
 
-    public static void ObserveLiveInput(double lx, double ly, double rx, double ry, double lt, double rt, int heldCount, bool anyNewPress)
+    public static void ObserveLiveInput(double lx, double ly, double rx, double ry, double lt, double rt, int heldCount, bool anyNewPress, PadActionButtons pressedButtons = PadActionButtons.None)
     {
         var now = DateTimeOffset.UtcNow;
         bool active = Math.Abs(lx) > 0.14 || Math.Abs(ly) > 0.14
             || Math.Abs(rx) > 0.14 || Math.Abs(ry) > 0.14
             || lt > 0.10 || rt > 0.10
-            || heldCount > 0 || anyNewPress;
+            || heldCount > 0 || anyNewPress || pressedButtons != PadActionButtons.None;
 
         lock (InputLock)
         {
@@ -169,8 +170,9 @@ internal static class UniversalHapticsService
             padLt = Math.Clamp(lt, 0.0, 1.0);
             padRt = Math.Clamp(rt, 0.0, 1.0);
             padHeld = heldCount;
+            pendingActionButtons |= pressedButtons;
             if (active) lastInputUtc = now;
-            if (anyNewPress) lastNewPressUtc = now;
+            if (anyNewPress || pressedButtons != PadActionButtons.None) lastNewPressUtc = now;
         }
     }
 
@@ -225,6 +227,7 @@ internal static class UniversalHapticsService
             var audio = temporaryDemo ? default : SystemAudioLevelSampler.SampleAudioFrame();
             var fg = ForegroundApp.Current;
             var (profile, unknownGame, dispName) = Store.ResolveActive(fg?.Exe, fg?.Title);
+            bool isGameFg = fg != null && !HapticsGameCatalog.Resolve(fg.Exe, fg.Title).IsMediaApp && !HapticsGameCatalog.IsIgnored(fg.Exe);
             detectedExe = fg?.Exe;
             detectedAppName = string.IsNullOrWhiteSpace(dispName) ? (fg?.Exe ?? "Desktop") : dispName;
             activeResolvedProfile = profile;
@@ -250,7 +253,7 @@ internal static class UniversalHapticsService
                 }
             }
 
-            var pad = ReadLiveInput();
+            var pad = ReadLiveInput(isGameFg);
             var tuning = Store.GetTuning(profile);
             var roles = LightingEffectsService.CurrentSpec.AudioMotorRoles;
             var eval = Engine.Evaluate(audio, pad, profile, tuning, roles, dt);
@@ -266,7 +269,7 @@ internal static class UniversalHapticsService
                 SystemAudioLevelSampler.DispatchExternalHaptics(
                     mixed,
                     lyricalSplit: eval.ResolvedProfile == HapticsGenreProfile.Music,
-                    customRoles: !roles.IsAllAuto);
+                    customRoles: !roles.IsAllAuto && eval.ResolvedProfile == HapticsGenreProfile.Music);
             }
 
             long tickMs = Environment.TickCount64;
@@ -289,15 +292,18 @@ internal static class UniversalHapticsService
         }
     }
 
-    static LivePadInput ReadLiveInput()
+    static LivePadInput ReadLiveInput(bool isGameForeground)
     {
         var now = DateTimeOffset.UtcNow;
         bool cursor = ForegroundApp.IsCursorVisible();
         lock (InputLock)
         {
             double idleSec = (now - lastInputUtc).TotalSeconds;
-            bool press = lastNewPressUtc != DateTimeOffset.MinValue && (now - lastNewPressUtc).TotalMilliseconds < 90;
-            return new LivePadInput(padLx, padLy, padRx, padRy, padLt, padRt, padHeld, press, cursor, idleSec >= 3.5);
+            bool press = (lastNewPressUtc != DateTimeOffset.MinValue && (now - lastNewPressUtc).TotalMilliseconds < 90)
+                || pendingActionButtons != PadActionButtons.None;
+            var btns = pendingActionButtons;
+            pendingActionButtons = PadActionButtons.None;
+            return new LivePadInput(padLx, padLy, padRx, padRy, padLt, padRt, padHeld, press, cursor, idleSec >= 1.6, btns, isGameForeground);
         }
     }
 }

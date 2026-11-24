@@ -94,7 +94,7 @@ internal static class LightingEffectsService
         lastError,
         summary);
 
-    public static void ObserveLiveInput(double lx, double ly, double rx, double ry, double lt, double rt, int heldCount, bool anyNewPress)
+    public static void ObserveLiveInput(double lx, double ly, double rx, double ry, double lt, double rt, int heldCount, bool anyNewPress, PadActionButtons pressedButtons = PadActionButtons.None)
     {
         var now = DateTimeOffset.UtcNow;
         double lMag = Math.Clamp(Math.Sqrt(lx * lx + ly * ly), 0, 1);
@@ -125,7 +125,7 @@ internal static class LightingEffectsService
             try { WakeSignal.Release(); } catch (SemaphoreFullException) { }
         }
 
-        UniversalHapticsService.ObserveLiveInput(lx, ly, rx, ry, lt, rt, heldCount, anyNewPress);
+        UniversalHapticsService.ObserveLiveInput(lx, ly, rx, ry, lt, rt, heldCount, anyNewPress, pressedButtons);
     }
 
     public static LightingFrame EvaluatePreview()

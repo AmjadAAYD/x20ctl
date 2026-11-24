@@ -412,11 +412,30 @@ public sealed partial class ProductHost : Grid
                     double lx=payload.GetProperty("leftX").GetDouble(),ly=payload.GetProperty("leftY").GetDouble();if(Math.Abs(lx)>.6&&Math.Abs(lx)>=Math.Abs(ly))now.Add(lx>0?"LS_RIGHT":"LS_LEFT");else if(Math.Abs(ly)>.6)now.Add(ly>0?"LS_UP":"LS_DOWN");
                 }}
             var pressed=now.Except(lastNativeButtons).ToArray();lastNativeButtons=now;
-            if (connected) LightingEffectsService.ObserveLiveInput(
-                payload.GetProperty("leftX").GetDouble(), payload.GetProperty("leftY").GetDouble(),
-                payload.GetProperty("rightX").GetDouble(), payload.GetProperty("rightY").GetDouble(),
-                payload.GetProperty("lt").GetDouble(), payload.GetProperty("rt").GetDouble(),
-                now.Count, pressed.Length > 0);
+            if (connected)
+            {
+                var actionBtns = X20Ctl.Zone.Lighting.PadActionButtons.None;
+                foreach (var btn in pressed)
+                {
+                    actionBtns |= btn switch
+                    {
+                        "A" => X20Ctl.Zone.Lighting.PadActionButtons.A,
+                        "B" => X20Ctl.Zone.Lighting.PadActionButtons.B,
+                        "X" => X20Ctl.Zone.Lighting.PadActionButtons.X,
+                        "Y" => X20Ctl.Zone.Lighting.PadActionButtons.Y,
+                        "LB" => X20Ctl.Zone.Lighting.PadActionButtons.LB,
+                        "RB" => X20Ctl.Zone.Lighting.PadActionButtons.RB,
+                        "L3" => X20Ctl.Zone.Lighting.PadActionButtons.L3,
+                        "R3" => X20Ctl.Zone.Lighting.PadActionButtons.R3,
+                        _ => X20Ctl.Zone.Lighting.PadActionButtons.None,
+                    };
+                }
+                LightingEffectsService.ObserveLiveInput(
+                    payload.GetProperty("leftX").GetDouble(), payload.GetProperty("leftY").GetDouble(),
+                    payload.GetProperty("rightX").GetDouble(), payload.GetProperty("rightY").GetDouble(),
+                    payload.GetProperty("lt").GetDouble(), payload.GetProperty("rt").GetDouble(),
+                    now.Count, pressed.Length > 0, actionBtns);
+            }
             long time=value.GetProperty("timestampUs").GetInt64();
             NativeInputStudio?.NoteControllerHeld(now);
             // remap capture and macro recording own every press of the pad, but only while X20CTL is in front
