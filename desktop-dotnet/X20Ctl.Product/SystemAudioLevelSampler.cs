@@ -85,7 +85,7 @@ internal static class SystemAudioLevelSampler
     {
         EnsureStarted();
         var frame = SampleAudioFrame();
-        if (driveHaptics)
+        if (driveHaptics && !UniversalHapticsService.IsRunning)
             UpdateAudioHaptics(spec, frame, elapsed.TotalSeconds);
 
         var enriched = input with
@@ -170,6 +170,13 @@ internal static class SystemAudioLevelSampler
         Analyzer.Reset();
     }
 
+    public static void DispatchExternalHaptics(HapticsFrame hf, bool lyricalSplit, bool customRoles = false)
+    {
+        if (ReviewSandbox.Active) return;
+        LatestHaptics = hf;
+        DispatchFrameCore(hf, lyricalSplit, customRoles);
+    }
+
     static void UpdateAudioHaptics(LightingEffectSpec spec, AudioFrame frame, double elapsedSec)
     {
         if (spec.AudioHapticsStrength <= 0)
@@ -179,12 +186,17 @@ internal static class SystemAudioLevelSampler
             return;
         }
 
+        var hf = AudioHapticsEngine.Evaluate(frame, spec.AudioHapticsStyle, spec.AudioHapticsStrength, spec.AudioMotorRoles, elapsedSec);
+        LatestHaptics = hf;
+        bool lyricalSplit = spec.AudioHapticsStyle is AudioHapticsMode.LyricalMusical or AudioHapticsMode.AutoAdaptive;
+        DispatchFrameCore(hf, lyricalSplit, !spec.AudioMotorRoles.IsAllAuto);
+    }
+
+    static void DispatchFrameCore(HapticsFrame hf, bool lyricalSplit, bool customRoles)
+    {
         var browser = Diagnostics.BrowserTriggerRumble.Shared;
         bool canAttemptTriggerStream = browser is { Armed: true, Failure: null, SupportsTriggerRumble: true, IsHostWindowActive: true };
         bool streamConfirmedLive = canAttemptTriggerStream && browser!.StreamLive && browser.HasDocumentFocus;
-
-        var hf = AudioHapticsEngine.Evaluate(frame, spec.AudioHapticsStyle, spec.AudioHapticsStrength, spec.AudioMotorRoles, elapsedSec);
-        LatestHaptics = hf;
 
         if (hf.IsSilent)
         {
@@ -236,15 +248,15 @@ internal static class SystemAudioLevelSampler
         }
         else
         {
-            // On 2.4G/USB: respect per-motor custom role routing directly when configured; otherwise keep L=music / R=vocals in Auto/Lyrical modes.
+            // On 2.4G/USB: map independent trigger sensations cleanly onto XInput motors while preserving stereo split.
             double gripL;
             double gripR;
-            if (!spec.AudioMotorRoles.IsAllAuto)
+            if (customRoles)
             {
                 gripL = Math.Max(hf.LeftGrip, hf.LeftTrigger);
                 gripR = Math.Max(hf.RightGrip, hf.RightTrigger);
             }
-            else if (spec.AudioHapticsStyle is AudioHapticsMode.LyricalMusical or AudioHapticsMode.AutoAdaptive)
+            else if (lyricalSplit)
             {
                 gripL = Math.Max(hf.LeftGrip, hf.RightGrip * 0.45);
                 gripR = hf.LeftTrigger > 0.01 || hf.RightTrigger > 0.01

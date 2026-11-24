@@ -124,6 +124,8 @@ internal static class LightingEffectsService
         {
             try { WakeSignal.Release(); } catch (SemaphoreFullException) { }
         }
+
+        UniversalHapticsService.ObserveLiveInput(lx, ly, rx, ry, lt, rt, heldCount, anyNewPress);
     }
 
     public static LightingFrame EvaluatePreview()

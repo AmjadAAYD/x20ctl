@@ -15,9 +15,37 @@ public static class ForegroundApp
     [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetWindowTextW(IntPtr window, StringBuilder text, int max);
+    [DllImport("user32.dll")] static extern bool GetCursorInfo(ref CursorInfo pci);
+    [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr hWnd, out Rect rect);
+    [DllImport("user32.dll")] static extern IntPtr MonitorFromWindow(IntPtr hWnd, uint dwFlags);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern bool GetMonitorInfoW(IntPtr hMonitor, ref MonitorInfo lpmi);
     [DllImport("kernel32.dll", SetLastError = true)] static extern IntPtr OpenProcess(uint access, bool inherit, uint id);
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] static extern bool QueryFullProcessImageNameW(IntPtr process, uint flags, StringBuilder name, ref uint size);
     [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr handle);
+
+    [StructLayout(LayoutKind.Sequential)]
+    struct Point { public int X, Y; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    struct CursorInfo
+    {
+        public uint cbSize;
+        public uint flags;
+        public IntPtr hCursor;
+        public Point ptScreenPos;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    struct Rect { public int Left, Top, Right, Bottom; }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    struct MonitorInfo
+    {
+        public uint cbSize;
+        public Rect rcMonitor;
+        public Rect rcWork;
+        public uint dwFlags;
+    }
     static readonly HashSet<string> Shell = new(StringComparer.OrdinalIgnoreCase)
     {
         "explorer.exe", "searchhost.exe", "startmenuexperiencehost.exe", "shellexperiencehost.exe", "lockapp.exe", "textinputhost.exe",
@@ -29,19 +57,55 @@ public static class ForegroundApp
     public sealed record App(string Exe, string Title);
     /// <summary>The exe name of the app in front right now ("eldenring.exe"), or null for X20CTL, the shell or nothing.</summary>
     public static string? Exe => exe;
+    /// <summary>The app currently in the foreground, or null when X20CTL or the desktop/shell has focus.</summary>
+    public static App? Current { get; private set; }
     /// <summary>The last app in front that wasn't X20CTL or the shell.</summary>
     public static App? Last { get; private set; }
 
     public static void Start() { if (ReviewSandbox.Active) return; timer ??= new Timer(_ => Look(), null, 0, 1000); }
+
+    /// <summary>True when Windows shows an active mouse cursor (menus, inventory, desktop).</summary>
+    public static bool IsCursorVisible()
+    {
+        if (ReviewSandbox.Active) return false;
+        try
+        {
+            var ci = new CursorInfo { cbSize = (uint)Marshal.SizeOf<CursorInfo>() };
+            return GetCursorInfo(ref ci) && (ci.flags & 0x00000001u) != 0;
+        }
+        catch { return false; }
+    }
+
+    /// <summary>True when the current foreground window fills at least 92% of its monitor.</summary>
+    public static bool IsForegroundFullscreen()
+    {
+        if (ReviewSandbox.Active) return false;
+        try
+        {
+            var hwnd = GetForegroundWindow();
+            if (hwnd == IntPtr.Zero || !GetWindowRect(hwnd, out var r)) return false;
+            var mon = MonitorFromWindow(hwnd, 2u);
+            if (mon == IntPtr.Zero) return false;
+            var mi = new MonitorInfo { cbSize = (uint)Marshal.SizeOf<MonitorInfo>() };
+            if (!GetMonitorInfoW(mon, ref mi)) return false;
+            int w = r.Right - r.Left;
+            int h = r.Bottom - r.Top;
+            int mw = mi.rcMonitor.Right - mi.rcMonitor.Left;
+            int mh = mi.rcMonitor.Bottom - mi.rcMonitor.Top;
+            return mw > 0 && mh > 0 && w >= mw * 0.92 && h >= mh * 0.92;
+        }
+        catch { return false; }
+    }
 
     static void Look()
     {
         try
         {
             var app = Read(GetForegroundWindow());
+            Current = app;
             exe = app?.Exe; if (app != null) Last = app;
         }
-        catch (Exception error) when (error is Win32Exception or InvalidOperationException) { exe = null; }
+        catch (Exception error) when (error is Win32Exception or InvalidOperationException) { Current = null; exe = null; }
     }
 
     static App? Read(IntPtr window)
