@@ -57,6 +57,8 @@ public sealed class HapticsProfileStore
             var parsed = JsonSerializer.Deserialize<HapticsProfileConfig>(json, JsonOptions);
             if (parsed != null)
             {
+                // Fresh launches always start with Universal Haptics off until the user enables it.
+                parsed.Enabled = false;
                 parsed.PerAppProfiles = new Dictionary<string, HapticsGenreProfile>(parsed.PerAppProfiles ?? new(), StringComparer.OrdinalIgnoreCase);
                 parsed.IgnoredExes = new HashSet<string>(parsed.IgnoredExes ?? [], StringComparer.OrdinalIgnoreCase);
                 parsed.PerGenreTuning = new Dictionary<string, HapticsTuning>(parsed.PerGenreTuning ?? new(), StringComparer.OrdinalIgnoreCase);

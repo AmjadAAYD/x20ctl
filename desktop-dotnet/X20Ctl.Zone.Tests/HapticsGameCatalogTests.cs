@@ -84,4 +84,35 @@ public sealed class HapticsGameCatalogTests
                 Directory.Delete(tmpDir, recursive: true);
         }
     }
+
+    [Fact]
+    public void HapticsProfileStore_Load_AlwaysStartsDisabledEvenIfSavedEnabled()
+    {
+        string tmpDir = Path.Combine(Path.GetTempPath(), "x20ctl-test-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tmpDir);
+        string path = Path.Combine(tmpDir, "haptics-profiles.json");
+        try
+        {
+            var store = new HapticsProfileStore(path);
+            store.UpdateSettings(c =>
+            {
+                c.Enabled = true;
+                c.ManualProfile = HapticsGenreProfile.Music;
+                c.ComfortTier = HapticsComfortTier.Balanced;
+            }, persist: true);
+
+            var reloaded = new HapticsProfileStore(path);
+            reloaded.Load();
+            var snap = reloaded.Snapshot();
+
+            Assert.False(snap.Enabled);
+            Assert.Equal(HapticsGenreProfile.Music, snap.ManualProfile);
+            Assert.Equal(HapticsComfortTier.Balanced, snap.ComfortTier);
+        }
+        finally
+        {
+            if (Directory.Exists(tmpDir))
+                Directory.Delete(tmpDir, recursive: true);
+        }
+    }
 }
