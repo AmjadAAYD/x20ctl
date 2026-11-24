@@ -59,6 +59,15 @@ internal static class FeatureTabsReview
                 Capture(stage,Path.Combine(directory,"Device-reset.png"));
             }
         }
+        if(!rgbOnly)
+        {
+            studio.ShowVibration(true);
+            await studio.Dispatcher.InvokeAsync(()=>{},DispatcherPriority.ContextIdle);
+            await Task.Delay(120);
+            IllustratedThemeUI.Skin(host);
+            stage.Measure(new Size(1600,900));stage.Arrange(new Rect(0,0,1600,900));stage.UpdateLayout();
+            Capture(stage,Path.Combine(directory,"Vibration.png"));
+        }
         File.WriteAllText(Path.Combine(directory,"result.txt"),rgbOnly?"PASS: RGB brightness slider leaves the colour alone, exactly one Apply. No controller IO.":"PASS: RGB and Screen navigation, exactly one RGB Apply, Device and RGB return, factory reset asks first. RGB brightness 0/25/50/100, hex sync, black recovery and per-level battery edits pass. No controller IO.");
     }
     static void CheckBrightness(FrameworkElement body)
