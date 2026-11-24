@@ -1,4 +1,6 @@
+using System.Numerics;
 using System.Runtime.InteropServices;
+using X20Ctl.Zone.Lighting;
 namespace X20Ctl.Product;
 
 /// <summary>A one-second buzz on the real pad through XInput's own vibration call, the same a game makes. Writes nothing to
@@ -25,6 +27,60 @@ internal static class ControllerRumble
         catch (Exception error) when (error is DllNotFoundException or EntryPointNotFoundException)
         {
             return -1;
+        }
+    }
+
+    /// <summary>
+    /// Reads live sticks, triggers, held count, and mapped action buttons directly from the active physical XInput slot
+    /// so in-game footsteps, jumps, dashes, attacks, and trigger pulls keep updating even when minimized behind a game.
+    /// </summary>
+    public static bool TryReadLiveState(
+        out double lx,
+        out double ly,
+        out double rx,
+        out double ry,
+        out double lt,
+        out double rt,
+        out int heldCount,
+        out PadActionButtons actionButtons)
+    {
+        lx = ly = rx = ry = lt = rt = 0.0;
+        heldCount = 0;
+        actionButtons = PadActionButtons.None;
+        try
+        {
+            var buf = new byte[16];
+            for (int i = 0; i < 4; i++)
+            {
+                if (PcModeService.IsVirtual(i) || GetState((uint)i, buf) != 0)
+                    continue;
+
+                ushort buttons = BitConverter.ToUInt16(buf, 4);
+                lt = buf[6] / 255.0;
+                rt = buf[7] / 255.0;
+                lx = Math.Clamp(BitConverter.ToInt16(buf, 8) / 32767.0, -1.0, 1.0);
+                ly = Math.Clamp(BitConverter.ToInt16(buf, 10) / 32767.0, -1.0, 1.0);
+                rx = Math.Clamp(BitConverter.ToInt16(buf, 12) / 32767.0, -1.0, 1.0);
+                ry = Math.Clamp(BitConverter.ToInt16(buf, 14) / 32767.0, -1.0, 1.0);
+                heldCount = BitOperations.PopCount(buttons);
+
+                PadActionButtons mapped = PadActionButtons.None;
+                if ((buttons & 0x1000) != 0) mapped |= PadActionButtons.A;
+                if ((buttons & 0x2000) != 0) mapped |= PadActionButtons.B;
+                if ((buttons & 0x4000) != 0) mapped |= PadActionButtons.X;
+                if ((buttons & 0x8000) != 0) mapped |= PadActionButtons.Y;
+                if ((buttons & 0x0100) != 0) mapped |= PadActionButtons.LB;
+                if ((buttons & 0x0200) != 0) mapped |= PadActionButtons.RB;
+                if ((buttons & 0x0040) != 0) mapped |= PadActionButtons.L3;
+                if ((buttons & 0x0080) != 0) mapped |= PadActionButtons.R3;
+                actionButtons = mapped;
+                return true;
+            }
+            return false;
+        }
+        catch (Exception error) when (error is DllNotFoundException or EntryPointNotFoundException)
+        {
+            return false;
         }
     }
 

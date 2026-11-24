@@ -395,20 +395,22 @@ internal static class SystemAudioLevelSampler
                 if (device == null)
                 {
                     loopbackActive = false;
-                    if (++consecutiveFailures >= 3) break;
-                    Thread.Sleep(250);
+                    consecutiveFailures++;
+                    Thread.Sleep(Math.Min(2000, 250 * consecutiveFailures));
                     continue;
                 }
 
+                string? activeDeviceId = null;
                 try
                 {
+                    try { device.GetId(out activeDeviceId); } catch { activeDeviceId = null; }
                     Guid iidClient = IidAudioClient;
                     if (device.Activate(ref iidClient, ClsCtxAll, IntPtr.Zero, out object? rawClient) != 0 ||
                         rawClient is not IAudioClient client)
                     {
                         loopbackActive = false;
-                        if (++consecutiveFailures >= 3) break;
-                        Thread.Sleep(250);
+                        consecutiveFailures++;
+                        Thread.Sleep(Math.Min(2000, 250 * consecutiveFailures));
                         continue;
                     }
                     audioClient = client;
@@ -447,6 +449,7 @@ internal static class SystemAudioLevelSampler
                 loopbackActive = true;
                 long lastPacketTick = Stopwatch.GetTimestamp();
                 long lastSilenceTick = lastPacketTick;
+                long lastDeviceCheckTick = lastPacketTick;
 
                 while (!stopRequested)
                 {
@@ -511,11 +514,22 @@ internal static class SystemAudioLevelSampler
                         lastPacketTick = nowTick;
                         lastSilenceTick = nowTick;
                     }
-                    else if (Stopwatch.GetElapsedTime(lastPacketTick, nowTick).TotalMilliseconds >= 18.0)
+                    else
                     {
-                        double silenceDt = Stopwatch.GetElapsedTime(lastSilenceTick, nowTick).TotalSeconds;
-                        Analyzer.TickSilence(silenceDt);
-                        lastSilenceTick = nowTick;
+                        if (Stopwatch.GetElapsedTime(lastPacketTick, nowTick).TotalMilliseconds >= 18.0)
+                        {
+                            double silenceDt = Stopwatch.GetElapsedTime(lastSilenceTick, nowTick).TotalSeconds;
+                            Analyzer.TickSilence(silenceDt);
+                            lastSilenceTick = nowTick;
+                        }
+                        if (!string.IsNullOrEmpty(activeDeviceId)
+                            && Stopwatch.GetElapsedTime(lastDeviceCheckTick, nowTick).TotalSeconds >= 2.0)
+                        {
+                            lastDeviceCheckTick = nowTick;
+                            string? latestId = GetDefaultRenderDeviceId();
+                            if (!string.IsNullOrEmpty(latestId) && !string.Equals(latestId, activeDeviceId, StringComparison.OrdinalIgnoreCase))
+                                break;
+                        }
                     }
 
                     Thread.Sleep(12);
@@ -524,8 +538,8 @@ internal static class SystemAudioLevelSampler
             catch (Exception)
             {
                 loopbackActive = false;
-                if (++consecutiveFailures >= 3) break;
-                if (!stopRequested) Thread.Sleep(250);
+                consecutiveFailures++;
+                if (!stopRequested) Thread.Sleep(Math.Min(2000, 250 * consecutiveFailures));
             }
             finally
             {
@@ -580,6 +594,19 @@ internal static class SystemAudioLevelSampler
 
         isFloat = false;
         return false;
+    }
+
+    static string? GetDefaultRenderDeviceId()
+    {
+        IMMDevice? dev = null;
+        try
+        {
+            dev = AcquireDefaultRenderDevice();
+            if (dev == null) return null;
+            return dev.GetId(out string? id) == 0 ? id : null;
+        }
+        catch { return null; }
+        finally { ReleaseCom(dev); }
     }
 
     static IMMDevice? AcquireDefaultRenderDevice()
@@ -655,6 +682,12 @@ internal static class SystemAudioLevelSampler
     {
         [PreserveSig]
         int Activate(ref Guid iid, uint dwClsCtx, IntPtr pActivationParams, [MarshalAs(UnmanagedType.IUnknown)] out object? ppInterface);
+
+        [PreserveSig]
+        int OpenPropertyStore(int stgmAccess, out IntPtr ppProperties);
+
+        [PreserveSig]
+        int GetId([MarshalAs(UnmanagedType.LPWStr)] out string? ppstrId);
     }
 
     [ComImport]

@@ -278,7 +278,8 @@ sealed class VirtualPad : IDisposable
         var shape = Shape;
         int left = shape?.ShapeRumble(large, true) ?? large * 257, right = shape?.ShapeRumble(small, false) ?? small * 257;
         GameRumble.Record(real, large, small, left, right);
-        ControllerRumble.Set(real, left, right); // a game's vibration goes on to the real pad
+        if (!UniversalHapticsService.IsRunning)
+            ControllerRumble.Set(real, left, right); // UniversalHapticsService owns hardware dispatch & blending while active
     }
     /// <summary>A DualShock 4 is not an XInput device, so it never has an XInput slot.</summary>
     public bool NoSlot => ds4 != null;

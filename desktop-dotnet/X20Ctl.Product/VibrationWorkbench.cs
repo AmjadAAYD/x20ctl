@@ -72,8 +72,8 @@ public sealed class VibrationWorkbench
     Button? autoDetectToggleBtn;
     Button? askUnknownToggleBtn;
     Button? menuMuteToggleBtn;
-    Slider? uniMasterSlider, uniTextureSlider, uniImpactSlider, uniTriggerSlider;
-    TextBlock? uniMasterVal, uniTextureVal, uniImpactVal, uniTriggerVal;
+    Slider? uniMasterSlider, uniTextureSlider, uniImpactSlider, uniTriggerSlider, uniContrastSlider, uniVocalSlider;
+    TextBlock? uniMasterVal, uniTextureVal, uniImpactVal, uniTriggerVal, uniContrastVal, uniVocalVal, uniTuningHeader;
     readonly Dictionary<HapticsEventTag, Border> eventChipBorders = new();
     bool syncingUniversalUi;
 
@@ -665,7 +665,7 @@ public sealed class VibrationWorkbench
         [
             HapticsEventTag.Gunshot, HapticsEventTag.Explosion, HapticsEventTag.GravelLeft, HapticsEventTag.GravelRight,
             HapticsEventTag.BoostSurge, HapticsEventTag.GearShift, HapticsEventTag.AbsBrake, HapticsEventTag.Footstep,
-            HapticsEventTag.MeleeClash, HapticsEventTag.Vocal, HapticsEventTag.BassDrop, HapticsEventTag.MenuMuted,
+            HapticsEventTag.MeleeClash, HapticsEventTag.Vocal, HapticsEventTag.BassDrop, HapticsEventTag.DialogueDuck, HapticsEventTag.MenuMuted,
         ];
         foreach (var tag in chipTags)
         {
@@ -691,8 +691,19 @@ public sealed class VibrationWorkbench
         }
         stack.Children.Add(chipWrap);
 
-        // Per-genre Feel Sliders
-        (Slider Slider, TextBlock Value) AddFeelSlider(string title, int initVal, Action<HapticsTuning, int> apply)
+        // Per-genre Feel Sliders (always edits the active resolved profile + syncs Auto Hybrid live)
+        var editProf = ResolveEditingProfile();
+        uniTuningHeader = new TextBlock
+        {
+            Text = $"Feel Tuning · {HapticsProfileLabels.ProfileName(editProf)}",
+            FontSize = 12,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = DS.Brush("DS.TextMuted"),
+            Margin = new(0, 2, 0, 4),
+        };
+        stack.Children.Add(uniTuningHeader);
+
+        (Slider Slider, TextBlock Value) AddFeelSlider(string title, int initVal)
         {
             var head = new DockPanel { Margin = new(0, 4, 0, 2) };
             var valLbl = Kit.Text(initVal + "%", 12, "DS.Text", FontWeights.SemiBold);
@@ -707,26 +718,40 @@ public sealed class VibrationWorkbench
                 int v = (int)Math.Round(sl.Value);
                 valLbl.Text = v + "%";
                 if (syncingUniversalUi) return;
-                var activeProf = UniversalHapticsService.Store.Snapshot().ManualProfile;
-                var cur = UniversalHapticsService.Store.GetTuning(activeProf);
-                var updated = cur;
-                // Preserve clean immutable record copy via local helper
-                if (ReferenceEquals(sl, uniMasterSlider)) updated = cur with { MasterIntensity = v };
-                else if (ReferenceEquals(sl, uniTextureSlider)) updated = cur with { TextureDetail = v };
-                else if (ReferenceEquals(sl, uniImpactSlider)) updated = cur with { ImpactPunch = v };
-                else if (ReferenceEquals(sl, uniTriggerSlider)) updated = cur with { TriggerBalance = v };
-                UniversalHapticsService.Store.SetTuning(activeProf, updated, persist: true);
+
+                HapticsTuning ApplySliderField(HapticsTuning baseline)
+                {
+                    if (ReferenceEquals(sl, uniMasterSlider)) return baseline with { MasterIntensity = v };
+                    if (ReferenceEquals(sl, uniTextureSlider)) return baseline with { TextureDetail = v };
+                    if (ReferenceEquals(sl, uniImpactSlider)) return baseline with { ImpactPunch = v };
+                    if (ReferenceEquals(sl, uniTriggerSlider)) return baseline with { TriggerBalance = v };
+                    if (ReferenceEquals(sl, uniContrastSlider)) return baseline with { DynamicContrast = v };
+                    if (ReferenceEquals(sl, uniVocalSlider)) return baseline with { VocalFocus = v };
+                    return baseline;
+                }
+
+                var cfg = UniversalHapticsService.Store.Snapshot();
+                var targetProf = ResolveEditingProfile();
+                var cur = UniversalHapticsService.Store.GetTuning(targetProf);
+                UniversalHapticsService.Store.SetTuning(targetProf, ApplySliderField(cur), persist: true);
+                if (cfg.ManualProfile == HapticsGenreProfile.Auto && targetProf != HapticsGenreProfile.Auto)
+                {
+                    var autoCur = UniversalHapticsService.Store.GetTuning(HapticsGenreProfile.Auto);
+                    UniversalHapticsService.Store.SetTuning(HapticsGenreProfile.Auto, ApplySliderField(autoCur), persist: true);
+                }
                 UniversalHapticsService.NotifySettingsChanged();
             };
             stack.Children.Add(sl);
             return (sl, valLbl);
         }
 
-        var dflt = UniversalHapticsService.Store.GetTuning(UniversalHapticsService.Store.Snapshot().ManualProfile);
-        (uniMasterSlider, uniMasterVal) = AddFeelSlider("Master Intensity", dflt.MasterIntensity, static (_, _) => { });
-        (uniTextureSlider, uniTextureVal) = AddFeelSlider("Texture Detail (Dirt, Curbs, Footsteps)", dflt.TextureDetail, static (_, _) => { });
-        (uniImpactSlider, uniImpactVal) = AddFeelSlider("Impact Punch (Gunshots, Explosions, Bass)", dflt.ImpactPunch, static (_, _) => { });
-        (uniTriggerSlider, uniTriggerVal) = AddFeelSlider("Trigger Emphasis (LT / RT)", dflt.TriggerBalance, static (_, _) => { });
+        var dflt = UniversalHapticsService.Store.GetTuning(editProf);
+        (uniMasterSlider, uniMasterVal) = AddFeelSlider("Master Intensity", dflt.MasterIntensity);
+        (uniTextureSlider, uniTextureVal) = AddFeelSlider("Texture Detail (Dirt, Curbs, Footsteps)", dflt.TextureDetail);
+        (uniImpactSlider, uniImpactVal) = AddFeelSlider("Impact Punch (Gunshots, Explosions, Bass)", dflt.ImpactPunch);
+        (uniTriggerSlider, uniTriggerVal) = AddFeelSlider("Trigger Emphasis (LT / RT)", dflt.TriggerBalance);
+        (uniContrastSlider, uniContrastVal) = AddFeelSlider("Dynamic Contrast (Breathing Valleys)", dflt.DynamicContrast);
+        (uniVocalSlider, uniVocalVal) = AddFeelSlider("Vocal Focus (Music Triggers)", dflt.VocalFocus);
 
         // One-Click Signature Demo Effect Triggers
         stack.Children.Add(new TextBlock
@@ -810,10 +835,27 @@ public sealed class VibrationWorkbench
         UniversalHapticsService.NotifySettingsChanged();
     }
 
+    static HapticsGenreProfile ResolveEditingProfile()
+    {
+        var cfg = UniversalHapticsService.Store.Snapshot();
+        if (cfg.ManualProfile != HapticsGenreProfile.Auto)
+            return cfg.ManualProfile;
+
+        if (UniversalHapticsService.IsRunning
+            && UniversalHapticsService.Latest.ResolvedProfile is not (HapticsGenreProfile.Auto or HapticsGenreProfile.Off))
+            return UniversalHapticsService.Latest.ResolvedProfile;
+
+        if (UniversalHapticsService.ActiveResolvedProfile is not (HapticsGenreProfile.Auto or HapticsGenreProfile.Off))
+            return UniversalHapticsService.ActiveResolvedProfile;
+
+        return HapticsGenreProfile.Auto;
+    }
+
     void SyncUniversalHapticsUi()
     {
         var cfg = UniversalHapticsService.Store.Snapshot();
-        var tuning = UniversalHapticsService.Store.GetTuning(cfg.ManualProfile);
+        var editProf = ResolveEditingProfile();
+        var tuning = UniversalHapticsService.Store.GetTuning(editProf);
 
         syncingUniversalUi = true;
         foreach (var (prof, btn) in universalProfileBtns)
@@ -834,26 +876,22 @@ public sealed class VibrationWorkbench
             toggleUniversalBtn.Content = on ? "Universal Haptics Active (Click to Stop)" : "Enable Universal Haptics";
         }
 
-        if (uniMasterSlider != null && uniMasterVal != null)
+        if (uniTuningHeader != null)
+            uniTuningHeader.Text = $"Feel Tuning · {HapticsProfileLabels.ProfileName(editProf)}";
+
+        static void SyncSlider(Slider? sl, TextBlock? lbl, int val)
         {
-            uniMasterSlider.Value = tuning.MasterIntensity;
-            uniMasterVal.Text = tuning.MasterIntensity + "%";
+            if (sl == null || lbl == null || sl.IsMouseCaptureWithin) return;
+            sl.Value = val;
+            lbl.Text = val + "%";
         }
-        if (uniTextureSlider != null && uniTextureVal != null)
-        {
-            uniTextureSlider.Value = tuning.TextureDetail;
-            uniTextureVal.Text = tuning.TextureDetail + "%";
-        }
-        if (uniImpactSlider != null && uniImpactVal != null)
-        {
-            uniImpactSlider.Value = tuning.ImpactPunch;
-            uniImpactVal.Text = tuning.ImpactPunch + "%";
-        }
-        if (uniTriggerSlider != null && uniTriggerVal != null)
-        {
-            uniTriggerSlider.Value = tuning.TriggerBalance;
-            uniTriggerVal.Text = tuning.TriggerBalance + "%";
-        }
+
+        SyncSlider(uniMasterSlider, uniMasterVal, tuning.MasterIntensity);
+        SyncSlider(uniTextureSlider, uniTextureVal, tuning.TextureDetail);
+        SyncSlider(uniImpactSlider, uniImpactVal, tuning.ImpactPunch);
+        SyncSlider(uniTriggerSlider, uniTriggerVal, tuning.TriggerBalance);
+        SyncSlider(uniContrastSlider, uniContrastVal, tuning.DynamicContrast);
+        SyncSlider(uniVocalSlider, uniVocalVal, tuning.VocalFocus);
         syncingUniversalUi = false;
 
         if (UniversalHapticsService.IsRunning)

@@ -24,6 +24,8 @@ internal static class UniversalHapticsService
     static double padLx, padLy, padRx, padRy, padLt, padRt;
     static int padHeld;
     static PadActionButtons pendingActionButtons;
+    static PadActionButtons lastPolledActionBtns;
+    static int lastPolledHeld;
     static DateTimeOffset lastInputUtc = DateTimeOffset.UtcNow;
     static DateTimeOffset lastNewPressUtc = DateTimeOffset.MinValue;
     static DateTimeOffset demoUntilUtc = DateTimeOffset.MinValue;
@@ -98,6 +100,12 @@ internal static class UniversalHapticsService
             workerTask = null;
         }
         StopWorkerAndWait(cts, task);
+        lock (InputLock)
+        {
+            pendingActionButtons = PadActionButtons.None;
+            lastPolledActionBtns = PadActionButtons.None;
+            lastPolledHeld = 0;
+        }
         Engine.Reset();
         SystemAudioLevelSampler.SilenceHapticsNow();
         latestEval = new(HapticsFrame.Zero, default, HapticsEventTag.None, HapticsEventTag.None, Store.Snapshot().ManualProfile, false, 0.0);
@@ -224,15 +232,34 @@ internal static class UniversalHapticsService
             double dt = Math.Clamp(nowSec - lastSec, 0.008, 0.10);
             lastSec = nowSec;
 
+            SystemAudioLevelSampler.EnsureStarted();
+            PollDirectXInput();
+
             var audio = temporaryDemo ? default : SystemAudioLevelSampler.SampleAudioFrame();
-            var fg = ForegroundApp.Current;
+            var rawFg = ForegroundApp.Current;
+            var fg = rawFg;
+            if (fg == null && ForegroundApp.Last is { } lastApp)
+            {
+                var lastMatch = HapticsGameCatalog.Resolve(lastApp.Exe, lastApp.Title);
+                if (lastMatch.IsMediaApp && lastMatch.Profile != null)
+                    fg = lastApp;
+            }
+
             var (profile, unknownGame, dispName) = Store.ResolveActive(fg?.Exe, fg?.Title);
-            bool isGameFg = fg != null && !HapticsGameCatalog.Resolve(fg.Exe, fg.Title).IsMediaApp && !HapticsGameCatalog.IsIgnored(fg.Exe);
+            var catMatch = HapticsGameCatalog.Resolve(fg?.Exe, fg?.Title);
+            bool explicitGameProf = profile is HapticsGenreProfile.Racing or HapticsGenreProfile.FpsAction or HapticsGenreProfile.RpgMelee or HapticsGenreProfile.SportsArcade;
+            bool isGameFg = explicitGameProf
+                || (rawFg != null
+                    && !catMatch.IsMediaApp
+                    && !catMatch.IsIgnored
+                    && !Store.IsAppIgnored(rawFg.Exe)
+                    && (catMatch.Profile is HapticsGenreProfile.Racing or HapticsGenreProfile.FpsAction or HapticsGenreProfile.RpgMelee or HapticsGenreProfile.SportsArcade
+                        || ForegroundApp.IsForegroundFullscreen()));
             detectedExe = fg?.Exe;
             detectedAppName = string.IsNullOrWhiteSpace(dispName) ? (fg?.Exe ?? "Desktop") : dispName;
             activeResolvedProfile = profile;
 
-            if (unknownGame && cfg.AskOnUnknownGame && !temporaryDemo && fg?.Exe is { Length: > 0 } uExe && ForegroundApp.IsForegroundFullscreen())
+            if (unknownGame && cfg.AskOnUnknownGame && !temporaryDemo && rawFg?.Exe is { Length: > 0 } uExe && ForegroundApp.IsForegroundFullscreen())
             {
                 bool shouldPrompt;
                 lock (PromptedThisSession)
@@ -263,8 +290,8 @@ internal static class UniversalHapticsService
             {
                 var gameSample = GameRumble.Latest;
                 bool freshGame = gameSample != null && (Environment.TickCount64 - gameSample.At) < 280;
-                double natL = freshGame ? gameSample!.GameLeft / 255.0 : 0.0;
-                double natR = freshGame ? gameSample!.GameRight / 255.0 : 0.0;
+                double natL = freshGame ? Math.Clamp(gameSample!.PadLeft > 0 ? gameSample.PadLeft / 65535.0 : gameSample.GameLeft / 255.0, 0.0, 1.0) : 0.0;
+                double natR = freshGame ? Math.Clamp(gameSample!.PadRight > 0 ? gameSample.PadRight / 65535.0 : gameSample.GameRight / 255.0, 0.0, 1.0) : 0.0;
                 var mixed = HapticsMixer.Mix(eval.Motors, natL, natR, tuning.BlendMode);
                 SystemAudioLevelSampler.DispatchExternalHaptics(
                     mixed,
@@ -292,6 +319,23 @@ internal static class UniversalHapticsService
         }
     }
 
+    static void PollDirectXInput()
+    {
+        if (!ControllerRumble.TryReadLiveState(out double lx, out double ly, out double rx, out double ry, out double lt, out double rt, out int heldCount, out var heldBtns))
+            return;
+
+        PadActionButtons newlyPressed;
+        bool anyNewPress;
+        lock (InputLock)
+        {
+            newlyPressed = heldBtns & ~lastPolledActionBtns;
+            lastPolledActionBtns = heldBtns;
+            anyNewPress = newlyPressed != PadActionButtons.None || heldCount > lastPolledHeld;
+            lastPolledHeld = heldCount;
+        }
+        ObserveLiveInput(lx, ly, rx, ry, lt, rt, heldCount, anyNewPress, newlyPressed);
+    }
+
     static LivePadInput ReadLiveInput(bool isGameForeground)
     {
         var now = DateTimeOffset.UtcNow;
@@ -303,7 +347,7 @@ internal static class UniversalHapticsService
                 || pendingActionButtons != PadActionButtons.None;
             var btns = pendingActionButtons;
             pendingActionButtons = PadActionButtons.None;
-            return new LivePadInput(padLx, padLy, padRx, padRy, padLt, padRt, padHeld, press, cursor, idleSec >= 1.6, btns, isGameForeground);
+            return new LivePadInput(padLx, padLy, padRx, padRy, padLt, padRt, padHeld, press, cursor, idleSec >= 4.5, btns, isGameForeground);
         }
     }
 }
