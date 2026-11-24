@@ -1,48 +1,84 @@
-﻿using System.Windows;
+﻿using System.Globalization;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using X20Ctl.Zone;
+
 namespace X20Ctl.Product;
 
-/// <summary>Owned-silhouette visual preview driven by a local draft, never motor telemetry.
-/// Since 10 Oct 2026 (owner: "just keep it as a fast heartbeat") each motor's outline beats, lub-dub, brightening and
-/// swelling a touch on each thump, faster as the strength rises (72 to 180 bpm). Both grips beat together; only the
-/// Only the grips beat; the owner removed triggers from Vibration on 2 Nov 2026. The body stays still.
-/// Reduced motion shows the same picture held still.</summary>
+/// <summary>
+/// GPU-light, controller-free PS5 motion stage: concentric acoustic pulse rings,
+/// dual harmonic waveform ribbons, and 4-channel precision motor equalizer columns.
+/// Preserves <see cref="IsRunning"/>, <see cref="Phase"/>, <see cref="ReducedMotion"/>,
+/// and <see cref="Levels"/> contracts while keeping zero idle CPU load.
+/// </summary>
 public sealed class VibrationVisual : Grid
 {
     private readonly bool animations;
-    private readonly Flow behind, over;
+    private readonly MotionStageCanvas canvas;
+    private readonly bool hasTriggers;
+
     private int strength;
     private TimeSpan started, last;
     private bool rendering;
-    private readonly TranslateTransform shake = new();
     private bool hasLiveMotors;
     private double liveLg, liveRg, liveLt, liveRt;
+    private double audioRms;
+    private bool vocalActive;
+    private bool ecoMode;
+    private string region = "All";
+
     public int Strength => strength;
     public bool IsRunning { get; private set; }
     public bool ReducedMotion => !animations;
     public VibrationVisualProfile Profile => VibrationVisualProfile.For(strength);
-    public static readonly DependencyProperty PhaseProperty = DependencyProperty.Register(nameof(Phase), typeof(double), typeof(VibrationVisual), new FrameworkPropertyMetadata(0d));
+    public static readonly DependencyProperty PhaseProperty = DependencyProperty.Register(
+        nameof(Phase), typeof(double), typeof(VibrationVisual), new FrameworkPropertyMetadata(0d));
     public double Phase { get => (double)GetValue(PhaseProperty); set => SetValue(PhaseProperty, value); }
-    /// <summary>Preview motor levels 0..1 (heavy left, light right), for the page's meters.</summary>
+
+    /// <summary>Preview motor levels 0..1 (heavy left, light right), for external listeners.</summary>
     public event Action<double, double>? Levels;
 
     public VibrationVisual(Geometry outline, bool animate, string model = "x20")
     {
-        animations = animate; IsHitTestVisible = false; Width = 1536; Height = 1024;
-        var tracks = Flow.Load(model);
-        var rim = Flow.LoadRim(model);
-        // the strokes follow the edge of the colour the pad is shown in (each colour's shell is traced on its own)
-        string finish = PadColours.Active(model);
-        var islands = ControllerOutlines.LoadIslands(model, finish);
-        behind = new Flow(tracks, false) { Rim = rim }; over = new Flow(tracks, true) { Rim = rim, Parts = islands, Palette = [ThemeCatalog.R(Color.FromRgb(246,191,105)),ThemeCatalog.R(Color.FromRgb(255,229,187))], Body = ControllerOutlines.LoadSilhouette(model, finish) };
-        Children.Add(behind); Children.Add(new PhotoController(model)); Children.Add(over);
-        RenderTransform = shake;
-        Loaded += (_, _) => UpdateClock(); Unloaded += (_, _) => Stop(); IsVisibleChanged += (_, _) => UpdateClock();
+        animations = animate;
+        hasTriggers = ModelProfiles.For(model).Motors.Contains("triggers");
+        IsHitTestVisible = false;
+        MinWidth = 320;
+        MinHeight = 230;
+
+        canvas = new MotionStageCanvas(hasTriggers);
+        Children.Add(canvas);
+
+        Loaded += (_, _) => UpdateClock();
+        Unloaded += (_, _) => Stop();
+        IsVisibleChanged += (_, _) => UpdateClock();
     }
-    public void SetRegion(string region){over.Region=region;over.InvalidateVisual();}
-    public void SetStrength(int percent) { if (percent == strength) return; strength = percent; UpdateClock(); }
+
+    public void SetRegion(string targetRegion)
+    {
+        region = string.IsNullOrWhiteSpace(targetRegion) ? "All" : targetRegion;
+        canvas.UpdateState(strength, 0, false, region, hasLiveMotors, liveLg, liveRg, liveLt, liveRt, audioRms, vocalActive, ecoMode);
+    }
+
+    public void SetStrength(int percent)
+    {
+        if (percent == strength) return;
+        strength = percent;
+        UpdateClock();
+    }
+
+    public void SetTelemetry(double rms, bool vocal, bool eco)
+    {
+        double clamped = Math.Clamp(rms, 0.0, 1.0);
+        if (Math.Abs(clamped - audioRms) < 0.005 && vocal == vocalActive && eco == ecoMode)
+            return;
+        audioRms = clamped;
+        vocalActive = vocal;
+        ecoMode = eco;
+        if (!IsRunning)
+            canvas.UpdateState(strength, 0, false, region, hasLiveMotors, liveLg, liveRg, liveLt, liveRt, audioRms, vocalActive, ecoMode);
+    }
 
     public void SetLiveMotors(double leftGrip, double rightGrip, double leftTrigger, double rightTrigger)
     {
@@ -51,8 +87,7 @@ public sealed class VibrationVisual : Grid
         liveLt = Math.Clamp(leftTrigger, 0.0, 1.0);
         liveRt = Math.Clamp(rightTrigger, 0.0, 1.0);
         hasLiveMotors = liveLg > 0.005 || liveRg > 0.005 || liveLt > 0.005 || liveRt > 0.005;
-        over.SetLiveMotors(hasLiveMotors, liveLg, liveRg, liveLt, liveRt);
-        behind.SetLiveMotors(hasLiveMotors, liveLg, liveRg, liveLt, liveRt);
+
         if (hasLiveMotors && !IsRunning && IsVisible)
         {
             if (animations)
@@ -64,18 +99,16 @@ public sealed class VibrationVisual : Grid
             }
             else
             {
-                behind.Draw(strength, 0, false);
-                over.Draw(strength, 0, false);
+                canvas.UpdateState(strength, 0, false, region, hasLiveMotors, liveLg, liveRg, liveLt, liveRt, audioRms, vocalActive, ecoMode);
             }
         }
         else if (!hasLiveMotors && strength == 0)
         {
             Stop();
         }
-        else if (!animations)
+        else if (!animations || !IsRunning)
         {
-            behind.Draw(strength, 0, false);
-            over.Draw(strength, 0, false);
+            canvas.UpdateState(strength, 0, false, region, hasLiveMotors, liveLg, liveRg, liveLt, liveRt, audioRms, vocalActive, ecoMode);
         }
     }
 
@@ -84,17 +117,22 @@ public sealed class VibrationVisual : Grid
         if (!hasLiveMotors) return;
         hasLiveMotors = false;
         liveLg = liveRg = liveLt = liveRt = 0;
-        over.SetLiveMotors(false, 0, 0, 0, 0);
-        behind.SetLiveMotors(false, 0, 0, 0, 0);
         UpdateClock();
     }
 
     private void Stop()
     {
-        if (rendering) { CompositionTarget.Rendering -= Tick; rendering = false; }
-        IsRunning = false; Phase = 0; shake.X = shake.Y = 0;
-        behind.Draw(strength, 0, false); over.Draw(strength, 0, false); Levels?.Invoke(0, 0);
+        if (rendering)
+        {
+            CompositionTarget.Rendering -= Tick;
+            rendering = false;
+        }
+        IsRunning = false;
+        Phase = 0;
+        canvas.UpdateState(strength, 0, false, region, hasLiveMotors, liveLg, liveRg, liveLt, liveRt, audioRms, vocalActive, ecoMode);
+        Levels?.Invoke(0, 0);
     }
+
     private void UpdateClock()
     {
         Stop();
@@ -105,8 +143,12 @@ public sealed class VibrationVisual : Grid
             Levels?.Invoke(hasLiveMotors ? liveLg : s, hasLiveMotors ? liveRg : s);
             return;
         }
-        IsRunning = true; started = TimeSpan.Zero; rendering = true; CompositionTarget.Rendering += Tick;
+        IsRunning = true;
+        started = TimeSpan.Zero;
+        rendering = true;
+        CompositionTarget.Rendering += Tick;
     }
+
     private void Tick(object? sender, EventArgs e)
     {
         var now = ((RenderingEventArgs)e).RenderingTime;
@@ -115,264 +157,243 @@ public sealed class VibrationVisual : Grid
         if (started == TimeSpan.Zero) started = now;
         double t = (now - started).TotalSeconds, s = strength / 100.0;
         Phase = t % 1;
-        behind.Draw(strength, t, true); over.Draw(strength, t, true);
+        canvas.UpdateState(strength, t, true, region, hasLiveMotors, liveLg, liveRg, liveLt, liveRt, audioRms, vocalActive, ecoMode);
         Levels?.Invoke(hasLiveMotors ? liveLg : s, hasLiveMotors ? liveRg : s);
     }
 
-    /// <summary>A contour resampled at an even step, with outward normals, so light can travel along it smoothly.</summary>
-    private sealed class Track
+    private sealed class MotionStageCanvas(bool hasTriggers) : FrameworkElement
     {
-        public required Point[] Points; public required Vector[] Normals; public required Geometry Shape; public required Point Center;
-        public required int Direction; public required bool Grip;
-    }
+        static readonly Typeface MonoTypeface = new(new FontFamily("Consolas, Cascadia Mono, Courier New"), FontStyles.Normal, FontWeights.SemiBold, FontStretches.Normal);
+        static readonly Typeface LabelTypeface = new(new FontFamily("Segoe UI Variable Text, Segoe UI"), FontStyles.Normal, FontWeights.SemiBold, FontStretches.Normal);
 
-    /// <summary>The light itself. The back layer is the warmth behind each grip; the front layer is the living outline.</summary>
-    private sealed class Flow : FrameworkElement
-    {
-        private readonly List<Track> tracks; private readonly bool front;
-        public string Region {get;set;}="Both grips";
-        private int strength; private double time; private bool moving;
-        private bool liveMode; private double liveLg, liveRg, liveLt, liveRt;
-        public void SetLiveMotors(bool active, double lg, double rg, double lt, double rt)
+        int strength;
+        double time;
+        bool animate;
+        string region = "All";
+        bool live;
+        double lg, rg, lt, rt;
+        double rms;
+        bool vocal;
+        bool eco;
+        readonly double[] peakHold = new double[4];
+
+        public void UpdateState(int str, double t, bool anim, string reg, bool isLive, double lGrip, double rGrip, double lTrig, double rTrig, double audioRms, bool isVocal, bool isEco)
         {
-            liveMode = active; liveLg = lg; liveRg = rg; liveLt = lt; liveRt = rt;
+            strength = str;
+            time = t;
+            animate = anim;
+            region = reg;
+            live = isLive;
+            lg = lGrip;
+            rg = rGrip;
+            lt = lTrig;
+            rt = rTrig;
+            rms = audioRms;
+            vocal = isVocal;
+            eco = isEco;
+
+            double[] cur = [lGrip, rGrip, lTrig, rTrig];
+            for (int i = 0; i < 4; i++)
+            {
+                if (cur[i] >= peakHold[i]) peakHold[i] = cur[i];
+                else peakHold[i] = Math.Max(cur[i], peakHold[i] - 0.018);
+            }
             InvalidateVisual();
         }
-        private static readonly Color Deep = ThemeCatalog.R(Color.FromRgb(56, 132, 255)), Ice = ThemeCatalog.R(Color.FromRgb(170, 214, 255)), White = ThemeCatalog.R(Color.FromRgb(240, 247, 255));
-        public Track? Rim { get; init; }
-        public List<ControllerOutlines.Island> Parts { get; init; } = [];
-        /// <summary>The controller's exact outline from its photo. The light is clipped to it, so it lives on the controller's
-        /// edge like an edge-lit bevel and never bleeds out into the background.</summary>
-        public Geometry? Body { get; init; }
-        /// <summary>Catmull-Rom through the traced points, so the contour reads as fitted, not hand drawn.</summary>
-        private static Point[] Smooth(Point[] p, bool closed)
-        {
-            var o = new List<Point>(); int m = p.Length, steps = 12;
-            for (int i = 0; i < (closed ? m : m - 1); i++)
-            {
-                Point p0 = closed || i > 0 ? p[(i - 1 + m) % m] : p[0], p1 = p[i], p2 = p[(i + 1) % m], p3 = closed || i + 2 < m ? p[(i + 2) % m] : p[m - 1];
-                for (int k = 0; k < steps; k++)
-                {
-                    double t = (double)k / steps, t2 = t * t, t3 = t2 * t;
-                    o.Add(new Point(.5 * (2 * p1.X + (-p0.X + p2.X) * t + (2 * p0.X - 5 * p1.X + 4 * p2.X - p3.X) * t2 + (-p0.X + 3 * p1.X - 3 * p2.X + p3.X) * t3),
-                                    .5 * (2 * p1.Y + (-p0.Y + p2.Y) * t + (2 * p0.Y - 5 * p1.Y + 4 * p2.Y - p3.Y) * t2 + (-p0.Y + 3 * p1.Y - 3 * p2.Y + p3.Y) * t3)));
-                }
-            }
-            o.Add(closed ? p[0] : p[m - 1]); return o.ToArray();
-        }
-        /// <summary>The controller's whole outline (the lighting silhouette), resampled so light can run round it.</summary>
-        public static Track? LoadRim(string model)
-        {
-            try
-            {
-                using var doc = System.Text.Json.JsonDocument.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(AppContext.BaseDirectory, "Data", "lighting.json")));
-                string d = doc.RootElement.GetProperty("models").GetProperty(model).GetProperty("front").GetString()!;
-                return Build(Geometry.Parse(d), 1, false);
-            }
-            catch (Exception e) when (e is System.IO.IOException or System.Text.Json.JsonException or KeyNotFoundException or FormatException or InvalidOperationException) { return null; }
-        }
-        private static Color Hue(double t)
-        {
-            t -= Math.Floor(t);
-            Color[] stops = { ThemeCatalog.R(Color.FromRgb(70, 225, 255)), ThemeCatalog.R(Color.FromRgb(70, 120, 255)), ThemeCatalog.R(Color.FromRgb(255, 90, 215)), ThemeCatalog.R(Color.FromRgb(255, 160, 60)), ThemeCatalog.R(Color.FromRgb(70, 225, 255)) };
-            double x = t * 4; int i = (int)x; return Mix(stops[i], stops[Math.Min(i + 1, 4)], x - i);
-        }
-        public Flow(List<Track> tracks, bool front) { this.tracks = tracks; this.front = front; Width = 1536; Height = 1024; IsHitTestVisible = false; }
-        public void Draw(int s, double t, bool animate) { strength = s; time = t; moving = animate; InvalidateVisual(); }
 
-        /// <summary>The motors live in the grips (and the triggers, on models that have trigger motors): the model's
-        /// haptics contours (src/assets/controllers/&lt;model&gt;/haptics-geometry.json) are where the light runs.</summary>
-        public static List<Track> Load(string model)
-        {
-            var list = new List<Track>();
-            try
-            {
-                string path = System.IO.Path.Combine(AppContext.BaseDirectory, "Data", "haptics", model, "haptics-geometry.json");
-                using var doc = System.Text.Json.JsonDocument.Parse(System.IO.File.ReadAllText(path));
-                var c = doc.RootElement.GetProperty("contours");
-                bool triggers = model is "x20_pro" or "dune"; // owner, 10 Oct 2026: every other model has the same two grip rotors
-                foreach (var (key, direction, grip) in new[] { ("left_grip", 1, true), ("right_grip", -1, true), ("left_trigger", 1, false), ("right_trigger", -1, false) }.Where(k => k.Item3 || triggers))
-                    if (c.TryGetProperty(key, out var data) && data.GetString() is { Length: > 0 } text && Build(Geometry.Parse(text), direction, grip) is { } track) list.Add(track);
-            }
-            catch (Exception e) when (e is System.IO.IOException or System.Text.Json.JsonException or KeyNotFoundException or FormatException or InvalidOperationException) { }
-            return list;
-        }
-        private static Track? Build(Geometry shape, int direction, bool grip)
-        {
-            shape.Freeze();
-            var flat = shape.GetFlattenedPathGeometry(.5, ToleranceType.Absolute);
-            var raw = new List<Point>();
-            foreach (var figure in flat.Figures)
-            {
-                if (raw.Count > 0) break; // one closed contour per motor
-                raw.Add(figure.StartPoint);
-                foreach (var segment in figure.Segments)
-                    if (segment is PolyLineSegment poly) raw.AddRange(poly.Points); else if (segment is LineSegment line) raw.Add(line.Point);
-            }
-            if (raw.Count < 4) return null;
-            raw.Add(raw[0]);
-            // even 3 px steps
-            const double step = 3;
-            var points = new List<Point> { raw[0] }; double carry = 0;
-            for (int i = 1; i < raw.Count; i++)
-            {
-                Vector d = raw[i] - raw[i - 1]; double len = d.Length; if (len < 1e-6) continue; d /= len;
-                double at = step - carry;
-                while (at <= len) { points.Add(raw[i - 1] + d * at); at += step; }
-                carry = len - (at - step);
-            }
-            if (points.Count < 8) return null;
-            var b = shape.Bounds; var center = new Point(b.X + b.Width / 2, b.Y + b.Height / 2);
-            var normals = new Vector[points.Count];
-            for (int i = 0; i < points.Count; i++)
-            {
-                Vector t = points[(i + 1) % points.Count] - points[(i - 1 + points.Count) % points.Count];
-                var n = new Vector(t.Y, -t.X); if (n.Length > 0) n.Normalize();
-                if (Vector.Multiply(n, points[i] - center) < 0) n = -n;
-                normals[i] = n;
-            }
-            return new Track { Points = points.ToArray(), Normals = normals, Shape = shape, Center = center, Direction = direction, Grip = grip };
-        }
-
-        /// <summary>A heartbeat, lub then dub: 0..1 over one beat period.</summary>
-        public static double Beat(double t, double s)
-        {
-            double period = 60 / (72 + 108 * s); // 72 bpm at the lightest, 180 bpm at 100%
-            double p = t % period / period;
-            static double Thump(double x) => x < 0 ? 0 : (1 - Math.Exp(-x / .018)) * Math.Exp(-x / .09);
-            return Math.Clamp((Thump(p) + .62 * Thump(p - .30)) / .78, 0, 1);
-        }
         protected override void OnRender(DrawingContext dc)
         {
-            if (strength == 0 && !liveMode) return;
-            if (tracks.Count == 0 && Parts.Count == 0) return;
-            // owner direction 10 Oct 2026: no comets or ripples, just a fast heartbeat on each motor's outline
-            double s = strength / 100.0;
-            if (!front) return;
-            double left = liveMode ? liveLg : s, right = liveMode ? liveRg : s;
-            if (Body != null) dc.PushClip(Body);
-            foreach (var part in Parts)
+            double w = ActualWidth, h = ActualHeight;
+            if (w < 24 || h < 24) return;
+
+            var theme = ThemeCatalog.Current;
+            Color accent = theme.Accent;
+            Color accentHi = theme.AccentHi;
+            Color ecoCol = Color.FromRgb(0x22, 0xC5, 0x5E);
+            Color coreColor = eco ? ThemeCatalog.Mix(accent, ecoCol, 0.55) : vocal ? accentHi : accent;
+
+            double sNorm = strength / 100.0;
+            double mLg = live ? lg : (region == "Right grip" ? 0 : sNorm);
+            double mRg = live ? rg : (region == "Left grip" ? 0 : sNorm);
+            double mLt = live ? lt : 0;
+            double mRt = live ? rt : 0;
+            double energy = Math.Clamp(Math.Max(Math.Max(mLg, mRg), Math.Max(mLt, mRt) * 0.9), 0, 1);
+
+            double splitY = h * 0.64;
+            double cx = w * 0.5;
+            double cy = splitY * 0.52;
+            double baseR = Math.Min(w * 0.24, splitY * 0.36);
+
+            // Subtle radial acoustic bloom behind rings
+            double bloomAlpha = 18 + 64 * Math.Max(energy, rms * 0.7);
+            var aura = new RadialGradientBrush(
+                Color.FromArgb((byte)Math.Clamp(bloomAlpha, 0, 120), coreColor.R, coreColor.G, coreColor.B),
+                Colors.Transparent);
+            aura.Freeze();
+            dc.DrawEllipse(aura, null, new Point(cx, cy), baseR * 2.1, baseR * 1.45);
+
+            // Concentric acoustic pulse rings
+            for (int i = 0; i < 4; i++)
             {
-                if (!part.Grip && !liveMode) continue;
-                if (Region == "Left grip" && !(part.Grip && part.Left)) continue;
-                if (Region == "Right grip" && !(part.Grip && !part.Left)) continue;
-                double m = part.Grip
-                    ? (part.Left ? left : right)
-                    : (part.Left ? liveLt : liveRt);
-                if (m <= 0.005) continue;
-                double railCore = part.Grip ? 5 : 4.2, lit = .6 + .4 * m;
-                EdgeGlow(dc, part, 60 * lit, railCore * 4, false);
-                EdgeGlow(dc, part, 250 * lit, railCore, false);
-                EdgeGlow(dc, part, 230 * lit, railCore * .4, true);
-                double q = .4, period = 2.6 - 1.8 * m, travel = .7 + .25 * m;
-                if (moving)
+                double wavePhase = animate ? ((time * (0.45 + 0.55 * energy) + i * 0.25) % 1.0) : (0.18 + i * 0.22);
+                double r = baseR * (0.42 + wavePhase * (0.95 + 0.38 * energy));
+                double fade = (1.0 - wavePhase);
+                byte ringA = (byte)Math.Clamp((28 + 130 * energy) * fade * fade, 10, 210);
+                Color rc = i % 2 == 0 ? coreColor : accentHi;
+                var pen = MakePen(Color.FromArgb(ringA, rc.R, rc.G, rc.B), 1.2 + 1.4 * energy * fade);
+                dc.DrawEllipse(null, pen, new Point(cx, cy), r, r * 0.74);
+            }
+
+            // Dual harmonic waveform ribbon across stage middle
+            double waveW = w - 36;
+            double x0 = 18;
+            double amp = 6 + 34 * Math.Max(energy, rms * 0.65);
+            const int segs = 44;
+            var upperPts = new Point[segs + 1];
+            var lowerPts = new Point[segs + 1];
+            for (int i = 0; i <= segs; i++)
+            {
+                double u = i / (double)segs;
+                double env = Math.Sin(u * Math.PI);
+                env *= env;
+                double p1 = animate ? time * (4.2 + energy * 4.5) : 0.8;
+                double p2 = animate ? time * (7.6 + (vocal ? 4.0 : 1.5)) : 1.7;
+                double yOff = (Math.Sin(u * 9.5 - p1) * 0.62 + Math.Sin(u * 21.0 + p2) * (vocal ? 0.45 : 0.24)) * amp * env;
+                upperPts[i] = new Point(x0 + u * waveW, cy + yOff);
+                lowerPts[i] = new Point(x0 + u * waveW, cy - yOff * 0.55);
+            }
+
+            var bassPen = MakePen(Color.FromArgb((byte)(110 + 135 * Math.Max(energy, rms)), coreColor.R, coreColor.G, coreColor.B), 2.1);
+            var shimmerPen = MakePen(Color.FromArgb((byte)(65 + 115 * Math.Max(mLt, mRt)), accentHi.R, accentHi.G, accentHi.B), 1.35);
+            DrawPolyline(dc, bassPen, upperPts);
+            DrawPolyline(dc, shimmerPen, lowerPts);
+
+            // Center state readout badge (clean sharp geometry, zero round pill)
+            string modeBadge = eco
+                ? "ECO BATTERY SAVER · 25 HZ"
+                : vocal && live
+                    ? "VOCAL GATE ACTIVE · TRIGGER DRIVE"
+                    : live
+                        ? "LIVE HAPTICS STREAM"
+                        : strength > 0
+                            ? $"MOTOR TEST PREVIEW · {strength}%"
+                            : "STANDBY · READY";
+
+            double dpi = VisualTreeHelper.GetDpi(this).PixelsPerDip;
+            var badgeText = new FormattedText(
+                modeBadge,
+                CultureInfo.CurrentUICulture,
+                FlowDirection.LeftToRight,
+                MonoTypeface,
+                10.5,
+                MakeBrush(Color.FromArgb(235, theme.Text.R, theme.Text.G, theme.Text.B)),
+                dpi);
+            double padX = 12, padY = 4;
+            double bw = badgeText.Width + padX * 2, bh = badgeText.Height + padY * 2;
+            var badgeRect = new Rect(cx - bw * 0.5, splitY - bh - 8, bw, bh);
+            dc.DrawRoundedRectangle(
+                MakeBrush(Color.FromArgb(190, theme.Night.R, theme.Night.G, theme.Night.B)),
+                MakePen(Color.FromArgb(140, coreColor.R, coreColor.G, coreColor.B), 1),
+                badgeRect, 3, 3);
+            dc.DrawText(badgeText, new Point(badgeRect.X + padX, badgeRect.Y + padY));
+
+            // Separator hairline
+            dc.DrawLine(MakePen(Color.FromArgb(95, theme.Rule.R, theme.Rule.G, theme.Rule.B), 1),
+                new Point(14, splitY + 2), new Point(w - 14, splitY + 2));
+
+            // 4-Channel (or 2-Channel) Vertical Motor Equalizer Columns
+            int cols = hasTriggers ? 4 : 2;
+            string[] names = ["L GRIP", "R GRIP", "L TRIG", "R TRIG"];
+            double[] vals = [mLg, mRg, mLt, mRt];
+            Color[] colsColors =
+            [
+                ThemeCatalog.Tone(Color.FromRgb(0xFF, 0x3B, 0x7F), t => t.Accent),
+                ThemeCatalog.Tone(Color.FromRgb(0x38, 0xBD, 0xF8), t => t.AccentHi),
+                ThemeCatalog.Tone(Color.FromRgb(0xFB, 0x92, 0x3C), t => ThemeCatalog.Mix(t.Accent, t.Text, 0.25)),
+                ThemeCatalog.Tone(Color.FromRgb(0xA7, 0x8B, 0xFA), t => ThemeCatalog.Mix(t.AccentHi, t.Text, 0.25)),
+            ];
+
+            double colTop = splitY + 12;
+            double colBot = h - 30;
+            double colH = Math.Max(32, colBot - colTop);
+            double gap = 12;
+            double areaW = w - 28;
+            double colW = (areaW - gap * (cols - 1)) / cols;
+
+            for (int i = 0; i < cols; i++)
+            {
+                double x = 14 + i * (colW + gap);
+                double val = live ? vals[i] : vals[i];
+                double pk = live ? Math.Max(peakHold[i], val) : val;
+
+                var trackRect = new Rect(x, colTop, colW, colH);
+                dc.DrawRoundedRectangle(
+                    MakeBrush(Color.FromArgb(115, theme.Void.R, theme.Void.G, theme.Void.B)),
+                    MakePen(Color.FromArgb(80, theme.Rule.R, theme.Rule.G, theme.Rule.B), 1),
+                    trackRect, 4, 4);
+
+                // Subtle 25/50/75% ticks
+                for (int t = 1; t <= 3; t++)
                 {
-                    double t = time - (part.Grip ? 0 : .08) + (part.Left ? 0 : .37);
-                    double cycle = t / period + .04 * Math.Sin(t * .9 + (part.Left ? 0 : 2)), phase = cycle - Math.Floor(cycle);
-                    q = phase / travel;
-                    if (m > .6) Pulse(dc, part, ((phase - .5 + 1) % 1) / travel, m, .45 * (m - .6) / .4, time);
+                    double ty = colBot - colH * (t * 0.25);
+                    dc.DrawLine(MakePen(Color.FromArgb(45, theme.Muted.R, theme.Muted.G, theme.Muted.B), 0.7),
+                        new Point(x + 4, ty), new Point(x + colW - 4, ty));
                 }
-                Pulse(dc, part, q, m, 1, moving ? time : 0);
-            }
-            if (liveMode)
-            {
-                foreach (var track in tracks.Where(t => !t.Grip))
+
+                if (val > 0.01)
                 {
-                    double trig = track.Direction >= 0 ? liveLt : liveRt;
-                    if (trig <= 0.005) continue;
-                    Color baseCol = track.Direction >= 0 ? Color.FromRgb(251, 146, 60) : Color.FromRgb(167, 139, 250);
-                    var fill = new SolidColorBrush(Color.FromArgb((byte)Math.Clamp(trig * 95, 0, 120), baseCol.R, baseCol.G, baseCol.B));
-                    fill.Freeze();
-                    var strokeBrush = new SolidColorBrush(Color.FromArgb((byte)Math.Clamp(120 + trig * 135, 0, 255), baseCol.R, baseCol.G, baseCol.B));
-                    strokeBrush.Freeze();
-                    var pen = new Pen(strokeBrush, 4.5 + trig * 3.5);
-                    pen.Freeze();
-                    dc.DrawGeometry(fill, pen, track.Shape);
+                    double fillH = Math.Max(3, colH * val);
+                    var fillRect = new Rect(x + 2, colBot - fillH, Math.Max(4, colW - 4), fillH);
+                    Color mc = colsColors[i];
+                    var grad = new LinearGradientBrush(
+                        Color.FromArgb(245, mc.R, mc.G, mc.B),
+                        Color.FromArgb(120, mc.R, mc.G, mc.B),
+                        90);
+                    grad.Freeze();
+                    dc.DrawRoundedRectangle(grad, null, fillRect, 3, 3);
                 }
+
+                if (pk > 0.02)
+                {
+                    double py = colBot - colH * pk;
+                    dc.DrawRectangle(MakeBrush(colsColors[i]), null, new Rect(x + 2, py - 1.5, Math.Max(4, colW - 4), 2.5));
+                }
+
+                var labelFt = new FormattedText(
+                    names[i],
+                    CultureInfo.CurrentUICulture,
+                    FlowDirection.LeftToRight,
+                    LabelTypeface,
+                    10,
+                    MakeBrush(Color.FromArgb(190, theme.Soft.R, theme.Soft.G, theme.Soft.B)),
+                    dpi);
+                dc.DrawText(labelFt, new Point(x + (colW - labelFt.Width) * 0.5, colBot + 4));
+
+                var pctFt = new FormattedText(
+                    $"{Math.Round(val * 100):0}%",
+                    CultureInfo.CurrentUICulture,
+                    FlowDirection.LeftToRight,
+                    MonoTypeface,
+                    10.5,
+                    MakeBrush(Color.FromArgb(240, theme.Text.R, theme.Text.G, theme.Text.B)),
+                    dpi);
+                dc.DrawText(pctFt, new Point(x + (colW - pctFt.Width) * 0.5, colBot + 16));
             }
-            if (Body != null) dc.Pop();
         }
-        public Color[] Palette { get; init; } = [ThemeCatalog.R(Color.FromRgb(80, 225, 255))];
-        /// <summary>The colours of each model's own LEDs, read off its photo: strips, stick rings, the D-pad ring. The X10 and
-        /// X15 show no lit LEDs, so they take the colour of their shell accents.</summary>
-        public static Color[] LedColors(string model) => model switch
+
+        static Brush MakeBrush(Color c) { var b = new SolidColorBrush(c); b.Freeze(); return b; }
+        static Pen MakePen(Color c, double w) { var p = new Pen(MakeBrush(c), w) { LineJoin = PenLineJoin.Round, StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round }; p.Freeze(); return p; }
+        static void DrawPolyline(DrawingContext dc, Pen pen, Point[] pts)
         {
-            "x20" => [ThemeCatalog.R(Color.FromRgb(255, 150, 45)), ThemeCatalog.R(Color.FromRgb(255, 60, 200)), ThemeCatalog.R(Color.FromRgb(80, 90, 255))],
-            "x20_pro" => [ThemeCatalog.R(Color.FromRgb(255, 90, 220)), ThemeCatalog.R(Color.FromRgb(160, 110, 255)), ThemeCatalog.R(Color.FromRgb(90, 230, 255))],
-            "x05_pro" => [ThemeCatalog.R(Color.FromRgb(255, 70, 200)), ThemeCatalog.R(Color.FromRgb(255, 215, 60)), ThemeCatalog.R(Color.FromRgb(80, 230, 255))],
-            "x10" => [ThemeCatalog.R(Color.FromRgb(110, 160, 255)), ThemeCatalog.R(Color.FromRgb(175, 210, 255))],
-            "d10" => [ThemeCatalog.R(Color.FromRgb(255, 190, 240)), ThemeCatalog.R(Color.FromRgb(255, 80, 210)), ThemeCatalog.R(Color.FromRgb(160, 90, 255))],
-            "x15" => [ThemeCatalog.R(Color.FromRgb(210, 175, 255)), ThemeCatalog.R(Color.FromRgb(150, 110, 255))],
-            "dune" => [ThemeCatalog.R(Color.FromRgb(170, 90, 255)), ThemeCatalog.R(Color.FromRgb(80, 140, 255)), ThemeCatalog.R(Color.FromRgb(90, 230, 255)), ThemeCatalog.R(Color.FromRgb(255, 100, 220))],
-            _ => [ThemeCatalog.R(Color.FromRgb(80, 225, 255))],
-        };
-        private static Color Rgb(Color[] stops, double t)
-        {
-            t -= Math.Floor(t); int n = stops.Length; if (n == 1) return stops[0];
-            double x = t * n; int i = Math.Min((int)x, n - 1); return Mix(stops[i], stops[(i + 1) % n], x - i);
-        }
-        /// <summary>One pulse at progress q round the loop (outside 0..1 it is resting): a short bright strip of RGB light with
-        /// feathered ends, a soft bloom under it, easing in as it starts and out as it ends.</summary>
-        private void Pulse(DrawingContext dc, ControllerOutlines.Island part, double q, double m, double weight, double time)
-        {
-            if (q is < 0 or > 1 || weight <= 0) return;
-            // owner, 14 Oct 2026: the moving light is solid, so the line underneath never shows through it. Its tips taper in
-            // width (never in opacity) down to the line's own width, so it stays covered end to end.
-            double span = part.Length * (part.Grip ? .55 : .6), head = part.Closed ? part.Length * q : (part.Length + span) * q;
-            double core = part.Grip ? 8.5 : 6, rail = part.Grip ? 6.5 : 4.5;
-            int stride = part.Points.Length > 44 ? 2 : 1;
-            for (int i = 0; i + stride < part.Points.Length; i += stride)
-            {
-                double behind = head - part.Along[i]; if (behind < 0) { if (!part.Closed) continue; behind += part.Length; } // a loop: the tail wraps past the start
-                if (behind > span) continue;
-                double x = 1 - behind / span, taper = Math.Clamp(Math.Min(x, 1 - x) / .12, 0, 1); taper = taper * taper * (3 - 2 * taper);
-                double width = rail + (core - rail) * taper;
-                var c = Rgb(Palette, part.Along[i] / part.Length * .9 + time * .05);
-                var ptA = part.Points[i];
-                var ptB = part.Points[i + stride];
-                Neon(dc, c, 70 * taper * weight * (.6 + .4 * m), width * 2.6, ptA, ptB);
-                Neon(dc, c, 255, width, ptA, ptB);
-                Neon(dc, Mix(c, Colors.White, .7), 255, width * .38, ptA, ptB);
-            }
-        }        /// <summary>A polyline through <paramref name="count"/> points starting at <paramref name="start"/>, wrapping round the contour.</summary>
-        private static StreamGeometry Poly(Point[] points, int start, int count, bool closed)
-        {
-            int n = points.Length; var g = new StreamGeometry();
+            if (pts.Length < 2) return;
+            var g = new StreamGeometry();
             using (var ctx = g.Open())
             {
-                ctx.BeginFigure(points[((start % n) + n) % n], false, closed);
-                var rest = new List<Point>(count);
-                for (int i = 1; i < count; i++) rest.Add(points[(((start + i) % n) + n) % n]);
-                ctx.PolyLineTo(rest, true, true);
+                ctx.BeginFigure(pts[0], false, false);
+                ctx.PolyLineTo(pts[1..], true, true);
             }
-            g.Freeze(); return g;
+            g.Freeze();
+            dc.DrawGeometry(null, pen, g);
         }
-        /// <summary>The whole stroke as one lit edge: the palette spread along it from its top end, fading to nothing at both
-        /// ends. One geometry per layer, so the glow has no seams or beads.</summary>
-        private void EdgeGlow(DrawingContext dc, ControllerOutlines.Island part, double alpha, double width, bool hot)
-        {
-            // the grips run down the outer edge, round the bottom and up the inner edge, so the colours run top to bottom
-            var low = part.Points.MaxBy(q => q.Y);
-            var brush = new LinearGradientBrush { MappingMode = BrushMappingMode.Absolute, StartPoint = part.Points[0], EndPoint = part.Grip ? low : part.Points[^1] };
-            for (int k = 0; k <= 10; k++)
-            {
-                double t = k / 10.0, fade = part.Closed ? 1 : Math.Min(1, (part.Grip ? t : Math.Min(t, 1 - t)) / .14);
-                var c = Rgb(Palette, t * .9); if (hot) c = Mix(c, Colors.White, .75);
-                brush.GradientStops.Add(new GradientStop(Color.FromArgb((byte)Math.Clamp(alpha * fade * fade * (3 - 2 * fade), 0, 255), c.R, c.G, c.B), t));
-            }
-            brush.Freeze();
-            var pen = new Pen(brush, width) { LineJoin = PenLineJoin.Round, StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round };
-            pen.Freeze();
-            dc.DrawGeometry(null, pen, part.Line);
-        }
-        private static void Neon(DrawingContext dc, Color c, double alpha, double width, Point a, Point b)
-        {
-            var brush = new SolidColorBrush(Color.FromArgb((byte)Math.Clamp(alpha, 0, 255), c.R, c.G, c.B));
-            brush.Freeze();
-            var pen = new Pen(brush, width) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round };
-            pen.Freeze();
-            dc.DrawLine(pen, a, b);
-        }
-        private static Color Mix(Color a, Color b, double k) => Color.FromRgb((byte)(a.R + (b.R - a.R) * k), (byte)(a.G + (b.G - a.G) * k), (byte)(a.B + (b.B - a.B) * k));
     }
 }
