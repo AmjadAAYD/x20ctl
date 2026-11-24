@@ -93,10 +93,11 @@ internal sealed class LightingWindow : Window
         FontFamily = DS.Body;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
 
+        var host = new Grid();
         var root = new Grid();
         root.ColumnDefinitions.Add(new() { Width = new(1.55, GridUnitType.Star) });
         root.ColumnDefinitions.Add(new() { Width = new(0.82, GridUnitType.Star) });
-        Content = root;
+        Content = host;
 
         // LEFT (1.55*): Single scrollable RGB workspace (Color & Mode -> Live Effects, plus Advanced toggle)
         colourView = BuildColourView();
@@ -256,23 +257,39 @@ internal sealed class LightingWindow : Window
         registerFocus?.Invoke(stopEffect);
         registerFocus?.Invoke(apply);
 
+        var (ecoOverlay, syncEco) = Kit.EcoOverlay("RGB lighting", root);
+        host.Children.Add(root);
+        host.Children.Add(ecoOverlay);
+
         void OnServiceChanged()
         {
             rightScroll.Dispatcher.BeginInvoke(UpdateStatusAndVisual, DispatcherPriority.Background);
         }
-        root.Loaded += (_, _) =>
+        void OnEcoChanged()
+        {
+            rightScroll.Dispatcher.BeginInvoke(() => { syncEco(); UpdateStatusAndVisual(); }, DispatcherPriority.Background);
+        }
+        host.Loaded += (_, _) =>
         {
             LightingEffectsService.Changed -= OnServiceChanged;
             LightingEffectsService.Changed += OnServiceChanged;
+            UniversalHapticsService.Changed -= OnEcoChanged;
+            UniversalHapticsService.Changed += OnEcoChanged;
+            syncEco();
             UpdateStatusAndVisual();
         };
-        root.Unloaded += (_, _) => LightingEffectsService.Changed -= OnServiceChanged;
+        host.Unloaded += (_, _) =>
+        {
+            LightingEffectsService.Changed -= OnServiceChanged;
+            UniversalHapticsService.Changed -= OnEcoChanged;
+        };
 
         SetColour(0xff0000);
         ShowLevel(0x50);
         if (BatteryLightingService.Load().Enabled) modes.SelectedIndex = BatteryMode;
         else if (LightingEffectsService.Status.IsRunning) SelectSection(1);
         else SelectSection(0);
+        syncEco();
     }
 
     private FrameworkElement BuildColourView()

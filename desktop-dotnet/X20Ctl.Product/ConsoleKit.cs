@@ -300,6 +300,83 @@ internal static class Kit
         track.Children.Add(new Border { CornerRadius = new(10), Height = Math.Max(20, height * value), VerticalAlignment = VerticalAlignment.Bottom, Background = new LinearGradientBrush(ThemeCatalog.R(Color.FromRgb(90, 165, 255)), ThemeCatalog.R(Color.FromRgb(40, 110, 255)), 90), Effect = new DropShadowEffect { Color = Blue, BlurRadius = 14, ShadowDepth = 0, Opacity = .8 } });
         return new StackPanel { Children = { track, Text($"{label} {value * 100:0}%", 14).Center() } };
     }
+
+    /// <summary>Full-panel lockout banner displayed over disabled/greyed sections when Eco Mode is active.</summary>
+    public static (Border Overlay, Action Sync) EcoOverlay(string sectionName, FrameworkElement dimmedTarget, Action<bool>? onStateChanged = null)
+    {
+        var t = ThemeCatalog.Current;
+        var turnOff = new Button
+        {
+            Content = "Turn off Eco Mode",
+            Style = DS.Style("DS.ConsolePrimary"),
+            Height = 40,
+            MinWidth = 180,
+            Padding = new(20, 0, 20, 0),
+            Margin = new(0, 14, 0, 0),
+            HorizontalAlignment = HorizontalAlignment.Center,
+        };
+        turnOff.Click += (_, _) => UniversalHapticsService.SetPowerSavingMode(false);
+
+        var card = new Border
+        {
+            CornerRadius = ThemeCatalog.Round(10),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(140, Green.R, Green.G, Green.B)),
+            BorderThickness = new(1.2),
+            Padding = new(28, 22, 28, 22),
+            MaxWidth = 440,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Background = new SolidColorBrush(Color.FromArgb(242, t.Deep.R, t.Deep.G, t.Deep.B)),
+            Child = new StackPanel
+            {
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Children =
+                {
+                    new StackPanel
+                    {
+                        Orientation = Orientation.Horizontal,
+                        HorizontalAlignment = HorizontalAlignment.Center,
+                        Margin = new(0, 0, 0, 10),
+                        Children =
+                        {
+                            new Ellipse { Width = 10, Height = 10, Fill = B(Green), Margin = new(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center },
+                            Text("ECO MODE ACTIVE", 12, "DS.Success", FontWeights.Bold).Also(lbl => lbl.Foreground = B(Green))
+                        }
+                    },
+                    Text("Eco mode must be turned off", 20, "DS.Text", FontWeights.SemiBold).Also(lbl => lbl.HorizontalAlignment = HorizontalAlignment.Center),
+                    new TextBlock
+                    {
+                        Text = $"{sectionName} is completely powered down and locked while Eco mode is conserving controller battery life.",
+                        FontFamily = DS.Body,
+                        FontSize = 13,
+                        Foreground = DS.Brush("DS.TextSoft"),
+                        TextAlignment = TextAlignment.Center,
+                        TextWrapping = TextWrapping.Wrap,
+                        Margin = new(0, 6, 0, 0),
+                    },
+                    turnOff,
+                }
+            }
+        };
+
+        var overlay = new Border
+        {
+            Background = new SolidColorBrush(Color.FromArgb(175, t.Void.R, t.Void.G, t.Void.B)),
+            Visibility = Visibility.Collapsed,
+            Child = card,
+        };
+
+        void Sync()
+        {
+            bool locked = UniversalHapticsService.IsPowerSavingActive;
+            dimmedTarget.IsEnabled = !locked;
+            dimmedTarget.Opacity = locked ? 0.22 : 1.0;
+            overlay.Visibility = locked ? Visibility.Visible : Visibility.Collapsed;
+            onStateChanged?.Invoke(locked);
+        }
+
+        return (overlay, Sync);
+    }
 }
 
 /// <summary>The hologram controller for a model: line art plus interactive control outlines.

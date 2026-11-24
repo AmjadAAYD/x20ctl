@@ -38,11 +38,12 @@ public sealed class ScreenWorkbench
  {
   Button Action(string label,Action action)=>ManagementVisuals.Action(resources,label,action,register).Also(b=>b.Margin=new(0,4,6,4));
   void Field(string label,FrameworkElement control){editor.Children.Add(ManagementVisuals.Copy(label,13).Also(t=>t.Margin=new(0,8,0,3)));editor.Children.Add(control);}
-  Body.ColumnDefinitions.Add(new(){Width=new(1.15,GridUnitType.Star)});Body.ColumnDefinitions.Add(new(){Width=new(1,GridUnitType.Star)});
+  var contentGrid=new Grid();
+  contentGrid.ColumnDefinitions.Add(new(){Width=new(1.15,GridUnitType.Star)});contentGrid.ColumnDefinitions.Add(new(){Width=new(1,GridUnitType.Star)});
   var left=new StackPanel();left.Children.Add(ManagementVisuals.Copy("Screen",28,true));left.Children.Add(ManagementVisuals.Copy("160 × 80",14));
   var bezel=new Border{Background=Brushes.Black,BorderBrush=DS.Brush("DS.TextSoft"),BorderThickness=new(2),CornerRadius=new(12),Padding=new(8),Margin=new(0,18,0,10),Child=new Viewbox{Child=image,Stretch=Stretch.Uniform}};left.Children.Add(bezel);left.Children.Add(details);left.Children.Add(sizeText);left.Children.Add(notice);
   var local=new WrapPanel{Margin=new(0,12,0,0)};local.Children.Add(Action("Open…",Open));local.Children.Add(Action("Save project…",SaveProject));local.Children.Add(Action("Export .bin…",Export));left.Children.Add(local);
-  Body.Children.Add(Kit.Panel(null,null,null,new ScrollViewer{Content=left,VerticalScrollBarVisibility=ScrollBarVisibility.Auto},new Thickness(20)).Also(b=>b.Margin=new(0,0,12,0)));
+  contentGrid.Children.Add(Kit.Panel(null,null,null,new ScrollViewer{Content=left,VerticalScrollBarVisibility=ScrollBarVisibility.Auto},new Thickness(20)).Also(b=>b.Margin=new(0,0,12,0)));
   editor.Children.Add(ManagementVisuals.Copy("Choose",20,true));Import=Action("Choose image…",Choose);editor.Children.Add(Import);
   var wallpapers=new WrapPanel();for(int i=0;i<6;i++){int n=i;wallpapers.Children.Add(Action(ScreenArtwork.WallpaperNames[i],()=>LoadWallpaper(n)));}editor.Children.Add(wallpapers);
   editor.Children.Add(ManagementVisuals.Copy("Edit",20,true).Also(t=>t.Margin=new(0,10,0,0)));
@@ -61,10 +62,14 @@ public sealed class ScreenWorkbench
   var footer=new StackPanel{Children={guide,simulate,actions,confirmReset,recovery,status,transferProgress}};
   // The mode checkbox belongs to the pinned footer, keeping the transport choice visible.
   modes.Children.Remove(simulate);
-  scroll=new ScrollViewer{Content=editor,VerticalScrollBarVisibility=ScrollBarVisibility.Auto};var dock=new DockPanel();DockPanel.SetDock(footer,Dock.Bottom);dock.Children.Add(footer);dock.Children.Add(scroll);var panel=Kit.Panel(null,null,null,dock,new Thickness(20));Grid.SetColumn(panel,1);Body.Children.Add(panel);
+  scroll=new ScrollViewer{Content=editor,VerticalScrollBarVisibility=ScrollBarVisibility.Auto};var dock=new DockPanel();DockPanel.SetDock(footer,Dock.Bottom);dock.Children.Add(footer);dock.Children.Add(scroll);var panel=Kit.Panel(null,null,null,dock,new Thickness(20));Grid.SetColumn(panel,1);contentGrid.Children.Add(panel);
+  var (ecoOverlay, syncEco) = Kit.EcoOverlay("Screen", contentGrid, locked => { if (locked) StopPreview(); });
+  Body.Children.Add(contentGrid); Body.Children.Add(ecoOverlay);
+  void OnEcoChanged() => Body.Dispatcher.BeginInvoke(syncEco, DispatcherPriority.Background);
+  Body.Loaded += (_, _) => { UniversalHapticsService.Changed -= OnEcoChanged; UniversalHapticsService.Changed += OnEcoChanged; syncEco(); };
   foreach(var slider in new[]{zoom,panX,panY,brightness,contrast,fps,frameLimit})slider.ValueChanged+=(_,_)=>Refresh();rotation.SelectionChanged+=(_,_)=>Refresh();fit.SelectionChanged+=(_,_)=>Refresh();animation.Checked+=(_,_)=>Refresh();animation.Unchecked+=(_,_)=>Refresh();simulate.Checked+=(_,_)=>ModeChanged();simulate.Unchecked+=(_,_)=>ModeChanged();
-  editClock.Tick+=async(_,_)=>{editClock.Stop();await BuildPreviewAsync();};previewClock.Tick+=(_,_)=>{if(DateTime.UtcNow>=previewUntil||!Body.IsVisible){StopPreview();return;}if(encodedFrames.Count>0){frameIndex=(frameIndex+1)%encodedFrames.Count;image.Source=encodedFrames[frameIndex];}};Body.Unloaded+=(_,_)=>StopPreview();
-  Body.AllowDrop=true;Body.DragOver+=(_,e)=>{e.Effects=!busy&&e.Data.GetDataPresent(DataFormats.FileDrop)?DragDropEffects.Copy:DragDropEffects.None;e.Handled=true;};Body.Drop+=(_,e)=>{if(!busy&&e.Data.GetData(DataFormats.FileDrop) is string[] paths&&paths.Length==1)Try(()=>Load(paths[0]));};UpdateWriteGates();
+  editClock.Tick+=async(_,_)=>{editClock.Stop();await BuildPreviewAsync();};previewClock.Tick+=(_,_)=>{if(DateTime.UtcNow>=previewUntil||!Body.IsVisible){StopPreview();return;}if(encodedFrames.Count>0){frameIndex=(frameIndex+1)%encodedFrames.Count;image.Source=encodedFrames[frameIndex];}};Body.Unloaded+=(_,_)=>{StopPreview(); UniversalHapticsService.Changed -= OnEcoChanged;};
+  Body.AllowDrop=true;Body.DragOver+=(_,e)=>{e.Effects=!busy&&e.Data.GetDataPresent(DataFormats.FileDrop)?DragDropEffects.Copy:DragDropEffects.None;e.Handled=true;};Body.Drop+=(_,e)=>{if(!busy&&e.Data.GetData(DataFormats.FileDrop) is string[] paths&&paths.Length==1)Try(()=>Load(paths[0]));};UpdateWriteGates();syncEco();
  }
  void Try(Action action){try{action();}catch(Exception e)when(e is IOException or ArgumentException or NotSupportedException or JsonException or System.Runtime.InteropServices.COMException){status.Text=e.Message;}}
  void Choose(){var dialog=new OpenFileDialog{Filter="Images|*.png;*.jpg;*.jpeg;*.bmp;*.gif"};if(dialog.ShowDialog()==true)Try(()=>Load(dialog.FileName));}
