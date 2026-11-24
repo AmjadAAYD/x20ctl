@@ -42,12 +42,28 @@ internal static class UniversalHapticsService
     static string detectedAppName = "Desktop";
     static string? detectedExe;
     static HapticsGenreProfile activeResolvedProfile = HapticsGenreProfile.Auto;
+    static double latestAudioRms;
+    static volatile bool isAutoLowBatteryActive;
+    static string? reportedBatteryText;
+    static bool didEcoDimLed;
+    static byte savedEcoLedBrightness = 0x50;
 
     public static bool IsRunning => running;
     public static HapticsEvaluation Latest => latestEval;
     public static string DetectedAppName => detectedAppName;
     public static string? DetectedExe => detectedExe;
     public static HapticsGenreProfile ActiveResolvedProfile => activeResolvedProfile;
+    public static double LatestAudioRms => latestAudioRms;
+    public static bool IsAutoLowBatteryActive => isAutoLowBatteryActive;
+    public static string? ReportedBatteryText => reportedBatteryText;
+    public static bool IsPowerSavingActive
+    {
+        get
+        {
+            var cfg = Store.Snapshot();
+            return cfg.PowerSavingMode || (cfg.AutoPowerSaverOnLowBattery && isAutoLowBatteryActive);
+        }
+    }
 
     public static event Action? Changed;
 
@@ -147,6 +163,71 @@ internal static class UniversalHapticsService
             }
         }
         Changed?.Invoke();
+    }
+
+    public static void Toggle()
+    {
+        if (ReviewSandbox.Active) return;
+        if (IsRunning) Stop();
+        else Start();
+    }
+
+    public static void ReportBatteryStatus(string? levelText, int? percent = null)
+    {
+        reportedBatteryText = string.IsNullOrWhiteSpace(levelText) ? null : levelText.Trim();
+        bool low = HapticsPowerSaver.IsLowBatteryText(reportedBatteryText, percent);
+        if (low == isAutoLowBatteryActive)
+            return;
+
+        bool wasEco = IsPowerSavingActive;
+        isAutoLowBatteryActive = low;
+        Changed?.Invoke();
+        SyncPowerSaverHardwareIfChanged(wasEco);
+    }
+
+    public static void SetPowerSavingMode(bool enabled)
+    {
+        bool wasEco = IsPowerSavingActive;
+        Store.UpdateSettings(c => c.PowerSavingMode = enabled, persist: !ReviewSandbox.Active);
+        Changed?.Invoke();
+        SyncPowerSaverHardwareIfChanged(wasEco);
+    }
+
+    static void SyncPowerSaverHardwareIfChanged(bool wasEco)
+    {
+        if (ReviewSandbox.Active) return;
+        bool nowEco = IsPowerSavingActive;
+        if (nowEco == wasEco) return;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                if (nowEco)
+                {
+                    if (LightingEffectsService.Status.IsRunning)
+                    {
+                        savedEcoLedBrightness = Math.Max((byte)0x18, LightingEffectsService.CurrentSpec.MaxBrightness);
+                        await LightingEffectsService.StopAsync(restoreBaseline: false).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        savedEcoLedBrightness = Math.Max((byte)0x18, LightingEffectsService.CurrentSpec.MaxBrightness);
+                    }
+                    await LightingBleClient.RunAsync(brightnessByte: 0x00).ConfigureAwait(false);
+                    didEcoDimLed = true;
+                }
+                else if (didEcoDimLed)
+                {
+                    didEcoDimLed = false;
+                    await LightingBleClient.RunAsync(brightnessByte: savedEcoLedBrightness).ConfigureAwait(false);
+                }
+            }
+            catch
+            {
+                // Controller may be disconnected, asleep, or on 2.4G/wired without BLE active.
+            }
+        });
     }
 
     public static void NotifySettingsChanged()
@@ -273,11 +354,14 @@ internal static class UniversalHapticsService
                 }
             }
 
-            var pad = ReadLiveInput(isGameFg);
-            var tuning = Store.GetTuning(profile);
+            bool eco = IsPowerSavingActive;
+            var pad = ReadLiveInput(isGameFg, HapticsPowerSaver.IdleCutoffSeconds(eco));
+            var baseTuning = Store.GetTuning(profile);
+            var tuning = Store.ApplyAppTuning(baseTuning, fg?.Exe);
             var roles = LightingEffectsService.CurrentSpec.AudioMotorRoles;
             var eval = Engine.Evaluate(audio, pad, profile, tuning, roles, dt);
             latestEval = eval;
+            latestAudioRms = audio.RawRms;
 
             if (!manualMotorOverride)
             {
@@ -285,7 +369,7 @@ internal static class UniversalHapticsService
                 bool freshGame = gameSample != null && (Environment.TickCount64 - gameSample.At) < 280;
                 double natL = freshGame ? Math.Clamp(gameSample!.PadLeft > 0 ? gameSample.PadLeft / 65535.0 : gameSample.GameLeft / 255.0, 0.0, 1.0) : 0.0;
                 double natR = freshGame ? Math.Clamp(gameSample!.PadRight > 0 ? gameSample.PadRight / 65535.0 : gameSample.GameRight / 255.0, 0.0, 1.0) : 0.0;
-                var mixed = HapticsMixer.Mix(eval.Motors, natL, natR, tuning.BlendMode);
+                var mixed = HapticsPowerSaver.Apply(HapticsMixer.Mix(eval.Motors, natL, natR, tuning.BlendMode), eco);
                 SystemAudioLevelSampler.DispatchExternalHaptics(
                     mixed,
                     lyricalSplit: eval.ResolvedProfile == HapticsGenreProfile.Music,
@@ -307,7 +391,7 @@ internal static class UniversalHapticsService
                 break;
             }
 
-            try { await Task.Delay(20, ct); }
+            try { await Task.Delay(HapticsPowerSaver.TickIntervalMs(eco), ct); }
             catch (OperationCanceledException) { break; }
         }
     }
@@ -329,7 +413,7 @@ internal static class UniversalHapticsService
         ObserveLiveInput(lx, ly, rx, ry, lt, rt, heldCount, anyNewPress, newlyPressed);
     }
 
-    static LivePadInput ReadLiveInput(bool isGameForeground)
+    static LivePadInput ReadLiveInput(bool isGameForeground, double idleCutoffSeconds)
     {
         var now = DateTimeOffset.UtcNow;
         bool cursor = ForegroundApp.IsCursorVisible();
@@ -340,7 +424,7 @@ internal static class UniversalHapticsService
                 || pendingActionButtons != PadActionButtons.None;
             var btns = pendingActionButtons;
             pendingActionButtons = PadActionButtons.None;
-            return new LivePadInput(padLx, padLy, padRx, padRy, padLt, padRt, padHeld, press, cursor, idleSec >= 4.5, btns, isGameForeground);
+            return new LivePadInput(padLx, padLy, padRx, padRy, padLt, padRt, padHeld, press, cursor, idleSec >= idleCutoffSeconds, btns, isGameForeground);
         }
     }
 }

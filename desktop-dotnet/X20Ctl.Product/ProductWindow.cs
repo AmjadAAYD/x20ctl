@@ -18,6 +18,9 @@ public sealed class ProductWindow : Window
     public bool Fullscreen {get;}
     private bool CoversMonitor=>Fullscreen&&IsActive;
     private TrayIcon? tray;
+    private const int HapticsHotkeyId = 0x2048;
+    private bool hapticsHotkeyRegistered;
+    private DateTimeOffset lastEcoBleRefreshUtc = DateTimeOffset.MinValue;
     public DesignStage Stage { get; } = new();
     private readonly WindowChrome chrome = new(){CaptionHeight=58,ResizeBorderThickness=new(0),GlassFrameThickness=new(0),CornerRadius=new(16),UseAeroCaptionButtons=false};
     public ProductWindow(bool reducedMotion=false,string? assignmentPath=null,bool startMaximized=true,bool firstRun=false,Action<string>? openSupport=null,bool nativeEngine=false,bool fullscreen=false,bool trayIcon=false)
@@ -32,6 +35,8 @@ public sealed class ProductWindow : Window
         SourceInitialized+=(_,_)=>
         {
             var hwnd=new WindowInteropHelper(this).Handle;int preference=2;_=DwmSetWindowAttribute(hwnd,33,ref preference,sizeof(int));HwndSource.FromHwnd(hwnd)?.AddHook(WindowMessages);
+            if(!ReviewSandbox.Active)
+                hapticsHotkeyRegistered = RegisterHotKey(hwnd, HapticsHotkeyId, 0x0001 | 0x0002 | 0x4000, 0x48);
             GetCursorPos(out var cursor);var monitor=MonitorFromPoint(cursor,2);var info=ReadMonitor(monitor);
             if(info!=null)
             {
@@ -52,12 +57,16 @@ public sealed class ProductWindow : Window
         // fullscreen follows the focus: covering the monitor (and telling the shell so, which is what makes it hide the
         // taskbar for sure) only while this window is the active one; otherwise it sits above the taskbar
         Activated+=(_,_)=>FitToFocus();Deactivated+=(_,_)=>FitToFocus();
-        Closed+=async(_,_)=>{tray?.Dispose();batteryTimer?.Stop();liveBatteryTimer?.Stop();Host.MouseMode?.Dispose();Host.PcMode?.Dispose();await Host.StopNativeEngineAsync();};
+        Closed+=async(_,_)=>{
+            if(hapticsHotkeyRegistered){var hwnd=new WindowInteropHelper(this).Handle;if(hwnd!=IntPtr.Zero)UnregisterHotKey(hwnd,HapticsHotkeyId);hapticsHotkeyRegistered=false;}
+            tray?.Dispose();batteryTimer?.Stop();liveBatteryTimer?.Stop();Host.MouseMode?.Dispose();Host.PcMode?.Dispose();await Host.StopNativeEngineAsync();};
         // the tray icon (WinForms, about 0.1 s to start) comes once the window has drawn, so it never holds back the first frame
         if(trayIcon){Closing+=(_,e)=>{if(tray==null||tray.Quitting)return;e.Cancel=true;tray.HideToTray();};ContentRendered+=(_,_)=>Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle,new Action(()=>{
             if(tray!=null)return;tray=new TrayIcon(this);
             if(Host.PcMode is{} pc){string Status()=>pc.State==PcModeState.Active?(pc.Suspended?"X20CTL · PC mode paused":"X20CTL · PC mode active"):"X20CTL · Controller Studio";tray.SetStatus(Status());pc.Changed+=()=>Dispatcher.BeginInvoke(()=>tray?.SetStatus(Status()));pc.Notice+=text=>Dispatcher.BeginInvoke(()=>tray?.Notify("PC mode",text));}
             if(Host.MouseMode is{} mouse){tray.AddToggle("Controller as mouse",()=>mouse.Active,on=>mouse.Active=on);mouse.Notice+=text=>Dispatcher.BeginInvoke(()=>tray?.Notify("Controller as mouse",text));}
+            tray.AddToggle("Power Saving Mode (Eco)",()=>UniversalHapticsService.Store.Snapshot().PowerSavingMode,on=>UniversalHapticsService.SetPowerSavingMode(on));
+            tray.AddToggle("Universal Haptics (Ctrl+Alt+H)",()=>UniversalHapticsService.IsRunning,on=>{if(on)UniversalHapticsService.Start();else UniversalHapticsService.Stop();});
             WatchBattery();}));}
     }
     private System.Windows.Threading.DispatcherTimer? batteryTimer; private bool batteryWarned;
@@ -68,7 +77,14 @@ public sealed class ProductWindow : Window
     {
         if(ReviewSandbox.Active)return;
         liveBatteryTimer=new(System.Windows.Threading.DispatcherPriority.Background){Interval=TimeSpan.FromSeconds(60)};
-        liveBatteryTimer.Tick+=(_,_)=>{if(IsVisible&&WindowState!=WindowState.Minimized)_=Host.RefreshBleTelemetryAsync();};
+        liveBatteryTimer.Tick+=(_,_)=>
+        {
+            if(!IsVisible||WindowState==WindowState.Minimized)return;
+            var now=DateTimeOffset.UtcNow;
+            if(UniversalHapticsService.IsPowerSavingActive&&(now-lastEcoBleRefreshUtc).TotalMinutes<5)return;
+            lastEcoBleRefreshUtc=now;
+            _=Host.RefreshBleTelemetryAsync();
+        };
         liveBatteryTimer.Start();
     }
     /// <summary>The controller's battery in the tray tooltip, read once a minute from what Windows reports (XInput's
@@ -108,6 +124,7 @@ public sealed class ProductWindow : Window
         void ShowTrayBattery()
         {
             string? first=Host.PcMode?.Enabled==true?null:Host.BatteryLevels.FirstOrDefault(level=>level!=null && level!="wired" && level!="receiver");
+            UniversalHapticsService.ReportBatteryStatus(first);
             string text=first==null?"":"Battery "+first;
             bool low=first is "low" or "empty" || (first != null && first.StartsWith("1/4"));
             tray?.SetBattery(text);
@@ -128,6 +145,12 @@ public sealed class ProductWindow : Window
     }
     private IntPtr WindowMessages(IntPtr hwnd,int message,IntPtr wParam,IntPtr lParam,ref bool handled)
     {
+        if(message==0x0312 && wParam.ToInt32()==HapticsHotkeyId)
+        {
+            UniversalHapticsService.Toggle();
+            handled=true;
+            return IntPtr.Zero;
+        }
         if(message==0x02e0)
         {
             DpiTransitionCount++; // PerMonitorV2 WPF handles the suggested rectangle and root DPI.
@@ -201,4 +224,6 @@ public sealed class ProductWindow : Window
     [DllImport("user32.dll")]private static extern bool SetWindowPos(IntPtr hwnd,IntPtr after,int x,int y,int width,int height,uint flags);
     [DllImport("user32.dll")]private static extern bool GetWindowRect(IntPtr hwnd,out NativeRect rect);
     [DllImport("user32.dll")]private static extern bool EnumDisplayMonitors(IntPtr dc,IntPtr clip,MonitorCallback callback,IntPtr data);
+    [DllImport("user32.dll")]private static extern bool RegisterHotKey(IntPtr hWnd,int id,uint fsModifiers,uint vk);
+    [DllImport("user32.dll")]private static extern bool UnregisterHotKey(IntPtr hWnd,int id);
 }
