@@ -62,7 +62,14 @@ public sealed class MouseModeService : IDisposable
     public bool Active
     {
         get => active;
-        set { if (active == value) return; active = value; if (PcMode != null) PcMode.Mute = value; Changed?.Invoke(); }
+        set
+        {
+            if (active == value) return;
+            if (value && OwnerPlayer < 0) OwnerPlayer = 0;
+            active = value;
+            if (PcMode != null) PcMode.Mute = value;
+            Changed?.Invoke();
+        }
     }
 
     public MouseProfile Profile { get { lock (gate) return profile.Clone(); } }
@@ -88,9 +95,20 @@ public sealed class MouseModeService : IDisposable
             if (mapper != null) foreach (var (action, _) in mapper.Release()) MouseOutput.Act(action, false);
             mapper = null; repeat.Clear();
         }
+        static WindowsReader OpenBestReader()
+        {
+            Exception? lastErr = null;
+            foreach (var lib in WindowsReader.Libraries)
+            {
+                try { return new WindowsReader(lib); }
+                catch (Exception ex) when (ex is IOException or ArgumentException) { lastErr = ex; }
+            }
+            throw lastErr ?? new IOException("No XInput library available.");
+        }
+
         try
         {
-            reader = new WindowsReader(WindowsReader.Libraries[0]);
+            reader = OpenBestReader();
             while (!stop)
             {
                 if (reload) { reload = false; p = Profile; Release(); slot=-1; combo=new(p.ToggleMask,p.HoldMilliseconds); }
@@ -146,12 +164,20 @@ static class MouseOutput
     const uint MOVE = 0x1, LEFTDOWN = 0x2, LEFTUP = 0x4, RIGHTDOWN = 0x8, RIGHTUP = 0x10, MIDDLEDOWN = 0x20, MIDDLEUP = 0x40, XDOWN = 0x80, XUP = 0x100, WHEEL = 0x800, HWHEEL = 0x1000;
     const uint KEYUP = 0x2, EXTENDED = 0x1;
 
-    static void Send(params Input[] inputs) => SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<Input>());
+    [StructLayout(LayoutKind.Sequential)] struct POINT { public int X, Y; }
+    [DllImport("user32.dll")] static extern bool GetCursorPos(out POINT lpPoint);
+    [DllImport("user32.dll")] static extern bool SetCursorPos(int x, int y);
+
+    static uint Send(params Input[] inputs) => SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<Input>());
     static Input Mouse(uint flags, int dx = 0, int dy = 0, uint data = 0) => new() { Type = 0, U = new() { Mouse = new() { Dx = dx, Dy = dy, Flags = flags, Data = data } } };
     static Input Key(ushort vk, bool down) => new() { Type = 1, U = new() { Key = new() { Vk = vk, Flags = (down ? 0 : KEYUP) | (Extended(vk) ? EXTENDED : 0) } } };
     static bool Extended(ushort vk) => vk is 0x21 or 0x22 or 0x25 or 0x26 or 0x27 or 0x28 or 0x5B;
 
-    public static void Move(int dx, int dy) => Send(Mouse(MOVE, dx, dy));
+    public static void Move(int dx, int dy)
+    {
+        if (Send(Mouse(MOVE, dx, dy)) == 0 && GetCursorPos(out var pt))
+            SetCursorPos(pt.X + dx, pt.Y + dy);
+    }
     public static void Wheel(int amount, bool horizontal) => Send(Mouse(horizontal ? HWHEEL : WHEEL, data: unchecked((uint)amount)));
 
     [DllImport("user32.dll")] static extern uint MapVirtualKeyW(uint code, uint type);

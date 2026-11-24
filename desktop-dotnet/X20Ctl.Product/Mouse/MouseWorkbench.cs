@@ -212,7 +212,7 @@ public sealed partial class MouseWorkbench
     void Refresh()
     {
         loading=true;Switch.IsChecked=OwnsSource&&service.Active&&!testing;loading=false;
-        status.Text=testing?"Testing":service.Active&&!OwnsSource?$"Player {service.OwnerPlayer+1} has the mouse":OwnsSource&&service.Active?service.Connected?"On":"Waiting for the controller":"Off";
+        status.Text=testing?"Testing":service.Active&&!OwnsSource?$"Player {service.OwnerPlayer+1} has the mouse":OwnsSource&&service.Active?service.Connected?"On · Active (PC mode optional)":"Waiting for the controller":"Off";
     }
 
     static readonly MouseAction[] MouseButtons=[MouseAction.LeftClick,MouseAction.RightClick,MouseAction.MiddleClick,MouseAction.Back,MouseAction.Forward,MouseAction.TiltLeft,MouseAction.TiltRight];
