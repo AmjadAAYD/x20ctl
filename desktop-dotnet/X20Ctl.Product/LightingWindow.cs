@@ -19,6 +19,7 @@ internal sealed class LightingWindow : Window
     internal static readonly FontFamily MonoFont = new("Consolas, Cascadia Mono, Courier New");
 
     readonly LightingVisual visual;
+    readonly RgbStripsVisual stripsVisual;
     readonly ColourField square = new(false), hueStrip = new(true);
     readonly Border chipPreview = new() { Width = 28, Height = 28, BorderBrush = DS.Brush("DS.Hairline"), BorderThickness = new(1), VerticalAlignment = VerticalAlignment.Center };
     readonly TextBox hex = new() { MaxLength = 7, Width = 104, Padding = new(10, 6, 10, 6), FontFamily = MonoFont, FontSize = 13 };
@@ -39,9 +40,11 @@ internal sealed class LightingWindow : Window
     readonly Button[] levelButtons = new Button[4];
     readonly int[] levelColours = (int[])BatteryLightingService.Load().Colours.Clone();
 
-    readonly ScrollViewer rightScroll = new() { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Padding = new(0, 0, 6, 0) };
+    readonly ScrollViewer rightScroll = new() { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Padding = new(0, 0, 8, 0) };
     readonly StackPanel unifiedStack = new();
-    readonly Button[] sectionTabBtns = new Button[3];
+    Button? advancedToggleBtn;
+    bool advancedOpen;
+    readonly Border advRule = new() { Visibility = Visibility.Collapsed };
     readonly GradientStop ambientCenterStop = new(Color.FromArgb(75, 255, 0, 0), 0.0);
     readonly FrameworkElement colourView;
     readonly LightingEffectsSection effectsSection;
@@ -78,6 +81,7 @@ internal sealed class LightingWindow : Window
     {
         this.registerFocus = registerFocus;
         visual = new(animate);
+        stripsVisual = new(animate);
 
         Title = "X20 Pro · RGB";
         Width = 1140;
@@ -90,84 +94,11 @@ internal sealed class LightingWindow : Window
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
 
         var root = new Grid();
-        root.ColumnDefinitions.Add(new() { Width = new(0.78, GridUnitType.Star) });
         root.ColumnDefinitions.Add(new() { Width = new(1.55, GridUnitType.Star) });
+        root.ColumnDefinitions.Add(new() { Width = new(0.82, GridUnitType.Star) });
         Content = root;
 
-        // Compact Left Stage: scaled-down X20 Pro hardware preview + ambient LED glow + clear 3-step guide
-        var leftDock = new DockPanel();
-
-        var telemetryCard = new Border
-        {
-            CornerRadius = ThemeCatalog.Round(6),
-            BorderBrush = DS.Brush("DS.Hairline"),
-            BorderThickness = new(1),
-            Padding = new(12, 10, 12, 10),
-            Margin = new(0, 12, 0, 0),
-            Background = new SolidColorBrush(ThemeCatalog.Alpha(ThemeCatalog.Current.Night, 195)),
-        };
-        var telemetryStack = new StackPanel();
-        telemetryStack.Children.Add(liveReadout);
-        status.TextWrapping = TextWrapping.Wrap;
-        status.Margin = new(0, 3, 0, 8);
-        telemetryStack.Children.Add(status);
-        telemetryStack.Children.Add(Kit.Text("1. Pick Color or Effect   2. Set Brightness   3. Apply", 11, "DS.TextMuted")
-            .Also(t => { t.TextWrapping = TextWrapping.Wrap; t.Margin = new(0, 0, 0, 8); }));
-        var leftButtons = new UniformGrid { Columns = 2, Margin = new(-3, 0, -3, 0) };
-        read.HorizontalAlignment = HorizontalAlignment.Stretch;
-        read.Margin = new(3, 0, 3, 0);
-        stopEffect.HorizontalAlignment = HorizontalAlignment.Stretch;
-        stopEffect.Margin = new(3, 0, 3, 0);
-        leftButtons.Children.Add(read);
-        leftButtons.Children.Add(stopEffect);
-        telemetryStack.Children.Add(leftButtons);
-        telemetryCard.Child = telemetryStack;
-
-        DockPanel.SetDock(telemetryCard, Dock.Bottom);
-        leftDock.Children.Add(telemetryCard);
-
-        var ambientBrush = new RadialGradientBrush
-        {
-            GradientOrigin = new(0.5, 0.5),
-            Center = new(0.5, 0.5),
-            RadiusX = 0.55,
-            RadiusY = 0.52,
-        };
-        ambientBrush.GradientStops.Add(ambientCenterStop);
-        ambientBrush.GradientStops.Add(new GradientStop(Colors.Transparent, 1.0));
-
-        var previewStage = new Border
-        {
-            CornerRadius = ThemeCatalog.Round(6),
-            BorderBrush = DS.Brush("DS.Hairline"),
-            BorderThickness = new(1),
-            Padding = new(12),
-            MinHeight = 240,
-            Background = new SolidColorBrush(ThemeCatalog.Alpha(ThemeCatalog.Current.Void, 165)),
-            Child = new Grid
-            {
-                Children =
-                {
-                    new System.Windows.Shapes.Ellipse { Fill = ambientBrush, IsHitTestVisible = false },
-                    new Viewbox
-                    {
-                        Child = visual,
-                        Stretch = Stretch.Uniform,
-                        MaxWidth = 340,
-                        MaxHeight = 230,
-                        HorizontalAlignment = HorizontalAlignment.Center,
-                        VerticalAlignment = VerticalAlignment.Center,
-                    },
-                },
-            },
-        };
-        leftDock.Children.Add(previewStage);
-
-        var leftPanel = Kit.Panel(null, null, null, leftDock, new Thickness(16));
-        leftPanel.Margin = new(0, 0, 14, 0);
-        root.Children.Add(leftPanel);
-
-        // Spacious Right Workspace: crisp 3-tab PS5 underline navigation (Color & Mode / Live Effects / Presets & Auto)
+        // LEFT (1.55*): Single scrollable RGB workspace (Color & Mode -> Live Effects, plus Advanced toggle)
         colourView = BuildColourView();
         effectsSection = new LightingEffectsSection(
             () => selected,
@@ -182,49 +113,132 @@ internal sealed class LightingWindow : Window
             });
 
         unifiedStack.Children.Add(colourView);
+        unifiedStack.Children.Add(Kit.Rule().Also(r => r.Margin = new(0, 14, 0, 14)));
         unifiedStack.Children.Add(effectsSection.EffectsView);
+
+        advRule.Height = 1;
+        advRule.Background = DS.Brush("DS.Hairline");
+        advRule.Margin = new(0, 14, 0, 14);
+        unifiedStack.Children.Add(advRule);
+        effectsSection.AutoView.Visibility = Visibility.Collapsed;
         unifiedStack.Children.Add(effectsSection.AutoView);
         rightScroll.Content = unifiedStack;
 
-        var tabBar = new UniformGrid { Columns = 3, Margin = new(0, 0, 0, 12) };
-        string[] tabLabels = ["Color & Mode", "Live Effects", "Presets & Auto"];
-        for (int i = 0; i < tabLabels.Length; i++)
+        var leftHeader = new DockPanel { Margin = new(0, 0, 0, 10) };
+        advancedToggleBtn = new Button
         {
-            int idx = i;
-            var tb = new Button
+            Content = "Advanced",
+            Style = DS.Style("DS.ConsoleBtn"),
+            MinHeight = 30,
+            Height = 30,
+            Padding = new(12, 4, 12, 4),
+            FontSize = 11.5,
+            ToolTip = "Show or hide saved presets and automatic game switching",
+        };
+        advancedToggleBtn.Click += (_, _) => SetAdvanced(!advancedOpen);
+        registerFocus?.Invoke(advancedToggleBtn);
+        DockPanel.SetDock(advancedToggleBtn, Dock.Right);
+        leftHeader.Children.Add(advancedToggleBtn);
+        leftHeader.Children.Add(Kit.Section("RGB & LIVE EFFECTS", 0).Also(s => s.VerticalAlignment = VerticalAlignment.Center));
+
+        var leftEditorDock = new DockPanel();
+        DockPanel.SetDock(leftHeader, Dock.Top);
+        leftEditorDock.Children.Add(leftHeader);
+        leftEditorDock.Children.Add(rightScroll);
+
+        var leftEditorPanel = Kit.Panel(null, null, null, leftEditorDock, new Thickness(18));
+        leftEditorPanel.Margin = new(0, 0, 14, 0);
+        root.Children.Add(leftEditorPanel);
+
+        // RIGHT (0.82*): Top Controller preview + Bottom synchronized LED Strips + Apply footer
+        var rightGrid = new Grid();
+        rightGrid.RowDefinitions.Add(new() { Height = new(1.05, GridUnitType.Star) });
+        rightGrid.RowDefinitions.Add(new() { Height = new(0.85, GridUnitType.Star) });
+        rightGrid.RowDefinitions.Add(new() { Height = GridLength.Auto });
+
+        var ambientBrush = new RadialGradientBrush
+        {
+            GradientOrigin = new(0.5, 0.5),
+            Center = new(0.5, 0.5),
+            RadiusX = 0.55,
+            RadiusY = 0.52,
+        };
+        ambientBrush.GradientStops.Add(ambientCenterStop);
+        ambientBrush.GradientStops.Add(new GradientStop(Colors.Transparent, 1.0));
+
+        var controllerStage = new Border
+        {
+            CornerRadius = ThemeCatalog.Round(6),
+            BorderBrush = DS.Brush("DS.Hairline"),
+            BorderThickness = new(1),
+            Padding = new(10),
+            Margin = new(0, 0, 0, 10),
+            MinHeight = 190,
+            Background = new SolidColorBrush(ThemeCatalog.Alpha(ThemeCatalog.Current.Void, 165)),
+            Child = new Grid
             {
-                Content = tabLabels[i],
-                Style = DS.Style("DS.ConsoleTab"),
-                HorizontalAlignment = HorizontalAlignment.Stretch,
-                MinHeight = 36,
-                Margin = new(0),
-            };
-            tb.Click += (_, _) => SelectSection(idx);
-            registerFocus?.Invoke(tb);
-            sectionTabBtns[i] = tb;
-            tabBar.Children.Add(tb);
-        }
+                Children =
+                {
+                    new System.Windows.Shapes.Ellipse { Fill = ambientBrush, IsHitTestVisible = false },
+                    new Viewbox
+                    {
+                        Child = visual,
+                        Stretch = Stretch.Uniform,
+                        MaxWidth = 290,
+                        MaxHeight = 185,
+                        HorizontalAlignment = HorizontalAlignment.Center,
+                        VerticalAlignment = VerticalAlignment.Center,
+                    },
+                },
+            },
+        };
+        rightGrid.Children.Add(controllerStage);
 
-        var footer = new StackPanel();
-        footer.Children.Add(Kit.Rule().Also(r => r.Margin = new(0, 10, 0, 10)));
-        var footerRow = new DockPanel();
-        apply.MinWidth = 170;
-        DockPanel.SetDock(apply, Dock.Right);
-        footerRow.Children.Add(apply);
-        footerRow.Children.Add(Kit.Text("Keep the controller awake · works over Dongle or Bluetooth.", 12, "DS.TextMuted")
-            .Also(t => { t.TextWrapping = TextWrapping.Wrap; t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new(0, 0, 14, 0); }));
-        footer.Children.Add(footerRow);
+        var stripsCard = new Border
+        {
+            CornerRadius = ThemeCatalog.Round(6),
+            BorderBrush = DS.Brush("DS.Hairline"),
+            BorderThickness = new(1),
+            Padding = new(8),
+            Margin = new(0, 0, 0, 10),
+            MinHeight = 152,
+            Background = new SolidColorBrush(ThemeCatalog.Alpha(ThemeCatalog.Current.Void, 165)),
+            Child = stripsVisual,
+        };
+        Grid.SetRow(stripsCard, 1);
+        rightGrid.Children.Add(stripsCard);
 
-        var rightDock = new DockPanel();
-        DockPanel.SetDock(tabBar, Dock.Top);
-        DockPanel.SetDock(footer, Dock.Bottom);
-        rightDock.Children.Add(tabBar);
-        rightDock.Children.Add(footer);
-        rightDock.Children.Add(rightScroll);
+        var telemetryCard = new Border
+        {
+            CornerRadius = ThemeCatalog.Round(6),
+            BorderBrush = DS.Brush("DS.Hairline"),
+            BorderThickness = new(1),
+            Padding = new(12, 10, 12, 10),
+            Background = new SolidColorBrush(ThemeCatalog.Alpha(ThemeCatalog.Current.Night, 195)),
+        };
+        var telemetryStack = new StackPanel();
+        telemetryStack.Children.Add(liveReadout);
+        status.TextWrapping = TextWrapping.Wrap;
+        status.Margin = new(0, 3, 0, 8);
+        telemetryStack.Children.Add(status);
 
-        var rightPanel = Kit.Panel(null, null, null, rightDock, new Thickness(18));
-        Grid.SetColumn(rightPanel, 1);
-        root.Children.Add(rightPanel);
+        var utilityRow = new UniformGrid { Columns = 2, Margin = new(-3, 0, -3, 8) };
+        read.HorizontalAlignment = HorizontalAlignment.Stretch;
+        read.Margin = new(3, 0, 3, 0);
+        stopEffect.HorizontalAlignment = HorizontalAlignment.Stretch;
+        stopEffect.Margin = new(3, 0, 3, 0);
+        utilityRow.Children.Add(read);
+        utilityRow.Children.Add(stopEffect);
+        telemetryStack.Children.Add(utilityRow);
+        telemetryStack.Children.Add(apply);
+        telemetryCard.Child = telemetryStack;
+
+        Grid.SetRow(telemetryCard, 2);
+        rightGrid.Children.Add(telemetryCard);
+
+        var rightVisualPanel = Kit.Panel(null, null, null, rightGrid, new Thickness(16));
+        Grid.SetColumn(rightVisualPanel, 1);
+        root.Children.Add(rightVisualPanel);
 
         // Wire actions & events
         read.Click += async (_, _) => await Run(write: false);
@@ -465,22 +479,38 @@ internal sealed class LightingWindow : Window
         modes.SelectedIndex = BatteryMode;
     }
 
+    void SetAdvanced(bool open)
+    {
+        advancedOpen = open;
+        advRule.Visibility = effectsSection.AutoView.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
+        if (advancedToggleBtn != null)
+        {
+            SetSelectedState(advancedToggleBtn, open);
+            advancedToggleBtn.Content = open ? "Advanced: On" : "Advanced";
+        }
+    }
+
     internal void SelectSection(int index)
     {
         activeSection = Math.Clamp(index, 0, 2);
         if (activeSection == 1) effectsSection.PreviewCurrentDraftIfIdle();
+        if (activeSection == 2) SetAdvanced(true);
 
-        colourView.Visibility = activeSection == 0 ? Visibility.Visible : Visibility.Collapsed;
-        effectsSection.EffectsView.Visibility = activeSection == 1 ? Visibility.Visible : Visibility.Collapsed;
-        effectsSection.AutoView.Visibility = activeSection == 2 ? Visibility.Visible : Visibility.Collapsed;
-
-        for (int i = 0; i < sectionTabBtns.Length; i++)
+        if (activeSection == 0)
         {
-            if (sectionTabBtns[i] != null)
-                SetSelectedState(sectionTabBtns[i], i == activeSection);
+            rightScroll.ScrollToTop();
+        }
+        else
+        {
+            FrameworkElement target = activeSection == 1 ? effectsSection.EffectsView : effectsSection.AutoView;
+            if (unifiedStack.IsAncestorOf(target))
+            {
+                unifiedStack.UpdateLayout();
+                var pt = target.TransformToAncestor(unifiedStack).Transform(new Point(0, 0));
+                rightScroll.ScrollToVerticalOffset(Math.Max(0, pt.Y - 4));
+            }
         }
 
-        rightScroll.ScrollToTop();
         UpdateStatusAndVisual();
     }
 
@@ -624,6 +654,7 @@ internal sealed class LightingWindow : Window
             var c = ToColour(selected);
             visual.SetEffectMode(false);
             visual.SetStaticFrame(c.R, c.G, c.B, level, nativeMode);
+            stripsVisual.SetState(c.R, c.G, c.B, level, nativeMode, false, null);
             byte glowAlpha = nativeMode == LightingRecord.ModeOff ? (byte)0 : (byte)Math.Clamp(18 + level * 0.42, 0, 125);
             ambientCenterStop.Color = Color.FromArgb(glowAlpha, c.R, c.G, c.B);
             string modeLabel = BatterySelected ? "Battery gauge" : (modes.SelectedItem as string ?? "Solid");
@@ -636,6 +667,7 @@ internal sealed class LightingWindow : Window
             : LightingEffectsService.CurrentSpec.Kind;
         visual.SetEffectMode(true, activeKind);
         var frame = LightingEffectsService.EvaluatePreview();
+        stripsVisual.SetState(frame.R, frame.G, frame.B, frame.Brightness, LightingRecord.ModeSolid, true, activeKind);
         ambientCenterStop.Color = Color.FromArgb((byte)Math.Clamp(22 + frame.Brightness * 0.42, 18, 125), frame.R, frame.G, frame.B);
         string modeName = activeSection == 1 && !st.IsRunning && effectsSection is not null
             ? LightingEffectsSection.ShortEffectName(effectsSection.SelectedKind)
