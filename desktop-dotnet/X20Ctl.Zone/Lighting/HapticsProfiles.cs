@@ -27,6 +27,26 @@ public enum NativeRumbleBlendMode
     NativePriority,
 }
 
+public enum HapticsMusicMood
+{
+    Chill,
+    Vocals,
+    Club,
+}
+
+/// <summary>Per-game surface vs combat multipliers (percentage 0..150) layered over genre tuning.</summary>
+public sealed record HapticsAppTuning
+{
+    public int SurfaceGain { get; init; } = 100;
+    public int CombatGain { get; init; } = 100;
+
+    public HapticsAppTuning Normalized() => new()
+    {
+        SurfaceGain = Math.Clamp(SurfaceGain, 0, 150),
+        CombatGain = Math.Clamp(CombatGain, 0, 150),
+    };
+}
+
 public enum HapticsEventTag
 {
     None,
@@ -135,6 +155,41 @@ public sealed record HapticsTuning
             ComfortTier = HapticsComfortTier.Feather,
         },
         _ => new(),
+    };
+
+    public static HapticsTuning ForMusicMood(HapticsMusicMood mood) => mood switch
+    {
+        HapticsMusicMood.Chill => new()
+        {
+            MasterIntensity = 68,
+            TextureDetail = 42,
+            ImpactPunch = 60,
+            DynamicContrast = 88,
+            VocalFocus = 70,
+            TriggerBalance = 75,
+            ComfortTier = HapticsComfortTier.Feather,
+        },
+        HapticsMusicMood.Vocals => new()
+        {
+            MasterIntensity = 80,
+            TextureDetail = 55,
+            ImpactPunch = 75,
+            DynamicContrast = 82,
+            VocalFocus = 90,
+            TriggerBalance = 95,
+            ComfortTier = HapticsComfortTier.Balanced,
+        },
+        HapticsMusicMood.Club => new()
+        {
+            MasterIntensity = 92,
+            TextureDetail = 65,
+            ImpactPunch = 90,
+            DynamicContrast = 76,
+            VocalFocus = 78,
+            TriggerBalance = 92,
+            ComfortTier = HapticsComfortTier.FullPunch,
+        },
+        _ => DefaultFor(HapticsGenreProfile.Music),
     };
 }
 

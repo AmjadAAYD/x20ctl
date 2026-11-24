@@ -12,9 +12,13 @@ public sealed class HapticsProfileConfig
     public HapticsComfortTier ComfortTier { get; set; } = HapticsComfortTier.Feather;
     public NativeRumbleBlendMode BlendMode { get; set; } = NativeRumbleBlendMode.SmartBlend;
     public bool MenuAutoMute { get; set; } = true;
+    public HapticsMusicMood MusicMood { get; set; } = HapticsMusicMood.Vocals;
+    public bool PowerSavingMode { get; set; }
+    public bool AutoPowerSaverOnLowBattery { get; set; } = true;
     public Dictionary<string, HapticsGenreProfile> PerAppProfiles { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public HashSet<string> IgnoredExes { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, HapticsTuning> PerGenreTuning { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, HapticsAppTuning> PerAppTuning { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
 /// <summary>
@@ -62,6 +66,7 @@ public sealed class HapticsProfileStore
                 parsed.PerAppProfiles = new Dictionary<string, HapticsGenreProfile>(parsed.PerAppProfiles ?? new(), StringComparer.OrdinalIgnoreCase);
                 parsed.IgnoredExes = new HashSet<string>(parsed.IgnoredExes ?? [], StringComparer.OrdinalIgnoreCase);
                 parsed.PerGenreTuning = new Dictionary<string, HapticsTuning>(parsed.PerGenreTuning ?? new(), StringComparer.OrdinalIgnoreCase);
+                parsed.PerAppTuning = new Dictionary<string, HapticsAppTuning>(parsed.PerAppTuning ?? new(), StringComparer.OrdinalIgnoreCase);
                 config = parsed;
             }
         }
@@ -86,9 +91,13 @@ public sealed class HapticsProfileStore
                 ComfortTier = config.ComfortTier,
                 BlendMode = config.BlendMode,
                 MenuAutoMute = config.MenuAutoMute,
+                MusicMood = config.MusicMood,
+                PowerSavingMode = config.PowerSavingMode,
+                AutoPowerSaverOnLowBattery = config.AutoPowerSaverOnLowBattery,
                 PerAppProfiles = new Dictionary<string, HapticsGenreProfile>(config.PerAppProfiles, StringComparer.OrdinalIgnoreCase),
                 IgnoredExes = new HashSet<string>(config.IgnoredExes, StringComparer.OrdinalIgnoreCase),
                 PerGenreTuning = new Dictionary<string, HapticsTuning>(config.PerGenreTuning, StringComparer.OrdinalIgnoreCase),
+                PerAppTuning = new Dictionary<string, HapticsAppTuning>(config.PerAppTuning, StringComparer.OrdinalIgnoreCase),
             };
         }
     }
@@ -160,6 +169,61 @@ public sealed class HapticsProfileStore
             config.MenuAutoMute = tuning.MenuAutoMute;
             if (persist) SaveLocked();
         }
+    }
+
+    public HapticsAppTuning GetAppTuning(string? exe)
+    {
+        string key = NormalizeExe(exe);
+        if (key.Length == 0) return new HapticsAppTuning();
+        lock (gate)
+        {
+            return config.PerAppTuning.TryGetValue(key, out var tuning)
+                ? tuning.Normalized()
+                : new HapticsAppTuning();
+        }
+    }
+
+    public bool HasCustomAppTuning(string? exe)
+    {
+        string key = NormalizeExe(exe);
+        if (key.Length == 0) return false;
+        lock (gate)
+            return config.PerAppTuning.ContainsKey(key);
+    }
+
+    public void SetAppTuning(string exe, HapticsAppTuning tuning, bool persist = true)
+    {
+        string key = NormalizeExe(exe);
+        if (key.Length == 0) return;
+        lock (gate)
+        {
+            config.PerAppTuning[key] = tuning.Normalized();
+            if (persist) SaveLocked();
+        }
+    }
+
+    public void ResetAppTuning(string exe, bool persist = true)
+    {
+        string key = NormalizeExe(exe);
+        if (key.Length == 0) return;
+        lock (gate)
+        {
+            if (config.PerAppTuning.Remove(key) && persist)
+                SaveLocked();
+        }
+    }
+
+    public HapticsTuning ApplyAppTuning(HapticsTuning baseTuning, string? exe)
+    {
+        var app = GetAppTuning(exe);
+        if (app.SurfaceGain == 100 && app.CombatGain == 100)
+            return baseTuning;
+
+        return (baseTuning with
+        {
+            TextureDetail = (int)Math.Round(baseTuning.TextureDetail * (app.SurfaceGain / 100.0)),
+            ImpactPunch = (int)Math.Round(baseTuning.ImpactPunch * (app.CombatGain / 100.0)),
+        }).Normalized();
     }
 
     public (HapticsGenreProfile Profile, bool IsUnknownGame, string DisplayName) ResolveActive(string? exe, string? windowTitle = null)
