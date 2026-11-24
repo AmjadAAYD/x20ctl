@@ -261,7 +261,7 @@ internal static class SystemAudioLevelSampler
                 // Preserve clean Left-vs-Right grip separation: never bleed faint Right Grip onto the heavy Left Grip motor.
                 gripL = hf.LeftGrip;
                 double vocalAccent = Math.Max(hf.LeftTrigger, hf.RightTrigger);
-                gripR = Math.Clamp(Math.Max(hf.RightGrip, vocalAccent * 0.65), 0.0, 1.0);
+                gripR = Math.Clamp(Math.Max(hf.RightGrip, vocalAccent * 0.92), 0.0, 1.0);
             }
             else
             {
