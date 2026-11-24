@@ -57,7 +57,13 @@ public readonly record struct AudioFrame(
     float BassPunch = 0f,
     float DynamicContrast = 0f,
     AudioMusicVibe Vibe = AudioMusicVibe.Silent,
-    AudioSpectrum8 Spectrum = default);
+    AudioSpectrum8 Spectrum = default,
+    float SpectralFlatness = 0f,
+    float SpectralFlux = 0f,
+    float MidSideCoherence = 0f,
+    float CrestFactor = 0f,
+    float HighFreqResonance = 0f,
+    float CentroidVelocity = 0f);
 
 /// <summary>
 /// Zero-allocation, thread-safe 1024-point Hann-windowed Radix-2 Mid-Side dual-FFT analyzer
@@ -84,6 +90,7 @@ public sealed class AudioSpectrumAnalyzer
     readonly double[] sideMag = new double[FftSize / 2];
     readonly float[] agcBands = [0.04f, 0.04f, 0.04f, 0.035f, 0.035f, 0.03f, 0.028f, 0.025f];
     readonly float[] smoothBands = new float[8];
+    readonly float[] prevBandNorm = new float[8];
 
     int ringPos;
     long lastProcessTimestamp;
@@ -104,6 +111,7 @@ public sealed class AudioSpectrumAnalyzer
     float bassFloor;
     float levelFloor;
     float prevCenterRms;
+    float prevCentroid = 0.5f;
 
     float smoothLevel;
     float smoothBass;
@@ -119,6 +127,12 @@ public sealed class AudioSpectrumAnalyzer
     float smoothInst;
     float smoothBassPunch;
     float smoothDynamic;
+    float smoothFlatness;
+    float smoothFlux;
+    float smoothCoherence;
+    float smoothCrest;
+    float smoothHighResonance;
+    float smoothCentroidVel;
     float beatPulse;
     float trebleTransient;
     int beatCount;
@@ -180,7 +194,13 @@ public sealed class AudioSpectrumAnalyzer
         smoothBassPunch,
         smoothDynamic,
         currentVibe,
-        SnapshotSpectrumLocked());
+        SnapshotSpectrumLocked(),
+        smoothFlatness,
+        smoothFlux,
+        smoothCoherence,
+        smoothCrest,
+        smoothHighResonance,
+        smoothCentroidVel);
 
     public void Reset()
     {
@@ -189,6 +209,7 @@ public sealed class AudioSpectrumAnalyzer
             Array.Clear(monoRing);
             Array.Clear(sideRing);
             Array.Clear(smoothBands);
+            Array.Clear(prevBandNorm);
             agcBands[0] = agcBands[1] = agcBands[2] = 0.04f;
             agcBands[3] = agcBands[4] = 0.035f;
             agcBands[5] = 0.03f;
@@ -212,6 +233,7 @@ public sealed class AudioSpectrumAnalyzer
             bassFloor = 0f;
             levelFloor = 0f;
             prevCenterRms = 0f;
+            prevCentroid = 0.5f;
             smoothLevel = 0f;
             smoothBass = 0f;
             smoothMid = 0f;
@@ -226,6 +248,12 @@ public sealed class AudioSpectrumAnalyzer
             smoothInst = 0f;
             smoothBassPunch = 0f;
             smoothDynamic = 0f;
+            smoothFlatness = 0f;
+            smoothFlux = 0f;
+            smoothCoherence = 0f;
+            smoothCrest = 0f;
+            smoothHighResonance = 0f;
+            smoothCentroidVel = 0f;
             beatPulse = 0f;
             trebleTransient = 0f;
             beatCount = 0;
@@ -272,6 +300,12 @@ public sealed class AudioSpectrumAnalyzer
             smoothInst = DecayZero(smoothInst, dt, 0.045);
             smoothBassPunch = DecayZero(smoothBassPunch, dt, 0.040);
             smoothDynamic = DecayZero(smoothDynamic, dt, 0.045);
+            smoothFlatness = DecayZero(smoothFlatness, dt, 0.045);
+            smoothFlux = DecayZero(smoothFlux, dt, 0.035);
+            smoothCoherence = DecayZero(smoothCoherence, dt, 0.045);
+            smoothCrest = DecayZero(smoothCrest, dt, 0.040);
+            smoothHighResonance = DecayZero(smoothHighResonance, dt, 0.040);
+            smoothCentroidVel = DecayZero(smoothCentroidVel, dt, 0.040);
             beatPulse = DecayZero(beatPulse, dt, 0.040);
             trebleTransient = DecayZero(trebleTransient, dt, 0.035);
             smoothEnergy = DecayZero(smoothEnergy, dt, 0.22);
@@ -282,7 +316,10 @@ public sealed class AudioSpectrumAnalyzer
             beatRateHz = DecayZero(beatRateHz, dt, 0.40);
 
             for (int i = 0; i < smoothBands.Length; i++)
+            {
                 smoothBands[i] = DecayZero(smoothBands[i], dt, 0.045);
+                prevBandNorm[i] = DecayZero(prevBandNorm[i], dt, 0.045);
+            }
 
             if (smoothLevel < 0.04f)
             {
@@ -314,10 +351,13 @@ public sealed class AudioSpectrumAnalyzer
             if (firstOrResumed)
             {
                 Array.Clear(smoothBands);
+                Array.Clear(prevBandNorm);
                 smoothLevel = smoothBass = smoothMid = smoothTreble = 0f;
                 smoothLeft = smoothRight = smoothEnergy = beatPulse = trebleTransient = 0f;
                 smoothVocal = smoothVocalWarm = smoothVocalAir = smoothInst = smoothBassPunch = smoothDynamic = 0f;
+                smoothFlatness = smoothFlux = smoothCoherence = smoothCrest = smoothHighResonance = smoothCentroidVel = 0f;
                 bassAvg = trebleAvg = bassFloor = levelFloor = prevCenterRms = 0f;
+                prevCentroid = 0.5f;
                 vibeEnergy = vibeBass = vibeVocal = vibeInst = vibeTreble = beatRateHz = 0f;
             }
             lastProcessTimestamp = now;
@@ -364,8 +404,8 @@ public sealed class AudioSpectrumAnalyzer
             }
 
             Span<float> rawBands = stackalloc float[8];
-            ComputeBands(sr, ch >= 2, out float rawBass, out float rawMid, out float rawTreble, out float rawVocalWarm, out float rawVocalAir, out float rawVocalClarity, out float rawInBandSide, out float rawInst, out float rawCentroid, rawBands);
-            UpdateEnvelopesAndBeats(now, dt, rawRms, leftRms, rightRms, rawBass, rawMid, rawTreble, rawVocalWarm, rawVocalAir, rawVocalClarity, rawInBandSide, rawInst, rawCentroid, rawBands, firstOrResumed);
+            ComputeBands(sr, ch >= 2, out float rawBass, out float rawMid, out float rawTreble, out float rawVocalWarm, out float rawVocalAir, out float rawVocalClarity, out float rawInBandSide, out float rawInst, out float rawCentroid, out float rawFlatness, out float rawCoherence, out float rawCrest, out float rawHighResonance, rawBands);
+            UpdateEnvelopesAndBeats(now, dt, rawRms, leftRms, rightRms, rawBass, rawMid, rawTreble, rawVocalWarm, rawVocalAir, rawVocalClarity, rawInBandSide, rawInst, rawCentroid, rawFlatness, rawCoherence, rawCrest, rawHighResonance, rawBands, firstOrResumed);
             return SnapshotLocked();
         }
     }
@@ -383,10 +423,13 @@ public sealed class AudioSpectrumAnalyzer
             if (firstOrResumed)
             {
                 Array.Clear(smoothBands);
+                Array.Clear(prevBandNorm);
                 smoothLevel = smoothBass = smoothMid = smoothTreble = 0f;
                 smoothLeft = smoothRight = smoothEnergy = beatPulse = trebleTransient = 0f;
                 smoothVocal = smoothVocalWarm = smoothVocalAir = smoothInst = smoothBassPunch = smoothDynamic = 0f;
+                smoothFlatness = smoothFlux = smoothCoherence = smoothCrest = smoothHighResonance = smoothCentroidVel = 0f;
                 bassAvg = trebleAvg = bassFloor = levelFloor = prevCenterRms = 0f;
+                prevCentroid = 0.5f;
                 vibeEnergy = vibeBass = vibeVocal = vibeInst = vibeTreble = beatRateHz = 0f;
             }
             lastProcessTimestamp = now;
@@ -401,7 +444,7 @@ public sealed class AudioSpectrumAnalyzer
             rawBands[5] = peak * 0.40f;
             rawBands[6] = peak * 0.35f;
             rawBands[7] = peak * 0.25f;
-            UpdateEnvelopesAndBeats(now, dt, peak * 0.7f, peak * 0.7f, peak * 0.7f, peak * 0.85f, peak * 0.65f, peak * 0.45f, peak * 0.30f, peak * 0.25f, 0.65f, peak * 0.30f, peak * 0.70f, 0.45f, rawBands, firstOrResumed);
+            UpdateEnvelopesAndBeats(now, dt, peak * 0.7f, peak * 0.7f, peak * 0.7f, peak * 0.85f, peak * 0.65f, peak * 0.45f, peak * 0.30f, peak * 0.25f, 0.65f, peak * 0.30f, peak * 0.70f, 0.45f, 0.25f, 0.75f, 0.25f, 0.10f, rawBands, firstOrResumed);
             return SnapshotLocked();
         }
     }
@@ -464,6 +507,10 @@ public sealed class AudioSpectrumAnalyzer
         out float inBandSide,
         out float instrument,
         out float centroidNorm,
+        out float flatnessNorm,
+        out float midSideCoherenceNorm,
+        out float crestNorm,
+        out float highResonanceNorm,
         Span<float> outBands)
     {
         RunFft(monoRing, midMag);
@@ -479,7 +526,11 @@ public sealed class AudioSpectrumAnalyzer
         double instSideSq = 0, instSparkleSq = 0;
         double vocalSum = 0, vocalPeak = 0, sfmLogSum = 0, sfmArithSum = 0;
         double totalWeightSq = 0, logWeightedSum = 0;
+        double fullSfmLogSum = 0, fullSfmArithSum = 0, fullMagSum = 0, fullMagMax = 0;
+        double fullMidSum = 0, fullSideSum = 0;
+        double hiResSum = 0, hiResMax = 0;
         int bassN = 0, midN = 0, trebleN = 0, vocalWarmN = 0, vocalAirN = 0, instSideN = 0, instSparkleN = 0;
+        int fullBinsN = 0, hiResN = 0;
 
         Span<double> bandSq = stackalloc double[8];
         Span<int> bandN = stackalloc int[8];
@@ -493,12 +544,28 @@ public sealed class AudioSpectrumAnalyzer
             double mm = midMag[bin];
             double sm = isStereo ? sideMag[bin] : 0.0;
             double magSq = mm * mm + sm * sm;
+            double totMag = Math.Sqrt(magSq);
 
             if (freq <= 12000)
             {
                 double logPos = Math.Clamp(Math.Log2(freq / 20.0) / MaxLogSpan, 0.0, 1.0);
                 logWeightedSum += logPos * magSq;
                 totalWeightSq += magSq;
+
+                fullSfmLogSum += Math.Log(magSq + 1e-10);
+                fullSfmArithSum += magSq;
+                fullMagSum += totMag;
+                if (totMag > fullMagMax) fullMagMax = totMag;
+                fullMidSum += mm;
+                fullSideSum += sm;
+                fullBinsN++;
+            }
+
+            if (freq >= 1800 && freq <= 4800)
+            {
+                hiResSum += totMag;
+                if (totMag > hiResMax) hiResMax = totMag;
+                hiResN++;
             }
 
             int bIdx = freq switch
@@ -614,6 +681,20 @@ public sealed class AudioSpectrumAnalyzer
         instrument = (float)Math.Sqrt(instSideRms * instSideRms * 1.65 + bass * bass * 0.25 + instSparkleRms * instSparkleRms * 1.15);
 
         centroidNorm = totalWeightSq > 1e-8 ? (float)Math.Clamp(logWeightedSum / totalWeightSq, 0.0, 1.0) : smoothCentroid;
+
+        double fullGeom = fullBinsN > 0 ? Math.Exp(fullSfmLogSum / fullBinsN) : 0.0;
+        double fullArith = fullBinsN > 0 ? fullSfmArithSum / fullBinsN : 0.0;
+        flatnessNorm = fullArith > 1e-10 ? (float)Math.Clamp(fullGeom / fullArith, 0.0, 1.0) : 0f;
+
+        midSideCoherenceNorm = !isStereo
+            ? 1f
+            : (fullMidSum + fullSideSum > 1e-6 ? (float)Math.Clamp(fullMidSum / (fullMidSum + fullSideSum), 0.0, 1.0) : 0f);
+
+        double fullMeanMag = fullBinsN > 0 ? fullMagSum / fullBinsN : 0.0;
+        crestNorm = fullMeanMag > 1e-6 ? (float)Math.Clamp((fullMagMax / fullMeanMag - 2.0) / 14.0, 0.0, 1.0) : 0f;
+
+        double hiResMean = hiResN > 0 ? hiResSum / hiResN : 0.0;
+        highResonanceNorm = hiResMean > 1e-6 ? (float)Math.Clamp((hiResMax / hiResMean - 2.5) / 10.0, 0.0, 1.0) : 0f;
     }
 
     void UpdateEnvelopesAndBeats(
@@ -631,6 +712,10 @@ public sealed class AudioSpectrumAnalyzer
         float rawInBandSide,
         float rawInst,
         float rawCentroid,
+        float rawFlatness,
+        float rawCoherence,
+        float rawCrest,
+        float rawHighResonance,
         ReadOnlySpan<float> rawBands,
         bool firstOrResumed)
     {
@@ -649,13 +734,23 @@ public sealed class AudioSpectrumAnalyzer
         agcInst = UpdateAgc(agcInst, rawInst, dt, audible, 0.035f, decaySeconds: 8.5f);
         agcStereo = UpdateAgc(agcStereo, Math.Max(leftRms, rightRms), dt, audible, 0.035f, decaySeconds: 4.5f);
 
+        float fluxAccum = 0f;
         for (int i = 0; i < 8; i++)
         {
             agcBands[i] = UpdateAgc(agcBands[i], rawBands[i], dt, audible, i <= 2 ? 0.038f : 0.028f, decaySeconds: 8.0f);
             float bDenom = Math.Max(0.025f, trackRef * 0.45f + agcBands[i] * 0.55f);
             float normBand = audible ? Math.Clamp(rawBands[i] / bDenom, 0f, 1f) : 0f;
+            float diff = normBand - prevBandNorm[i];
+            if (diff > 0f) fluxAccum += diff;
+            prevBandNorm[i] = normBand;
             smoothBands[i] = Smooth(smoothBands[i], normBand, dt, 0.020, 0.10);
         }
+        float rawFlux = audible && !firstOrResumed ? Math.Clamp(fluxAccum / 2.2f, 0f, 1f) : 0f;
+        smoothFlux = Smooth(smoothFlux, rawFlux, dt, 0.012, 0.070);
+        smoothFlatness = Smooth(smoothFlatness, audible ? rawFlatness : 0f, dt, 0.025, 0.090);
+        smoothCoherence = Smooth(smoothCoherence, audible ? rawCoherence : 0f, dt, 0.030, 0.100);
+        smoothCrest = Smooth(smoothCrest, audible ? rawCrest : 0f, dt, 0.020, 0.090);
+        smoothHighResonance = Smooth(smoothHighResonance, audible ? rawHighResonance : 0f, dt, 0.018, 0.085);
 
         float denomBass = Math.Max(0.03f, trackRef * 0.52f + agcBass * 0.48f);
         float denomMid = Math.Max(0.03f, trackRef * 0.52f + agcMid * 0.48f);
@@ -688,7 +783,17 @@ public sealed class AudioSpectrumAnalyzer
         smoothLevel = Smooth(smoothLevel, targetLevel, dt, 0.028, 0.13);
         smoothEnergy = Smooth(smoothEnergy, targetLevel, dt, 0.45, 1.20);
         if (audible)
-            smoothCentroid = Math.Clamp(firstOrResumed ? rawCentroid : LerpFloat(smoothCentroid, rawCentroid, dt, 0.05), 0f, 1f);
+        {
+            float nextCentroid = Math.Clamp(firstOrResumed ? rawCentroid : LerpFloat(smoothCentroid, rawCentroid, dt, 0.05), 0f, 1f);
+            float rawVel = firstOrResumed ? 0f : Math.Clamp((nextCentroid - prevCentroid) / Math.Max(0.015f, (float)dt) * 0.25f, -1f, 1f);
+            smoothCentroid = nextCentroid;
+            prevCentroid = nextCentroid;
+            smoothCentroidVel = LerpFloat(smoothCentroidVel, rawVel, dt, 0.06);
+        }
+        else
+        {
+            smoothCentroidVel = LerpFloat(smoothCentroidVel, 0f, dt, 0.06);
+        }
 
         // Clean lyrical vocal gating: strips in-band stereo chord bleed while keeping centered singing vivid over bass.
         float bleed = normInBandSide * 0.22f + 0.04f;
