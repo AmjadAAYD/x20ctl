@@ -342,25 +342,53 @@ public static class AudioHapticsEngine
         if (roles.RightTrigger != MotorAudioRole.Auto)
             rt = EvaluateSingleRole(roles.RightTrigger, audio, bass, mid, treble, beat, transient, effBassPunch, effInst, dynCurve, vocal, vocalWarm, vocalAir, leftBal, rightBal);
 
-        static double GateGrip(double v, double gain)
+        if (audio.RawRms > 0f)
         {
-            double scaled = Math.Clamp(v * gain, 0.0, 1.0);
-            return scaled >= 0.075 ? scaled : 0.0;
+            double rawLoud = Math.Clamp((audio.RawRms - 0.005) / 0.20, 0.0, 1.0);
+            if (rawLoud < 0.26)
+            {
+                double quietScale = Math.Pow(rawLoud, 1.15);
+                lg = 0.0;
+                rg = Math.Min(rg * quietScale * 0.75, 0.16);
+                lt = Math.Min(lt * quietScale * 0.60, 0.14);
+                rt = Math.Min(rt * quietScale * 0.60, 0.14);
+            }
+            else
+            {
+                double lgScale = Math.Pow(Math.Clamp((rawLoud - 0.22) / 0.78, 0.0, 1.0), 1.12);
+                double rgScale = Math.Pow(rawLoud, 1.15);
+                lg *= lgScale;
+                rg *= rgScale;
+                lt *= rgScale;
+                rt *= rgScale;
+            }
         }
 
-        static double GateTrigger(double v, double gain)
+        static double GateGrip(double v, double gain, double minFloor)
         {
             double scaled = Math.Clamp(v * gain, 0.0, 1.0);
-            if (scaled < 0.075) return 0.0;
-            double shaped = Math.Pow((scaled - 0.075) / 0.925, 1.22);
-            return Math.Clamp(0.24 + 0.76 * shaped, 0.0, 1.0);
+            return scaled >= minFloor ? scaled : 0.0;
         }
+
+        static double GateTrigger(double v, double gain, double minFloor, double stictionBase)
+        {
+            double scaled = Math.Clamp(v * gain, 0.0, 1.0);
+            if (scaled < minFloor) return 0.0;
+            double shaped = Math.Pow((scaled - minFloor) / Math.Max(0.05, 1.0 - minFloor), 1.22);
+            return Math.Clamp(stictionBase + (1.0 - stictionBase) * shaped, 0.0, 1.0);
+        }
+
+        double gripFloor = audio.RawRms > 0f ? 0.040 : 0.075;
+        double trigMin = audio.RawRms > 0f ? 0.045 : 0.075;
+        double trigStiction = audio.RawRms > 0f
+            ? 0.08 + 0.16 * Math.Clamp((audio.RawRms - 0.005) / 0.10, 0.0, 1.0)
+            : 0.24;
 
         return new HapticsFrame(
-            GateGrip(lg, scale),
-            GateGrip(rg, scale),
-            GateTrigger(lt, scale),
-            GateTrigger(rt, scale));
+            GateGrip(lg, scale, gripFloor),
+            GateGrip(rg, scale, gripFloor),
+            GateTrigger(lt, scale, trigMin, trigStiction),
+            GateTrigger(rt, scale, trigMin, trigStiction));
     }
 
     static double EvaluateSingleRole(

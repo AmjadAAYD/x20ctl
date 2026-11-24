@@ -25,6 +25,14 @@ public sealed class HapticsFusionEngine
     double prevRightTrigger;
     double gearShiftRemaining;
 
+    // Music dynamic spectrum & anti-drone breathing state
+    double musicPeakRef = 0.22;
+    double musicSilenceSec;
+    double musicBassBed;
+    double musicInstBed;
+    double musicVocalBed;
+    double musicSustainedSec;
+
     // Input-first short tactical envelopes (discrete taps instead of continuous drone)
     double stepTapRemaining;
     double stepTapLevel;
@@ -57,6 +65,8 @@ public sealed class HapticsFusionEngine
             prevSprinting = false;
             prevRightTrigger = 0;
             gearShiftRemaining = stepTapRemaining = stepTapLevel = 0;
+            musicPeakRef = 0.22;
+            musicSilenceSec = musicBassBed = musicInstBed = musicVocalBed = musicSustainedSec = 0;
             jumpTapRemaining = airborneWindowSec = landingTapRemaining = dashRemaining = attackTapRemaining = 0;
             activeDemo = null;
             demoRemainingSec = demoTotalSec = 0;
@@ -159,7 +169,7 @@ public sealed class HapticsFusionEngine
                     EvaluateActionLocked(audio, cls, input, tuning, effectiveRawRms, effectiveRawSpike, isOverlyLoud, isMeleePrimary: true, dt, out lg, out rg, out lt, out rt, out ev1, out ev2);
                     break;
                 case HapticsGenreProfile.Music:
-                    EvaluateMusicLocked(audio, cls, tuning, roles, out lg, out rg, out lt, out rt, out ev1, out ev2);
+                    EvaluateMusicLocked(audio, cls, tuning, roles, effectiveRawRms, effectiveRawSpike, dt, out lg, out rg, out lt, out rt, out ev1, out ev2);
                     break;
                 case HapticsGenreProfile.Cinema:
                     EvaluateCinemaLocked(audio, cls, tuning, effectiveRawRms, effectiveRawSpike, out lg, out rg, out lt, out rt, out ev1, out ev2);
@@ -407,6 +417,9 @@ public sealed class HapticsFusionEngine
         AudioClassification cls,
         HapticsTuning tuning,
         MotorRoleMap roles,
+        double rawRms,
+        double rawSpike,
+        double dt,
         out double lg,
         out double rg,
         out double lt,
@@ -414,39 +427,157 @@ public sealed class HapticsFusionEngine
         out HapticsEventTag ev1,
         out HapticsEventTag ev2)
     {
-        var baseline = AudioHapticsEngine.Evaluate(audio, AudioHapticsMode.AutoAdaptive, tuning.MasterIntensity, roles, elapsedSeconds);
-        double punchScale = tuning.ImpactPunch / 100.0;
-        double voxScale = tuning.VocalFocus / 100.0;
-
-        if (!roles.IsAllAuto)
+        // 1. Anchored un-AGC'd loudness so quiet song intros stay faint instead of jumping to full blast.
+        double effLoud;
+        if (audio.RawRms > 0f)
         {
-            double gateV = cls.Vocal > 0.18f || audio.VocalPresence > 0.28f ? 1.0 : 0.20;
-            lg = baseline.LeftGrip;
-            rg = baseline.RightGrip;
-            lt = roles.LeftTrigger is MotorAudioRole.LeadVocals or MotorAudioRole.VocalAir ? baseline.LeftTrigger * gateV : baseline.LeftTrigger;
-            rt = roles.RightTrigger is MotorAudioRole.LeadVocals or MotorAudioRole.VocalAir ? baseline.RightTrigger * gateV : baseline.RightTrigger;
+            if (rawRms < 0.005)
+            {
+                musicSilenceSec = Math.Min(10.0, musicSilenceSec + dt);
+                if (musicSilenceSec > 2.5)
+                    musicPeakRef += (0.22 - musicPeakRef) * (1.0 - Math.Exp(-dt / 4.0));
+            }
+            else
+            {
+                musicSilenceSec = 0.0;
+                if (rawRms > musicPeakRef)
+                {
+                    musicPeakRef += (rawRms - musicPeakRef) * (1.0 - Math.Exp(-dt / 0.25));
+                }
+                else
+                {
+                    double targetFloor = Math.Max(0.13, rawRms);
+                    musicPeakRef += (targetFloor - musicPeakRef) * (1.0 - Math.Exp(-dt / 35.0));
+                }
+            }
+
+            double physLoud = Math.Clamp((rawRms - 0.005) / Math.Max(0.125, musicPeakRef - 0.005), 0.0, 1.0);
+            double spikeBoost = Math.Clamp(rawSpike * 2.2, 0.0, 0.30);
+            effLoud = Math.Clamp(physLoud + spikeBoost * (0.35 + 0.65 * physLoud), 0.0, 1.0);
         }
         else
         {
-            double dynShape = Math.Clamp(0.45 + 0.55 * audio.DynamicContrast, 0.35, 1.15);
-            double bassGroove = Math.Clamp(Math.Pow(Math.Max(cls.Bass, audio.Bass) * 0.72 + cls.Drums * 0.45, 1.25) * dynShape * punchScale, 0.0, 0.95);
-            double instLayer = Math.Clamp(Math.Pow(cls.Instruments, 1.20) * (0.45 + 0.55 * audio.DynamicContrast), 0.0, 0.75);
-            double stereoL = Math.Clamp(1.0 - Math.Max(0.0, audio.StereoPan) * 0.45, 0.5, 1.0);
-            double stereoR = Math.Clamp(1.0 - Math.Max(0.0, -audio.StereoPan) * 0.45, 0.5, 1.0);
-
-            double cleanVocal = cls.Vocal > 0.22f
-                ? Math.Clamp((cls.Vocal - 0.16) / 0.84 * (0.65 + 0.35 * audio.VocalPresence) * voxScale, 0.0, 1.0)
-                : 0.0;
-
-            lg = Math.Clamp(Math.Max(bassGroove * stereoL, instLayer * 0.65 * stereoL), 0.0, 1.0);
-            rg = Math.Clamp(Math.Max(bassGroove * stereoR, instLayer * 0.75 * stereoR + cls.Drums * 0.22), 0.0, 1.0);
-            lt = Math.Clamp(cleanVocal * 0.88, 0.0, 1.0);
-            rt = Math.Clamp(Math.Max(cleanVocal * 0.78, audio.VocalAir * cls.Vocal * 0.90), 0.0, 1.0);
+            effLoud = Math.Clamp(audio.Level, 0.0, 1.0);
         }
 
-        ev1 = (cls.Bass > 0.60f && audio.BeatPulse > 0.50f) ? HapticsEventTag.BassDrop
-            : (cls.Vocal > 0.45f ? HapticsEventTag.Vocal : HapticsEventTag.None);
-        ev2 = (ev1 == HapticsEventTag.BassDrop && cls.Vocal > 0.40f) ? HapticsEventTag.Vocal : HapticsEventTag.None;
+        if (effLoud < 0.015)
+        {
+            double clearAlpha = 1.0 - Math.Exp(-dt / 0.12);
+            musicBassBed *= 1.0 - clearAlpha;
+            musicInstBed *= 1.0 - clearAlpha;
+            musicVocalBed *= 1.0 - clearAlpha;
+            musicSustainedSec = Math.Max(0.0, musicSustainedSec - dt * 3.0);
+            lg = rg = lt = rt = 0.0;
+            ev1 = ev2 = HapticsEventTag.None;
+            return;
+        }
+
+        // 2. Rolling baseline subtraction + anti-drone breath gate so steady chords/pads leave breathing room.
+        double bassSig = Math.Clamp(Math.Max(cls.Bass * 0.85, audio.Bass * 0.75) * 0.65 + Math.Max(audio.BassPunch, cls.Drums) * 0.50, 0.0, 1.0);
+        double instSig = Math.Clamp(Math.Max(cls.Instruments * 0.85, audio.InstrumentEnergy * 0.80) * 0.72 + audio.TrebleTransient * 0.45, 0.0, 1.0);
+        double vocalSig = cls.Vocal > 0.22f
+            ? Math.Clamp((cls.Vocal - 0.18) / 0.82 * (0.60 + 0.40 * audio.VocalPresence), 0.0, 1.0)
+            : 0.0;
+
+        musicBassBed += (bassSig - musicBassBed) * (1.0 - Math.Exp(-dt / 0.36));
+        musicInstBed += (instSig - musicInstBed) * (1.0 - Math.Exp(-dt / 0.42));
+        musicVocalBed += (vocalSig - musicVocalBed) * (1.0 - Math.Exp(-dt / 0.30));
+
+        double bassDelta = Math.Clamp(Math.Max(0.0, bassSig - musicBassBed * 0.92 - 0.06) * 3.0, 0.0, 1.0);
+        double instDelta = Math.Clamp(Math.Max(0.0, instSig - musicInstBed * 0.92 - 0.05) * 2.8, 0.0, 1.0);
+        double vocalOnset = Math.Clamp(Math.Max(0.0, vocalSig - musicVocalBed * 0.88 - 0.04) * 2.8, 0.0, 1.0);
+
+        double bassCrest = Math.Clamp(Math.Max(audio.BeatPulse * 0.95, Math.Max(audio.BassPunch * 0.85, bassDelta)), 0.0, 1.0);
+        double instCrest = Math.Clamp(Math.Max(audio.TrebleTransient * 0.90, Math.Max(audio.SpectralFlux * 0.75, instDelta)), 0.0, 1.0);
+        double vocalPhrase = vocalSig > 0.02
+            ? Math.Clamp(vocalOnset * 0.75 + vocalSig * 0.25 * (0.20 + 0.80 * audio.DynamicContrast), 0.0, 1.0)
+            : 0.0;
+
+        bool freshPulse = audio.BeatPulse > 0.45f || rawSpike > 0.045 || bassCrest > 0.48;
+        double heldMotor = Math.Max(lastLg, lastRg);
+        if (heldMotor > 0.26 && !freshPulse)
+            musicSustainedSec = Math.Min(3.0, musicSustainedSec + dt);
+        else if (heldMotor < 0.16)
+            musicSustainedSec = Math.Max(0.0, musicSustainedSec - dt * 2.8);
+        else if (freshPulse)
+            musicSustainedSec = Math.Max(0.0, musicSustainedSec - dt * 1.2);
+
+        double antiDrone = Math.Clamp(1.0 - Math.Max(0.0, musicSustainedSec - 0.45) * 0.55, 0.28, 1.0);
+
+        double punchScale = tuning.ImpactPunch / 100.0;
+        double voxScale = tuning.VocalFocus / 100.0;
+        double texScale = tuning.TextureDetail / 100.0;
+        double contrast = Math.Clamp(tuning.DynamicContrast / 100.0, 0.25, 1.0);
+        double comfortGain = tuning.ComfortTier switch
+        {
+            HapticsComfortTier.Feather => 0.74,
+            HapticsComfortTier.Balanced => 0.88,
+            _ => 1.0,
+        };
+
+        if (!roles.IsAllAuto)
+        {
+            var baseline = AudioHapticsEngine.Evaluate(audio, AudioHapticsMode.AutoAdaptive, tuning.MasterIntensity, roles, elapsedSeconds);
+            double normMaster = tuning.MasterIntensity > 0 ? 100.0 / tuning.MasterIntensity : 0.0;
+            double bLg = baseline.LeftGrip * normMaster;
+            double bRg = baseline.RightGrip * normMaster;
+            double bLt = baseline.LeftTrigger * normMaster;
+            double bRt = baseline.RightTrigger * normMaster;
+            double specScale = Math.Pow(effLoud, 1.15) * comfortGain * antiDrone;
+            double lgSpec = effLoud < 0.24 ? 0.0 : Math.Pow(Math.Clamp((effLoud - 0.24) / 0.76, 0.0, 1.0), 1.12) * comfortGain * antiDrone;
+            double gateV = cls.Vocal > 0.18f || audio.VocalPresence > 0.28f ? 1.0 : 0.20;
+            lg = Math.Clamp(bLg * lgSpec, 0.0, 1.0);
+            rg = Math.Clamp(bRg * specScale, 0.0, 1.0);
+            lt = Math.Clamp((roles.LeftTrigger is MotorAudioRole.LeadVocals or MotorAudioRole.VocalAir ? bLt * gateV : bLt) * specScale, 0.0, 1.0);
+            rt = Math.Clamp((roles.RightTrigger is MotorAudioRole.LeadVocals or MotorAudioRole.VocalAir ? bRt * gateV : bRt) * specScale, 0.0, 1.0);
+        }
+        else
+        {
+            double bedAllowance = (1.0 - contrast * 0.78) * texScale * antiDrone;
+
+            // Right Grip: faint whisper on quiet intros, medium groove in verses, crisp highs on drops.
+            double rgSpectrum = Math.Pow(effLoud, 1.15);
+            double rgBed = Math.Max(instSig * 0.55, bassSig * 0.35) * bedAllowance * 0.42;
+            double rgPulse = Math.Max(instCrest * 0.72, Math.Max(bassCrest * 0.62, audio.BeatPulse * 0.68)) * (0.45 + 0.55 * punchScale);
+            double rgRaw = (rgPulse * 0.85 + rgBed) * rgSpectrum * comfortGain * antiDrone;
+            if (effLoud < 0.26)
+            {
+                double faintFloor = Math.Max(instSig, Math.Max(bassSig * 0.70, vocalSig * 0.60)) * effLoud * 0.55 * comfortGain * antiDrone;
+                rgRaw = Math.Clamp(Math.Max(rgRaw, faintFloor), 0.0, 0.16);
+            }
+
+            // Left Grip: 0% on faint intros, medium kick pulses, full weight only on loud bass drops.
+            double lgGate = Math.Clamp((effLoud - 0.24) / 0.76, 0.0, 1.0);
+            double lgSpectrum = Math.Pow(lgGate, 1.12);
+            double lgPulse = Math.Clamp(Math.Max(audio.BeatPulse * 1.05, bassCrest * 0.98) * (0.55 + 0.55 * punchScale), 0.0, 1.0);
+            double lgBed = bassSig * bedAllowance * 0.20;
+            double lgRaw = (lgPulse + lgBed) * lgSpectrum * comfortGain * antiDrone;
+
+            // Triggers: lyrical vocal phrasing + sharp loud drop peaks, capped faint during intros.
+            double trigSpectrum = Math.Pow(effLoud, 1.15);
+            double vocalDrive = vocalPhrase * voxScale * trigSpectrum * comfortGain * antiDrone;
+            double loudDropTrig = (effLoud >= 0.68 && (audio.BeatPulse > 0.65f || rawSpike > 0.08))
+                ? Math.Clamp((effLoud - 0.60) / 0.40, 0.0, 1.0) * Math.Max(audio.BeatPulse, rawSpike * 4.5) * 0.55 * punchScale * comfortGain
+                : 0.0;
+            double ltRaw = Math.Clamp(Math.Max(vocalDrive * 0.88, loudDropTrig * 0.85), 0.0, 1.0);
+            double rtRaw = Math.Clamp(Math.Max(vocalDrive * (0.68 + 0.30 * audio.VocalAir), loudDropTrig * 0.95), 0.0, 1.0);
+            if (effLoud < 0.26)
+            {
+                ltRaw = Math.Min(ltRaw, 0.14);
+                rtRaw = Math.Min(rtRaw, 0.14);
+            }
+
+            double stereoL = Math.Clamp(1.0 - Math.Max(0.0, audio.StereoPan) * 0.45, 0.55, 1.0);
+            double stereoR = Math.Clamp(1.0 - Math.Max(0.0, -audio.StereoPan) * 0.45, 0.55, 1.0);
+            lg = Math.Clamp(lgRaw * stereoL, 0.0, 1.0);
+            rg = Math.Clamp(rgRaw * stereoR, 0.0, 1.0);
+            lt = ltRaw;
+            rt = rtRaw;
+        }
+
+        ev1 = (effLoud >= 0.55 && (cls.Bass > 0.55f || audio.Bass > 0.55f) && audio.BeatPulse > 0.48f) ? HapticsEventTag.BassDrop
+            : (vocalPhrase > 0.25 && effLoud >= 0.15 ? HapticsEventTag.Vocal : HapticsEventTag.None);
+        ev2 = (ev1 == HapticsEventTag.BassDrop && vocalPhrase > 0.22) ? HapticsEventTag.Vocal : HapticsEventTag.None;
     }
 
     void EvaluateCinemaLocked(
@@ -531,8 +662,8 @@ public sealed class HapticsFusionEngine
 
         double tierMax = tuning.ComfortTier switch
         {
-            HapticsComfortTier.Feather => resolvedProfile == HapticsGenreProfile.Music ? 0.88 : 0.72,
-            HapticsComfortTier.Balanced => 0.92,
+            HapticsComfortTier.Feather => resolvedProfile == HapticsGenreProfile.Music ? 0.78 : 0.72,
+            HapticsComfortTier.Balanced => 0.90,
             _ => 1.0,
         };
 

@@ -224,4 +224,171 @@ public sealed class HapticsFusionEngineTests
         Assert.True(peakLg > 0.35, $"Expected heavy LeftGrip on overly loud explosion, got {peakLg:F3}");
         Assert.True(peakLt > 0.15 && peakRt > 0.15, $"Expected trigger detail on overly loud explosion, got LT={peakLt:F3}, RT={peakRt:F3}");
     }
+
+    [Fact]
+    public void MusicMode_FaintIntro_StaysWhisperLightWithZeroHeavyLeftGrip()
+    {
+        var engine = new HapticsFusionEngine();
+        var tuning = HapticsTuning.DefaultFor(HapticsGenreProfile.Music);
+        var pad = new LivePadInput(0, 0, 0, 0, 0, 0, 0, false);
+        var quietIntro = new AudioFrame() with
+        {
+            Level = 0.85f,
+            Bass = 0.80f,
+            Mid = 0.78f,
+            Treble = 0.65f,
+            BeatPulse = 0.0f,
+            InstrumentEnergy = 0.82f,
+            VocalPresence = 0.60f,
+            DynamicContrast = 0.35f,
+            RawRms = 0.025f,
+            RawPeakSpike = 0.005f,
+            Spectrum = new AudioSpectrum8(0.3f, 0.4f, 0.7f, 0.6f, 0.5f, 0.4f, 0.3f, 0.2f),
+        };
+
+        double peakLg = 0, peakRg = 0, peakLt = 0, peakRt = 0;
+        for (int i = 0; i < 25; i++)
+        {
+            var eval = engine.Evaluate(quietIntro, pad, HapticsGenreProfile.Music, tuning, dtSeconds: 0.02);
+            peakLg = Math.Max(peakLg, eval.Motors.LeftGrip);
+            peakRg = Math.Max(peakRg, eval.Motors.RightGrip);
+            peakLt = Math.Max(peakLt, eval.Motors.LeftTrigger);
+            peakRt = Math.Max(peakRt, eval.Motors.RightTrigger);
+        }
+
+        Assert.Equal(0.0, peakLg, 3);
+        Assert.True(peakRg is > 0.01 and <= 0.16, $"Expected faint RightGrip on quiet song intro in (0.01, 0.16], got {peakRg:F4}");
+        Assert.True(peakLt <= 0.15, $"Expected faint LeftTrigger on quiet intro <= 0.15, got {peakLt:F4}");
+        Assert.True(peakRt <= 0.15, $"Expected faint RightTrigger on quiet intro <= 0.15, got {peakRt:F4}");
+    }
+
+    [Fact]
+    public void MusicMode_SteadyDroneWithoutBeats_BreathesDownInsteadOfConstantMax()
+    {
+        var engine = new HapticsFusionEngine();
+        var tuning = HapticsTuning.DefaultFor(HapticsGenreProfile.Music);
+        var pad = new LivePadInput(0, 0, 0, 0, 0, 0, 0, false);
+        var steadyDrone = new AudioFrame() with
+        {
+            Level = 0.88f,
+            Bass = 0.85f,
+            Mid = 0.80f,
+            Treble = 0.60f,
+            BeatPulse = 0.0f,
+            BassPunch = 0.25f,
+            InstrumentEnergy = 0.85f,
+            DynamicContrast = 0.12f,
+            RawRms = 0.22f,
+            RawPeakSpike = 0.0f,
+            Spectrum = new AudioSpectrum8(0.6f, 0.7f, 0.7f, 0.6f, 0.5f, 0.4f, 0.3f, 0.2f),
+        };
+
+        HapticsEvaluation eval = default;
+        for (int i = 0; i < 100; i++)
+            eval = engine.Evaluate(steadyDrone, pad, HapticsGenreProfile.Music, tuning, dtSeconds: 0.02);
+
+        Assert.True(eval.Motors.LeftGrip <= 0.25, $"Expected steady beatless wall of sound to breathe down on LeftGrip <= 0.25, got {eval.Motors.LeftGrip:F4}");
+        Assert.True(eval.Motors.RightGrip <= 0.25, $"Expected steady beatless wall of sound to breathe down on RightGrip <= 0.25, got {eval.Motors.RightGrip:F4}");
+    }
+
+    [Fact]
+    public void MusicMode_DynamicSpectrum_ScalesFromFaintToMediumToLoudDrop()
+    {
+        var engine = new HapticsFusionEngine();
+        var tuning = HapticsTuning.DefaultFor(HapticsGenreProfile.Music);
+        var pad = new LivePadInput(0, 0, 0, 0, 0, 0, 0, false);
+
+        var faintIntro = new AudioFrame() with
+        {
+            Level = 0.65f,
+            Bass = 0.40f,
+            Mid = 0.65f,
+            Treble = 0.45f,
+            BeatPulse = 0.0f,
+            BassPunch = 0.15f,
+            InstrumentEnergy = 0.60f,
+            DynamicContrast = 0.35f,
+            RawRms = 0.028f,
+            RawPeakSpike = 0.0f,
+            Spectrum = new AudioSpectrum8(0.2f, 0.3f, 0.5f, 0.5f, 0.4f, 0.3f, 0.2f, 0.1f),
+        };
+        var mediumVerse = new AudioFrame() with
+        {
+            Level = 0.80f,
+            Bass = 0.75f,
+            Mid = 0.70f,
+            Treble = 0.60f,
+            BeatPulse = 0.75f,
+            BassPunch = 0.70f,
+            InstrumentEnergy = 0.65f,
+            DynamicContrast = 0.70f,
+            RawRms = 0.105f,
+            RawPeakSpike = 0.03f,
+            Spectrum = new AudioSpectrum8(0.5f, 0.7f, 0.6f, 0.5f, 0.4f, 0.3f, 0.2f, 0.2f),
+        };
+        var loudDrop = new AudioFrame() with
+        {
+            Level = 0.95f,
+            Bass = 0.92f,
+            Mid = 0.82f,
+            Treble = 0.78f,
+            BeatPulse = 0.96f,
+            BassPunch = 0.95f,
+            InstrumentEnergy = 0.85f,
+            DynamicContrast = 0.95f,
+            RawRms = 0.25f,
+            RawPeakSpike = 0.11f,
+            Spectrum = new AudioSpectrum8(0.9f, 0.9f, 0.8f, 0.6f, 0.5f, 0.4f, 0.3f, 0.2f),
+        };
+
+        double faintPeak = 0, mediumPeak = 0, loudPeak = 0;
+        for (int i = 0; i < 25; i++)
+        {
+            var e = engine.Evaluate(faintIntro, pad, HapticsGenreProfile.Music, tuning, dtSeconds: 0.02);
+            faintPeak = Math.Max(faintPeak, Math.Max(e.Motors.LeftGrip, e.Motors.RightGrip));
+        }
+        for (int i = 0; i < 20; i++)
+        {
+            var e = engine.Evaluate(mediumVerse, pad, HapticsGenreProfile.Music, tuning, dtSeconds: 0.02);
+            mediumPeak = Math.Max(mediumPeak, Math.Max(e.Motors.LeftGrip, e.Motors.RightGrip));
+        }
+        for (int i = 0; i < 20; i++)
+        {
+            var e = engine.Evaluate(loudDrop, pad, HapticsGenreProfile.Music, tuning, dtSeconds: 0.02);
+            loudPeak = Math.Max(loudPeak, Math.Max(e.Motors.LeftGrip, e.Motors.RightGrip));
+        }
+
+        Assert.True(faintPeak <= 0.16, $"Expected faintPeak <= 0.16, got {faintPeak:F4}");
+        Assert.True(mediumPeak > faintPeak + 0.08, $"Expected mediumPeak ({mediumPeak:F4}) > faintPeak ({faintPeak:F4}) + 0.08");
+        Assert.True(mediumPeak < 0.45, $"Expected mediumPeak < 0.45, got {mediumPeak:F4}");
+        Assert.True(loudPeak > mediumPeak + 0.20, $"Expected loudPeak ({loudPeak:F4}) > mediumPeak ({mediumPeak:F4}) + 0.20");
+        Assert.True(loudPeak >= 0.55, $"Expected loudPeak >= 0.55, got {loudPeak:F4}");
+    }
+
+    [Fact]
+    public void AudioHapticsEngine_QuietRawRms_RespectsFaintSpectrum()
+    {
+        var quietIntro = new AudioFrame(
+            Level: 0.85f,
+            Bass: 0.80f,
+            Mid: 0.78f,
+            Treble: 0.65f,
+            BeatPulse: 0.70f,
+            BeatCount: 2,
+            StereoPan: 0f,
+            VocalPresence: 0.75f,
+            VocalWarmth: 0.75f,
+            VocalAir: 0.60f,
+            InstrumentEnergy: 0.82f,
+            BassPunch: 0.75f,
+            DynamicContrast: 0.75f,
+            Vibe: AudioMusicVibe.GroovePop,
+            RawRms: 0.025f,
+            RawPeakSpike: 0.005f);
+
+        var h = AudioHapticsEngine.Evaluate(quietIntro, AudioHapticsMode.AutoAdaptive, 80);
+        Assert.Equal(0.0, h.LeftGrip, 3);
+        Assert.True(h.RightGrip <= 0.16, $"Expected faint RightGrip <= 0.16 on quiet RawRms, got {h.RightGrip:F4}");
+        Assert.True(h.LeftTrigger <= 0.15, $"Expected faint LeftTrigger <= 0.15 on quiet RawRms, got {h.LeftTrigger:F4}");
+    }
 }
