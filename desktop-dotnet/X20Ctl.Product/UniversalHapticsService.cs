@@ -84,7 +84,7 @@ internal static class UniversalHapticsService
 
     public static void Start()
     {
-        if (ReviewSandbox.Active) return;
+        if (ReviewSandbox.Active || IsPowerSavingActive) return;
         lock (StateLock)
         {
             Store.UpdateSettings(c => c.Enabled = true, persist: true);
@@ -144,6 +144,7 @@ internal static class UniversalHapticsService
 
     public static void TriggerDemo(HapticsDemoKind kind)
     {
+        if (IsPowerSavingActive) return;
         Engine.TriggerDemoEffect(kind);
         if (ReviewSandbox.Active)
         {
@@ -199,12 +200,19 @@ internal static class UniversalHapticsService
         bool nowEco = IsPowerSavingActive;
         if (nowEco == wasEco) return;
 
+        if (nowEco)
+            Stop();
+
         _ = Task.Run(async () =>
         {
             try
             {
                 if (nowEco)
                 {
+                    for (int slot = 0; slot < 4; slot++)
+                        ControllerRumble.Set(slot, 0, 0);
+                    if (Diagnostics.BrowserTriggerRumble.Shared is { } shared)
+                        await shared.Play4(0, 0, 0, 0, 50).ConfigureAwait(false);
                     BatteryLightingService.Disable();
                     savedEcoLedBrightness = Math.Max((byte)0x18, LightingEffectsService.CurrentSpec.MaxBrightness);
                     if (LightingEffectsService.Status.IsRunning)

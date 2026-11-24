@@ -225,6 +225,14 @@ internal static class LightingEffectsService
 
     public static async Task<LightingEffectsStatus> ApplyAsync(LightingEffectSpec rawSpec, bool remember = true)
     {
+        if (!ReviewSandbox.Active && UniversalHapticsService.IsPowerSavingActive)
+        {
+            await StopAsync(restoreBaseline: false);
+            lastError = "Eco mode must be turned off to run RGB lighting.";
+            summary = "Locked · Eco mode active";
+            Changed?.Invoke();
+            return Status;
+        }
         var spec = rawSpec.Normalized();
         LightingFrame frameToWrite;
         bool writeNative = false;

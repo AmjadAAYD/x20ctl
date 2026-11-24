@@ -153,14 +153,14 @@ public sealed class DashboardConsolePage : Grid
             ecoPanel.Children.Add(Kit.Text("Enable battery saving mode?", 12, "DS.TextMuted").Also(t => t.Margin = new(0, 0, 0, 6)));
             var row = new DockPanel { LastChildFill = true };
             ecoSwitch.IsChecked = UniversalHapticsService.Store.Snapshot().PowerSavingMode;
-            ecoSwitch.ToolTip = "Turns controller LEDs off, lowers polling to 25 Hz, caps vibration at 50%, and slows battery polling.";
+            ecoSwitch.ToolTip = "Shuts off controller LEDs via BLE, kills vibration & game rumble, locks Vibration/RGB/Screen, stops audio capture, and pauses BLE polling.";
             void SyncEco()
             {
                 bool on = UniversalHapticsService.IsPowerSavingActive;
                 syncingEcoSwitch = true;
                 ecoSwitch.IsChecked = UniversalHapticsService.Store.Snapshot().PowerSavingMode;
                 syncingEcoSwitch = false;
-                ecoCellState.Text = on ? "On · Eco" : "Off";
+                ecoCellState.Text = on ? "On · Eco Saver" : "Off";
                 ecoCellState.Foreground = DS.Brush(on ? "DS.Success" : "DS.TextSoft");
             }
             SyncEco();

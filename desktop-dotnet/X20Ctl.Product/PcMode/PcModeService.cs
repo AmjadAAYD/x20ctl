@@ -275,6 +275,12 @@ sealed class VirtualPad : IDisposable
     public volatile PcModeProfile? Shape;
     void Feed(byte large, byte small)
     {
+        if (UniversalHapticsService.IsPowerSavingActive)
+        {
+            GameRumble.Record(real, large, small, 0, 0);
+            ControllerRumble.Set(real, 0, 0);
+            return;
+        }
         var shape = Shape;
         int left = shape?.ShapeRumble(large, true) ?? large * 257, right = shape?.ShapeRumble(small, false) ?? small * 257;
         GameRumble.Record(real, large, small, left, right);

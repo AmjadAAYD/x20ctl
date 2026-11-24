@@ -142,9 +142,9 @@ public sealed class ProductWindow : Window
         batteryTimer=new(System.Windows.Threading.DispatcherPriority.Background){Interval=TimeSpan.FromMinutes(2)};
         batteryTimer.Tick+=(_,_)=>
         {
-            var now=DateTimeOffset.UtcNow;
-            if(UniversalHapticsService.IsPowerSavingActive&&(now-lastEcoBatteryPollUtc).TotalMinutes<5)return;
-            lastEcoBatteryPollUtc=now;
+            // Skip periodic BLE GATT battery polls during Eco mode so controller BLE radio stays in sleep.
+            if(UniversalHapticsService.IsPowerSavingActive)return;
+            lastEcoBatteryPollUtc=DateTimeOffset.UtcNow;
             Read();
         };
         batteryTimer.Start();Read();
