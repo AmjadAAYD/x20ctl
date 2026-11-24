@@ -353,27 +353,27 @@ public static class AudioHapticsEngine
 
         if (audio.RawRms > 0f)
         {
-            double rawLoud = Math.Clamp((audio.RawRms - 0.005) / 0.20, 0.0, 1.0);
-            if (rawLoud < 0.26)
+            double linLoud = Math.Clamp((audio.RawRms - 0.010) / 0.33, 0.0, 1.0);
+            double rawLoud = Math.Pow(linLoud, 1.60);
+            if (rawLoud < 0.20)
             {
-                double quietScale = Math.Pow(rawLoud, 1.15);
                 lg = 0.0;
-                rg = Math.Min(rg * quietScale * 0.75, 0.16);
-                lt = Math.Min(lt * quietScale * 0.60, 0.14);
-                rt = Math.Min(rt * quietScale * 0.60, 0.14);
+                rg = Math.Min(rg * Math.Clamp(rawLoud * 1.6, 0.12, 0.50), 0.12);
+                lt = vocal >= 0.45 ? Math.Min(lt * 0.16, 0.10) : 0.0;
+                rt = vocal >= 0.45 ? Math.Min(rt * 0.16, 0.10) : 0.0;
             }
             else
             {
-                double lgScale = Math.Pow(Math.Clamp((rawLoud - 0.22) / 0.78, 0.0, 1.0), 1.12);
-                double rgScale = Math.Pow(rawLoud, 1.15);
+                double lgScale = Math.Pow(Math.Clamp((rawLoud - 0.18) / 0.82, 0.0, 1.0), 1.10);
+                double rgScale = Math.Pow(rawLoud, 1.05);
                 lg *= lgScale;
                 rg *= rgScale;
                 lt *= rgScale;
                 rt *= rgScale;
-                if (vocal < 0.06 && roles.IsAllAuto)
+                if (vocal < 0.35 && roles.IsAllAuto)
                 {
-                    lt = Math.Min(lt, 0.34);
-                    rt = Math.Min(rt, 0.34);
+                    lt = Math.Min(lt, 0.24);
+                    rt = Math.Min(rt, 0.24);
                 }
             }
         }
@@ -392,10 +392,10 @@ public static class AudioHapticsEngine
             return Math.Clamp(stictionBase + (1.0 - stictionBase) * shaped, 0.0, 1.0);
         }
 
-        double gripFloor = audio.RawRms > 0f ? 0.040 : 0.075;
-        double trigMin = audio.RawRms > 0f ? 0.045 : 0.075;
+        double gripFloor = audio.RawRms > 0f ? 0.035 : 0.075;
+        double trigMin = audio.RawRms > 0f ? 0.040 : 0.075;
         double trigStiction = audio.RawRms > 0f
-            ? 0.08 + 0.16 * Math.Clamp((audio.RawRms - 0.005) / 0.10, 0.0, 1.0)
+            ? 0.06 + 0.10 * Math.Clamp(Math.Pow(Math.Clamp((audio.RawRms - 0.010) / 0.33, 0.0, 1.0), 1.60) / 0.65, 0.0, 1.0)
             : 0.24;
 
         return new HapticsFrame(
