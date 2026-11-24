@@ -205,22 +205,17 @@ internal static class UniversalHapticsService
             {
                 if (nowEco)
                 {
+                    BatteryLightingService.Disable();
+                    savedEcoLedBrightness = Math.Max((byte)0x18, LightingEffectsService.CurrentSpec.MaxBrightness);
                     if (LightingEffectsService.Status.IsRunning)
-                    {
-                        savedEcoLedBrightness = Math.Max((byte)0x18, LightingEffectsService.CurrentSpec.MaxBrightness);
                         await LightingEffectsService.StopAsync(restoreBaseline: false).ConfigureAwait(false);
-                    }
-                    else
-                    {
-                        savedEcoLedBrightness = Math.Max((byte)0x18, LightingEffectsService.CurrentSpec.MaxBrightness);
-                    }
-                    await LightingBleClient.RunAsync(brightnessByte: 0x00).ConfigureAwait(false);
+                    await LightingBleClient.RunAsync(mode: LightingRecord.ModeOff, brightnessByte: 0x00).ConfigureAwait(false);
                     didEcoDimLed = true;
                 }
                 else if (didEcoDimLed)
                 {
                     didEcoDimLed = false;
-                    await LightingBleClient.RunAsync(brightnessByte: savedEcoLedBrightness).ConfigureAwait(false);
+                    await LightingBleClient.RunAsync(mode: LightingRecord.ModeSolid, brightnessByte: savedEcoLedBrightness).ConfigureAwait(false);
                 }
             }
             catch

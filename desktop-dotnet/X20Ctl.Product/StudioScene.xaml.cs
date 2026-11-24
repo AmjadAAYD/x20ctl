@@ -386,7 +386,8 @@ public partial class StudioScene : UserControl
         deviceState.Text="· "+(Linked?(level is "full" or "medium" or "low" or "empty" or "wired"?(level=="wired"?"Wired":batteryLabel.Text.Replace("Battery · ","")+" battery"):(level!=null&&level!="receiver"&&!level.Contains("Not reported")?(level.Contains("battery",StringComparison.OrdinalIgnoreCase)?level:level+" battery"):"Connected")):"Offline");
         deviceState.Foreground=DS.Brush(!Linked||level is "low" or "empty"||level?.StartsWith("1/4")==true?"DS.Warn":"DS.TextSoft");
         headerBattery.Show(Linked?level:null);
-        headerBattery.Visibility=batteryLabel.Visibility=BatteryVisible?Visibility.Visible:Visibility.Collapsed;
+        headerBattery.Visibility=Visibility.Collapsed;
+        batteryLabel.Visibility=BatteryVisible?Visibility.Visible:Visibility.Collapsed;
         if(animate&&deviceControl.IsLoaded&&previousWidth>0&&previousText!=deviceState.Text){deviceControl.BeginAnimation(WidthProperty,null);deviceControl.Width=double.NaN;deviceControl.Measure(new Size(double.PositiveInfinity,36));double next=deviceControl.DesiredSize.Width;deviceControl.Width=next;deviceControl.BeginAnimation(WidthProperty,new DoubleAnimation(previousWidth,next,TimeSpan.FromMilliseconds(180)){FillBehavior=FillBehavior.Stop,EasingFunction=DS.EaseOut});}
     }
     internal bool BatteryVisible => PcMode?.Service.Enabled != true;

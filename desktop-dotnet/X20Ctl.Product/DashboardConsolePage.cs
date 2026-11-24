@@ -25,7 +25,10 @@ public sealed class DashboardConsolePage : Grid
     private readonly Image heroArt = new() { Stretch = Stretch.Uniform, HorizontalAlignment = HorizontalAlignment.Stretch, Opacity = 0 };
     private readonly Image logo = new() { Stretch = Stretch.Uniform, MaxHeight = 86, MaxWidth = 380, HorizontalAlignment = HorizontalAlignment.Left };
     private readonly TextBlock featuredTitle = Kit.Text("", 34, "DS.Text", FontWeights.SemiBold), featuredMeta = Kit.Text("", 16, "DS.TextSoft");
-    private readonly TextBlock changesCount = Kit.Text("0",18,"DS.Text",FontWeights.SemiBold);
+    private readonly TextBlock changesCount = Kit.Text("Off", 16, "DS.Text", FontWeights.SemiBold);
+    private readonly TextBlock ecoCellState = Kit.Text("Off", 14, "DS.TextSoft", FontWeights.SemiBold);
+    private readonly CheckBox ecoSwitch = new() { Style = DS.Style("DS.Toggle"), VerticalAlignment = VerticalAlignment.Center };
+    private bool syncingEcoSwitch;
     private readonly TextBlock connectionValue=Kit.Text("Not detected",17,"DS.TextSoft"), batteryValue=Kit.Text("Not reported",17,"DS.TextSoft"), firmwareValue=Kit.Text("Not reported",17,"DS.TextSoft");
     private readonly TextBlock profileState=Kit.Text("No game-specific setup linked",13,"DS.TextSoft");
     private string? currentTransport;
@@ -144,15 +147,59 @@ public sealed class DashboardConsolePage : Grid
         deviceState.Text="Offline";deviceState.FontSize=18;deviceState.FontWeight=FontWeights.SemiBold;status.Children.Add(deviceState);
         status.Children.Add(Kit.Text("Current setup",12,"DS.TextMuted",FontWeights.SemiBold).Also(t=>t.Margin=new(0,10,0,4)));status.Children.Add(workingSetup);profileState.Margin=new(0,6,0,0);status.Children.Add(profileState);
         var stateGrid=new Grid{Margin=new(0,12,0,10)};stateGrid.ColumnDefinitions.Add(new());stateGrid.ColumnDefinitions.Add(new());stateGrid.RowDefinitions.Add(new());stateGrid.RowDefinitions.Add(new());
-        var cells=new[]{("Connection",connectionValue),("Battery",batteryValue),("Firmware",firmwareValue),("Changes",changesCount)};
+        FrameworkElement BuildEcoContent()
+        {
+            var ecoPanel = new StackPanel();
+            ecoPanel.Children.Add(Kit.Text("Enable battery saving mode?", 12, "DS.TextMuted").Also(t => t.Margin = new(0, 0, 0, 6)));
+            var row = new DockPanel { LastChildFill = true };
+            ecoSwitch.IsChecked = UniversalHapticsService.Store.Snapshot().PowerSavingMode;
+            ecoSwitch.ToolTip = "Turns controller LEDs off, lowers polling to 25 Hz, caps vibration at 50%, and slows battery polling.";
+            void SyncEco()
+            {
+                bool on = UniversalHapticsService.IsPowerSavingActive;
+                syncingEcoSwitch = true;
+                ecoSwitch.IsChecked = UniversalHapticsService.Store.Snapshot().PowerSavingMode;
+                syncingEcoSwitch = false;
+                ecoCellState.Text = on ? "On · Eco" : "Off";
+                ecoCellState.Foreground = DS.Brush(on ? "DS.Success" : "DS.TextSoft");
+            }
+            SyncEco();
+            ecoSwitch.Checked += (_, _) => { if (!syncingEcoSwitch) UniversalHapticsService.SetPowerSavingMode(true); SyncEco(); };
+            ecoSwitch.Unchecked += (_, _) => { if (!syncingEcoSwitch) UniversalHapticsService.SetPowerSavingMode(false); SyncEco(); };
+            void OnEcoChanged() => Dispatcher.BeginInvoke(SyncEco);
+            Loaded += (_, _) => { UniversalHapticsService.Changed -= OnEcoChanged; UniversalHapticsService.Changed += OnEcoChanged; SyncEco(); };
+            Unloaded += (_, _) => UniversalHapticsService.Changed -= OnEcoChanged;
+            DockPanel.SetDock(ecoSwitch, Dock.Right);
+            row.Children.Add(ecoSwitch);
+            ecoCellState.VerticalAlignment = VerticalAlignment.Center;
+            row.Children.Add(ecoCellState);
+            ecoPanel.Children.Add(row);
+            return ecoPanel;
+        }
+        var cells = new (string Name, UIElement? Value, Func<FrameworkElement>? Custom)[]
+        {
+            ("Connection", connectionValue, null),
+            ("Battery", batteryValue, null),
+            ("Firmware", firmwareValue, null),
+            ("BatterySaver", null, BuildEcoContent),
+        };
         for(int i=0;i<cells.Length;i++){
-            var text=new StackPanel();
-            text.Children.Add(Kit.Text(cells[i].Item1,12,"DS.TextMuted").Also(t=>t.Margin=new(0,0,0,6)));
-            cells[i].Item2.TextWrapping=TextWrapping.Wrap;
-            text.Children.Add(cells[i].Item2);
-            var cell=new Border{CornerRadius=new(12),Padding=new(8),Margin=new(0,0,8,8),Background=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(16,180,205,240))),Child=text};
-            if (cells[i].Item1 == "Battery") batteryCell = cell;
-            if (cells[i].Item1 == "Battery" && model.Id is "x20" or "x20_pro")
+            FrameworkElement content;
+            if (cells[i].Custom is { } makeCustom)
+            {
+                content = makeCustom();
+            }
+            else
+            {
+                var text=new StackPanel();
+                text.Children.Add(Kit.Text(cells[i].Name,12,"DS.TextMuted").Also(t=>t.Margin=new(0,0,0,6)));
+                if (cells[i].Value is TextBlock tb) tb.TextWrapping=TextWrapping.Wrap;
+                text.Children.Add(cells[i].Value!);
+                content = text;
+            }
+            var cell=new Border{CornerRadius=new(12),Padding=new(8),Margin=new(0,0,8,8),Background=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(16,180,205,240))),Child=content};
+            if (cells[i].Name == "Battery") batteryCell = cell;
+            if (cells[i].Name == "Battery" && model.Id is "x20" or "x20_pro")
             {
                 cell.Cursor = Cursors.Hand;
                 cell.ToolTip = "Click to refresh battery and firmware over Bluetooth";
@@ -176,8 +223,7 @@ public sealed class DashboardConsolePage : Grid
             stateGrid.Children.Add(cell);
         }status.Children.Add(stateGrid);status.Children.Add(stateDetail);
         gamesCount=new TextBlock();SetWorkingState(draftChanges,null,false);
-        var statusBox = new ScrollViewer {Content=status,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled};
-        statusBox.Margin=new(0);var statusPanel=Kit.Panel(null,null,null,statusBox);statusPanel.Margin=new(0,0,12,0);top.Children.Add(statusPanel);
+        var statusPanel=Kit.Panel(null,null,null,status);statusPanel.Margin=new(0,0,12,0);top.Children.Add(statusPanel);
 
         var lower = new Grid();lower.RowDefinitions.Add(new() { Height = GridLength.Auto });lower.RowDefinitions.Add(new() { Height = new(1,GridUnitType.Star) });Grid.SetRow(lower,2);Children.Add(lower);
         var header = new DockPanel { Margin = new(0,0,0,12) };
@@ -336,7 +382,7 @@ public sealed class DashboardConsolePage : Grid
         SizeCover(art, title);
         var stack = new StackPanel { Children = { new Grid { HorizontalAlignment=HorizontalAlignment.Left, Children = { art, ring, store } }, title }, RenderTransformOrigin = new(.5, .4), RenderTransform = new TransformGroup { Children = { new ScaleTransform(1, 1), new TranslateTransform() } } };
         SizeCover(art,title);
-        var b = new Button { Content = stack, Template = Bare(), Margin = new(0, 0, 18, 2), Cursor = Cursors.Hand, FocusVisualStyle = null, ToolTip = $"{g.Name} · {g.Store}" };
+        var b = new Button { Content = stack, Template = Bare(), Margin = new(0, 0, 18, 2), Cursor = Cursors.Hand, FocusVisualStyle = null };
         b.Tag = art;
         if (pop) { b.IsHitTestVisible = false; b.Focusable = false; return b; }
         b.GotKeyboardFocus += (_, _) => { Feature(g); RefreshRings(); title.Foreground = DS.Brush("DS.Text"); Settle(b, g); b.BringIntoView(new Rect(-12,0,coverHeight+12,coverHeight+34)); };
