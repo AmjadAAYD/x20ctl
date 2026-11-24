@@ -424,7 +424,7 @@ public partial class App : Application
             var window = new ProductWindow(e.Args.Contains("--reduced-motion"),firstRun:true,nativeEngine:true,fullscreen:false,trayIcon:true);
             MainWindow = window; window.Show();
             BatteryLightingService.Resume();
-            UniversalHapticsService.ResumeIfEnabled();
+            // Universal Haptics always starts disabled on launch until the user enables it.
             // HidHide's hide list outlives the app (it survives a reboot): every way out un-hides the controller, not only
             // the window closing: Windows signing out or shutting down, and a crash on any thread
             SessionEnding += (_, _) => { UniversalHapticsService.Shutdown(); LightingEffectsService.Shutdown(); window.Host.MouseMode?.Dispose(); window.Host.PcMode?.Dispose(); };

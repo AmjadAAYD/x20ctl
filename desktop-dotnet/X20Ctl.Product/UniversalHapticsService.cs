@@ -66,13 +66,6 @@ internal static class UniversalHapticsService
         }
     }
 
-    public static void ResumeIfEnabled()
-    {
-        if (ReviewSandbox.Active) return;
-        if (Store.Snapshot().Enabled)
-            Start();
-    }
-
     public static void Start()
     {
         if (ReviewSandbox.Active) return;
