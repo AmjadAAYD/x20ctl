@@ -1,9 +1,11 @@
 namespace X20Ctl.Zone.Lighting;
 
 /// <summary>
-/// Universal 4-motor comfort-first Haptics Fusion Engine combining live WASAPI FFT spectral descriptors,
-/// embedded ML stem/SFX classification, and live controller inputs (triggers, sticks, buttons, menu cursor)
-/// into DualSense-class grip and trigger sensations with battery-friendly anti-fatigue protection.
+/// Universal 4-motor comfort-first Haptics Fusion Engine.
+/// In games: uses Right-Grip-first micro-taps, un-AGC'd RawRms loudness scaling,
+/// input-first action pulses (walk, grass, jump, dash, attack), automatic game BGM &amp; dialogue/cutscene
+/// rejection, menu cursor silencing, and reserves Left Grip + LT/RT triggers for heavy or overly loud impacts
+/// (plus expressive lyrical triggers in Music mode).
 /// </summary>
 public sealed class HapticsFusionEngine
 {
@@ -19,11 +21,18 @@ public sealed class HapticsFusionEngine
     double menuMuteFactor;
     double absPhase;
     double gravelPhase;
-    int footstepPhase;
     bool prevSprinting;
-    double sprintBurstRemaining;
     double prevRightTrigger;
     double gearShiftRemaining;
+
+    // Input-first short tactical envelopes (discrete taps instead of continuous drone)
+    double stepTapRemaining;
+    double stepTapLevel;
+    double jumpTapRemaining;
+    double airborneWindowSec;
+    double landingTapRemaining;
+    double dashRemaining;
+    double attackTapRemaining;
 
     HapticsDemoKind? activeDemo;
     double demoRemainingSec;
@@ -45,10 +54,10 @@ public sealed class HapticsFusionEngine
         {
             elapsedSeconds = avgDuty = sustainedHighSec = steadyEngineSec = boostHoldSec = 0;
             stepCooldownSec = menuMuteFactor = absPhase = gravelPhase = 0;
-            footstepPhase = 0;
             prevSprinting = false;
-            sprintBurstRemaining = gearShiftRemaining = 0;
             prevRightTrigger = 0;
+            gearShiftRemaining = stepTapRemaining = stepTapLevel = 0;
+            jumpTapRemaining = airborneWindowSec = landingTapRemaining = dashRemaining = attackTapRemaining = 0;
             activeDemo = null;
             demoRemainingSec = demoTotalSec = 0;
             lastLg = lastRg = lastLt = lastRt = 0;
@@ -90,7 +99,6 @@ public sealed class HapticsFusionEngine
         {
             elapsedSeconds += dt;
 
-            // Active one-click Demo Effect overrides background safely so user feels exact signature physics.
             if (activeDemo is { } demo && demoRemainingSec > 0)
             {
                 double tNorm = 1.0 - demoRemainingSec / Math.Max(0.1, demoTotalSec);
@@ -106,9 +114,18 @@ public sealed class HapticsFusionEngine
                 return new HapticsEvaluation(HapticsFrame.Zero, cls, HapticsEventTag.None, HapticsEventTag.None, profile, false, avgDuty);
             }
 
-            bool isGameProfile = profile is HapticsGenreProfile.Racing or HapticsGenreProfile.FpsAction or HapticsGenreProfile.RpgMelee or HapticsGenreProfile.SportsArcade;
-            bool cursorMute = isGameProfile && tuning.MenuAutoMute && input.CursorVisible;
-            bool idleMute = isGameProfile && tuning.MenuAutoMute && input.IsIdle && cls.Explosion < 0.55f && cls.Gunshot < 0.55f;
+            var resolved = profile == HapticsGenreProfile.Auto ? InferAutoProfile(audio, cls, input) : profile;
+            bool isGameContext = resolved is HapticsGenreProfile.Racing or HapticsGenreProfile.FpsAction or HapticsGenreProfile.RpgMelee or HapticsGenreProfile.SportsArcade
+                || (input.IsGameForeground && resolved != HapticsGenreProfile.Music);
+
+            double effectiveRawRms = audio.RawRms > 0f ? audio.RawRms : audio.Level * 0.28;
+            double effectiveRawSpike = audio.RawPeakSpike > 0f ? audio.RawPeakSpike : (audio.RawRms <= 0f ? audio.BeatPulse * 0.14 : 0.0);
+            bool isOverlyLoud = effectiveRawRms >= 0.17 || effectiveRawSpike >= 0.11;
+            bool majorImpactPresent = (cls.Explosion > 0.52f && (effectiveRawRms >= 0.14 || effectiveRawSpike >= 0.10))
+                || (cls.Gunshot > 0.58f && input.RightTrigger > 0.25);
+
+            bool cursorMute = isGameContext && tuning.MenuAutoMute && input.CursorVisible;
+            bool idleMute = isGameContext && tuning.MenuAutoMute && input.IsIdle && !majorImpactPresent;
             bool wantMute = cursorMute || idleMute;
             double muteTarget = wantMute ? 1.0 : 0.0;
             menuMuteFactor += (muteTarget - menuMuteFactor) * (1.0 - Math.Exp(-dt / (wantMute ? 0.08 : 0.14)));
@@ -117,10 +134,14 @@ public sealed class HapticsFusionEngine
             {
                 avgDuty *= Math.Exp(-dt / 1.5);
                 lastLg = lastRg = lastLt = lastRt = 0;
-                return new HapticsEvaluation(HapticsFrame.Zero, cls, HapticsEventTag.MenuMuted, HapticsEventTag.None, profile, true, avgDuty);
+                return new HapticsEvaluation(HapticsFrame.Zero, cls, HapticsEventTag.MenuMuted, HapticsEventTag.None, resolved, true, avgDuty);
             }
 
-            var resolved = profile == HapticsGenreProfile.Auto ? InferAutoProfile(audio, cls, input) : profile;
+            // Cutscene & character speech auto-ducking across ALL game modes (never buzz when characters talk!).
+            if (isGameContext && (cls.Dialogue > 0.30f || cls.Vocal > 0.30f) && !majorImpactPresent && input.PressedButtons == PadActionButtons.None)
+            {
+                return SmoothAndBudgetLocked(HapticsFrame.Zero, cls, HapticsEventTag.DialogueDuck, HapticsEventTag.None, resolved, false, tuning, dt);
+            }
 
             double lg = 0, rg = 0, lt = 0, rt = 0;
             var ev1 = HapticsEventTag.None;
@@ -129,22 +150,22 @@ public sealed class HapticsFusionEngine
             switch (resolved)
             {
                 case HapticsGenreProfile.Racing:
-                    EvaluateRacingLocked(audio, cls, input, tuning, dt, out lg, out rg, out lt, out rt, out ev1, out ev2);
+                    EvaluateRacingLocked(audio, cls, input, tuning, effectiveRawRms, effectiveRawSpike, isOverlyLoud, dt, out lg, out rg, out lt, out rt, out ev1, out ev2);
                     break;
                 case HapticsGenreProfile.FpsAction:
-                    EvaluateFpsLocked(audio, cls, input, tuning, dt, out lg, out rg, out lt, out rt, out ev1, out ev2);
+                    EvaluateActionLocked(audio, cls, input, tuning, effectiveRawRms, effectiveRawSpike, isOverlyLoud, isMeleePrimary: false, dt, out lg, out rg, out lt, out rt, out ev1, out ev2);
+                    break;
+                case HapticsGenreProfile.RpgMelee:
+                    EvaluateActionLocked(audio, cls, input, tuning, effectiveRawRms, effectiveRawSpike, isOverlyLoud, isMeleePrimary: true, dt, out lg, out rg, out lt, out rt, out ev1, out ev2);
                     break;
                 case HapticsGenreProfile.Music:
                     EvaluateMusicLocked(audio, cls, tuning, roles, out lg, out rg, out lt, out rt, out ev1, out ev2);
                     break;
                 case HapticsGenreProfile.Cinema:
-                    EvaluateCinemaLocked(audio, cls, tuning, out lg, out rg, out lt, out rt, out ev1, out ev2);
-                    break;
-                case HapticsGenreProfile.RpgMelee:
-                    EvaluateRpgLocked(audio, cls, tuning, out lg, out rg, out lt, out rt, out ev1, out ev2);
+                    EvaluateCinemaLocked(audio, cls, tuning, effectiveRawRms, effectiveRawSpike, out lg, out rg, out lt, out rt, out ev1, out ev2);
                     break;
                 case HapticsGenreProfile.SportsArcade:
-                    EvaluateSportsLocked(audio, cls, tuning, out lg, out rg, out lt, out rt, out ev1, out ev2);
+                    EvaluateSportsLocked(audio, cls, tuning, effectiveRawRms, effectiveRawSpike, isOverlyLoud, out lg, out rg, out lt, out rt, out ev1, out ev2);
                     break;
             }
 
@@ -156,7 +177,16 @@ public sealed class HapticsFusionEngine
 
     static HapticsGenreProfile InferAutoProfile(AudioFrame audio, AudioClassification cls, LivePadInput input)
     {
-        // Music dominates when clear vocals, rhythmic groove, or harmony instruments lead without heavy gunfire/screech.
+        // Strict boundary: active foreground games NEVER drift into expressive Music mode because of BGM themes.
+        if (input.IsGameForeground)
+        {
+            if (cls.TireScreech > 0.48f || (cls.EngineRumble > 0.50f && input.RightTrigger > 0.35))
+                return HapticsGenreProfile.Racing;
+            if (cls.MeleeClash > 0.50f || (input.PressedButtons & (PadActionButtons.X | PadActionButtons.Y)) != 0)
+                return HapticsGenreProfile.RpgMelee;
+            return HapticsGenreProfile.FpsAction;
+        }
+
         if ((cls.Vocal > 0.35f || cls.Drums > 0.38f || cls.Instruments > 0.42f)
             && cls.Gunshot < 0.45f && cls.TireScreech < 0.45f)
             return HapticsGenreProfile.Music;
@@ -164,7 +194,7 @@ public sealed class HapticsFusionEngine
         if (cls.Dialogue > 0.48f && cls.Gunshot < 0.35f && input.RightTrigger < 0.25)
             return HapticsGenreProfile.Cinema;
 
-        if (cls.TireScreech > 0.42f || (cls.EngineRumble > 0.45f && input.RightTrigger > 0.30))
+        if (cls.TireScreech > 0.45f || (cls.EngineRumble > 0.48f && input.RightTrigger > 0.30))
             return HapticsGenreProfile.Racing;
 
         return HapticsGenreProfile.FpsAction;
@@ -175,6 +205,9 @@ public sealed class HapticsFusionEngine
         AudioClassification cls,
         LivePadInput input,
         HapticsTuning tuning,
+        double rawRms,
+        double rawSpike,
+        bool isOverlyLoud,
         double dt,
         out double lg,
         out double rg,
@@ -186,83 +219,90 @@ public sealed class HapticsFusionEngine
         double texScale = tuning.TextureDetail / 100.0;
         double punchScale = tuning.ImpactPunch / 100.0;
         double comfortTex = ComfortTextureScale(tuning.ComfortTier);
+        double rawLoudness = Math.Clamp(rawRms / 0.22, 0.0, 1.0);
         double pan = Math.Clamp(audio.StereoPan, -1.0, 1.0);
-        double leftBias = Math.Clamp(1.0 - Math.Max(0.0, pan) * 0.72, 0.25, 1.0);
-        double rightBias = Math.Clamp(1.0 - Math.Max(0.0, -pan) * 0.72, 0.25, 1.0);
 
         ev1 = HapticsEventTag.None;
         ev2 = HapticsEventTag.None;
 
-        // 1. Dirt / Gravel / Curb tactile micro-pebbles (stochastic crisp taps, never steady drone).
-        gravelPhase += dt * (28.0 + 18.0 * cls.GravelSurface);
-        double pebbleMask = 0.35 + 0.65 * Math.Abs(Math.Sin(gravelPhase * 1.73 + Math.Cos(gravelPhase * 0.61)));
-        double gravel = cls.GravelSurface > 0.26f
-            ? Math.Pow((cls.GravelSurface - 0.22) / 0.78, 1.15) * (0.28 + 0.72 * texScale) * comfortTex * pebbleMask
+        // 1. Dirt / Gravel / Grass surface: faint spaced micro-taps on RIGHT grip ONLY for gentle driving.
+        // Left grip stays silent unless a genuinely rough curb/offroad rumble hits (rawLoudness > 0.45).
+        gravelPhase += dt * (24.0 + 14.0 * cls.GravelSurface);
+        double pebblePulse = Math.Max(0.0, Math.Sin(gravelPhase * 1.73 + Math.Cos(gravelPhase * 0.61)));
+        bool gravelAudio = cls.GravelSurface > 0.28f && rawRms > 0.010;
+        double dirtLight = gravelAudio
+            ? Math.Clamp((cls.GravelSurface - 0.22) / 0.78 * (0.06 + 0.09 * texScale) * comfortTex * (0.45 + 0.55 * rawLoudness) * (pebblePulse > 0.45 ? 1.0 : 0.0), 0.0, 0.18)
             : 0.0;
+        double dirtHeavyLeft = gravelAudio && rawLoudness > 0.48 && pan < 0.20
+            ? dirtLight * 0.65 * Math.Clamp((rawLoudness - 0.48) / 0.52, 0.0, 1.0)
+            : 0.0;
+        if (dirtLight > 0.04)
+            ev2 = pan < -0.20 ? HapticsEventTag.GravelLeft : HapticsEventTag.GravelRight;
 
-        if (gravel > 0.06)
-            ev2 = pan < -0.15 ? HapticsEventTag.GravelLeft : HapticsEventTag.GravelRight;
-
-        // 2. Throttle-gated engine hum: gently fades ("fwoosh, then rest") on steady highway cruise.
-        double engActive = cls.EngineRumble > 0.35f && input.RightTrigger > 0.08 ? cls.EngineRumble * Math.Sqrt(input.RightTrigger) : 0.0;
-        if (engActive > 0.25 && cls.BoostSurge < 0.40f && cls.GravelSurface < 0.35f)
+        // 2. Throttle-gated engine: ultra-faint Right Grip whisper on acceleration, fading to 0 after 0.6s steady cruise.
+        double engActive = cls.EngineRumble > 0.38f && input.RightTrigger > 0.12 && rawRms > 0.015
+            ? cls.EngineRumble * Math.Sqrt(input.RightTrigger) * rawLoudness
+            : 0.0;
+        if (engActive > 0.20 && cls.BoostSurge < 0.45f)
             steadyEngineSec = Math.Min(3.0, steadyEngineSec + dt);
         else
-            steadyEngineSec = Math.Max(0.0, steadyEngineSec - dt * 1.5);
-        double cruiseFade = Math.Clamp(1.0 - Math.Max(0.0, steadyEngineSec - 0.7) / 1.4, 0.18, 1.0);
-        double engineTouch = engActive * 0.16 * texScale * comfortTex * cruiseFade;
+            steadyEngineSec = Math.Max(0.0, steadyEngineSec - dt * 2.0);
+        double cruiseFade = Math.Clamp(1.0 - Math.Max(0.0, steadyEngineSec - 0.45) / 0.85, 0.0, 1.0);
+        double engineWhisper = engActive * 0.09 * texScale * comfortTex * cruiseFade;
 
-        // 3. Gear shift kick when throttle high and spectral centroid or RPM drops briskly.
+        // 3. Gear shift kick: brief 55 ms snap on Right Grip (+ light RT detail on strong throttle).
         gearShiftRemaining = Math.Max(0.0, gearShiftRemaining - dt);
         if (gearShiftRemaining <= 0 && input.RightTrigger > 0.65 && prevRightTrigger > 0.65
             && audio.CentroidVelocity < -0.32f && cls.EngineRumble > 0.30f)
         {
-            gearShiftRemaining = 0.065;
+            gearShiftRemaining = 0.055;
         }
         prevRightTrigger = input.RightTrigger;
-        double shiftKick = gearShiftRemaining > 0 ? 0.58 * punchScale : 0.0;
-        if (shiftKick > 0.15) ev1 = HapticsEventTag.GearShift;
+        double shiftGrip = gearShiftRemaining > 0 ? 0.34 * punchScale : 0.0;
+        double shiftTrig = gearShiftRemaining > 0 && isOverlyLoud ? 0.42 * punchScale : 0.0;
+        if (shiftGrip > 0.10) ev1 = HapticsEventTag.GearShift;
 
-        // 4. Nitro / Turbo Boost surge: sculpted "fwoosh, then rest" across triggers -> grips.
-        bool boostOn = cls.BoostSurge > 0.42f;
+        // 4. Nitro / Turbo Boost: "fwoosh, then rest" into both grips + RT only during bright peak surge.
+        bool boostOn = cls.BoostSurge > 0.50f && rawLoudness > 0.28;
         if (boostOn)
             boostHoldSec = Math.Min(3.0, boostHoldSec + dt);
         else
-            boostHoldSec = Math.Max(0.0, boostHoldSec - dt * 2.2);
-        double boostEnvelope = boostOn
-            ? cls.BoostSurge * Math.Clamp(1.0 - Math.Max(0.0, boostHoldSec - 0.35) / 1.1, 0.15, 1.0)
+            boostHoldSec = Math.Max(0.0, boostHoldSec - dt * 2.4);
+        double boostEnv = boostOn
+            ? cls.BoostSurge * Math.Clamp(1.0 - Math.Max(0.0, boostHoldSec - 0.30) / 0.85, 0.0, 1.0)
             : 0.0;
-        double boostVal = boostEnvelope * 0.72 * punchScale;
-        if (boostVal > 0.18) ev1 = HapticsEventTag.BoostSurge;
+        double boostGrip = boostEnv * 0.52 * punchScale;
+        double boostRt = isOverlyLoud ? boostEnv * 0.55 * punchScale : 0.0;
+        if (boostGrip > 0.12) ev1 = HapticsEventTag.BoostSurge;
 
-        // 5. ABS Brake chatter on Left Trigger when braking + tire screech / lockup.
+        // 5. ABS Brake chatter: strictly requires braking (LT > 0.45) + tire screech + real loudness.
         absPhase += dt * 14.0 * 2.0 * Math.PI;
-        double absGate = (input.LeftTrigger > 0.32 && (cls.TireScreech > 0.32f || audio.HighFreqResonance > 0.42f))
+        double absGate = (input.LeftTrigger > 0.45 && (cls.TireScreech > 0.42f || audio.HighFreqResonance > 0.50f) && rawLoudness > 0.25)
             ? Math.Max(cls.TireScreech, audio.HighFreqResonance)
             : 0.0;
-        double absPulse = absGate > 0.05 ? (0.45 + 0.55 * (0.5 + 0.5 * Math.Sin(absPhase))) * absGate * 0.75 * punchScale : 0.0;
-        if (absPulse > 0.15)
-            ev1 = HapticsEventTag.AbsBrake;
+        double absPulseLt = absGate > 0.05 ? (0.45 + 0.55 * (0.5 + 0.5 * Math.Sin(absPhase))) * absGate * 0.68 * punchScale : 0.0;
+        if (absPulseLt > 0.14) ev1 = HapticsEventTag.AbsBrake;
 
-        // 6. Collisions / Explosions.
-        double crash = cls.Explosion > 0.40f ? cls.Explosion * 0.90 * punchScale : 0.0;
-        if (crash > 0.25) ev1 = HapticsEventTag.Explosion;
+        // 6. Crashes / Overly loud impacts: heavy Left Grip + Right Grip + Trigger detail ONLY when truly loud.
+        double crash = cls.Explosion > 0.48f && isOverlyLoud ? cls.Explosion * 0.82 * punchScale * rawLoudness : 0.0;
+        if (crash > 0.20) ev1 = HapticsEventTag.Explosion;
 
-        // Priority gate: heavy impact or ABS ducks subtle background pebbles cleanly.
-        double priorityDuck = Math.Clamp(1.0 - Math.Max(crash, boostVal) * 0.55, 0.25, 1.0);
-        double roadAndEngine = (gravel + engineTouch) * priorityDuck;
-
-        lg = Math.Clamp(roadAndEngine * leftBias + boostVal * 0.75 + crash * leftBias + shiftKick * 0.35, 0.0, 1.0);
-        rg = Math.Clamp(roadAndEngine * rightBias + boostVal * 0.75 + crash * rightBias + shiftKick * 0.35, 0.0, 1.0);
-        lt = Math.Clamp(absPulse + gravel * leftBias * 0.40 + boostVal * 0.45 + shiftKick * 0.40, 0.0, 1.0);
-        rt = Math.Clamp(engineTouch * 1.15 + boostVal * 0.85 + shiftKick * 0.90 + gravel * rightBias * 0.35, 0.0, 1.0);
+        // Racing default: triggers stay ZERO during normal driving, dirt, curbs, and coasting.
+        lg = Math.Clamp(crash + boostGrip * 0.65 + dirtHeavyLeft, 0.0, 1.0);
+        rg = Math.Clamp(dirtLight + engineWhisper + shiftGrip + boostGrip + crash * 0.80, 0.0, 1.0);
+        lt = Math.Clamp(absPulseLt + (isOverlyLoud ? crash * 0.35 : 0.0), 0.0, 1.0);
+        rt = Math.Clamp(boostRt + shiftTrig + (isOverlyLoud ? crash * 0.35 : 0.0), 0.0, 1.0);
     }
 
-    void EvaluateFpsLocked(
+    void EvaluateActionLocked(
         AudioFrame audio,
         AudioClassification cls,
         LivePadInput input,
         HapticsTuning tuning,
+        double rawRms,
+        double rawSpike,
+        bool isOverlyLoud,
+        bool isMeleePrimary,
         double dt,
         out double lg,
         out double rg,
@@ -274,58 +314,92 @@ public sealed class HapticsFusionEngine
         double texScale = tuning.TextureDetail / 100.0;
         double punchScale = tuning.ImpactPunch / 100.0;
         double comfortTex = ComfortTextureScale(tuning.ComfortTier);
-        double pan = Math.Clamp(audio.StereoPan, -1.0, 1.0);
-        double leftBias = Math.Clamp(1.0 - Math.Max(0.0, pan) * 0.78, 0.22, 1.0);
-        double rightBias = Math.Clamp(1.0 - Math.Max(0.0, -pan) * 0.78, 0.22, 1.0);
+        double rawLoudness = Math.Clamp(rawRms / 0.22, 0.0, 1.0);
 
         ev1 = HapticsEventTag.None;
         ev2 = HapticsEventTag.None;
 
-        // 1. Crisp Gunshot Recoil: RT trigger active OR very clear gunshot transient.
-        double shootBias = input.RightTrigger > 0.20 ? 1.0 : 0.42;
-        double gunshot = cls.Gunshot > 0.38f ? Math.Pow((cls.Gunshot - 0.32) / 0.68, 0.90) * shootBias * punchScale : 0.0;
-        double bassWeight = Math.Clamp(cls.Bass * 0.8 + audio.Bass * 0.4, 0.15, 1.0);
-        double recoilRt = gunshot * 0.92;
-        double recoilGrip = gunshot * bassWeight * 0.60;
-        if (gunshot > 0.18) ev1 = HapticsEventTag.Gunshot;
-
-        // 2. Explosions & Heavy Shockwaves: stereo-panned across grips with smooth rolloff.
-        double blast = cls.Explosion > 0.40f ? cls.Explosion * 0.95 * punchScale : 0.0;
-        if (blast > 0.22) ev1 = HapticsEventTag.Explosion;
-
-        // 3. Running Footsteps & Sprint "Fwoosh, Then Rest" (micro-taps ONLY, never VOM VOM VOM!).
+        // Tick down discrete tactical pulse timers cleanly
         stepCooldownSec = Math.Max(0.0, stepCooldownSec - dt);
-        sprintBurstRemaining = Math.Max(0.0, sprintBurstRemaining - dt);
-        double moveMag = input.LeftStickMagnitude;
-        bool movingFast = moveMag > 0.85;
-        if (movingFast && !prevSprinting)
-            sprintBurstRemaining = 0.18;
-        prevSprinting = movingFast;
+        stepTapRemaining = Math.Max(0.0, stepTapRemaining - dt);
+        jumpTapRemaining = Math.Max(0.0, jumpTapRemaining - dt);
+        airborneWindowSec = Math.Max(0.0, airborneWindowSec - dt);
+        landingTapRemaining = Math.Max(0.0, landingTapRemaining - dt);
+        dashRemaining = Math.Max(0.0, dashRemaining - dt);
+        attackTapRemaining = Math.Max(0.0, attackTapRemaining - dt);
 
-        double stepTap = 0.0;
-        int sideIdx = footstepPhase & 1;
-        if (moveMag > 0.28 && stepCooldownSec <= 0.0 && gunshot < 0.15 && blast < 0.20)
+        // 1. Input-First Discrete Action Triggers: Jump (A), Dash (B/RB/L3), Sword/Attack (X/Y)
+        if ((input.PressedButtons & PadActionButtons.A) != 0)
         {
-            // Trigger tiny 28 ms feather micro-tap on clear low-mid/flux step rhythm
-            if (audio.SpectralFlux > 0.22f || cls.Drums > 0.25f)
-            {
-                stepTap = (0.09 + 0.06 * texScale) * comfortTex;
-                stepCooldownSec = movingFast ? 0.26 : 0.38;
-                footstepPhase++;
-                ev2 = HapticsEventTag.Footstep;
-            }
+            jumpTapRemaining = 0.028;
+            airborneWindowSec = 1.05;
         }
-        double fwoosh = sprintBurstRemaining > 0.0 ? (sprintBurstRemaining / 0.18) * 0.14 * comfortTex : 0.0;
+        bool dashBtnPressed = (input.PressedButtons & (PadActionButtons.B | PadActionButtons.RB | PadActionButtons.L3)) != 0;
+        bool sprintOnset = input.LeftStickMagnitude > 0.88 && !prevSprinting;
+        prevSprinting = input.LeftStickMagnitude > 0.88;
+        if (dashBtnPressed || sprintOnset)
+            dashRemaining = 0.095;
 
-        // 4. Reload / parry click in Left Trigger.
-        double clashClick = cls.MeleeClash > 0.45f ? cls.MeleeClash * 0.35 * punchScale : 0.0;
-        if (clashClick > 0.14 && ev2 == HapticsEventTag.None) ev2 = HapticsEventTag.MeleeClash;
+        if ((input.PressedButtons & (PadActionButtons.X | PadActionButtons.Y)) != 0)
+            attackTapRemaining = 0.052;
 
-        double duckTex = Math.Clamp(1.0 - Math.Max(gunshot, blast), 0.15, 1.0);
-        lg = Math.Clamp(blast * leftBias + recoilGrip * leftBias + (sideIdx == 0 ? stepTap : stepTap * 0.2) * duckTex + fwoosh * 0.5, 0.0, 1.0);
-        rg = Math.Clamp(blast * rightBias + recoilGrip * rightBias + (sideIdx == 1 ? stepTap : stepTap * 0.2) * duckTex + fwoosh * 0.5, 0.0, 1.0);
-        lt = Math.Clamp(clashClick + blast * leftBias * 0.35, 0.0, 1.0);
-        rt = Math.Clamp(recoilRt + clashClick * 0.5 + blast * rightBias * 0.25, 0.0, 1.0);
+        // Detect jump landing impact after 0.22s in air
+        if (airborneWindowSec is > 0.05 and < 0.82 && (rawSpike > 0.04 || audio.SpectralFlux > 0.34f))
+        {
+            landingTapRemaining = 0.038;
+            airborneWindowSec = 0.0;
+        }
+
+        // 2. Walking / Running / Grass footsteps: Right-Grip-ONLY faint 26 ms micro-taps, NEVER VOM VOM VOM!
+        // Reject background music themes: require LeftStick movement AND non-silent movement audio, paused while airborne.
+        double moveMag = input.LeftStickMagnitude;
+        bool movingQuietAudio = rawRms > 0.008 && (cls.GravelSurface > 0.20f || audio.SpectralFlux > 0.16f || rawSpike > 0.012);
+        if (moveMag > 0.25 && airborneWindowSec <= 0.05 && stepCooldownSec <= 0.0 && movingQuietAudio)
+        {
+            stepTapLevel = Math.Clamp((0.06 + 0.06 * texScale) * comfortTex * (0.45 + 0.55 * Math.Min(1.0, rawLoudness * 1.6)), 0.05, 0.14);
+            stepTapRemaining = 0.026;
+            stepCooldownSec = moveMag > 0.85 ? 0.31 : 0.42;
+            ev2 = HapticsEventTag.Footstep;
+        }
+
+        double walkTapRg = stepTapRemaining > 0 ? stepTapLevel : 0.0;
+        double jumpRg = jumpTapRemaining > 0 ? 0.10 * comfortTex : 0.0;
+        double landRg = landingTapRemaining > 0 ? 0.16 * comfortTex : 0.0;
+        double landLg = landingTapRemaining > 0 && rawLoudness > 0.35 ? 0.08 * comfortTex : 0.0;
+        double dashFwooshRg = dashRemaining > 0 ? (dashRemaining / 0.095) * 0.16 * comfortTex : 0.0;
+        double swordSnapRg = attackTapRemaining > 0 ? (isMeleePrimary ? 0.28 : 0.22) * punchScale : 0.0;
+        if (swordSnapRg > 0.08 && ev2 == HapticsEventTag.None) ev2 = HapticsEventTag.MeleeClash;
+
+        // 3. Shooting (FPS RT pulled + gunshot transient): crisp Right Trigger + Right Grip recoil, Left Grip only if heavy.
+        bool shootingActive = input.RightTrigger > 0.25 && cls.Gunshot > 0.42f && rawRms > 0.02;
+        double gunEnv = shootingActive ? Math.Pow((cls.Gunshot - 0.36) / 0.64, 0.90) * punchScale * Math.Clamp(0.45 + 0.55 * rawLoudness, 0.35, 1.0) : 0.0;
+        double gunRt = gunEnv * 0.82;
+        double gunRg = gunEnv * 0.38;
+        double gunLg = (gunEnv > 0.35 && audio.Bass > 0.55f && isOverlyLoud) ? gunEnv * 0.45 : 0.0;
+        if (gunEnv > 0.15) ev1 = HapticsEventTag.Gunshot;
+
+        // 4. Sword Parry / Sharp Clash (loud only): triggers stay quiet on light swings!
+        double parryClang = (cls.MeleeClash > 0.55f && (attackTapRemaining > 0 || isOverlyLoud) && rawRms > 0.03)
+            ? cls.MeleeClash * 0.55 * punchScale * Math.Clamp(rawLoudness, 0.3, 1.0)
+            : 0.0;
+        if (parryClang > 0.18 && ev1 == HapticsEventTag.None) ev1 = HapticsEventTag.MeleeClash;
+
+        // 5. Heavy Damage Taken / Boss Slams / Loud Explosions (break through cleanly even without button input!):
+        bool heavyHitOrExplosion = (cls.Explosion > 0.48f && isOverlyLoud)
+            || (rawSpike >= 0.12 && audio.Bass > 0.55f && cls.Instruments < 0.70f);
+        double explosionPower = heavyHitOrExplosion
+            ? Math.Clamp(Math.Max(cls.Explosion, rawSpike * 4.0) * Math.Clamp(0.5 + 0.5 * rawLoudness, 0.5, 1.0) * punchScale, 0.0, 0.90)
+            : 0.0;
+        if (explosionPower > 0.20) ev1 = HapticsEventTag.Explosion;
+
+        double subtleRg = Math.Max(Math.Max(walkTapRg, jumpRg), Math.Max(landRg, Math.Max(dashFwooshRg, swordSnapRg)));
+        double duckSubtle = Math.Clamp(1.0 - Math.Max(gunEnv, explosionPower) * 0.75, 0.15, 1.0);
+
+        // Triggers and Left Grip stay ZERO for walking, grass, jumping, dashing, light hits, and quiet music themes!
+        lg = Math.Clamp(explosionPower * 0.90 + gunLg + landLg, 0.0, 1.0);
+        rg = Math.Clamp(subtleRg * duckSubtle + gunRg + explosionPower * 0.65 + parryClang * 0.55, 0.0, 1.0);
+        lt = Math.Clamp((isOverlyLoud ? explosionPower * 0.45 : 0.0) + (isOverlyLoud ? parryClang * 0.55 : 0.0), 0.0, 1.0);
+        rt = Math.Clamp(gunRt + (isOverlyLoud ? explosionPower * 0.45 + parryClang * 0.65 : 0.0), 0.0, 1.0);
     }
 
     void EvaluateMusicLocked(
@@ -340,14 +414,12 @@ public sealed class HapticsFusionEngine
         out HapticsEventTag ev1,
         out HapticsEventTag ev2)
     {
-        // Music stays expressive and dynamic, pairing AI-cleaned vocals (triggers) with breathing bass/drums (grips).
         var baseline = AudioHapticsEngine.Evaluate(audio, AudioHapticsMode.AutoAdaptive, tuning.MasterIntensity, roles, elapsedSeconds);
         double punchScale = tuning.ImpactPunch / 100.0;
         double voxScale = tuning.VocalFocus / 100.0;
 
         if (!roles.IsAllAuto)
         {
-            // Honor explicit per-motor role routing while suppressing false non-vocal trigger bleed via classifier.
             double gateV = cls.Vocal > 0.18f || audio.VocalPresence > 0.28f ? 1.0 : 0.20;
             lg = baseline.LeftGrip;
             rg = baseline.RightGrip;
@@ -362,7 +434,6 @@ public sealed class HapticsFusionEngine
             double stereoL = Math.Clamp(1.0 - Math.Max(0.0, audio.StereoPan) * 0.45, 0.5, 1.0);
             double stereoR = Math.Clamp(1.0 - Math.Max(0.0, -audio.StereoPan) * 0.45, 0.5, 1.0);
 
-            // Model-gated vocal clarity eliminates guitars/synths falsely singing in triggers!
             double cleanVocal = cls.Vocal > 0.22f
                 ? Math.Clamp((cls.Vocal - 0.16) / 0.84 * (0.65 + 0.35 * audio.VocalPresence) * voxScale, 0.0, 1.0)
                 : 0.0;
@@ -382,6 +453,8 @@ public sealed class HapticsFusionEngine
         AudioFrame audio,
         AudioClassification cls,
         HapticsTuning tuning,
+        double rawRms,
+        double rawSpike,
         out double lg,
         out double rg,
         out double lt,
@@ -390,63 +463,40 @@ public sealed class HapticsFusionEngine
         out HapticsEventTag ev2)
     {
         double punchScale = tuning.ImpactPunch / 100.0;
+        double rawLoudness = Math.Clamp(rawRms / 0.22, 0.0, 1.0);
+        bool overlyLoud = rawRms >= 0.17 || rawSpike >= 0.11;
         double pan = Math.Clamp(audio.StereoPan, -1.0, 1.0);
         double leftBias = Math.Clamp(1.0 - Math.Max(0.0, pan) * 0.75, 0.25, 1.0);
         double rightBias = Math.Clamp(1.0 - Math.Max(0.0, -pan) * 0.75, 0.25, 1.0);
 
-        // Dialogue-safe ducking: spoken dialogue without explosion keeps controller calm and distraction-free.
-        bool dialogueActive = cls.Dialogue > 0.42f && cls.Explosion < 0.38f && cls.Gunshot < 0.38f;
-        double duck = dialogueActive ? 0.14 : 1.0;
+        bool dialogueActive = (cls.Dialogue > 0.35f || cls.Vocal > 0.38f) && cls.Explosion < 0.42f && !overlyLoud;
+        if (dialogueActive)
+        {
+            lg = rg = lt = rt = 0.0;
+            ev1 = HapticsEventTag.DialogueDuck;
+            ev2 = HapticsEventTag.None;
+            return;
+        }
 
-        double lfe = Math.Max(cls.Explosion, Math.Max(0f, cls.Bass - 0.35f)) * 0.90 * punchScale * duck;
-        double sharp = Math.Max(cls.Gunshot, cls.MeleeClash) * 0.70 * punchScale * duck;
+        double lfe = cls.Explosion > 0.42f ? cls.Explosion * 0.85 * punchScale * Math.Clamp(0.4 + 0.6 * rawLoudness, 0.4, 1.0) : 0.0;
+        double sharp = overlyLoud && (cls.Gunshot > 0.45f || cls.Explosion > 0.55f) ? Math.Max(cls.Gunshot, cls.Explosion) * 0.55 * punchScale : 0.0;
 
         lg = Math.Clamp(lfe * leftBias, 0.0, 1.0);
-        rg = Math.Clamp(lfe * rightBias, 0.0, 1.0);
+        rg = Math.Clamp(lfe * rightBias + Math.Max(0f, cls.Bass - 0.55f) * 0.25 * rawLoudness, 0.0, 1.0);
         lt = Math.Clamp(sharp * leftBias * 0.65, 0.0, 1.0);
-        rt = Math.Clamp(sharp * rightBias * 0.80, 0.0, 1.0);
+        rt = Math.Clamp(sharp * rightBias * 0.75, 0.0, 1.0);
 
-        ev1 = dialogueActive ? HapticsEventTag.DialogueDuck
-            : (cls.Explosion > 0.42f ? HapticsEventTag.Explosion
-            : (cls.Gunshot > 0.42f ? HapticsEventTag.Gunshot : HapticsEventTag.None));
+        ev1 = cls.Explosion > 0.42f ? HapticsEventTag.Explosion : (sharp > 0.20 ? HapticsEventTag.Gunshot : HapticsEventTag.None);
         ev2 = HapticsEventTag.None;
-    }
-
-    void EvaluateRpgLocked(
-        AudioFrame audio,
-        AudioClassification cls,
-        HapticsTuning tuning,
-        out double lg,
-        out double rg,
-        out double lt,
-        out double rt,
-        out HapticsEventTag ev1,
-        out HapticsEventTag ev2)
-    {
-        double punchScale = tuning.ImpactPunch / 100.0;
-        double comfortTex = ComfortTextureScale(tuning.ComfortTier);
-        double pan = Math.Clamp(audio.StereoPan, -1.0, 1.0);
-        double leftBias = Math.Clamp(1.0 - Math.Max(0.0, pan) * 0.72, 0.28, 1.0);
-        double rightBias = Math.Clamp(1.0 - Math.Max(0.0, -pan) * 0.72, 0.28, 1.0);
-
-        double parry = cls.MeleeClash > 0.36f ? cls.MeleeClash * 0.82 * punchScale : 0.0;
-        double heavyStomp = Math.Max(cls.Explosion, Math.Max(0f, cls.Bass - 0.45f) * 0.70f) * punchScale;
-        double spellSwell = cls.BoostSurge > 0.45f ? cls.BoostSurge * 0.35 * comfortTex : 0.0;
-
-        lg = Math.Clamp(heavyStomp * leftBias * 0.85 + parry * 0.25 + spellSwell, 0.0, 1.0);
-        rg = Math.Clamp(heavyStomp * rightBias * 0.85 + parry * 0.30 + spellSwell, 0.0, 1.0);
-        lt = Math.Clamp(parry * 0.85 + heavyStomp * 0.20, 0.0, 1.0);
-        rt = Math.Clamp(parry * 0.90 + spellSwell * 0.55, 0.0, 1.0);
-
-        ev1 = parry > 0.25 ? HapticsEventTag.MeleeClash
-            : (heavyStomp > 0.30 ? HapticsEventTag.Explosion : HapticsEventTag.None);
-        ev2 = spellSwell > 0.14 ? HapticsEventTag.BoostSurge : HapticsEventTag.None;
     }
 
     void EvaluateSportsLocked(
         AudioFrame audio,
         AudioClassification cls,
         HapticsTuning tuning,
+        double rawRms,
+        double rawSpike,
+        bool isOverlyLoud,
         out double lg,
         out double rg,
         out double lt,
@@ -455,15 +505,14 @@ public sealed class HapticsFusionEngine
         out HapticsEventTag ev2)
     {
         double punchScale = tuning.ImpactPunch / 100.0;
-        double comfortTex = ComfortTextureScale(tuning.ComfortTier);
-        double hit = Math.Max(cls.Gunshot, Math.Max(cls.Drums - 0.30f, 0f)) * 0.75 * punchScale;
-        double crowd = Math.Max(0f, cls.Bass - 0.50f) * 0.28 * comfortTex;
+        double rawLoudness = Math.Clamp(rawRms / 0.22, 0.0, 1.0);
+        double hit = (cls.Gunshot > 0.45f || rawSpike >= 0.09) ? Math.Max(cls.Gunshot, rawSpike * 3.0) * 0.45 * punchScale * Math.Clamp(rawLoudness, 0.3, 1.0) : 0.0;
 
-        lg = Math.Clamp(hit * 0.70 + crowd, 0.0, 1.0);
-        rg = Math.Clamp(hit * 0.70 + crowd, 0.0, 1.0);
-        lt = Math.Clamp(hit * 0.55, 0.0, 1.0);
-        rt = Math.Clamp(hit * 0.75, 0.0, 1.0);
-        ev1 = hit > 0.24 ? HapticsEventTag.BassDrop : HapticsEventTag.None;
+        lg = Math.Clamp(isOverlyLoud ? hit * 0.85 : 0.0, 0.0, 1.0);
+        rg = Math.Clamp(hit, 0.0, 1.0);
+        lt = Math.Clamp(isOverlyLoud ? hit * 0.35 : 0.0, 0.0, 1.0);
+        rt = Math.Clamp(isOverlyLoud ? hit * 0.45 : 0.0, 0.0, 1.0);
+        ev1 = hit > 0.14 ? HapticsEventTag.BassDrop : HapticsEventTag.None;
         ev2 = HapticsEventTag.None;
     }
 
@@ -492,7 +541,6 @@ public sealed class HapticsFusionEngine
         double lt = Math.Clamp(target.LeftTrigger * master * trigScale, 0.0, tierMax);
         double rt = Math.Clamp(target.RightTrigger * master * trigScale, 0.0, tierMax);
 
-        // Anti-fatigue duty governor: gently tames sustained >80% buzz after 1.2 s while keeping transient spikes free.
         double peak = Math.Max(Math.Max(lg, rg), Math.Max(lt, rt));
         if (peak > 0.80)
             sustainedHighSec = Math.Min(4.0, sustainedHighSec + dt);
@@ -508,7 +556,6 @@ public sealed class HapticsFusionEngine
             rt *= fatigueScale;
         }
 
-        // Smooth release prevents harsh buzzing clicks while preserving crisp attack edges.
         double attAlpha = 1.0 - Math.Exp(-dt / 0.012);
         double relAlpha = 1.0 - Math.Exp(-dt / 0.055);
         lastLg = StepMotor(lastLg, lg, attAlpha, relAlpha);
@@ -554,35 +601,35 @@ public sealed class HapticsFusionEngine
         {
             HapticsDemoKind.DirtRoad => (
                 new HapticsFrame(
-                    (0.16 + 0.14 * Math.Max(0, Math.Sin(u * 42.0))) * tex,
-                    (0.16 + 0.14 * Math.Max(0, Math.Cos(u * 37.0))) * tex,
-                    0.08 * tex,
-                    0.12 * tex),
-                u < 0.5 ? HapticsEventTag.GravelLeft : HapticsEventTag.GravelRight,
+                    0.0,
+                    (0.10 + 0.10 * Math.Max(0, Math.Cos(u * 37.0))) * tex,
+                    0.0,
+                    0.0),
+                HapticsEventTag.GravelRight,
                 HapticsEventTag.None),
 
             HapticsDemoKind.GunshotBurst => (
                 new HapticsFrame(
-                    Math.Exp(-((u * 3.0) % 1.0) * 7.5) * 0.48 * punch,
-                    Math.Exp(-((u * 3.0) % 1.0) * 7.5) * 0.54 * punch,
+                    Math.Exp(-((u * 3.0) % 1.0) * 7.5) * 0.35 * punch,
+                    Math.Exp(-((u * 3.0) % 1.0) * 7.5) * 0.50 * punch,
                     0.0,
-                    Math.Exp(-((u * 3.0) % 1.0) * 9.0) * 0.92 * punch),
+                    Math.Exp(-((u * 3.0) % 1.0) * 9.0) * 0.90 * punch),
                 HapticsEventTag.Gunshot,
                 HapticsEventTag.None),
 
             HapticsDemoKind.NitroBoost => (
                 new HapticsFrame(
+                    Math.Sin(u * Math.PI) * 0.50 * punch,
                     Math.Sin(u * Math.PI) * 0.55 * punch,
-                    Math.Sin(u * Math.PI) * 0.55 * punch,
-                    Math.Sin(u * Math.PI) * 0.35 * punch,
-                    Math.Sin(u * Math.PI) * 0.85 * punch),
+                    0.0,
+                    Math.Sin(u * Math.PI) * 0.75 * punch),
                 HapticsEventTag.BoostSurge,
                 HapticsEventTag.GearShift),
 
             HapticsDemoKind.AbsBrake => (
                 new HapticsFrame(
-                    0.20 * (0.5 + 0.5 * Math.Sin(u * 55.0)),
-                    0.16 * (0.5 + 0.5 * Math.Sin(u * 55.0)),
+                    0.0,
+                    0.14 * (0.5 + 0.5 * Math.Sin(u * 55.0)),
                     (0.42 + 0.45 * (0.5 + 0.5 * Math.Sin(u * 65.0))) * punch,
                     0.0),
                 HapticsEventTag.AbsBrake,
@@ -591,9 +638,9 @@ public sealed class HapticsFusionEngine
             HapticsDemoKind.ExplosionWave => (
                 new HapticsFrame(
                     Math.Exp(-u * 3.2) * 0.92 * punch,
-                    Math.Exp(-Math.Max(0, u - 0.08) * 3.0) * 0.88 * punch,
-                    Math.Exp(-u * 5.0) * 0.40 * punch,
-                    Math.Exp(-u * 5.0) * 0.40 * punch),
+                    Math.Exp(-Math.Max(0, u - 0.08) * 3.0) * 0.85 * punch,
+                    Math.Exp(-u * 5.0) * 0.45 * punch,
+                    Math.Exp(-u * 5.0) * 0.45 * punch),
                 HapticsEventTag.Explosion,
                 HapticsEventTag.None),
 

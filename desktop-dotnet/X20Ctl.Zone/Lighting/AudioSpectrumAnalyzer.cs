@@ -63,7 +63,9 @@ public readonly record struct AudioFrame(
     float MidSideCoherence = 0f,
     float CrestFactor = 0f,
     float HighFreqResonance = 0f,
-    float CentroidVelocity = 0f);
+    float CentroidVelocity = 0f,
+    float RawRms = 0f,
+    float RawPeakSpike = 0f);
 
 /// <summary>
 /// Zero-allocation, thread-safe 1024-point Hann-windowed Radix-2 Mid-Side dual-FFT analyzer
@@ -133,6 +135,9 @@ public sealed class AudioSpectrumAnalyzer
     float smoothCrest;
     float smoothHighResonance;
     float smoothCentroidVel;
+    float smoothRawRms;
+    float rawRmsFloor;
+    float smoothRawSpike;
     float beatPulse;
     float trebleTransient;
     int beatCount;
@@ -200,7 +205,9 @@ public sealed class AudioSpectrumAnalyzer
         smoothCoherence,
         smoothCrest,
         smoothHighResonance,
-        smoothCentroidVel);
+        smoothCentroidVel,
+        smoothRawRms,
+        smoothRawSpike);
 
     public void Reset()
     {
@@ -254,6 +261,9 @@ public sealed class AudioSpectrumAnalyzer
             smoothCrest = 0f;
             smoothHighResonance = 0f;
             smoothCentroidVel = 0f;
+            smoothRawRms = 0f;
+            rawRmsFloor = 0f;
+            smoothRawSpike = 0f;
             beatPulse = 0f;
             trebleTransient = 0f;
             beatCount = 0;
@@ -306,6 +316,9 @@ public sealed class AudioSpectrumAnalyzer
             smoothCrest = DecayZero(smoothCrest, dt, 0.040);
             smoothHighResonance = DecayZero(smoothHighResonance, dt, 0.040);
             smoothCentroidVel = DecayZero(smoothCentroidVel, dt, 0.040);
+            smoothRawRms = DecayZero(smoothRawRms, dt, 0.050);
+            rawRmsFloor = DecayZero(rawRmsFloor, dt, 0.250);
+            smoothRawSpike = DecayZero(smoothRawSpike, dt, 0.045);
             beatPulse = DecayZero(beatPulse, dt, 0.040);
             trebleTransient = DecayZero(trebleTransient, dt, 0.035);
             smoothEnergy = DecayZero(smoothEnergy, dt, 0.22);
@@ -722,6 +735,21 @@ public sealed class AudioSpectrumAnalyzer
         // Clean noise gate eliminates sub-audible DAC hum from triggering fake spectrum motion.
         bool audible = rawRms >= 0.0022f || leftRms >= 0.0022f || rightRms >= 0.0022f
             || rawBass >= 0.003f || rawMid >= 0.003f || rawTreble >= 0.003f;
+
+        float unAgcRms = audible ? Math.Clamp(Math.Max(rawRms, Math.Max(leftRms, rightRms) * 0.90f), 0f, 1f) : 0f;
+        if (firstOrResumed)
+        {
+            smoothRawRms = unAgcRms;
+            rawRmsFloor = unAgcRms;
+            smoothRawSpike = 0f;
+        }
+        else
+        {
+            smoothRawRms = Smooth(smoothRawRms, unAgcRms, dt, 0.015, 0.080);
+            rawRmsFloor = LerpFloat(rawRmsFloor, unAgcRms, dt, 0.65);
+            float spike = Math.Clamp(unAgcRms - rawRmsFloor * 1.15f, 0f, 1f);
+            smoothRawSpike = Smooth(smoothRawSpike, spike, dt, 0.010, 0.075);
+        }
 
         float rawPeakBand = Math.Max(rawRms * 1.25f, Math.Max(rawBass, Math.Max(rawMid, rawTreble)));
         trackRef = UpdateTrackRef(trackRef, rawPeakBand, dt, audible, 0.05f);

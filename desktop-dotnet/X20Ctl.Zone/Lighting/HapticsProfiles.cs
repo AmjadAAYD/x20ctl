@@ -138,6 +138,20 @@ public sealed record HapticsTuning
     };
 }
 
+[Flags]
+public enum PadActionButtons
+{
+    None = 0,
+    A = 1 << 0,
+    B = 1 << 1,
+    X = 1 << 2,
+    Y = 1 << 3,
+    LB = 1 << 4,
+    RB = 1 << 5,
+    L3 = 1 << 6,
+    R3 = 1 << 7,
+}
+
 public readonly record struct LivePadInput(
     double LeftStickX,
     double LeftStickY,
@@ -148,7 +162,9 @@ public readonly record struct LivePadInput(
     int HeldButtons,
     bool AnyNewPress,
     bool CursorVisible = false,
-    bool IsIdle = false)
+    bool IsIdle = false,
+    PadActionButtons PressedButtons = PadActionButtons.None,
+    bool IsGameForeground = false)
 {
     public double LeftStickMagnitude => Math.Clamp(Math.Sqrt(LeftStickX * LeftStickX + LeftStickY * LeftStickY), 0.0, 1.0);
     public double RightStickMagnitude => Math.Clamp(Math.Sqrt(RightStickX * RightStickX + RightStickY * RightStickY), 0.0, 1.0);
