@@ -11,10 +11,10 @@ using X20Ctl.Zone;
 namespace X20Ctl.Product;
 
 /// <summary>
-/// Real-time 3D-perspective vibration &amp; acoustic telemetry stage: renders in hardware-accelerated
-/// HTML5 Canvas inside WebView2 on live runs and falls back instantaneously to a matching native WPF
-/// 3D-projected vector stage at startup, in reduced-motion mode, and in <see cref="ReviewSandbox"/>.
-/// Completely stationary at 0% idle standby until live haptics, pattern playback, or a test runs.
+/// Real-time 3D Kinetic Acoustic Orb &amp; segmented 4-motor VU telemetry stage:
+/// Renders in hardware-accelerated HTML5 Canvas (WebView2) during live desktop sessions and falls back
+/// seamlessly to a matching 3D-projected WPF vector stage during startup, reduced-motion, and ReviewSandbox.
+/// Never fakes active motion or 70% readouts at idle standby.
 /// </summary>
 public sealed class VibrationVisual : Grid
 {
@@ -56,7 +56,7 @@ public sealed class VibrationVisual : Grid
         _ = model;
         animations = animate;
         MinWidth = 300;
-        MinHeight = 250;
+        MinHeight = 260;
         IsHitTestVisible = false;
         ClipToBounds = true;
 
@@ -80,8 +80,7 @@ public sealed class VibrationVisual : Grid
     public void SetRegion(string targetRegion)
     {
         region = targetRegion ?? "whole";
-        stage.Update(strength, Phase, audioRms, vocalDetected, ecoMode, hasLiveMotors,
-            liveLeftGrip, liveRightGrip, liveLeftTrigger, liveRightTrigger, animations);
+        UpdateCanvas();
         PushWebState();
     }
 
@@ -97,8 +96,7 @@ public sealed class VibrationVisual : Grid
         audioRms = Math.Clamp(rms, 0, 1);
         vocalDetected = vocal;
         ecoMode = eco;
-        stage.Update(strength, Phase, audioRms, vocalDetected, ecoMode, hasLiveMotors,
-            liveLeftGrip, liveRightGrip, liveLeftTrigger, liveRightTrigger, animations);
+        UpdateCanvas();
         PushWebStateThrottled();
     }
 
@@ -124,16 +122,27 @@ public sealed class VibrationVisual : Grid
         PushWebState();
     }
 
-    bool NeedsAnimation => animations && IsLoaded && IsVisible && (hasLiveMotors || strength > 0);
+    bool MotorSignalActive =>
+        hasLiveMotors && Math.Max(Math.Max(liveLeftGrip, liveRightGrip), Math.Max(liveLeftTrigger, liveRightTrigger)) > 0.005;
+
+    bool IsVisualActive => MotorSignalActive || strength > 0;
+
+    bool NeedsAnimation => animations && IsLoaded && IsVisible && IsVisualActive;
+
+    void UpdateCanvas()
+    {
+        stage.Update(strength, Phase, audioRms, vocalDetected, ecoMode, hasLiveMotors,
+            liveLeftGrip, liveRightGrip, liveLeftTrigger, liveRightTrigger, animations);
+    }
 
     void UpdateMotionState()
     {
-        if (!hasLiveMotors && strength == 0)
+        if (!IsVisualActive)
         {
             Stop();
             Phase = 0;
             Levels?.Invoke(0, 0);
-            stage.Update(0, 0, audioRms, false, ecoMode, false, 0, 0, 0, 0, animations);
+            UpdateCanvas();
             return;
         }
 
@@ -141,12 +150,9 @@ public sealed class VibrationVisual : Grid
         {
             Stop();
             Phase = 0;
-            double level = hasLiveMotors
-                ? Math.Clamp(liveLeftGrip, 0, 1)
-                : strength / 100.0;
-            Levels?.Invoke(level, hasLiveMotors ? Math.Clamp(liveRightGrip, 0, 1) : level);
-            stage.Update(strength, 0, audioRms, vocalDetected, ecoMode, hasLiveMotors,
-                liveLeftGrip, liveRightGrip, liveLeftTrigger, liveRightTrigger, false);
+            double level = MotorSignalActive ? Math.Clamp(liveLeftGrip, 0, 1) : strength / 100.0;
+            Levels?.Invoke(level, MotorSignalActive ? Math.Clamp(liveRightGrip, 0, 1) : level);
+            UpdateCanvas();
             return;
         }
 
@@ -163,8 +169,7 @@ public sealed class VibrationVisual : Grid
             Stop();
         }
 
-        stage.Update(strength, Phase, audioRms, vocalDetected, ecoMode, hasLiveMotors,
-            liveLeftGrip, liveRightGrip, liveLeftTrigger, liveRightTrigger, animations);
+        UpdateCanvas();
     }
 
     void Stop()
@@ -189,11 +194,11 @@ public sealed class VibrationVisual : Grid
         last = now;
         if (started == TimeSpan.Zero) started = now;
 
-        double cycle = Math.Max(0.32, hasLiveMotors ? 0.85 : Profile.CycleSeconds);
+        double cycle = Math.Max(0.32, MotorSignalActive ? 0.85 : Profile.CycleSeconds);
         double elapsed = (now - started).TotalSeconds;
         Phase = (elapsed / cycle) % 1.0;
 
-        if (hasLiveMotors)
+        if (MotorSignalActive)
         {
             Levels?.Invoke(liveLeftGrip, liveRightGrip);
         }
@@ -205,12 +210,8 @@ public sealed class VibrationVisual : Grid
             Levels?.Invoke(waveL, waveR);
         }
 
-        // WebView2 owns GPU 3D rendering when active; only update WPF canvas until WebView2 is ready.
         if (!webReady)
-        {
-            stage.Update(strength, Phase, audioRms, vocalDetected, ecoMode, hasLiveMotors,
-                liveLeftGrip, liveRightGrip, liveLeftTrigger, liveRightTrigger, animations);
-        }
+            UpdateCanvas();
         PushWebStateThrottled(now);
     }
 
@@ -269,24 +270,24 @@ public sealed class VibrationVisual : Grid
         try
         {
             var t = ThemeCatalog.Current;
-            double lg = hasLiveMotors ? liveLeftGrip : (strength / 100.0) * 0.85;
-            double rg = hasLiveMotors ? liveRightGrip : (strength / 100.0) * 0.82;
-            double lt = hasLiveMotors ? liveLeftTrigger : (strength / 100.0) * 0.42;
-            double rt = hasLiveMotors ? liveRightTrigger : (strength / 100.0) * 0.42;
-            int readoutPct = hasLiveMotors
+            double lg = MotorSignalActive ? liveLeftGrip : (strength / 100.0) * 0.85;
+            double rg = MotorSignalActive ? liveRightGrip : (strength / 100.0) * 0.82;
+            double lt = MotorSignalActive ? liveLeftTrigger : (strength / 100.0) * 0.42;
+            double rt = MotorSignalActive ? liveRightTrigger : (strength / 100.0) * 0.42;
+            int readoutPct = MotorSignalActive
                 ? (int)Math.Round(Math.Max(Math.Max(lg, rg), Math.Max(lt, rt)) * 100)
                 : strength;
             var payload = new
             {
-                active = hasLiveMotors || strength > 0,
-                live = hasLiveMotors,
+                active = IsVisualActive,
+                armed = hasLiveMotors,
                 strength = readoutPct,
                 lg,
                 rg,
                 lt,
                 rt,
                 rms = audioRms,
-                vocal = vocalDetected,
+                vocal = vocalDetected && MotorSignalActive,
                 eco = ecoMode,
                 region,
                 visible = IsVisible,
@@ -332,7 +333,7 @@ public sealed class VibrationVisual : Grid
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
 let st = {
-  active: false, live: false, strength: 0,
+  active: false, armed: false, strength: 0,
   lg: 0, rg: 0, lt: 0, rt: 0,
   rms: 0, vocal: false, eco: false, region: 'whole', visible: true,
   theme: {
@@ -344,7 +345,7 @@ let st = {
 let cur = { lg: 0, rg: 0, lt: 0, rt: 0, rms: 0, peak: [0,0,0,0] };
 let animId = 0;
 let lastMs = performance.now();
-let phaseT = 0;
+let spinY = 0.45;
 
 function ensureLoop() {
   if (!animId && st.visible) {
@@ -366,7 +367,7 @@ function hexRgb(hex, fallback) {
   if (!hex || hex.length < 7) return fallback;
   return [parseInt(hex.slice(1,3),16), parseInt(hex.slice(3,5),16), parseInt(hex.slice(5,7),16)];
 }
-function rgba(c, a) { return `rgba(${c[0]},${c[1]},${c[2]},${a.toFixed(3)})`; }
+function rgba(c, a) { return `rgba(${c[0]},${c[1]},${c[2]},${Math.max(0, Math.min(1, a)).toFixed(3)})`; }
 
 function resize() {
   const dpr = window.devicePixelRatio || 1;
@@ -378,85 +379,160 @@ function resize() {
   }
 }
 
-// Perspective 3D projection: x,z form acoustic ground plane; y is upward displacement.
-function project3D(x, y, z, cx, cy, scale) {
-  const fov = 3.8;
-  const camZ = 4.6 + z;
-  const p = fov / Math.max(0.4, camZ);
-  return [cx + x * p * scale, cy - (y - 0.14 - z * 0.34) * p * scale, p];
+function rotY(x, y, z, a) {
+  const c = Math.cos(a), s = Math.sin(a);
+  return [x * c + z * s, y, -x * s + z * c];
+}
+function rotX(x, y, z, a) {
+  const c = Math.cos(a), s = Math.sin(a);
+  return [x, y * c - z * s, y * s + z * c];
+}
+function proj(x, y, z, cx, cy, scale) {
+  const fov = 3.2;
+  const p = fov / Math.max(0.6, fov + z + 1.8);
+  return [cx + x * p * scale, cy + y * p * scale, p, z];
 }
 
-function drawBar3D(bx, bw, val, peak, label, colRgb, accentSoftRgb, w, h, groundY) {
-  const maxH = h * 0.30;
-  const barH = Math.max(3, val * maxH);
-  const depthX = bw * 0.22;
-  const depthY = bw * 0.12;
-  const topY = groundY - barH;
+function drawOrbStage(cx, cy, radius, accRgb, accSoftRgb, hotRgb, goodRgb) {
+  const gripEnergy = (cur.lg + cur.rg) * 0.5;
+  const trigEnergy = (cur.lt + cur.rt) * 0.5;
+  const energy = st.active ? Math.min(1, gripEnergy * 0.65 + trigEnergy * 0.45 + cur.rms * 0.35) : 0;
 
-  // Ambient aura when motor active
-  if (val > 0.02) {
-    const glow = ctx.createRadialGradient(bx + bw * 0.5, topY + barH * 0.4, 2, bx + bw * 0.5, groundY - barH * 0.3, bw * 1.35);
-    glow.addColorStop(0, rgba(colRgb, 0.32 * val));
-    glow.addColorStop(1, 'transparent');
-    ctx.fillStyle = glow;
-    ctx.fillRect(bx - bw * 0.6, topY - 26, bw * 2.2, barH + 54);
+  // Inner core radial halo
+  const coreR = radius * (0.85 + energy * 0.65);
+  const coreGlow = ctx.createRadialGradient(cx, cy, 4, cx, cy, coreR);
+  coreGlow.addColorStop(0, rgba(st.vocal ? hotRgb : accSoftRgb, st.active ? 0.36 + energy * 0.42 : 0.14));
+  coreGlow.addColorStop(0.5, rgba(accRgb, st.active ? 0.16 + energy * 0.20 : 0.05));
+  coreGlow.addColorStop(1, 'transparent');
+  ctx.fillStyle = coreGlow;
+  ctx.beginPath();
+  ctx.arc(cx, cy, coreR, 0, Math.PI * 2);
+  ctx.fill();
+
+  const pts = [];
+  const lats = 7;
+  const lons = 14;
+  const scale = radius * 1.48;
+
+  // Latitude rings of 3D Kinetic Orb
+  for (let i = 1; i < lats; i++) {
+    const phi = (i / lats) * Math.PI;
+    const sp = Math.sin(phi), cp = Math.cos(phi);
+    ctx.beginPath();
+    let started = false;
+    for (let j = 0; j <= lons; j++) {
+      const th = (j / lons) * Math.PI * 2;
+      const disp = 1 + (st.active ? 0.16 * energy * Math.sin(th * 3 + spinY * 3.5 + phi * 2) : 0);
+      let [x, y, z] = [sp * Math.cos(th) * disp, cp * disp, sp * Math.sin(th) * disp];
+      [x, y, z] = rotY(x, y, z, spinY);
+      [x, y, z] = rotX(x, y, z, 0.36);
+      const [sx, sy, pr, pz] = proj(x, y, z, cx, cy, scale);
+      if (!started) { ctx.moveTo(sx, sy); started = true; } else ctx.lineTo(sx, sy);
+      if (j < lons && (i % 2 === 1)) pts.push({ sx, sy, pz, pr });
+    }
+    ctx.strokeStyle = rgba(st.vocal ? hotRgb : accRgb, st.active ? 0.24 + energy * 0.38 : 0.16);
+    ctx.lineWidth = st.active ? 1.2 : 0.9;
+    ctx.stroke();
   }
 
-  // Housing back track
-  ctx.fillStyle = 'rgba(255,255,255,0.035)';
-  ctx.strokeStyle = 'rgba(255,255,255,0.09)';
+  // Longitude meridians
+  for (let j = 0; j < lons; j += 2) {
+    const th = (j / lons) * Math.PI * 2;
+    ctx.beginPath();
+    for (let i = 0; i <= 16; i++) {
+      const phi = (i / 16) * Math.PI;
+      const disp = 1 + (st.active ? 0.14 * energy * Math.cos(phi * 4 - spinY * 3.2) : 0);
+      let [x, y, z] = [Math.sin(phi) * Math.cos(th) * disp, Math.cos(phi) * disp, Math.sin(phi) * Math.sin(th) * disp];
+      [x, y, z] = rotY(x, y, z, spinY);
+      [x, y, z] = rotX(x, y, z, 0.36);
+      const [sx, sy] = proj(x, y, z, cx, cy, scale);
+      if (i === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
+    }
+    ctx.strokeStyle = rgba(accSoftRgb, st.active ? 0.18 + energy * 0.26 : 0.11);
+    ctx.lineWidth = 0.9;
+    ctx.stroke();
+  }
+
+  // Tilted Outer Gyroscopic Ring 1 (Grips) & Ring 2 (Triggers)
+  const rings = [
+    { tiltX: 1.05, tiltZ: 0.38, spin: spinY * 1.4, rScale: 1.26 + gripEnergy * 0.24, col: accRgb, act: st.active ? 0.45 + gripEnergy * 0.50 : 0.22 },
+    { tiltX: -0.95, tiltZ: -0.45, spin: -spinY * 1.8, rScale: 1.42 + trigEnergy * 0.28, col: st.vocal || trigEnergy > 0.05 ? hotRgb : goodRgb, act: st.active ? 0.28 + trigEnergy * 0.65 : 0.14 }
+  ];
+  for (const rg of rings) {
+    ctx.beginPath();
+    for (let k = 0; k <= 48; k++) {
+      const a = (k / 48) * Math.PI * 2;
+      let [x, y, z] = [Math.cos(a) * rg.rScale, 0, Math.sin(a) * rg.rScale];
+      [x, y, z] = rotY(x, y, z, rg.spin);
+      [x, y, z] = rotX(x, y, z, rg.tiltX);
+      const [sx, sy] = proj(x, y, z, cx, cy, scale);
+      if (k === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
+    }
+    ctx.strokeStyle = rgba(rg.col, rg.act);
+    ctx.lineWidth = st.active ? 1.7 : 1.05;
+    ctx.stroke();
+  }
+
+  // Depth-sorted glowing vertex nodes
+  pts.sort((a, b) => b.pz - a.pz);
+  for (const pt of pts) {
+    const front = Math.max(0.15, 0.72 - pt.pz * 0.45);
+    ctx.fillStyle = rgba(st.vocal ? hotRgb : accSoftRgb, front * (st.active ? 0.95 : 0.45));
+    ctx.beginPath();
+    ctx.arc(pt.sx, pt.sy, st.active ? 1.8 * pt.pr + energy * 1.2 : 1.3 * pt.pr, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function drawSegmentedBar(bx, bw, val, peak, label, colRgb, groundY, maxH) {
+  const segs = 10;
+  const gapY = 3;
+  const segH = Math.max(4, (maxH - gapY * (segs - 1)) / segs);
+  const lit = Math.round(val * segs);
+  const peakSeg = Math.round(peak * segs);
+
+  // Subtle recessed column bezel
+  ctx.fillStyle = 'rgba(255,255,255,0.025)';
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.roundRect(bx, groundY - maxH, bw, maxH, 5);
+  ctx.roundRect(bx - 4, groundY - maxH - 4, bw + 8, maxH + 8, 6);
   ctx.fill();
   ctx.stroke();
 
-  if (val > 0.01) {
-    // 3D right side extruded face
-    ctx.fillStyle = rgba(colRgb, 0.36);
-    ctx.beginPath();
-    ctx.moveTo(bx + bw, topY);
-    ctx.lineTo(bx + bw + depthX, topY - depthY);
-    ctx.lineTo(bx + bw + depthX, groundY - depthY);
-    ctx.lineTo(bx + bw, groundY);
-    ctx.closePath();
-    ctx.fill();
-
-    // 3D top cap face
-    ctx.fillStyle = rgba(accentSoftRgb, 0.85);
-    ctx.beginPath();
-    ctx.moveTo(bx, topY);
-    ctx.lineTo(bx + depthX, topY - depthY);
-    ctx.lineTo(bx + bw + depthX, topY - depthY);
-    ctx.lineTo(bx + bw, topY);
-    ctx.closePath();
-    ctx.fill();
-
-    // Front bevel gradient
-    const fg = ctx.createLinearGradient(0, topY, 0, groundY);
-    fg.addColorStop(0, rgba(colRgb, 0.96));
-    fg.addColorStop(1, rgba(colRgb, 0.42));
-    ctx.fillStyle = fg;
-    ctx.fillRect(bx, topY, bw, barH);
+  if (val > 0.02) {
+    const glow = ctx.createRadialGradient(bx + bw * 0.5, groundY - val * maxH * 0.5, 2, bx + bw * 0.5, groundY - val * maxH * 0.4, bw * 1.2);
+    glow.addColorStop(0, rgba(colRgb, 0.24 * val));
+    glow.addColorStop(1, 'transparent');
+    ctx.fillStyle = glow;
+    ctx.fillRect(bx - bw * 0.5, groundY - maxH - 12, bw * 2, maxH + 24);
   }
 
-  // Floating peak hold hairline
-  if (peak > 0.025) {
-    const py = groundY - peak * maxH;
-    ctx.fillStyle = rgba(colRgb, 0.95);
-    ctx.fillRect(bx - 1, py - 2, bw + 2, 2);
+  for (let s = 0; s < segs; s++) {
+    const sy = groundY - (s + 1) * segH - s * gapY;
+    const isLit = s < lit;
+    const isPeak = peakSeg > 0 && s === Math.min(segs - 1, peakSeg - 1);
+    if (isLit) {
+      ctx.fillStyle = rgba(colRgb, 0.62 + (s / segs) * 0.38);
+    } else if (isPeak) {
+      ctx.fillStyle = rgba(colRgb, 0.85);
+    } else {
+      ctx.fillStyle = 'rgba(255,255,255,0.055)';
+    }
+    ctx.beginPath();
+    ctx.roundRect(bx, sy, bw, segH, 2.5);
+    ctx.fill();
   }
 
-  // Labels
   ctx.textAlign = 'center';
-  ctx.fillStyle = 'rgba(226,232,240,0.68)';
-  ctx.font = '600 10.5px "Segoe UI Variable Text", "Segoe UI", sans-serif';
-  ctx.fillText(label, bx + bw * 0.5, groundY + 18);
+  ctx.fillStyle = 'rgba(203,213,225,0.72)';
+  ctx.font = '600 10px "Segoe UI Variable Text", "Segoe UI", sans-serif';
+  ctx.fillText(label, bx + bw * 0.5, groundY + 15);
 
   const pct = Math.round(val * 100);
-  ctx.fillStyle = pct > 0 ? '#FFFFFF' : 'rgba(148,163,184,0.65)';
-  ctx.font = '700 12.5px "Segoe UI Variable Display", "Segoe UI", sans-serif';
-  ctx.fillText(pct + '%', bx + bw * 0.5, groundY + 34);
+  ctx.fillStyle = pct > 0 ? '#FFFFFF' : 'rgba(148,163,184,0.68)';
+  ctx.font = '700 12px "Segoe UI Variable Display", "Segoe UI", sans-serif';
+  ctx.fillText(pct + '%', bx + bw * 0.5, groundY + 30);
 }
 
 function render(now) {
@@ -465,7 +541,6 @@ function render(now) {
   lastMs = now;
 
   const t = st.theme || {};
-  const bgRgb = hexRgb(t.bg, [7, 13, 24]);
   const surfRgb = hexRgb(t.surface, [13, 25, 45]);
   const accRgb = hexRgb(t.accent, [56, 189, 248]);
   const accSoftRgb = hexRgb(t.accentSoft, [147, 197, 253]);
@@ -492,7 +567,7 @@ function render(now) {
   }
 
   const totalEnergy = cur.lg + cur.rg + cur.lt + cur.rt + cur.rms + cur.peak[0] + cur.peak[1] + cur.peak[2] + cur.peak[3];
-  if (st.active || totalEnergy > 0.004) phaseT += dt * (2.2 + totalEnergy * 1.4);
+  if (st.active || totalEnergy > 0.004) spinY += dt * (0.75 + totalEnergy * 1.15);
 
   const dpr = window.devicePixelRatio || 1;
   const w = canvas.width / dpr;
@@ -501,87 +576,47 @@ function render(now) {
   ctx.save();
   ctx.scale(dpr, dpr);
 
-  // Clean architectural radial studio stage
   ctx.fillStyle = t.bg || '#070D18';
   ctx.fillRect(0, 0, w, h);
-  const halo = ctx.createRadialGradient(w * 0.5, h * 0.34, 6, w * 0.5, h * 0.36, w * 0.56);
-  const pulseAlpha = st.active ? 0.14 + Math.min(0.28, cur.rms * 0.35) : 0.04;
-  halo.addColorStop(0, rgba(st.vocal ? hotRgb : accRgb, pulseAlpha));
-  halo.addColorStop(0.55, rgba(surfRgb, 0.18));
-  halo.addColorStop(1, 'transparent');
-  ctx.fillStyle = halo;
-  ctx.fillRect(0, 0, w, h);
 
-  // Top telemetry header (clean typography, zero badge boxes)
+  // Clean HUD status dot + readout
   ctx.textAlign = 'left';
-  const dotCol = st.active ? (st.eco ? goodRgb : (st.vocal ? hotRgb : accRgb)) : [100, 116, 139];
+  const dotCol = st.eco ? goodRgb : (st.active ? (st.vocal ? hotRgb : accRgb) : (st.armed ? accRgb : [100, 116, 139]));
   ctx.fillStyle = rgba(dotCol, 0.95);
   ctx.beginPath();
   ctx.arc(16, 18, 3.5, 0, Math.PI * 2);
   ctx.fill();
 
-  const statusText = !st.active
-    ? 'STANDBY  0%'
-    : (st.vocal ? `VOCAL LOCK  ${st.strength}%` : (st.eco ? `ECO SAVER  ${st.strength}%` : `LIVE FIELD  ${st.strength}%`));
+  const statusText = st.eco
+    ? 'ECO MODE  OFF'
+    : (st.active
+        ? (st.vocal ? `VOCAL LOCK  ${st.strength}%` : `ACTIVE  ${st.strength}%`)
+        : (st.armed ? 'ARMED  0%  SILENCE' : 'STANDBY  0%'));
   ctx.fillStyle = st.active ? (t.text || '#F8FAFC') : (t.muted || '#64748B');
   ctx.font = '700 11px "Segoe UI Variable Display", "Segoe UI", sans-serif';
   ctx.fillText(statusText, 26, 22);
 
-  // 3D Perspective Acoustic Mesh in upper 54%
-  const meshCx = w * 0.5;
-  const meshCy = h * 0.34;
-  const scale3d = Math.min(w, h) * 0.72;
-  const cols = 18;
-  const rows = 9;
-  const amp = st.active ? (0.04 + cur.rms * 0.36 + (cur.lg + cur.rg) * 0.16) : 0;
-  const trigAmp = st.active ? (cur.lt + cur.rt) * 0.22 : 0;
+  // Upper 58%: Kinetic 3D Orb & Orbital Rings (strictly separated from meters)
+  const orbCy = h * 0.32;
+  const orbRadius = Math.min(w * 0.24, h * 0.22);
+  drawOrbStage(w * 0.5, orbCy, orbRadius, accRgb, accSoftRgb, hotRgb, goodRgb);
 
-  for (let r = rows; r >= 0; r--) {
-    const zNorm = r / rows;
-    const zWorld = (zNorm - 0.35) * 2.5;
-    ctx.beginPath();
-    for (let c = 0; c <= cols; c++) {
-      const u = c / cols;
-      const xWorld = (u - 0.5) * 3.8;
-      const dist = Math.hypot(xWorld * 0.75, zWorld);
-      const env = Math.exp(-dist * dist * 0.55);
-      const wave = amp * env * Math.sin(dist * 4.4 - phaseT * 3.1)
-                 + trigAmp * env * Math.cos(xWorld * 4.0 + phaseT * 5.2);
-      const [px, py] = project3D(xWorld, wave, zWorld, meshCx, meshCy, scale3d);
-      if (c === 0) ctx.moveTo(px, py);
-      else ctx.lineTo(px, py);
-    }
-    const lineAlpha = st.active ? (0.18 + (1 - zNorm) * 0.48 + cur.rms * 0.24) : (0.14 + (1 - zNorm) * 0.16);
-    ctx.strokeStyle = rgba(r % 2 === 0 && st.vocal ? hotRgb : accRgb, Math.min(0.92, lineAlpha));
-    ctx.lineWidth = st.active && r <= 3 ? 1.5 : 1.0;
-    ctx.stroke();
-  }
+  // Crisp divider line separating 3D Kinetic Orb from bottom segmented VU deck
+  const dividerY = Math.round(h * 0.59);
+  const divGrad = ctx.createLinearGradient(24, dividerY, w - 24, dividerY);
+  divGrad.addColorStop(0, 'transparent');
+  divGrad.addColorStop(0.5, rgba(accSoftRgb, st.active ? 0.30 : 0.14));
+  divGrad.addColorStop(1, 'transparent');
+  ctx.fillStyle = divGrad;
+  ctx.fillRect(24, dividerY, w - 48, 1);
 
-  // Longitudinal perspective ribs for crisp 3D depth cues
-  for (let c = 0; c <= cols; c += 3) {
-    const u = c / cols;
-    const xWorld = (u - 0.5) * 3.8;
-    ctx.beginPath();
-    for (let r = 0; r <= rows; r++) {
-      const zWorld = (r / rows - 0.35) * 2.5;
-      const dist = Math.hypot(xWorld * 0.75, zWorld);
-      const env = Math.exp(-dist * dist * 0.55);
-      const wave = amp * env * Math.sin(dist * 4.4 - phaseT * 3.1);
-      const [px, py] = project3D(xWorld, wave, zWorld, meshCx, meshCy, scale3d);
-      if (r === 0) ctx.moveTo(px, py);
-      else ctx.lineTo(px, py);
-    }
-    ctx.strokeStyle = rgba(accSoftRgb, st.active ? 0.18 : 0.12);
-    ctx.lineWidth = 0.85;
-    ctx.stroke();
-  }
-
-  // 4-Channel 3D Extruded Motor Energy Columns
-  const barAreaW = Math.min(w - 36, 360);
+  // Lower 35%: 4-Channel Segmented VU Meters
+  const barAreaW = Math.min(w - 40, 320);
   const startX = (w - barAreaW) * 0.5;
-  const gap = 14;
-  const bw = (barAreaW - gap * 3) * 0.25;
-  const groundY = h - 42;
+  const gapX = 16;
+  const bw = (barAreaW - gapX * 3) * 0.25;
+  const groundY = h - 38;
+  const maxH = Math.max(48, groundY - dividerY - 16);
 
   const specs = [
     { label: 'L GRIP', v: cur.lg, p: cur.peak[0], c: accRgb },
@@ -590,7 +625,7 @@ function render(now) {
     { label: 'R TRIG', v: cur.rt, p: cur.peak[3], c: goodRgb }
   ];
   for (let i = 0; i < 4; i++) {
-    drawBar3D(startX + i * (bw + gap), bw, specs[i].v, specs[i].p, specs[i].label, specs[i].c, accSoftRgb, w, h, groundY);
+    drawSegmentedBar(startX + i * (bw + gapX), bw, specs[i].v, specs[i].p, specs[i].label, specs[i].c, groundY, maxH);
   }
 
   ctx.restore();
@@ -632,6 +667,24 @@ ensureLoop();
             InvalidateVisual();
         }
 
+        static (double X, double Y, double Z) RotY(double x, double y, double z, double a)
+        {
+            double c = Math.Cos(a), s = Math.Sin(a);
+            return (x * c + z * s, y, -x * s + z * c);
+        }
+
+        static (double X, double Y, double Z) RotX(double x, double y, double z, double a)
+        {
+            double c = Math.Cos(a), s = Math.Sin(a);
+            return (x, y * c - z * s, y * s + z * c);
+        }
+
+        static Point Proj3D(double x, double y, double z, double cx, double cy, double scale)
+        {
+            double p = 3.2 / Math.Max(0.6, 5.0 + z);
+            return new Point(cx + x * p * scale, cy + y * p * scale);
+        }
+
         protected override void OnRender(DrawingContext dc)
         {
             double w = ActualWidth, h = ActualHeight;
@@ -642,90 +695,101 @@ ensureLoop();
             var textBrush = new SolidColorBrush(t.Text);
             var softBrush = new SolidColorBrush(t.Soft);
             var mutedBrush = new SolidColorBrush(t.Muted);
-            bool isActive = live || str > 0;
+
+            bool liveSignal = live && Math.Max(Math.Max(lg, rg), Math.Max(lt, rt)) > 0.005;
+            bool isActive = liveSignal || str > 0;
+
             dc.DrawRoundedRectangle(new SolidColorBrush(t.Void), rulePen, new Rect(0, 0, w, h), 12, 12);
 
-            double cLg = live ? lg : (isActive ? (str / 100.0) * (anim ? 0.72 + 0.25 * Math.Sin(ph * Math.PI * 2) : 0.85) : 0);
-            double cRg = live ? rg : (isActive ? (str / 100.0) * (anim ? 0.72 + 0.25 * Math.Cos(ph * Math.PI * 2 + 0.5) : 0.85) : 0);
-            double cLt = live ? lt : (isActive ? (str / 100.0) * 0.40 : 0);
-            double cRt = live ? rt : (isActive ? (str / 100.0) * 0.40 : 0);
+            double cLg = liveSignal ? lg : (isActive ? (str / 100.0) * (anim ? 0.72 + 0.25 * Math.Sin(ph * Math.PI * 2) : 0.85) : 0);
+            double cRg = liveSignal ? rg : (isActive ? (str / 100.0) * (anim ? 0.72 + 0.25 * Math.Cos(ph * Math.PI * 2 + 0.5) : 0.85) : 0);
+            double cLt = liveSignal ? lt : (isActive ? (str / 100.0) * 0.40 : 0);
+            double cRt = liveSignal ? rt : (isActive ? (str / 100.0) * 0.40 : 0);
 
-            int readoutPct = live
+            int readoutPct = liveSignal
                 ? (int)Math.Round(Math.Max(Math.Max(cLg, cRg), Math.Max(cLt, cRt)) * 100)
                 : str;
 
             Color hotColor = Color.FromRgb(0xFF, 0x3B, 0x7F);
             Color goodColor = Color.FromRgb(0x34, 0xD3, 0x99);
-            Color acc = voc ? hotColor : t.Accent;
-            if (isActive)
-            {
-                var halo = new RadialGradientBrush(Color.FromArgb((byte)(34 + str * 0.5), acc.R, acc.G, acc.B), Colors.Transparent);
-                dc.DrawEllipse(halo, null, new Point(w * 0.5, h * 0.34), w * 0.42, h * 0.26);
-            }
+            Color acc = voc && liveSignal ? hotColor : t.Accent;
+            double energy = isActive ? Math.Clamp((cLg + cRg) * 0.4 + (cLt + cRt) * 0.3 + rms * 0.3, 0.12, 1.0) : 0;
 
             // Header telemetry
-            dc.DrawEllipse(new SolidColorBrush(isActive ? (eco ? goodColor : acc) : t.Muted), null, new Point(16, 18), 3.5, 3.5);
-            string hud = !isActive ? "STANDBY  0%" : (voc ? $"VOCAL LOCK  {readoutPct}%" : (eco ? $"ECO SAVER  {readoutPct}%" : $"ACTIVE  {readoutPct}%"));
+            dc.DrawEllipse(new SolidColorBrush(eco ? goodColor : (isActive ? acc : (live ? t.Accent : t.Muted))), null, new Point(16, 18), 3.5, 3.5);
+            string hud = eco
+                ? "ECO MODE  OFF"
+                : (isActive ? (voc && liveSignal ? $"VOCAL LOCK  {readoutPct}%" : $"ACTIVE  {readoutPct}%") : (live ? "ARMED  0%  SILENCE" : "STANDBY  0%"));
             var dpi = VisualTreeHelper.GetDpi(this).PixelsPerDip;
             var hudFt = new FormattedText(hud, CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
                 new Typeface(DS.Display, FontStyles.Normal, FontWeights.Bold, FontStretches.Normal),
                 11, isActive ? textBrush : mutedBrush, dpi);
             dc.DrawText(hudFt, new Point(26, 11));
 
-            // 3D-projected vector horizon waves
-            double cx = w * 0.5, cy = h * 0.30, scale3d = Math.Min(w, h) * 0.68;
-            double amp = isActive ? Math.Max(0.06, Math.Max(rms * 0.35, str / 260.0)) : 0;
-            const int rows = 7, cols = 16;
-            for (int r = rows; r >= 0; r--)
+            // Upper 58%: 3D Kinetic Orb + Dual Orbital Rings
+            double cx = w * 0.5, cy = h * 0.32;
+            double radius = Math.Min(w * 0.24, h * 0.22);
+            double scale3d = radius * 1.48;
+            double spinY = 0.45 + ph * Math.PI * 2;
+
+            var halo = new RadialGradientBrush(
+                Color.FromArgb(isActive ? (byte)(60 + energy * 95) : (byte)28, acc.R, acc.G, acc.B),
+                Colors.Transparent);
+            dc.DrawEllipse(halo, null, new Point(cx, cy), radius * (0.9 + energy * 0.45), radius * (0.9 + energy * 0.45));
+
+            var orbPen = new Pen(new SolidColorBrush(Color.FromArgb(isActive ? (byte)(90 + energy * 110) : (byte)48, acc.R, acc.G, acc.B)), isActive ? 1.2 : 0.9);
+            for (int i = 1; i < 6; i++)
             {
-                double zNorm = r / (double)rows;
-                double zWorld = (zNorm - 0.35) * 2.4;
-                var geo = new StreamGeometry();
-                using (var ctx = geo.Open())
+                double phi = (i / 6.0) * Math.PI;
+                var g = new StreamGeometry();
+                using (var ctx = g.Open())
                 {
-                    for (int c = 0; c <= cols; c++)
+                    for (int j = 0; j <= 16; j++)
                     {
-                        double xWorld = (c / (double)cols - 0.5) * 3.6;
-                        double dist = Math.Sqrt(xWorld * xWorld * 0.56 + zWorld * zWorld);
-                        double env = Math.Exp(-dist * dist * 0.55);
-                        double y = amp * env * Math.Sin(dist * 4.2 - ph * Math.PI * 2);
-                        double p = 3.8 / Math.Max(0.4, 4.6 + zWorld);
-                        var pt = new Point(cx + xWorld * p * scale3d, cy - (y - 0.14 - zWorld * 0.34) * p * scale3d);
-                        if (c == 0) ctx.BeginFigure(pt, false, false);
+                        double th = (j / 16.0) * Math.PI * 2;
+                        double disp = 1 + (isActive ? 0.14 * energy * Math.Sin(th * 3 + spinY * 2) : 0);
+                        var p1 = RotY(Math.Sin(phi) * Math.Cos(th) * disp, Math.Cos(phi) * disp, Math.Sin(phi) * Math.Sin(th) * disp, spinY);
+                        var p2 = RotX(p1.X, p1.Y, p1.Z, 0.36);
+                        var pt = Proj3D(p2.X, p2.Y, p2.Z, cx, cy, scale3d);
+                        if (j == 0) ctx.BeginFigure(pt, false, false);
                         else ctx.LineTo(pt, true, false);
                     }
                 }
-                byte alpha = isActive ? (byte)(48 + (1 - zNorm) * 135) : (byte)(36 + (1 - zNorm) * 44);
-                dc.DrawGeometry(null, new Pen(new SolidColorBrush(Color.FromArgb(alpha, acc.R, acc.G, acc.B)), isActive && r <= 2 ? 1.5 : 1.0), geo);
-            }
-            for (int c = 0; c <= cols; c += 3)
-            {
-                double xWorld = (c / (double)cols - 0.5) * 3.6;
-                var geo = new StreamGeometry();
-                using (var ctx = geo.Open())
-                {
-                    for (int r = 0; r <= rows; r++)
-                    {
-                        double zWorld = (r / (double)rows - 0.35) * 2.4;
-                        double dist = Math.Sqrt(xWorld * xWorld * 0.56 + zWorld * zWorld);
-                        double env = Math.Exp(-dist * dist * 0.55);
-                        double y = amp * env * Math.Sin(dist * 4.2 - ph * Math.PI * 2);
-                        double p = 3.8 / Math.Max(0.4, 4.6 + zWorld);
-                        var pt = new Point(cx + xWorld * p * scale3d, cy - (y - 0.14 - zWorld * 0.34) * p * scale3d);
-                        if (r == 0) ctx.BeginFigure(pt, false, false);
-                        else ctx.LineTo(pt, true, false);
-                    }
-                }
-                dc.DrawGeometry(null, new Pen(new SolidColorBrush(Color.FromArgb(isActive ? (byte)46 : (byte)28, t.AccentHi.R, t.AccentHi.G, t.AccentHi.B)), 0.85), geo);
+                dc.DrawGeometry(null, orbPen, g);
             }
 
-            // 4-Channel 3D columns
-            double barAreaW = Math.Min(w - 32, 340);
+            var ringPen1 = new Pen(new SolidColorBrush(Color.FromArgb(isActive ? (byte)185 : (byte)65, t.AccentHi.R, t.AccentHi.G, t.AccentHi.B)), isActive ? 1.5 : 1.0);
+            var ringPen2 = new Pen(new SolidColorBrush(Color.FromArgb(isActive ? (byte)165 : (byte)45, hotColor.R, hotColor.G, hotColor.B)), isActive ? 1.4 : 0.95);
+            foreach (var (tilt, pen, rs) in new[] { (1.05, ringPen1, 1.26 + (cLg + cRg) * 0.12), (-0.95, ringPen2, 1.40 + (cLt + cRt) * 0.14) })
+            {
+                var g = new StreamGeometry();
+                using (var ctx = g.Open())
+                {
+                    for (int k = 0; k <= 36; k++)
+                    {
+                        double a = (k / 36.0) * Math.PI * 2;
+                        var p1 = RotY(Math.Cos(a) * rs, 0, Math.Sin(a) * rs, tilt > 0 ? spinY : -spinY);
+                        var p2 = RotX(p1.X, p1.Y, p1.Z, tilt);
+                        var pt = Proj3D(p2.X, p2.Y, p2.Z, cx, cy, scale3d);
+                        if (k == 0) ctx.BeginFigure(pt, false, false);
+                        else ctx.LineTo(pt, true, false);
+                    }
+                }
+                dc.DrawGeometry(null, pen, g);
+            }
+
+            // Horizon divider line
+            double dividerY = Math.Round(h * 0.59);
+            dc.DrawLine(new Pen(new SolidColorBrush(Color.FromArgb(isActive ? (byte)85 : (byte)42, t.AccentHi.R, t.AccentHi.G, t.AccentHi.B)), 1),
+                new Point(22, dividerY), new Point(w - 22, dividerY));
+
+            // Lower 35%: 4 Segmented Hardware VU Columns
+            double barAreaW = Math.Min(w - 36, 310);
             double startX = (w - barAreaW) * 0.5;
-            double gap = 12;
-            double bw = (barAreaW - gap * 3) * 0.25;
-            double groundY = h - 42;
-            double maxH = h * 0.28;
+            double gapX = 14;
+            double bw = (barAreaW - gapX * 3) * 0.25;
+            double groundY = h - 38;
+            double maxH = Math.Max(46, groundY - dividerY - 16);
 
             (string Label, double Val, Color Col)[] bars =
             [
@@ -735,20 +799,27 @@ ensureLoop();
                 ("R TRIG", cRt, goodColor),
             ];
 
+            const int segs = 10;
+            const double gapY = 3;
+            double segH = Math.Max(3.5, (maxH - gapY * (segs - 1)) / segs);
+
             for (int i = 0; i < bars.Length; i++)
             {
-                double x = startX + i * (bw + gap);
+                double x = startX + i * (bw + gapX);
                 double v = Math.Clamp(bars[i].Val, 0, 1);
-                double bh = Math.Max(3, v * maxH);
-                double topY = groundY - bh;
+                int lit = (int)Math.Round(v * segs);
 
-                dc.DrawRoundedRectangle(new SolidColorBrush(Color.FromArgb(14, 255, 255, 255)),
-                    rulePen, new Rect(x, groundY - maxH, bw, maxH), 5, 5);
+                dc.DrawRoundedRectangle(new SolidColorBrush(Color.FromArgb(12, 255, 255, 255)),
+                    rulePen, new Rect(x - 3, groundY - maxH - 3, bw + 6, maxH + 6), 5, 5);
 
-                if (v > 0.01)
+                for (int s = 0; s < segs; s++)
                 {
-                    var fg = new LinearGradientBrush(bars[i].Col, Color.FromArgb(110, bars[i].Col.R, bars[i].Col.G, bars[i].Col.B), 90);
-                    dc.DrawRoundedRectangle(fg, null, new Rect(x, topY, bw, bh), 4, 4);
+                    double sy = groundY - (s + 1) * segH - s * gapY;
+                    bool isLit = s < lit;
+                    var fill = isLit
+                        ? new SolidColorBrush(Color.FromArgb((byte)(155 + s * 10), bars[i].Col.R, bars[i].Col.G, bars[i].Col.B))
+                        : new SolidColorBrush(Color.FromArgb(16, 255, 255, 255));
+                    dc.DrawRoundedRectangle(fill, null, new Rect(x, sy, bw, segH), 2, 2);
                 }
 
                 var lblFt = new FormattedText(bars[i].Label, CultureInfo.InvariantCulture, FlowDirection.LeftToRight,

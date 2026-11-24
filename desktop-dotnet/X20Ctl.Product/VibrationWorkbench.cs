@@ -63,9 +63,11 @@ public sealed class VibrationWorkbench
     readonly FrameworkElement universalHapticsSection;
     readonly FrameworkElement patternsSection;
     readonly FrameworkElement audioRolesSection;
-    readonly StackPanel simpleBentoSection = new();
-    readonly StackPanel advancedSection = new() { Visibility = Visibility.Collapsed };
+    readonly Grid simpleBentoGrid = new();
+    readonly DockPanel advancedContainer = new() { Visibility = Visibility.Collapsed };
     Button? advancedToggleBtn;
+    Button? backToSimpleBtn;
+    Action? syncEcoOverlay;
     bool advancedExpanded;
 
     // Universal Haptics UI state
@@ -179,8 +181,9 @@ public sealed class VibrationWorkbench
         HasTriggers = ModelProfiles.For(model).Motors.Contains("triggers");
         try { patternStore.Load(); } catch { }
 
-        Body.ColumnDefinitions.Add(new() { Width = new(0.95, GridUnitType.Star) });
-        Body.ColumnDefinitions.Add(new() { Width = new(1.45, GridUnitType.Star) });
+        var contentGrid = new Grid();
+        contentGrid.ColumnDefinitions.Add(new() { Width = new(0.95, GridUnitType.Star) });
+        contentGrid.ColumnDefinitions.Add(new() { Width = new(1.55, GridUnitType.Star) });
 
         Visualizer = new((Geometry)resources.FindResource("ControllerOutline"), animations, model);
 
@@ -203,10 +206,10 @@ public sealed class VibrationWorkbench
 
         Test = MakeButton(HasTriggers ? "Test all four" : "Test both grips", () => _ = RunAll(), "DS.MotorTile");
         Test.IsEnabled = !ReviewSandbox.Active;
-        Test.Height = 40;
-        Test.MinHeight = 40;
+        Test.Height = 46;
+        Test.MinHeight = 46;
         Test.HorizontalAlignment = HorizontalAlignment.Stretch;
-        Test.Margin = new(0, 2, 0, 4);
+        Test.Margin = new(0, 2, 0, 6);
 
         if (HasTriggers)
         {
@@ -218,7 +221,7 @@ public sealed class VibrationWorkbench
             dockTriggerSetupBtn.Margin = new(0);
         }
 
-        // Left hardware stage: 3D motion canvas + slim telemetry strip + Enable Universal Haptics button
+        // Left hardware stage: 3D Kinetic Orb canvas + slim telemetry strip + Enable Universal Haptics button
         var leftDock = new DockPanel();
         var heroDeck = BuildHeroDeck(MakeButton);
         DockPanel.SetDock(heroDeck, Dock.Bottom);
@@ -234,60 +237,73 @@ public sealed class VibrationWorkbench
             BorderBrush = DS.Brush("DS.Hairline"),
             BorderThickness = new(1),
             Padding = new(8),
-            MinHeight = 250,
+            MinHeight = 260,
             Background = new SolidColorBrush(ThemeCatalog.Alpha(ThemeCatalog.Current.Void, 165)),
             Child = Visualizer,
         };
         leftDock.Children.Add(stageFrame);
         var artPanel = Kit.Panel(null, null, null, leftDock, new Thickness(16));
-        artPanel.Margin = new(0, 0, 14, 0);
-        Body.Children.Add(artPanel);
+        artPanel.Margin = new(0, 0, 12, 0);
+        contentGrid.Children.Add(artPanel);
 
-        // Right PS5 console workspace: Beginner-first Bento + expandable Advanced drawer (single scroll, zero clutter tabs)
+        // Right PS5 console workspace: Structured Bento squares (Simple) OR scrollable Advanced Lab
         BuildSimpleBentoSection(MakeButton);
         universalHapticsSection = BuildUniversalHapticsSection(MakeButton);
         motorsSection = BuildMotorsSection(MakeButton);
         patternsSection = BuildPatternsSection(MakeButton);
         audioRolesSection = BuildAudioRolesSection(MakeButton);
 
-        unifiedStack.Children.Add(simpleBentoSection);
-        advancedSection.Children.Add(universalHapticsSection);
-        advancedSection.Children.Add(motorsSection);
-        advancedSection.Children.Add(patternsSection);
-        advancedSection.Children.Add(audioRolesSection);
-        unifiedStack.Children.Add(advancedSection);
-
+        unifiedStack.Children.Clear();
+        unifiedStack.Children.Add(universalHapticsSection);
+        unifiedStack.Children.Add(motorsSection);
+        unifiedStack.Children.Add(patternsSection);
+        unifiedStack.Children.Add(audioRolesSection);
         inspectorScroll.Content = unifiedStack;
 
-        var rightDock = new DockPanel();
-        var rightHeader = new DockPanel { Margin = new(0, 0, 0, 10) };
-        advancedToggleBtn = MakeButton("Advanced", () => SetAdvanced(!advancedExpanded), "DS.ConsoleBtn");
-        advancedToggleBtn.HorizontalAlignment = HorizontalAlignment.Right;
-        advancedToggleBtn.Margin = new(8, 0, 0, 0);
-        advancedToggleBtn.MinHeight = 32;
-        advancedToggleBtn.Padding = new(14, 4, 14, 4);
-        advancedToggleBtn.FontSize = 12;
-        advancedToggleBtn.ToolTip = "Show or hide detailed per-motor sliders, app calibration, waveforms, and spectrum roles.";
-        DockPanel.SetDock(advancedToggleBtn, Dock.Right);
-        rightHeader.Children.Add(advancedToggleBtn);
+        var advHeader = new DockPanel { Margin = new(0, 0, 0, 10) };
+        backToSimpleBtn = MakeButton("<- Back to Simple", () => SetAdvanced(false), "DS.ConsolePrimary");
+        backToSimpleBtn.HorizontalAlignment = HorizontalAlignment.Right;
+        backToSimpleBtn.MinHeight = 32;
+        backToSimpleBtn.Padding = new(14, 4, 14, 4);
+        backToSimpleBtn.FontSize = 12;
+        DockPanel.SetDock(backToSimpleBtn, Dock.Right);
+        advHeader.Children.Add(backToSimpleBtn);
 
-        var headStack = new StackPanel();
-        headStack.Children.Add(Kit.Section("VIBRATION STUDIO", 0));
-        headStack.Children.Add(Kit.Text("Pick a mode, tune comfort, or open Advanced for full motor control.", 12, "DS.TextMuted"));
-        rightHeader.Children.Add(headStack);
+        var advHeadStack = new StackPanel();
+        advHeadStack.Children.Add(Kit.Section("VIBRATION · ADVANCED LAB", 0));
+        advHeadStack.Children.Add(Kit.Text("Blending rules, per-app calibration, fine feel curves, motor tiles & FFT roles.", 12, "DS.TextMuted"));
+        advHeader.Children.Add(advHeadStack);
 
-        DockPanel.SetDock(rightHeader, Dock.Top);
-        rightDock.Children.Add(rightHeader);
-        rightDock.Children.Add(inspectorScroll);
+        DockPanel.SetDock(advHeader, Dock.Top);
+        advancedContainer.Children.Add(advHeader);
+        advancedContainer.Children.Add(inspectorScroll);
 
-        var controlPanel = Kit.Panel(null, null, null, rightDock, new Thickness(18));
+        var controlPanelGrid = new Grid();
+        controlPanelGrid.Children.Add(simpleBentoGrid);
+        controlPanelGrid.Children.Add(advancedContainer);
+
+        var controlPanel = Kit.Panel(null, null, null, controlPanelGrid, new Thickness(14));
         Grid.SetColumn(controlPanel, 1);
-        Body.Children.Add(controlPanel);
+        contentGrid.Children.Add(controlPanel);
+
+        var (ecoOverlay, syncEco) = Kit.EcoOverlay("Vibration", contentGrid, locked =>
+        {
+            if (locked)
+            {
+                StopPattern();
+                Visualizer.ClearLiveMotors();
+                Visualizer.SetStrength(0);
+                Visualizer.SetTelemetry(0, false, true);
+            }
+        });
+        syncEcoOverlay = syncEco;
+        Body.Children.Add(contentGrid);
+        Body.Children.Add(ecoOverlay);
 
         SetAdvanced(false);
         SelectSection(0);
 
-        Shelf.Children.Add(Copy("Live 3D haptic motion stage, simple mode cards, and expandable Advanced motor lab", 13.5));
+        Shelf.Children.Add(Copy("3D Kinetic acoustic stage, modular squares Bento, and Advanced motor lab", 13.5));
 
         Strength.ValueChanged += (_, _) => { if (!updating) Set((int)Strength.Value); };
 
@@ -319,6 +335,7 @@ public sealed class VibrationWorkbench
             SyncUniversalHapticsUi();
             ShowTriggerState();
             SyncStudioTimer();
+            syncEcoOverlay?.Invoke();
             if (Draft.PcMode && !ReviewSandbox.Active) live.Start();
         };
 
@@ -343,24 +360,22 @@ public sealed class VibrationWorkbench
         SyncRoleAndAudioUi();
         SyncUniversalHapticsUi();
         ShowTriggerState();
+        syncEcoOverlay?.Invoke();
     }
 
     void SetAdvanced(bool expanded)
     {
         advancedExpanded = expanded;
-        advancedSection.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
-        if (advancedToggleBtn != null)
-        {
-            advancedToggleBtn.Content = expanded ? "Advanced · Hide" : "Advanced";
-            LightingWindow.SetSelectedState(advancedToggleBtn, expanded);
-        }
+        simpleBentoGrid.Visibility = expanded ? Visibility.Collapsed : Visibility.Visible;
+        advancedContainer.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
+        if (expanded) inspectorScroll.ScrollToTop();
     }
 
     public void SelectSection(int index)
     {
         if (index <= 0)
         {
-            inspectorScroll.ScrollToTop();
+            SetAdvanced(false);
             return;
         }
         SetAdvanced(true);
@@ -623,8 +638,8 @@ public sealed class VibrationWorkbench
     Button BuildProfileCard(Func<string, Action, string, Button> makeButton, HapticsGenreProfile prof, string title, string sub)
     {
         var cardContent = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new(6, 0, 0, 0) };
-        cardContent.Children.Add(new TextBlock { Text = title, FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = DS.Brush("DS.Text") });
-        cardContent.Children.Add(new TextBlock { Text = sub, FontSize = 10.5, Foreground = DS.Brush("DS.TextSoft"), TextTrimming = TextTrimming.CharacterEllipsis });
+        cardContent.Children.Add(new TextBlock { Text = title, FontSize = 12.5, FontWeight = FontWeights.SemiBold });
+        cardContent.Children.Add(new TextBlock { Text = sub, FontSize = 10.5, Opacity = 0.78, TextTrimming = TextTrimming.CharacterEllipsis });
 
         var card = makeButton("", () => SelectUniversalProfile(prof), "DS.ConsoleCard");
         card.Content = cardContent;
@@ -696,35 +711,59 @@ public sealed class VibrationWorkbench
 
     void BuildSimpleBentoSection(Func<string, Action, string, Button> makeButton)
     {
-        simpleBentoSection.Children.Clear();
+        simpleBentoGrid.Children.Clear();
+        simpleBentoGrid.RowDefinitions.Clear();
+        simpleBentoGrid.ColumnDefinitions.Clear();
 
-        // Bento Card 1: Core Modes (2x3 calm grid)
-        var modeStack = new StackPanel();
-        modeStack.Children.Add(Kit.Text("ACTIVE MODE", 11, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(0, 0, 0, 6)));
-        var profileGrid = new System.Windows.Controls.Primitives.UniformGrid { Columns = 2, Margin = new(-3, 0, -3, 0) };
+        // User's red-squares architecture:
+        // Row 0 (*): [ Middle Col (Top Square: Mode, Bottom Square: Mood & Comfort) | Right Tall Square (Quick Check + Advanced) ]
+        // Row 1 (Auto): [ Full-Width Bottom Rectangle: Master Intensity Slider ]
+        simpleBentoGrid.RowDefinitions.Add(new() { Height = new(1, GridUnitType.Star) });
+        simpleBentoGrid.RowDefinitions.Add(new() { Height = GridLength.Auto });
+        simpleBentoGrid.ColumnDefinitions.Add(new() { Width = new(1.28, GridUnitType.Star) });
+        simpleBentoGrid.ColumnDefinitions.Add(new() { Width = new(10) });
+        simpleBentoGrid.ColumnDefinitions.Add(new() { Width = new(0.84, GridUnitType.Star) });
+
+        // Middle Column (2 stacked squares)
+        var midCol = new Grid();
+        midCol.RowDefinitions.Add(new() { Height = new(1.18, GridUnitType.Star) });
+        midCol.RowDefinitions.Add(new() { Height = new(10) });
+        midCol.RowDefinitions.Add(new() { Height = new(0.92, GridUnitType.Star) });
+
+        var modeDock = new DockPanel();
+        var modeHead = Kit.Text("ACTIVE MODE", 11, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(0, 0, 0, 8));
+        DockPanel.SetDock(modeHead, Dock.Top);
+        modeDock.Children.Add(modeHead);
+
+        var profileGrid = new System.Windows.Controls.Primitives.UniformGrid { Columns = 2, Rows = 3, Margin = new(-3, 0, -3, 0) };
         (HapticsGenreProfile Profile, string Title, string Sub)[] coreModes =
         [
-            (HapticsGenreProfile.Auto, "Auto Hybrid", "Follows active game or music"),
-            (HapticsGenreProfile.Music, "Music & Vocals", "Vocal triggers + breathing bass"),
-            (HapticsGenreProfile.FpsAction, "FPS & Action", "Recoil kicks, blasts & steps"),
-            (HapticsGenreProfile.Racing, "Racing & Drift", "Gravel, curbs, boost & ABS"),
-            (HapticsGenreProfile.RpgMelee, "RPG & Melee", "Sword hits & low-health thuds"),
-            (HapticsGenreProfile.Cinema, "Cinema & Film", "LFE rumble + dialogue mute"),
+            (HapticsGenreProfile.Auto, "Auto Hybrid", "Game + music adaptive"),
+            (HapticsGenreProfile.Music, "Music & Vocals", "Vocal triggers + bass"),
+            (HapticsGenreProfile.FpsAction, "FPS & Action", "Recoil + impacts"),
+            (HapticsGenreProfile.Racing, "Racing & Drift", "Curbs, gravel & ABS"),
+            (HapticsGenreProfile.RpgMelee, "RPG & Melee", "Hits & tension pulses"),
+            (HapticsGenreProfile.Cinema, "Cinema & Film", "LFE + dialogue mute"),
         ];
         foreach (var (prof, title, sub) in coreModes)
-            profileGrid.Children.Add(BuildProfileCard(makeButton, prof, title, sub));
-        modeStack.Children.Add(profileGrid);
-        simpleBentoSection.Children.Add(MakeBentoCard(modeStack));
+        {
+            var card = BuildProfileCard(makeButton, prof, title, sub);
+            card.MinHeight = 48;
+            profileGrid.Children.Add(card);
+        }
+        modeDock.Children.Add(profileGrid);
+        var modeSquare = MakeBentoCard(modeDock, new(0));
+        Grid.SetRow(modeSquare, 0);
+        midCol.Children.Add(modeSquare);
 
-        // Bento Card 2: Music Mood + Hand Comfort + Single Master Intensity Slider
-        var feelStack = new StackPanel();
-        feelStack.Children.Add(Kit.Text("MUSIC MOOD", 11, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(0, 0, 0, 5)));
-        var moodGrid = new System.Windows.Controls.Primitives.UniformGrid { Columns = 3, Margin = new(-3, 0, -3, 10) };
+        var feelStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        feelStack.Children.Add(Kit.Text("MUSIC MOOD", 11, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(0, 0, 0, 6)));
+        var moodGrid = new System.Windows.Controls.Primitives.UniformGrid { Columns = 3, Margin = new(-3, 0, -3, 12) };
         (HapticsMusicMood Mood, string Label)[] moods =
         [
-            (HapticsMusicMood.Chill, "Chill (Soft)"),
-            (HapticsMusicMood.Vocals, "Vocals (Balanced)"),
-            (HapticsMusicMood.Club, "Club (Punch)"),
+            (HapticsMusicMood.Chill, "Chill"),
+            (HapticsMusicMood.Vocals, "Vocals"),
+            (HapticsMusicMood.Club, "Club"),
         ];
         foreach (var (mood, lbl) in moods)
         {
@@ -732,19 +771,19 @@ public sealed class VibrationWorkbench
             var b = makeButton(lbl, () => SelectMusicMood(m), "DS.ConsoleBtn");
             b.HorizontalAlignment = HorizontalAlignment.Stretch;
             b.Margin = new(3);
-            b.MinHeight = 32;
+            b.MinHeight = 36;
             b.Padding = new(6, 5, 6, 5);
-            b.FontSize = 11.5;
+            b.FontSize = 12;
             musicMoodBtns[m] = b;
             moodGrid.Children.Add(b);
         }
         feelStack.Children.Add(moodGrid);
 
-        feelStack.Children.Add(Kit.Text("COMFORT LEVEL", 11, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(0, 0, 0, 5)));
-        var comfortGrid = new System.Windows.Controls.Primitives.UniformGrid { Columns = 3, Margin = new(-3, 0, -3, 10) };
+        feelStack.Children.Add(Kit.Text("COMFORT LEVEL", 11, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(0, 0, 0, 6)));
+        var comfortGrid = new System.Windows.Controls.Primitives.UniformGrid { Columns = 3, Margin = new(-3, 0, -3, 0) };
         (HapticsComfortTier Tier, string Label)[] tiers =
         [
-            (HapticsComfortTier.Feather, "Feather (Light)"),
+            (HapticsComfortTier.Feather, "Feather"),
             (HapticsComfortTier.Balanced, "Balanced"),
             (HapticsComfortTier.FullPunch, "Full Punch"),
         ];
@@ -754,25 +793,102 @@ public sealed class VibrationWorkbench
             var b = makeButton(lbl, () => SelectComfortTier(t), "DS.ConsoleBtn");
             b.HorizontalAlignment = HorizontalAlignment.Stretch;
             b.Margin = new(3);
-            b.MinHeight = 32;
+            b.MinHeight = 36;
             b.Padding = new(6, 5, 6, 5);
-            b.FontSize = 11.5;
+            b.FontSize = 12;
             comfortTierBtns[t] = b;
             comfortGrid.Children.Add(b);
         }
         feelStack.Children.Add(comfortGrid);
 
-        var initTuning = UniversalHapticsService.Store.GetTuning(ResolveEditingProfile());
-        (uniMasterSlider, uniMasterVal) = CreateFeelSliderRow(feelStack, "Master Intensity", initTuning.MasterIntensity, ApplyFeelSliderChange);
-        simpleBentoSection.Children.Add(MakeBentoCard(feelStack));
+        var feelSquare = MakeBentoCard(feelStack, new(0));
+        Grid.SetRow(feelSquare, 2);
+        midCol.Children.Add(feelSquare);
 
-        // Bento Card 3: Quick Check (always reachable without opening Advanced)
-        var testStack = new StackPanel();
-        testStack.Children.Add(Kit.Text("QUICK CHECK", 11, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(0, 0, 0, 5)));
-        testStack.Children.Add(Test);
-        Readback.Margin = new(0, 6, 0, 0);
-        testStack.Children.Add(Readback);
-        simpleBentoSection.Children.Add(MakeBentoCard(testStack));
+        Grid.SetRow(midCol, 0);
+        Grid.SetColumn(midCol, 0);
+        simpleBentoGrid.Children.Add(midCol);
+
+        // Right Tall Vertical Square (Quick Check + Readback + Advanced Drawer Switch)
+        var rightSquareDock = new DockPanel();
+
+        var advBottom = new StackPanel { Margin = new(0, 12, 0, 0) };
+        advBottom.Children.Add(Kit.Rule().Also(r => r.Margin = new(0, 0, 0, 12)));
+        advBottom.Children.Add(Kit.Text("MOTOR LAB & FFT", 10.5, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(0, 0, 0, 4)));
+        advBottom.Children.Add(new TextBlock
+        {
+            Text = "Per-motor sliders, app calibration, pattern beats & FFT frequency roles.",
+            FontSize = 11.5,
+            Foreground = DS.Brush("DS.TextSoft"),
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new(0, 0, 0, 10),
+        });
+        advancedToggleBtn = makeButton("Open Advanced", () => SetAdvanced(true), "DS.ConsoleBtn");
+        advancedToggleBtn.HorizontalAlignment = HorizontalAlignment.Stretch;
+        advancedToggleBtn.MinHeight = 40;
+        advancedToggleBtn.FontSize = 12.5;
+        advancedToggleBtn.Margin = new(0);
+        advancedToggleBtn.ToolTip = "Expand detailed sliders, motors, custom waveforms, and audio FFT roles.";
+        advBottom.Children.Add(advancedToggleBtn);
+        DockPanel.SetDock(advBottom, Dock.Bottom);
+        rightSquareDock.Children.Add(advBottom);
+
+        var quickTop = new StackPanel();
+        quickTop.Children.Add(Kit.Text("QUICK CHECK", 11, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(0, 0, 0, 8)));
+        quickTop.Children.Add(Test);
+
+        if (HasTriggers)
+        {
+            var quickTriggerBtn = makeButton("Trigger Setup (M + Back)", OpenTriggerGuide, "DS.ConsoleBtn");
+            quickTriggerBtn.HorizontalAlignment = HorizontalAlignment.Stretch;
+            quickTriggerBtn.MinHeight = 34;
+            quickTriggerBtn.FontSize = 11.5;
+            quickTriggerBtn.Margin = new(0, 2, 0, 8);
+            quickTop.Children.Add(quickTriggerBtn);
+        }
+
+        Readback.Margin = new(0, 4, 0, 0);
+        quickTop.Children.Add(Readback);
+        rightSquareDock.Children.Add(quickTop);
+
+        var rightSquare = MakeBentoCard(rightSquareDock, new(0));
+        Grid.SetRow(rightSquare, 0);
+        Grid.SetColumn(rightSquare, 2);
+        simpleBentoGrid.Children.Add(rightSquare);
+
+        // Bottom Wide Rectangle spanning BOTH Middle & Right Squares: Master Intensity Slider
+        var masterStack = new StackPanel();
+        var initTuning = UniversalHapticsService.Store.GetTuning(ResolveEditingProfile());
+        var masterHead = new DockPanel { Margin = new(0, 0, 0, 6) };
+        uniMasterVal = Kit.Text(initTuning.MasterIntensity + "%", 18, "DS.Text", FontWeights.Bold);
+        DockPanel.SetDock(uniMasterVal, Dock.Right);
+        masterHead.Children.Add(uniMasterVal);
+        masterHead.Children.Add(Kit.Text("MASTER INTENSITY", 11.5, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.VerticalAlignment = VerticalAlignment.Center));
+        masterStack.Children.Add(masterHead);
+
+        uniMasterSlider = new Slider
+        {
+            Minimum = 0,
+            Maximum = 100,
+            TickFrequency = 5,
+            IsSnapToTickEnabled = true,
+            Value = initTuning.MasterIntensity,
+            Style = DS.Style("DS.Slider"),
+            Margin = new(0),
+        };
+        uniMasterSlider.ValueChanged += (_, _) =>
+        {
+            int v = (int)Math.Round(uniMasterSlider.Value);
+            uniMasterVal.Text = v + "%";
+            ApplyFeelSliderChange(uniMasterSlider, v);
+        };
+        masterStack.Children.Add(uniMasterSlider);
+
+        var masterBar = MakeBentoCard(masterStack, new(0, 10, 0, 0));
+        Grid.SetRow(masterBar, 1);
+        Grid.SetColumn(masterBar, 0);
+        Grid.SetColumnSpan(masterBar, 3);
+        simpleBentoGrid.Children.Add(masterBar);
     }
 
     FrameworkElement BuildUniversalHapticsSection(Func<string, Action, string, Button> makeButton)
@@ -1102,6 +1218,7 @@ public sealed class VibrationWorkbench
             universalStatusText.Text = $"Off on launch · {HapticsProfileLabels.ComfortName(cfg.ComfortTier)} · {HapticsProfileLabels.BlendName(cfg.BlendMode)}{ecoNote}";
         }
         Visualizer.SetTelemetry(UniversalHapticsService.LatestAudioRms, UniversalHapticsService.Latest.PrimaryEvent == HapticsEventTag.Vocal, ecoActive);
+        syncEcoOverlay?.Invoke();
     }
 
     FrameworkElement BuildPatternsSection(Func<string, Action, string, Button> makeButton)
