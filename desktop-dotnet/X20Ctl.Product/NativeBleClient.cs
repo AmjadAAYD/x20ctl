@@ -49,7 +49,7 @@ public static class NativeBleClient
     private static readonly Guid NotifyUuid  = Guid.Parse("d7f010e2-660d-46e9-96c3-19c4148bdab5");
 
     private static string CachePath =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "x20ctl", "native", "bt_cache.txt");
+        X20Ctl.Zone.AppDataPaths.Local("native", "bt_cache.txt");
 
     public static async Task<PadBridge.Result> QueryAsync(string targetModel = "x20_pro", int timeoutSeconds = 6, bool check = false)
     {
@@ -290,13 +290,16 @@ public static class NativeBleClient
 
             var writer = new DataWriter();
             writer.WriteBytes(packet);
+            var gattClock = System.Diagnostics.Stopwatch.StartNew();
             var writeResult = await writeChar.WriteValueWithResultAsync(writer.DetachBuffer(), GattWriteOption.WriteWithResponse);
             if (writeResult.Status != GattCommunicationStatus.Success)
                 return null;
 
             var timeoutTask = Task.Delay(timeoutMs);
             var finished = await Task.WhenAny(pendingReply.Task, timeoutTask);
-            return finished == pendingReply.Task ? await pendingReply.Task : null;
+            var reply = finished == pendingReply.Task ? await pendingReply.Task : null;
+            if (reply != null) BleLinkWatchdog.RecordGattLatency(gattClock.Elapsed.TotalMilliseconds);
+            return reply;
         }
 
         string? firmware = null;

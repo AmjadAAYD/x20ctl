@@ -115,6 +115,7 @@ public sealed partial class DiagnosticsWorkbench
         }
         var buttonsCard = Kit.Panel("Buttons", "Reported XInput buttons only. Three rapid transitions within 15 ms are flagged for review, not diagnosed as a worn switch.", null, grid);
         buttonsCard.Margin = new(0, 16, 0, 0); page.Children.Add(buttonsCard);
+        AttachHealthAndLab(page, head, register, compact);
 
         timer = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(33) };
         timer.Tick += (_, _) => Refresh();
@@ -151,7 +152,7 @@ public sealed partial class DiagnosticsWorkbench
 
     void Clear()
     {
-        lock (gate) { left.Reset(); right.Reset(); lt.Reset(); rt.Reset(); presses.Reset(); changes.Reset(); reads.Reset(); seen = false; }
+        lock (gate) { left.Reset(); right.Reset(); lt.Reset(); rt.Reset(); leftNoise.Reset(); rightNoise.Reset(); ltLinear.Reset(); rtLinear.Reset(); presses.Reset(); changes.Reset(); reads.Reset(); seen = false; }
         raw?.Reset();driftResult=null;driftDetails.Text="";
     }
 
@@ -169,6 +170,8 @@ public sealed partial class DiagnosticsWorkbench
                     lock (gate)
                     {
                         reads.Add(now);left.Add(state.Pad.LX,state.Pad.LY);right.Add(state.Pad.RX,state.Pad.RY);lt.Add(state.Pad.LT);rt.Add(state.Pad.RT);
+                        leftNoise.Add(state.Pad.LX,state.Pad.LY);rightNoise.Add(state.Pad.RX,state.Pad.RY);
+                        ltLinear.Add(state.Pad.LT);rtLinear.Add(state.Pad.RT);
                         if (!seen || state.Packet != lastPacket)
                         {
                             if (seen) changes.Add(now);
@@ -234,11 +237,12 @@ public sealed partial class DiagnosticsWorkbench
             }
             rateText.Text = seen ? $"Observed changes {changes.Current(now)} /s · peak {changes.Peak} /s\nControls tested {Buttons.Count(x=>presses[x.Mask].Presses>0)} / {Buttons.Length}" : "No input data · Rate unavailable";
         }
-        var rawDevices = raw?.Devices();
+        var rawDetailed = raw?.DetailedDevices();
         rawText.Text = raw == null ? "Raw Input reports (all devices): unavailable on this PC."
             : raw.Error != null ? "Raw Input reports (all devices): " + raw.Error
-            : rawDevices is not { Count: > 0 } ? "Raw Input reports (all devices): none yet. Move a stick. If this stays empty, Windows isn't passing this controller's reports to apps; selected-source XInput updates remain separate."
-            : string.Join(Environment.NewLine, rawDevices.Take(4).Select(d => $"{d.Name}: {d.Current} reports a second · peak {d.Peak}"));
+            : rawDetailed is not { Count: > 0 } ? "Raw Input reports (all devices): none yet. Move a stick. If this stays empty, Windows isn't passing this controller's reports to apps; selected-source XInput updates remain separate."
+            : string.Join(Environment.NewLine, rawDetailed.Take(4).Select(d => $"{d.Name}: {d.Current} reports a second · peak {d.Peak} ({d.AvgMs:0.0} ms avg)"));
+        RefreshLab(rawDetailed);
     }
 
     /// <summary>The readings as plain text: what a tester pastes into a report. Only measurements, nothing identifying.</summary>

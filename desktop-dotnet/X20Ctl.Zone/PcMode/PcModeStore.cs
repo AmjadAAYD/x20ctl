@@ -17,7 +17,7 @@ public sealed class PcModeStore
     /// <summary>False when the file existed but couldn't be read, in which case nothing is overwritten.</summary>
     public bool Healthy { get; private set; } = true;
 
-    public static string DefaultPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "x20ctl", "pc-mode.json");
+    public static string DefaultPath => AppDataPaths.Roaming("pc-mode.json");
 
     public void Load()
     {

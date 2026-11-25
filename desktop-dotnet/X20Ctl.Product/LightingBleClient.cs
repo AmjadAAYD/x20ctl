@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.IO;
 using System.Security.Cryptography;
 using Windows.Devices.Bluetooth;
@@ -5,6 +6,7 @@ using Windows.Devices.Bluetooth.GenericAttributeProfile;
 using Windows.Foundation;
 using Windows.Storage.Streams;
 using X20Ctl.Zone;
+using X20Ctl.Zone.Capture;
 using X20Ctl.Zone.Lighting;
 
 namespace X20Ctl.Product;
@@ -127,6 +129,33 @@ internal static class LightingBleClient
         await using var gate = await NativeBleClient.AcquireConfigGateAsync();
         try { return await SessionAsync(ReadConfig); }
         finally { }
+    }
+
+    /// <summary>Read-only KeyLinker snapshot of all verified config, macro, and lighting blocks + GATT latency.</summary>
+    public static async Task<OnboardHardwareSnapshot> ReadDiagnosticSnapshotAsync()
+    {
+        if (ReviewSandbox.Active) throw new InvalidOperationException("Disabled in review sandbox.");
+        if (UniversalHapticsService.IsPowerSavingActive) throw new InvalidOperationException("Turn off Eco mode first.");
+        await using var gate = await NativeBleClient.AcquireConfigGateAsync();
+        var sw = Stopwatch.StartNew();
+        return await SessionAsync(async (exchange, next) =>
+        {
+            var identity = await exchange(0x91, [], next(), 5);
+            var cfg = await ReadConfig(exchange, next);
+            var lighting = await LightingTransaction.ReadAsync((o, p, s, l) => exchange(o, p, s, l), next);
+            sw.Stop();
+            BleLinkWatchdog.RecordGattLatency(sw.Elapsed.TotalMilliseconds);
+            return new OnboardHardwareSnapshot(
+                DateTimeOffset.UtcNow,
+                "x20_pro",
+                Convert.ToHexString(identity),
+                Convert.ToHexString(cfg.Remap),
+                Convert.ToHexString(cfg.Sticks),
+                Convert.ToHexString(cfg.Triggers),
+                cfg.Macros.Select(Convert.ToHexString).ToArray(),
+                Convert.ToHexString(lighting),
+                Math.Round(sw.Elapsed.TotalMilliseconds, 1));
+        });
     }
 
     /// <summary>Writes only the records that differ, reads each back, and returns how many changed. No retries: a failure
@@ -424,9 +453,15 @@ internal static class LightingBleClient
             pending = new(TaskCreationOptions.RunContinuationsAsynchronously);
             using var writer = new DataWriter();
             writer.WriteBytes(X20Codec.Frame(op, length, serial, (byte)RandomNumberGenerator.GetInt32(256), payload));
+            var gattSw = Stopwatch.StartNew();
             var result = await write.WriteValueWithResultAsync(writer.DetachBuffer(), GattWriteOption.WriteWithResponse).AsTask(ct);
             if (result.Status != GattCommunicationStatus.Success) throw new IOException("Bluetooth request failed; no automatic retry.");
-            try { return await pending.Task.WaitAsync(TimeSpan.FromSeconds(4), ct); }
+            try
+            {
+                var reply = await pending.Task.WaitAsync(TimeSpan.FromSeconds(4), ct);
+                BleLinkWatchdog.RecordGattLatency(gattSw.Elapsed.TotalMilliseconds);
+                return reply;
+            }
             finally { pending = null; }
         }
         byte serialCounter = 160;

@@ -85,7 +85,7 @@ public sealed class MouseProfile
             if (!Inputs.Contains(button) || rate < MinTurbo || rate > MaxTurbo) throw new InvalidDataException("Turbo needs a known button and 2 to 30 presses a second.");
     }
 
-    public static string DefaultPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "x20ctl", "mouse.json");
+    public static string DefaultPath => AppDataPaths.Roaming("mouse.json");
     static readonly JsonSerializerOptions Json = new() { WriteIndented = true, Converters = { new JsonStringEnumConverter() } };
 
     /// <summary>The saved settings, or the defaults when there are none or they can't be used.</summary>

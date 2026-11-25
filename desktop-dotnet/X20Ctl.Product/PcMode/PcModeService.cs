@@ -363,7 +363,7 @@ static class HidHide
     ];
     public static string? Cli => Candidates.FirstOrDefault(File.Exists);
     public static bool Installed => Cli != null;
-    static string RecoveryFile => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "x20ctl", "native", "pc-mode-hidden.txt");
+    static string RecoveryFile => X20Ctl.Zone.AppDataPaths.Local("native", "pc-mode-hidden.txt");
 
     static string Run(params string[] args)
     {

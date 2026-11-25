@@ -133,6 +133,7 @@ public sealed partial class DeviceWorkbench
             resetYes.Click+=async(_,_)=>{resetConfirm.Visibility=Visibility.Collapsed;resetAsk.IsEnabled=false;await factoryReset(text=>resetNote.Text=text);resetAsk.IsEnabled=true;};
             var resetPanel=Kit.Panel("Factory reset",null,null,new StackPanel{Children={resetNote,resetAsk,resetConfirm}});resetPanel.Margin=new(0,12,0,0);overview.Children.Add(resetPanel);
         }
+        AttachInternalsExpander(overview,model.Id,resources,register);
 
         OpenSetups=ManagementVisuals.Action(resources,"My setups",setups,register);OpenSetups.Visibility=Visibility.Collapsed;
     }

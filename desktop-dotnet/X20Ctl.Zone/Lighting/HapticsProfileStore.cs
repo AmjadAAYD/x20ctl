@@ -38,10 +38,7 @@ public sealed class HapticsProfileStore
 
     public string FilePath { get; }
 
-    public static string DefaultPath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "x20ctl",
-        "haptics-profiles.json");
+    public static string DefaultPath => AppDataPaths.Roaming("haptics-profiles.json");
 
     public HapticsProfileStore(string? path = null)
     {

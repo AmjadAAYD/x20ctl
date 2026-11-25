@@ -31,9 +31,7 @@ public sealed class LightingPresetsStore
     public IReadOnlyList<GameLightingRule> GameRules => data.GameRules.AsReadOnly();
     public LightingEffectSpec? LastEffect => data.LastEffect;
 
-    public static string DefaultPath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "x20ctl", "lighting", "presets.json");
+    public static string DefaultPath => AppDataPaths.Local("lighting", "presets.json");
 
     public void Load()
     {

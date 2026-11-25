@@ -37,13 +37,64 @@ public sealed partial class ProductHost : Grid
     private readonly Dictionary<(int Player,string Model),DateTime> latestTelemetryAt=[];
     private bool replayingTelemetry; // a remembered reading shown again is not a new one
     private readonly string?[] measuredBatteryModels=new string?[4];
+    public static X20Ctl.Zone.Telemetry.BatterySessionLog BatteryLog { get; } = new();
+    private bool lowBatteryAlertedThisSession;
+
+    private void LogBatteryTelemetry(string? batteryText, string? modelId, string? transport)
+    {
+        if (ReviewSandbox.Active) return;
+        if (X20Ctl.Zone.Telemetry.BatterySessionLog.ParseLevel(batteryText) is not { } parsed) return;
+        bool eco = UniversalHapticsService.IsPowerSavingActive;
+        int rgbPct = eco ? 0 : (int)Math.Round(X20Ctl.Zone.Lighting.LightingRecord.BrightnessPercentFor(LightingEffectsService.CurrentSpec.MaxBrightness));
+        bool appended = BatteryLog.Append(new X20Ctl.Zone.Telemetry.BatterySample(
+            DateTimeOffset.UtcNow,
+            modelId ?? "x20_pro",
+            parsed.LevelOf4,
+            parsed.Percent,
+            parsed.Charging,
+            eco,
+            rgbPct,
+            UniversalHapticsService.IsRunning,
+            transport ?? currentTransport ?? "Unknown"));
+        if (appended) Studio?.Device?.RefreshBatteryLogUi();
+
+        if (!parsed.Charging && parsed.LevelOf4 is <= 1)
+        {
+            if (!lowBatteryAlertedThisSession)
+            {
+                lowBatteryAlertedThisSession = true;
+                Zone.FeedbackText.Text = $"Battery low ({batteryText}): plug in soon.";
+                // Gentle one-shot amber pulse when Eco is off and RGB streaming isn't active
+                if (!eco && !LightingEffectsService.Status.IsRunning && (modelId ?? Studio?.Model.Id) == "x20_pro")
+                {
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await LightingBleClient.RunWithoutYieldAsync([0xFF, 0x9E, 0x00], X20Ctl.Zone.Lighting.LightingRecord.ModeBreathe, 0x60);
+                        }
+                        catch { }
+                    });
+                }
+            }
+        }
+        else if (parsed.LevelOf4 >= 2)
+        {
+            lowBatteryAlertedThisSession = false;
+        }
+    }
 
     public void RecordTelemetry(TelemetryData telemetry, int player = 0)
     {
         if(replayingTelemetry)return;
         string? model=telemetry.Controller switch {"EasySMX X20 Pro"=>"x20_pro","EasySMX X20"=>"x20",_=>null};
         if(model!=null){latestTelemetry[(player,model)]=telemetry;latestTelemetryAt[(player,model)]=DateTime.UtcNow;if(player>=0&&player<4)measuredBatteryModels[player]=model;}
-        if (telemetry.Battery != null && player >= 0 && player < batteryLevels.Length) {measuredBatteryLevels[player]=batteryLevels[player] = telemetry.Battery;measuredBatteryAt[player]=DateTime.UtcNow;}
+        if (telemetry.Battery != null && player >= 0 && player < batteryLevels.Length)
+        {
+            measuredBatteryLevels[player] = batteryLevels[player] = telemetry.Battery;
+            measuredBatteryAt[player] = DateTime.UtcNow;
+            LogBatteryTelemetry(telemetry.Battery, model, currentTransport);
+        }
         TelemetryRefreshed?.Invoke();
     }
 
@@ -87,6 +138,8 @@ public sealed partial class ProductHost : Grid
             if (currentTransport != null) studio.SetTransport(currentTransport);
             studio.SetBatteryLevel(batteryLevels[studio.Player]);
         }
+        if (batteryLevels[0] is { } b0)
+            LogBatteryTelemetry(b0, Studio?.Model.Id ?? Zone.State.Players[0].ModelId, transport);
     }
     public ZoneScene Zone { get; }
     public ControllerCatalog Catalog { get; }
@@ -147,8 +200,8 @@ public sealed partial class ProductHost : Grid
         MouseMode.Changed+=()=>Dispatcher.BeginInvoke(()=>Studio?.MouseModeChanged());
         Zone.SupportRequested+=OpenSupport;Zone.SettingsRequested+=ShowSettings;var languageMenu=new LanguageMenu(preferencesHealthy?preferences:null,zone);Children.Add(languageMenu);Panel.SetZIndex(languageMenu,9);
         Catalog = new ControllerCatalog(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Data", "catalog.json")));
-        store = new(assignmentPath ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "x20ctl", "native", "player-assignments.v1.json"));
-        string dataRoot=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),"x20ctl");
+        store = new(assignmentPath ?? AppDataPaths.Roaming("native", "player-assignments.v1.json"));
+        string dataRoot = AppDataPaths.RoamingRoot;
         PadColours.Use(assignmentPath==null?Path.Combine(dataRoot,"native","pad-colours.v1.json"):Path.Combine(Path.GetDirectoryName(Path.GetFullPath(assignmentPath))!,"pad-colours-fixture.json"));
         memory=new(assignmentPath==null?Path.Combine(dataRoot,"native","studio-memory.v1.json"):null);
         setupStore=new(assignmentPath==null?Path.Combine(dataRoot,"native","setups.v1.json"):Path.Combine(Path.GetDirectoryName(Path.GetFullPath(assignmentPath))!,"setups-fixture-"+Guid.NewGuid().ToString("N")+".json"));
@@ -341,7 +394,7 @@ public sealed partial class ProductHost : Grid
     // every launch opens with the intro, like Steam Big Picture (owner direction 10 Oct 2026), unless the player turned it
     // off in Tools (owner request 12 Oct 2026); Replay Intro still plays it
     public void Startup(){if(preferencesHealthy&&!preferences.IntroOnLaunch){IntroView.DiscardPreload();ShowWhatsNewIfDue();return;}StartIntro();}
-    internal static string PreferencesPath=>Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),"x20ctl","native","preferences.v1.json");
+    internal static string PreferencesPath => AppDataPaths.Roaming("native", "preferences.v1.json");
     /// <summary>Whether this launch opens with the intro film, read before the window exists so the film can start opening early.
     /// The same rule as <see cref="Startup"/>: on unless the player turned it off, and never with reduced motion.</summary>
     public static bool IntroAtLaunch(bool reducedMotion)

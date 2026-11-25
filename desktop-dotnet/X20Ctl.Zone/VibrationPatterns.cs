@@ -372,9 +372,7 @@ public sealed class VibrationPatternStore
 
     public VibrationPatternStore(string path) => this.path = Path.GetFullPath(path);
 
-    public static string DefaultPath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "x20ctl", "vibration", "patterns.json");
+    public static string DefaultPath => AppDataPaths.Local("vibration", "patterns.json");
 
     public IReadOnlyList<VibrationPattern> Patterns
     {
