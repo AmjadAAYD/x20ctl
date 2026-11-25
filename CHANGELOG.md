@@ -2,9 +2,38 @@
 
 <p><img src="assets/readme/header-changelog.svg" alt="X20CTL Changelog header" width="100%"></p>
 
-## [V0.025] - 2026-11-19 — Final release for now
+## [V0.026] - 2026-11-25
 
-**Final release for now.** This release brings the redesigned RGB Studio, simultaneous 2.4 GHz dongle + BLE lighting and configuration support, offline Agent XCTL upgrades, theme and motion polish, Linux Flatpak packaging, and critical Controller Check fixes for EasySMX X20 Pro owners.
+This release introduces the offline Universal Haptics engine, a ground-up rework of the Vibration and RGB workspaces, a real Battery Saving (Eco) mode that locks power-drawing subsystems, DS4Windows and Steam Input profile imports, standalone Mouse Mode, an expanded offline game scanner, and faster macro workflows.
+
+### Added
+
+- **Universal Haptics Engine (Games, Racing, FPS, Cinema & Music).** Offline pure-C# audio-to-haptics classifier trained on multitrack studio stems (`MUSDB18`) and sound effects (`ESC-50` plus game SFX, `<0.2 ms` inference) fused with 50 Hz XInput controller polling (`A`, `B`, `X`, `Y`, `LB`, `RB`, `LT`, `RT`), foreground auto-detection across 115+ built-in games and media apps, automatic WASAPI audio-device hot-switch recovery, Right-Grip-first game physics with menu and dialogue suppression, loudness-calibrated Music Mode (`0.34` anchor) with a neural vocal gate, **Music Mode Sub-Presets** (`Chill`, `Vocals`, `Club`), **Comfort Tiers** (`Feather`, `Balanced`, `Full Punch`), and per-app Surface & Combat calibration (`0-150%`). Starts off every launch until enabled from the Vibration tab, system tray, or `Ctrl+Alt+H`.
+- **Audio Reactive RGB & 4-motor Audio Haptics.** 1024-pt Mid-Side FFT audio engine powering 6 reactive RGB styles (including `Auto` vibe detection) and an 8-band frequency spectrum (`SUB` to `AIR` plus harmonic `VOCAL` tracking) mapped to individual grip and trigger roles.
+- **Full Battery Saving (Eco) Mode.** Replaces the Dashboard `Changes` box with an **Enable battery saving mode?** hardware switch. Turning Eco mode on switches controller LEDs off via BLE (`ModeOff`, `0x00`), stops Universal Haptics and zeroes all grip/trigger motors, blocks PC Mode game rumble forwarding, stops audio FFT capture, pauses periodic BLE battery polling, and greys out and locks **Vibration**, **RGB**, and **Screen** with `"Eco mode must be turned off"` and a one-click turn-off action.
+- **DS4Windows and Steam Input profile imports.** Import **DS4Windows (`.xml`)** and **Steam Input (`.vdf`)** layouts directly into PC Mode.
+- **Macro quick presets and slot copy/paste.** Added one-click Quick presets (`Rapid Fire (RT)`, `Drop Shot`, `Auto Sprint`, `Jump Shot`) and Copy/Paste slot controls to the Macros toolbar.
+
+### Changed
+
+- **Vibration Studio squares layout & 3D Kinetic Acoustic Orb.** Rebuilt Vibration into a squares Bento layout (**Active Mode**, **Mood & Comfort**, **Quick Check**, and a full-width **Master Intensity** slider) with an expandable **Open Advanced** drawer for fine sliders, PC game rumble blending, per-app calibration, individual 4-motor tiles, 8 built-in signature waves + an 8-step x 4-motor sequencer, and 8-band audio roles. Replaced the waveform graphic with a live **3D Kinetic Acoustic Orb**, dual orbital rings, and four separated segmented VU meters that rest cleanly at `STANDBY 0%`.
+- **RGB Studio single-scroll layout & 2-strip diffuser.** Merged `Color & Mode`, `Live Effects`, and expandable `Advanced` controls (`Presets & Auto`) into one scrollable left column paired with a compact X20 Pro controller preview on top and a synchronized **2-strip** optical LED diffuser (`Left LED Strip` & `Right LED Strip`) below it.
+- **Cleaner top bar and Dashboard.** Removed the redundant top-bar `Battery 4/4` pill and the Dashboard status card scrollbar.
+- **Expanded offline game scanner.** Scans all fixed drives and local launcher manifests strictly offline across Steam, Epic Games, Xbox / Game Pass, EA App, Ubisoft Connect, Battle.net, GOG, Riot, Heroic, and Lutris.
+
+### Fixed
+
+- **Mouse Mode works with PC Mode off.** Desktop and launcher Mouse Mode now runs directly even when PC Mode is switched off.
+- **Idle Vibration preview stuck at 70%.** Fixed the preview animation and grip readouts moving at 70% while the controller was idle; all channels now rest cleanly at 0%.
+- **Lingering tooltips after closing or minimizing.** Fixed floating hover popups remaining visible after hiding, minimizing, or closing the studio window.
+- **Trigger haptics compatibility and setup.** Whitelisted WebView2 in HidHide so WebView2-backed audio/haptics views keep receiving trigger feedback, and added an in-app `M + BACK` 2.4G/USB trigger setup guide alongside direct Bluetooth 4-motor control.
+- **Multi-theme contrast and layout parity.** Verified Dashboard, Vibration, RGB, Macros, and Eco lockout renders across shipped themes (`Default`, `Channel`, `Alert`, etc.), fixing light-theme active button text contrast on `Auto Hybrid`.
+
+The Windows release still requests administrator permission on launch for optional ViGEmBus and HidHide driver installation. Automated .NET/Python test suites and multi-theme offscreen renders passed on Windows, and Linux Studio builds cleanly in Release; live controller hardware verification over BLE and 2.4 GHz dongle remains recommended on physical pads.
+
+## [V0.025] - 2026-11-19
+
+This release brings the redesigned RGB Studio, simultaneous 2.4 GHz dongle + BLE lighting and configuration support, offline Agent XCTL upgrades, theme and motion polish, Linux Flatpak packaging, and critical Controller Check fixes for EasySMX X20 Pro owners.
 
 ### Added
 
