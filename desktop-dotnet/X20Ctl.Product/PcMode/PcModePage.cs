@@ -111,6 +111,11 @@ public sealed partial class PcModePage : Border
         ("SELECT", "View / Back"), ("START", "Menu / Start"), ("HOME", "Home / Guide"),
     ];
     static readonly int[] TurboRates = [0, 5, 8, 10, 15, 20, 30];
+    static readonly int[] OutputRates = [0, 1000, 750, 500, 250];
+    readonly ComboBox outputRate = new() { MinHeight = 38, Width = 220, FontSize = 14.5 };
+    readonly CheckBox tournamentToggle = new() { Style = DS.Style("DS.Toggle"), VerticalAlignment = VerticalAlignment.Center };
+    readonly CheckBox autoPauseToggle = new() { Style = DS.Style("DS.Toggle"), VerticalAlignment = VerticalAlignment.Center };
+    readonly CheckBox coPilotToggle = new() { Style = DS.Style("DS.Toggle"), VerticalAlignment = VerticalAlignment.Center };
     /// <summary>The profile being edited, here, in the controller tabs and in the Advanced stick tools: "default"
     /// (every game) or a game's own. Shared by all of them, so they always edit the same thing.</summary>
     public static string ProfileKey { get; private set; } = PcModeStore.DefaultKey;
@@ -255,6 +260,61 @@ public sealed partial class PcModePage : Border
         routingHelp.Children.Add(Block("Bypass shortcut", "The current Xbox input route uses View + Menu held for one second to bypass processing. Labels describe the XInput interface; they may differ on your physical controller."));
         stack.Children.Add(new Expander{Header="Routing details",Content=routingHelp,Margin=new(0,12,0,0)});
 
+        // Tournament / Clean Mode & Virtual Output Rate (Status section)
+        outputRate.ItemsSource = new[] { "Uncapped (Default)", "1000 Hz (PC pacing)", "750 Hz (PC pacing)", "500 Hz (PC pacing)", "250 Hz (PC pacing)" };
+        outputRate.SelectionChanged += (_, _) => { if (!loading) Persist(); };
+        stack.Children.Add(new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin = new(0, 14, 0, 0),
+            Children =
+            {
+                Kit.Text("Virtual output rate", 15, "DS.Text").Also(t => { t.Width = 140; t.VerticalAlignment = VerticalAlignment.Center; t.ToolTip = "PC-side virtual pad pacing only; does not change hardware USB or 2.4 GHz radio polling"; }),
+                outputRate,
+            }
+        });
+        tournamentToggle.IsChecked = service.TournamentMode;
+        tournamentToggle.Checked += (_, _) => { if (!syncing) SetTournamentMode(true); };
+        tournamentToggle.Unchecked += (_, _) => { if (!syncing) SetTournamentMode(false); };
+        stack.Children.Add(new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin = new(0, 14, 0, 0),
+            Children =
+            {
+                tournamentToggle,
+                Kit.Text("Tournament / Clean Mode (Ctrl+Alt+T) - disables macros, turbo, SOCD, rapid-trigger & haptics", 14.5, "DS.TextSoft").Also(t => t.Margin = new(12, 0, 0, 0)),
+            }
+        });
+
+        autoPauseToggle.IsChecked = service.AutoPauseOnDisconnect;
+        autoPauseToggle.Checked += (_, _) => { service.AutoPauseOnDisconnect = true; try { preferences?.SetAutoPauseOnDisconnect(true); } catch { } };
+        autoPauseToggle.Unchecked += (_, _) => { service.AutoPauseOnDisconnect = false; try { preferences?.SetAutoPauseOnDisconnect(false); } catch { } };
+        coPilotToggle.IsChecked = service.CoPilotMirror;
+        coPilotToggle.Checked += (_, _) => { service.CoPilotMirror = true; try { preferences?.SetCoPilotMirror(true); } catch { } };
+        coPilotToggle.Unchecked += (_, _) => { service.CoPilotMirror = false; try { preferences?.SetCoPilotMirror(false); } catch { } };
+        var safetyContent = new StackPanel { Margin = new(0, 8, 0, 0) };
+        safetyContent.Children.Add(new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Children =
+            {
+                autoPauseToggle,
+                Kit.Text("Auto-pause game on disconnect (sends Esc when foreground game loses controller)", 14, "DS.TextSoft").Also(t => t.Margin = new(10, 0, 0, 0)),
+            }
+        });
+        safetyContent.Children.Add(new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin = new(0, 10, 0, 0),
+            Children =
+            {
+                coPilotToggle,
+                Kit.Text("Co-Pilot Mirror Mode (combines Player 1 + Player 2 onto Player 1 virtual pad)", 14, "DS.TextSoft").Also(t => t.Margin = new(10, 0, 0, 0)),
+            }
+        });
+        stack.Children.Add(new Expander { Header = "Session safety & co-op", IsExpanded = false, Content = safetyContent, Margin = new(0, 12, 0, 0) });
+
         // the one-time notice
         notice = new Border { CornerRadius = new(16), Padding = new(22, 18, 22, 18), Margin = new(0, 24, 0, 0), BorderThickness = new(1), Visibility = Visibility.Collapsed,
             Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(70, 120, 80, 10))), BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(160, 245, 200, 80))) };
@@ -378,6 +438,13 @@ public sealed partial class PcModePage : Border
     /// <summary>Whether edits may start PC mode yet: the notice has to be read first.</summary>
     public static bool MaySave(ProductPreferences? preferences) => preferences is not { PcModeNoticeSeen: false };
 
+    void SetTournamentMode(bool on)
+    {
+        service.TournamentMode = on;
+        try { preferences?.SetTournamentMode(on); } catch (Exception) { }
+        Refresh();
+    }
+
     async void SetEnabled(bool on)
     {
         if (on && !PcModeSetup.Ready)
@@ -404,7 +471,7 @@ public sealed partial class PcModePage : Border
             _ => ("Off", ThemeCatalog.R(Color.FromRgb(140, 150, 175))),
         };
         if(!PcModeSetup.Ready && service.State!=PcModeState.Active)label="Not set up";
-        syncing=true;enable.IsChecked = service.Enabled && !service.Suspended;syncing=false;
+        syncing=true;enable.IsChecked = service.Enabled && !service.Suspended;tournamentToggle.IsChecked = service.TournamentMode;syncing=false;
         var route=service.Routes.FirstOrDefault(r=>r.Player==Player);
         string kind=PcModeEntry.DisplayName(PcModeEntry.Chosen);
         pipeline.Text=$"Physical XInput {Player+1} → PC profile → Virtual {kind} → Game\n"+(route==null?"No active route for this player":PcModeEntry.Chosen==PcModeEntry.VirtualType.DualShock4?$"Measured route: XInput {route.PhysicalSlot+1} → PlayStation 4 output":$"Measured route: XInput {route.PhysicalSlot+1} → Xbox output {(route.VirtualSlot<0?"pending":(route.VirtualSlot+1).ToString())}")+$"\nDrivers {(PcModeSetup.Ready?"installed":"missing")} · Processing {(service.Suspended?"bypassed":service.State==PcModeState.Active?service.Mute?"paused for Mouse Mode":"active":"inactive")}";
@@ -425,6 +492,7 @@ public sealed partial class PcModePage : Border
 
     void Fill(PcModeProfile p)
     {
+        outputRate.SelectedIndex = Math.Max(0, Array.IndexOf(OutputRates, p.OutputRateHz));
         foreach (var (id, _) in Buttons) turbo[id].SelectedIndex = Math.Max(0, Array.IndexOf(TurboRates, p.Turbo.GetValueOrDefault(id)));
     }
 
@@ -434,6 +502,7 @@ public sealed partial class PcModePage : Border
         var current = store.Get(StoreKey);
         var p = clearAll ? new PcModeProfile() : incoming ?? current;
         p.Name = current.Name; p.Turbo = new();
+        p.OutputRateHz = OutputRates[Math.Clamp(outputRate.SelectedIndex, 0, OutputRates.Length - 1)];
         foreach (var (id, _) in Buttons) { int hz = TurboRates[Math.Max(0, turbo[id].SelectedIndex)]; if (hz > 0) p.Turbo[id] = hz; }
         return p;
     }

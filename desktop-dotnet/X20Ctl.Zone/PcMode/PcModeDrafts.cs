@@ -24,7 +24,7 @@ public static class PcModeDrafts
             else curves.Reset(channel);
         }
 
-        foreach (var slot in macros.SlotNames) { macros.Clear(slot); macros.SetTrigger(slot, null); }
+        foreach (var slot in macros.SlotNames) { macros.Clear(slot); macros.SetTrigger(slot, null); macros.SetOptions(slot, new MacroOptions()); }
         int next = 0;
         foreach (var (trigger, steps) in p.Macros)
         {
@@ -32,6 +32,7 @@ public static class PcModeDrafts
             if (!MacroDraft.TriggerInputs.Contains(trigger)) continue;
             string slot = macros.SlotNames[next++];
             macros.SetTrigger(slot, trigger);
+            if (p.MacroOptions.TryGetValue(trigger, out var opts)) macros.SetOptions(slot, opts);
             foreach (var s in steps)
             {
                 // the Studio's macro editor works in 5 ms steps and up to 47 entries (the X20's own limit)
@@ -67,9 +68,14 @@ public static class PcModeDrafts
         }
 
         p.Macros = new();
+        p.MacroOptions = new();
         foreach (var slot in macros.SlotNames)
             if (macros.Trigger(slot) is { } trigger && macros[slot].Count > 0)
+            {
                 p.Macros[trigger] = macros[slot].Select(e => new SetupMacro(e.Id, e.Buttons.ToArray(), e.Left, e.Right, Math.Min(e.HoldMs, 10000), Math.Min(e.PauseMs, 10000))).ToArray();
+                var opt = macros.Options(slot);
+                if (!opt.IsDefault) p.MacroOptions[trigger] = new MacroOptions { Mode = opt.Mode, RepeatCount = opt.RepeatCount, HumanJitterMs = opt.HumanJitterMs };
+            }
         return p;
     }
 

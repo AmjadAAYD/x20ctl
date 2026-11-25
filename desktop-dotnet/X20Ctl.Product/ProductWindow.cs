@@ -19,7 +19,8 @@ public sealed class ProductWindow : Window
     private bool CoversMonitor=>Fullscreen&&IsActive;
     private TrayIcon? tray;
     private const int HapticsHotkeyId = 0x2048;
-    private bool hapticsHotkeyRegistered;
+    private const int TournamentHotkeyId = 0x2054;
+    private bool hapticsHotkeyRegistered, tournamentHotkeyRegistered;
     private DateTimeOffset lastEcoBleRefreshUtc = DateTimeOffset.MinValue;
     private DateTimeOffset lastEcoBatteryPollUtc = DateTimeOffset.MinValue;
     public DesignStage Stage { get; } = new();
@@ -37,7 +38,10 @@ public sealed class ProductWindow : Window
         {
             var hwnd=new WindowInteropHelper(this).Handle;int preference=2;_=DwmSetWindowAttribute(hwnd,33,ref preference,sizeof(int));HwndSource.FromHwnd(hwnd)?.AddHook(WindowMessages);
             if(!ReviewSandbox.Active)
+            {
                 hapticsHotkeyRegistered = RegisterHotKey(hwnd, HapticsHotkeyId, 0x0001 | 0x0002 | 0x4000, 0x48);
+                tournamentHotkeyRegistered = RegisterHotKey(hwnd, TournamentHotkeyId, 0x0001 | 0x0002 | 0x4000, 0x54);
+            }
             GetCursorPos(out var cursor);var monitor=MonitorFromPoint(cursor,2);var info=ReadMonitor(monitor);
             if(info!=null)
             {
@@ -66,11 +70,12 @@ public sealed class ProductWindow : Window
         Closed+=async(_,_)=>{
             App.CloseAllTooltips();
             if(hapticsHotkeyRegistered){var hwnd=new WindowInteropHelper(this).Handle;if(hwnd!=IntPtr.Zero)UnregisterHotKey(hwnd,HapticsHotkeyId);hapticsHotkeyRegistered=false;}
+            if(tournamentHotkeyRegistered){var hwnd=new WindowInteropHelper(this).Handle;if(hwnd!=IntPtr.Zero)UnregisterHotKey(hwnd,TournamentHotkeyId);tournamentHotkeyRegistered=false;}
             tray?.Dispose();batteryTimer?.Stop();liveBatteryTimer?.Stop();Host.MouseMode?.Dispose();Host.PcMode?.Dispose();await Host.StopNativeEngineAsync();};
         // the tray icon (WinForms, about 0.1 s to start) comes once the window has drawn, so it never holds back the first frame
         if(trayIcon){Closing+=(_,e)=>{App.CloseAllTooltips();if(tray==null||tray.Quitting)return;e.Cancel=true;tray.HideToTray();};ContentRendered+=(_,_)=>Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle,new Action(()=>{
             if(tray!=null)return;tray=new TrayIcon(this);
-            if(Host.PcMode is{} pc){string Status()=>pc.State==PcModeState.Active?(pc.Suspended?"X20CTL · PC mode paused":"X20CTL · PC mode active"):"X20CTL · Controller Studio";tray.SetStatus(Status());pc.Changed+=()=>Dispatcher.BeginInvoke(()=>tray?.SetStatus(Status()));pc.Notice+=text=>Dispatcher.BeginInvoke(()=>tray?.Notify("PC mode",text));}
+            if(Host.PcMode is{} pc){string Status()=>pc.State==PcModeState.Active?(pc.TournamentMode?"X20CTL · Tournament Mode":pc.Suspended?"X20CTL · PC mode paused":"X20CTL · PC mode active"):"X20CTL · Controller Studio";tray.SetStatus(Status());pc.Changed+=()=>Dispatcher.BeginInvoke(()=>tray?.SetStatus(Status()));pc.Notice+=text=>Dispatcher.BeginInvoke(()=>tray?.Notify("PC mode",text));tray.AddToggle("Tournament / Clean Mode (Ctrl+Alt+T)",()=>pc.TournamentMode,on=>pc.TournamentMode=on);}
             if(Host.MouseMode is{} mouse){tray.AddToggle("Controller as mouse",()=>mouse.Active,on=>mouse.Active=on);mouse.Notice+=text=>Dispatcher.BeginInvoke(()=>tray?.Notify("Controller as mouse",text));}
             tray.AddToggle("Power Saving Mode (Eco)",()=>UniversalHapticsService.Store.Snapshot().PowerSavingMode,on=>UniversalHapticsService.SetPowerSavingMode(on));
             tray.AddToggle("Universal Haptics (Ctrl+Alt+H)",()=>UniversalHapticsService.IsRunning,on=>{if(on)UniversalHapticsService.Start();else UniversalHapticsService.Stop();});
@@ -163,6 +168,12 @@ public sealed class ProductWindow : Window
         if(message==0x0312 && wParam.ToInt32()==HapticsHotkeyId)
         {
             UniversalHapticsService.Toggle();
+            handled=true;
+            return IntPtr.Zero;
+        }
+        if(message==0x0312 && wParam.ToInt32()==TournamentHotkeyId && Host.PcMode is { } pcMode)
+        {
+            pcMode.TournamentMode = !pcMode.TournamentMode;
             handled=true;
             return IntPtr.Zero;
         }

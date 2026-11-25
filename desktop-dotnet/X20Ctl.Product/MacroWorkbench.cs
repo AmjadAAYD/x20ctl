@@ -76,6 +76,10 @@ public sealed class MacroWorkbench
     private static readonly Color PauseTone=ThemeCatalog.R(Color.FromRgb(150,165,192));
     private sealed record TriggerPick(string Key,string Value){public override string ToString()=>Value;}
     private readonly ComboBox trigger=new(){MinHeight=36,FontSize=14,SelectedValuePath="Key",ToolTip="PC mode can't see a back paddle. Pick the button that plays this slot; it plays the macro instead of its usual job."};
+    private readonly ComboBox loopMode=new(){MinHeight=34,Width=155,FontSize=13,ItemsSource=new[]{"Once","While held","Toggle on/off","Repeat N times"}};
+    private readonly ComboBox repeatCount=new(){MinHeight=34,Width=74,FontSize=13,ItemsSource=Enumerable.Range(1,20).ToArray()};
+    private readonly Slider jitterSlider=new(){Minimum=0,Maximum=30,Value=0,Width=110,TickFrequency=5,IsSnapToTickEnabled=true,VerticalAlignment=VerticalAlignment.Center,Style=DS.Style("DS.Slider")};
+    private readonly TextBlock jitterLabel=Kit.Text("+/- 0 ms",13,"DS.TextSoft").Also(t=>t.Margin=new(8,0,0,0));
     private static string TriggerShort(string b)=>b switch{"DPAD_UP"=>"D↑","DPAD_DOWN"=>"D↓","DPAD_LEFT"=>"D←","DPAD_RIGHT"=>"D→","SELECT"=>"View","START"=>"Menu","HOME"=>"Home",_=>b};
     private static string TriggerLabel(string b)=>b switch{"DPAD_UP"=>"D-pad up","DPAD_DOWN"=>"D-pad down","DPAD_LEFT"=>"D-pad left","DPAD_RIGHT"=>"D-pad right","SELECT"=>"View","START"=>"Menu","HOME"=>"Home","L3"=>"Left stick click","R3"=>"Right stick click","LB"=>"Left bumper","RB"=>"Right bumper","LT"=>"Left trigger","RT"=>"Right trigger",_=>b};
     private const string ReadOnly="Switch PC mode on to build macros for this controller: open the PC mode tab, turn it on, then come back here.";
@@ -240,8 +244,43 @@ public sealed class MacroWorkbench
         var timings=new StackPanel {Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Center};timingPage.Children.Add(timings);
         foreach(var (label,detail,box,isPause) in new[]{("Hold","How long the inputs stay pressed",hold,false),("Pause afterward","The gap before the next event",pause,true)})
         {
-            var panel=new StackPanel {Margin=new(30,0,30,0)};panel.Children.Add(Kit.Text(label,18,"DS.Text",FontWeights.SemiBold));panel.Children.Add(Kit.Text(detail,13.5,"DS.TextSoft"));var row=new StackPanel {Orientation=Orientation.Horizontal,Margin=new(0,12,0,0)};
-            var minus=Button("− 5",()=>AdjustTime(isPause,-5));var plus=Button("+ 5",()=>AdjustTime(isPause,5));minus.Width=plus.Width=58;row.Children.Add(minus);box.Width=104;box.Height=44;box.FontSize=22;box.TextAlignment=TextAlignment.Center;box.Margin=new(10,0,10,0);row.Children.Add(box);row.Children.Add(plus);row.Children.Add(Kit.Text("  ms",16,"DS.TextSoft"));panel.Children.Add(row);timings.Children.Add(panel);System.Windows.Automation.AutomationProperties.SetName(box,label+" milliseconds");box.LostKeyboardFocus+=(_,_)=>CommitTiming();
+            var panel=new StackPanel {Margin=new(20,0,20,0)};panel.Children.Add(Kit.Text(label,18,"DS.Text",FontWeights.SemiBold));panel.Children.Add(Kit.Text(detail,13.5,"DS.TextSoft"));var row=new StackPanel {Orientation=Orientation.Horizontal,Margin=new(0,12,0,0)};
+            var minus=Button("− 5",()=>AdjustTime(isPause,-5));var plus=Button("+ 5",()=>AdjustTime(isPause,5));minus.Width=plus.Width=58;row.Children.Add(minus);box.Width=96;box.Height=44;box.FontSize=22;box.TextAlignment=TextAlignment.Center;box.Margin=new(10,0,10,0);row.Children.Add(box);row.Children.Add(plus);row.Children.Add(Kit.Text("  ms",16,"DS.TextSoft"));panel.Children.Add(row);timings.Children.Add(panel);System.Windows.Automation.AutomationProperties.SetName(box,label+" milliseconds");box.LostKeyboardFocus+=(_,_)=>CommitTiming();
+        }
+        if (Draft.PcMode)
+        {
+            var loopPanel = new StackPanel { Margin = new(18, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center };
+            loopPanel.Children.Add(Kit.Text("PC loop & jitter", 16, "DS.Text", FontWeights.SemiBold));
+            loopPanel.Children.Add(new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Margin = new(0, 10, 0, 0),
+                Children = { loopMode, repeatCount.Also(r => r.Margin = new(8, 0, 0, 0)) }
+            });
+            loopPanel.Children.Add(new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Margin = new(0, 8, 0, 0),
+                Children = { Kit.Text("Jitter", 13, "DS.TextSoft").Also(t => t.Margin = new(0, 0, 8, 0)), jitterSlider, jitterLabel }
+            });
+            void SyncSlotOptions()
+            {
+                if (updating || !Draft.PcMode || !Draft.CanEdit) return;
+                var opts = new X20Ctl.Zone.PcMode.MacroOptions
+                {
+                    Mode = (X20Ctl.Zone.PcMode.MacroPlayMode)Math.Clamp(loopMode.SelectedIndex, 0, 3),
+                    RepeatCount = repeatCount.SelectedItem is int n ? n : 2,
+                    HumanJitterMs = (int)Math.Round(jitterSlider.Value),
+                };
+                repeatCount.Visibility = opts.Mode == X20Ctl.Zone.PcMode.MacroPlayMode.RepeatN ? Visibility.Visible : Visibility.Collapsed;
+                jitterLabel.Text = $"+/- {opts.HumanJitterMs} ms";
+                Draft.SetOptions(Slot, opts);
+                Changed?.Invoke();
+            }
+            loopMode.SelectionChanged += (_, _) => SyncSlotOptions();
+            repeatCount.SelectionChanged += (_, _) => SyncSlotOptions();
+            jitterSlider.ValueChanged += (_, _) => SyncSlotOptions();
+            timings.Children.Add(loopPanel);
         }
         duplicate=Button("Duplicate",Duplicate);
         var eventActions=new StackPanel {Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Center};actionsPage.Children.Add(eventActions);foreach(var button in new[]{earlier,later,duplicate,remove}){button.MinWidth=160;button.Height=46;button.Margin=new(10,0,10,0);eventActions.Children.Add(button);}
@@ -403,7 +442,19 @@ public sealed class MacroWorkbench
         if(SelectedIndex>=Draft[Slot].Count)SelectedIndex=Draft[Slot].Count-1;
         heading.Text=Slot+" · Sequence";summary.Text=$"Events {Draft[Slot].Count} · Capacity {Draft.EntryCount(Slot)} / 47 · {Draft.Duration(Slot)} ms";summary.ToolTip="Each hold uses one capacity unit; a nonzero following pause uses another. Hardware contents are unknown.";notice.Text=Draft.EntryCount(Slot)>=47?"Maximum sequence capacity reached.":applyToController!=null?"Apply to save on the controller.":"Local draft · Hold and pause timing are a sequence preview.";
         PaintSlots();foreach(var (key,shape) in paddles)shape.Illuminate(key==Slot,false);
-        if(Draft.PcMode){bool was=updating;updating=true;trigger.SelectedValue=Draft.Trigger(Slot)??"";updating=was;notice.Text=Draft.Trigger(Slot) is {} by?$"PC mode plays this when you press {TriggerLabel(by)}, instead of what {TriggerShort(by)} usually does.":Draft[Slot].Count>0?"Pick the button that plays this slot (left), or PC mode won't play it.":"PC mode · Add events, then pick the button that plays them.";}
+        if(Draft.PcMode)
+        {
+            bool was=updating;updating=true;
+            trigger.SelectedValue=Draft.Trigger(Slot)??"";
+            var opts=Draft.Options(Slot);
+            loopMode.SelectedIndex=(int)opts.Mode;
+            repeatCount.SelectedItem=Math.Clamp(opts.RepeatCount,1,20);
+            repeatCount.Visibility=opts.Mode==X20Ctl.Zone.PcMode.MacroPlayMode.RepeatN?Visibility.Visible:Visibility.Collapsed;
+            jitterSlider.Value=opts.HumanJitterMs;
+            jitterLabel.Text=$"+/- {opts.HumanJitterMs} ms";
+            updating=was;
+            notice.Text=Draft.Trigger(Slot) is {} by?$"PC mode plays this when you press {TriggerLabel(by)}, instead of what {TriggerShort(by)} usually does.":Draft[Slot].Count>0?"Pick the button that plays this slot (left), or PC mode won't play it.":"PC mode · Add events, then pick the button that plays them.";
+        }
         sequence.Children.Clear();steps.Clear();for(int i=0;i<Draft[Slot].Count;i++)
         {
             int index=i;var item=Draft[Slot][i];var content=new StackPanel {VerticalAlignment=VerticalAlignment.Center};

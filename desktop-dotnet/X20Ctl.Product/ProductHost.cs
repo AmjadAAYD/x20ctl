@@ -195,6 +195,12 @@ public sealed partial class ProductHost : Grid
         // the PS4 / Xbox choice survives a restart: PC mode switches itself back on at launch with the type picked last time
         if(preferencesHealthy)X20Ctl.Zone.PcMode.PcModeEntry.Chosen=X20Ctl.Zone.PcMode.PcModeEntry.FromSaved(preferences.PcModePad);
         PcMode=new(pcModeStore){Enabled=assignmentPath==null&&(!preferencesHealthy||preferences.PcMode)};
+        if (preferencesHealthy)
+        {
+            PcMode.AutoPauseOnDisconnect = preferences.AutoPauseOnDisconnect;
+            PcMode.CoPilotMirror = preferences.CoPilotMirror;
+            PcMode.TournamentMode = preferences.TournamentMode;
+        }
         PcMode.EnabledChanged+=()=>Studio?.PcModeEnabledChanged();
         MouseMode=new(assignmentPath==null?X20Ctl.Zone.Mouse.MouseProfile.DefaultPath:Path.Combine(Path.GetDirectoryName(Path.GetFullPath(assignmentPath))!,"mouse-fixture.json"),listen:assignmentPath==null){PcMode=PcMode};
         MouseMode.Changed+=()=>Dispatcher.BeginInvoke(()=>Studio?.MouseModeChanged());

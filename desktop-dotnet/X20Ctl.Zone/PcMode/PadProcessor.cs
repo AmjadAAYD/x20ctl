@@ -1,4 +1,45 @@
+using System.Text.Json.Serialization;
+
 namespace X20Ctl.Zone.PcMode;
+
+public enum SocdMode { Off, LastInput, Neutral }
+
+public enum TriggerPreset { Linear, HairTrigger, RacingThrottle, Sniper, DigitalClick }
+
+public enum MacroPlayMode { Once, WhileHeld, Toggle, RepeatN }
+
+/// <summary>Rapid-trigger, force-curve preset, and dual-stage output settings for one trigger (LT or RT).</summary>
+public sealed class TriggerTuning
+{
+    public TriggerPreset Preset { get; set; } = TriggerPreset.Linear;
+    public bool RapidTrigger { get; set; }
+    public int ActuationPct { get; set; } = 10;
+    public int ResetDeltaPct { get; set; } = 5;
+    public bool DualStage { get; set; }
+    public int HalfPullPct { get; set; } = 45;
+    public int FullPullPct { get; set; } = 92;
+    public string? FullPullOutput { get; set; }
+    [JsonIgnore] public bool IsDefault => Preset == TriggerPreset.Linear && !RapidTrigger && !DualStage && string.IsNullOrEmpty(FullPullOutput);
+}
+
+/// <summary>Hold-to-aim precision scaling and optional alternate curve applied to the right stick while held.</summary>
+public sealed class SniperModifier
+{
+    public bool Enabled { get; set; }
+    public string ModifierButton { get; set; } = "LT";
+    public int ScalePct { get; set; } = 55;
+    public SetupCurve? AlternateCurve { get; set; }
+    [JsonIgnore] public bool IsDefault => !Enabled;
+}
+
+/// <summary>Conditional loop & humanized +/- jitter options per macro trigger button.</summary>
+public sealed class MacroOptions
+{
+    public MacroPlayMode Mode { get; set; } = MacroPlayMode.Once;
+    public int RepeatCount { get; set; } = 2;
+    public int HumanJitterMs { get; set; } = 0;
+    [JsonIgnore] public bool IsDefault => Mode == MacroPlayMode.Once && HumanJitterMs == 0;
+}
 
 /// <summary>One Xbox-layout controller state, the shape XInput reads and a virtual Xbox pad is fed.</summary>
 public readonly record struct PadState(ushort Buttons, byte LeftTrigger, byte RightTrigger, short LeftX, short LeftY, short RightX, short RightY);
@@ -52,6 +93,18 @@ public sealed class PcModeProfile
     public int VibrationFloor { get; set; }
     public const int MaxVibration = 200, MaxVibrationFloor = 50;
 
+    /// <summary>SOCD / Snap Tap cleaning for D-Pad and Left Stick.</summary>
+    public SocdMode DPadSocd { get; set; } = SocdMode.Off;
+    public SocdMode LeftStickSocd { get; set; } = SocdMode.Off;
+    /// <summary>LT / RT rapid-trigger, preset curves, and dual-stage configuration.</summary>
+    public Dictionary<string, TriggerTuning> Triggers { get; set; } = new();
+    /// <summary>Hold-to-aim precision modifier for right stick.</summary>
+    public SniperModifier? Sniper { get; set; }
+    /// <summary>Per-trigger macro playback mode and jitter options.</summary>
+    public Dictionary<string, MacroOptions> MacroOptions { get; set; } = new();
+    /// <summary>PC-side virtual pad report rate cap in Hz (0 = uncapped, 250, 500, 750, 1000).</summary>
+    public int OutputRateHz { get; set; }
+
     /// <summary>What the real pad gets for a game's motor value (0-255): scaled, lifted to the floor, never past full power.</summary>
     public int ShapeRumble(int game, bool left)
     {
@@ -61,7 +114,14 @@ public sealed class PcModeProfile
         return (int)Math.Min(65535, Math.Max(level, VibrationFloor * 65535L / 100));
     }
 
-    public bool IsNeutral => Remap.Count == 0 && Keys.Count == 0 && Custom.Count == 0 && Combos.Count == 0 && Turbo.Count == 0 && Macros.Count == 0 && Curves.Values.All(IsDefault) && Sticks.Values.All(s => s.IsDefault) && Vibration == 100 && VibrationLeft == 100 && VibrationRight == 100 && VibrationFloor == 0;
+    public bool IsNeutral => Remap.Count == 0 && Keys.Count == 0 && Custom.Count == 0 && Combos.Count == 0 && Turbo.Count == 0 && Macros.Count == 0
+        && Curves.Values.All(IsDefault) && Sticks.Values.All(s => s.IsDefault)
+        && DPadSocd == SocdMode.Off && LeftStickSocd == SocdMode.Off
+        && Triggers.Values.All(t => t.IsDefault)
+        && (Sniper == null || Sniper.IsDefault)
+        && MacroOptions.Values.All(o => o.IsDefault)
+        && OutputRateHz == 0
+        && Vibration == 100 && VibrationLeft == 100 && VibrationRight == 100 && VibrationFloor == 0;
     public static bool IsDefault(SetupCurve c) => c.Inner == 0 && c.Outer == 100 && c.X1 == 85 && c.Y1 == 85 && c.X2 == 170 && c.Y2 == 170;
     public const int MinTurboHz = 2, MaxTurboHz = 30;
 
@@ -102,6 +162,28 @@ public sealed class PcModeProfile
             if (steps == null || steps.Length > 64 || steps.Any(s => s == null || s.Buttons == null || s.Buttons.Any(b => b == null) || s.Buttons.Any(b => !Known(b)) || s.HoldMs < 0 || s.PauseMs < 0 || s.HoldMs > 10000 || s.PauseMs > 10000))
                 throw new InvalidDataException("Invalid macro.");
         }
+        if (!Enum.IsDefined(DPadSocd) || !Enum.IsDefined(LeftStickSocd)) throw new InvalidDataException("Invalid SOCD mode.");
+        if (OutputRateHz is not (0 or 250 or 500 or 750 or 1000)) throw new InvalidDataException("Output rate must be uncapped or 250, 500, 750, or 1000 Hz.");
+        if (Triggers != null)
+        {
+            foreach (var (trig, tt) in Triggers)
+            {
+                if (trig is not ("LT" or "RT") || tt == null || !Enum.IsDefined(tt.Preset)
+                    || tt.ActuationPct is < 1 or > 90 || tt.ResetDeltaPct is < 1 or > 50
+                    || tt.HalfPullPct is < 10 or > 80 || tt.FullPullPct is < 50 or > 100 || tt.FullPullPct <= tt.HalfPullPct)
+                    throw new InvalidDataException("Invalid trigger tuning.");
+                if (!string.IsNullOrEmpty(tt.FullPullOutput) && !(Known(tt.FullPullOutput) || KeyCatalog.IsValid(tt.FullPullOutput)))
+                    throw new InvalidDataException("Unknown dual-stage trigger output.");
+            }
+        }
+        if (Sniper != null && (!Known(Sniper.ModifierButton) || Sniper.ScalePct is < 15 or > 100))
+            throw new InvalidDataException("Invalid sniper modifier.");
+        if (MacroOptions != null)
+        {
+            foreach (var (trig, mo) in MacroOptions)
+                if (!Known(trig) || mo == null || !Enum.IsDefined(mo.Mode) || mo.RepeatCount is < 1 or > 99 || mo.HumanJitterMs is < 0 or > 30)
+                    throw new InvalidDataException("Invalid macro options.");
+        }
     }
     static bool Known(string name) => name is "LT" or "RT" || PadButtons.Mask.ContainsKey(name);
 }
@@ -136,9 +218,11 @@ public sealed class StickTuning
     public double AntiDeadzone { get; set; }
     /// <summary>The most the game gets at full push (60–100%).</summary>
     public double MaxOutput { get; set; } = 100;
+    /// <summary>Continuously estimates tiny resting bias (&lt;= 6%) and recenters without raising dead zones.</summary>
+    public bool AutoCenterDrift { get; set; }
     /// <summary>Pure raw 1:1: the stick passes through untouched; its curve, dead zones and the rest are ignored.</summary>
     public bool Raw { get; set; }
-    [System.Text.Json.Serialization.JsonIgnore] public bool IsDefault => Inner == 0 && Outer == 100 && !SquareGate && AxisRatio == 100 && AntiDeadzone == 0 && MaxOutput == 100 && !Raw;
+    [System.Text.Json.Serialization.JsonIgnore] public bool IsDefault => Inner == 0 && Outer == 100 && !SquareGate && AxisRatio == 100 && AntiDeadzone == 0 && MaxOutput == 100 && !AutoCenterDrift && !Raw;
 }
 
 /// <summary>
@@ -149,32 +233,102 @@ public sealed class PadProcessor
 {
     static readonly string[] Names = [.. PadButtons.Mask.Keys, "LT", "RT"];
     readonly PcModeProfile profile;
+    readonly Func<int, int, int> jitterRng;
     readonly Dictionary<string, long> turboSince = new();
     readonly HashSet<string> previous = new();
-    SetupMacro[]? playing; long playingSince;
+    SetupMacro[]? playing; long playingSince; string? playingTrigger; int playingRemainingLoops; SetupMacro[]? jitteredPlaying;
+    readonly HashSet<string> toggledMacros = new();
     ChordEngine? combos; readonly Dictionary<string, long> comboPulse = new(); readonly HashSet<string> comboHeld = new();
     const int ComboPulseMs = 60;
     readonly List<(string Action, bool Down)> actions = new();
+
+    // SOCD state tracking for D-Pad and Left Stick
+    int dpadLastH, dpadLastV; ushort prevDpad;
+    int stickLastH, stickLastV; double prevStickX, prevStickY;
+
+    // Rapid-trigger & dual-stage state
+    sealed class TriggerState { public bool Actuated; public byte MinSeen = 255, MaxSeen; public bool DualKeyHeld; }
+    readonly TriggerState ltState = new(), rtState = new();
+
+    // Drift auto-compensator state (capped at <= 6%)
+    sealed class DriftState { public double BiasX, BiasY, LastX, LastY; public int RestCount; }
+    readonly DriftState leftDrift = new(), rightDrift = new();
+
     /// <summary>Keyboard and mouse actions the combos asked for since the last call, in order. The caller sends them to Windows.</summary>
     public IReadOnlyList<(string Action, bool Down)> TakeActions() { var copy = actions.ToArray(); actions.Clear(); return copy; }
 
-    public PadProcessor(PcModeProfile profile) { profile.Validate(); this.profile = profile; }
+    public PadProcessor(PcModeProfile profile, Func<int, int, int>? jitterRng = null)
+    {
+        profile.Validate();
+        this.profile = profile;
+        this.jitterRng = jitterRng ?? ((min, max) => Random.Shared.Next(min, max + 1));
+    }
     public bool PlayingMacro => playing != null;
+
+    public static PadState MergeCoPilot(PadState primary, PadState secondary)
+    {
+        ushort buttons = (ushort)(primary.Buttons | secondary.Buttons);
+        byte lt = Math.Max(primary.LeftTrigger, secondary.LeftTrigger);
+        byte rt = Math.Max(primary.RightTrigger, secondary.RightTrigger);
+        static (short X, short Y) PickStick(short ax, short ay, short bx, short by)
+        {
+            double am = (double)ax * ax + (double)ay * ay;
+            double bm = (double)bx * bx + (double)by * by;
+            if (am > 9000000 && bm > 9000000)
+                return ((short)Math.Clamp(ax + bx, -32768, 32767), (short)Math.Clamp(ay + by, -32768, 32767));
+            return bm > am ? (bx, by) : (ax, ay);
+        }
+        var (lx, ly) = PickStick(primary.LeftX, primary.LeftY, secondary.LeftX, secondary.LeftY);
+        var (rx, ry) = PickStick(primary.RightX, primary.RightY, secondary.RightX, secondary.RightY);
+        return new(buttons, lt, rt, lx, ly, rx, ry);
+    }
 
     public PadState Process(PadState input, long nowMs)
     {
+        ushort cleanButtons = CleanDpadSocd(input.Buttons);
         var down = new Dictionary<string, byte>();
-        foreach (var (name, mask) in PadButtons.Mask) if ((input.Buttons & mask) != 0) down[name] = 255;
+        foreach (var (name, mask) in PadButtons.Mask) if ((cleanButtons & mask) != 0) down[name] = 255;
         if (input.LeftTrigger > PadButtons.TriggerThreshold) down["LT"] = input.LeftTrigger;
         if (input.RightTrigger > PadButtons.TriggerThreshold) down["RT"] = input.RightTrigger;
 
-        // a macro starts on the press (not while held) and plays once; its trigger button is kept from the game
-        foreach (var (trigger, steps) in profile.Macros)
-            if (down.ContainsKey(trigger) && !previous.Contains(trigger) && playing == null && steps.Length > 0) { playing = steps; playingSince = nowMs; }
         var raw = down.Keys.ToHashSet();
+
+        // Conditional macros: Once, WhileHeld, Toggle, RepeatN + optional humanized jitter
+        foreach (var (trigger, steps) in profile.Macros)
+        {
+            if (steps.Length == 0) continue;
+            bool isDown = raw.Contains(trigger), wasDown = previous.Contains(trigger);
+            var opts = profile.MacroOptions.GetValueOrDefault(trigger);
+            var mode = opts?.Mode ?? MacroPlayMode.Once;
+
+            if (mode == MacroPlayMode.Toggle)
+            {
+                if (isDown && !wasDown)
+                {
+                    if (!toggledMacros.Add(trigger))
+                    {
+                        toggledMacros.Remove(trigger);
+                        if (playingTrigger == trigger) { playing = null; jitteredPlaying = null; playingTrigger = null; }
+                    }
+                    else if (playing == null)
+                    {
+                        StartMacro(trigger, steps, 1, opts?.HumanJitterMs ?? 0, nowMs);
+                    }
+                }
+            }
+            else if (isDown && !wasDown && playing == null)
+            {
+                int loops = mode == MacroPlayMode.RepeatN ? Math.Clamp(opts?.RepeatCount ?? 1, 1, 99) : 1;
+                StartMacro(trigger, steps, loops, opts?.HumanJitterMs ?? 0, nowMs);
+            }
+            if (mode == MacroPlayMode.WhileHeld && !isDown && playingTrigger == trigger)
+            {
+                playing = null; jitteredPlaying = null; playingTrigger = null;
+            }
+        }
         foreach (var trigger in profile.Macros.Keys) down.Remove(trigger);
         KeyboardOutputs(down, nowMs);
-        var comboOut = ApplyCombos(input.Buttons, nowMs, down);
+        var comboOut = ApplyCombos(cleanButtons, nowMs, down);
 
         var target = new Dictionary<string, byte>();
         foreach (var (source, value) in down)
@@ -199,15 +353,50 @@ public sealed class PadProcessor
             if (((long)((nowMs - since) / half) & 1) == 1) target.Remove(button);
         }
 
-        short lx = input.LeftX, ly = input.LeftY, rx = input.RightX, ry = input.RightY;
-        (lx, ly) = Stick(lx, ly, Curve(CurveChannel.LeftStick), Tuning("LeftStick"));
-        (rx, ry) = Stick(rx, ry, Curve(CurveChannel.RightStick), Tuning("RightStick"));
+        var lTune = Tuning("LeftStick");
+        var rTune = Tuning("RightStick");
+        (short rawLx, short rawLy) = CleanStickSocd(input.LeftX, input.LeftY);
+        if (lTune?.AutoCenterDrift == true) (rawLx, rawLy) = CompensateDrift(rawLx, rawLy, leftDrift);
+        short rInX = input.RightX, rInY = input.RightY;
+        if (rTune?.AutoCenterDrift == true) (rInX, rInY) = CompensateDrift(rInX, rInY, rightDrift);
+
+        (short lx, short ly) = Stick(rawLx, rawLy, Curve(CurveChannel.LeftStick), lTune);
+        var rCurve = Curve(CurveChannel.RightStick);
+        bool sniperActive = profile.Sniper is { Enabled: true } sn && raw.Contains(sn.ModifierButton);
+        if (sniperActive && profile.Sniper!.AlternateCurve is { } altCurve)
+            rCurve = altCurve;
+        (short rx, short ry) = Stick(rInX, rInY, rCurve, rTune);
+        if (sniperActive)
+        {
+            double s = Math.Clamp(profile.Sniper!.ScalePct / 100.0, 0.15, 1.0);
+            rx = ToShort(rx / 32767.0 * s);
+            ry = ToShort(ry / 32767.0 * s);
+        }
 
         if (playing != null)
         {
-            var step = StepAt(nowMs - playingSince, out bool holding);
-            if (step == null) playing = null;
-            else if (holding)
+            var seq = jitteredPlaying ?? playing;
+            var step = StepAt(seq, nowMs - playingSince, out bool holding);
+            if (step == null)
+            {
+                var finishedTrigger = playingTrigger!;
+                var opts = profile.MacroOptions.GetValueOrDefault(finishedTrigger);
+                var mode = opts?.Mode ?? MacroPlayMode.Once;
+                bool keepWhileHeld = mode == MacroPlayMode.WhileHeld && raw.Contains(finishedTrigger);
+                bool keepToggle = mode == MacroPlayMode.Toggle && toggledMacros.Contains(finishedTrigger);
+                bool keepRepeat = mode == MacroPlayMode.RepeatN && playingRemainingLoops > 1;
+                if (keepWhileHeld || keepToggle || keepRepeat)
+                {
+                    int nextLoops = keepRepeat ? playingRemainingLoops - 1 : 1;
+                    StartMacro(finishedTrigger, playing, nextLoops, opts?.HumanJitterMs ?? 0, nowMs);
+                    step = StepAt(jitteredPlaying ?? playing, 0, out holding);
+                }
+                else
+                {
+                    playing = null; jitteredPlaying = null; playingTrigger = null;
+                }
+            }
+            if (playing != null && step != null && holding)
             {
                 foreach (var b in step.Buttons) target[b] = 255;
                 if (step.Left != StickHeading.Neutral) (lx, ly) = Heading(step.Left);
@@ -215,12 +404,160 @@ public sealed class PadProcessor
             }
         }
 
+        byte ltRaw = target.GetValueOrDefault("LT");
+        byte rtRaw = target.GetValueOrDefault("RT");
+        byte lt = ShapeTrigger("LT", ltRaw, Curve(CurveChannel.LeftTrigger), profile.Triggers.GetValueOrDefault("LT"), ltState, target);
+        byte rt = ShapeTrigger("RT", rtRaw, Curve(CurveChannel.RightTrigger), profile.Triggers.GetValueOrDefault("RT"), rtState, target);
+
         previous.Clear(); foreach (var name in raw) previous.Add(name);
 
         ushort buttons = 0;
         foreach (var (name, mask) in PadButtons.Mask) if (target.ContainsKey(name)) buttons |= mask;
-        byte lt = Trigger(target.GetValueOrDefault("LT"), Curve(CurveChannel.LeftTrigger)), rt = Trigger(target.GetValueOrDefault("RT"), Curve(CurveChannel.RightTrigger));
         return new(buttons, lt, rt, lx, ly, rx, ry);
+    }
+
+    void StartMacro(string trigger, SetupMacro[] steps, int loops, int jitterMs, long nowMs)
+    {
+        playing = steps;
+        playingTrigger = trigger;
+        playingRemainingLoops = loops;
+        playingSince = nowMs;
+        if (jitterMs > 0)
+        {
+            jitteredPlaying = steps.Select(s => s with
+            {
+                HoldMs = s.HoldMs > 0 ? Math.Clamp(s.HoldMs + jitterRng(-jitterMs, jitterMs), 5, 10000) : 0,
+                PauseMs = s.PauseMs > 0 ? Math.Clamp(s.PauseMs + jitterRng(-jitterMs, jitterMs), 5, 10000) : 0,
+            }).ToArray();
+        }
+        else
+        {
+            jitteredPlaying = steps;
+        }
+    }
+
+    ushort CleanDpadSocd(ushort buttons)
+    {
+        if (profile.DPadSocd == SocdMode.Off) { prevDpad = buttons; return buttons; }
+        bool left = (buttons & PadButtons.Left) != 0, right = (buttons & PadButtons.Right) != 0;
+        bool wasL = (prevDpad & PadButtons.Left) != 0, wasR = (prevDpad & PadButtons.Right) != 0;
+        if (left && !wasL) dpadLastH = -1; else if (right && !wasR) dpadLastH = 1;
+        else if (!left && !right) dpadLastH = 0;
+
+        bool up = (buttons & PadButtons.Up) != 0, down = (buttons & PadButtons.Down) != 0;
+        bool wasU = (prevDpad & PadButtons.Up) != 0, wasD = (prevDpad & PadButtons.Down) != 0;
+        if (up && !wasU) dpadLastV = 1; else if (down && !wasD) dpadLastV = -1;
+        else if (!up && !down) dpadLastV = 0;
+        prevDpad = buttons;
+
+        if (left && right)
+        {
+            buttons = (ushort)(buttons & ~(PadButtons.Left | PadButtons.Right));
+            if (profile.DPadSocd == SocdMode.LastInput)
+                buttons |= dpadLastH >= 0 ? PadButtons.Right : PadButtons.Left;
+        }
+        if (up && down)
+        {
+            buttons = (ushort)(buttons & ~(PadButtons.Up | PadButtons.Down));
+            if (profile.DPadSocd == SocdMode.LastInput)
+                buttons |= dpadLastV >= 0 ? PadButtons.Up : PadButtons.Down;
+        }
+        return buttons;
+    }
+
+    (short X, short Y) CleanStickSocd(short x, short y)
+    {
+        if (profile.LeftStickSocd == SocdMode.Off) return (x, y);
+        const double thresh = 0.35;
+        double nx = x / 32768.0, ny = y / 32768.0;
+        if (Math.Abs(nx) > thresh && Math.Sign(nx) != Math.Sign(prevStickX)) stickLastH = Math.Sign(nx);
+        if (Math.Abs(ny) > thresh && Math.Sign(ny) != Math.Sign(prevStickY)) stickLastV = Math.Sign(ny);
+        prevStickX = nx; prevStickY = ny;
+        // If opposing digital clean was triggered quickly across zero in one poll, Neutral or LastInput holds cleanly
+        if (Math.Abs(nx) < 0.08) stickLastH = 0;
+        if (Math.Abs(ny) < 0.08) stickLastV = 0;
+        if (profile.LeftStickSocd == SocdMode.Neutral && (Math.Abs(nx) > thresh && stickLastH != 0 && Math.Sign(nx) != stickLastH))
+            x = 0;
+        return (x, y);
+    }
+
+    static (short X, short Y) CompensateDrift(short x, short y, DriftState drift)
+    {
+        double nx = x / 32768.0, ny = y / 32768.0;
+        double r = Math.Sqrt(nx * nx + ny * ny);
+        double delta = Math.Sqrt((nx - drift.LastX) * (nx - drift.LastX) + (ny - drift.LastY) * (ny - drift.LastY));
+        drift.LastX = nx; drift.LastY = ny;
+        if (r < 0.08 && delta < 0.015)
+        {
+            drift.RestCount++;
+            double alpha = drift.RestCount < 40 ? 0.02 : 0.04;
+            drift.BiasX += (nx - drift.BiasX) * alpha;
+            drift.BiasY += (ny - drift.BiasY) * alpha;
+            double bMag = Math.Sqrt(drift.BiasX * drift.BiasX + drift.BiasY * drift.BiasY);
+            if (bMag > 0.06) { drift.BiasX *= 0.06 / bMag; drift.BiasY *= 0.06 / bMag; }
+        }
+        if (drift.RestCount < 20) return (x, y);
+        return (ToShort(Math.Clamp(nx - drift.BiasX, -1, 1)), ToShort(Math.Clamp(ny - drift.BiasY, -1, 1)));
+    }
+
+    byte ShapeTrigger(string name, byte value, SetupCurve? curve, TriggerTuning? tuning, TriggerState st, Dictionary<string, byte> target)
+    {
+        byte shaped = Trigger(value, curve);
+        if (tuning == null || tuning.IsDefault) return shaped;
+
+        double norm = shaped / 255.0;
+        norm = tuning.Preset switch
+        {
+            TriggerPreset.HairTrigger => norm < 0.02 ? 0.0 : Math.Clamp((norm - 0.02) / 0.35, 0.0, 1.0),
+            TriggerPreset.RacingThrottle => Math.Pow(norm, 1.6),
+            TriggerPreset.Sniper => norm < 0.35 ? 0.0 : Math.Clamp((norm - 0.35) / 0.65, 0.0, 1.0),
+            TriggerPreset.DigitalClick => norm >= 0.15 ? 1.0 : 0.0,
+            _ => norm,
+        };
+        shaped = (byte)Math.Clamp(Math.Round(norm * 255.0), 0, 255);
+
+        if (tuning.RapidTrigger)
+        {
+            int actDelta = Math.Max(3, (int)Math.Round(tuning.ActuationPct * 2.55));
+            int relDelta = Math.Max(3, (int)Math.Round(tuning.ResetDeltaPct * 2.55));
+            if (value == 0) { st.Actuated = false; st.MinSeen = 255; st.MaxSeen = 0; }
+            if (!st.Actuated)
+            {
+                if (value < st.MinSeen) st.MinSeen = value;
+                if (value - st.MinSeen >= actDelta || value >= actDelta + 5)
+                {
+                    st.Actuated = true;
+                    st.MaxSeen = value;
+                }
+            }
+            else
+            {
+                if (value > st.MaxSeen) st.MaxSeen = value;
+                if (st.MaxSeen - value >= relDelta || value == 0)
+                {
+                    st.Actuated = false;
+                    st.MinSeen = value;
+                }
+            }
+            shaped = st.Actuated ? (byte)255 : (byte)0;
+        }
+
+        if (tuning.DualStage && !string.IsNullOrEmpty(tuning.FullPullOutput))
+        {
+            double pct = value / 2.55;
+            bool full = st.DualKeyHeld ? pct >= tuning.FullPullPct - 5 : pct >= tuning.FullPullPct;
+            if (PadButtons.Mask.ContainsKey(tuning.FullPullOutput))
+            {
+                st.DualKeyHeld = full;
+                if (full) target[tuning.FullPullOutput] = 255;
+            }
+            else if (full != st.DualKeyHeld)
+            {
+                st.DualKeyHeld = full;
+                actions.Add((tuning.FullPullOutput, full));
+            }
+        }
+        return shaped;
     }
 
     readonly HashSet<string> keyHeld = new();
@@ -259,6 +596,12 @@ public sealed class PadProcessor
         var ups = new List<(string, bool)>();
         foreach (var button in keyHeld) if (profile.Keys.TryGetValue(button, out var output)) ups.Add((output, false));
         foreach (var (steps, _, sent) in running.Values) if (sent % 2 == 1) ups.Add((steps[sent / 2].Output, false));
+        if (ltState.DualKeyHeld && profile.Triggers.TryGetValue("LT", out var ltCfg) && !string.IsNullOrEmpty(ltCfg.FullPullOutput) && !PadButtons.Mask.ContainsKey(ltCfg.FullPullOutput))
+            ups.Add((ltCfg.FullPullOutput, false));
+        if (rtState.DualKeyHeld && profile.Triggers.TryGetValue("RT", out var rtCfg) && !string.IsNullOrEmpty(rtCfg.FullPullOutput) && !PadButtons.Mask.ContainsKey(rtCfg.FullPullOutput))
+            ups.Add((rtCfg.FullPullOutput, false));
+        ltState.DualKeyHeld = rtState.DualKeyHeld = false;
+        toggledMacros.Clear(); playing = null; jitteredPlaying = null; playingTrigger = null;
         keyHeld.Clear(); running.Clear(); actions.Clear();
         return ups;
     }
@@ -293,10 +636,10 @@ public sealed class PadProcessor
     StickTuning? Tuning(string stick) => profile.Sticks.TryGetValue(stick, out var s) && !s.IsDefault ? s : null;
     SetupCurve? Curve(CurveChannel channel) => profile.Curves.TryGetValue(channel.ToString(), out var c) && !PcModeProfile.IsDefault(c) ? c : null;
 
-    SetupMacro? StepAt(long elapsed, out bool holding)
+    static SetupMacro? StepAt(SetupMacro[] seq, long elapsed, out bool holding)
     {
         long at = 0;
-        foreach (var step in playing!)
+        foreach (var step in seq)
         {
             if (elapsed < at + step.HoldMs) { holding = true; return step; }
             at += step.HoldMs;

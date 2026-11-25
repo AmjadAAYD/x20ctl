@@ -1,3 +1,5 @@
+using X20Ctl.Zone.PcMode;
+
 namespace X20Ctl.Zone;
 
 public enum StickHeading { Neutral, Up, UpRight, Right, DownRight, Down, DownLeft, Left, UpLeft }
@@ -27,6 +29,19 @@ public sealed class MacroDraft(string modelId)
     private readonly Dictionary<string,string?> triggers=(PhysicalSlotsFor(modelId) is { Length: > 0 } own ? own : Slots).ToDictionary(s=>s,_=>(string?)null);
     public static readonly string[] TriggerInputs=[..Inputs,"HOME"];
     public string? Trigger(string slot)=>triggers[slot];
+    private readonly Dictionary<string, MacroOptions> options = (PhysicalSlotsFor(modelId) is { Length: > 0 } own ? own : Slots).ToDictionary(s => s, _ => new MacroOptions());
+    public MacroOptions Options(string slot) => options.TryGetValue(slot, out var o) ? o : new MacroOptions();
+    public void SetOptions(string slot, MacroOptions value)
+    {
+        if (!CanEdit) throw new InvalidOperationException("Macro configuration is unverified for this model.");
+        if (!options.ContainsKey(slot)) throw new ArgumentException("Unknown macro slot.", nameof(slot));
+        options[slot] = new MacroOptions
+        {
+            Mode = value.Mode,
+            RepeatCount = Math.Clamp(value.RepeatCount, 1, 99),
+            HumanJitterMs = Math.Clamp(value.HumanJitterMs, 0, 30),
+        };
+    }
     /// <summary>One button plays one slot: giving a button to a slot takes it from any other.</summary>
     public void SetTrigger(string slot,string? button)
     {

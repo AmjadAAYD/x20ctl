@@ -66,6 +66,22 @@ public sealed class PcModeService : IDisposable
     public bool Suspended { get => suspended; set { suspended = value; Changed?.Invoke(); } }
     /// <summary>The controller is the mouse right now: games get a resting controller, so clicks don't also press A.</summary>
     public bool Mute { get => mute; set => mute = value; }
+    volatile bool tournamentMode, autoPauseOnDisconnect, coPilotMirror;
+    public bool TournamentMode
+    {
+        get => tournamentMode;
+        set
+        {
+            if (tournamentMode == value) return;
+            tournamentMode = value;
+            if (value && UniversalHapticsService.IsRunning)
+                UniversalHapticsService.Stop();
+            Changed?.Invoke();
+            Notice?.Invoke(value ? "Tournament / Clean Mode enabled: macros, turbo, SOCD, rapid-trigger, and Haptics paused." : "Tournament Mode off: PC profile processing resumed.");
+        }
+    }
+    public bool AutoPauseOnDisconnect { get => autoPauseOnDisconnect; set { autoPauseOnDisconnect = value; Changed?.Invoke(); } }
+    public bool CoPilotMirror { get => coPilotMirror; set { coPilotMirror = value; Changed?.Invoke(); } }
     /// <summary>The profile was edited: pick it up on the next loop.</summary>
     public void Reload() => reload = true;
     volatile bool rebuild;
@@ -95,6 +111,7 @@ public sealed class PcModeService : IDisposable
         public PadProcessor? Processor;
         /// <summary>The store key this pad's settings come from: its player's every-game or game settings.</summary>
         public string Key = "";
+        public double LastUpdateMs;
         public readonly X20Ctl.Zone.Mouse.HoldCombo Toggle = new(PadButtons.Back | PadButtons.Start, 1000);
     }
 
@@ -131,7 +148,8 @@ public sealed class PcModeService : IDisposable
             string who = pairs.Count == 1 ? $"Games see one {kind} controller" : $"Games see {pairs.Count} {kind} controllers, one for each of yours";
             var gamePad = pairs.FirstOrDefault(p => PcModeStore.IsGame(p.Key));
             string which = gamePad == null ? "" : $" · {ProfileOf(gamePad.Key).Name ?? ActiveKey[PcModeStore.GamePrefix.Length..]} settings";
-            return suspended ? $"Your settings are switched off for now (you held View + Menu). Hold them again for a second to switch them back on."
+            return tournamentMode ? "Tournament / Clean Mode active: macros, turbo, SOCD, rapid-trigger, and Universal Haptics paused."
+                : suspended ? "Your settings are switched off for now (you held View + Menu). Hold them again for a second to switch them back on."
                 : $"Active{which}. {who} with your settings. Close X20CTL and it goes back to normal.";
         }
         try
@@ -216,26 +234,56 @@ public sealed class PcModeService : IDisposable
                 }
 
                 bool lost = false;
-                foreach (var pair in pairs)
+                for (int pi = 0; pi < pairs.Count; pi++)
                 {
+                    var pair = pairs[pi];
                     if (!reader.Read(pair.Real, out var s)) { lost = true; break; }
                     var input = new PadState(s.Pad.Buttons, s.Pad.LT, s.Pad.RT, s.Pad.LX, s.Pad.LY, s.Pad.RX, s.Pad.RY);
-                    if (pair.Toggle.Update(input.Buttons, clock.ElapsedMilliseconds) && !mute) // the mouse owns the controller while muted
+                    if (coPilotMirror && pi == 0)
+                    {
+                        for (int extra = 0; extra < 4; extra++)
+                        {
+                            if (extra != pair.Real && !IsVirtual(extra) && reader.Read(extra, out var s2))
+                                input = PadProcessor.MergeCoPilot(input, new PadState(s2.Pad.Buttons, s2.Pad.LT, s2.Pad.RT, s2.Pad.LX, s2.Pad.LY, s2.Pad.RX, s2.Pad.RY));
+                        }
+                    }
+                    double elapsedMs = clock.Elapsed.TotalMilliseconds;
+                    if (pair.Toggle.Update(input.Buttons, (long)elapsedMs) && !mute) // the mouse owns the controller while muted
                     {
                         suspended = !suspended; Set(PcModeState.Active, ActiveText());
                         Notice?.Invoke(suspended ? "PC mode settings off. Hold View + Menu again to switch them on." : "PC mode settings on.");
                     }
+                    var prof = ProfileOf(pair.Key);
                     PadState output;
                     if (mute) { LetGo(pair); output = default; }
-                    else if (suspended) { LetGo(pair); output = input; }
-                    else { pair.Processor ??= new PadProcessor(ProfileOf(pair.Key)); output = pair.Processor.Process(input, clock.ElapsedMilliseconds); foreach (var (action, down) in pair.Processor.TakeActions()) MouseOutput.Output(action, down); }
-                    pair.Pad.Shape = mute || suspended ? null : ProfileOf(pair.Key);
-                    try { pair.Pad.Update(output); Applied++; if (pair == pairs[0]) Volatile.Write(ref snapshot, new Snapshot(input, output, Applied)); }
-                    catch (Exception error) when (error is not OutOfMemoryException) { Teardown(); Set(PcModeState.NeedsAttention, "The virtual controller stopped answering: " + error.Message); Thread.Sleep(1000); lost = false; break; }
+                    else if (suspended || tournamentMode) { LetGo(pair); output = input; }
+                    else { pair.Processor ??= new PadProcessor(prof); output = pair.Processor.Process(input, (long)elapsedMs); foreach (var (action, down) in pair.Processor.TakeActions()) MouseOutput.Output(action, down); }
+                    pair.Pad.Shape = (mute || suspended || tournamentMode) ? null : prof;
+
+                    int capHz = prof.OutputRateHz;
+                    bool shouldSubmit = mute || capHz <= 0 || pair.LastUpdateMs <= 0 || (elapsedMs - pair.LastUpdateMs) >= (1000.0 / capHz);
+                    if (shouldSubmit)
+                    {
+                        try { pair.Pad.Update(output); pair.LastUpdateMs = elapsedMs; Applied++; if (pair == pairs[0]) Volatile.Write(ref snapshot, new Snapshot(input, output, Applied)); }
+                        catch (Exception error) when (error is not OutOfMemoryException) { Teardown(); Set(PcModeState.NeedsAttention, "The virtual controller stopped answering: " + error.Message); Thread.Sleep(1000); lost = false; break; }
+                    }
                 }
                 Volatile.Write(ref routes,pairs.Select(p=>new Route(p.Real,p.Real,p.Pad.Slot,p.Key)).ToArray());
-                // a pad went away: start over, so the others carry on and it rejoins when it's back
-                if (lost) { Teardown(); Thread.Sleep(100); continue; }
+                // a pad went away: optionally pause the active game, then start over so remaining controllers continue
+                if (lost)
+                {
+                    if (autoPauseOnDisconnect && !ReviewSandbox.Active)
+                    {
+                        var front = ForegroundApp.Exe;
+                        if (!string.IsNullOrEmpty(front) && !front.Contains("x20ctl", StringComparison.OrdinalIgnoreCase))
+                        {
+                            MouseOutput.Act(X20Ctl.Zone.Mouse.MouseAction.Escape, true);
+                            MouseOutput.Act(X20Ctl.Zone.Mouse.MouseAction.Escape, false);
+                            Notice?.Invoke("Controller disconnected: sent Esc pause key to foreground game.");
+                        }
+                    }
+                    Teardown(); Thread.Sleep(100); continue;
+                }
                 if (pairs.Count > 0 && clock.ElapsedMilliseconds >= nextJoin)
                 {
                     nextJoin = clock.ElapsedMilliseconds + 1000;

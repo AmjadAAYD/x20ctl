@@ -22,7 +22,7 @@ public sealed partial class StickToolsPanel : Border
     static readonly (string Name, CurveChannel Channel)[] Sticks = [("Left stick", CurveChannel.LeftStick), ("Right stick", CurveChannel.RightStick)];
     static readonly int[] TablePoints = [5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
     readonly PcModeLink link;
-    sealed record Row(Slider Inner, Slider Outer, Slider Anti, Slider Max, CheckBox Square, CheckBox Raw, Slider Ratio, TextBlock Table, Panel Tuning);
+    sealed record Row(Slider Inner, Slider Outer, Slider Anti, Slider Max, CheckBox Square, CheckBox DriftComp, CheckBox Raw, Slider Ratio, TextBlock Table, Panel Tuning);
     readonly Dictionary<CurveChannel, Row> rows = new();
     readonly Dictionary<CurveChannel,Border> cards=new();
     readonly Dictionary<CurveChannel,Canvas> charts=new();
@@ -80,6 +80,7 @@ public sealed partial class StickToolsPanel : Border
             var anti = Fine(0, StickTuning.MaxAnti, 0); var max = Fine(StickTuning.MinOuter, 100, 100);
             var innerText = Value("0.0%"); var outerText = Value("100.0%"); var antiText = Value("0.0%"); var maxText = Value("100.0%");
             var square = new CheckBox { Style = DS.Style("DS.Toggle"), VerticalAlignment = VerticalAlignment.Center };
+            var driftComp = new CheckBox { Style = DS.Style("DS.Toggle"), VerticalAlignment = VerticalAlignment.Center };
             var rawBox = new CheckBox { Style = DS.Style("DS.Toggle"), VerticalAlignment = VerticalAlignment.Center };
             var ratio = new Slider { Minimum = StickTuning.MinRatio, Maximum = StickTuning.MaxRatio, Width = 170, Value = 100, TickFrequency = 5, IsSnapToTickEnabled = true, SmallChange = 5, LargeChange = 10, VerticalAlignment = VerticalAlignment.Center };
             var ratioText = Value("100%");
@@ -89,6 +90,7 @@ public sealed partial class StickToolsPanel : Border
             anti.ValueChanged += (_, _) => { antiText.Text = $"{anti.Value:0.0}%"; Changed(); };
             max.ValueChanged += (_, _) => { maxText.Text = $"{max.Value:0.0}%"; Changed(); };
             square.Checked += (_, _) => Changed(); square.Unchecked += (_, _) => Changed();
+            driftComp.Checked += (_, _) => Changed(); driftComp.Unchecked += (_, _) => Changed();
             rawBox.Checked += (_, _) => Changed(); rawBox.Unchecked += (_, _) => Changed();
             ratio.ValueChanged += (_, _) => { ratioText.Text = $"{ratio.Value:0}%"; Changed(); };
             var other = channel == CurveChannel.LeftStick ? CurveChannel.RightStick : CurveChannel.LeftStick;
@@ -106,8 +108,10 @@ public sealed partial class StickToolsPanel : Border
                 new StackPanel { Orientation = Orientation.Horizontal, Margin = new(0, 10, 0, 0), Children = {
                     square, Kit.Text("Gate: ○ Circular / □ Square", 14, "DS.TextSoft").Also(t => { t.Margin = new(10, 0, 0, 0); t.VerticalAlignment = VerticalAlignment.Center; t.ToolTip = "Diagonals reach full on both axes, as on a square-gated stick"; }),
                     Label("Vertical sensitivity", 30).Also(t => t.ToolTip = "Scales the Y-axis output relative to X. It applies to analog stick input, after the response curve."), ratio, ratioText } },
+                new StackPanel { Orientation = Orientation.Horizontal, Margin = new(0, 10, 0, 0), Children = {
+                    driftComp, Kit.Text("Auto-Compensate Resting Drift (<= 6%)", 14, "DS.TextSoft").Also(t => { t.Margin = new(10, 0, 0, 0); t.VerticalAlignment = VerticalAlignment.Center; t.ToolTip = "Continuously recenters slow resting stick bias up to 6% without inflating inner dead zone"; }) } },
                 PresetRow(channel) } };
-            rows[channel] = new(inner, outer, anti, max, square, rawBox, ratio, table, tuning);
+            rows[channel] = new(inner, outer, anti, max, square, driftComp, rawBox, ratio, table, tuning);
             var card=new Border { CornerRadius = new(14), Padding = new(20, 16, 20, 16), Margin = new(0, 18, 0, 0), Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(90, 4, 8, 20))),
                 Child = new StackPanel { Children = {
                     title,
@@ -117,8 +121,9 @@ public sealed partial class StickToolsPanel : Border
                     tuning, Preview(channel),table } } };cards[channel]=card;stack.Children.Add(card);
         }
 
+        AttachCompetitiveLab(stack);
         var reset = Pill("Reset selected advanced settings"); reset.Margin = new(12, 0, 0, 0);
-        reset.Click += (_, _) => { loading = true; foreach (var r in rows.Where(pair=>pair.Key==selectedStick||linkSticks.IsChecked==true).Select(pair=>pair.Value)) { r.Inner.Value = 0; r.Outer.Value = 100; r.Anti.Value = 0; r.Max.Value = 100; r.Square.IsChecked = false; r.Raw.IsChecked = false; r.Ratio.Value = 100; } loading = false; Changed(); };
+        reset.Click += (_, _) => { loading = true; foreach (var r in rows.Where(pair=>pair.Key==selectedStick||linkSticks.IsChecked==true).Select(pair=>pair.Value)) { r.Inner.Value = 0; r.Outer.Value = 100; r.Anti.Value = 0; r.Max.Value = 100; r.Square.IsChecked = false; r.DriftComp.IsChecked = false; r.Raw.IsChecked = false; r.Ratio.Value = 100; } loading = false; Changed(); };
         measure = Pill("Measure drift"); measure.Margin = new(12, 0, 0, 0); measure.ToolTip = "Release both sticks for 5 seconds. Review observed centre deviation before applying recommendations.";
         measure.Click += async (_, _) => await MeasureDrift();
         Done = Pill("Done"); Done.Click += (_, _) => close();
@@ -144,8 +149,9 @@ public sealed partial class StickToolsPanel : Border
             // with no fine settings yet, start from PC mode's whole-percent dead zones so nothing jumps
             r.Inner.Value = t?.Inner ?? curve?.Inner ?? 0; r.Outer.Value = t?.Outer ?? curve?.Outer ?? 100;
             r.Anti.Value = t?.AntiDeadzone ?? 0; r.Max.Value = t?.MaxOutput ?? 100;
-            r.Square.IsChecked = t?.SquareGate == true; r.Raw.IsChecked = t?.Raw == true; r.Ratio.Value = t?.AxisRatio ?? 100;
+            r.Square.IsChecked = t?.SquareGate == true; r.DriftComp.IsChecked = t?.AutoCenterDrift == true; r.Raw.IsChecked = t?.Raw == true; r.Ratio.Value = t?.AxisRatio ?? 100;
         }
+        LoadAdvancedLab(p);
         loading = false; UpdateTables(p);
         foreach (var r in rows.Values) r.Tuning.IsEnabled = r.Raw.IsChecked != true;
     }
@@ -156,11 +162,12 @@ public sealed partial class StickToolsPanel : Border
         foreach (var (channel, r) in rows)
         {
             var t = new StickTuning { Inner = Math.Round(r.Inner.Value, 1), Outer = Math.Round(r.Outer.Value, 1), AntiDeadzone = Math.Round(r.Anti.Value, 1), MaxOutput = Math.Round(r.Max.Value, 1),
-                SquareGate = r.Square.IsChecked == true, Raw = r.Raw.IsChecked == true, AxisRatio = (int)Math.Round(r.Ratio.Value) };
+                SquareGate = r.Square.IsChecked == true, AutoCenterDrift = r.DriftComp.IsChecked == true, Raw = r.Raw.IsChecked == true, AxisRatio = (int)Math.Round(r.Ratio.Value) };
             // the outer and max sliders start at 60%, the inner and anti ones end at 40%, so these only clash at the seams
             if (t.Inner >= t.Outer) t.Inner = Math.Round(t.Outer - .1, 1); if (t.AntiDeadzone >= t.MaxOutput) t.AntiDeadzone = Math.Round(t.MaxOutput - .1, 1);
             if (!t.IsDefault) p.Sticks[channel.ToString()] = t;
         }
+        SaveAdvancedLab(p);
         return p;
     }
 
@@ -237,7 +244,7 @@ public sealed partial class StickToolsPanel : Border
     }
     void ApplyMeasured(){if(sampled is not {} result)return;loading=true;rows[CurveChannel.LeftStick].Inner.Value=result.Left.RecommendedInner;rows[CurveChannel.RightStick].Inner.Value=result.Right.RecommendedInner;loading=false;Changed();applyDrift.Visibility=Visibility.Collapsed;}
     static string StickName(CurveChannel c)=>c==CurveChannel.LeftStick?"Left stick":"Right stick";
-    static void CopyValues(Row a,Row b){b.Inner.Value=a.Inner.Value;b.Outer.Value=a.Outer.Value;b.Anti.Value=a.Anti.Value;b.Max.Value=a.Max.Value;b.Square.IsChecked=a.Square.IsChecked;b.Raw.IsChecked=a.Raw.IsChecked;b.Ratio.Value=a.Ratio.Value;}
+    static void CopyValues(Row a,Row b){b.Inner.Value=a.Inner.Value;b.Outer.Value=a.Outer.Value;b.Anti.Value=a.Anti.Value;b.Max.Value=a.Max.Value;b.Square.IsChecked=a.Square.IsChecked;b.DriftComp.IsChecked=a.DriftComp.IsChecked;b.Raw.IsChecked=a.Raw.IsChecked;b.Ratio.Value=a.Ratio.Value;}
     public void SelectStick(CurveChannel c){selectedStick=c;foreach(var pair in cards)pair.Value.Visibility=pair.Key==c?Visibility.Visible:Visibility.Collapsed;UpdateTables(Build());}
     UIElement Preview(CurveChannel channel){var canvas=new Canvas{Width=720,Height=165,ClipToBounds=true};charts[channel]=canvas;return new Viewbox{Child=canvas,Stretch=Stretch.Uniform,MaxHeight=165,HorizontalAlignment=HorizontalAlignment.Left,Margin=new(0,14,0,0)};}
     public void ShowLive(double leftX,double leftY,double rightX,double rightY){live=true;lx=leftX;ly=leftY;rx=rightX;ry=rightY;UpdateTables(Build());}
