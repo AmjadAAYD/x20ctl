@@ -21,41 +21,49 @@ def test_sync_updates_obsidian_bg_slices_and_plain_twin(tmp_path):
     shutil.copytree(src_root / "assets/readme/bg", tmp_path / "assets/readme/bg")
 
     mod = load_sync()
-    assert not mod.sync(tmp_path, "v0.025")
+    match = re.search(
+        r"nav_1\.svg\?v=release-(v\d+\.\d+(?:\.\d+)?)",
+        (tmp_path / "README.md").read_text(encoding="utf-8"),
+    )
+    assert match, "Expected release cache-buster tag on README nav_1 image"
+    current_tag = match.group(1)
+    current_ver = mod.release_name(current_tag)
 
-    assert mod.sync(tmp_path, "v0.026")
+    assert not mod.sync(tmp_path, current_tag)
+
+    assert mod.sync(tmp_path, "v0.099")
     md_text = (tmp_path / "README.md").read_text(encoding="utf-8")
     plain_text = (tmp_path / "README.plain.md").read_text(encoding="utf-8")
 
-    assert "https://github.com/AmjadAAYD/x20ctl/releases/tag/v0.026" in md_text
-    assert "nav_1.svg?v=release-v0.026" in md_text
-    assert 'alt="Download V0.026"' in md_text
-    assert "https://github.com/AmjadAAYD/x20ctl/releases/download/v0.026/SHA256SUMS.txt" in md_text
+    assert "https://github.com/AmjadAAYD/x20ctl/releases/tag/v0.099" in md_text
+    assert "nav_1.svg?v=release-v0.099" in md_text
+    assert 'alt="Download V0.099"' in md_text
+    assert "https://github.com/AmjadAAYD/x20ctl/releases/download/v0.099/SHA256SUMS.txt" in md_text
     for asset in (
-        "X20CTL-V0.026-windows-x64-setup.exe",
-        "X20CTL-V0.026-windows-x64.exe",
-        "X20CTL-V0.026-linux-x86_64.AppImage",
-        "X20CTL-V0.026-linux-x86_64.flatpak",
-        "X20CTL-V0.026-linux-x64.tar.gz",
-        "X20CTL-V0.026-linux-musl-x64.tar.gz",
-        "X20CTL-V0.026-linux-check.zip",
+        "X20CTL-V0.099-windows-x64-setup.exe",
+        "X20CTL-V0.099-windows-x64.exe",
+        "X20CTL-V0.099-linux-x86_64.AppImage",
+        "X20CTL-V0.099-linux-x86_64.flatpak",
+        "X20CTL-V0.099-linux-x64.tar.gz",
+        "X20CTL-V0.099-linux-musl-x64.tar.gz",
+        "X20CTL-V0.099-linux-check.zip",
     ):
-        url = f"https://github.com/AmjadAAYD/x20ctl/releases/download/v0.026/{asset}"
+        url = f"https://github.com/AmjadAAYD/x20ctl/releases/download/v0.099/{asset}"
         assert url in md_text
         assert url in plain_text
         assert f"[`{asset}`]" in plain_text
 
-    assert "v0.025" not in md_text and "V0.025" not in md_text
-    assert "v0.025" not in plain_text and "V0.025" not in plain_text
-    assert "V0.026" in (tmp_path / "assets/readme/bg/hero.svg").read_text(encoding="utf-8")
-    assert "Download V0.026" in (tmp_path / "assets/readme/bg/nav_1.svg").read_text(encoding="utf-8")
-    assert "DOWNLOAD - V0.026" in (tmp_path / "assets/readme/bg/download_head.svg").read_text(encoding="utf-8")
-    assert "TAG v0.026" in (tmp_path / "assets/readme/bg/download_head.svg").read_text(encoding="utf-8")
-    assert "V0.026" in (tmp_path / "assets/readme/bg/end.svg").read_text(encoding="utf-8")
+    assert current_tag not in md_text and current_ver not in md_text
+    assert current_tag not in plain_text and current_ver not in plain_text
+    assert "V0.099" in (tmp_path / "assets/readme/bg/hero.svg").read_text(encoding="utf-8")
+    assert "Download V0.099" in (tmp_path / "assets/readme/bg/nav_1.svg").read_text(encoding="utf-8")
+    assert "DOWNLOAD - V0.099" in (tmp_path / "assets/readme/bg/download_head.svg").read_text(encoding="utf-8")
+    assert "TAG v0.099" in (tmp_path / "assets/readme/bg/download_head.svg").read_text(encoding="utf-8")
+    assert "V0.099" in (tmp_path / "assets/readme/bg/end.svg").read_text(encoding="utf-8")
 
-    assert not mod.sync(tmp_path, "v0.026")
-    assert mod.sync(tmp_path, "v0.026.1")
-    assert "X20CTL-V0.026.1-linux-x86_64.flatpak" in (tmp_path / "assets/readme/bg/dl_lin1_2.svg").read_text(encoding="utf-8")
+    assert not mod.sync(tmp_path, "v0.099")
+    assert mod.sync(tmp_path, "v0.099.1")
+    assert "X20CTL-V0.099.1-linux-x86_64.flatpak" in (tmp_path / "assets/readme/bg/dl_lin1_2.svg").read_text(encoding="utf-8")
 
 
 def test_invalid_tag_does_not_modify_files(tmp_path):
