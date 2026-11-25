@@ -36,6 +36,14 @@ public sealed partial class DiagnosticsWorkbench
     StackPanel? benchmarkRowsPanel;
     TextBlock? benchmarkNoteText;
 
+    // Session analytics, stick heatmaps & Aim Trainer UI
+    readonly SessionInputTracker sessionTracker = new();
+    Canvas? leftHeatmapCanvas, rightHeatmapCanvas;
+    TextBlock? sessionStatsText;
+
+    internal void RecordSessionSample(PadState pad, long nowMs) => sessionTracker.Sample(pad, nowMs);
+    internal void ResetSessionAnalytics() => sessionTracker.Reset();
+
     void AttachHealthAndLab(StackPanel page, DockPanel head, Action<Button> register, bool compact)
     {
         if (compact) return;
@@ -91,6 +99,9 @@ public sealed partial class DiagnosticsWorkbench
         Grid.SetColumn(benchCard, 2);
         row2.Children.Add(benchCard);
         labBody.Children.Add(row2);
+
+        // Row 3: Session Input Heatmap, APM & Stick Aim Trainer
+        labBody.Children.Add(BuildSessionHeatmapCard(register).Also(c => c.Margin = new(0, 14, 0, 0)));
 
         labExpander = new Expander
         {
@@ -227,6 +238,89 @@ public sealed partial class DiagnosticsWorkbench
 
         return Kit.Panel("Transport Benchmark Comparison", "Side-by-side Wired vs 2.4 GHz vs Bluetooth", null,
             new StackPanel { Children = { actions, benchmarkNoteText, benchmarkRowsPanel } });
+    }
+
+    Border BuildSessionHeatmapCard(Action<Button> register)
+    {
+        leftHeatmapCanvas = new Canvas { Width = 112, Height = 112, ClipToBounds = true, Background = Dark };
+        rightHeatmapCanvas = new Canvas { Width = 112, Height = 112, ClipToBounds = true, Background = Dark };
+
+        sessionStatsText = Wrap("Move sticks or press buttons to track APM, travel distance, and 16x16 dwell heatmaps.", 12.5, "DS.TextSoft", 0);
+        var resetBtn = Pill("Reset Session");
+        resetBtn.Height = 32;
+        resetBtn.Padding = new(12, 0, 12, 0);
+        resetBtn.Margin = new(0, 8, 8, 0);
+        resetBtn.Click += (_, _) => { sessionTracker.Reset(); RefreshSessionHeatmapUi(); };
+        register(resetBtn);
+
+        var aimBtn = Pill("Launch Aim Trainer");
+        aimBtn.Height = 32;
+        aimBtn.Padding = new(12, 0, 12, 0);
+        aimBtn.Margin = new(0, 8, 0, 0);
+        aimBtn.Click += (_, _) =>
+        {
+            if (ReviewSandbox.Active) return;
+            new Overlays.AimTrainerWindow().ShowDialog();
+        };
+        register(aimBtn);
+
+        var mapsRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Children =
+            {
+                new StackPanel { Margin = new(0, 0, 14, 0), Children = { Kit.Text("L Stick Heatmap", 11.5, "DS.TextMuted").Also(t => t.Margin = new(0, 0, 0, 4)), leftHeatmapCanvas } },
+                new StackPanel { Margin = new(0, 0, 18, 0), Children = { Kit.Text("R Stick Heatmap", 11.5, "DS.TextMuted").Also(t => t.Margin = new(0, 0, 0, 4)), rightHeatmapCanvas } },
+                new StackPanel
+                {
+                    VerticalAlignment = VerticalAlignment.Center,
+                    MaxWidth = 520,
+                    Children =
+                    {
+                        sessionStatsText,
+                        new WrapPanel { Children = { resetBtn, aimBtn } }
+                    }
+                }
+            }
+        };
+        return Kit.Panel("Session Input Heatmap & Aim Trainer", "Live APM, stick travel & 16x16 dwell intensity", null, mapsRow);
+    }
+
+    void RefreshSessionHeatmapUi()
+    {
+        DrawHeatmapCanvas(leftHeatmapCanvas, sessionTracker.CopyLeftHeatmap());
+        DrawHeatmapCanvas(rightHeatmapCanvas, sessionTracker.CopyRightHeatmap());
+        if (sessionStatsText == null) return;
+        int apm = sessionTracker.ActionsPerMinute(Environment.TickCount64);
+        var top = sessionTracker.TopButtons(4);
+        string topStr = top.Count == 0 ? "None yet" : string.Join(", ", top.Select(t => $"{t.Button} ({t.Count})"));
+        sessionStatsText.Text = $"Presses: {sessionTracker.TotalButtonPresses:N0} · Live APM: {apm} · Travel L/R: {sessionTracker.LeftStickDistance:0.0} / {sessionTracker.RightStickDistance:0.0} · Top: {topStr}";
+    }
+
+    static void DrawHeatmapCanvas(Canvas? canvas, int[,] grid)
+    {
+        if (canvas == null) return;
+        canvas.Children.Clear();
+        int bins = SessionInputTracker.HeatmapBins;
+        int max = 1;
+        for (int r = 0; r < bins; r++)
+            for (int c = 0; c < bins; c++)
+                if (grid[r, c] > max) max = grid[r, c];
+
+        double cell = canvas.Width / bins;
+        for (int r = 0; r < bins; r++)
+        {
+            for (int c = 0; c < bins; c++)
+            {
+                int val = grid[r, c];
+                if (val <= 0) continue;
+                byte alpha = (byte)Math.Clamp(35 + (int)Math.Round(220.0 * Math.Sqrt(val / (double)max)), 35, 255);
+                var rect = new Rectangle { Width = cell, Height = cell, Fill = Blue(alpha) };
+                Canvas.SetLeft(rect, c * cell);
+                Canvas.SetTop(rect, r * cell);
+                canvas.Children.Add(rect);
+            }
+        }
     }
 
     void ApplyRecommendedNoiseDeadZones()
@@ -493,6 +587,7 @@ public sealed partial class DiagnosticsWorkbench
                 ? "Release both sticks to collect resting scatter samples within +/-15%."
                 : $"Left ({lSamples} pts): Peak {lPeak:0.2}%, RMS {lRms:0.2}% -> Safe DZ {lRec:0.1}%\nRight ({rSamples} pts): Peak {rPeak:0.2}%, RMS {rRms:0.2}% -> Safe DZ {rRec:0.1}%";
         }
+        RefreshSessionHeatmapUi();
     }
 
     void DrawNoiseRing(Canvas? canvas, IReadOnlyList<(double X, double Y)> pts, double recPct)

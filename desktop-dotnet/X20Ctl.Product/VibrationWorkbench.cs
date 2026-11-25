@@ -1090,6 +1090,52 @@ public sealed class VibrationWorkbench
             recoilGrid.Children.Add(rb);
         }
         tuningCardStack.Children.Add(recoilGrid);
+
+        var hapShareGrid = new System.Windows.Controls.Primitives.UniformGrid { Columns = 2, Margin = new(-3, 8, -3, 0) };
+        var expHapBtn = makeButton("Export .x20hap", () =>
+        {
+            var prof = ResolveEditingProfile();
+            var payload = new X20Ctl.Zone.HapticsSharePayload
+            {
+                Name = $"X20CTL {HapticsProfileLabels.ProfileName(prof)}",
+                GameExe = UniversalHapticsService.DetectedExe,
+                Genre = prof,
+                Tuning = UniversalHapticsService.Store.GetTuning(prof),
+                AppCalibration = UniversalHapticsService.Store.GetAppTuning(ResolveCalibAppKey()),
+            };
+            var dlg = new Microsoft.Win32.SaveFileDialog { Filter = "X20CTL Haptics Profile (*.x20hap)|*.x20hap", FileName = "haptics.x20hap", AddExtension = true };
+            if (dlg.ShowDialog() != true) return;
+            System.IO.File.WriteAllText(dlg.FileName, X20Ctl.Zone.HapticsShare.ToJson(payload));
+            universalStatusText.Text = $"Exported {System.IO.Path.GetFileName(dlg.FileName)}";
+        }, "DS.ConsoleBtn");
+        var impHapBtn = makeButton("Import .x20hap", () =>
+        {
+            var dlg = new Microsoft.Win32.OpenFileDialog { Filter = "X20CTL Haptics Profile (*.x20hap)|*.x20hap|All files|*.*" };
+            if (dlg.ShowDialog() != true) return;
+            try
+            {
+                var payload = X20Ctl.Zone.HapticsShare.FromJson(System.IO.File.ReadAllText(dlg.FileName));
+                UniversalHapticsService.Store.SetTuning(payload.Genre, payload.Tuning, persist: true);
+                UniversalHapticsService.Store.UpdateSettings(c => c.ManualProfile = payload.Genre, persist: true);
+                if (payload.AppCalibration != null)
+                    UniversalHapticsService.Store.SetAppTuning(payload.GameExe ?? ResolveCalibAppKey(), payload.AppCalibration, persist: true);
+                UniversalHapticsService.NotifySettingsChanged();
+                universalStatusText.Text = $"Imported {(payload.Name ?? System.IO.Path.GetFileName(dlg.FileName))}";
+            }
+            catch (Exception ex) when (ex is System.IO.IOException or System.IO.InvalidDataException)
+            {
+                universalStatusText.Text = ex.Message;
+            }
+        }, "DS.ConsoleBtn");
+        foreach (var b in new[] { expHapBtn, impHapBtn })
+        {
+            b.HorizontalAlignment = HorizontalAlignment.Stretch;
+            b.Margin = new(3);
+            b.MinHeight = 30;
+            b.FontSize = 11.5;
+            hapShareGrid.Children.Add(b);
+        }
+        tuningCardStack.Children.Add(hapShareGrid);
         stack.Children.Add(MakeBentoCard(tuningCardStack, new(0)));
 
         return stack;

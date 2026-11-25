@@ -154,9 +154,15 @@ public sealed partial class StickToolsPanel
             }
         });
 
-        // 4. A/B Blind Test
+        // 4. A/B Blind Test & Aim Trainer
+        var aimTrainerBtn = Pill("Launch Aim Trainer"); aimTrainerBtn.Height = 32; aimTrainerBtn.Padding = new(12, 0, 12, 0); aimTrainerBtn.Margin = new(8, 0, 0, 6);
+        aimTrainerBtn.Click += (_, _) =>
+        {
+            if (ReviewSandbox.Active) return;
+            new Overlays.AimTrainerWindow().ShowDialog();
+        };
         lab.Children.Add(Kit.Text("A/B CURVE BLIND TEST (RIGHT STICK)", 12, "DS.TextSoft", FontWeights.SemiBold).Also(t => t.Margin = new(0, 16, 0, 6)));
-        lab.Children.Add(new WrapPanel { Children = { snapA, snapB, abToggleBtn, abRevealBtn } });
+        lab.Children.Add(new WrapPanel { Children = { snapA, snapB, abToggleBtn, abRevealBtn, aimTrainerBtn } });
         lab.Children.Add(abStatusText);
 
         var expander = new Expander

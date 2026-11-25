@@ -450,16 +450,32 @@ public sealed partial class PcModePage : Border
 
 
         var share = new WrapPanel { Margin = new(0, 12, 0, 0) };
-        foreach (var (label, act) in new (string, Action)[] { ("Save to a file", ExportFile), ("Open a file", ImportFile), ("Copy as a code", CopyCode), ("Paste a code", PasteCode) })
+        foreach (var (label, act) in new (string, Action)[] { ("Save to a file", ExportFile), ("Open a file", ImportFile), ("Copy as a code", CopyCode), ("Paste a code", PasteCode), ("Copy full bundle", CopyFullBundle), ("Paste full bundle", PasteFullBundle) })
         { var b = Pill(label); b.Margin = new(0, 0, 12, 8); b.Click += (_, _) => act(); share.Children.Add(b); }
         int shareAt = stack.Children.Count;
         stack.Children.Add(share);
+
+        backupListPanel = new StackPanel { Margin = new(0, 8, 0, 0) };
+        var takeSnapBtn = Pill("Take Snapshot"); takeSnapBtn.Height = 34; takeSnapBtn.FontSize = 13; takeSnapBtn.Padding = new(14, 0, 14, 0);
+        takeSnapBtn.Click += (_, _) => { TakeAutoSnapshot("Manual snapshot"); RefreshBackupList(); if (saved != null) saved.Text = "Saved backup snapshot."; };
+        var backupContent = new StackPanel
+        {
+            Margin = new(0, 8, 0, 0),
+            Children =
+            {
+                Wrap("Rolling 10-snapshot history saved automatically before imports, bundle restores, and profile resets.", 13.5, "DS.TextSoft", 0),
+                new StackPanel { Orientation = Orientation.Horizontal, Margin = new(0, 8, 0, 0), Children = { takeSnapBtn } },
+                backupListPanel,
+            }
+        };
+        stack.Children.Add(new Expander { Header = "Snapshots & Auto-Backups", IsExpanded = false, Content = backupContent, Margin = new(0, 12, 0, 0) });
+        RefreshBackupList();
 
         var reset = Pill($"Reset Player {Player+1} profile"); reset.Margin = new(0, 24, 12, 0);
         reset.ToolTip = "Clears every PC mode setting for what's picked under Settings for: buttons, curves, stick tools, macros and turbo";
         var confirm=new StackPanel{Visibility=Visibility.Collapsed,Margin=new(0,12,0,0)};
         confirm.Children.Add(Wrap("Reset the selected player's current PC profile? This clears its buttons, curves, stick tools, macros and turbo. Other player profiles and controller hardware are unchanged.",14,"DS.TextSoft",0));
-        var yes=Pill("Reset selected profile");yes.Click+=(_,_)=>{try{store.StartOverIfUnreadable();}catch(Exception error) when(error is IOException or UnauthorizedAccessException){saved.Text="Couldn't reset: "+error.Message;return;}loading=true;Fill(new());loading=false;clearAll=true;Persist();clearAll=false;confirm.Visibility=Visibility.Collapsed;};confirm.Children.Add(yes);
+        var yes=Pill("Reset selected profile");yes.Click+=(_,_)=>{try{store.StartOverIfUnreadable();}catch(Exception error) when(error is IOException or UnauthorizedAccessException){saved.Text="Couldn't reset: "+error.Message;return;}TakeAutoSnapshot("Before reset");RefreshBackupList();loading=true;Fill(new());loading=false;clearAll=true;Persist();clearAll=false;confirm.Visibility=Visibility.Collapsed;};confirm.Children.Add(yes);
         var no=Pill("Cancel");no.Click+=(_,_)=>confirm.Visibility=Visibility.Collapsed;confirm.Children.Add(no);stack.Children.Add(confirm);
         reset.Click += (_, _) => confirm.Visibility=Visibility.Visible;
         back.Margin = new(0, 24, 12, 0);if(editButtons!=null)back.Visibility=Visibility.Collapsed;
@@ -732,9 +748,118 @@ public sealed partial class PcModePage : Border
         catch (System.Runtime.InteropServices.ExternalException) { saved.Text = "The clipboard is busy. Try again."; }
     }
 
+    readonly ProfileBackupRing backupRing = new();
+    StackPanel? backupListPanel;
+
+    void TakeAutoSnapshot(string reason)
+    {
+        try
+        {
+            string pcJson = System.Text.Json.JsonSerializer.Serialize(store.Get(StoreKey));
+            backupRing.CreateSnapshot(reason, pcJson);
+        }
+        catch { }
+    }
+
+    void RefreshBackupList()
+    {
+        if (backupListPanel == null) return;
+        backupListPanel.Children.Clear();
+        var snaps = backupRing.ListSnapshots();
+        if (snaps.Count == 0)
+        {
+            backupListPanel.Children.Add(Wrap("No snapshots saved yet.", 13, "DS.TextMuted", 4));
+            return;
+        }
+        foreach (var entry in snaps)
+        {
+            string id = entry.Id;
+            var row = new DockPanel { Margin = new(0, 4, 0, 4) };
+            var del = Pill("Delete"); del.Height = 30; del.FontSize = 12; del.Padding = new(10, 0, 10, 0); del.Margin = new(6, 0, 0, 0);
+            del.Click += (_, _) => { backupRing.DeleteSnapshot(id); RefreshBackupList(); };
+            var restore = Pill("Restore"); restore.Height = 30; restore.FontSize = 12; restore.Padding = new(10, 0, 10, 0);
+            restore.Click += (_, _) => RestoreSnapshot(id);
+            DockPanel.SetDock(del, Dock.Right);
+            DockPanel.SetDock(restore, Dock.Right);
+            row.Children.Add(del);
+            row.Children.Add(restore);
+            row.Children.Add(Kit.Text($"{entry.CreatedUtc.ToLocalTime():yyyy-MM-dd HH:mm:ss} · {entry.Reason}", 13, "DS.Text").Also(t => { t.VerticalAlignment = VerticalAlignment.Center; t.TextTrimming = TextTrimming.CharacterEllipsis; }));
+            backupListPanel.Children.Add(row);
+        }
+    }
+
+    void RestoreSnapshot(string id)
+    {
+        var snap = backupRing.ReadSnapshot(id);
+        if (snap == null) { saved.Text = "Snapshot could not be read."; return; }
+        try
+        {
+            var profile = System.Text.Json.JsonSerializer.Deserialize<PcModeProfile>(snap.PcModeJson);
+            if (profile == null) { saved.Text = "Snapshot is empty."; return; }
+            profile.Validate();
+            Apply(profile, $"snapshot ({snap.CreatedUtc.ToLocalTime():HH:mm})");
+        }
+        catch (Exception ex) when (ex is System.Text.Json.JsonException or InvalidDataException)
+        {
+            saved.Text = "Snapshot was damaged: " + ex.Message;
+        }
+    }
+
+    void CopyFullBundle()
+    {
+        try
+        {
+            var cfg = UniversalHapticsService.Store.Snapshot();
+            var genre = cfg.ManualProfile == X20Ctl.Zone.Lighting.HapticsGenreProfile.Off ? X20Ctl.Zone.Lighting.HapticsGenreProfile.Auto : cfg.ManualProfile;
+            var bundle = new FullSetupBundle
+            {
+                Label = StoreKey == PcModeStore.DefaultKey ? "Full Setup" : StoreKey,
+                PcMode = Build(),
+                Lighting = LightingEffectsService.CurrentSpec,
+                HapticsGenre = genre,
+                Haptics = UniversalHapticsService.Store.GetTuning(genre),
+            };
+            Clipboard.SetText(ShareBundle.ToCode(bundle));
+            saved.Text = "Full setup bundle copied (PC mode + RGB + Haptics).";
+        }
+        catch (Exception ex) when (ex is System.Runtime.InteropServices.ExternalException or InvalidDataException)
+        {
+            saved.Text = "Could not copy bundle: " + ex.Message;
+        }
+    }
+
+    async void PasteFullBundle()
+    {
+        try
+        {
+            string text = Clipboard.ContainsText() ? Clipboard.GetText() : "";
+            var bundle = ShareBundle.FromCode(text);
+            if (bundle.PcMode != null) Apply(bundle.PcMode, "full bundle");
+            if (bundle.Haptics != null)
+            {
+                var genre = bundle.HapticsGenre ?? X20Ctl.Zone.Lighting.HapticsGenreProfile.Auto;
+                UniversalHapticsService.Store.SetTuning(genre, bundle.Haptics, persist: true);
+                UniversalHapticsService.Store.UpdateSettings(c => c.ManualProfile = genre, persist: true);
+                UniversalHapticsService.NotifySettingsChanged();
+            }
+            if (bundle.Lighting != null && !UniversalHapticsService.IsPowerSavingActive)
+            {
+                await LightingEffectsService.ApplyAsync(bundle.Lighting);
+            }
+            saved.Text = "Full setup bundle restored.";
+        }
+        catch (InvalidDataException error) { saved.Text = error.Message; }
+        catch (System.Runtime.InteropServices.ExternalException) { saved.Text = "The clipboard is busy. Try again."; }
+    }
+
     /// <summary>Shared settings replace the ones being edited (every game's, or this game's), through the same save.</summary>
     void Apply(PcModeProfile shared, string from)
     {
+        if (!from.StartsWith("snapshot", StringComparison.Ordinal))
+        {
+            TakeAutoSnapshot($"Before {from}");
+            RefreshBackupList();
+        }
         incoming = shared; loading = true; Fill(shared); loading = false;
         Persist();
         if (!pendingSave) saved.Text = $"Settings from the {from} are in. " + saved.Text;

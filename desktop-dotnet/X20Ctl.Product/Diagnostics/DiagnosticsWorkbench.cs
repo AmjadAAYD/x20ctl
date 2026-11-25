@@ -152,7 +152,7 @@ public sealed partial class DiagnosticsWorkbench
 
     void Clear()
     {
-        lock (gate) { left.Reset(); right.Reset(); lt.Reset(); rt.Reset(); leftNoise.Reset(); rightNoise.Reset(); ltLinear.Reset(); rtLinear.Reset(); presses.Reset(); changes.Reset(); reads.Reset(); seen = false; }
+        lock (gate) { left.Reset(); right.Reset(); lt.Reset(); rt.Reset(); leftNoise.Reset(); rightNoise.Reset(); ltLinear.Reset(); rtLinear.Reset(); ResetSessionAnalytics(); presses.Reset(); changes.Reset(); reads.Reset(); seen = false; }
         raw?.Reset();driftResult=null;driftDetails.Text="";
     }
 
@@ -172,6 +172,7 @@ public sealed partial class DiagnosticsWorkbench
                         reads.Add(now);left.Add(state.Pad.LX,state.Pad.LY);right.Add(state.Pad.RX,state.Pad.RY);lt.Add(state.Pad.LT);rt.Add(state.Pad.RT);
                         leftNoise.Add(state.Pad.LX,state.Pad.LY);rightNoise.Add(state.Pad.RX,state.Pad.RY);
                         ltLinear.Add(state.Pad.LT);rtLinear.Add(state.Pad.RT);
+                        RecordSessionSample(new X20Ctl.Zone.PcMode.PadState(state.Pad.Buttons, state.Pad.LT, state.Pad.RT, state.Pad.LX, state.Pad.LY, state.Pad.RX, state.Pad.RY), Environment.TickCount64);
                         if (!seen || state.Packet != lastPacket)
                         {
                             if (seen) changes.Add(now);

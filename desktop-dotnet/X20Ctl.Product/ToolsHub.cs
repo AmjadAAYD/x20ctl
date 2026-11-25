@@ -318,6 +318,23 @@ public sealed partial class ProductSettings : Grid
         var edgard = Pill("", "EasyGamepad by Edgard"); edgard.Click += (_, _) => Try(() => ExternalLinks.Open(ExternalLinks.EasyGamepad));
         repo.Margin = apex.Margin = edgard.Margin = aboutBack.Margin = new(0, 0, 12, 0);
         links.Children.Add(aboutBack); links.Children.Add(repo); links.Children.Add(apex); links.Children.Add(edgard); stack.Children.Add(links);
+        stack.Children.Add(Para($"Storage mode: {(X20Ctl.Zone.AppDataPaths.IsPortable ? "Portable USB-Stick Mode (./data)" : "Standard AppData")} · {X20Ctl.Zone.AppDataPaths.RoamingRoot}", 22, "DS.TextSoft", 14.5));
+        var quirksList = new StackPanel { Margin = new(0, 8, 0, 4) };
+        foreach (var q in X20Ctl.Zone.HardwareQuirksCatalog.Entries)
+        {
+            quirksList.Children.Add(Kit.Text($"{q.Model} ({q.Transport})", 14.5, "DS.Text", FontWeights.SemiBold).Also(t => t.Margin = new(0, 10, 0, 2)));
+            quirksList.Children.Add(Para($"{q.Summary} Recommendation: {q.Recommendation}", 2, "DS.TextSoft", 14));
+        }
+        stack.Children.Add(new Expander
+        {
+            Header = "Controller Firmware & Hardware Quirk Guide",
+            IsExpanded = false,
+            Margin = new(0, 18, 0, 0),
+            Foreground = DS.Brush("DS.Text"),
+            FontSize = 15,
+            FontWeight = FontWeights.SemiBold,
+            Content = quirksList,
+        });
         stack.Children.Add(Para("X20CTL is not affiliated with, endorsed by or sponsored by EasySMX. EasySMX and its product names belong to their owners.", 26, "DS.TextSoft", 15));
         return new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
     }
