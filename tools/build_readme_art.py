@@ -411,10 +411,10 @@ def _render_hero(y0: float, total_h: int, softboxes: list[_Softbox], beams: list
         f'<text x="{MARGIN}" y="182" class="s" font-size="20" font-weight="500" fill="#DCE5F5">A controller studio for EasySMX pads.</text>'
         f'<rect x="{MARGIN}" y="206" width="430" height="38" rx="8" fill="{CARD_FILL}" fill-opacity="0.88" stroke="{BORDER_SILVER}" stroke-opacity="0.16" stroke-width="1"/>'
         f'<text x="{MARGIN + 14}" y="229.5" class="m" font-size="12.5" font-weight="600" fill="#7DD3FC">&gt;</text>'
-        f'<text x="{MARGIN + 30}" y="229.5" class="m" font-size="12.5" fill="{TEXT_PRIMARY}"><tspan class="p0">live 4-zone X20 Pro RGB &amp; 160x80 screen</tspan></text>'
-        f'<text x="{MARGIN + 30}" y="229.5" class="m" font-size="12.5" fill="{TEXT_PRIMARY}"><tspan class="p1">100% offline handheld Agent XCTL (3,048)</tspan></text>'
-        f'<text x="{MARGIN + 30}" y="229.5" class="m" font-size="12.5" fill="{TEXT_PRIMARY}"><tspan class="p2">sculpt stick curves &amp; 64-key macro chains</tspan></text>'
-        f'<text x="{MARGIN + 30}" y="229.5" class="m" font-size="12.5" fill="{TEXT_PRIMARY}"><tspan class="p3">Xbox 360 / PS4 PC mode across 4 players</tspan></text>'
+        f'<text x="{MARGIN + 30}" y="229.5" class="m" font-size="12.5" fill="{TEXT_PRIMARY}"><tspan class="p0">2-strip X20 Pro RGB &amp; 160x80 screen</tspan></text>'
+        f'<text x="{MARGIN + 30}" y="229.5" class="m" font-size="12.5" fill="{TEXT_PRIMARY}"><tspan class="p1">Universal Haptics 3D orb &amp; Eco mode</tspan></text>'
+        f'<text x="{MARGIN + 30}" y="229.5" class="m" font-size="12.5" fill="{TEXT_PRIMARY}"><tspan class="p2">100% offline handheld Agent XCTL (3,048)</tspan></text>'
+        f'<text x="{MARGIN + 30}" y="229.5" class="m" font-size="12.5" fill="{TEXT_PRIMARY}"><tspan class="p3">curves, Quick Macros &amp; standalone Mouse</tspan></text>'
         f'<rect x="{MARGIN + 408}" y="217" width="8" height="16" rx="1" fill="#7DD3FC" class="cur"/>'
         f'<text x="{MARGIN}" y="286" class="m" font-size="12" font-weight="600" fill="#E2ECFF" letter-spacing="0.8">{_esc(ver)} - WINDOWS &amp; LINUX STUDIO</text>'
         f'<text x="{MARGIN}" y="310" class="s" font-size="13" fill="{TEXT_MUTED}">Windows 10/11 (WPF + C++) · Linux x64 (Avalonia) · GPL-3.0-or-later</text>'
@@ -628,12 +628,12 @@ def _render_demo(y0: float, total_h: int, softboxes: list[_Softbox], beams: list
     h = 606
     ver = release_name(tag)
     slides = [
-        ("rgb-studio.webp", "RGB Studio · X20 Pro", "4-zone live LEDs + simultaneous dongle & unpaired BLE sync"),
-        ("rgb-effects.webp", "Live Lighting Engine", "Rainbow Wave, Trigger Glow, Stick Heat & Ambient Screen Sync"),
+        ("rgb-studio.webp", "RGB Studio · X20 Pro", "Single-scroll editor, 2-strip LED diffuser & dongle + BLE sync"),
+        ("vibration.webp", "Universal Haptics & Orb", "Offline audio + XInput fusion, 3D VU stage & squares Bento UI"),
+        ("rgb-effects.webp", "Live Effects & Audio RGB", "1024-pt FFT Audio Reactive RGB, Rainbow Wave & Screen Sync"),
         ("agent-xctl.webp", "100% Offline Agent XCTL", "3,048 phrases inside your controller frame: zero cloud calls"),
-        ("curves.webp", "Stick & Trigger Curves", "Response presets, dead zones & keyboard curve testing"),
-        ("mouse.webp", "Controller as Mouse", "M1–M7 bindings, 2–30 Hz turbo & View + Y quick toggle"),
-        ("vibration.webp", "4-Zone Vibration & 200% Boost", "Grip & trigger sliders plus PC Mode game rumble boost"),
+        ("macros.webp", "Macros & Quick Presets", "M1-M6 timeline, Rapid Fire / Drop Shot presets & copy/paste"),
+        ("mouse.webp", "Standalone Mouse Mode", "Works even with PC Mode off · M1-M7 bindings & View + Y toggle"),
     ]
     n = len(slides)
     step_s = 3.2
@@ -1304,12 +1304,12 @@ def generate_all(tag: str, social_preview: bool = False) -> list[Path]:
         beams,
         "c_s1",
         "HIGHLIGHT 01 // X20 PRO LIGHTING & DISPLAY",
-        "RGB Studio, Live Effects & 160x80 Screen",
-        "4-ZONE LED + DONGLE & BLE",
-        "Configure all four zones live, run Rainbow Wave / Trigger Glow / Stick Heat / Ambient Screen Sync / Battery",
-        "gauges, or upload images & GIFs to the 160x80 screen over USB serial (simultaneous 413D:2131 dongle + unpaired BLE).",
+        "RGB Studio, 2-Strip Diffuser & 160x80 Screen",
+        "2-STRIP LED + AUDIO FFT",
+        "Single-scroll Color & Mode and Live Effects paired with a compact X20 Pro preview and 2-strip optical LED diffuser.",
+        "Run 1024-pt Audio Reactive RGB, Ambient Screen Sync, or 160x80 GIF uploads over simultaneous dongle + unpaired BLE.",
         "rgb-studio.webp",
-        "X20CTL RGB Studio and 160x80 screen features on EasySMX X20 Pro",
+        "X20CTL RGB Studio with 2-strip LED diffuser and 160x80 screen on EasySMX X20 Pro",
     )
     slices["spot_2.svg"], _ = _render_spotlight(
         y_offsets["spot_2"],
@@ -1317,13 +1317,13 @@ def generate_all(tag: str, social_preview: bool = False) -> list[Path]:
         softboxes,
         beams,
         "c_s2",
-        "HIGHLIGHT 02 // LOCAL NATURAL-LANGUAGE ASSISTANT",
-        "100% Offline Handheld Agent XCTL",
-        "3,048 PHRASES · ZERO CLOUD",
-        "Ask in plain language inside your controller frame: 3,048 handwritten phrases, Tab autocomplete, + New chat,",
-        "live Check-up drift audits, interactive RGB cards, doc search, and multi-step Undo: nothing ever leaves your PC.",
-        "agent-xctl.webp",
-        "100% Offline Handheld Agent XCTL inside X20 Pro frame",
+        "HIGHLIGHT 02 // UNIVERSAL HAPTICS & ECO MODE",
+        "Universal Haptics Studio, 3D Kinetic Orb & Eco Saver",
+        "AUDIO + XINPUT · 4-MOTOR VU",
+        "Offline audio-to-haptics classifier fused with 50 Hz XInput across 115+ games & music in a clean squares Bento UI.",
+        "Live 3D Kinetic Acoustic Orb, 8-step motor sequencer, and a Dashboard Eco switch locking RGB, Vibration & Screen.",
+        "vibration.webp",
+        "X20CTL Universal Haptics Studio with 3D Kinetic Acoustic Orb and squares Bento UI",
     )
     slices["spot_3.svg"], _ = _render_spotlight(
         y_offsets["spot_3"],
@@ -1331,13 +1331,13 @@ def generate_all(tag: str, social_preview: bool = False) -> list[Path]:
         softboxes,
         beams,
         "c_s3",
-        "HIGHLIGHT 03 // TUNING & PADDLE TIMELINES",
-        "Stick & Trigger Curves, Buttons & Rear Paddle Macros",
-        "M1–M4 / M1–M6 PADDLES",
-        "Sculpt left/right sticks and triggers with Default, Quick, Slow, Smooth, and Fine presets or custom points,",
-        "listen-to-bind front & rear buttons, and build timed macro sequences with instant local draft previews.",
-        "curves.webp",
-        "Stick and trigger response curves, buttons, and macros in X20CTL",
+        "HIGHLIGHT 03 // LOCAL NATURAL-LANGUAGE ASSISTANT",
+        "100% Offline Handheld Agent XCTL",
+        "3,048 PHRASES · ZERO CLOUD",
+        "Ask in plain language inside your controller frame: 3,048 handwritten phrases, Tab autocomplete, + New chat,",
+        "live Check-up drift audits, interactive RGB cards, doc search, and multi-step Undo: nothing ever leaves your PC.",
+        "agent-xctl.webp",
+        "100% Offline Handheld Agent XCTL inside X20 Pro frame",
     )
     slices["spot_4.svg"], _ = _render_spotlight(
         y_offsets["spot_4"],
@@ -1345,13 +1345,13 @@ def generate_all(tag: str, social_preview: bool = False) -> list[Path]:
         softboxes,
         beams,
         "c_s4",
-        "HIGHLIGHT 04 // SYSTEM-WIDE SOFTWARE BRIDGE",
-        "PC Mode: Xbox 360 / PS4, 64-Key Keyboard, Mouse & 4-Zone Vibration",
-        "4 PLAYERS · VIEW + MENU PAUSE",
-        "Run per-game PC Mode profiles via ViGEmBus + HidHide (Windows) or evdev/uinput (Linux): 64-key Keyboard chains,",
-        "Controller as Mouse (M1–M7, 2–30 Hz turbo, View + Y toggle), and 4-motor Vibration up to 200% rumble boost.",
+        "HIGHLIGHT 04 // PC MODE, IMPORTS & STANDALONE MOUSE",
+        "PC Mode, DS4 / Steam Imports, 64-Key Keyboard & Mouse",
+        "4 PLAYERS · WORKS WITH PC MODE OFF",
+        "Import DS4Windows (.xml) & Steam Input (.vdf) profiles into Xbox 360 / PS4 PC Mode with 64-key Keyboard sequences.",
+        "Use Controller as Mouse with PC Mode off (M1-M7, 2-30 Hz turbo, View + Y toggle) alongside Quick Macro presets.",
         "mouse.webp",
-        "PC Mode Mouse, Keyboard sequences, Xbox 360 / PS4 and 4-zone Vibration in X20CTL",
+        "Standalone Mouse Mode, DS4Windows and Steam Input imports, and 64-key Keyboard in X20CTL",
     )
 
     slices["themes.svg"], _ = _render_themes(y_offsets["themes"], total_h, softboxes, beams)
@@ -1365,10 +1365,10 @@ def generate_all(tag: str, social_preview: bool = False) -> list[Path]:
         softboxes,
         beams,
         [
-            ("Live RGB Effects", "Open full-res Live RGB Effects screenshot", False),
-            ("Buttons & Paddles", "Open full-res Buttons and Rear Paddles screenshot", False),
-            ("Keyboard 64-Key", "Open full-res Keyboard Sequences screenshot", False),
-            ("4-Zone Vibration", "Open full-res 4-Zone Vibration screenshot", False),
+            ("Live RGB & Audio", "Open full-res Live RGB and Audio Reactive screenshot", False),
+            ("Dashboard & Eco", "Open full-res Dashboard and Eco Mode screenshot", False),
+            ("Macros & Presets", "Open full-res Macros and Quick Presets screenshot", False),
+            ("Response Curves", "Open full-res Stick and Trigger Curves screenshot", False),
         ],
         btn_widths=[216, 222, 218, 218],
         gap=10,
@@ -1383,11 +1383,12 @@ def generate_all(tag: str, social_preview: bool = False) -> list[Path]:
         softboxes,
         beams,
         [
+            ("Buttons & Paddles", "Open full-res Buttons and Rear Paddles screenshot", False),
+            ("Keyboard 64-Key", "Open full-res Keyboard Sequences screenshot", False),
             ("Stick Diagnostics", "Open full-res Stick Diagnostics screenshot", False),
-            ("Controller Check", "Open full-res Controller Check screenshot", False),
             ("Linux Studio", "Open full-res Linux Studio screenshot", False),
         ],
-        btn_widths=[220, 220, 216],
+        btn_widths=[216, 222, 218, 218],
         gap=10,
     )
     slices.update(s_sr2)
