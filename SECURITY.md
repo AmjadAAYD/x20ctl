@@ -2,7 +2,7 @@
 
 ## Scope
 
-The active release line is **V0.025**. Older v1/v2 preview lines are superseded and do not receive backports.
+The active release line is **V0.026**. Older v1/v2 preview lines are superseded and do not receive backports.
 
 ## Reporting a vulnerability
 

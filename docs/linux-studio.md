@@ -4,7 +4,7 @@ The Windows app uses WPF (Windows-only). **Linux Studio** (`desktop-dotnet/X20Ct
 
 For installation, udev permissions, and troubleshooting, see [`docs/linux-user-guide.md`](linux-user-guide.md) and [`tools/linux-studio/FLATPAK.md`](../tools/linux-studio/FLATPAK.md).
 
-## Current Status (V0.025)
+## Current Status (V0.026)
 
 Built, packaged, and headlessly rendered (`X20Ctl.Linux.Review`) on Windows and GitHub Actions CI (`ubuntu-latest` for `.flatpak` / `.AppImage` / tarballs). Live runtime execution on physical Linux desktop hardware and real `evdev` / `/dev/uinput` hardware has **not yet been verified** end-to-end.
 

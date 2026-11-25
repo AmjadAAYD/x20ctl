@@ -7,7 +7,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <AssemblyName>x20ctl-studio</AssemblyName>
     <RootNamespace>X20Ctl.Linux</RootNamespace>
-    <Version>0.25.0</Version>
+    <Version>0.26.0</Version>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
   </PropertyGroup>
   <ItemGroup>
