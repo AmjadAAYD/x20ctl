@@ -2,9 +2,9 @@
 
 **A controller studio for EasySMX pads.** Remap, shape curves, build macros, customize X20 Pro lighting & screen, talk to offline Agent XCTL, and use PC mode on Windows and Linux.
 
-**V0.025 - Final release for now.**
+**V0.026 - Windows & Linux Studio.**
 
-[Download V0.025](https://github.com/AmjadAAYD/x20ctl/releases/tag/v0.025) · [FAQ](docs/FAQ.md) · [Updates (@AmjadCTL)](https://x.com/AmjadCTL) · [Buy EasySMX Controllers (Referral)](https://www.easysmx.com/?ref=X20CTL) · [Support Me on Ko-fi](https://ko-fi.com/x20ctl) · [Changelog](CHANGELOG.md) · [Controller not working?](IF-YOUR-CONTROLLER-ISNT-WORKING.md) · [Discussions](https://github.com/AmjadAAYD/x20ctl/discussions) · [Issues](https://github.com/AmjadAAYD/x20ctl/issues)
+[Download V0.026](https://github.com/AmjadAAYD/x20ctl/releases/tag/v0.026) · [FAQ](docs/FAQ.md) · [Updates (@AmjadCTL)](https://x.com/AmjadCTL) · [Buy EasySMX Controllers (Referral)](https://www.easysmx.com/?ref=X20CTL) · [Support Me on Ko-fi](https://ko-fi.com/x20ctl) · [Changelog](CHANGELOG.md) · [Controller not working?](IF-YOUR-CONTROLLER-ISNT-WORKING.md) · [Discussions](https://github.com/AmjadAAYD/x20ctl/discussions) · [Issues](https://github.com/AmjadAAYD/x20ctl/issues)
 
 **Thank you, EasySMX Kiin & Team EasySMX for supplying an EasySMX X20 Pro to build and test X20CTL.**
 
@@ -25,7 +25,7 @@ EasySMX configures its pads from a phone app (KeyLinker), and the protocol was n
 - **Verified writes only:** Nothing is written to hardware memory unless read-back has been verified; everything else stays as a local draft or runs inside PC mode.
 - **Read more:** [protocol reference](docs/01-protocol.md) · [reverse-engineering log](docs/00-findings.md) · [controller scan kit](docs/controller-scan-kit/) · [research policy](docs/research-policy.md)
 
-## Studio features (V0.025)
+## Studio features (V0.026)
 
 ### Controller Zone
 
@@ -120,19 +120,19 @@ Walks through every button, stick, trigger, report rate, and identity check loca
 
 ## Download
 
-Official builds from [**Release V0.025**](https://github.com/AmjadAAYD/x20ctl/releases/tag/v0.025) (`SHA256SUMS.txt`: [`SHA256SUMS.txt`](https://github.com/AmjadAAYD/x20ctl/releases/download/v0.025/SHA256SUMS.txt)):
+Official builds from [**Release V0.026**](https://github.com/AmjadAAYD/x20ctl/releases/tag/v0.026) (`SHA256SUMS.txt`: [`SHA256SUMS.txt`](https://github.com/AmjadAAYD/x20ctl/releases/download/v0.026/SHA256SUMS.txt)):
 
 - **Windows 10/11 (x64):** Everything is bundled: you don't need to install .NET, Python, or a browser runtime.
-  - Installer: [`X20CTL-V0.025-windows-x64-setup.exe`](https://github.com/AmjadAAYD/x20ctl/releases/download/v0.025/X20CTL-V0.025-windows-x64-setup.exe) (Start menu entry & Windows Apps uninstaller)
-  - Portable single exe: [`X20CTL-V0.025-windows-x64.exe`](https://github.com/AmjadAAYD/x20ctl/releases/download/v0.025/X20CTL-V0.025-windows-x64.exe) (unpacks engine to temp folder on first launch)
+  - Installer: [`X20CTL-V0.026-windows-x64-setup.exe`](https://github.com/AmjadAAYD/x20ctl/releases/download/v0.026/X20CTL-V0.026-windows-x64-setup.exe) (Start menu entry & Windows Apps uninstaller)
+  - Portable single exe: [`X20CTL-V0.026-windows-x64.exe`](https://github.com/AmjadAAYD/x20ctl/releases/download/v0.026/X20CTL-V0.026-windows-x64.exe) (unpacks engine to temp folder on first launch)
 - **Linux (x86_64):**
-  - AppImage: [`X20CTL-V0.025-linux-x86_64.AppImage`](https://github.com/AmjadAAYD/x20ctl/releases/download/v0.025/X20CTL-V0.025-linux-x86_64.AppImage)
-  - Flatpak bundle: [`X20CTL-V0.025-linux-x86_64.flatpak`](https://github.com/AmjadAAYD/x20ctl/releases/download/v0.025/X20CTL-V0.025-linux-x86_64.flatpak)
-  - glibc tarball: [`X20CTL-V0.025-linux-x64.tar.gz`](https://github.com/AmjadAAYD/x20ctl/releases/download/v0.025/X20CTL-V0.025-linux-x64.tar.gz)
-  - musl tarball: [`X20CTL-V0.025-linux-musl-x64.tar.gz`](https://github.com/AmjadAAYD/x20ctl/releases/download/v0.025/X20CTL-V0.025-linux-musl-x64.tar.gz)
-  - Controller Check Python ZIP: [`X20CTL-V0.025-linux-check.zip`](https://github.com/AmjadAAYD/x20ctl/releases/download/v0.025/X20CTL-V0.025-linux-check.zip)
+  - AppImage: [`X20CTL-V0.026-linux-x86_64.AppImage`](https://github.com/AmjadAAYD/x20ctl/releases/download/v0.026/X20CTL-V0.026-linux-x86_64.AppImage)
+  - Flatpak bundle: [`X20CTL-V0.026-linux-x86_64.flatpak`](https://github.com/AmjadAAYD/x20ctl/releases/download/v0.026/X20CTL-V0.026-linux-x86_64.flatpak)
+  - glibc tarball: [`X20CTL-V0.026-linux-x64.tar.gz`](https://github.com/AmjadAAYD/x20ctl/releases/download/v0.026/X20CTL-V0.026-linux-x64.tar.gz)
+  - musl tarball: [`X20CTL-V0.026-linux-musl-x64.tar.gz`](https://github.com/AmjadAAYD/x20ctl/releases/download/v0.026/X20CTL-V0.026-linux-musl-x64.tar.gz)
+  - Controller Check Python ZIP: [`X20CTL-V0.026-linux-check.zip`](https://github.com/AmjadAAYD/x20ctl/releases/download/v0.026/X20CTL-V0.026-linux-check.zip)
 
-**Code signing:** X20CTL has applied for free code signing through the [SignPath Foundation](https://signpath.org/); until active, executables are **unsigned**, so Windows SmartScreen may warn you. Verify downloads against [`SHA256SUMS.txt`](https://github.com/AmjadAAYD/x20ctl/releases/download/v0.025/SHA256SUMS.txt) and never turn off your antivirus. Linux bundles compile on CI and pass headless checks, awaiting physical Linux runtime verification (see [docs/linux-user-guide.md](docs/linux-user-guide.md)). Version rules: [docs/versions.md](docs/versions.md).
+**Code signing:** X20CTL has applied for free code signing through the [SignPath Foundation](https://signpath.org/); until active, executables are **unsigned**, so Windows SmartScreen may warn you. Verify downloads against [`SHA256SUMS.txt`](https://github.com/AmjadAAYD/x20ctl/releases/download/v0.026/SHA256SUMS.txt) and never turn off your antivirus. Linux bundles compile on CI and pass headless checks, awaiting physical Linux runtime verification (see [docs/linux-user-guide.md](docs/linux-user-guide.md)). Version rules: [docs/versions.md](docs/versions.md).
 
 ## Local first
 

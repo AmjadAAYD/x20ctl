@@ -2,7 +2,7 @@
 plus guide header banners in assets/readme/.
 
 Usage:
-    python tools/build_readme_art.py [--tag v0.025] [--social-preview]
+    python tools/build_readme_art.py [--tag v0.026] [--social-preview]
 """
 from __future__ import annotations
 
@@ -416,7 +416,7 @@ def _render_hero(y0: float, total_h: int, softboxes: list[_Softbox], beams: list
         f'<text x="{MARGIN + 30}" y="229.5" class="m" font-size="12.5" fill="{TEXT_PRIMARY}"><tspan class="p2">sculpt stick curves &amp; 64-key macro chains</tspan></text>'
         f'<text x="{MARGIN + 30}" y="229.5" class="m" font-size="12.5" fill="{TEXT_PRIMARY}"><tspan class="p3">Xbox 360 / PS4 PC mode across 4 players</tspan></text>'
         f'<rect x="{MARGIN + 408}" y="217" width="8" height="16" rx="1" fill="#7DD3FC" class="cur"/>'
-        f'<text x="{MARGIN}" y="286" class="m" font-size="12" font-weight="600" fill="#E2ECFF" letter-spacing="0.8">{_esc(ver)} - FINAL RELEASE FOR NOW</text>'
+        f'<text x="{MARGIN}" y="286" class="m" font-size="12" font-weight="600" fill="#E2ECFF" letter-spacing="0.8">{_esc(ver)} - WINDOWS &amp; LINUX STUDIO</text>'
         f'<text x="{MARGIN}" y="310" class="s" font-size="13" fill="{TEXT_MUTED}">Windows 10/11 (WPF + C++) · Linux x64 (Avalonia) · GPL-3.0-or-later</text>'
         f'<text x="{MARGIN}" y="346" class="m" font-size="11" fill="#6F7D93">EasySMX X20 Pro · X20 · X15 · X10 · X05 Pro · D10 · Dune 8K</text>'
         f'<ellipse cx="{cx}" cy="{cy + 4}" rx="224" ry="152" fill="url(#h_aura)"/>'
@@ -1627,7 +1627,7 @@ def generate_all(tag: str, social_preview: bool = False) -> list[Path]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build full-page Obsidian Hardware Showroom README artwork.")
-    parser.add_argument("--tag", default="v0.025", help="Release tag (e.g. v0.025)")
+    parser.add_argument("--tag", default="v0.026", help="Release tag (e.g. v0.026)")
     parser.add_argument("--social-preview", action="store_true", help="Also render assets/social-preview.png (1280x640)")
     args = parser.parse_args()
     written = generate_all(args.tag, social_preview=args.social_preview)
