@@ -35,7 +35,7 @@ public sealed partial class MouseWorkbench
     readonly Dictionary<string,Button> mappings=new();
     readonly WrapPanel actionChoices=new(), turboChoices=new(){Margin=new(0,6,0,0)};
     readonly CheckBox scrolls=Toggle(),combo=Toggle(),horizontal=Toggle(),invertV=Toggle(),invertH=Toggle();
-    readonly Slider speed=Slider(200,5000,100),curve=Slider(1,3,.1),deadzone=Slider(0,40,1),precision=Slider(10,90,5),scroll=Slider(1,60,1);
+    readonly Slider speed=Slider(200,5000,100),curve=Slider(1,3,.1),deadzone=Slider(0,40,1),precision=Slider(10,90,5),scroll=Slider(1,60,1),scrollAccel=Slider(1.0,3.5,0.1);
     readonly Canvas preview=new(){Width=420,Height=130,ClipToBounds=true};
     readonly Path cursor=new(){Data=Geometry.Parse("M0,0 L0,17 L4.5,12.5 L8,20 L11,18.6 L7.6,11.4 L13.5,11.4 Z"),Fill=Brushes.White,Stroke=new SolidColorBrush(Color.FromRgb(10,16,28)),StrokeThickness=1.2};
     readonly DispatcherTimer timer=new(){Interval=TimeSpan.FromMilliseconds(16)};
@@ -103,6 +103,7 @@ public sealed partial class MouseWorkbench
         curve.ToolTip="Higher values make small pushes slower. Full stick deflection still uses the speed above.";
         settings.Children.Add(Card(motion));
         var scrolling=new StackPanel();scrolling.Children.Add(Copy("SCROLL",13,true));scrolling.Children.Add(scrollSource);scrolling.Children.Add(Setting("Scrolling",scrolls));scrolling.Children.Add(Setting("Scroll speed",scroll,v=>$"{v:0} lines/s"));
+        scrolling.Children.Add(Setting("Scroll accel",scrollAccel,v=>$"{v:0.0}x"));
         scrolling.Children.Add(Setting("Sideways scroll",horizontal));scrolling.Children.Add(Setting("Invert up/down",invertV));scrolling.Children.Add(Setting("Invert sideways",invertH));
         var scrollCard=Card(scrolling);Grid.SetColumn(scrollCard,2);settings.Children.Add(scrollCard);
         var controller=new StackPanel();controller.Children.Add(Copy("SWITCH FROM THE CONTROLLER",13,true));controller.Children.Add(Setting("Shortcut",combo));
@@ -115,7 +116,7 @@ public sealed partial class MouseWorkbench
         foreach(var name in PresetNames){string preset=name;presets.Children.Add(Pill(name,()=>Preset(preset)));}
         presets.Children.Add(Pill("Reset Mouse",()=>{Save(new MouseProfile{SourceSlot=profile.SourceSlot});Fill();Select(selection);}));page.Children.Add(presets);page.Children.Add(saved);
 
-        foreach(var slider in new[]{speed,curve,deadzone,precision,scroll})slider.ValueChanged+=(_,_)=>Persist();
+        foreach(var slider in new[]{speed,curve,deadzone,precision,scroll,scrollAccel})slider.ValueChanged+=(_,_)=>Persist();
         foreach(var box in new[]{pointer,source,chord1,chord2,hold})box.SelectionChanged+=(_,_)=>Persist();
         foreach(var toggle in new[]{scrolls,combo,horizontal,invertV,invertH}){toggle.Checked+=(_,_)=>Persist();toggle.Unchecked+=(_,_)=>Persist();}
         Switch.Checked+=(_,_)=>{if(loading)return;try{service.TakeControl(player,this.model.Id);}catch(InvalidOperationException error){saved.Text=error.Message;Refresh();}};
@@ -126,13 +127,13 @@ public sealed partial class MouseWorkbench
     bool OwnsSource=>service.OwnerPlayer==player && service.OwnerModel==model.Id;
     void Fill()
     {
-        loading=true;source.SelectedIndex=profile.SourceSlot+1;pointer.SelectedIndex=profile.PointerStick=="Right"?1:0;speed.Value=profile.Speed;curve.Value=profile.Curve;deadzone.Value=profile.Deadzone;precision.Value=profile.PrecisionPercent;scroll.Value=profile.ScrollSpeed;
+        loading=true;source.SelectedIndex=profile.SourceSlot+1;pointer.SelectedIndex=profile.PointerStick=="Right"?1:0;speed.Value=profile.Speed;curve.Value=profile.Curve;deadzone.Value=profile.Deadzone;precision.Value=profile.PrecisionPercent;scroll.Value=profile.ScrollSpeed;scrollAccel.Value=profile.ScrollAcceleration;
         scrolls.IsChecked=profile.Scroll;combo.IsChecked=profile.Combo;horizontal.IsChecked=profile.HorizontalScroll;invertV.IsChecked=profile.InvertVerticalScroll;invertH.IsChecked=profile.InvertHorizontalScroll;
         chord1.SelectedValue=profile.ToggleButtons[0];chord2.SelectedValue=profile.ToggleButtons[1];hold.SelectedIndex=Array.IndexOf(new[]{500,1000,1500,2000,3000},profile.HoldMilliseconds);loading=false;UpdateMappings();
     }
     void Persist()
     {
-        if(loading)return;var next=profile.Clone();next.SourceSlot=source.SelectedIndex-1;next.PointerStick=pointer.SelectedIndex==1?"Right":"Left";next.Speed=(int)speed.Value;next.Curve=curve.Value;next.Deadzone=(int)deadzone.Value;next.PrecisionPercent=precision.Value;next.ScrollSpeed=(int)scroll.Value;
+        if(loading)return;var next=profile.Clone();next.SourceSlot=source.SelectedIndex-1;next.PointerStick=pointer.SelectedIndex==1?"Right":"Left";next.Speed=(int)speed.Value;next.Curve=curve.Value;next.Deadzone=(int)deadzone.Value;next.PrecisionPercent=precision.Value;next.ScrollSpeed=(int)scroll.Value;next.ScrollAcceleration=Math.Round(scrollAccel.Value,1);
         next.Scroll=scrolls.IsChecked==true;next.Combo=combo.IsChecked==true;next.HorizontalScroll=horizontal.IsChecked==true;next.InvertVerticalScroll=invertV.IsChecked==true;next.InvertHorizontalScroll=invertH.IsChecked==true;
         next.ToggleButtons=[chord1.SelectedValue as string??"SELECT",chord2.SelectedValue as string??"Y"];next.HoldMilliseconds=new[]{500,1000,1500,2000,3000}[Math.Clamp(hold.SelectedIndex,0,4)];
         Save(next);
@@ -216,7 +217,7 @@ public sealed partial class MouseWorkbench
     }
 
     static readonly MouseAction[] MouseButtons=[MouseAction.LeftClick,MouseAction.RightClick,MouseAction.MiddleClick,MouseAction.Back,MouseAction.Forward,MouseAction.TiltLeft,MouseAction.TiltRight];
-    static string Category(MouseAction a)=>a switch{MouseAction.None=>"NOTHING",_ when MouseButtons.Contains(a)=>"MOUSE BUTTONS",MouseAction.Precision or MouseAction.PointerUp or MouseAction.PointerDown or MouseAction.PointerLeft or MouseAction.PointerRight=>"POINTER",>=MouseAction.VolumeUp and <=MouseAction.PlayPause=>"MEDIA",MouseAction.Windows or MouseAction.TaskView or MouseAction.OnScreenKeyboard=>"WINDOWS",_=>"KEYBOARD"};
+    static string Category(MouseAction a)=>a switch{MouseAction.None=>"NOTHING",_ when MouseButtons.Contains(a)=>"MOUSE BUTTONS",MouseAction.Precision or MouseAction.PointerUp or MouseAction.PointerDown or MouseAction.PointerLeft or MouseAction.PointerRight=>"POINTER",(>=MouseAction.VolumeUp and <=MouseAction.PlayPause) or MouseAction.MicMute or MouseAction.InstantReplay or MouseAction.AppVolumeUp or MouseAction.AppVolumeDown=>"MEDIA",MouseAction.Windows or MouseAction.TaskView or MouseAction.OnScreenKeyboard=>"WINDOWS",_=>"KEYBOARD"};
     static readonly string[] GroupOrder=["MOUSE BUTTONS","POINTER","KEYBOARD","WINDOWS","MEDIA","NOTHING"];
     internal IReadOnlyList<(string Group, MouseAction[] Actions)> Groups=>Enum.GetValues<MouseAction>().GroupBy(Category).OrderBy(g=>Array.IndexOf(GroupOrder,g.Key)).Select(g=>(g.Key,(g.Key=="MOUSE BUTTONS"?MouseButtons:g.ToArray()))).ToList();
     public static string Friendly(MouseAction a)=>a switch
@@ -226,7 +227,9 @@ public sealed partial class MouseWorkbench
         MouseAction.PointerUp=>"Pointer ↑",MouseAction.PointerDown=>"Pointer ↓",MouseAction.PointerLeft=>"Pointer ←",MouseAction.PointerRight=>"Pointer →",
         MouseAction.Up=>"Arrow ↑",MouseAction.Down=>"Arrow ↓",MouseAction.Left=>"Arrow ←",MouseAction.Right=>"Arrow →",
         MouseAction.OnScreenKeyboard=>"On-screen keyboard",MouseAction.TaskView=>"Task View",MouseAction.Windows=>"Start menu",MouseAction.PlayPause=>"Play / pause",MouseAction.PageUp=>"Page up",MouseAction.PageDown=>"Page down",
-        MouseAction.VolumeUp=>"Volume up",MouseAction.VolumeDown=>"Volume down",_=>a.ToString(),
+        MouseAction.VolumeUp=>"Volume up",MouseAction.VolumeDown=>"Volume down",
+        MouseAction.MicMute=>"Mic mute toggle",MouseAction.InstantReplay=>"Save clip",MouseAction.AppVolumeUp=>"App vol +",MouseAction.AppVolumeDown=>"App vol -",
+        _=>a.ToString(),
     };
     /// <summary>The few words a pill has room for.</summary>
     static string Short(MouseAction a)=>a switch{MouseAction.None=>"—",MouseAction.LeftClick=>"M1",MouseAction.RightClick=>"M2",MouseAction.MiddleClick=>"M3",MouseAction.Back=>"M4",MouseAction.Forward=>"M5",MouseAction.TiltLeft=>"M6",MouseAction.TiltRight=>"M7",_=>Friendly(a)};

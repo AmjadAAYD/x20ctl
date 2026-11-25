@@ -183,6 +183,17 @@ public sealed class HapticsFusionEngine
 
             prevRightTrigger = input.RightTrigger;
 
+            if (tuning.AccessibilityStereoCues && audio.Level > 0.04)
+            {
+                double pan = Math.Clamp(audio.StereoPan, -1.0, 1.0);
+                double cueStrength = Math.Clamp(Math.Max(audio.Level, effectiveRawRms * 2.5), 0.15, 1.0);
+                double baseGrip = Math.Max(cueStrength, Math.Max(lg, rg));
+                double leftShare = pan <= 0 ? 1.0 : Math.Max(0.10, 1.0 - pan * 0.90);
+                double rightShare = pan >= 0 ? 1.0 : Math.Max(0.10, 1.0 + pan * 0.90);
+                lg = Math.Clamp(baseGrip * leftShare, 0.0, 1.0);
+                rg = Math.Clamp(baseGrip * rightShare, 0.0, 1.0);
+            }
+
             double passThrough = Math.Clamp(1.0 - menuMuteFactor, 0.0, 1.0);
             var rawFrame = new HapticsFrame(lg * passThrough, rg * passThrough, lt * passThrough, rt * passThrough);
             return SmoothAndBudgetLocked(rawFrame, cls, ev1, ev2, resolved, wantMute, tuning, dt);
@@ -401,6 +412,26 @@ public sealed class HapticsFusionEngine
         double gunRt = gunEnv * 0.82;
         double gunRg = gunEnv * 0.38;
         double gunLg = (gunEnv > 0.35 && audio.Bass > 0.55f && isOverlyLoud) ? gunEnv * 0.45 : 0.0;
+        if (shootingActive && tuning.RecoilPreset != WeaponRecoilPreset.Default)
+        {
+            double s = Math.Clamp(0.45 + 0.55 * rawLoudness, 0.45, 1.0) * punchScale;
+            switch (tuning.RecoilPreset)
+            {
+                case WeaponRecoilPreset.Pistol:
+                    gunRt = Math.Clamp(0.90 * s, 0, 1); gunRg = Math.Clamp(0.28 * s, 0, 1); gunLg = 0.0;
+                    break;
+                case WeaponRecoilPreset.Smg:
+                    double flutter = 0.65 + 0.35 * Math.Sin(elapsedSeconds * 58.0);
+                    gunRt = Math.Clamp(0.62 * s * flutter, 0, 1); gunRg = Math.Clamp(0.42 * s, 0, 1); gunLg = Math.Clamp(0.18 * s, 0, 1);
+                    break;
+                case WeaponRecoilPreset.Shotgun:
+                    gunRt = Math.Clamp(0.95 * s, 0, 1); gunRg = Math.Clamp(0.78 * s, 0, 1); gunLg = Math.Clamp(0.85 * s, 0, 1);
+                    break;
+                case WeaponRecoilPreset.Sniper:
+                    gunRt = 1.0; gunRg = Math.Clamp(0.55 * s, 0, 1); gunLg = Math.Clamp(0.95 * s, 0, 1);
+                    break;
+            }
+        }
         if (gunEnv > 0.15) ev1 = HapticsEventTag.Gunshot;
 
         // 4. Sword Parry / Sharp Clash (loud only): triggers stay quiet on light swings!

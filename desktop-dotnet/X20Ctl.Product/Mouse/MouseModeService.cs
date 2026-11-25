@@ -150,6 +150,8 @@ public sealed class MouseModeService : IDisposable
 
     void SetStatus(string text) { if (Status == text) return; Status = text; Changed?.Invoke(); }
 
+    public static void DispatchOutput(string id, bool down) => MouseOutput.Output(id, down);
+
     public void Dispose() { stop = true; Active = false; thread?.Join(500); }
 }
 
@@ -216,6 +218,18 @@ static class MouseOutput
             case MouseAction.TaskView: if (down) Send(Key(0x5B, true), Key(0x09, true)); else Send(Key(0x09, false), Key(0x5B, false)); break;
             case MouseAction.OnScreenKeyboard:
                 if (down) try { Process.Start(new ProcessStartInfo("osk.exe") { UseShellExecute = true })?.Dispose(); } catch (Exception error) when (error is System.ComponentModel.Win32Exception or InvalidOperationException) { }
+                break;
+            case MouseAction.MicMute:
+                if (down) SystemAudioControl.ToggleMicMute();
+                break;
+            case MouseAction.InstantReplay:
+                if (down) SystemAudioControl.TriggerInstantReplay();
+                break;
+            case MouseAction.AppVolumeUp:
+                if (down) SystemAudioControl.AdjustFocusedAppVolume(0.08f);
+                break;
+            case MouseAction.AppVolumeDown:
+                if (down) SystemAudioControl.AdjustFocusedAppVolume(-0.08f);
                 break;
             default:
                 if (VirtualKey(action) is { } vk) Send(Key(vk, down));

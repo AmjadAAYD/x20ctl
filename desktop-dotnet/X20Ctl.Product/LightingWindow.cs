@@ -68,7 +68,7 @@ internal sealed class LightingWindow : Window
         ("Ice", 0xA8D4FF),
     ];
 
-    int selected = 0xff0000, editingLevel = 3, activeSection;
+    int selected = 0xff0000, editingLevel = 3, activeSection, playerColorIndex;
     double hue, saturation = 1, value = 1;
     bool busy, loadingLevel, syncingBrightness;
     byte level = 0x50;
@@ -376,6 +376,51 @@ internal sealed class LightingWindow : Window
             swatches.Add((btn, colorRgb));
         }
         sideStack.Children.Add(swatchRow);
+
+        var quickColorTools = new UniformGrid { Columns = 2, Margin = new(-2, 0, -2, 10) };
+        var themeSyncBtn = new Button
+        {
+            Content = "Match App Theme",
+            Style = DS.Style("DS.ConsoleBtn"),
+            Margin = new(2),
+            Padding = new(8, 5, 8, 5),
+            MinHeight = 30,
+            FontSize = 11.5,
+            ToolTip = "Set controller LEDs to match the active X20CTL theme accent",
+        };
+        themeSyncBtn.Click += (_, _) =>
+        {
+            if (busy) return;
+            var accent = ThemeCatalog.Current.Accent;
+            SetColour((accent.R << 16) | (accent.G << 8) | accent.B);
+        };
+        registerFocus?.Invoke(themeSyncBtn);
+        quickColorTools.Children.Add(themeSyncBtn);
+
+        int[] playerColors = [0x0088FF, 0xFF2233, 0x10E860, 0xA855F7];
+        string[] playerLabels = ["P1 Blue", "P2 Red", "P3 Green", "P4 Purple"];
+        Button? playerColorBtn = null;
+        playerColorBtn = new Button
+        {
+            Content = "Player Color (P1)",
+            Style = DS.Style("DS.ConsoleBtn"),
+            Margin = new(2),
+            Padding = new(8, 5, 8, 5),
+            MinHeight = 30,
+            FontSize = 11.5,
+            ToolTip = "Cycle Player 1 to 4 LED color coding",
+        };
+        playerColorBtn.Click += (_, _) =>
+        {
+            if (busy) return;
+            int idx = playerColorIndex % playerColors.Length;
+            playerColorIndex = (idx + 1) % playerColors.Length;
+            playerColorBtn.Content = $"Player ({playerLabels[idx]})";
+            SetColour(playerColors[idx]);
+        };
+        registerFocus?.Invoke(playerColorBtn);
+        quickColorTools.Children.Add(playerColorBtn);
+        sideStack.Children.Add(quickColorTools);
 
         sideStack.Children.Add(Kit.Text("Hardware Lighting Mode", 11.5, "DS.TextMuted").Also(t => t.Margin = new(0, 0, 0, 5)));
         modes.HorizontalAlignment = HorizontalAlignment.Stretch;

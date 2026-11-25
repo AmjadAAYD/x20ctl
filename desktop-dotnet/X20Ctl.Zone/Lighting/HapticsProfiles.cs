@@ -34,6 +34,15 @@ public enum HapticsMusicMood
     Club,
 }
 
+public enum WeaponRecoilPreset
+{
+    Default,
+    Pistol,
+    Smg,
+    Shotgun,
+    Sniper,
+}
+
 /// <summary>Per-game surface vs combat multipliers (percentage 0..150) layered over genre tuning.</summary>
 public sealed record HapticsAppTuning
 {
@@ -86,6 +95,8 @@ public sealed record HapticsTuning
     public HapticsComfortTier ComfortTier { get; init; } = HapticsComfortTier.Feather;
     public NativeRumbleBlendMode BlendMode { get; init; } = NativeRumbleBlendMode.SmartBlend;
     public bool MenuAutoMute { get; init; } = true;
+    public bool AccessibilityStereoCues { get; init; }
+    public WeaponRecoilPreset RecoilPreset { get; init; } = WeaponRecoilPreset.Default;
 
     public HapticsTuning Normalized() => this with
     {

@@ -350,6 +350,84 @@ public sealed partial class PcModePage : Border
             new StackPanel { Orientation = Orientation.Horizontal, Margin = new(0, 8, 0, 0), Children = { apps, add, cancel } } } };
         stack.Children.Add(picker);
 
+        // Per-game Eco, RGB brightness/preset & Universal Haptics automation rules (Games section)
+        var ruleExe = new ComboBox { MinHeight = 36, MinWidth = 220, FontSize = 13.5, DisplayMemberPath = nameof(Choice.Label), SelectedValuePath = nameof(Choice.Id) };
+        var ruleEco = new ComboBox { MinHeight = 36, Width = 148, FontSize = 13.5, ItemsSource = new[] { "Eco: Unchanged", "Force Eco On", "Force Eco Off" }, SelectedIndex = 0 };
+        var ruleRgbBright = new ComboBox { MinHeight = 36, Width = 152, FontSize = 13.5, ItemsSource = new[] { "RGB: Unchanged", "0% (Off)", "20% (Dim)", "50% (Balanced)", "80% (Bright)", "100% (Full)" }, SelectedIndex = 0 };
+        var presetChoices = new List<Choice> { new("", "RGB Preset: Unchanged") };
+        foreach (var p in X20Ctl.Zone.Lighting.LightingEffectEngine.BuiltInPresets)
+            presetChoices.Add(new(p.Id, p.Name));
+        foreach (var p in LightingEffectsService.Store.Presets)
+            presetChoices.Add(new(p.Id, p.Name));
+        var ruleRgbPreset = new ComboBox { MinHeight = 36, MinWidth = 190, FontSize = 13.5, ItemsSource = presetChoices, DisplayMemberPath = nameof(Choice.Label), SelectedValuePath = nameof(Choice.Id), SelectedIndex = 0 };
+        var hapChoices = new List<Choice> { new("", "Haptics: Unchanged") };
+        foreach (var g in Enum.GetValues<X20Ctl.Zone.Lighting.HapticsGenreProfile>())
+            hapChoices.Add(new(g.ToString(), X20Ctl.Zone.Lighting.HapticsProfileLabels.ProfileName(g)));
+        var ruleHaptics = new ComboBox { MinHeight = 36, MinWidth = 175, FontSize = 13.5, ItemsSource = hapChoices, DisplayMemberPath = nameof(Choice.Label), SelectedValuePath = nameof(Choice.Id), SelectedIndex = 0 };
+        var rulesListPanel = new StackPanel { Margin = new(0, 8, 0, 0) };
+        void RefreshAutomationUi()
+        {
+            var running = new List<Choice>();
+            try { foreach (var a in ForegroundApp.Running().Take(12)) running.Add(new(a.Exe, $"{a.Title} ({a.Exe})")); } catch { }
+            foreach (var r in ProductHost.AutomationRules.Rules)
+                if (!running.Any(c => string.Equals(c.Id, r.ExeName, StringComparison.OrdinalIgnoreCase)))
+                    running.Add(new(r.ExeName, r.ExeName));
+            if (running.Count == 0) running.Add(new("explorer.exe", "Desktop / Explorer (explorer.exe)"));
+            ruleExe.ItemsSource = running;
+            if (ruleExe.SelectedIndex < 0 && running.Count > 0) ruleExe.SelectedIndex = 0;
+
+            rulesListPanel.Children.Clear();
+            var activeRules = ProductHost.AutomationRules.Rules;
+            if (activeRules.Count == 0)
+            {
+                rulesListPanel.Children.Add(Wrap("No per-app automation rules yet. Pick a running app above and click Save rule.", 13, "DS.TextMuted", 2));
+                return;
+            }
+            foreach (var rule in activeRules)
+            {
+                var capturedExe = rule.ExeName;
+                var parts = new List<string>();
+                if (rule.ForceEcoMode is bool eco) parts.Add(eco ? "Eco On" : "Eco Off");
+                if (rule.RgbBrightnessPct is int bp) parts.Add($"RGB {bp}%");
+                if (rule.RgbPresetId != null) parts.Add($"Preset {rule.RgbPresetId}");
+                if (rule.HapticsProfile is { } hp) parts.Add(X20Ctl.Zone.Lighting.HapticsProfileLabels.ProfileName(hp));
+                var row = new DockPanel { Margin = new(0, 4, 0, 4) };
+                var del = Pill("Remove"); del.Height = 32; del.FontSize = 12.5; del.Padding = new(12, 0, 12, 0);
+                del.Click += (_, _) => { ProductHost.AutomationRules.Remove(capturedExe); RefreshAutomationUi(); };
+                DockPanel.SetDock(del, Dock.Right);
+                row.Children.Add(del);
+                row.Children.Add(Kit.Text($"{rule.ExeName} -> {(parts.Count > 0 ? string.Join(" · ", parts) : "Unchanged")}", 13.5, "DS.Text").Also(t => { t.VerticalAlignment = VerticalAlignment.Center; t.TextTrimming = TextTrimming.CharacterEllipsis; }));
+                rulesListPanel.Children.Add(row);
+            }
+        }
+        var ruleSave = Pill("Save automation rule"); ruleSave.Height = 36; ruleSave.FontSize = 13.5; ruleSave.Padding = new(14, 0, 14, 0);
+        ruleSave.Click += (_, _) =>
+        {
+            if (ruleExe.SelectedValue is not string exe || string.IsNullOrWhiteSpace(exe)) return;
+            bool? eco = ruleEco.SelectedIndex switch { 1 => true, 2 => false, _ => null };
+            int? bright = ruleRgbBright.SelectedIndex switch { 1 => 0, 2 => 20, 3 => 50, 4 => 80, 5 => 100, _ => null };
+            string? presetId = ruleRgbPreset.SelectedValue is string pid && pid.Length > 0 ? pid : null;
+            X20Ctl.Zone.Lighting.HapticsGenreProfile? hap = ruleHaptics.SelectedValue is string hid && Enum.TryParse<X20Ctl.Zone.Lighting.HapticsGenreProfile>(hid, out var gp) ? gp : null;
+            ProductHost.AutomationRules.Upsert(new GameAutomationRule { ExeName = exe, ForceEcoMode = eco, RgbBrightnessPct = bright, RgbPresetId = presetId, HapticsProfile = hap });
+            RefreshAutomationUi();
+            if (saved != null) saved.Text = $"Saved automation rule for {exe}.";
+        };
+        var ruleRefresh = Pill("Refresh apps"); ruleRefresh.Height = 36; ruleRefresh.FontSize = 13.5; ruleRefresh.Padding = new(14, 0, 14, 0); ruleRefresh.Margin = new(8, 0, 0, 0);
+        ruleRefresh.Click += (_, _) => RefreshAutomationUi();
+        RefreshAutomationUi();
+        var autoContent = new StackPanel
+        {
+            Margin = new(0, 8, 0, 0),
+            Children =
+            {
+                Wrap("Automatically adjust Eco power saving, controller LED brightness/preset, or Universal Haptics genre whenever the chosen app is focused.", 13.5, "DS.TextSoft", 0),
+                new WrapPanel { Margin = new(0, 10, 0, 0), Children = { ruleExe.Also(c => c.Margin = new(0, 0, 8, 8)), ruleEco.Also(c => c.Margin = new(0, 0, 8, 8)), ruleRgbBright.Also(c => c.Margin = new(0, 0, 8, 8)), ruleRgbPreset.Also(c => c.Margin = new(0, 0, 8, 8)), ruleHaptics.Also(c => c.Margin = new(0, 0, 8, 8)) } },
+                new StackPanel { Orientation = Orientation.Horizontal, Margin = new(0, 6, 0, 4), Children = { ruleSave, ruleRefresh } },
+                rulesListPanel,
+            }
+        };
+        stack.Children.Add(new Expander { Header = "Per-game Eco, RGB & Haptics rules", IsExpanded = false, Content = autoContent, Margin = new(0, 14, 0, 0) });
+
         // turbo: the one setting no controller tab has
 
 

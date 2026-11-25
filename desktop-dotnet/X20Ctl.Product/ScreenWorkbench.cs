@@ -46,6 +46,18 @@ public sealed class ScreenWorkbench
   contentGrid.Children.Add(Kit.Panel(null,null,null,new ScrollViewer{Content=left,VerticalScrollBarVisibility=ScrollBarVisibility.Auto},new Thickness(20)).Also(b=>b.Margin=new(0,0,12,0)));
   editor.Children.Add(ManagementVisuals.Copy("Choose",20,true));Import=Action("Choose image…",Choose);editor.Children.Add(Import);
   var wallpapers=new WrapPanel();for(int i=0;i<6;i++){int n=i;wallpapers.Children.Add(Action(ScreenArtwork.WallpaperNames[i],()=>LoadWallpaper(n)));}editor.Children.Add(wallpapers);
+  var tmplLabel=new TextBox{Text="X20 PRO",MaxLength=14,Width=150,HorizontalAlignment=HorizontalAlignment.Left,Margin=new(0,4,0,6)};
+  var tmplGrid=new System.Windows.Controls.Primitives.UniformGrid{Columns=2,Margin=new(-2,0,-2,4)};
+  foreach(var (tKind,tTitle) in new (ScreenTemplateKind,string)[]{(ScreenTemplateKind.GamertagBadge,"Gamertag"),(ScreenTemplateKind.RetroGrid,"Retro Grid"),(ScreenTemplateKind.AcousticWave,"Acoustic Wave"),(ScreenTemplateKind.MinimalEmblem,"Minimal Emblem")})
+  {
+   var capturedKind=tKind;
+   tmplGrid.Children.Add(Action(tTitle,()=>LoadTemplate(capturedKind,tmplLabel.Text)));
+  }
+  var tmplBody=new StackPanel{Margin=new(0,6,0,4),Children={
+   ManagementVisuals.Copy("Offline generator for White flash mode upload (controller off, hold M, plug USB).",11.5).Also(t=>{t.TextWrapping=TextWrapping.Wrap;t.Margin=new(0,0,0,6);}),
+   tmplLabel,
+   tmplGrid}};
+  editor.Children.Add(new Expander{Header="Animated Templates (White Mode Upload)",IsExpanded=false,Content=tmplBody,Margin=new(0,6,0,4)});
   editor.Children.Add(ManagementVisuals.Copy("Edit",20,true).Also(t=>t.Margin=new(0,10,0,0)));
   var geometry=new WrapPanel();geometry.Children.Add(fit);geometry.Children.Add(rotation);editor.Children.Add(geometry);Field("Zoom",zoom);Field("Horizontal",panX);Field("Vertical",panY);Field("Brightness",brightness);Field("Contrast",contrast);editor.Children.Add(animation);Field("FPS",fps);Field("Frames",frameLimit);animationOnly=editor.Children.Cast<UIElement>().TakeLast(4).ToArray();
   Preview=Action("Build preview",async()=>await BuildPreviewAsync());editor.Children.Add(Action("Play / pause",()=>{if(previewClock.IsEnabled)StopPreview();else if(encodedFrames.Count>1){previewUntil=DateTime.UtcNow.AddSeconds(30);previewClock.Start();}}));
@@ -86,6 +98,14 @@ public sealed class ScreenWorkbench
   if(bytes.Length>ScreenCodec.InputLimit)throw new ArgumentException("Choose a file up to 64 MiB.");using var stream=new MemoryStream(bytes);var decoder=BitmapDecoder.Create(stream,BitmapCreateOptions.PreservePixelFormat,BitmapCacheOption.OnLoad);if(decoder.Frames.Count>512)throw new ArgumentException("Use 512 frames or fewer.");var decoded=ScreenMedia.Decode(decoder);ResetEdits();frames.Clear();frames.AddRange(decoded.Frames);sourceBytes=bytes;sourceAsset=null;sourceBuiltin=-1;sourceName=name;inputBytes=bytes.Length;FinishLoad();notice.Text=frames.Count>1?"GIF delays normalized · transparency on black":"Transparency on black";
  }
  public void LoadWallpaper(int index){ResetEdits();frames.Clear();frames.Add(Bitmap(ScreenArtwork.Wallpaper(index)));sourceBytes=sourceAsset=null;sourceBuiltin=index;sourceName=ScreenArtwork.WallpaperNames[index];inputBytes=0;FinishLoad();}
+ void LoadTemplate(ScreenTemplateKind kind,string? tag)
+ {
+  var c=ThemeCatalog.Current.Accent;
+  uint accent=((uint)c.R<<16)|((uint)c.G<<8)|c.B;
+  var generated=ScreenTemplates.Generate(kind,tag,accent,16);
+  ResetEdits();frames.Clear();foreach(var rgba in generated)frames.Add(Bitmap(rgba));
+  sourceBytes=sourceAsset=null;sourceBuiltin=-1;sourceName=$"{kind} template";inputBytes=0;fps.Value=8;FinishLoad();_=BuildPreviewAsync();
+ }
  void LoadEncoded(byte[] bytes,int playbackDelay)
  {
   bool animated=ScreenCodec.IsAnimationAsset(bytes);var decoded=ScreenCodec.DecodeAsset(bytes,animated);ResetEdits();frames.Clear();frames.AddRange(decoded.Select(Bitmap));sourceBytes=null;sourceAsset=bytes.ToArray();sourceBuiltin=-1;sourceName="Encoded artwork";inputBytes=0;FinishLoad();animation.IsChecked=animated;fps.Value=Math.Clamp(1000d/playbackDelay,1,20);notice.Text="Encoded asset · delay stored in project";

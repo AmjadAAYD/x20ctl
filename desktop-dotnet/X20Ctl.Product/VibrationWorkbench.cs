@@ -80,6 +80,8 @@ public sealed class VibrationWorkbench
     Button? autoDetectToggleBtn;
     Button? askUnknownToggleBtn;
     Button? menuMuteToggleBtn;
+    Button? stereoCuesToggleBtn;
+    readonly Dictionary<WeaponRecoilPreset, Button> recoilPresetBtns = new();
     Slider? uniMasterSlider, uniTextureSlider, uniImpactSlider, uniTriggerSlider, uniContrastSlider, uniVocalSlider;
     TextBlock? uniMasterVal, uniTextureVal, uniImpactVal, uniTriggerVal, uniContrastVal, uniVocalVal, uniTuningHeader;
     Slider? appSurfaceSlider, appCombatSlider;
@@ -709,6 +711,20 @@ public sealed class VibrationWorkbench
         UniversalHapticsService.NotifySettingsChanged();
     }
 
+    void MutateCurrentTuning(Func<HapticsTuning, HapticsTuning> edit)
+    {
+        var cfg = UniversalHapticsService.Store.Snapshot();
+        var targetProf = ResolveEditingProfile();
+        var cur = UniversalHapticsService.Store.GetTuning(targetProf);
+        UniversalHapticsService.Store.SetTuning(targetProf, edit(cur).Normalized(), persist: true);
+        if (cfg.ManualProfile == HapticsGenreProfile.Auto && targetProf != HapticsGenreProfile.Auto)
+        {
+            var autoCur = UniversalHapticsService.Store.GetTuning(HapticsGenreProfile.Auto);
+            UniversalHapticsService.Store.SetTuning(HapticsGenreProfile.Auto, edit(autoCur).Normalized(), persist: true);
+        }
+        UniversalHapticsService.NotifySettingsChanged();
+    }
+
     void BuildSimpleBentoSection(Func<string, Action, string, Button> makeButton)
     {
         simpleBentoGrid.Children.Clear();
@@ -1044,6 +1060,36 @@ public sealed class VibrationWorkbench
             autoGrid.Children.Add(tb);
         }
         tuningCardStack.Children.Add(autoGrid);
+
+        stereoCuesToggleBtn = makeButton("Accessibility Stereo Cues (L/R Direction)", () => MutateCurrentTuning(t => t with { AccessibilityStereoCues = !t.AccessibilityStereoCues }), "DS.ConsoleBtn");
+        stereoCuesToggleBtn.HorizontalAlignment = HorizontalAlignment.Stretch;
+        stereoCuesToggleBtn.Margin = new(0, 6, 0, 6);
+        stereoCuesToggleBtn.MinHeight = 30;
+        stereoCuesToggleBtn.FontSize = 11.5;
+        tuningCardStack.Children.Add(stereoCuesToggleBtn);
+
+        tuningCardStack.Children.Add(Kit.Text("Weapon Recoil Trigger Feel", 11.5, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(0, 2, 0, 4)));
+        var recoilGrid = new System.Windows.Controls.Primitives.UniformGrid { Columns = 5, Margin = new(-2, 0, -2, 0) };
+        foreach (var (preset, lbl) in new (WeaponRecoilPreset, string)[]
+        {
+            (WeaponRecoilPreset.Default, "Default"),
+            (WeaponRecoilPreset.Pistol, "Pistol"),
+            (WeaponRecoilPreset.Smg, "SMG"),
+            (WeaponRecoilPreset.Shotgun, "Shotgun"),
+            (WeaponRecoilPreset.Sniper, "Sniper"),
+        })
+        {
+            var captured = preset;
+            var rb = makeButton(lbl, () => MutateCurrentTuning(t => t with { RecoilPreset = captured }), "DS.ConsoleBtn");
+            rb.HorizontalAlignment = HorizontalAlignment.Stretch;
+            rb.Margin = new(2);
+            rb.MinHeight = 28;
+            rb.Padding = new(4, 3, 4, 3);
+            rb.FontSize = 11;
+            recoilPresetBtns[captured] = rb;
+            recoilGrid.Children.Add(rb);
+        }
+        tuningCardStack.Children.Add(recoilGrid);
         stack.Children.Add(MakeBentoCard(tuningCardStack, new(0)));
 
         return stack;
@@ -1161,6 +1207,9 @@ public sealed class VibrationWorkbench
         if (autoDetectToggleBtn != null) LightingWindow.SetSelectedState(autoDetectToggleBtn, cfg.AutoDetectGames);
         if (askUnknownToggleBtn != null) LightingWindow.SetSelectedState(askUnknownToggleBtn, cfg.AskOnUnknownGame);
         if (menuMuteToggleBtn != null) LightingWindow.SetSelectedState(menuMuteToggleBtn, cfg.MenuAutoMute);
+        if (stereoCuesToggleBtn != null) LightingWindow.SetSelectedState(stereoCuesToggleBtn, tuning.AccessibilityStereoCues);
+        foreach (var (rp, btn) in recoilPresetBtns)
+            LightingWindow.SetSelectedState(btn, tuning.RecoilPreset == rp);
 
         if (toggleUniversalBtn != null)
         {

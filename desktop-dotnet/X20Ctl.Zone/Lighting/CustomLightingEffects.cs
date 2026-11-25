@@ -86,6 +86,7 @@ public sealed record LightingEffectSpec
     public int AudioHapticsStrength { get; init; } = 0;
     public AudioHapticsMode AudioHapticsStyle { get; init; } = AudioHapticsMode.AutoAdaptive;
     public MotorRoleMap AudioMotorRoles { get; init; } = MotorRoleMap.Default;
+    public bool BeatFlashBoost { get; init; }
 
     public bool IsNativeMode => Kind is LightingEffectKind.Solid or LightingEffectKind.NativeRainbow
         or LightingEffectKind.NativeBreathe or LightingEffectKind.NativeCycle or LightingEffectKind.NativeOff;
@@ -513,34 +514,32 @@ public static class LightingEffectEngine
         if (input.AudioVibe == AudioMusicVibe.Silent && level <= 0.025 && bass <= 0.025 && mid <= 0.025 && treble <= 0.025 && beat <= 0.025 && transient <= 0.025)
             return new(c0.R, c0.G, c0.B, minB);
 
-        switch (spec.AudioStyle)
+        LightingFrame frame = spec.AudioStyle switch
         {
-            case AudioReactiveStyle.AutoAdaptive:
-                return EvaluateAutoAdaptive(spec, sec, input, minB, maxB, c0, c1, c2, cLast, bass, mid, treble, beat, transient, centroid, energy, vocal, bassPunch, dynFactor, level);
+            AudioReactiveStyle.AutoAdaptive => EvaluateAutoAdaptive(spec, sec, input, minB, maxB, c0, c1, c2, cLast, bass, mid, treble, beat, transient, centroid, energy, vocal, bassPunch, dynFactor, level),
+            AudioReactiveStyle.BeatShift => EvaluateBeatShift(spec, sec, input, minB, maxB, c0, bass, mid, beat, transient, dynFactor),
+            AudioReactiveStyle.BassFire => EvaluateBassFire(spec, sec, minB, maxB, c0, bassPunch, bass, beat, treble, transient, dynFactor),
+            AudioReactiveStyle.AuroraDrift => EvaluateAuroraDrift(sec, input, minB, maxB, bass, mid, treble, beat, centroid, dynFactor),
+            AudioReactiveStyle.DropStrobe => EvaluateDropStrobe(spec, sec, maxB, minB, c0, c1, c2, cLast, mid, beat, centroid, bass, treble, dynFactor),
+            _ => EvaluateSpectrumFlow(spec, sec, input, minB, maxB, bass, mid, treble, beat, transient, centroid, energy, dynFactor),
+        };
+        if (spec.BeatFlashBoost && (beat > 0.55 || transient > 0.55))
+        {
+            var flashCol = spec.Palette.Length > 1 ? c1 : (R: (byte)255, G: (byte)255, B: (byte)255);
+            var boosted = LerpRgb((frame.R, frame.G, frame.B), flashCol, 0.45);
+            return new(boosted.R, boosted.G, boosted.B, maxB);
+        }
+        return frame;
 
-            case AudioReactiveStyle.BeatShift:
-                return EvaluateBeatShift(spec, sec, input, minB, maxB, c0, bass, mid, beat, transient, dynFactor);
-
-            case AudioReactiveStyle.BassFire:
-                return EvaluateBassFire(spec, sec, minB, maxB, c0, bassPunch, bass, beat, treble, transient, dynFactor);
-
-            case AudioReactiveStyle.AuroraDrift:
-                return EvaluateAuroraDrift(sec, input, minB, maxB, bass, mid, treble, beat, centroid, dynFactor);
-
-            case AudioReactiveStyle.DropStrobe:
-            {
-                bool drop = beat > 0.36 || (bass + treble) > 1.15;
-                int toggle = ((int)(sec * 1000.0 / Math.Max(60, spec.StepIntervalMs))) & 1;
-                (byte R, byte G, byte B) col = drop
-                    ? (toggle == 0 ? cLast : c1)
-                    : LerpHsv(c0, c2, Math.Clamp(mid * 0.7 + centroid * 0.3, 0.0, 1.0));
-                double bri = drop ? 1.0 : Math.Clamp(dynFactor * 0.44, 0.0, 1.0);
-                return new(col.R, col.G, col.B, LerpByte(minB, maxB, bri));
-            }
-
-            case AudioReactiveStyle.SpectrumFlow:
-            default:
-                return EvaluateSpectrumFlow(spec, sec, input, minB, maxB, bass, mid, treble, beat, transient, centroid, energy, dynFactor);
+        static LightingFrame EvaluateDropStrobe(LightingEffectSpec spec, double sec, byte maxB, byte minB, (byte R, byte G, byte B) c0, (byte R, byte G, byte B) c1, (byte R, byte G, byte B) c2, (byte R, byte G, byte B) cLast, double mid, double beat, double centroid, double bass, double treble, double dynFactor)
+        {
+            bool drop = beat > 0.36 || (bass + treble) > 1.15;
+            int toggle = ((int)(sec * 1000.0 / Math.Max(60, spec.StepIntervalMs))) & 1;
+            (byte R, byte G, byte B) col = drop
+                ? (toggle == 0 ? cLast : c1)
+                : LerpHsv(c0, c2, Math.Clamp(mid * 0.7 + centroid * 0.3, 0.0, 1.0));
+            double bri = drop ? 1.0 : Math.Clamp(dynFactor * 0.44, 0.0, 1.0);
+            return new(col.R, col.G, col.B, LerpByte(minB, maxB, bri));
         }
     }
 

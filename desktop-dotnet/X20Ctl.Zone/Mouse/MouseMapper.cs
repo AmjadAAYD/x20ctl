@@ -14,6 +14,8 @@ public enum MouseAction
     TiltLeft, TiltRight,
     /// <summary>Moves the pointer while held, at the pointer speed (the D-pad's default).</summary>
     PointerUp, PointerDown, PointerLeft, PointerRight,
+    /// <summary>System &amp; audio shortcuts callable from Mouse Mode, combos, or Radial Menu.</summary>
+    MicMute, InstantReplay, AppVolumeUp, AppVolumeDown,
 }
 
 /// <summary>
@@ -35,6 +37,8 @@ public sealed class MouseProfile
     public bool Scroll { get; set; } = true;
     /// <summary>Lines a second at full push.</summary>
     public int ScrollSpeed { get; set; } = 18;
+    /// <summary>Exponent (1.0 - 3.5) controlling scroll acceleration as the stick pushes toward full tilt.</summary>
+    public double ScrollAcceleration { get; set; } = 1.5;
     /// <summary>Speed while a Precision button is held, in percent.</summary>
     public double PrecisionPercent { get; set; } = 30;
     /// <summary>Hold View + Y for a second to switch the mouse on and off from the controller.</summary>
@@ -76,6 +80,7 @@ public sealed class MouseProfile
             throw new InvalidDataException("Choose two different reported buttons for the mouse shortcut.");
         if (PointerStick is not ("Left" or "Right") || Speed < MinSpeed || Speed > MaxSpeed || !double.IsFinite(Curve) || Curve < MinCurve || Curve > MaxCurve
             || Deadzone < 0 || Deadzone > MaxDeadzone || ScrollSpeed < MinScroll || ScrollSpeed > MaxScroll
+            || !double.IsFinite(ScrollAcceleration) || ScrollAcceleration < 1.0 || ScrollAcceleration > 3.5
             || !double.IsFinite(PrecisionPercent) || PrecisionPercent < MinPrecision || PrecisionPercent > MaxPrecision || Buttons == null)
             throw new InvalidDataException("Invalid mouse settings.");
         foreach (var (button, action) in Buttons)
@@ -192,8 +197,8 @@ public sealed class MouseMapper
         {
             double wx = sx / 32768.0, wy = sy / 32768.0;
             // each axis on its own, so scrolling down a page doesn't also drift sideways
-            carryWheel += Math.Sign(wy) * Push(Math.Abs(wy), profile.Deadzone, 1.5) * profile.ScrollSpeed * 120 * seconds;
-            carryH += Math.Sign(wx) * Push(Math.Abs(wx), profile.Deadzone + 10, 1.5) * profile.ScrollSpeed * 120 * seconds;
+            carryWheel += Math.Sign(wy) * Push(Math.Abs(wy), profile.Deadzone, profile.ScrollAcceleration) * profile.ScrollSpeed * 120 * seconds;
+            carryH += Math.Sign(wx) * Push(Math.Abs(wx), profile.Deadzone + 10, profile.ScrollAcceleration) * profile.ScrollSpeed * 120 * seconds;
             if (Math.Abs(carryWheel) >= 30) { wheel = (int)Math.Truncate(carryWheel); carryWheel -= wheel; }
             if (Math.Abs(carryH) >= 30) { hwheel = (int)Math.Truncate(carryH); carryH -= hwheel; }
             if (Math.Abs(wy) < profile.Deadzone / 100.0) carryWheel = 0;

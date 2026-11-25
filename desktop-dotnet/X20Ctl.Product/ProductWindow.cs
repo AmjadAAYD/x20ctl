@@ -20,9 +20,19 @@ public sealed class ProductWindow : Window
     private TrayIcon? tray;
     private const int HapticsHotkeyId = 0x2048;
     private const int TournamentHotkeyId = 0x2054;
-    private bool hapticsHotkeyRegistered, tournamentHotkeyRegistered;
+    private const int OverlayHotkeyId = 0x204F;
+    private bool hapticsHotkeyRegistered, tournamentHotkeyRegistered, overlayHotkeyRegistered;
     private DateTimeOffset lastEcoBleRefreshUtc = DateTimeOffset.MinValue;
     private DateTimeOffset lastEcoBatteryPollUtc = DateTimeOffset.MinValue;
+    private X20Ctl.Product.Overlays.InputOverlayWindow? inputOverlay;
+    private X20Ctl.Product.Overlays.RadialMenuWindow? radialOverlay;
+    private DispatcherTimer? foregroundAutomationTimer, radialPollTimer;
+    private X20Ctl.Product.Scanner.WindowsReader? radialReader;
+    private string? lastAutoExe;
+    private bool? savedPreRuleEco;
+    private RadialMenuConfig radialConfig = RadialMenuConfig.Load();
+    private long radialHoldStartMs = -1;
+    private bool radialTriggeredThisHold;
     public DesignStage Stage { get; } = new();
     private readonly WindowChrome chrome = new(){CaptionHeight=58,ResizeBorderThickness=new(0),GlassFrameThickness=new(0),CornerRadius=new(16),UseAeroCaptionButtons=false};
     public ProductWindow(bool reducedMotion=false,string? assignmentPath=null,bool startMaximized=true,bool firstRun=false,Action<string>? openSupport=null,bool nativeEngine=false,bool fullscreen=false,bool trayIcon=false)
@@ -41,6 +51,7 @@ public sealed class ProductWindow : Window
             {
                 hapticsHotkeyRegistered = RegisterHotKey(hwnd, HapticsHotkeyId, 0x0001 | 0x0002 | 0x4000, 0x48);
                 tournamentHotkeyRegistered = RegisterHotKey(hwnd, TournamentHotkeyId, 0x0001 | 0x0002 | 0x4000, 0x54);
+                overlayHotkeyRegistered = RegisterHotKey(hwnd, OverlayHotkeyId, 0x0001 | 0x0002 | 0x4000, 0x4F);
             }
             GetCursorPos(out var cursor);var monitor=MonitorFromPoint(cursor,2);var info=ReadMonitor(monitor);
             if(info!=null)
@@ -54,7 +65,7 @@ public sealed class ProductWindow : Window
         Host.HomeRequested+=BringHome;PreviewKeyUp+=Host.OnKeyUp;Deactivated+=(_,_)=>Host.ResetTransientInput();
         StateChanged+=(_,_)=>{if(Fullscreen)MarkFullscreen(WindowState==WindowState.Maximized&&IsActive);Scene.OuterFrame.CornerRadius=new(WindowState==WindowState.Maximized?0:16);if(WindowState==WindowState.Maximized)Dispatcher.BeginInvoke(DispatcherPriority.Loaded,new Action(ApplyWorkArea));else if(WindowState==WindowState.Normal)Dispatcher.BeginInvoke(DispatcherPriority.Loaded,new Action(ApplyWindowedSize));};
         // it always opens fullscreen (F11 or the restore button still give a window for those who want one)
-        Loaded+=(_,_)=>{if(StartsMaximized&&WindowState!=WindowState.Maximized)WindowState=WindowState.Maximized;if(WindowState==WindowState.Maximized)ApplyWorkArea();if(nativeEngine)_=Host.InitializeNativeEngineAsync();Host.RequestAutomaticTelemetryRefresh();};
+        Loaded+=(_,_)=>{if(StartsMaximized&&WindowState!=WindowState.Maximized)WindowState=WindowState.Maximized;if(WindowState==WindowState.Maximized)ApplyWorkArea();if(nativeEngine)_=Host.InitializeNativeEngineAsync();Host.RequestAutomaticTelemetryRefresh();if(!ReviewSandbox.Active){StartForegroundAutomationLoop();StartRadialMenuLoop();}};
         // hidden in the tray or minimized, nothing is drawn: the stage leaves the render tree, so its endless background
         // motion stops costing CPU while PC mode runs for hours (its animations keep their place and resume on return)
         void Rest()
@@ -71,12 +82,17 @@ public sealed class ProductWindow : Window
             App.CloseAllTooltips();
             if(hapticsHotkeyRegistered){var hwnd=new WindowInteropHelper(this).Handle;if(hwnd!=IntPtr.Zero)UnregisterHotKey(hwnd,HapticsHotkeyId);hapticsHotkeyRegistered=false;}
             if(tournamentHotkeyRegistered){var hwnd=new WindowInteropHelper(this).Handle;if(hwnd!=IntPtr.Zero)UnregisterHotKey(hwnd,TournamentHotkeyId);tournamentHotkeyRegistered=false;}
+            if(overlayHotkeyRegistered){var hwnd=new WindowInteropHelper(this).Handle;if(hwnd!=IntPtr.Zero)UnregisterHotKey(hwnd,OverlayHotkeyId);overlayHotkeyRegistered=false;}
+            foregroundAutomationTimer?.Stop();radialPollTimer?.Stop();radialReader?.Dispose();radialReader=null;
+            inputOverlay?.Close();inputOverlay=null;radialOverlay?.Close();radialOverlay=null;
             tray?.Dispose();batteryTimer?.Stop();liveBatteryTimer?.Stop();Host.MouseMode?.Dispose();Host.PcMode?.Dispose();await Host.StopNativeEngineAsync();};
         // the tray icon (WinForms, about 0.1 s to start) comes once the window has drawn, so it never holds back the first frame
         if(trayIcon){Closing+=(_,e)=>{App.CloseAllTooltips();if(tray==null||tray.Quitting)return;e.Cancel=true;tray.HideToTray();};ContentRendered+=(_,_)=>Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle,new Action(()=>{
             if(tray!=null)return;tray=new TrayIcon(this);
             if(Host.PcMode is{} pc){string Status()=>pc.State==PcModeState.Active?(pc.TournamentMode?"X20CTL · Tournament Mode":pc.Suspended?"X20CTL · PC mode paused":"X20CTL · PC mode active"):"X20CTL · Controller Studio";tray.SetStatus(Status());pc.Changed+=()=>Dispatcher.BeginInvoke(()=>tray?.SetStatus(Status()));pc.Notice+=text=>Dispatcher.BeginInvoke(()=>tray?.Notify("PC mode",text));tray.AddToggle("Tournament / Clean Mode (Ctrl+Alt+T)",()=>pc.TournamentMode,on=>pc.TournamentMode=on);}
             if(Host.MouseMode is{} mouse){tray.AddToggle("Controller as mouse",()=>mouse.Active,on=>mouse.Active=on);mouse.Notice+=text=>Dispatcher.BeginInvoke(()=>tray?.Notify("Controller as mouse",text));}
+            tray.AddToggle("OBS Input Overlay (Ctrl+Alt+O)",()=>inputOverlay is { IsVisible: true },on=>SetInputOverlayVisible(on));
+            tray.AddToggle("Overlay Click-Through Lock",()=>inputOverlay?.ClickThrough??true,on=>{if(inputOverlay!=null)inputOverlay.ClickThrough=on;});
             tray.AddToggle("Power Saving Mode (Eco)",()=>UniversalHapticsService.Store.Snapshot().PowerSavingMode,on=>UniversalHapticsService.SetPowerSavingMode(on));
             tray.AddToggle("Universal Haptics (Ctrl+Alt+H)",()=>UniversalHapticsService.IsRunning,on=>{if(on)UniversalHapticsService.Start();else UniversalHapticsService.Stop();});
             WatchBattery();}));}
@@ -98,6 +114,150 @@ public sealed class ProductWindow : Window
             _=Host.RefreshBleTelemetryAsync();
         };
         liveBatteryTimer.Start();
+    }
+
+    private void SetInputOverlayVisible(bool show)
+    {
+        if (ReviewSandbox.Active) return;
+        if (show)
+        {
+            inputOverlay ??= new X20Ctl.Product.Overlays.InputOverlayWindow(Host.PcMode);
+            if (!inputOverlay.IsVisible) inputOverlay.Show();
+        }
+        else
+        {
+            inputOverlay?.Hide();
+        }
+    }
+
+    private void StartForegroundAutomationLoop()
+    {
+        foregroundAutomationTimer = new(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(1500) };
+        foregroundAutomationTimer.Tick += async (_, _) =>
+        {
+            if (ReviewSandbox.Active) return;
+            string? exe = ForegroundApp.Exe;
+            if (string.Equals(exe, lastAutoExe, StringComparison.OrdinalIgnoreCase)) return;
+            lastAutoExe = exe;
+            var rule = ProductHost.AutomationRules.FindForExe(exe);
+            if (rule == null)
+            {
+                if (savedPreRuleEco is { } prevEco)
+                {
+                    savedPreRuleEco = null;
+                    UniversalHapticsService.SetPowerSavingMode(prevEco);
+                }
+                return;
+            }
+            if (rule.ForceEcoMode is bool forceEco)
+            {
+                savedPreRuleEco ??= UniversalHapticsService.Store.Snapshot().PowerSavingMode;
+                if (UniversalHapticsService.Store.Snapshot().PowerSavingMode != forceEco)
+                    UniversalHapticsService.SetPowerSavingMode(forceEco);
+            }
+            if (rule.HapticsProfile is { } hp && UniversalHapticsService.Store.Snapshot().ManualProfile != hp)
+            {
+                UniversalHapticsService.Store.UpdateSettings(c => c.ManualProfile = hp, persist: false);
+                UniversalHapticsService.NotifySettingsChanged();
+            }
+            if (!UniversalHapticsService.IsPowerSavingActive && (rule.RgbPresetId != null || rule.RgbBrightnessPct != null))
+            {
+                var spec = rule.RgbPresetId != null
+                    ? (LightingEffectsService.Store.FindPreset(rule.RgbPresetId)?.Spec ?? LightingEffectsService.CurrentSpec)
+                    : LightingEffectsService.CurrentSpec;
+                if (rule.RgbBrightnessPct is int pct)
+                    spec = spec with { MaxBrightness = X20Ctl.Zone.Lighting.LightingRecord.BrightnessByteFor(pct) };
+                if (!LightingEffectsService.UpdateRunningSpec(spec))
+                    await LightingEffectsService.ApplyAsync(spec);
+            }
+        };
+        foregroundAutomationTimer.Start();
+    }
+
+    private void StartRadialMenuLoop()
+    {
+        try { radialReader = new X20Ctl.Product.Scanner.WindowsReader("XInput1_4.dll"); } catch { }
+        radialPollTimer = new(DispatcherPriority.Input) { Interval = TimeSpan.FromMilliseconds(40) };
+        radialPollTimer.Tick += (_, _) =>
+        {
+            if (ReviewSandbox.Active || !radialConfig.Enabled)
+            {
+                if (radialOverlay != null) { radialOverlay.Hide(); radialTriggeredThisHold = false; }
+                return;
+            }
+            X20Ctl.Zone.PcMode.PadState? pad = Host.PcMode?.Latest?.Input;
+            if (pad == null && radialReader != null)
+            {
+                for (int i = 0; i < 4; i++)
+                {
+                    if (PcModeService.IsVirtual(i)) continue;
+                    if (radialReader.Read(i, out var st))
+                    {
+                        pad = new X20Ctl.Zone.PcMode.PadState(st.Pad.Buttons, st.Pad.LT, st.Pad.RT, st.Pad.LX, st.Pad.LY, st.Pad.RX, st.Pad.RY);
+                        break;
+                    }
+                }
+            }
+            if (pad == null)
+            {
+                if (radialOverlay is { IsVisible: true }) { radialOverlay.Hide(); radialTriggeredThisHold = false; radialHoldStartMs = -1; }
+                return;
+            }
+            ushort chordMask = 0;
+            foreach (var b in radialConfig.TriggerChord)
+                if (X20Ctl.Zone.PcMode.PadButtons.Mask.TryGetValue(b, out ushort m)) chordMask |= m;
+            bool held = chordMask != 0 && (pad.Value.Buttons & chordMask) == chordMask;
+            long now = Environment.TickCount64;
+            if (held)
+            {
+                if (radialHoldStartMs < 0) radialHoldStartMs = now;
+                if (!radialTriggeredThisHold && now - radialHoldStartMs >= radialConfig.HoldMs)
+                {
+                    radialTriggeredThisHold = true;
+                    radialOverlay ??= new X20Ctl.Product.Overlays.RadialMenuWindow(radialConfig);
+                    if (!radialOverlay.IsVisible) radialOverlay.Show();
+                }
+                if (radialTriggeredThisHold && radialOverlay is { IsVisible: true })
+                    radialOverlay.UpdateAim(pad.Value.RightX, pad.Value.RightY);
+            }
+            else
+            {
+                radialHoldStartMs = -1;
+                if (radialTriggeredThisHold)
+                {
+                    radialTriggeredThisHold = false;
+                    var slice = radialOverlay?.ActiveSlice;
+                    radialOverlay?.Hide();
+                    if (slice != null) ExecuteRadialAction(slice.ActionId);
+                }
+            }
+        };
+        radialPollTimer.Start();
+    }
+
+    private void ExecuteRadialAction(string actionId)
+    {
+        if (ReviewSandbox.Active) return;
+        switch (actionId)
+        {
+            case "SYS:MicMute": SystemAudioControl.ToggleMicMute(); break;
+            case "SYS:InstantReplay": SystemAudioControl.TriggerInstantReplay(); break;
+            case "SYS:AppVolUp": SystemAudioControl.AdjustFocusedAppVolume(0.08f); break;
+            case "SYS:AppVolDown": SystemAudioControl.AdjustFocusedAppVolume(-0.08f); break;
+            case "SYS:TournamentToggle":
+                if (Host.PcMode != null) Host.PcMode.TournamentMode = !Host.PcMode.TournamentMode;
+                break;
+            case "SYS:EcoToggle":
+                UniversalHapticsService.SetPowerSavingMode(!UniversalHapticsService.Store.Snapshot().PowerSavingMode);
+                break;
+            case "SYS:OverlayToggle":
+                SetInputOverlayVisible(!(inputOverlay is { IsVisible: true }));
+                break;
+            default:
+                MouseModeService.DispatchOutput(actionId, true);
+                MouseModeService.DispatchOutput(actionId, false);
+                break;
+        }
     }
     /// <summary>The controller's battery in the tray tooltip, read once a minute from what Windows reports (XInput's
     /// documented battery call, read only); a notification once when it turns low. Wired pads and pads that don't
@@ -174,6 +334,12 @@ public sealed class ProductWindow : Window
         if(message==0x0312 && wParam.ToInt32()==TournamentHotkeyId && Host.PcMode is { } pcMode)
         {
             pcMode.TournamentMode = !pcMode.TournamentMode;
+            handled=true;
+            return IntPtr.Zero;
+        }
+        if(message==0x0312 && wParam.ToInt32()==OverlayHotkeyId)
+        {
+            SetInputOverlayVisible(!(inputOverlay is { IsVisible: true }));
             handled=true;
             return IntPtr.Zero;
         }

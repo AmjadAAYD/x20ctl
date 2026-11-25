@@ -52,7 +52,8 @@ internal sealed class LightingEffectsSection
     private ScaleTransform? bassScale, midScale, trebleScale, vocalScale;
     private readonly ScaleTransform?[] spectrumScales = new ScaleTransform?[8];
     private ScaleTransform? lgScale, rgScale, ltScale, rtScale;
-    private Button? roleLgBtn, roleRgBtn, roleLtBtn, roleRtBtn, roleResetBtn;
+    private Button? roleLgBtn, roleRgBtn, roleLtBtn, roleRtBtn, roleResetBtn, beatFlashBtn;
+    private bool beatFlashBoost;
     private Border? beatBadge;
     private static readonly SolidColorBrush BeatActiveBrush = CreateFrozenBrush(220, 0, 229, 255);
     private static readonly SolidColorBrush BeatIdleBrush = CreateFrozenBrush(40, 0, 229, 255);
@@ -169,6 +170,7 @@ internal sealed class LightingEffectsSection
         MaxSessionWrites = selectedWriteCap,
         AudioSensitivity = (int)Math.Round(audioSensSlider.Value),
         AudioStyle = selectedAudioStyle,
+        BeatFlashBoost = beatFlashBoost,
         AudioHapticsStrength = selectedAudioHaptics,
         AudioHapticsStyle = selectedAudioHapticsMode,
         AudioMotorRoles = selectedMotorRoles,
@@ -196,6 +198,7 @@ internal sealed class LightingEffectsSection
                 selectedKind = LightingEffectKind.SmoothHueWave;
             selectedWriteCap = Array.Exists(WriteCapChoices, c => c.Cap == spec.MaxSessionWrites) ? spec.MaxSessionWrites : 0;
             selectedAudioStyle = spec.AudioStyle;
+            beatFlashBoost = spec.BeatFlashBoost;
             selectedAudioHapticsMode = spec.AudioHapticsStyle;
             selectedAudioHaptics = Array.Exists(AudioHapticsChoices, c => c.Strength == spec.AudioHapticsStrength) ? spec.AudioHapticsStrength : 0;
             selectedMotorRoles = spec.AudioMotorRoles;
@@ -521,6 +524,8 @@ internal sealed class LightingEffectsSection
             LightingWindow.SetSelectedState(btn, hm == selectedAudioHapticsMode);
         foreach (var (h, btn) in audioHapticsButtons)
             LightingWindow.SetSelectedState(btn, h == selectedAudioHaptics);
+        if (beatFlashBtn != null)
+            LightingWindow.SetSelectedState(beatFlashBtn, beatFlashBoost);
         UpdateRoleButtons();
         if (audioStudioPanel != null)
             audioStudioPanel.Visibility = selectedKind == LightingEffectKind.AudioReactive ? Visibility.Visible : Visibility.Collapsed;
@@ -724,6 +729,26 @@ internal sealed class LightingEffectsSection
 
         body.Children.Add(audioSensLabel);
         body.Children.Add(audioSensSlider);
+        beatFlashBtn = new Button
+        {
+            Content = "Beat Flash Boost (Transient Pulse)",
+            Style = DS.Style("DS.ConsoleBtn"),
+            Padding = new(10, 5, 10, 5),
+            Margin = new(0, 0, 0, 8),
+            FontSize = 11.5,
+            MinHeight = 30,
+            Height = double.NaN,
+            HorizontalAlignment = HorizontalAlignment.Left,
+        };
+        beatFlashBtn.Click += async (_, _) =>
+        {
+            beatFlashBoost = !beatFlashBoost;
+            UpdateSelectionButtons();
+            SyncPreviewDraft();
+            await ApplyOrHotUpdateAudioAsync();
+        };
+        registerFocus?.Invoke(beatFlashBtn);
+        body.Children.Add(beatFlashBtn);
 
         body.Children.Add(Kit.Text("4-Motor Haptics (Grips + Triggers)", 12.5, "DS.TextSoft").Also(t => t.Margin = new(0, 0, 0, 5)));
         var hapPanel = new WrapPanel { Margin = new(-2, 0, -2, 6) };

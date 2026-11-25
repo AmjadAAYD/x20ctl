@@ -38,6 +38,7 @@ public sealed partial class ProductHost : Grid
     private bool replayingTelemetry; // a remembered reading shown again is not a new one
     private readonly string?[] measuredBatteryModels=new string?[4];
     public static X20Ctl.Zone.Telemetry.BatterySessionLog BatteryLog { get; } = new();
+    public static GameAutomationStore AutomationRules { get; } = new();
     private bool lowBatteryAlertedThisSession;
 
     private void LogBatteryTelemetry(string? batteryText, string? modelId, string? transport)
