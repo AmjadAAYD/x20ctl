@@ -44,6 +44,16 @@ internal static class FeatureTabsReview
                 else if(studio.Screen?.Body.IsVisible!=true)throw new InvalidOperationException("Screen editor hidden.");
             }
             Capture(stage,Path.Combine(directory,page+".png"));
+            if(!rgbOnly&&page=="RGB"&&!File.Exists(Path.Combine(directory,"RGB-Effects.png"))&&studio.LightingForReview is { } lighting)
+            {
+                lighting.SelectSection(1);
+                await studio.Dispatcher.InvokeAsync(()=>{},DispatcherPriority.ContextIdle);await Task.Delay(140);
+                IllustratedThemeUI.Skin(host);
+                stage.Measure(new Size(1600,900));stage.Arrange(new Rect(0,0,1600,900));stage.UpdateLayout();
+                Capture(stage,Path.Combine(directory,"RGB-Effects.png"));
+                lighting.SelectSection(0);
+                await studio.Dispatcher.InvokeAsync(()=>{},DispatcherPriority.ContextIdle);stage.UpdateLayout();
+            }
             if(page=="Device")
             {
                 // opens the confirm step only; Reset controller is never pressed

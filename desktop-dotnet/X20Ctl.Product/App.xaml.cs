@@ -72,6 +72,8 @@ public partial class App : Application
             if (e.Args.Length == 2 && e.Args[0] is "--review-lighting" or "--review-lighting-ui")
             {
                 ShutdownMode = ShutdownMode.OnExplicitShutdown;
+                ReviewSandbox.Active = true;
+                ReviewSandbox.HideLibrary = true;
                 Directory.CreateDirectory(e.Args[1]);
                 try
                 {

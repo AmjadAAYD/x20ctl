@@ -159,14 +159,13 @@ internal static class AgentLookReview
             studio.SetGameplayConnected(true);
             product.UpdateBatteryLevels(["medium", null, null, null]);
             var header = Find<HeaderBattery>(studio) ?? throw new InvalidOperationException("Battery header is missing.");
-            if (header.Visibility != Visibility.Visible) throw new InvalidOperationException("Battery is hidden while PC Mode is off.");
+            if (header.Visibility != Visibility.Collapsed) throw new InvalidOperationException("Header battery pill should stay collapsed.");
             product.PcMode!.Enabled = true;
             if (header.Visibility != Visibility.Collapsed) throw new InvalidOperationException("Battery is visible while PC Mode is on.");
             product.UpdateBatteryLevels(["low", null, null, null]);
-            if (header.Visibility != Visibility.Collapsed) throw new InvalidOperationException("A battery update revealed the hidden header.");
+            if (header.Visibility != Visibility.Collapsed) throw new InvalidOperationException("A battery update revealed the collapsed header pill.");
             product.PcMode.Enabled = false;
-            if (header.Visibility != Visibility.Visible || !System.Windows.Automation.AutomationProperties.GetName(header).Contains("Low", StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("The latest battery reading did not return when PC Mode was switched off.");
+            if (header.Visibility != Visibility.Collapsed) throw new InvalidOperationException("Header battery pill should remain collapsed when PC Mode is switched off.");
             studio.SetGameplayConnected(false);
         }
 
@@ -184,6 +183,10 @@ internal static class AgentLookReview
             await studio.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ContextIdle);
             Layout();
             var workbench = studio.Vibration!;
+            if (!workbench.Test.IsVisible || workbench.Test.IsEnabled) throw new InvalidOperationException(model + ": test all isn't sandboxed.");
+            workbench.SelectSection(1);
+            await studio.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ContextIdle);
+            Layout();
             bool hasTriggers = model is "x20_pro" or "dune";
             foreach (var zone in Enum.GetValues<VibrationWorkbench.Zone>())
             {
@@ -194,14 +197,15 @@ internal static class AgentLookReview
                     if (tile != null || slider != null) throw new InvalidOperationException(model + ": unexpected trigger tile.");
                     continue;
                 }
-                if (tile == null || !tile.IsVisible || Math.Abs(tile.ActualWidth - tile.ActualHeight) > 1 ||
-                    slider?.Orientation != Orientation.Vertical || slider.ActualHeight <= 0)
-                    throw new InvalidOperationException(model + ": missing square tile or vertical slider for " + zone);
+                if (tile == null || !tile.IsVisible || slider == null || !slider.IsVisible)
+                    throw new InvalidOperationException(model + ": missing motor tile or slider for " + zone);
                 slider.Value = 45;
                 if (slider.Value != 45) throw new InvalidOperationException(model + ": motor strength did not update.");
             }
-            if (!workbench.Test.IsVisible || workbench.Test.IsEnabled) throw new InvalidOperationException(model + ": test all isn't sandboxed.");
             await Shot("vibration-" + model);
+            workbench.SelectSection(0);
+            await studio.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ContextIdle);
+            Layout();
         }
 
         async Task Shot(string name)

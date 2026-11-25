@@ -129,8 +129,8 @@ public sealed class DashboardConsolePage : Grid
         ClipToBounds = true; // in a short window nothing may spill under the Studio footer
         Margin = new(0, 12, 0, 0);
         RowDefinitions.Add(new() { Height = new(1, GridUnitType.Star) });
-        RowDefinitions.Add(new() { Height = new(24) });
-        RowDefinitions.Add(new() { Height = new(230) });
+        RowDefinitions.Add(new() { Height = new(14) });
+        RowDefinitions.Add(new() { Height = new(214) });
         RowDefinitions.Add(new() { Height = new(86) });
 
         var top = new Grid(); top.ColumnDefinitions.Add(new() { Width = new(1, GridUnitType.Star) }); top.ColumnDefinitions.Add(new() { Width = new(1, GridUnitType.Star) }); Children.Add(top);
@@ -145,12 +145,12 @@ public sealed class DashboardConsolePage : Grid
         Grid.SetColumn(stage, 1); stage.Margin = new(12, 0, 0, 0); top.Children.Add(stage);
         var status = new StackPanel();
         deviceState.Text="Offline";deviceState.FontSize=18;deviceState.FontWeight=FontWeights.SemiBold;status.Children.Add(deviceState);
-        status.Children.Add(Kit.Text("Current setup",12,"DS.TextMuted",FontWeights.SemiBold).Also(t=>t.Margin=new(0,10,0,4)));status.Children.Add(workingSetup);profileState.Margin=new(0,6,0,0);status.Children.Add(profileState);
-        var stateGrid=new Grid{Margin=new(0,12,0,10)};stateGrid.ColumnDefinitions.Add(new());stateGrid.ColumnDefinitions.Add(new());stateGrid.RowDefinitions.Add(new());stateGrid.RowDefinitions.Add(new());
+        status.Children.Add(Kit.Text("Current setup",12,"DS.TextMuted",FontWeights.SemiBold).Also(t=>t.Margin=new(0,6,0,2)));status.Children.Add(workingSetup);profileState.Margin=new(0,2,0,0);status.Children.Add(profileState);
+        var stateGrid=new Grid{Margin=new(0,8,0,4)};stateGrid.ColumnDefinitions.Add(new());stateGrid.ColumnDefinitions.Add(new());stateGrid.RowDefinitions.Add(new());stateGrid.RowDefinitions.Add(new());
         FrameworkElement BuildEcoContent()
         {
             var ecoPanel = new StackPanel();
-            ecoPanel.Children.Add(Kit.Text("Enable battery saving mode?", 12, "DS.TextMuted").Also(t => t.Margin = new(0, 0, 0, 6)));
+            ecoPanel.Children.Add(Kit.Text("Enable battery saving mode?", 12, "DS.TextMuted").Also(t => t.Margin = new(0, 0, 0, 3)));
             var row = new DockPanel { LastChildFill = true };
             ecoSwitch.IsChecked = UniversalHapticsService.Store.Snapshot().PowerSavingMode;
             ecoSwitch.ToolTip = "Shuts off controller LEDs via BLE, kills vibration & game rumble, locks Vibration/RGB/Screen, stops audio capture, and pauses BLE polling.";
@@ -192,12 +192,12 @@ public sealed class DashboardConsolePage : Grid
             else
             {
                 var text=new StackPanel();
-                text.Children.Add(Kit.Text(cells[i].Name,12,"DS.TextMuted").Also(t=>t.Margin=new(0,0,0,6)));
+                text.Children.Add(Kit.Text(cells[i].Name,12,"DS.TextMuted").Also(t=>t.Margin=new(0,0,0,3)));
                 if (cells[i].Value is TextBlock tb) tb.TextWrapping=TextWrapping.Wrap;
                 text.Children.Add(cells[i].Value!);
                 content = text;
             }
-            var cell=new Border{CornerRadius=new(12),Padding=new(8),Margin=new(0,0,8,8),Background=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(16,180,205,240))),Child=content};
+            var cell=new Border{CornerRadius=new(12),Padding=new(8,6,8,6),Margin=new(0,0,8,6),Background=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(16,180,205,240))),Child=content};
             if (cells[i].Name == "Battery") batteryCell = cell;
             if (cells[i].Name == "Battery" && model.Id is "x20" or "x20_pro")
             {
