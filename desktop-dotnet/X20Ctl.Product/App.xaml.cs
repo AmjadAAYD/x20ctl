@@ -30,6 +30,13 @@ public partial class App : Application
         KeepTooltipsInside();
         try
         {
+            if (e.Args.Length == 2 && e.Args[0] == "--test-e2e-full")
+            {
+                ShutdownMode = ShutdownMode.OnExplicitShutdown;
+                try { await Development.AutomatedE2ETester.Run(e.Args[1]); Shutdown(0); }
+                catch (Exception failure) { Directory.CreateDirectory(e.Args[1]); File.WriteAllText(Path.Combine(e.Args[1], "failure.txt"), failure.ToString()); Shutdown(1); }
+                return;
+            }
             if(e.Args.Length==2 && e.Args[0]=="--review-bluetooth-link")
             {
                 ShutdownMode=ShutdownMode.OnExplicitShutdown;
@@ -378,7 +385,7 @@ public partial class App : Application
                 try { await Development.BatteryReview.Run(e.Args[1]); } catch (Exception failure) { File.WriteAllText(e.Args[1] + ".failure.txt", failure.ToString()); }
                 Shutdown(0); return;
             }
-            if (e.Args.Length == 2 && e.Args[0] is "--review-zone" or "--review-studio" or "--review-console" or "--review-management" or "--review-product" or "--review-models" or "--review-live" or "--review-design" or "--review-showcase" or "--review-dashboard" or "--review-input" or "--review-intro" or "--review-zone-motion" or "--review-windowed" or "--review-pages" or "--review-stress" or "--review-probe" or "--review-readme" or "--review-talk" or "--agent-bakeoff" or "--agent-drift" or "--agent-m3" or "--agent-phrasebook" or "--agent-m5" or "--agent-phrasebook-clean" or "--review-scanflow" or "--review-agent-look")
+            if (e.Args.Length == 2 && e.Args[0] is "--test-e2e-full" or "--review-zone" or "--review-studio" or "--review-console" or "--review-management" or "--review-product" or "--review-models" or "--review-live" or "--review-design" or "--review-showcase" or "--review-dashboard" or "--review-input" or "--review-intro" or "--review-zone-motion" or "--review-windowed" or "--review-pages" or "--review-stress" or "--review-probe" or "--review-readme" or "--review-talk" or "--agent-bakeoff" or "--agent-drift" or "--agent-m3" or "--agent-phrasebook" or "--agent-m5" or "--agent-phrasebook-clean" or "--review-scanflow" or "--review-agent-look")
             {
                 ShutdownMode = ShutdownMode.OnExplicitShutdown; IntroView.SoundEnabled = false;
                 if(e.Args[0]=="--review-readme")await Development.ReadmeReview.Run(e.Args[1]); else if(e.Args[0]=="--review-scanflow")await Development.ScanFlowReview.Run(e.Args[1]); else if(e.Args[0]=="--review-agent-look")await Development.AgentLookReview.Run(e.Args[1]);
@@ -447,7 +454,7 @@ public partial class App : Application
         }
         catch (Exception error)
         {
-            if (e.Args.Length == 2 && e.Args[0] is "--review-zone" or "--review-studio" or "--review-console" or "--review-management" or "--review-product" or "--review-models" or "--review-live" or "--review-design" or "--review-showcase" or "--review-dashboard" or "--review-input" or "--review-intro" or "--review-zone-motion" or "--review-windowed" or "--review-pages" or "--review-stress" or "--review-probe" or "--review-readme" or "--review-talk" or "--agent-bakeoff" or "--agent-drift" or "--agent-m3" or "--agent-phrasebook" or "--agent-m5" or "--agent-phrasebook-clean" or "--review-scanflow" or "--review-agent-look")
+            if (e.Args.Length == 2 && e.Args[0] is "--test-e2e-full" or "--review-zone" or "--review-studio" or "--review-console" or "--review-management" or "--review-product" or "--review-models" or "--review-live" or "--review-design" or "--review-showcase" or "--review-dashboard" or "--review-input" or "--review-intro" or "--review-zone-motion" or "--review-windowed" or "--review-pages" or "--review-stress" or "--review-probe" or "--review-readme" or "--review-talk" or "--agent-bakeoff" or "--agent-drift" or "--agent-m3" or "--agent-phrasebook" or "--agent-m5" or "--agent-phrasebook-clean" or "--review-scanflow" or "--review-agent-look")
             {
                 Directory.CreateDirectory(e.Args[1]);
                 File.WriteAllText(Path.Combine(e.Args[1], "failure.txt"), error.ToString());
