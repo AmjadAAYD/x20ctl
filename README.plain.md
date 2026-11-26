@@ -39,7 +39,7 @@ Built-in handheld assistant rendered inside your chosen controller frame in the 
 
 #### Dashboard
 
-Shows the active controller, player slot, an **Enable battery saving mode?** hardware switch (shuts off controller LEDs via BLE, kills vibration and PC game rumble, locks Vibration, RGB & Screen until Eco mode is turned off, stops audio FFT capture, and pauses background BLE polling), and your local game library. The game shelf scans all fixed drives and local launcher manifests across Steam, Epic Games, Xbox / Game Pass, EA App, Ubisoft Connect, Battle.net, GOG, Riot, Heroic, and Lutris strictly offline so each game launches with its own controller setup.
+Shows the active controller, player slot, an **Enable battery saving mode?** hardware switch with a collapsible **What's done in Eco mode?** breakdown (shuts off controller LEDs via BLE, kills vibration and PC game rumble, locks Vibration, RGB & Screen until Eco mode is turned off, stops audio FFT capture, and pauses background BLE polling), a live **Community Pulse & Alerts** bar (online user count + unread community notifications), and your local game library. The game shelf scans all fixed drives and local launcher manifests across Steam, Epic Games, Xbox / Game Pass, EA App, Ubisoft Connect, Battle.net, GOG, Riot, Heroic, and Lutris strictly offline so each game launches with its own controller setup.
 
 #### RGB & Live Effects (X20 Pro)
 
@@ -47,15 +47,19 @@ Two-column PS5 console workspace with a single scrollable Left editor (**Color &
 
 #### Screen (`160x80`, X20 Pro)
 
-Built-in image, animated GIF, and offline **Animated Templates** editor (`Gamertag`, `Retro Grid`, `Acoustic Wave`, `Minimal Emblem`) for White flash mode upload over USB serial (`Controller off -> hold M -> plug USB`), with crop, zoom, brightness, contrast, rotation, and local `.bin` export. Automatically locked while Eco Mode is enabled.
+Pure OLED `#000000` preview embedded inside the EasySMX X20 Pro frame with built-in image, animated GIF, and offline **Animated Templates** (`Gamertag`, `Retro Grid`, `Acoustic Wave`, `Minimal Emblem`, `Starfield Warp`, `Plasma Ring`), accent swatches, brightness, contrast, rotation, `.bin` export, and **Browse Community** / **Share to Community** shortcuts for White flash mode upload over USB serial (`Controller off -> hold M -> plug USB`). Automatically locked while Eco Mode is enabled.
 
 #### Buttons
 
 Pick any front or rear button (`M1–M4` / `M1–M6`) using the interactive visualizer and press what it should send. Includes **Test mapping**, **All assignments**, and draft preview before writing.
 
-#### Curves
+#### Curves & Stick Lab Zone
 
-Shape left/right sticks and triggers independently with built-in presets (`Default`, `Quick`, `Slow`, `Smooth`, `Fine`), custom response curves, inner/outer dead zones, anti-deadzone, outer limits, square gate toggle, keyboard test mode, and **Measure drift** from Diagnostics.
+Inline 3-zone workspace with the 10-point response curve editor & deadzones on the left, live hardware **Stick & Trigger Diagnostics** on top right, and quick controls + **Go Advanced?** full-screen PS5-inspired **Stick Lab Zone** on bottom right: Fritsch-Carlson monotonic cubic splines, Smart Curve Maker, Radial/Axial/Hybrid deadzones, anti-deadzones, gate morphing (`Circular <-> Square`), axis rotation, 4/8-way angle snapping, adaptive smoothing, trigger splines, snapback detector, and `X20C1.` share codes.
+
+#### Community Hub
+
+Available in both Native Mode (`X20`, `X20 Pro`) and PC Mode (`X20 Pro`, `X20`, `X05 Pro`, `X10`, `X15`, `D10`, `Dune 8K`, `Generic XInput`) with strict per-device capability filtering. Features local ECDSA P-256 Creator Identities (`X20-XXXX-XXXX` UIDs, `X20K1.` Recovery Keys, `64x64` PNG/GIF avatars, 27+ earned badges, **Watchers / Watching**, upvotes, Works Great verification, Compare & Cherry-Pick diff drawer with 5s live sandbox, Setup Requests, Slow-Mode Lounge, Owner Notes & Polls, and Pixel-Disarmed OLED Screen Image/GIF templates). Can be paused anytime via **Tools -> Offline mode**.
 
 #### Macros
 

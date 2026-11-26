@@ -36,6 +36,7 @@ public sealed class MacroWorkbench
     public IEnumerable<Button> InputButtons=>chords;
     public bool IsReducedMotion { get; }
     public event Action? Changed;
+    public event Action? ShareCommunityRequested;
     private readonly FrameworkElement resources;
     private readonly Action<Button> focusRegistration;
     private readonly List<Button> slots = new(), steps = new(), chords = new();
@@ -131,7 +132,8 @@ public sealed class MacroWorkbench
         applyButton=new Button{Style=DS.Style("DS.ConsolePrimary"),Height=38,MinHeight=0,Padding=new(14,0,14,0),Margin=new(0,0,8,0),Visibility=Visibility.Collapsed,
             Content=new TextBlock{Text="Apply to controller",FontFamily=DS.Display,FontSize=13.5,FontWeight=FontWeights.SemiBold,Foreground=DS.Brush("DS.Text"),VerticalAlignment=VerticalAlignment.Center}};
         applyButton.Click+=async(_,_)=>{if(applyToController==null)return;applyButton.IsEnabled=false;try{await applyToController(text=>notice.Text=text);}finally{applyButton.IsEnabled=true;}};focusRegistration(applyButton);
-        var workspaceActions=new StackPanel {Orientation=Orientation.Horizontal,VerticalAlignment=VerticalAlignment.Center,Children={Record,read,applyButton,add,preview,more}};DockPanel.SetDock(workspaceActions,System.Windows.Controls.Dock.Right);header.Children.Add(workspaceActions);
+        var shareMacroBtn=Button("Share",()=>ShareCommunityRequested?.Invoke());shareMacroBtn.Height=38;shareMacroBtn.MinHeight=0;shareMacroBtn.Padding=new(12,0,12,0);shareMacroBtn.Margin=new(0,0,8,0);shareMacroBtn.ToolTip="Share macro slot to X20CTL Community";
+        var workspaceActions=new StackPanel {Orientation=Orientation.Horizontal,VerticalAlignment=VerticalAlignment.Center,Children={Record,read,applyButton,add,preview,shareMacroBtn,more}};DockPanel.SetDock(workspaceActions,System.Windows.Controls.Dock.Right);header.Children.Add(workspaceActions);
         header.Children.Add(new StackPanel {VerticalAlignment=VerticalAlignment.Center,Children={heading,summary}});
         sequenceViewport.Content=sequence;sequenceViewport.Height=76;Grid.SetRow(sequenceViewport,1);page.Children.Add(sequenceViewport);
         sequenceViewport.PreviewMouseWheel+=(_,e)=>{if(steps.Count>0)Select(Math.Clamp(SelectedIndex-Math.Sign(e.Delta),0,steps.Count-1));e.Handled=true;};

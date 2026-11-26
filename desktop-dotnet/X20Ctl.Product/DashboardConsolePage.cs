@@ -103,6 +103,49 @@ public sealed class DashboardConsolePage : Grid
     private int scanGeneration;
     public event Action? ConfigureRequested;
     public event Action<string>? PageRequested;
+    public event Action? OpenCommunityRequested;
+    public event Action? MarkNotificationsReadRequested;
+
+    private readonly TextBlock pulseOnlineLabel = Kit.Text("Community: Offline", 11.5, "DS.TextSoft", FontWeights.SemiBold);
+    private readonly TextBlock bellBadgeText = Kit.Text("0", 10.5, "DS.Text", FontWeights.Bold);
+    private readonly Border bellBadgeBorder = new() { CornerRadius = new CornerRadius(99), Background = new SolidColorBrush(Color.FromRgb(0xFF, 0x7A, 0x18)), Padding = new Thickness(5, 1, 5, 1), Margin = new Thickness(6, 0, 0, 0), Visibility = Visibility.Collapsed };
+    private readonly StackPanel notificationsList = new();
+    private readonly Border notificationsDrawer = new() { Visibility = Visibility.Collapsed, CornerRadius = new CornerRadius(10), BorderThickness = new Thickness(1), Padding = new Thickness(10, 8, 10, 8), Margin = new Thickness(0, 0, 0, 8), Background = new SolidColorBrush(Color.FromArgb(220, 8, 14, 28)), BorderBrush = new SolidColorBrush(Color.FromArgb(110, 96, 165, 250)) };
+
+    public void UpdatePulse(X20Ctl.Zone.Community.PulseResponse? pulse, bool offline)
+    {
+        if (offline || pulse == null)
+        {
+            pulseOnlineLabel.Text = "Community: Offline";
+            bellBadgeBorder.Visibility = Visibility.Collapsed;
+            return;
+        }
+        pulseOnlineLabel.Text = $"Online Now: {pulse.OnlineCount}";
+        if (pulse.UnreadCount > 0)
+        {
+            bellBadgeText.Text = pulse.UnreadCount > 99 ? "99+" : pulse.UnreadCount.ToString();
+            bellBadgeBorder.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            bellBadgeBorder.Visibility = Visibility.Collapsed;
+        }
+        notificationsList.Children.Clear();
+        if (pulse.Notifications.Count == 0)
+        {
+            notificationsList.Children.Add(Kit.Text("No recent community notifications.", 11.5, "DS.TextMuted"));
+        }
+        else
+        {
+            foreach (var n in pulse.Notifications.Take(5))
+            {
+                var nLine = Kit.Text($"{(n.IsRead ? "" : "[NEW] ")}{n.Title}", 11.5, n.IsRead ? "DS.TextSoft" : "DS.Text", n.IsRead ? FontWeights.Normal : FontWeights.SemiBold);
+                nLine.TextTrimming = TextTrimming.CharacterEllipsis;
+                nLine.Margin = new Thickness(0, 0, 0, 4);
+                notificationsList.Children.Add(nLine);
+            }
+        }
+    }
 
     private Button? heroFocus;
     public FrameworkElement ControllerArtwork { get; }
@@ -144,7 +187,43 @@ public sealed class DashboardConsolePage : Grid
         // at the end of the Studio's tab row
         Grid.SetColumn(stage, 1); stage.Margin = new(12, 0, 0, 0); top.Children.Add(stage);
         var status = new StackPanel();
-        deviceState.Text="Offline";deviceState.FontSize=18;deviceState.FontWeight=FontWeights.SemiBold;status.Children.Add(deviceState);
+        bellBadgeBorder.Child = bellBadgeText;
+        var bellBtn = new Button
+        {
+            Style = DS.Style("ActionButton"),
+            Height = 28,
+            MinHeight = 28,
+            Padding = new Thickness(10, 0, 10, 0),
+            FontSize = 11.5,
+            Margin = new Thickness(6, 0, 0, 0),
+            Content = new StackPanel { Orientation = Orientation.Horizontal, Children = { Kit.Text("Alerts", 11.5, "DS.Text", FontWeights.SemiBold), bellBadgeBorder } }
+        };
+        bellBtn.Click += (_, _) =>
+        {
+            notificationsDrawer.Visibility = notificationsDrawer.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
+            if (notificationsDrawer.Visibility == Visibility.Visible && bellBadgeBorder.Visibility == Visibility.Visible)
+                MarkNotificationsReadRequested?.Invoke();
+        };
+        var commBtn = new Button
+        {
+            Content = "Community",
+            Style = DS.Style("ActionButton"),
+            Height = 28,
+            MinHeight = 28,
+            Padding = new Thickness(10, 0, 10, 0),
+            FontSize = 11.5,
+            Margin = new Thickness(6, 0, 0, 0)
+        };
+        commBtn.Click += (_, _) => { OpenCommunityRequested?.Invoke(); PageRequested?.Invoke("Community"); };
+        var headerRow = new DockPanel { Margin = new Thickness(0, 0, 0, 2) };
+        var pulseBtns = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Children = { pulseOnlineLabel.Also(t => { t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new Thickness(0, 0, 8, 0); }), bellBtn, commBtn } };
+        DockPanel.SetDock(pulseBtns, Dock.Right);
+        headerRow.Children.Add(pulseBtns);
+        deviceState.Text="Offline";deviceState.FontSize=18;deviceState.FontWeight=FontWeights.SemiBold;deviceState.VerticalAlignment=VerticalAlignment.Center;
+        headerRow.Children.Add(deviceState);
+        notificationsDrawer.Child = notificationsList;
+        status.Children.Add(headerRow);
+        status.Children.Add(notificationsDrawer);
         status.Children.Add(Kit.Text("Current setup",12,"DS.TextMuted",FontWeights.SemiBold).Also(t=>t.Margin=new(0,6,0,2)));status.Children.Add(workingSetup);profileState.Margin=new(0,2,0,0);status.Children.Add(profileState);
         var stateGrid=new Grid{Margin=new(0,8,0,4)};stateGrid.ColumnDefinitions.Add(new());stateGrid.ColumnDefinitions.Add(new());stateGrid.RowDefinitions.Add(new());stateGrid.RowDefinitions.Add(new());
         var ecoDetailsCard = new Border

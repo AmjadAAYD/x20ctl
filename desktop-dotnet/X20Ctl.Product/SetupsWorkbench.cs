@@ -22,6 +22,8 @@ public sealed partial class SetupsWorkbench
     public bool DeletePending=>pendingDelete!=null;
     public string Notice=>notice.Text;
     public Button NewButton {get;}
+    public event Action<SavedSetup>? ShareSetupRequested;
+    public event Action? BrowseCommunitySetupsRequested;
     public Button SaveButton {get;}
     public Button OpenButton {get;}
     public Button RenameButton {get;}
@@ -77,7 +79,7 @@ public sealed partial class SetupsWorkbench
         Body.RowDefinitions.Add(new(){Height=new GridLength(72)});Body.RowDefinitions.Add(new());
         header.ColumnDefinitions.Add(new());header.ColumnDefinitions.Add(new(){Width=GridLength.Auto});header.RowDefinitions.Add(new(){Height=GridLength.Auto});header.RowDefinitions.Add(new(){Height=GridLength.Auto});Body.Children.Add(header);
         var titles=new StackPanel();titles.Children.Add(heading);titles.Children.Add(libraryState);header.Children.Add(titles);Grid.SetColumn(headerActions,1);header.Children.Add(headerActions);
-        NewButton=Action("New setup",()=>Create(false));SaveButton=Action("Save current draft",()=>Create(true));headerActions.Children.Add(NewButton);headerActions.Children.Add(SaveButton);headerActions.Children.Add(Action("Import Setup",ImportDialog));
+        NewButton=Action("New setup",()=>Create(false));SaveButton=Action("Save current draft",()=>Create(true));headerActions.Children.Add(NewButton);headerActions.Children.Add(SaveButton);headerActions.Children.Add(Action("Import Setup",ImportDialog));headerActions.Children.Add(Action("Browse Community",()=>BrowseCommunitySetupsRequested?.Invoke()));
         if(legacySources.Count>0)headerActions.Children.Add(Action("Copy legacy setups",CopyKnownLegacy));
         foreach(Button action in headerActions.Children){action.Height=42;action.VerticalAlignment=VerticalAlignment.Center;}
         var workspace=new StackPanel {Margin=new(0,2,10,16)};LibraryViewport.Content=cards;LibraryViewport.PreviewMouseWheel+=(_,e)=>{LibraryViewport.ScrollToVerticalOffset(Math.Round(LibraryViewport.VerticalOffset/rowStride)*rowStride-Math.Sign(e.Delta)*rowStride);e.Handled=true;};workspace.Children.Add(LibraryViewport);WorkspaceViewport.Content=workspace;Grid.SetRow(WorkspaceViewport,1);Body.Children.Add(WorkspaceViewport);
@@ -88,7 +90,8 @@ public sealed partial class SetupsWorkbench
         foreach(string label in new[]{"Buttons","Curves","Macros","Vibration"}){var group=new StackPanel();group.Children.Add(ManagementVisuals.Copy(label,14));metricValues[index]=ManagementVisuals.Copy("—",24,true);group.Children.Add(metricValues[index++]);metrics.Children.Add(group);}
         var actions=new WrapPanel();detail.Children.Add(actions);OpenButton=Action("Open",OpenSelected);OpenButton.Background=new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(35,75,123)));OpenButton.FontWeight=FontWeights.SemiBold;OpenButton.MinWidth=110;
         duplicate=Action("Duplicate",DuplicateSelected);RenameButton=Action("Rename",()=>{renameEditor.Visibility=Visibility.Visible;name.Text=Store.Find(SelectedId!).Name;name.Focus();name.SelectAll();name.BringIntoView();});export=Action("Export Setup",ExportDialog);MoreButton=Action("More ···",()=>{MoreButton!.ContextMenu!.PlacementTarget=MoreButton;MoreButton.ContextMenu.IsOpen=true;});MoreButton.ToolTip="More actions: delete this setup";
-        foreach(var action in new[]{OpenButton,duplicate,RenameButton,export,MoreButton}){action.Height=42;actions.Children.Add(action);}
+        var shareCommunity=Action("Share to Community",()=>{if(SelectedId!=null)ShareSetupRequested?.Invoke(Store.Find(SelectedId));});
+        foreach(var action in new[]{OpenButton,duplicate,RenameButton,export,shareCommunity,MoreButton}){action.Height=42;actions.Children.Add(action);}
         deleteAction=new MenuItem {Header="Delete setup…",Foreground=(Brush)resources.FindResource("DS.Danger")};deleteAction.Click+=(_,_)=>Guard(()=>{MoreButton.ContextMenu!.IsOpen=false;if(SelectedId!=null)RequestDelete(SelectedId);});MoreButton.ContextMenu=new ContextMenu();MoreButton.ContextMenu.Items.Add(deleteAction);
         AutomationProperties.SetName(MoreButton,"More setup actions");AutomationProperties.SetName(name,"Setup name");
         renameEditor.Children.Add(name);SaveNameButton=Action("Save name",()=>{if(SelectedId!=null){Store.Rename(SelectedId,name.Text);renameEditor.Visibility=Visibility.Collapsed;Refresh();}});renameEditor.Children.Add(SaveNameButton);renameEditor.Children.Add(Action("Cancel",()=>{renameEditor.Visibility=Visibility.Collapsed;RenameButton.Focus();}));detail.Children.Add(renameEditor);notice.Margin=new(0,14,0,0);detail.Children.Add(notice);
@@ -155,7 +158,14 @@ public sealed partial class SetupsWorkbench
     private string Summary(SavedSetup item)
     {
         if(!item.Snapshot.HasValue)return "Original fields preserved\nEditor conversion pending";
-        var counts=Counts(Store.NativeSnapshot(item.Id));return $"{counts.Remaps} remap{(counts.Remaps==1?"":"s")} · {counts.Curves} curve{(counts.Curves==1?"":"s")} changed\n{counts.Macros} macro{(counts.Macros==1?"":"s")} · vibration {counts.Vibration}%";
+        var counts=Counts(Store.NativeSnapshot(item.Id));
+        var baseLine = $"{counts.Remaps} remap{(counts.Remaps==1?"":"s")} · {counts.Curves} curve{(counts.Curves==1?"":"s")} changed\n{counts.Macros} macro{(counts.Macros==1?"":"s")} · vibration {counts.Vibration}%";
+        if (!string.IsNullOrWhiteSpace(item.AuthorHandle))
+        {
+            var tagPart = item.Tags is { Count: > 0 } ? $" · {string.Join(", ", item.Tags.Take(2))}" : "";
+            baseLine += $"\nby {item.AuthorHandle} (v{item.CommunityVersion ?? 1}){tagPart}";
+        }
+        return baseLine;
     }
     private bool EditorModified(SavedSetup item)
     {

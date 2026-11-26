@@ -33,6 +33,10 @@ internal sealed class LightingWindow : Window
     readonly Button read = new() { Content = "Read controller", Style = DS.Style("DS.ConsoleBtn"), Padding = new(13, 6, 13, 6), FontSize = 12.5, MinHeight = 32, Height = double.NaN };
     readonly Button stopEffect = new() { Content = "Stop effect", Style = DS.Style("DS.ConsoleBtn"), Padding = new(13, 6, 13, 6), FontSize = 12.5, MinHeight = 32, Height = double.NaN, Margin = new(6, 0, 0, 0), Visibility = Visibility.Collapsed };
     readonly Button apply = new() { Content = "Apply", Style = DS.Style("DS.ConsolePrimary"), HorizontalAlignment = HorizontalAlignment.Stretch, Height = 44 };
+    public event Action? ShareCommunityRequested;
+    public int SelectedRgb => selected;
+    public int SelectedModeIndex => modes.SelectedIndex;
+    public byte SelectedLevelByte => level;
 
     readonly List<(Button Button, int Rgb)> swatches = [];
     readonly List<(byte ByteLevel, Button Button)> brightnessStops = [];
@@ -231,6 +235,9 @@ internal sealed class LightingWindow : Window
         utilityRow.Children.Add(read);
         utilityRow.Children.Add(stopEffect);
         telemetryStack.Children.Add(utilityRow);
+        var shareRgbBtn = new Button { Content = "Share RGB to Community", Style = DS.Style("DS.ConsoleBtn"), Padding = new(10, 4, 10, 4), FontSize = 11.5, MinHeight = 28, Height = double.NaN, Margin = new(0, 0, 0, 8), HorizontalAlignment = HorizontalAlignment.Stretch };
+        shareRgbBtn.Click += (_, _) => ShareCommunityRequested?.Invoke();
+        telemetryStack.Children.Add(shareRgbBtn);
         telemetryStack.Children.Add(apply);
         telemetryCard.Child = telemetryStack;
 

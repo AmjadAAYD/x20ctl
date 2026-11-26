@@ -65,6 +65,8 @@ public sealed partial class ProductSettings : Grid
     private readonly TextBlock updateStatus = Kit.Text("", 13.5, "DS.TextSoft");
     private readonly Button updateCheck, updateGo;
     private readonly CheckBox autoUpdate = new() { Style = DS.Style("DS.Toggle"), VerticalAlignment = VerticalAlignment.Center };
+    private readonly CheckBox communityOffline = new() { Style = DS.Style("DS.Toggle"), VerticalAlignment = VerticalAlignment.Center };
+    public event Action<bool>? CommunityOfflineChanged;
 
     public ProductSettings(Action support, Action replay, Action close, Action check, X20Ctl.Zone.ProductPreferences? preferences = null, PcModeService? pcModeService = null, X20Ctl.Zone.PcMode.PcModeStore? pcModeStore = null, Action? writeScan = null, Action<string>? openSupportUrl = null)
     {
@@ -159,7 +161,12 @@ public sealed partial class ProductSettings : Grid
         StackPanel Switch(CheckBox box, string label, double gap) => new() { Orientation = Orientation.Horizontal, Margin = new(gap, 0, 0, 0), Children = { box, Kit.Text(label, 15, "DS.Text").Also(t => t.Margin = new(10, 0, 0, 0)) } };
         // one row, as tall as the updates bar beside it: a taller bar squeezed the tiles above until their words were cut
         var soundSwitch=Switch(introSound,"Sound",22);soundSwitch.Visibility=IntroView.HasIntroScore?Visibility.Visible:Visibility.Collapsed;
-        var switches = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Children = { Switch(introLaunch, "At launch", 0), soundSwitch } };
+        communityOffline.IsChecked = preferences?.CommunityOffline == true; communityOffline.IsEnabled = preferences != null;
+        communityOffline.ToolTip = "Pause all Community Hub requests and use local cache only";
+        communityOffline.Checked += (_, _) => SetCommunityOffline(true);
+        communityOffline.Unchecked += (_, _) => SetCommunityOffline(false);
+        var offlineSwitch = Switch(communityOffline, "Offline mode", 22);
+        var switches = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Children = { Switch(introLaunch, "At launch", 0), soundSwitch, offlineSwitch } };
         DockPanel.SetDock(switches, Dock.Right);
         introBar.Child = new DockPanel { Children = { switches, new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new(0, 0, 16, 0), Children = {
             Kit.Text("Opening intro", 16, "DS.Text", FontWeights.SemiBold), introStatus } } } };
@@ -257,6 +264,11 @@ public sealed partial class ProductSettings : Grid
     {
         try { preferences?.SetAutoUpdate(on); ShowUpdateStatus(); }
         catch (Exception error) when (error is System.IO.IOException or InvalidOperationException or UnauthorizedAccessException) { updateStatus.Text = "Couldn't save this setting: " + error.Message; }
+    }
+    private void SetCommunityOffline(bool on)
+    {
+        try { preferences?.SetCommunityOffline(on); X20Ctl.Zone.Community.CommunityClient.SandboxOfflineGuard = ReviewSandbox.Active; CommunityOfflineChanged?.Invoke(on); }
+        catch (Exception error) when (error is System.IO.IOException or InvalidOperationException or UnauthorizedAccessException) { updateStatus.Text = "Couldn't save offline mode: " + error.Message; }
     }
     private void SetIntro(bool? launch, bool? sound)
     {

@@ -27,6 +27,7 @@ public sealed class VibrationWorkbench
     public VibrationVisual Visualizer { get; }
     public IEnumerable<Button> PresetButtons => presets;
     public event Action? Changed;
+    public event Action? ShareCommunityRequested;
 
     readonly List<Button> presets = new();
     readonly ScrollViewer inspectorScroll = new() { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Padding = new(0, 0, 6, 0) };
@@ -232,6 +233,15 @@ public sealed class VibrationWorkbench
         var telemetryCard = BuildLeftTelemetryDock();
         DockPanel.SetDock(telemetryCard, Dock.Bottom);
         leftDock.Children.Add(telemetryCard);
+
+        var shareVibeBtn = MakeButton("Share Vibration to Community", () => ShareCommunityRequested?.Invoke());
+        shareVibeBtn.Height = 30;
+        shareVibeBtn.MinHeight = 30;
+        shareVibeBtn.FontSize = 11.5;
+        shareVibeBtn.Margin = new(0, 6, 0, 0);
+        shareVibeBtn.HorizontalAlignment = HorizontalAlignment.Stretch;
+        DockPanel.SetDock(shareVibeBtn, Dock.Bottom);
+        leftDock.Children.Add(shareVibeBtn);
 
         var stageFrame = new Border
         {
