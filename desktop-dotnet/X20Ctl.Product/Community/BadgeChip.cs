@@ -15,7 +15,7 @@ public static class BadgeChip
     public static readonly Color OwnerOrange = Color.FromRgb(0xFF, 0x7A, 0x18);
     private static readonly ConcurrentDictionary<string, BitmapImage?> BitmapCache = new(StringComparer.OrdinalIgnoreCase);
 
-    private static string ResolveAssetFile(string? badgeId, string? iconKey = null, string? imageUrl = null)
+    internal static string ResolveAssetFile(string? badgeId, string? iconKey = null, string? imageUrl = null)
     {
         if (!string.IsNullOrWhiteSpace(imageUrl))
         {
@@ -31,15 +31,30 @@ public static class BadgeChip
             "amjad-verified" or "owner" => "badge-owner.png",
             "og-v0026" or "og" => "badge-og-v0026.png",
             "founding-100" or "founding" => "badge-founding-100.png",
-            "first-upload" or "prolific-5" or "architect-15" or "upload" => "badge-first-upload.png",
-            "curve-craft" or "curve-master" or "zero-deadzone" or "curve" => "badge-curve-architect.png",
-            "pixel-smith" or "gif-animator" or "screen" => "badge-screen-smith.png",
-            "macro-alchemist" or "pack-curator" or "remix-spark" or "remix-maker" or "macro" => "badge-macro-wizard.png",
-            "light-sculptor" or "light" => "badge-light-sculptor.png",
-            "installs-25" or "installs-100" or "installs-500" or "works-verified-10" or "craft" => "badge-master-crafter.png",
-            "installs-2500" or "watchers-10" or "watchers-50" or "crown" => "badge-hall-of-fame.png",
-            "karma-50" or "karma-250" or "karma-1000" or "karma" => "badge-karma-legend.png",
-            "request-hero" or "weekly-victor" or "lounge-regular" or "night-owl" or "hero" => "badge-community-hero.png",
+            "first-upload" => "badge-first-upload.png",
+            "curve-architect" or "curve-craft" => "badge-curve-architect.png",
+            "pixel-smith" or "screen-smith" => "badge-screen-smith.png",
+            "macro-wizard" or "macro-alchemist" => "badge-macro-wizard.png",
+            "light-sculptor" => "badge-light-sculptor.png",
+            "bundle-curator" => "badge-bundle-curator.png",
+            "pro-tuner" => "badge-pro-tuner.png",
+            "master-crafter" => "badge-master-crafter.png",
+            "crowd-favorite" => "badge-crowd-favorite.png",
+            "hall-of-fame" => "badge-hall-of-fame.png",
+            "upvoted-10" or "rising-spark" => "badge-rising-spark.png",
+            "upvoted-100" or "community-pillar" => "badge-community-pillar.png",
+            "upvoted-500" or "karma-legend" => "badge-karma-legend.png",
+            "watcher-magnet" => "badge-watcher-magnet.png",
+            "remix-spark" => "badge-remix-spark.png",
+            "remix-artist" => "badge-remix-artist.png",
+            "verified-tester" or "community-hero" => "badge-community-hero.png",
+            "bounty-hunter" => "badge-bounty-hunter.png",
+            "challenge-winner" => "badge-challenge-winner.png",
+            "night-owl" => "badge-night-owl.png",
+            "lounge-regular" => "badge-lounge-regular.png",
+            "zero-deadzone" => "badge-zero-deadzone.png",
+            "bug-finder" => "badge-bug-finder.png",
+            "supporter" => "badge-supporter.png",
             _ => "badge-first-upload.png"
         };
     }
