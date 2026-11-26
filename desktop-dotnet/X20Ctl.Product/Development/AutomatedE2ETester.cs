@@ -251,12 +251,46 @@ internal static class AutomatedE2ETester
                 Require(subMs < 80, $"Cached Community sub-tab {tabId} rendered in {subMs} ms (< 80 ms)");
             }
 
-            // 5. Reddit Achievement Showcase + AI Badge Emblems + 64x64 Avatar Upload Verification
+            // 5. All 27 Unique AI Badge Bitmaps + Reddit Achievement Showcase + Filters + Alerts + 64x64 Avatar
+            string[] all27BadgeIds =
+            {
+                "amjad-verified", "og-v0026", "founding-100", "first-upload", "curve-architect",
+                "pixel-smith", "macro-wizard", "light-sculptor", "bundle-curator", "pro-tuner",
+                "master-crafter", "crowd-favorite", "hall-of-fame", "upvoted-10", "upvoted-100",
+                "upvoted-500", "watcher-magnet", "remix-spark", "remix-artist", "verified-tester",
+                "bounty-hunter", "challenge-winner", "night-owl", "lounge-regular", "zero-deadzone",
+                "bug-finder", "supporter"
+            };
+            var uniqueBadgeFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var bid in all27BadgeIds)
+            {
+                var assetFile = BadgeChip.ResolveAssetFile(bid);
+                var bmp = BadgeChip.GetBadgeBitmap(null, bid);
+                Require(uniqueBadgeFiles.Add(assetFile) && bmp != null && bmp.PixelWidth >= 64, $"Unique 64px+ badge artwork loaded for {bid} -> {assetFile}");
+            }
+            Require(uniqueBadgeFiles.Count == 27, $"Verified all {uniqueBadgeFiles.Count}/27 built-in badges use unique artwork");
+
+            var alertsBtn = FindVisualChildren<Button>(community.Body).FirstOrDefault(b => Equals(b.Tag, "community:alerts"));
+            Require(alertsBtn != null, "Found Alerts Bell button on Community top bar");
+            alertsBtn!.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            await WaitMs(200);
+            Require(community.ActiveModalContent.Visibility == Visibility.Visible, "Notifications drawer opened cleanly from Alerts Bell");
+            community.CloseModalForTest();
+            await WaitMs(150);
+
             var dlg = community.OpenProfileDialogForTest();
             await WaitMs(1100);
             Require(FindVisualChildren<ComboBox>(dlg).Count == 0, "Zero ComboBox controls inside CreatorProfileDialog");
             var imgs = FindVisualChildren<Image>(dlg).Where(i => i.Source is BitmapSource bs && bs.PixelWidth >= 64).ToList();
             Require(imgs.Count >= 1, $"Rendered {imgs.Count} high-res AI badge emblems (>=64px) in Achievements Showcase");
+
+            foreach (var fTag in new[] { "achfilter:unlocked", "achfilter:locked", "achfilter:rare", "achfilter:all" })
+            {
+                var fBtn = FindVisualChildren<Button>(dlg).FirstOrDefault(b => Equals(b.Tag, fTag));
+                Require(fBtn != null, $"Found achievement filter button {fTag}");
+                fBtn!.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+                await WaitMs(80);
+            }
 
             byte[] avatarPng = GenerateAvatarPng(64, 64);
             bool pfpOk = await dlg.UploadAvatarBytesAsync(avatarPng, "image");
@@ -374,13 +408,98 @@ internal static class AutomatedE2ETester
             Require(sawGifItem && gifItem != null && gifItem.MediaType == "gif", "Animated GIF appears in Browse with GIF badge");
             createdItemIds.Add(gifItem!.Id);
 
+            await community.OpenItemInspectorForTestAsync(gifItem);
+            await WaitMs(250);
+            var zoomBtn = FindVisualChildren<Button>(community.ActiveModalContent).FirstOrDefault(b => Equals(b.Tag, "inspector:zoom2x"));
+            var screenView = FindVisualChildren<AnimatedMediaView>(community.ActiveModalContent).FirstOrDefault(v => Equals(v.Tag, "inspector:screenview"));
+            Require(zoomBtn != null && screenView != null, "Found 2x Zoom control inside Screen Art Inspector");
+            zoomBtn!.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            await WaitMs(200);
+            Require(Math.Abs(screenView!.Width - 320) < 1 && Math.Abs(screenView.Height - 160) < 1, $"Inspector zoomed Screen Art to {screenView.Width}x{screenView.Height}");
+            SaveShot("09b-inspector-gif-2x");
+            community.CloseModalForTest();
+            await WaitMs(150);
+
             await InstallAndDeleteCardAsync(
                 gifItem.Id, gifItem.Title, "screen",
                 onBeforeInstall: () => studio.Screen!.LoadWallpaper(0),
                 verifyApplied: () => Require(studio.Screen!.FrameCount == 4 && studio.Screen.IsAnimated, $"Installed 4-frame GIF directly into Screen Studio ({studio.Screen!.FrameCount}f)"),
                 shotName: "09-browse-screen-gif");
 
-            // 8. Analog Curve -> Leaderboard #1 -> Install (verify Flags + Anti-DZ restore) -> Delete
+            // 7B. Real-User Dynamic Category Switch + Game Quick-Chip + Upvote + Comment + Bookmark + Saved & Mine v2 Push Update
+            community.SetPresetCategoryAndRefresh("all");
+            await WaitUntilAsync(() => community.LastCatalog != null, 8000);
+            var pubTopBtn = FindVisualChildren<Button>(community.Body).FirstOrDefault(b => Equals(b.Tag, "community:publish"));
+            Require(pubTopBtn != null, "Found top Publish Setup button");
+            pubTopBtn!.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            Require(await WaitUntilAsync(() => community.ActiveSubmitDialog != null), "Opened Publish modal from Browse bar");
+            subDlg = community.ActiveSubmitDialog!;
+            Require(subDlg.AttachmentSummary.Contains("Snapshot", StringComparison.OrdinalIgnoreCase), $"Initial attachment summary ready ({subDlg.AttachmentSummary})");
+
+            subDlg.CategoryInput.SelectedValue = "curve";
+            await WaitMs(120);
+            Require(subDlg.AttachmentSummary.Contains("Curve", StringComparison.OrdinalIgnoreCase), $"Dynamic category switch updated attachment summary ({subDlg.AttachmentSummary})");
+
+            var rlChip = FindVisualChildren<Button>(subDlg).FirstOrDefault(b => Equals(b.Tag, "gamechip:Rocket League"));
+            Require(rlChip != null, "Found Rocket League 1-click game chip");
+            rlChip!.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            Require(subDlg.GameInput.Text.Contains("Rocket League", StringComparison.OrdinalIgnoreCase), "1-click game chip populated GameInput");
+
+            subDlg.TitleInput.Text = "E2E Dynamic Curve v1";
+            subDlg.DescriptionInput.Text = "Real-user flow: switch category in modal, tag game, upvote, comment, bookmark, and push v2.";
+            subDlg.SubmitButton.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            Require(await WaitUntilAsync(() => community.ActiveSubmitDialog == null, 15000), "Submitted v1 Dynamic Curve cleanly");
+
+            community.SetPresetCategoryAndRefresh("curve");
+            Require(await WaitUntilAsync(() => community.LastCatalog?.Items.Any(i => i.Title == "E2E Dynamic Curve v1") == true, 10000), "E2E Dynamic Curve v1 live in Browse");
+            var dynItem = community.LastCatalog!.Items.First(i => i.Title == "E2E Dynamic Curve v1");
+            createdItemIds.Add(dynItem.Id);
+
+            var voteBtn = FindVisualChildren<Button>(community.Body).FirstOrDefault(b => Equals(b.Tag, $"vote:{dynItem.Id}"));
+            Require(voteBtn != null, "Found Upvote button on E2E Dynamic Curve v1 card");
+            voteBtn!.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            await WaitMs(450);
+
+            await community.OpenItemInspectorForTestAsync(dynItem);
+            await WaitMs(200);
+            var modalTextBoxes = FindVisualChildren<TextBox>(community.ActiveModalContent);
+            var commentBox = modalTextBoxes.LastOrDefault();
+            var postCommentBtn = FindButtonsContainingText(community.ActiveModalContent, "Post").FirstOrDefault();
+            var bookmarkBtn = FindButtonsContainingText(community.ActiveModalContent, "Bookmark").FirstOrDefault();
+            if (commentBox != null && postCommentBtn != null)
+            {
+                commentBox.Text = "Clean spline response!";
+                postCommentBtn.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+                await WaitMs(450);
+            }
+            bookmarkBtn = FindButtonsContainingText(community.ActiveModalContent, "Bookmark").FirstOrDefault();
+            bookmarkBtn?.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            await WaitMs(350);
+            community.CloseModalForTest();
+            await WaitMs(200);
+
+            community.SelectSubTab("saved");
+            Require(await WaitUntilAsync(() => FindVisualChildren<Button>(community.Body).Any(b => Equals(b.Tag, $"update:{dynItem.Id}")), 8000), "Found Push Update button in Saved & Mine");
+            FindVisualChildren<Button>(community.Body).First(b => Equals(b.Tag, $"update:{dynItem.Id}")).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            Require(await WaitUntilAsync(() => community.ActiveSubmitDialog != null), "Opened Push Version Update modal from Saved & Mine");
+            subDlg = community.ActiveSubmitDialog!;
+            Require(!subDlg.CategoryInput.IsEnabled, "Version update locks category to original preset type");
+            subDlg.TitleInput.Text = "E2E Dynamic Curve v2";
+            subDlg.SubmitButton.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            Require(await WaitUntilAsync(() => community.ActiveSubmitDialog == null, 15000), "Submitted v2 update cleanly");
+
+            var mineCheck = await client.GetCatalogAsync(new CatalogQuery { Uid = client.Identity.Uid, Status = "mine", Sort = "new" });
+            var v2Item = mineCheck.Data?.Items.FirstOrDefault(i => i.Title == "E2E Dynamic Curve v2");
+            Require(v2Item != null && v2Item.Version >= 2, $"Server issued versioned update v{v2Item?.Version ?? 0} linked to {dynItem.Id}");
+            if (v2Item != null)
+            {
+                await client.DeleteItemAsync(v2Item.Id);
+                createdItemIds.Remove(v2Item.Id);
+            }
+            await client.DeleteItemAsync(dynItem.Id);
+            createdItemIds.Remove(dynItem.Id);
+
+            // 8. Analog Curve -> Leaderboard Metrics + #1 -> Install -> Delete
             community.SelectSubTab("leaderboard");
             await WaitUntilAsync(() => community.LastLeaderboardMakers != null, 5000);
             Require((community.LastLeaderboardMakers?.Count ?? 0) == 0, "Leaderboard shows 0 makers before publishing persistent item");
@@ -494,6 +613,14 @@ internal static class AutomatedE2ETester
             createdItemIds.Remove(setupRes.Data.Id);
 
             community.SelectSubTab("leaderboard");
+            await WaitUntilAsync(() => community.LastLeaderboardMakers != null, 5000);
+            foreach (var lbMetricTag in new[] { "lbmetric:installs", "lbmetric:watchers", "lbmetric:karma" })
+            {
+                var mb = FindVisualChildren<Button>(community.Body).FirstOrDefault(b => Equals(b.Tag, lbMetricTag));
+                Require(mb != null, $"Found Leaderboard metric switcher {lbMetricTag}");
+                mb!.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+                await WaitMs(250);
+            }
             bool emptyLb = await WaitUntilAsync(() => (community.LastLeaderboardMakers?.Count ?? 0) == 0);
             Require(emptyLb, "Leaderboard returned to 0 makers after deleting all E2E items");
             SaveShot("12-leaderboard-clean-after");

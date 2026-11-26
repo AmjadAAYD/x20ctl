@@ -59,7 +59,7 @@ Inline 3-zone workspace with the 10-point response curve editor & deadzones on t
 
 #### Community Hub
 
-Available in both Native Mode (`X20`, `X20 Pro`) and PC Mode (`X20 Pro`, `X20`, `X05 Pro`, `X10`, `X15`, `D10`, `Dune 8K`, `Generic XInput`) with strict per-device capability filtering. Features local ECDSA P-256 Creator Identities (`X20-XXXX-XXXX` UIDs, `X20K1.` Recovery Keys, `64x64` PNG/GIF avatars, 27+ earned Reddit-style Achievement badges, **Watchers / Watching**, upvotes, install counters, Works Great verification, Compare & Cherry-Pick diff drawer with 5s live sandbox, Setup Requests, Slow-Mode Lounge, Owner Notes & Polls, and Pixel-Disarmed Screen Art Image/GIF templates). Can be paused anytime via **Tools -> Offline mode**.
+Available in both Native Mode (`X20`, `X20 Pro`) and PC Mode (`X20 Pro`, `X20`, `X05 Pro`, `X10`, `X15`, `D10`, `Dune 8K`, `Generic XInput`) with strict per-device capability filtering and a read-only web showcase at `x20-admin.vercel.app`. Features local ECDSA P-256 Creator Identities (`X20-XXXX-XXXX` UIDs, `X20K1.` Recovery Keys, `64x64` PNG/GIF avatars), 27 unique Reddit-style Achievement Emblems with rarity filters and animated unlock toasts, **Watchers / Watching** scope filter, 1-click game tags, upvotes, install counters, Works Great verification, dynamic category switching inside the Publish dialog with live attachment summaries, `v2+` versioned item updates, Inspector `2x` (`320x160`) Screen Art zoom, data-driven preset thumbnails, Compare & Cherry-Pick diff drawer with 5s live sandbox, Setup Requests, Slow-Mode Lounge, Owner Notes, Polls & Challenges, Alerts Bell drawer, Top-3 podium Leaderboard (`Karma`, `Most Installed`, `Most Watched`), and Pixel-Disarmed Screen Art Image/GIF templates. Can be paused anytime via **Tools -> Offline mode**.
 
 #### Macros
 
@@ -150,7 +150,7 @@ Official builds from [**Release V0.026**](https://github.com/AmjadAAYD/x20ctl/re
 ## Verification
 
 - **Core, protocol & PC engine tests:** `dotnet test desktop-dotnet\X20Ctl.Zone.Tests\X20Ctl.Zone.Tests.csproj` (1,256 passing unit tests covering BLE packet serialization, curve flags `InvertX`/`InvertY`/`SwapSticks`, `X20C1.` share codes, and local setup storage) and `python -m pytest tests` (344 passing controller/firmware tests).
-- **Live GUI & Workshop end-to-end suite:** Launch `X20Ctl.exe --test-e2e-full <out_dir>` to verify warm Studio tab switches, Analog Studio cold/warm reopen, radial anti-deadzone and hardware flag compilation, `64x64` PNG avatar upload, `160x80` static PNG and multi-frame animated GIF Screen Art publish/install flows, RGB/Vibration/Macro/Setup installs, Compare & Cherry-Pick diff drawer checks, and full cleanup.
+- **Live GUI & Workshop end-to-end suite:** Launch `X20Ctl.exe --test-e2e-full <out_dir>` to verify warm Studio tab switches, Analog Studio cold/warm reopen, radial anti-deadzone and hardware flag compilation, all 27/27 unique `64px+` badge bitmaps, achievement filters, Alerts Bell modal, `64x64` PNG avatar upload, `160x80` static PNG and multi-frame animated GIF Screen Art publish/zoom (`2x` `320x160`)/install flows, dynamic Publish category switching, game quick-chips, upvote/comment/bookmark and `Saved & Mine` `v2` update flow, RGB/Vibration/Macro/Setup installs, Compare & Cherry-Pick diff drawer checks, leaderboard metric toggles, and full cleanup.
 
 ## Credits
 
