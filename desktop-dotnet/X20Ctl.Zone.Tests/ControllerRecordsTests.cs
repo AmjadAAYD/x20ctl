@@ -100,4 +100,41 @@ public class ControllerRecordsTests
         Assert.Equal("1002000000000000000000000000000000", Convert.ToHexString(target.Remap));
         Assert.Equal(read.Sticks, target.Sticks); Assert.Equal(read.Macros[4], target.Macros[4]);
     }
+
+    [Fact]
+    public void HardwareCurveFlagsRoundTripAndPreserveUnknownBits()
+    {
+        var raw = Convert.FromHexString("0E05055555AAAA8803035555AAAA00");
+        var left = ControllerRecords.ParseChannel(raw, 0, false);
+        Assert.Equal(0, left.Flags);
+        byte flags = (byte)(CurveHardwareFlags.InvertY | CurveHardwareFlags.SwapSticks);
+        var built = ControllerRecords.BuildCurves(raw, left with { Flags = flags }, ControllerRecords.ParseChannel(raw, 1, false), false);
+        // Byte at index 1+6 = 7 keeps unknown upper bits 0x88 (~0x07) and writes 0x06 -> 0x8E
+        Assert.Equal(0x8E, built[7]);
+        Assert.Equal(flags, ControllerRecords.ParseChannel(built, 0, false).Flags);
+    }
+
+    [Fact]
+    public void NativeCompilerFitsAntiDeadzoneCapAndFlags()
+    {
+        var stick = new X20Ctl.Zone.PcMode.StickTuning
+        {
+            Inner = 8,
+            Outer = 92,
+            AntiDeadzone = 15,
+            MaxOutput = 90,
+            Lab = new X20Ctl.Zone.PcMode.StickLabSettings
+            {
+                InvertY = true,
+                RadialAntiDeadzone = 15,
+                CustomPoints = X20Ctl.Zone.PcMode.StickLabMath.GenerateSmartCurve("scurve")
+            }
+        };
+        var compiled = X20Ctl.Zone.PcMode.StickLabMath.CompileToNativeHardware(CurveSetting.Default, stick, null, swapSticks: true, isTrigger: false);
+        Assert.Equal(8, compiled.Inner);
+        Assert.Equal(92, compiled.Outer);
+        Assert.Equal((byte)(CurveHardwareFlags.InvertY | CurveHardwareFlags.SwapSticks), compiled.Flags);
+        Assert.True(compiled.Point1.X >= 1 && compiled.Point1.X < compiled.Point2.X && compiled.Point2.X <= 254);
+        Assert.False(X20Ctl.Zone.PcMode.StickLabMath.RequiresDesktopBoost(new X20Ctl.Zone.PcMode.PcModeProfile()));
+    }
 }
