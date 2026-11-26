@@ -13,7 +13,7 @@ namespace X20Ctl.Product;
 /// they press Send.</summary>
 public static class FeedbackClient
 {
-    public const string Endpoint = "https://x20-admin.vercel.app/api/feedback";
+    public const string Endpoint = "https://x20ctl-workshop.aaydamjad.workers.dev/api/feedback";
     public static readonly (string Id, string Label)[] Categories = [("bug", "Something's broken"), ("feature", "Idea or request"), ("compatibility", "My controller"), ("other", "Something else")];
 
     /// <summary>Posts the feedback and returns its FB-… receipt. Throws with a plain reason when the inbox refuses it.</summary>

@@ -11,7 +11,7 @@ namespace X20Ctl.Product.Scanner;
 /// </summary>
 public static class WriteScanUpload
 {
-    const string Route = "https://x20-admin.vercel.app/api/controller-report";
+    const string Route = "https://x20ctl-workshop.aaydamjad.workers.dev/api/controller-report";
     public const string ScannerVersion = "write-scan-2";
 
     public sealed class NotReady(string message) : Exception(message);

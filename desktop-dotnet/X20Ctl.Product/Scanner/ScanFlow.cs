@@ -192,7 +192,7 @@ public static class ScanFlow
             { new StringContent(metadata), "metadata" },
         };
         var file = new ByteArrayContent(zip); file.Headers.ContentType = new("application/zip"); form.Add(file, "report", "report.zip");
-        using var response = await http.PostAsync("https://x20-admin.vercel.app/api/controller-report", form);
+        using var response = await http.PostAsync("https://x20ctl-workshop.aaydamjad.workers.dev/api/controller-report", form);
         if ((int)response.StatusCode is not (200 or 201)) throw new HttpRequestException($"Receiver returned HTTP {(int)response.StatusCode}.");
         using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         string id = doc.RootElement.TryGetProperty("submissionId", out var s) ? s.GetString() ?? "" : "";

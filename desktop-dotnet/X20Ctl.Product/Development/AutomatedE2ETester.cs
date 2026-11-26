@@ -221,11 +221,21 @@ internal static class AutomatedE2ETester
             studio.ShowManagement("Community");
             var community = studio.Community!;
             client = studio.EnsureCommunityClient();
+            using (var probeHttp = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(15) })
+            {
+                using var crProbe = await probeHttp.GetAsync($"{client.BaseUrl}/api/controller-report");
+                string crBody = await crProbe.Content.ReadAsStringAsync();
+                Require(crProbe.IsSuccessStatusCode && crBody.Contains("reportSchemaVersions", StringComparison.Ordinal),
+                    $"Controller report receiver GET /api/controller-report answered {(int)crProbe.StatusCode} with schema versions");
+            }
             if (Environment.GetEnvironmentVariable("X20CTL_OWNER_PASS") is { Length: > 0 } ownerPass)
             {
                 var pCheck = await client.GetProfileAsync(client.Identity.Uid);
                 if (!pCheck.Ok)
-                    await client.RegisterProfileAsync("AmjadXCTL", ownerPass);
+                {
+                    var regRes = await client.RegisterProfileAsync("AmjadXCTL", ownerPass);
+                    Require(regRes.Ok, $"Registered owner handle AmjadXCTL on fresh Workshop DB ({regRes.Error})");
+                }
             }
 
             var leftover = await client.GetCatalogAsync(new CatalogQuery { Uid = client.Identity.Uid, Status = "mine" });
@@ -341,7 +351,9 @@ internal static class AutomatedE2ETester
                 installBtn!.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
                 bool sawInstallCount = await WaitUntilAsync(() => FindVisualChildren<TextBlock>(community.Body).Any(t => t.Text.Contains("1 install", StringComparison.OrdinalIgnoreCase)));
                 Require(sawInstallCount, $"Install counter incremented live for '{itemTitle}'");
-                await WaitMs(450);
+                bool sawAppliedBanner = await WaitUntilAsync(() => studio.ChangeCountForReview.Contains(itemTitle, StringComparison.Ordinal), 10000);
+                Require(sawAppliedBanner, $"Studio finished applying '{itemTitle}' ({studio.ChangeCountForReview})");
+                await WaitMs(150);
                 verifyApplied();
 
                 var deleteBtn = FindVisualChildren<Button>(community.Body).FirstOrDefault(b => Equals(b.Tag, $"delete:{itemId}"));
@@ -600,7 +612,7 @@ internal static class AutomatedE2ETester
 
             community.ActiveDiffDrawer.InstallSelectedButton.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
             Require(await WaitUntilAsync(() => community.ActiveDiffDrawer == null, 8000), "Diff Drawer closed after Install Selected");
-            await WaitMs(350);
+            await WaitUntilAsync(() => studio.Draft.Target("A") == "B", 8000);
             Require(studio.Draft.Target("A") == "B", $"Diff Drawer cherry-pick applied A->B remap (actual: {studio.Draft.Target("A")})");
             foreach (var added in studio.SetupStore.Items.Where(s => !initialSetupIds.Contains(s.Id)))
                 createdSetupIds.Add(added.Id);
@@ -616,10 +628,11 @@ internal static class AutomatedE2ETester
             await WaitUntilAsync(() => community.LastLeaderboardMakers != null, 5000);
             foreach (var lbMetricTag in new[] { "lbmetric:installs", "lbmetric:watchers", "lbmetric:karma" })
             {
+                await WaitUntilAsync(() => FindVisualChildren<Button>(community.Body).Any(b => Equals(b.Tag, lbMetricTag)), 8000);
                 var mb = FindVisualChildren<Button>(community.Body).FirstOrDefault(b => Equals(b.Tag, lbMetricTag));
                 Require(mb != null, $"Found Leaderboard metric switcher {lbMetricTag}");
                 mb!.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
-                await WaitMs(250);
+                await WaitMs(300);
             }
             bool emptyLb = await WaitUntilAsync(() => (community.LastLeaderboardMakers?.Count ?? 0) == 0);
             Require(emptyLb, "Leaderboard returned to 0 makers after deleting all E2E items");

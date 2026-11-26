@@ -20,6 +20,7 @@ public partial class StudioScene
     private DispatcherTimer? _pulseTimer;
     private SetupSnapshot? _sandboxBackupSnapshot;
     private bool _pulseHooksBound;
+    private bool _windowPulseHooksBound;
 
     public CommunityClient EnsureCommunityClient()
     {
@@ -46,9 +47,32 @@ public partial class StudioScene
         _pulseHooksBound = true;
 
         _pulseTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(45) };
-        _pulseTimer.Tick += async (_, _) => await RefreshPulseAsync();
+        _pulseTimer.Tick += async (_, _) =>
+        {
+            if (Application.Current?.MainWindow is { } mw &&
+                (!mw.IsVisible || mw.WindowState == WindowState.Minimized) &&
+                Community?.Body?.IsVisible != true)
+            {
+                return;
+            }
+            await RefreshPulseAsync();
+        };
         Loaded += async (_, _) =>
         {
+            if (!_windowPulseHooksBound && Application.Current?.MainWindow is { } mw)
+            {
+                _windowPulseHooksBound = true;
+                mw.StateChanged += (_, _) =>
+                {
+                    if (mw.IsVisible && mw.WindowState != WindowState.Minimized)
+                        _ = RefreshPulseAsync();
+                };
+                mw.IsVisibleChanged += (_, _) =>
+                {
+                    if (mw.IsVisible && mw.WindowState != WindowState.Minimized)
+                        _ = RefreshPulseAsync();
+                };
+            }
             _pulseTimer.Start();
             await RefreshPulseAsync();
         };
