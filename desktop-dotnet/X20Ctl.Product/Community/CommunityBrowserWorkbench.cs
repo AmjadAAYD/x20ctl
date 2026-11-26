@@ -31,7 +31,20 @@ public sealed class CommunityBrowserWorkbench
     private string? _filterUid;
     private bool _ogWindowOpen = true;
     private CreatorProfile? _myProfile;
+    private CreatorStats? _myStats;
     private readonly Dictionary<string, BadgeDef> _badgeMap = new(StringComparer.OrdinalIgnoreCase);
+
+    // Client-side memory cache so switching tabs renders in 0 ms before background sync
+    private string? _cachedCatalogKey;
+    private CatalogResponse? _cachedCatalog;
+    private (List<CommunityItem> Saved, List<CommunityItem> Mine)? _cachedSavedMine;
+    private List<CommunityRequest>? _cachedRequests;
+    private (List<LoungeMessage> Messages, int SlowSec, bool Paused)? _cachedLounge;
+    private (List<CreatorProfile> Makers, List<CreatorProfile> Watchers, List<CreatorProfile> Watching)? _cachedLeaderboard;
+
+    public string CurrentSubTab => _subTab;
+    public CatalogResponse? LastCatalog => _cachedCatalog;
+    public List<CreatorProfile>? LastLeaderboardMakers => _cachedLeaderboard?.Makers;
 
     // Top bar elements
     private readonly StackPanel _navTabHost = new() { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Bottom };
@@ -229,18 +242,53 @@ public sealed class CommunityBrowserWorkbench
             var tab = CommunityUI.UnderlineTabButton(label, _subTab == id);
             tab.Click += (_, _) =>
             {
-                _subTab = captured;
-                _filterUid = null;
-                RebuildTopTabs();
-                _ = RefreshAsync();
+                SelectSubTab(captured);
             };
             _navTabHost.Children.Add(tab);
         }
     }
 
+    public void SelectSubTab(string subTabId)
+    {
+        _subTab = subTabId;
+        _filterUid = null;
+        RebuildTopTabs();
+        RenderCachedSubTabSync();
+        _ = RefreshAsync();
+    }
+
+    private void RenderCachedSubTabSync()
+    {
+        if (_subTab == "explore" && _cachedCatalog != null && _cachedCatalogKey == CurrentCatalogCacheKey())
+        {
+            var caps = CommunityCapabilities.GetCapabilitySet(_selectedModelId, _selectedMode);
+            RenderExploreContent(caps, _cachedCatalog);
+        }
+        else if (_subTab == "saved" && _cachedSavedMine is { } sm)
+        {
+            RenderSavedAndMineContent(sm.Saved, sm.Mine);
+        }
+        else if (_subTab == "requests" && _cachedRequests != null)
+        {
+            RenderRequestsContent(_cachedRequests);
+        }
+        else if (_subTab == "lounge" && _cachedLounge is { } l)
+        {
+            RenderLoungeContent(l.Messages, l.SlowSec, l.Paused);
+        }
+        else if (_subTab == "leaderboard" && _cachedLeaderboard is { } lb)
+        {
+            RenderLeaderboardContent(lb.Makers, lb.Watchers, lb.Watching);
+        }
+    }
+
+    private string CurrentCatalogCacheKey()
+        => $"{_selectedModelId}|{_selectedMode}|{_categoryFilter}|{_mediaFilter}|{_sort}|{_searchQuery}|{_filterUid}";
+
     public async Task RefreshAsync()
     {
         RebuildTopTabs();
+        RenderCachedSubTabSync();
         if (_client.IsNetworkDisabled)
         {
             _presenceDot.Background = new SolidColorBrush(Color.FromRgb(148, 163, 184));
@@ -255,10 +303,12 @@ public sealed class CommunityBrowserWorkbench
 
         try
         {
-            var profRes = await _client.GetProfileAsync(_client.Identity.Uid);
+            var profRes = await _client.GetProfileWithStatsAsync(_client.Identity.Uid);
             if (profRes.Ok)
             {
                 _myProfile = profRes.Data.Creator;
+                _myStats = profRes.Data.Stats;
+                foreach (var b in profRes.Data.Badges) _badgeMap[b.Id] = b;
                 UpdateProfileButton();
             }
 
@@ -305,13 +355,8 @@ public sealed class CommunityBrowserWorkbench
         }
         _profileLabel.Text = _myProfile.Handle;
         _profileBtnContent.Children.Add(_profileLabel);
-        if (_myProfile.IsOwner) _profileBtnContent.Children.Add(BadgeChip.CreateOwnerCheckmark(13));
-        if (!string.IsNullOrEmpty(_myProfile.EquippedBadge) && _badgeMap.TryGetValue(_myProfile.EquippedBadge, out var bdef))
-        {
-            var tag = CommunityUI.SquareTag(bdef.Name);
-            tag.Margin = new Thickness(6, 0, 0, 0);
-            _profileBtnContent.Children.Add(tag);
-        }
+        var flair = BadgeChip.CreateFlair(_myProfile, _badgeMap, compact: true);
+        if (flair != null) _profileBtnContent.Children.Add(flair);
     }
 
     private void SetSingleColumnContent(UIElement content)
@@ -339,6 +384,30 @@ public sealed class CommunityBrowserWorkbench
             Uid = _filterUid
         });
 
+        if (!catRes.Ok || catRes.Data == null)
+        {
+            EnsureExploreLayout(caps);
+            _statusLine.Text = catRes.Error ?? "Failed to reach server.";
+            _mainFeedStack.Children.Clear();
+            _mainFeedStack.Children.Add(CommunityUI.CardSurface(new StackPanel
+            {
+                Children =
+                {
+                    Kit.Text("Could not load catalog", 15, "DS.Text", FontWeights.Bold),
+                    Kit.Text(catRes.Error ?? "Unable to contact X20ADMIN.", 12.5, "DS.TextSoft").Also(t => t.Margin = new Thickness(0, 4, 0, 12)),
+                    CommunityUI.RectButton("Retry", RectBtnKind.Primary, 32, 12).Also(b => { b.HorizontalAlignment = HorizontalAlignment.Left; b.Click += (_, _) => _ = RefreshAsync(); })
+                }
+            }, new Thickness(18)));
+            return;
+        }
+
+        _cachedCatalogKey = CurrentCatalogCacheKey();
+        _cachedCatalog = catRes.Data;
+        RenderExploreContent(caps, catRes.Data);
+    }
+
+    private void EnsureExploreLayout(CommunityCapabilitySet caps)
+    {
         _workspaceHost.Children.Clear();
         _workspaceHost.ColumnDefinitions.Clear();
         _workspaceHost.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(248) });
@@ -364,29 +433,17 @@ public sealed class CommunityBrowserWorkbench
         BuildSidebarFacets(caps);
         _workspaceHost.Children.Add(sidebarBorder);
 
-        // Right Main Viewport
-        _mainFeedStack.Children.Clear();
         _mainScroller.Content = _mainFeedStack;
         _mainScroller.Padding = new Thickness(0, 0, 4, 8);
         Grid.SetColumn(_mainScroller, 2);
         _workspaceHost.Children.Add(_mainScroller);
+    }
 
-        if (!catRes.Ok || catRes.Data == null)
-        {
-            _statusLine.Text = catRes.Error ?? "Failed to reach server.";
-            _mainFeedStack.Children.Add(CommunityUI.CardSurface(new StackPanel
-            {
-                Children =
-                {
-                    Kit.Text("Could not load catalog", 15, "DS.Text", FontWeights.Bold),
-                    Kit.Text(catRes.Error ?? "Unable to contact X20ADMIN.", 12.5, "DS.TextSoft").Also(t => t.Margin = new Thickness(0, 4, 0, 12)),
-                    CommunityUI.RectButton("Retry", RectBtnKind.Primary, 32, 12).Also(b => { b.HorizontalAlignment = HorizontalAlignment.Left; b.Click += (_, _) => _ = RefreshAsync(); })
-                }
-            }, new Thickness(18)));
-            return;
-        }
+    private void RenderExploreContent(CommunityCapabilitySet caps, CatalogResponse data)
+    {
+        EnsureExploreLayout(caps);
+        _mainFeedStack.Children.Clear();
 
-        var data = catRes.Data;
         _ogWindowOpen = data.OgV0026Open;
         if (!_client.IsNetworkDisabled)
             _onlineText.Text = $"{data.OnlineCount} online";
@@ -459,7 +516,7 @@ public sealed class CommunityBrowserWorkbench
                 Children =
                 {
                     Kit.Text(hasFilter ? "No setups match these filters" : $"No published setups yet for {caps.ModelName}", 15.5, "DS.Text", FontWeights.SemiBold).Also(t => t.HorizontalAlignment = HorizontalAlignment.Center),
-                    Kit.Text($"Approved community setups, analog curves, and OLED screen art for {caps.ModelName} ({caps.ConnectionMode}) appear here once published.", 12.5, "DS.TextMuted").Also(t => { t.TextWrapping = TextWrapping.Wrap; t.TextAlignment = TextAlignment.Center; t.MaxWidth = 480; t.Margin = new Thickness(0, 6, 0, 0); }),
+                    Kit.Text($"Approved community setups, analog curves, and screen art for {caps.ModelName} ({caps.ConnectionMode}) appear here once published.", 12.5, "DS.TextMuted").Also(t => { t.TextWrapping = TextWrapping.Wrap; t.TextAlignment = TextAlignment.Center; t.MaxWidth = 480; t.Margin = new Thickness(0, 6, 0, 0); }),
                     emptyBtns
                 }
             }, new Thickness(20)));
@@ -549,7 +606,7 @@ public sealed class CommunityBrowserWorkbench
             AddCategoryRow(cat, cat switch
             {
                 "curve" => "Analog Curves",
-                "screen" => "OLED Screen Art",
+                "screen" => "Screen Art",
                 "rgb" => "RGB Lighting",
                 "vibration" => "Vibration",
                 "macro" => "Macros",
@@ -559,7 +616,7 @@ public sealed class CommunityBrowserWorkbench
         }
         if (_categoryFilter == "screen" && caps.AllowsCategory("screen"))
         {
-            foreach (var (mk, ml) in new[] { ("all", "All OLED Media"), ("image", "Static PNG"), ("gif", "Animated GIF") })
+            foreach (var (mk, ml) in new[] { ("all", "All Screen Media"), ("image", "Static PNG"), ("gif", "Animated GIF") })
             {
                 var mb = CommunityUI.SidebarRowButton(ml, _mediaFilter == mk, indented: true);
                 mb.Margin = new Thickness(12, 1, 0, 1);
@@ -619,19 +676,67 @@ public sealed class CommunityBrowserWorkbench
         DockPanel.SetDock(voteBtn, Dock.Right);
         footerDock.Children.Add(voteBtn);
 
+        var installsChipText = Kit.Text(
+            $"\u2B07 {item.Installs} {(item.Installs == 1 ? "install" : "installs")}",
+            11,
+            "DS.AccentHi",
+            FontWeights.SemiBold);
+        var installsChip = new Border
+        {
+            CornerRadius = new CornerRadius(4),
+            Background = new SolidColorBrush(Color.FromArgb(45, 59, 130, 246)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(140, 59, 130, 246)),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(7, 2, 7, 2),
+            Margin = new Thickness(6, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = installsChipText
+        };
+
         var primaryBtns = new StackPanel { Orientation = Orientation.Horizontal };
         var installBtn = CommunityUI.RectButton("Install", RectBtnKind.Primary, 28, 11.5);
+        installBtn.Tag = $"install:{item.Id}";
         installBtn.Margin = new Thickness(0, 0, 6, 0);
         installBtn.Click += async (_, _) =>
         {
-            await _client.RecordInstallAsync(item.Id);
+            item.Installs += 1;
+            installsChipText.Text = $"\u2B07 {item.Installs} {(item.Installs == 1 ? "install" : "installs")}";
+            var updated = await _client.RecordInstallAsync(item.Id);
+            if (updated != null)
+            {
+                item.Installs = updated.Installs;
+                installsChipText.Text = $"\u2B07 {item.Installs} {(item.Installs == 1 ? "install" : "installs")}";
+            }
             InstallItemRequested?.Invoke(item, Array.Empty<string>());
-            _statusLine.Text = $"Installed '{item.Title}'.";
+            _statusLine.Text = $"Installed '{item.Title}' ({item.Installs} {(item.Installs == 1 ? "install" : "installs")}).";
         };
         var inspectBtn = CommunityUI.RectButton("Inspect", RectBtnKind.Secondary, 28, 11.5);
+        inspectBtn.Margin = new Thickness(0, 0, 6, 0);
         inspectBtn.Click += (_, _) => _ = OpenItemInspectorModalAsync(item);
         primaryBtns.Children.Add(installBtn);
         primaryBtns.Children.Add(inspectBtn);
+        if (item.Uid == _client.Identity.Uid)
+        {
+            var deleteBtn = CommunityUI.RectButton("Delete", RectBtnKind.Danger, 28, 11.5);
+            deleteBtn.Tag = $"delete:{item.Id}";
+            deleteBtn.Click += async (_, _) =>
+            {
+                deleteBtn.IsEnabled = false;
+                var dRes = await _client.DeleteItemAsync(item.Id);
+                if (dRes.Ok)
+                {
+                    _cachedCatalog?.Items.RemoveAll(x => x.Id == item.Id);
+                    _statusLine.Text = $"Deleted '{item.Title}'.";
+                    await RefreshAsync();
+                }
+                else
+                {
+                    deleteBtn.IsEnabled = true;
+                    _statusLine.Text = dRes.Error ?? "Could not delete item.";
+                }
+            };
+            primaryBtns.Children.Add(deleteBtn);
+        }
         footerDock.Children.Add(primaryBtns);
         footer.Child = footerDock;
         DockPanel.SetDock(footer, Dock.Bottom);
@@ -648,11 +753,11 @@ public sealed class CommunityBrowserWorkbench
                 Margin = new Thickness(0, 0, 12, 0),
                 VerticalAlignment = VerticalAlignment.Top
             };
-            oled.SetPlaceholder("OLED");
+            oled.SetPlaceholder("160x80");
             _ = Task.Run(async () =>
             {
                 var bytes = await _client.DownloadAssetAsync(item.AssetUrl, item.AssetSha256);
-                if (bytes != null) oled.Dispatcher.Invoke(() => oled.LoadBytes(bytes, "OLED"));
+                if (bytes != null) oled.Dispatcher.Invoke(() => oled.LoadBytes(bytes, "160x80"));
             });
             DockPanel.SetDock(oled, Dock.Left);
             mainDock.Children.Add(oled);
@@ -681,9 +786,11 @@ public sealed class CommunityBrowserWorkbench
             creatorBtn.Padding = new Thickness(4, 0, 4, 0);
             creatorBtn.Click += async (_, _) => await ShowCreatorCardAsync(item.Creator);
             creatorLine.Children.Add(creatorBtn);
-            if (item.Creator.IsOwner) creatorLine.Children.Add(BadgeChip.CreateOwnerCheckmark(12));
+            var flair = BadgeChip.CreateFlair(item.Creator, _badgeMap, compact: true);
+            if (flair != null) creatorLine.Children.Add(flair);
         }
-        creatorLine.Children.Add(Kit.Text($"  ·  {item.Installs} installs  ·  {item.WorksCount} verified", 11, "DS.TextMuted").Also(t => t.VerticalAlignment = VerticalAlignment.Center));
+        creatorLine.Children.Add(installsChip);
+        creatorLine.Children.Add(Kit.Text($"  ·  {item.WorksCount} verified", 11, "DS.TextMuted").Also(t => t.VerticalAlignment = VerticalAlignment.Center));
         meta.Children.Add(creatorLine);
 
         meta.Children.Add(Kit.Text(item.Description, 12, "DS.TextSoft").Also(t =>
@@ -714,6 +821,7 @@ public sealed class CommunityBrowserWorkbench
         tagRow.Children.Add(CommunityUI.SquareTag(item.Category.ToUpperInvariant()));
         tagRow.Children.Add(CommunityUI.SquareTag($"{item.ModelId} / {item.ConnectionMode}"));
         tagRow.Children.Add(CommunityUI.SquareTag($"v{item.Version}"));
+        tagRow.Children.Add(CommunityUI.SquareTag($"\u2B07 {item.Installs} {(item.Installs == 1 ? "install" : "installs")}"));
         if (item.Creator != null) tagRow.Children.Add(CommunityUI.SquareTag($"Maker: {item.Creator.Handle}"));
         modalRoot.Children.Add(tagRow);
 
@@ -775,9 +883,30 @@ public sealed class CommunityBrowserWorkbench
         }
         actionRow.Children.Add(CommunityUI.RectButton("Report", RectBtnKind.Danger, 32, 12).Also(b =>
         {
-            b.Margin = new Thickness(0, 0, 0, 6);
+            b.Margin = new Thickness(0, 0, 6, 6);
             b.Click += async (_, _) => { var r = await _client.ReportAsync("item", item.Id, "Inappropriate or broken"); _statusLine.Text = r.Ok ? "Reported." : (r.Error ?? "Sign in first."); };
         }));
+        if (item.Uid == _client.Identity.Uid)
+        {
+            actionRow.Children.Add(CommunityUI.RectButton("Delete", RectBtnKind.Danger, 32, 12).Also(b =>
+            {
+                b.Margin = new Thickness(0, 0, 0, 6);
+                b.Click += async (_, _) =>
+                {
+                    var dRes = await _client.DeleteItemAsync(item.Id);
+                    if (dRes.Ok)
+                    {
+                        _cachedCatalog?.Items.RemoveAll(x => x.Id == item.Id);
+                        CloseModal();
+                        await RefreshAsync();
+                    }
+                    else
+                    {
+                        _statusLine.Text = dRes.Error ?? "Could not delete item.";
+                    }
+                };
+            }));
+        }
         modalRoot.Children.Add(actionRow);
 
         // Comments Section inline inside Inspector
@@ -791,7 +920,8 @@ public sealed class CommunityBrowserWorkbench
                 var cStack = new StackPanel();
                 var ch = new StackPanel { Orientation = Orientation.Horizontal };
                 ch.Children.Add(Kit.Text(c.Creator?.Handle ?? c.Uid, 12, "DS.AccentHi", FontWeights.Bold));
-                if (c.Creator?.IsOwner == true) ch.Children.Add(BadgeChip.CreateOwnerCheckmark(12));
+                var cFlair = c.Creator != null ? BadgeChip.CreateFlair(c.Creator, _badgeMap, compact: true) : null;
+                if (cFlair != null) ch.Children.Add(cFlair);
                 cStack.Children.Add(ch);
                 cStack.Children.Add(Kit.Text(c.Body, 12, "DS.TextSoft").Also(t => t.TextWrapping = TextWrapping.Wrap));
                 cList.Children.Add(CommunityUI.CardSurface(cStack, new Thickness(10)).Also(b => b.Margin = new Thickness(0, 0, 0, 6)));
@@ -844,7 +974,7 @@ public sealed class CommunityBrowserWorkbench
         var head = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 4) };
         head.Children.Add(CommunityUI.SquareTag("ANNOUNCEMENT", Colors.White, Color.FromArgb(95, 255, 122, 24), BadgeChip.OwnerOrange));
         head.Children.Add(Kit.Text("AmjadXCTL", 12, "DS.Text", FontWeights.Bold).Also(t => t.VerticalAlignment = VerticalAlignment.Center));
-        head.Children.Add(BadgeChip.CreateOwnerCheckmark(13));
+        head.Children.Add(BadgeChip.CreateEmblem(null, "amjad-verified", 16, "AmjadXCTL - Verified X20CTL Creator & Owner"));
         stack.Children.Add(head);
         stack.Children.Add(Kit.Text(note.Title, 14, "DS.Text", FontWeights.SemiBold));
         stack.Children.Add(Kit.Text(note.Body, 12.5, "DS.TextSoft").Also(t => { t.TextWrapping = TextWrapping.Wrap; t.Margin = new Thickness(0, 3, 0, 8); }));
@@ -921,15 +1051,22 @@ public sealed class CommunityBrowserWorkbench
 
     private async Task RenderSavedAndMineAsync()
     {
-        var stack = new StackPanel();
         var savedRes = await _client.GetCatalogAsync(new CatalogQuery { BookmarkedBy = _client.Identity.Uid, Sort = "new" });
         var mineRes = await _client.GetCatalogAsync(new CatalogQuery { Uid = _client.Identity.Uid, Status = "mine", Sort = "new" });
+        var saved = savedRes.Ok && savedRes.Data != null ? savedRes.Data.Items : new List<CommunityItem>();
+        var mine = mineRes.Ok && mineRes.Data != null ? mineRes.Data.Items : new List<CommunityItem>();
+        _cachedSavedMine = (saved, mine);
+        if (_subTab == "saved") RenderSavedAndMineContent(saved, mine);
+    }
 
+    private void RenderSavedAndMineContent(List<CommunityItem> saved, List<CommunityItem> mine)
+    {
+        var stack = new StackPanel();
         stack.Children.Add(Kit.Text("Saved Bookmarks", 16, "DS.Text", FontWeights.Bold).Also(t => t.Margin = new Thickness(0, 0, 0, 10)));
-        if (savedRes.Ok && savedRes.Data != null && savedRes.Data.Items.Count > 0)
+        if (saved.Count > 0)
         {
             var grid = new UniformGrid { Columns = 2, Margin = new Thickness(-5, 0, -5, 16) };
-            foreach (var s in savedRes.Data.Items) grid.Children.Add(BuildWorkshopCard(s).Also(b => b.Margin = new Thickness(5)));
+            foreach (var s in saved) grid.Children.Add(BuildWorkshopCard(s).Also(b => b.Margin = new Thickness(5)));
             stack.Children.Add(grid);
         }
         else
@@ -938,12 +1075,20 @@ public sealed class CommunityBrowserWorkbench
         }
 
         stack.Children.Add(Kit.Text("My Published & Pending Uploads", 16, "DS.Text", FontWeights.Bold).Also(t => t.Margin = new Thickness(0, 0, 0, 10)));
-        if (mineRes.Ok && mineRes.Data != null && mineRes.Data.Items.Count > 0)
+        if (mine.Count > 0)
         {
-            foreach (var myItem in mineRes.Data.Items)
+            foreach (var myItem in mine)
             {
                 var delBtn = CommunityUI.RectButton("Delete", RectBtnKind.Danger, 28, 11.5);
-                delBtn.Click += async (_, _) => { var dRes = await _client.DeleteItemAsync(myItem.Id); if (dRes.Ok) await RefreshAsync(); };
+                delBtn.Click += async (_, _) =>
+                {
+                    var dRes = await _client.DeleteItemAsync(myItem.Id);
+                    if (dRes.Ok)
+                    {
+                        _cachedCatalog?.Items.RemoveAll(x => x.Id == myItem.Id);
+                        await RefreshAsync();
+                    }
+                };
                 var row = new DockPanel();
                 DockPanel.SetDock(delBtn, Dock.Right);
                 row.Children.Add(delBtn);
@@ -968,11 +1113,17 @@ public sealed class CommunityBrowserWorkbench
 
     private async Task RenderRequestsBoardAsync()
     {
-        var stack = new StackPanel();
         var reqRes = await _client.GetRequestsAsync();
+        var list = reqRes.Ok && reqRes.Data != null ? reqRes.Data : new List<CommunityRequest>();
+        _cachedRequests = list;
+        if (_subTab == "requests") RenderRequestsContent(list);
+    }
 
+    private void RenderRequestsContent(List<CommunityRequest> list)
+    {
+        var stack = new StackPanel();
         var createStack = new StackPanel();
-        createStack.Children.Add(Kit.Text("Request a Setup, Curve, or OLED Screen Art", 14.5, "DS.Text", FontWeights.SemiBold).Also(t => t.Margin = new Thickness(0, 0, 0, 8)));
+        createStack.Children.Add(Kit.Text("Request a Setup, Curve, or Screen Art", 14.5, "DS.Text", FontWeights.SemiBold).Also(t => t.Margin = new Thickness(0, 0, 0, 8)));
         var rTitle = CommunityUI.RectInput("", 32);
         rTitle.Margin = new Thickness(0, 3, 0, 8);
         var rGame = CommunityUI.RectInput("", 32);
@@ -992,9 +1143,9 @@ public sealed class CommunityBrowserWorkbench
         createStack.Children.Add(rBtn);
         stack.Children.Add(CommunityUI.CardSurface(createStack, new Thickness(16)).Also(b => b.Margin = new Thickness(0, 0, 0, 14)));
 
-        if (reqRes.Ok && reqRes.Data != null && reqRes.Data.Count > 0)
+        if (list.Count > 0)
         {
-            foreach (var r in reqRes.Data)
+            foreach (var r in list)
             {
                 var row = new DockPanel();
                 var actions = new StackPanel { Orientation = Orientation.Horizontal };
@@ -1028,15 +1179,21 @@ public sealed class CommunityBrowserWorkbench
 
     private async Task RenderLoungeBoardAsync()
     {
-        var stack = new StackPanel();
         var lRes = await _client.GetLoungeAsync();
         if (!lRes.Ok)
         {
-            stack.Children.Add(CommunityUI.CardSurface(Kit.Text(lRes.Error ?? "Lounge unavailable right now.", 12.5, "DS.TextSoft"), new Thickness(16)));
-            SetSingleColumnContent(stack);
+            var errStack = new StackPanel();
+            errStack.Children.Add(CommunityUI.CardSurface(Kit.Text(lRes.Error ?? "Lounge unavailable right now.", 12.5, "DS.TextSoft"), new Thickness(16)));
+            if (_subTab == "lounge") SetSingleColumnContent(errStack);
             return;
         }
-        var (msgs, slowSec, paused) = lRes.Data;
+        _cachedLounge = lRes.Data;
+        if (_subTab == "lounge") RenderLoungeContent(lRes.Data.Messages, lRes.Data.SlowmodeSec, lRes.Data.Paused);
+    }
+
+    private void RenderLoungeContent(List<LoungeMessage> msgs, int slowSec, bool paused)
+    {
+        var stack = new StackPanel();
         stack.Children.Add(Kit.Text($"Community Lounge  ·  Slow-mode: {slowSec}s  ·  {(paused ? "Paused by Owner" : "Open")}", 13, "DS.AccentHi", FontWeights.SemiBold).Also(t => t.Margin = new Thickness(0, 0, 0, 10)));
 
         var composer = new DockPanel { Margin = new Thickness(0, 0, 0, 12) };
@@ -1065,7 +1222,8 @@ public sealed class CommunityBrowserWorkbench
                 var mRow = new StackPanel();
                 var top = new StackPanel { Orientation = Orientation.Horizontal };
                 top.Children.Add(Kit.Text(m.Creator?.Handle ?? m.Uid, 12.5, "DS.AccentHi", FontWeights.Bold));
-                if (m.Creator?.IsOwner == true) top.Children.Add(BadgeChip.CreateOwnerCheckmark(13));
+                var mFlair = m.Creator != null ? BadgeChip.CreateFlair(m.Creator, _badgeMap, compact: true) : null;
+                if (mFlair != null) top.Children.Add(mFlair);
                 mRow.Children.Add(top);
                 mRow.Children.Add(Kit.Text(m.Body, 13, "DS.Text").Also(t => t.TextWrapping = TextWrapping.Wrap));
                 stack.Children.Add(CommunityUI.CardSurface(mRow, new Thickness(10)).Also(b => b.Margin = new Thickness(0, 0, 0, 6)));
@@ -1076,34 +1234,43 @@ public sealed class CommunityBrowserWorkbench
 
     private async Task RenderLeaderboardAndWatchingAsync()
     {
-        var stack = new StackPanel();
         var lbRes = await _client.GetLeaderboardAsync("karma");
         var watchRes = await _client.GetWatchListsAsync();
-
-        if (watchRes.Ok)
+        var makers = lbRes.Ok ? lbRes.Data.Makers : new List<CreatorProfile>();
+        var watchers = watchRes.Ok ? watchRes.Data.Watchers : new List<CreatorProfile>();
+        var watching = watchRes.Ok ? watchRes.Data.Watching : new List<CreatorProfile>();
+        if (lbRes.Ok)
         {
-            var wPanel = new StackPanel();
-            wPanel.Children.Add(Kit.Text($"Watching ({watchRes.Data.Watching.Count}) & Watchers ({watchRes.Data.Watchers.Count})", 15, "DS.Text", FontWeights.Bold).Also(t => t.Margin = new Thickness(0, 0, 0, 8)));
-            var chips = new WrapPanel();
-            foreach (var maker in watchRes.Data.Watching)
-            {
-                var btn = CommunityUI.RectButton($"{maker.Handle} ({maker.Karma} karma)", RectBtnKind.Secondary, 28, 11.5);
-                btn.Margin = new Thickness(0, 0, 6, 6);
-                btn.Click += (_, _) => { _filterUid = maker.Uid; _subTab = "explore"; _ = RefreshAsync(); };
-                chips.Children.Add(btn);
-            }
-            if (chips.Children.Count == 0)
-                wPanel.Children.Add(Kit.Text("Not Watching any Makers yet. Click any creator handle to Watch their setups.", 12.5, "DS.TextMuted"));
-            else
-                wPanel.Children.Add(chips);
-            stack.Children.Add(CommunityUI.CardSurface(wPanel, new Thickness(14)).Also(b => b.Margin = new Thickness(0, 0, 0, 14)));
+            foreach (var b in lbRes.Data.Badges) _badgeMap[b.Id] = b;
         }
+        _cachedLeaderboard = (makers, watchers, watching);
+        if (_subTab == "leaderboard") RenderLeaderboardContent(makers, watchers, watching);
+    }
+
+    private void RenderLeaderboardContent(List<CreatorProfile> makers, List<CreatorProfile> watchers, List<CreatorProfile> watching)
+    {
+        var stack = new StackPanel();
+        var wPanel = new StackPanel();
+        wPanel.Children.Add(Kit.Text($"Watching ({watching.Count}) & Watchers ({watchers.Count})", 15, "DS.Text", FontWeights.Bold).Also(t => t.Margin = new Thickness(0, 0, 0, 8)));
+        var chips = new WrapPanel();
+        foreach (var maker in watching)
+        {
+            var btn = CommunityUI.RectButton($"{maker.Handle} ({maker.Karma} karma)", RectBtnKind.Secondary, 28, 11.5);
+            btn.Margin = new Thickness(0, 0, 6, 6);
+            btn.Click += (_, _) => { _filterUid = maker.Uid; _subTab = "explore"; _ = RefreshAsync(); };
+            chips.Children.Add(btn);
+        }
+        if (chips.Children.Count == 0)
+            wPanel.Children.Add(Kit.Text("Not Watching any Makers yet. Click any creator handle to Watch their setups.", 12.5, "DS.TextMuted"));
+        else
+            wPanel.Children.Add(chips);
+        stack.Children.Add(CommunityUI.CardSurface(wPanel, new Thickness(14)).Also(b => b.Margin = new Thickness(0, 0, 0, 14)));
 
         stack.Children.Add(Kit.Text("Top Community Makers", 16, "DS.Text", FontWeights.Bold).Also(t => t.Margin = new Thickness(0, 0, 0, 10)));
-        if (lbRes.Ok && lbRes.Data.Makers.Count > 0)
+        if (makers.Count > 0)
         {
             int rank = 1;
-            foreach (var maker in lbRes.Data.Makers)
+            foreach (var maker in makers)
             {
                 var row = new DockPanel();
                 var viewBtn = CommunityUI.RectButton("View Profile", RectBtnKind.Secondary, 28, 11.5);
@@ -1112,27 +1279,36 @@ public sealed class CommunityBrowserWorkbench
                 row.Children.Add(viewBtn);
 
                 var line = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-                line.Children.Add(Kit.Text($"#{rank++}  {maker.Handle}", 14, "DS.Text", FontWeights.SemiBold));
-                if (maker.IsOwner) line.Children.Add(BadgeChip.CreateOwnerCheckmark(14));
-                line.Children.Add(Kit.Text($"   ·   Karma {maker.Karma}   ·   Watchers {maker.WatchersCount}   ·   Installs {maker.InstallsReceived}", 12.5, "DS.TextSoft"));
+                line.Children.Add(Kit.Text($"#{rank++}  {maker.Handle}", 14, "DS.Text", FontWeights.SemiBold).Also(t => t.VerticalAlignment = VerticalAlignment.Center));
+                var flair = BadgeChip.CreateFlair(maker, _badgeMap, compact: true);
+                if (flair != null) line.Children.Add(flair);
+                line.Children.Add(Kit.Text($"   ·   Uploads {maker.ApprovedCount}   ·   Installs {maker.InstallsReceived}   ·   Karma {maker.Karma}   ·   Watchers {maker.WatchersCount}", 12.5, "DS.TextSoft").Also(t => t.VerticalAlignment = VerticalAlignment.Center));
                 row.Children.Add(line);
                 stack.Children.Add(CommunityUI.CardSurface(row, new Thickness(12)).Also(b => b.Margin = new Thickness(0, 0, 0, 6)));
             }
         }
         else
         {
-            stack.Children.Add(CommunityUI.CardSurface(Kit.Text("No registered makers yet.", 12.5, "DS.TextMuted"), new Thickness(16)));
+            stack.Children.Add(CommunityUI.CardSurface(Kit.Text("No published makers on the leaderboard yet. Publish your first setup, curve, or Screen Art to claim #1!", 12.5, "DS.TextMuted"), new Thickness(16)));
         }
 
         SetSingleColumnContent(stack);
     }
 
-    private void OpenProfileDialog()
+    public CreatorProfileDialog OpenProfileDialogForTest()
     {
-        var dlg = new CreatorProfileDialog(_client, _myProfile, _badgeMap, _ogWindowOpen);
+        var dlg = new CreatorProfileDialog(_client, _myProfile, _badgeMap, _ogWindowOpen, _myStats);
         dlg.CloseRequested += CloseModal;
         dlg.ProfileUpdated += p => { _myProfile = p; UpdateProfileButton(); _ = RefreshAsync(); };
         ShowModal(dlg);
+        return dlg;
+    }
+
+    public void CloseModalForTest() => CloseModal();
+
+    private void OpenProfileDialog()
+    {
+        OpenProfileDialogForTest();
     }
 
     private void ShowModal(UIElement modal)

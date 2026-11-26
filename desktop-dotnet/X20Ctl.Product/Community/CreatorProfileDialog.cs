@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using Microsoft.Win32;
 using X20Ctl.Zone.Community;
@@ -14,10 +15,14 @@ namespace X20Ctl.Product.Community;
 public sealed class CreatorProfileDialog : Grid
 {
     private readonly CommunityClient _client;
-    private readonly IReadOnlyDictionary<string, BadgeDef> _badgeCatalog;
+    private IReadOnlyDictionary<string, BadgeDef> _badgeCatalog;
     private readonly bool _ogWindowOpen;
     private CreatorProfile? _profile;
+    private CreatorStats? _stats;
+    private bool _statsFetchStarted;
     private readonly TextBlock _statusText = Kit.Text("", 12, "DS.TextSoft");
+
+    public CreatorProfile? CurrentProfile => _profile;
 
     public event Action<CreatorProfile>? ProfileUpdated;
     public event Action? CloseRequested;
@@ -26,25 +31,78 @@ public sealed class CreatorProfileDialog : Grid
         CommunityClient client,
         CreatorProfile? existingProfile,
         IReadOnlyDictionary<string, BadgeDef> badgeCatalog,
-        bool ogWindowOpen)
+        bool ogWindowOpen,
+        CreatorStats? stats = null)
     {
         _client = client;
         _profile = existingProfile;
         _badgeCatalog = badgeCatalog;
         _ogWindowOpen = ogWindowOpen;
+        _stats = stats;
 
         Background = new SolidColorBrush(Color.FromArgb(205, 3, 6, 16));
         MouseLeftButtonDown += (_, e) => { if (e.OriginalSource == this) CloseRequested?.Invoke(); };
         BuildContent();
+
+        if (_profile != null && _stats == null)
+            _ = LoadStatsInBackgroundAsync(_profile.Uid);
+    }
+
+    public void SetStats(CreatorStats? stats)
+    {
+        _stats = stats;
+        BuildContent();
+    }
+
+    public async Task EquipBadgeAsync(string badgeId)
+    {
+        var res = await _client.UpdateProfileAsync(equippedBadge: badgeId);
+        if (res.Ok && res.Data != null)
+        {
+            _profile = res.Data;
+            _statusText.Text = string.IsNullOrEmpty(badgeId)
+                ? "Active flair cleared."
+                : $"Equipped flair: {(_badgeCatalog.TryGetValue(badgeId, out var d) ? d.Name : badgeId)}";
+            ProfileUpdated?.Invoke(res.Data);
+            BuildContent();
+        }
+        else
+        {
+            _statusText.Text = res.Error ?? "Could not update flair.";
+        }
+    }
+
+    private async Task LoadStatsInBackgroundAsync(string uid)
+    {
+        if (_statsFetchStarted) return;
+        _statsFetchStarted = true;
+        var res = await _client.GetProfileWithStatsAsync(uid);
+        if (res.Ok)
+        {
+            await Dispatcher.InvokeAsync(() =>
+            {
+                _profile = res.Data.Creator;
+                _stats = res.Data.Stats;
+                if (res.Data.Badges.Count > 0)
+                {
+                    var dict = new Dictionary<string, BadgeDef>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var b in res.Data.Badges) dict[b.Id] = b;
+                    _badgeCatalog = dict;
+                }
+                BuildContent();
+            });
+        }
     }
 
     private void BuildContent()
     {
+        if (_statusText.Parent is Panel oldStatusParent)
+            oldStatusParent.Children.Remove(_statusText);
         Children.Clear();
         var card = new Border
         {
-            Width = 540,
-            MaxHeight = 680,
+            Width = 680,
+            MaxHeight = 740,
             VerticalAlignment = VerticalAlignment.Center,
             HorizontalAlignment = HorizontalAlignment.Center,
             CornerRadius = new CornerRadius(10),
@@ -60,7 +118,7 @@ public sealed class CreatorProfileDialog : Grid
         closeBtn.Click += (_, _) => CloseRequested?.Invoke();
         DockPanel.SetDock(closeBtn, Dock.Right);
         header.Children.Add(closeBtn);
-        header.Children.Add(Kit.Text("Creator Account", 18, "DS.Text", FontWeights.Bold));
+        header.Children.Add(Kit.Text(_profile == null ? "Creator Account" : "Creator Achievements & Flair", 18, "DS.Text", FontWeights.Bold));
         root.Children.Add(header);
 
         var uidRow = new DockPanel { Margin = new Thickness(0, 0, 0, 12) };
@@ -125,6 +183,7 @@ public sealed class CreatorProfileDialog : Grid
                     _statusText.Text = $"Registered as {res.Data.Handle}!";
                     ProfileUpdated?.Invoke(res.Data);
                     BuildContent();
+                    _ = LoadStatsInBackgroundAsync(res.Data.Uid);
                 }
                 else
                 {
@@ -179,14 +238,20 @@ public sealed class CreatorProfileDialog : Grid
 
             var info = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
             var hRow = new StackPanel { Orientation = Orientation.Horizontal };
-            hRow.Children.Add(Kit.Text(_profile.Handle, 17, "DS.Text", FontWeights.Bold));
-            if (_profile.IsOwner) hRow.Children.Add(BadgeChip.CreateOwnerCheckmark(15));
+            hRow.Children.Add(Kit.Text(_profile.Handle, 17, "DS.Text", FontWeights.Bold).Also(t => t.VerticalAlignment = VerticalAlignment.Center));
+            var flair = BadgeChip.CreateFlair(_profile, _badgeCatalog);
+            if (flair != null) hRow.Children.Add(flair);
             info.Children.Add(hRow);
-            info.Children.Add(Kit.Text($"Karma {_profile.Karma}  |  Watchers {_profile.WatchersCount}  |  Watching {_profile.WatchingCount}  |  Installs {_profile.InstallsReceived}", 12, "DS.TextSoft"));
 
+            int uploadsCount = _stats?.ApprovedCount ?? _profile.ApprovedCount;
+            info.Children.Add(Kit.Text(
+                $"Uploads {uploadsCount}  |  Installs {_profile.InstallsReceived}  |  Karma {_profile.Karma}  |  Watchers {_profile.WatchersCount}",
+                12,
+                "DS.TextSoft").Also(t => t.Margin = new Thickness(0, 3, 0, 6)));
+
+            var btnRow = new StackPanel { Orientation = Orientation.Horizontal };
             var uploadPfpBtn = CommunityUI.RectButton("Upload 64x64 Avatar", RectBtnKind.Secondary, 28, 11.5);
-            uploadPfpBtn.Margin = new Thickness(0, 6, 0, 0);
-            uploadPfpBtn.HorizontalAlignment = HorizontalAlignment.Left;
+            uploadPfpBtn.Margin = new Thickness(0, 0, 8, 0);
             uploadPfpBtn.Click += async (_, _) =>
             {
                 var dlg = new OpenFileDialog { Filter = "PNG or GIF (*.png;*.gif)|*.png;*.gif", Title = "Choose 64x64 PNG or Animated GIF Avatar" };
@@ -207,52 +272,87 @@ public sealed class CreatorProfileDialog : Grid
                     _statusText.Text = res.Error ?? "Avatar upload failed.";
                 }
             };
-            info.Children.Add(uploadPfpBtn);
-            topRow.Children.Add(info);
-            root.Children.Add(topRow);
+            btnRow.Children.Add(uploadPfpBtn);
 
-            root.Children.Add(Kit.Text("Equipped Badge", 12, "DS.TextSoft", FontWeights.SemiBold).Also(t => t.Margin = new Thickness(0, 4, 0, 6)));
-            var badgeCombo = new ComboBox { MinHeight = 32, Margin = new Thickness(0, 0, 0, 10) };
-            badgeCombo.Items.Add("(None)");
-            foreach (var bid in _profile.Badges) badgeCombo.Items.Add(bid);
-            badgeCombo.SelectedItem = string.IsNullOrEmpty(_profile.EquippedBadge) ? "(None)" : _profile.EquippedBadge;
-            badgeCombo.SelectionChanged += async (_, _) =>
-            {
-                if (badgeCombo.SelectedItem is not string chosen) return;
-                var next = chosen == "(None)" ? "" : chosen;
-                var res = await _client.UpdateProfileAsync(equippedBadge: next);
-                if (res.Ok && res.Data != null)
-                {
-                    _profile = res.Data;
-                    _statusText.Text = "Equipped badge updated.";
-                    ProfileUpdated?.Invoke(res.Data);
-                }
-            };
-            root.Children.Add(badgeCombo);
-
-            var rack = new WrapPanel { Margin = new Thickness(0, 0, 0, 12) };
-            foreach (var bid in _profile.Badges)
-            {
-                if (_badgeCatalog.TryGetValue(bid, out var def))
-                    rack.Children.Add(BadgeChip.Create(def));
-            }
-            root.Children.Add(rack);
-
-            var copyRecBtn = CommunityUI.RectButton("Copy Recovery Key (X20K1...)", RectBtnKind.Secondary, 30, 11.5);
-            copyRecBtn.HorizontalAlignment = HorizontalAlignment.Left;
+            var copyRecBtn = CommunityUI.RectButton("Copy Recovery Key", RectBtnKind.Secondary, 28, 11.5);
             copyRecBtn.Click += (_, _) =>
             {
                 Clipboard.SetText(_client.Identity.ExportRecoveryKey());
                 _statusText.Text = "Recovery Key copied! Keep it private to restore your handle on another PC.";
             };
-            root.Children.Add(copyRecBtn);
+            btnRow.Children.Add(copyRecBtn);
+
+            info.Children.Add(btnRow);
+            topRow.Children.Add(info);
+            root.Children.Add(topRow);
+
+            // Reddit Active Flair Preview Strip
+            var flairStrip = new DockPanel();
+            if (!string.IsNullOrEmpty(_profile.EquippedBadge))
+            {
+                var clearFlairBtn = CommunityUI.RectButton("Unequip Flair", RectBtnKind.Ghost, 26, 11);
+                clearFlairBtn.Click += async (_, _) => await EquipBadgeAsync("");
+                DockPanel.SetDock(clearFlairBtn, Dock.Right);
+                flairStrip.Children.Add(clearFlairBtn);
+            }
+            var flairPreview = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            flairPreview.Children.Add(Kit.Text("Active User Flair: ", 12, "DS.TextSoft", FontWeights.SemiBold).Also(t => t.VerticalAlignment = VerticalAlignment.Center));
+            flairPreview.Children.Add(Kit.Text($"@{_profile.Handle}", 12.5, "DS.Text", FontWeights.Bold).Also(t => t.VerticalAlignment = VerticalAlignment.Center));
+            if (flair != null)
+            {
+                var flairClone = BadgeChip.CreateFlair(_profile, _badgeCatalog, compact: true);
+                if (flairClone != null) flairPreview.Children.Add(flairClone);
+            }
+            else
+            {
+                flairPreview.Children.Add(Kit.Text("  None equipped", 11.5, "DS.TextMuted").Also(t => t.VerticalAlignment = VerticalAlignment.Center));
+            }
+            flairStrip.Children.Add(flairPreview);
+            root.Children.Add(CommunityUI.CardSurface(flairStrip, new Thickness(12, 8, 12, 8)).Also(b => b.Margin = new Thickness(0, 0, 0, 14)));
+
+            // Unlocked Achievements Showcase (2-col Reddit Trophy/Achievement grid)
+            var unlockedSet = new HashSet<string>(_profile.Badges, StringComparer.OrdinalIgnoreCase);
+            var unlockedDefs = new List<BadgeDef>();
+            foreach (var bid in _profile.Badges)
+            {
+                if (_badgeCatalog.TryGetValue(bid, out var d)) unlockedDefs.Add(d);
+                else unlockedDefs.Add(new BadgeDef { Id = bid, Name = bid, Description = "Earned achievement." });
+            }
+
+            root.Children.Add(Kit.Text($"Unlocked Achievements ({unlockedDefs.Count})", 13, "DS.Text", FontWeights.Bold).Also(t => t.Margin = new Thickness(0, 0, 0, 8)));
+            var unlockedGrid = new UniformGrid { Columns = 2, Margin = new Thickness(-4, 0, -4, 14) };
+            foreach (var def in unlockedDefs)
+            {
+                bool isEq = string.Equals(_profile.EquippedBadge, def.Id, StringComparison.OrdinalIgnoreCase);
+                var ac = BadgeChip.CreateAchievementCard(def, unlocked: true, equipped: isEq, _stats, EquipBadgeAsync);
+                ac.Margin = new Thickness(4);
+                unlockedGrid.Children.Add(ac);
+            }
+            root.Children.Add(unlockedGrid);
+
+            // Locked Achievements Showcase with real CreatorStats progress bars
+            var lockedDefs = _badgeCatalog.Values
+                .Where(d => !unlockedSet.Contains(d.Id) && !string.Equals(d.Mode, "owner", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            if (lockedDefs.Count > 0)
+            {
+                root.Children.Add(Kit.Text($"Locked Achievements ({lockedDefs.Count})", 13, "DS.TextSoft", FontWeights.Bold).Also(t => t.Margin = new Thickness(0, 0, 0, 8)));
+                var lockedGrid = new UniformGrid { Columns = 2, Margin = new Thickness(-4, 0, -4, 10) };
+                foreach (var def in lockedDefs)
+                {
+                    var lc = BadgeChip.CreateAchievementCard(def, unlocked: false, equipped: false, _stats, null);
+                    lc.Margin = new Thickness(4);
+                    lockedGrid.Children.Add(lc);
+                }
+                root.Children.Add(lockedGrid);
+            }
         }
 
         _statusText.Margin = new Thickness(0, 10, 0, 0);
         _statusText.TextWrapping = TextWrapping.Wrap;
         root.Children.Add(_statusText);
 
-        card.Child = new ScrollViewer { Content = root, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+        card.Child = new ScrollViewer { Content = root, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Padding = new Thickness(0, 0, 4, 0) };
         Children.Add(card);
     }
 }

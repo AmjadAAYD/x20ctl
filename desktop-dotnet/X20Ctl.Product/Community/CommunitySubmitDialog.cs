@@ -22,7 +22,7 @@ public sealed partial class CommunitySubmitDialog : Grid
     private byte[]? _mediaBytes;
     private string _mediaType = "none";
     private readonly AnimatedMediaView _oledPreview = new(160, 80, pixelArt: true, cornerRadius: 6);
-    private readonly TextBlock _mediaBadge = Kit.Text("OLED 160x80 preview", 11.5, "DS.TextMuted");
+    private readonly TextBlock _mediaBadge = Kit.Text("Screen Art 160x80 preview", 11.5, "DS.TextMuted");
     private readonly TextBlock _statusText = Kit.Text("", 12, "DS.TextSoft");
 
     public event Action<CommunityItem>? Submitted;
@@ -122,7 +122,7 @@ public sealed partial class CommunitySubmitDialog : Grid
             var dlg = new OpenFileDialog
             {
                 Filter = "PNG or Animated GIF (*.png;*.gif)|*.png;*.gif",
-                Title = "Select 160x80 OLED Screen Image or GIF"
+                Title = "Select 160x80 Screen Art Image or GIF"
             };
             if (dlg.ShowDialog() != true) return;
             _mediaBytes = await File.ReadAllBytesAsync(dlg.FileName);

@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using X20Ctl.Zone.Community;
 
@@ -20,7 +21,7 @@ public sealed class CreatorHoverCard : Border
         byte[]? pfpBytes,
         bool isSelf)
     {
-        Width = 360;
+        Width = 380;
         CornerRadius = new CornerRadius(10);
         BorderThickness = new Thickness(1);
         BorderBrush = creator.IsOwner
@@ -45,14 +46,15 @@ public sealed class CreatorHoverCard : Border
 
         var nameStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         var titleRow = new StackPanel { Orientation = Orientation.Horizontal };
-        titleRow.Children.Add(Kit.Text(creator.Handle, 16, "DS.Text", FontWeights.Bold));
-        if (creator.IsOwner) titleRow.Children.Add(BadgeChip.CreateOwnerCheckmark(15));
+        titleRow.Children.Add(Kit.Text(creator.Handle, 16, "DS.Text", FontWeights.Bold).Also(t => t.VerticalAlignment = VerticalAlignment.Center));
+        var flair = BadgeChip.CreateFlair(creator, badgeCatalog, compact: true);
+        if (flair != null) titleRow.Children.Add(flair);
         nameStack.Children.Add(titleRow);
-        nameStack.Children.Add(Kit.Text($"{creator.Uid}  |  {creator.TrustTier.ToUpperInvariant()}", 11.5, "DS.TextMuted"));
+        nameStack.Children.Add(Kit.Text($"{creator.Uid}  |  {creator.TrustTier.ToUpperInvariant()}", 11.5, "DS.TextMuted").Also(t => t.Margin = new Thickness(0, 3, 0, 0)));
         top.Children.Add(nameStack);
         root.Children.Add(top);
 
-        var statsGrid = new System.Windows.Controls.Primitives.UniformGrid { Columns = 4, Margin = new Thickness(0, 0, 0, 12) };
+        var statsGrid = new UniformGrid { Columns = 4, Margin = new Thickness(0, 0, 0, 12) };
         var watchersValueText = Kit.Text(creator.WatchersCount.ToString(), 14, "DS.Text", FontWeights.Bold);
         void AddStat(string label, TextBlock valBlock)
         {
@@ -71,10 +73,10 @@ public sealed class CreatorHoverCard : Border
             box.Child = new StackPanel { Children = { valBlock, lbl } };
             statsGrid.Children.Add(box);
         }
+        AddStat("Uploads", Kit.Text(creator.ApprovedCount.ToString(), 14, "DS.Text", FontWeights.Bold));
+        AddStat("Installs", Kit.Text(creator.InstallsReceived.ToString(), 14, "DS.Text", FontWeights.Bold));
         AddStat("Karma", Kit.Text(creator.Karma.ToString(), 14, "DS.Text", FontWeights.Bold));
         AddStat("Watchers", watchersValueText);
-        AddStat("Watching", Kit.Text(creator.WatchingCount.ToString(), 14, "DS.Text", FontWeights.Bold));
-        AddStat("Installs", Kit.Text(creator.InstallsReceived.ToString(), 14, "DS.Text", FontWeights.Bold));
         root.Children.Add(statsGrid);
 
         if (creator.Badges.Count > 0)

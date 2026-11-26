@@ -206,7 +206,7 @@ public partial class StudioScene
                 var ext = item.MediaType == "gif" ? "gif" : "png";
                 var outPath = Path.Combine(dir, $"{item.Id}.{ext}");
                 await File.WriteAllBytesAsync(outPath, bytes);
-                ChangeCount.Text = $"Saved OLED art to {Path.GetFileName(outPath)}";
+                ChangeCount.Text = $"Saved Screen Art to {Path.GetFileName(outPath)}";
             }
             return;
         }
