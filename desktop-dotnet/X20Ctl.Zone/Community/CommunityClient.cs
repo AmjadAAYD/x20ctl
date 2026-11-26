@@ -111,7 +111,7 @@ public sealed class CommunityClient
         }
     }
 
-    public async Task<ApiResult<CreatorProfile>> RegisterProfileAsync(string handle, CancellationToken ct = default)
+    public async Task<ApiResult<CreatorProfile>> RegisterProfileAsync(string handle, string? ownerPassphrase = null, CancellationToken ct = default)
     {
         if (IsNetworkDisabled) return ApiResult<CreatorProfile>.Fail("Offline mode is active.");
         var chRes = await GetChallengeAsync("register", ct).ConfigureAwait(false);
@@ -127,7 +127,8 @@ public sealed class CommunityClient
             handle,
             timestamp = ts,
             signature = sig,
-            pow = new { token = chRes.Data.Token, nonce }
+            pow = new { token = chRes.Data.Token, nonce },
+            ownerPassphrase = string.IsNullOrEmpty(ownerPassphrase) ? null : ownerPassphrase
         };
         var (ok, doc, err) = await SendJsonAsync(HttpMethod.Post, "/api/community/profile/register", "profile:register", body, ct).ConfigureAwait(false);
         if (!ok || doc == null) return ApiResult<CreatorProfile>.Fail(err ?? "Registration failed");
@@ -137,6 +138,22 @@ public sealed class CommunityClient
             _identity.Handle = creator.Handle;
             _identity.Save();
             return ApiResult<CreatorProfile>.Success(creator);
+        }
+    }
+
+    public async Task LeavePulseAsync(CancellationToken ct = default)
+    {
+        if (IsNetworkDisabled) return;
+        try
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(TimeSpan.FromSeconds(2.5));
+            using var req = BuildRequest(HttpMethod.Delete, "/api/community/pulse", "", null);
+            using var _ = await _http.SendAsync(req, cts.Token).ConfigureAwait(false);
+        }
+        catch
+        {
+            // Best-effort disconnect on shutdown
         }
     }
 
