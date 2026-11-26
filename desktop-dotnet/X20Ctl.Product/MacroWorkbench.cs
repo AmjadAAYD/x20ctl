@@ -64,7 +64,7 @@ public sealed class MacroWorkbench
     private readonly Button add,remove,earlier,later,clear,preview;
     private Button duplicate=null!;
     public Button Record { get; }
-    private readonly Line playhead = new() { Stroke=Brushes.White,StrokeThickness=2,IsHitTestVisible=false,Effect=new DropShadowEffect {Color=ThemeCatalog.R(Color.FromRgb(129,213,255)),BlurRadius=10,ShadowDepth=0,Opacity=.8} };
+    private readonly Line playhead = new() { Stroke=Brushes.White,StrokeThickness=2,IsHitTestVisible=false };
     private readonly Stopwatch clock = new();
     private readonly DispatcherTimer timer = new() { Interval=TimeSpan.FromMilliseconds(16) };
     private double scale=1;
@@ -124,7 +124,7 @@ public sealed class MacroWorkbench
         menu.Items.Add(new Separator());
         var clearMenu=new MenuItem {Header="Clear this slot"};clearMenu.Click+=(_,_)=>Guard(Clear);menu.Items.Add(clearMenu);more.ContextMenu=menu;more.Click+=(_,_)=>{copyMenu.IsEnabled=Draft[Slot].Count>0;pasteMenu.IsEnabled=Draft.CanEdit && copiedSequence is{Count:>0};clearMenu.IsEnabled=Draft.CanEdit && Draft[Slot].Count>0;menu.PlacementTarget=more;menu.Placement=PlacementMode.Bottom;menu.IsOpen=true;};
         Record=new Button{Style=DS.Style("DS.ConsoleBtn"),Height=38,MinHeight=0,Padding=new(14,0,14,0),Margin=new(0,0,8,0),ToolTip="Play the sequence on your controller and it becomes this slot's events (read-only input; nothing is sent)",
-            Content=new StackPanel{Orientation=Orientation.Horizontal,Children={new Ellipse{Width=9,Height=9,Fill=new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(255,72,96))),Margin=new(0,0,8,0),VerticalAlignment=VerticalAlignment.Center,Effect=new DropShadowEffect{Color=ThemeCatalog.R(Color.FromRgb(255,72,96)),BlurRadius=10,ShadowDepth=0,Opacity=.9}},new TextBlock{Text="Record",FontFamily=DS.Display,FontSize=13.5,FontWeight=FontWeights.SemiBold,Foreground=DS.Brush("DS.Text"),VerticalAlignment=VerticalAlignment.Center}}}};
+            Content=new StackPanel{Orientation=Orientation.Horizontal,Children={new Ellipse{Width=9,Height=9,Fill=new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(255,72,96))),Margin=new(0,0,8,0),VerticalAlignment=VerticalAlignment.Center},new TextBlock{Text="Record",FontFamily=DS.Display,FontSize=13.5,FontWeight=FontWeights.SemiBold,Foreground=DS.Brush("DS.Text"),VerticalAlignment=VerticalAlignment.Center}}}};
         Record.Click+=(_,_)=>ToggleRecording();focusRegistration(Record);Record.IsEnabled=Draft.CanEdit;
         var read=new Button{Style=DS.Style("DS.ConsoleBtn"),Height=38,MinHeight=0,Padding=new(14,0,14,0),Margin=new(0,0,8,0),ToolTip="Read the macro stored on the controller into this slot",
             Content=new StackPanel{Orientation=Orientation.Horizontal,Children={Kit.Icon("\uE896",13,"DS.Text").Also(i=>i.Margin=new(0,0,8,0)),new TextBlock{Text="Read pad",FontFamily=DS.Display,FontSize=13.5,FontWeight=FontWeights.SemiBold,Foreground=DS.Brush("DS.Text"),VerticalAlignment=VerticalAlignment.Center}}}};

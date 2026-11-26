@@ -27,6 +27,8 @@ public sealed class StickLabZone : Border
     readonly Action close;
     readonly Action? requestEnablePcMode;
     readonly Action<string>? shareRequested;
+    readonly Action<PcModeProfile>? onProfileUpdated;
+    readonly bool nativeHardware;
     readonly ControllerModel model;
     readonly int playerSlot;
 
@@ -34,6 +36,10 @@ public sealed class StickLabZone : Border
     PcModeProfile profile;
     bool loading;
     int? draggedPointIndex;
+    double lastGateMorph = double.NaN, lastInnerR = double.NaN, lastOuterR = double.NaN;
+    DeadzoneShape? lastDzShape;
+    DispatcherTimer? saveDebounceTimer;
+    string? pendingSaveNote;
 
     public Button ExitButton { get; }
     readonly TextBlock statusText = Kit.Text("Ready", 11.5, "DS.TextMuted");
@@ -128,7 +134,7 @@ public sealed class StickLabZone : Border
     double simRx, simRy, simLx, simLy, simLt, simRt;
     bool hasRealInput;
 
-    public StickLabZone(ControllerModel model, int playerSlot, PcModeLink? link, Action close, Action? requestEnablePcMode = null, Action<string>? shareRequested = null)
+    public StickLabZone(ControllerModel model, int playerSlot, PcModeLink? link, Action close, Action? requestEnablePcMode = null, Action<string>? shareRequested = null, bool nativeHardware = false, Action<PcModeProfile>? onProfileUpdated = null)
     {
         this.model = model;
         this.playerSlot = playerSlot;
@@ -136,6 +142,8 @@ public sealed class StickLabZone : Border
         this.close = close;
         this.requestEnablePcMode = requestEnablePcMode;
         this.shareRequested = shareRequested;
+        this.nativeHardware = nativeHardware;
+        this.onProfileUpdated = onProfileUpdated;
 
         Background = new LinearGradientBrush(
             ThemeCatalog.R(Color.FromRgb(6, 11, 24)),
@@ -258,10 +266,10 @@ public sealed class StickLabZone : Border
         RefreshPcModeBadge();
         SelectChannel(LabChannel.LeftStick);
 
-        liveTimer = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(20) };
+        liveTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(25) };
         liveTimer.Tick += (_, _) => SampleAndRenderLive();
         Loaded += (_, _) => liveTimer.Start();
-        Unloaded += (_, _) => { liveTimer.Stop(); reader?.Dispose(); };
+        Unloaded += (_, _) => { liveTimer.Stop(); FlushPendingSave(); reader?.Dispose(); };
     }
 
     Border BuildSplineColumn()
@@ -662,36 +670,51 @@ public sealed class StickLabZone : Border
         Canvas.SetTop(outDot, VisHalf - outY * VisUnit - 7);
 
         double morph = tune.SquareGate ? 100.0 : lab.GateMorph;
-        var gatePts = new PointCollection(48);
-        for (int i = 0; i < 48; i++)
+        if (Math.Abs(morph - lastGateMorph) > 0.05)
         {
-            double a = i / 48.0 * Math.PI * 2.0;
-            double ux = Math.Cos(a), uy = Math.Sin(a);
-            var (mx, my) = StickLabMath.MorphGate(ux, uy, 1.0, morph);
-            gatePts.Add(new Point(VisHalf + mx * VisUnit, VisHalf - my * VisUnit));
+            lastGateMorph = morph;
+            var gatePts = new PointCollection(48);
+            for (int i = 0; i < 48; i++)
+            {
+                double a = i / 48.0 * Math.PI * 2.0;
+                double ux = Math.Cos(a), uy = Math.Sin(a);
+                var (mx, my) = StickLabMath.MorphGate(ux, uy, 1.0, morph);
+                gatePts.Add(new Point(VisHalf + mx * VisUnit, VisHalf - my * VisUnit));
+            }
+            gatePts.Freeze();
+            gatePolygon.Points = gatePts;
         }
-        gatePolygon.Points = gatePts;
 
         double innerR = Math.Clamp(tune.Inner / 100.0, 0, 0.45) * VisUnit;
         double outerR = Math.Clamp(tune.Outer / 100.0, 0.5, 1.0) * VisUnit;
-        if (lab.DeadzoneShape == DeadzoneShape.Axial)
+        if (lab.DeadzoneShape != lastDzShape || Math.Abs(innerR - lastInnerR) > 0.05)
         {
-            innerDzRing.Visibility = Visibility.Collapsed;
-            axialCrossOverlay.Visibility = Visibility.Visible;
-            var geom = new GeometryGroup();
-            geom.Children.Add(new RectangleGeometry(new Rect(VisHalf - VisUnit, VisHalf - innerR, VisUnit * 2, innerR * 2)));
-            geom.Children.Add(new RectangleGeometry(new Rect(VisHalf - innerR, VisHalf - VisUnit, innerR * 2, VisUnit * 2)));
-            axialCrossOverlay.Data = geom;
+            lastDzShape = lab.DeadzoneShape;
+            lastInnerR = innerR;
+            if (lab.DeadzoneShape == DeadzoneShape.Axial)
+            {
+                innerDzRing.Visibility = Visibility.Collapsed;
+                axialCrossOverlay.Visibility = Visibility.Visible;
+                var geom = new GeometryGroup();
+                geom.Children.Add(new RectangleGeometry(new Rect(VisHalf - VisUnit, VisHalf - innerR, VisUnit * 2, innerR * 2)));
+                geom.Children.Add(new RectangleGeometry(new Rect(VisHalf - innerR, VisHalf - VisUnit, innerR * 2, VisUnit * 2)));
+                geom.Freeze();
+                axialCrossOverlay.Data = geom;
+            }
+            else
+            {
+                axialCrossOverlay.Visibility = Visibility.Collapsed;
+                innerDzRing.Visibility = Visibility.Visible;
+                innerDzRing.Width = innerR * 2; innerDzRing.Height = innerR * 2;
+                Canvas.SetLeft(innerDzRing, VisHalf - innerR); Canvas.SetTop(innerDzRing, VisHalf - innerR);
+            }
         }
-        else
+        if (Math.Abs(outerR - lastOuterR) > 0.05)
         {
-            axialCrossOverlay.Visibility = Visibility.Collapsed;
-            innerDzRing.Visibility = Visibility.Visible;
-            innerDzRing.Width = innerR * 2; innerDzRing.Height = innerR * 2;
-            Canvas.SetLeft(innerDzRing, VisHalf - innerR); Canvas.SetTop(innerDzRing, VisHalf - innerR);
+            lastOuterR = outerR;
+            outerDzRing.Width = outerR * 2; outerDzRing.Height = outerR * 2;
+            Canvas.SetLeft(outerDzRing, VisHalf - outerR); Canvas.SetTop(outerDzRing, VisHalf - outerR);
         }
-        outerDzRing.Width = outerR * 2; outerDzRing.Height = outerR * 2;
-        Canvas.SetLeft(outerDzRing, VisHalf - outerR); Canvas.SetTop(outerDzRing, VisHalf - outerR);
 
         var st = right ? diagStatsRight : diagStatsLeft;
         var sb = right ? snapRight : snapLeft;
@@ -1223,18 +1246,33 @@ public sealed class StickLabZone : Border
         catch { return new PcModeProfile(); }
     }
 
-    void PersistProfile(string? note = null)
+    internal void FlushPendingSave()
     {
-        if (loading) return;
+        if (saveDebounceTimer == null || !saveDebounceTimer.IsEnabled) return;
+        saveDebounceTimer.Stop();
+        CommitProfileWrite(pendingSaveNote);
+    }
+
+    void CommitProfileWrite(string? note)
+    {
+        if (onProfileUpdated != null)
+        {
+            onProfileUpdated(profile);
+            statusText.Text = note ?? (nativeHardware
+                ? (StickLabMath.RequiresDesktopBoost(profile) ? "Native HW curve + Desktop Boost active" : "Native HW curve ready (click Return -> Apply)")
+                : (link?.Service.Enabled == true ? "Saved and active in PC Mode right now" : "Saved to PC Mode profile"));
+            RefreshPcModeBadge();
+            return;
+        }
         if (link == null)
         {
-            statusText.Text = (note != null ? note + " · " : "") + "Previewing locally (enable PC Mode to apply live)";
+            statusText.Text = (note != null ? note + " · " : "") + "Previewing locally";
             return;
         }
         try
         {
             profile.Validate();
-            if (!profile.IsNeutral && !PcModePage.MaySave(link.Preferences))
+            if (!nativeHardware && !profile.IsNeutral && !PcModePage.MaySave(link.Preferences))
             {
                 statusText.Text = "Saved draft in Analog Studio · Enable PC Mode notice to apply live";
                 return;
@@ -1250,8 +1288,33 @@ public sealed class StickLabZone : Border
         RefreshPcModeBadge();
     }
 
+    void PersistProfile(string? note = null)
+    {
+        if (loading) return;
+        try { profile.Validate(); }
+        catch (InvalidDataException ex) { statusText.Text = "Invalid setting: " + ex.Message; return; }
+
+        if (onProfileUpdated != null)
+            onProfileUpdated(profile);
+
+        pendingSaveNote = note;
+        saveDebounceTimer ??= new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(150) }.Also(t =>
+            t.Tick += (_, _) => FlushPendingSave());
+        saveDebounceTimer.Stop();
+        saveDebounceTimer.Start();
+        RefreshPcModeBadge();
+    }
+
     void RefreshPcModeBadge()
     {
+        if (nativeHardware)
+        {
+            bool boost = StickLabMath.RequiresDesktopBoost(profile);
+            pcModeBadge.Text = boost ? "● Native + Desktop Boost Active" : "● Native Hardware Curve Ready";
+            pcModeBadge.Foreground = DS.Brush(boost ? "DS.Success" : "DS.AccentHi");
+            enablePcBtn.Visibility = Visibility.Collapsed;
+            return;
+        }
         bool live = link?.Service.Enabled == true;
         pcModeBadge.Text = live ? "● PC Mode Active (Live)" : "○ PC Mode Off (Draft Preview)";
         pcModeBadge.Foreground = DS.Brush(live ? "DS.Success" : "DS.Warn");

@@ -64,6 +64,7 @@ public partial class StudioScene
         controllerBusy = true; say("Writing to the controller…");
         try
         {
+            FlushPendingCurveSave();
             int changed = await LightingBleClient.WriteConfigAsync(held => ControllerRecords.Compose(held, Draft, Curves.Draft, macroDraft));
             say(changed == 0 ? "The controller already has this." : $"Saved on the controller · {changed} setting{(changed == 1 ? "" : "s")} changed.");
         }

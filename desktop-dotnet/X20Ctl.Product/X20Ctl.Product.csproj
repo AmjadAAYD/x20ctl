@@ -37,6 +37,7 @@
     <!-- the shared dictionaries again as text, so a theme can recolour them before they are read (ThemeCatalog.Load) -->
     <EmbeddedResource Include="Themes/Colors.xaml;Themes/Typography.xaml;Themes/Controls.xaml;Themes/Design.xaml;Themes/ZoneSurfaces.xaml" LogicalName="ThemeSource/%(Filename)%(Extension)" />
     <Resource Include="Brand/x20ctl-mark.png" Link="Assets/brand.png" />
+    <Resource Include="Brand/badges/*.png" Link="Assets/badges/%(Filename)%(Extension)" />
     <Resource Include="Agent/handheld/*.png" />
     <!-- the app icon (the logo on its white tile) as an image, for the setup -->
     <Resource Include="Brand/x20ctl-icon.png" Link="Assets/icon.png" />

@@ -170,7 +170,7 @@ public sealed partial class DiagnosticsWorkbench
         buttonsCard.Margin = new(0, 16, 0, 0); page.Children.Add(buttonsCard);
         AttachHealthAndLab(page, head, register, compact);
 
-        timer = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(33) };
+        timer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(33) };
         timer.Tick += (_, _) => Refresh();
         if (compact)
         {

@@ -370,7 +370,7 @@ public sealed class ScreenWorkbench
         rightGrid.RowDefinitions.Add(new() { Height = new(0.88, GridUnitType.Star) });
         rightGrid.RowDefinitions.Add(new() { Height = new(1.12, GridUnitType.Star) });
 
-        // Top Card: True 2:1 (160x80) pure AMOLED black LCD panel + glass sheen
+        // Top Card: True 2:1 (160x80) high-contrast 160x80 LCD panel + glass sheen
         var lcdSurface = new Grid { Width = 360, Height = 180, Background = LcdBacklightBrush };
         lcdSurface.Children.Add(image);
         lcdSurface.Children.Add(BuildGlassSheen());

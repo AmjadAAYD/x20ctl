@@ -54,13 +54,16 @@ public sealed class CurveWorkbench
     // the plot: 408 x 240 inside a 480 x 300 canvas
     private const double L = 38, T = 16, PW = 408, PH = 240;
     private readonly Canvas chart = new() { Width = 480, Height = 300 };
-    private readonly Polyline response = new() { Stroke = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(116, 200, 255))), StrokeThickness = 3.5, StrokeLineJoin = PenLineJoin.Round, Effect = new DropShadowEffect { Color = ThemeCatalog.R(Color.FromRgb(70, 150, 255)), BlurRadius = 12, ShadowDepth = 0, Opacity = .7 } };
+    private readonly Polyline responseGlow = new() { Stroke = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(52, 70, 150, 255))), StrokeThickness = 8.0, StrokeLineJoin = PenLineJoin.Round, IsHitTestVisible = false };
+    private readonly Polyline response = new() { Stroke = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(116, 200, 255))), StrokeThickness = 3.5, StrokeLineJoin = PenLineJoin.Round };
     private readonly Polygon area = new() { Fill = new LinearGradientBrush(ThemeCatalog.R(Color.FromArgb(42, 70, 150, 255)), ThemeCatalog.R(Color.FromArgb(0, 70, 150, 255)), 90) };
     private readonly Rectangle innerBand = new() { Fill = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(46, 232, 54, 79))) }, outerBand = new() { Fill = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(40, 61, 214, 140))) };
     private readonly Line floorLine = Guide(ThemeCatalog.R(Color.FromArgb(150, 255, 196, 92))), ceilingLine = Guide(ThemeCatalog.R(Color.FromArgb(150, 255, 196, 92))), liveGuide = Guide(ThemeCatalog.R(Color.FromArgb(90, 169, 207, 255)));
     private readonly Thumb first = new(), second = new(), deadHandle = new(), fullHandle = new(), floorHandle = new(), ceilingHandle = new();
     private readonly TextBlock deadTag = Tag(), fullTag = Tag(), floorTag = Tag(), ceilingTag = Tag(), halfTag = Tag(), liveTag = Tag();
-    private readonly Ellipse halfDot = new() { Width = 10, Height = 10, Fill = Brushes.White, IsHitTestVisible = false }, liveDot = new() { Width = 16, Height = 16, Fill = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(61, 214, 140))), IsHitTestVisible = false, Visibility = Visibility.Collapsed, Effect = new DropShadowEffect { Color = ThemeCatalog.R(Color.FromRgb(61, 214, 140)), BlurRadius = 16, ShadowDepth = 0, Opacity = 1 } };
+    private readonly Ellipse halfDot = new() { Width = 10, Height = 10, Fill = Brushes.White, IsHitTestVisible = false }, liveDot = new() { Width = 16, Height = 16, Fill = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(61, 214, 140))), Stroke = Brushes.White, StrokeThickness = 2, IsHitTestVisible = false, Visibility = Visibility.Collapsed };
+    public bool NativeHardwareMode { get; set; }
+    public bool DesktopBoostActive { get; set; }
     private readonly TextBlock title = new() { FontSize = 24, FontWeight = FontWeights.Bold }, summary = new() { FontSize = 12.5, Foreground = Brushes.LightSteelBlue }, coordinates = new() { FontSize = 12, Foreground = Brushes.LightSteelBlue };
     public Slider Inner { get; } = new() { Minimum = 0, Maximum = 40, TickFrequency = 1, IsSnapToTickEnabled = true };
     public Slider Outer { get; } = new() { Minimum = 60, Maximum = 100, Value = 100, TickFrequency = 1, IsSnapToTickEnabled = true };
@@ -208,7 +211,7 @@ public sealed class CurveWorkbench
             var vertical = new TextBlock { Text = tick.ToString(), FontSize = 12, Foreground = Brushes.LightSteelBlue }; Canvas.SetLeft(vertical, 4); Canvas.SetTop(vertical, y - 8); chart.Children.Add(vertical);
         }
         chart.Children.Add(new Line { X1 = L, Y1 = T + PH, X2 = L + PW, Y2 = T, Stroke = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(110, 200, 216, 244))), StrokeDashArray = new() { 4, 4 } });
-        chart.Children.Add(area); chart.Children.Add(floorLine); chart.Children.Add(ceilingLine); chart.Children.Add(liveGuide); chart.Children.Add(response);
+        chart.Children.Add(area); chart.Children.Add(floorLine); chart.Children.Add(ceilingLine); chart.Children.Add(liveGuide); chart.Children.Add(responseGlow); chart.Children.Add(response);
         chart.Children.Add(halfDot); chart.Children.Add(halfTag);
         Canvas.SetLeft(OutputAxisLabel, L); Canvas.SetTop(OutputAxisLabel, 0); chart.Children.Add(OutputAxisLabel);
         var input = new TextBlock { Text = "INPUT %", FontSize = 12, FontWeight = FontWeights.SemiBold, Foreground = Brushes.LightSteelBlue }; Canvas.SetLeft(input, 206); Canvas.SetTop(input, 282); chart.Children.Add(input);
@@ -492,18 +495,24 @@ public sealed class CurveWorkbench
         Place(floorHandle, L + PW + 14, Y(z.Floor)); Place(ceilingHandle, L + PW + 14, Y(z.Ceiling));
         Label(floorTag, $"Anti-dead zone {z.Floor:0.#}%", L + PW - 130, Y(z.Floor) - 24); Label(ceilingTag, $"Max output {z.Ceiling:0.#}%", L + PW - 120, Y(z.Ceiling) + 6);
 
-        var previous = response.Points.Clone(); response.BeginAnimation(Polyline.PointsProperty, null);
-        var line = new PointCollection(Enumerable.Range(0, 201).Select(i => new Point(X(i / 2d), Y(Output(i / 200d) * 100))));
-        response.Points = line; area.Points = new PointCollection(line.Append(new Point(L + PW, T + PH)).Append(new Point(L, T + PH)));
-        bool morph = AnimationsEnabled && !Dragging;
-        if (morph && previous.Count == line.Count) response.BeginAnimation(Polyline.PointsProperty, new CurvePointMorph(previous, line));
+        var line = new PointCollection(101);
+        for (int i = 0; i <= 100; i++)
+            line.Add(new Point(X(i), Y(Output(i / 100d) * 100)));
+        line.Freeze();
+        responseGlow.Points = line;
+        response.Points = line;
+        var polyPts = new PointCollection(line.Count + 2);
+        foreach (var pt in line) polyPts.Add(pt);
+        polyPts.Add(new Point(L + PW, T + PH));
+        polyPts.Add(new Point(L, T + PH));
+        polyPts.Freeze();
+        area.Points = polyPts;
         halfDot.Visibility = halfTag.Visibility = Visibility.Collapsed;
         foreach (var (thumb, p) in new[] { (first, setting.Point1), (second, setting.Point2) })
         {
-            double previousX = Canvas.GetLeft(thumb), previousY = Canvas.GetTop(thumb); thumb.BeginAnimation(Canvas.LeftProperty, null); thumb.BeginAnimation(Canvas.TopProperty, null);
+            thumb.BeginAnimation(Canvas.LeftProperty, null); thumb.BeginAnimation(Canvas.TopProperty, null);
             double px = z.Inner + (z.Outer - z.Inner) * p.X / 255d, py = z.Floor + (z.Ceiling - z.Floor) * p.Y / 255d;
             double x = X(px) - 9, y = Y(py) - 9; Canvas.SetLeft(thumb, x); Canvas.SetTop(thumb, y);
-            if (morph && double.IsFinite(previousX)) { thumb.BeginAnimation(Canvas.LeftProperty, new DoubleAnimation(previousX, x, TimeSpan.FromMilliseconds(160)) { FillBehavior = FillBehavior.Stop }); thumb.BeginAnimation(Canvas.TopProperty, new DoubleAnimation(previousY, y, TimeSpan.FromMilliseconds(160)) { FillBehavior = FillBehavior.Stop }); }
         }
         if (liveAt >= 0) { double keep = liveAt; liveAt = -1; ShowLive(keep); }
 
@@ -512,9 +521,12 @@ public sealed class CurveWorkbench
         coordinates.ToolTip = $"Stored P1: {setting.Point1.X}/255, {setting.Point1.Y}/255. Stored P2: {setting.Point2.X}/255, {setting.Point2.Y}/255.";
         coordinates.TextWrapping = TextWrapping.Wrap;
 
+        string modeLabel = NativeHardwareMode
+            ? (DesktopBoostActive ? "Native HW + Boost active" : "Native Hardware Curve")
+            : "PC Mode DSP active";
         zoneFooterBadge.Text = limits
-            ? $"PC Mode DSP active  ·  DZ {z.Inner:0.#}%..{z.Outer:0.#}%  ·  Floor {z.Floor:0.#}% / Cap {z.Ceiling:0.#}%"
-            : (IsStick ? $"Draft mode  ·  Anti-deadzone & Cap unlock in PC Mode" : $"Trigger range {z.Inner:0.#}% -> {z.Outer:0.#}%");
+            ? $"{modeLabel}  ·  DZ {z.Inner:0.#}%..{z.Outer:0.#}%  ·  Floor {z.Floor:0.#}% / Cap {z.Ceiling:0.#}%"
+            : (IsStick ? $"Native Hardware Curve  ·  DZ {z.Inner:0.#}%..{z.Outer:0.#}%" : $"Trigger range {z.Inner:0.#}% -> {z.Outer:0.#}%");
 
         RefreshPointReadout();
         foreach (var button in channelButtons) button.Background = (CurveChannel)button.Tag == Channel ? Brushes.White : DS.Brush("Control.ButtonFill");
