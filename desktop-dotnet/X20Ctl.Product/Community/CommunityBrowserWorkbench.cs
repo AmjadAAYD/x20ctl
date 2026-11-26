@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using System.Windows.Media;
 using X20Ctl.Zone.Community;
 
@@ -31,18 +32,24 @@ public sealed class CommunityBrowserWorkbench
     private bool _ogWindowOpen = true;
     private CreatorProfile? _myProfile;
     private readonly Dictionary<string, BadgeDef> _badgeMap = new(StringComparer.OrdinalIgnoreCase);
-    private readonly List<CommunityItem> _cachedItems = new();
-    private readonly TextBlock _onlinePill = Kit.Text("Online: 0", 12, "DS.AccentHi", FontWeights.SemiBold);
-    private readonly TextBlock _profileLabel = Kit.Text("Sign In / Join", 12.5, "DS.Text", FontWeights.SemiBold);
-    private readonly TextBlock _statusLine = Kit.Text("Ready", 12, "DS.TextMuted");
-    private readonly StackPanel _profileChipRow = new() { Orientation = Orientation.Horizontal };
-    private readonly StackPanel _feedStack = new();
-    private readonly Dictionary<string, Button> _subTabButtons = new(StringComparer.OrdinalIgnoreCase);
+
+    // Top bar elements
+    private readonly StackPanel _navTabHost = new() { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Bottom };
+    private readonly Border _presenceDot = new() { Width = 7, Height = 7, CornerRadius = new CornerRadius(2), Background = new SolidColorBrush(Color.FromRgb(34, 197, 94)), Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _onlineText = Kit.Text("0 online", 12, "DS.TextSoft", FontWeights.SemiBold);
+    private readonly StackPanel _profileBtnContent = new() { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _profileLabel = Kit.Text("Sign In", 12, "DS.Text", FontWeights.SemiBold);
+
+    // Body content regions
+    private readonly Grid _workspaceHost = new();
+    private readonly StackPanel _sidebarStack = new();
+    private readonly StackPanel _mainFeedStack = new();
+    private readonly ScrollViewer _mainScroller = new() { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
     private readonly Grid _modalHost = new() { Visibility = Visibility.Collapsed };
-    private readonly TextBox _searchBox = new() { Width = 220, Padding = new Thickness(10, 6, 10, 6), FontSize = 12.5 };
-    private readonly ComboBox _modelPicker = new() { MinWidth = 140, MinHeight = 32, FontSize = 12.5 };
-    private readonly ComboBox _modePicker = new() { MinWidth = 110, MinHeight = 32, FontSize = 12.5 };
-    private readonly ComboBox _sortPicker = new() { MinWidth = 115, MinHeight = 32, FontSize = 12.5 };
+    private readonly TextBlock _statusLine = Kit.Text("Ready", 11.5, "DS.TextMuted");
+    private readonly TextBox _searchBox;
+    private readonly ComboBox _modelPicker = new() { MinHeight = 34, Padding = new Thickness(10, 4, 10, 4), FontSize = 12.5, VerticalContentAlignment = VerticalAlignment.Center };
+    private readonly ComboBox _modePicker = new() { MinHeight = 34, Padding = new Thickness(10, 4, 10, 4), FontSize = 12.5, VerticalContentAlignment = VerticalAlignment.Center };
     private bool _syncingSelectors;
 
     public event Action<CommunityItem, IReadOnlyList<string>>? InstallItemRequested;
@@ -65,7 +72,17 @@ public sealed class CommunityBrowserWorkbench
         _currentDraftSummary = currentDraftSummary;
         _exportCurrentForSubmit = exportCurrentForSubmit;
 
-        BuildLayout();
+        _searchBox = CommunityUI.RectInput("", 32);
+        _searchBox.KeyDown += (_, e) =>
+        {
+            if (e.Key == Key.Enter)
+            {
+                _searchQuery = _searchBox.Text.Trim();
+                _ = RefreshAsync();
+            }
+        };
+
+        BuildShell();
     }
 
     public void SetPresetCategoryAndRefresh(string category)
@@ -79,7 +96,7 @@ public sealed class CommunityBrowserWorkbench
     {
         if (_client.IsNetworkDisabled)
         {
-            _statusLine.Text = "Disable Offline Mode in Tools to submit creations to X20ADMIN.";
+            _statusLine.Text = "Disable Offline Mode in Tools to publish.";
             return;
         }
         if (_myProfile == null)
@@ -91,141 +108,77 @@ public sealed class CommunityBrowserWorkbench
             _client, category, _selectedModelId, _selectedMode,
             title, "", payload, shareCode, mediaBytes, mediaType, remixSourceId, fulfillRequestId);
         dlg.CloseRequested += CloseModal;
-        dlg.Submitted += _ => { _statusLine.Text = "Submitted to X20ADMIN queue!"; };
+        dlg.Submitted += item => { _statusLine.Text = $"Submitted '{item.Title}' to X20ADMIN queue."; _ = RefreshAsync(); };
         ShowModal(dlg);
     }
 
-    private void BuildLayout()
+    private void BuildShell()
     {
-        Body.Margin = new Thickness(28, 6, 28, 18);
-        Body.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        Body.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        Body.Margin = new Thickness(26, 4, 26, 14);
+        Body.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Single Top Navigation Bar
         Body.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
 
-        // Header Bar
-        var headerBar = new DockPanel { Margin = new Thickness(0, 0, 0, 10) };
-        var rightControls = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        DockPanel.SetDock(rightControls, Dock.Right);
+        // Top Bar: Steam / Modrinth flat underline tabs on Left, status + Account + Publish on Right
+        var topDock = new DockPanel();
+        var rightBar = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        DockPanel.SetDock(rightBar, Dock.Right);
 
-        var onlineBorder = new Border
-        {
-            Background = new SolidColorBrush(Color.FromArgb(40, 56, 189, 248)),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(110, 56, 189, 248)),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(99),
-            Padding = new Thickness(10, 4, 10, 4),
-            Margin = new Thickness(0, 0, 8, 0),
-            VerticalAlignment = VerticalAlignment.Center,
-            Child = _onlinePill
-        };
-        rightControls.Children.Add(onlineBorder);
+        var onlineWrap = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 14, 0) };
+        _onlineText.VerticalAlignment = VerticalAlignment.Center;
+        onlineWrap.Children.Add(_presenceDot);
+        onlineWrap.Children.Add(_onlineText);
+        rightBar.Children.Add(onlineWrap);
 
-        var profileBtn = new Button
-        {
-            Style = DS.Style("ActionButton"),
-            Height = 34,
-            MinHeight = 34,
-            Padding = new Thickness(12, 0, 12, 0),
-            Margin = new Thickness(0, 0, 8, 0),
-            Content = _profileChipRow
-        };
-        _profileChipRow.Children.Add(_profileLabel);
+        var profileBtn = CommunityUI.RectButton("", RectBtnKind.Secondary, 32, 12);
+        profileBtn.Content = _profileBtnContent;
+        profileBtn.Margin = new Thickness(0, 0, 8, 0);
+        _profileBtnContent.Children.Add(_profileLabel);
         profileBtn.Click += (_, _) => OpenProfileDialog();
-        rightControls.Children.Add(profileBtn);
+        rightBar.Children.Add(profileBtn);
 
-        var uploadBtn = new Button
-        {
-            Content = "+ Share to Community",
-            Style = DS.Style("DS.ConsolePrimary"),
-            Height = 34,
-            MinHeight = 34,
-            Padding = new Thickness(14, 0, 14, 0),
-            FontSize = 12.5,
-            Margin = new Thickness(0, 0, 8, 0)
-        };
-        uploadBtn.Click += (_, _) =>
+        var publishBtn = CommunityUI.RectButton("Publish Setup", RectBtnKind.Primary, 32, 12);
+        publishBtn.Click += (_, _) =>
         {
             var cat = _categoryFilter == "all" ? "setup" : _categoryFilter;
             var exp = _exportCurrentForSubmit?.Invoke(cat, _selectedMode);
             OpenShareDialog(cat, payload: exp?.Payload, shareCode: exp?.ShareCode, mediaBytes: exp?.MediaBytes, mediaType: exp?.MediaType);
         };
-        rightControls.Children.Add(uploadBtn);
+        rightBar.Children.Add(publishBtn);
 
-        var refreshBtn = new Button { Content = "Refresh", Style = DS.Style("ActionButton"), Height = 34, MinHeight = 34, Padding = new Thickness(12, 0, 12, 0) };
-        refreshBtn.Click += (_, _) => _ = RefreshAsync();
-        rightControls.Children.Add(refreshBtn);
+        topDock.Children.Add(rightBar);
+        topDock.Children.Add(_navTabHost);
 
-        headerBar.Children.Add(rightControls);
-
-        var titleStack = new StackPanel();
-        titleStack.Children.Add(Kit.Text("X20CTL Community Hub", 24, "DS.Text", FontWeights.Bold));
-        titleStack.Children.Add(_statusLine);
-        headerBar.Children.Add(titleStack);
+        var headerBar = new Border
+        {
+            BorderBrush = new SolidColorBrush(CommunityUI.BorderSubtle),
+            BorderThickness = new Thickness(0, 0, 0, 1),
+            Padding = new Thickness(0, 0, 0, 8),
+            Margin = new Thickness(0, 0, 0, 14),
+            Child = topDock
+        };
         Body.Children.Add(headerBar);
 
-        // Navigation + Capability Filter Bar
-        var filterCard = Kit.Panel(null, null, null, BuildFilterToolbar(), new Thickness(12, 10, 12, 10));
-        filterCard.Margin = new Thickness(0, 0, 0, 10);
-        Grid.SetRow(filterCard, 1);
-        Body.Children.Add(filterCard);
+        InitHardwareSelectors();
 
-        // Long Scrollable Feed
-        var scroller = new ScrollViewer
-        {
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Padding = new Thickness(0, 0, 6, 12),
-            Content = _feedStack
-        };
-        Grid.SetRow(scroller, 2);
-        Body.Children.Add(scroller);
+        Grid.SetRow(_workspaceHost, 1);
+        Body.Children.Add(_workspaceHost);
 
-        Grid.SetRowSpan(_modalHost, 3);
+        Grid.SetRowSpan(_modalHost, 2);
         Panel.SetZIndex(_modalHost, 50);
         Body.Children.Add(_modalHost);
 
+        RebuildTopTabs();
         Body.Loaded += (_, _) => _ = RefreshAsync();
     }
 
-    private StackPanel BuildFilterToolbar()
+    private void InitHardwareSelectors()
     {
-        var stack = new StackPanel();
-
-        // Sub-tabs row
-        _subTabButtons.Clear();
-        var subTabRow = new WrapPanel { Margin = new Thickness(0, 0, 0, 8) };
-        Button SubTabBtn(string id, string label)
-        {
-            var b = new Button
-            {
-                Content = label,
-                Style = DS.Style(_subTab == id ? "DS.ConsolePrimary" : "ActionButton"),
-                Height = 32,
-                MinHeight = 32,
-                Padding = new Thickness(12, 0, 12, 0),
-                FontSize = 12,
-                Margin = new Thickness(0, 0, 6, 4)
-            };
-            _subTabButtons[id] = b;
-            b.Click += (_, _) => { _subTab = id; _filterUid = null; UpdateSubTabStyles(); _ = RefreshAsync(); };
-            return b;
-        }
-        subTabRow.Children.Add(SubTabBtn("explore", "Explore Catalog"));
-        subTabRow.Children.Add(SubTabBtn("requests", "Requests & Challenges"));
-        subTabRow.Children.Add(SubTabBtn("lounge", "Community Lounge"));
-        subTabRow.Children.Add(SubTabBtn("social", "Leaderboard, Watching & Saved"));
-        stack.Children.Add(subTabRow);
-
-        // Controller Capability Matrix Selector + Search Row
-        var filterRow = new WrapPanel { VerticalAlignment = VerticalAlignment.Center };
         _syncingSelectors = true;
         foreach (var m in CommunityCapabilities.Models) _modelPicker.Items.Add(m.Id);
         _modelPicker.SelectedItem = _selectedModelId;
         _modePicker.Items.Add("native");
         _modePicker.Items.Add("pc-mode");
         _modePicker.SelectedItem = _selectedMode;
-        foreach (var s in new[] { "trending", "top", "new", "installs", "remixes" }) _sortPicker.Items.Add(s);
-        _sortPicker.SelectedItem = _sort;
         _syncingSelectors = false;
 
         _modelPicker.SelectionChanged += (_, _) =>
@@ -242,6 +195,7 @@ public sealed class CommunityBrowserWorkbench
             }
             _ = RefreshAsync();
         };
+
         _modePicker.SelectionChanged += (_, _) =>
         {
             if (_syncingSelectors || _modePicker.SelectedItem is not string mode) return;
@@ -257,115 +211,118 @@ public sealed class CommunityBrowserWorkbench
             _selectedMode = mode;
             _ = RefreshAsync();
         };
-        _sortPicker.SelectionChanged += (_, _) =>
-        {
-            if (_syncingSelectors || _sortPicker.SelectedItem is not string s) return;
-            _sort = s;
-            _ = RefreshAsync();
-        };
-
-        var searchBtn = new Button { Content = "Search", Style = DS.Style("ActionButton"), Height = 32, MinHeight = 32, Padding = new Thickness(10, 0, 10, 0), Margin = new Thickness(4, 0, 10, 0) };
-        searchBtn.Click += (_, _) => { _searchQuery = _searchBox.Text.Trim(); _ = RefreshAsync(); };
-
-        filterRow.Children.Add(Kit.Text("Controller:", 12, "DS.TextSoft").Also(t => { t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new Thickness(0, 0, 6, 0); }));
-        filterRow.Children.Add(_modelPicker.Also(c => c.Margin = new Thickness(0, 0, 8, 0)));
-        filterRow.Children.Add(_modePicker.Also(c => c.Margin = new Thickness(0, 0, 12, 0)));
-        filterRow.Children.Add(_sortPicker.Also(c => c.Margin = new Thickness(0, 0, 12, 0)));
-        filterRow.Children.Add(_searchBox);
-        filterRow.Children.Add(searchBtn);
-        stack.Children.Add(filterRow);
-
-        return stack;
     }
 
-    private void UpdateSubTabStyles()
+    private void RebuildTopTabs()
     {
-        foreach (var (id, btn) in _subTabButtons)
-            btn.Style = DS.Style(_subTab == id ? "DS.ConsolePrimary" : "ActionButton");
+        _navTabHost.Children.Clear();
+        foreach (var (id, label) in new (string, string)[]
+        {
+            ("explore", "Browse"),
+            ("saved", "Saved & Mine"),
+            ("requests", "Requests"),
+            ("lounge", "Lounge"),
+            ("leaderboard", "Leaderboard"),
+        })
+        {
+            var captured = id;
+            var tab = CommunityUI.UnderlineTabButton(label, _subTab == id);
+            tab.Click += (_, _) =>
+            {
+                _subTab = captured;
+                _filterUid = null;
+                RebuildTopTabs();
+                _ = RefreshAsync();
+            };
+            _navTabHost.Children.Add(tab);
+        }
     }
 
     public async Task RefreshAsync()
     {
-        UpdateSubTabStyles();
+        RebuildTopTabs();
         if (_client.IsNetworkDisabled)
         {
-            _onlinePill.Text = "Offline Mode";
-            _statusLine.Text = ReviewSandbox.Active
-                ? "Review sandbox active (offline preview). Showing cached catalog if available."
-                : "Offline Mode enabled in Tools. Network requests are paused.";
+            _presenceDot.Background = new SolidColorBrush(Color.FromRgb(148, 163, 184));
+            _onlineText.Text = ReviewSandbox.Active ? "Offline Preview" : "Offline";
+            _statusLine.Text = ReviewSandbox.Active ? "Offline sandbox cache active." : "Offline Mode active in Tools.";
         }
         else
         {
-            _statusLine.Text = "Syncing with X20ADMIN...";
+            _presenceDot.Background = new SolidColorBrush(Color.FromRgb(34, 197, 94));
+            _statusLine.Text = "Syncing catalog...";
         }
 
         try
         {
-            // Refresh profile quietly if registered
             var profRes = await _client.GetProfileAsync(_client.Identity.Uid);
             if (profRes.Ok)
             {
                 _myProfile = profRes.Data.Creator;
-                UpdateProfileChip();
+                UpdateProfileButton();
             }
 
-            if (_subTab == "requests")
-            {
-                await RenderRequestsAndChallengesAsync();
-                return;
-            }
-            if (_subTab == "lounge")
-            {
-                await RenderLoungeAsync();
-                return;
-            }
-            if (_subTab == "social")
-            {
-                await RenderLeaderboardWatchingSavedAsync();
-                return;
-            }
-
-            await RenderExploreAsync();
+            if (_subTab == "explore")
+                await RenderExploreWorkshopAsync();
+            else if (_subTab == "requests")
+                await RenderRequestsBoardAsync();
+            else if (_subTab == "lounge")
+                await RenderLoungeBoardAsync();
+            else if (_subTab == "saved")
+                await RenderSavedAndMineAsync();
+            else
+                await RenderLeaderboardAndWatchingAsync();
         }
         catch (Exception ex)
         {
-            _statusLine.Text = $"Community sync interrupted: {ex.Message}";
-            _feedStack.Children.Clear();
-            var retryBtn = new Button { Content = "Retry Connection", Style = DS.Style("DS.ConsolePrimary"), Height = 32, MinHeight = 32, Padding = new Thickness(14, 0, 14, 0), Margin = new Thickness(0, 10, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
-            retryBtn.Click += (_, _) => _ = RefreshAsync();
-            _feedStack.Children.Add(Kit.Panel(null, null, null, new StackPanel
+            _statusLine.Text = $"Sync failed: {ex.Message}";
+            SetSingleColumnContent(new StackPanel
             {
                 Children =
                 {
-                    Kit.Text("Community Feed Unavailable", 15, "DS.Text", FontWeights.SemiBold),
-                    Kit.Text(ex.Message, 12.5, "DS.TextSoft").Also(t => { t.TextWrapping = TextWrapping.Wrap; t.Margin = new Thickness(0, 4, 0, 0); }),
-                    retryBtn
+                    CommunityUI.CardSurface(new StackPanel
+                    {
+                        Children =
+                        {
+                            Kit.Text("Community Feed Unavailable", 15, "DS.Text", FontWeights.Bold),
+                            Kit.Text(ex.Message, 12.5, "DS.TextSoft").Also(t => { t.TextWrapping = TextWrapping.Wrap; t.Margin = new Thickness(0, 6, 0, 12); }),
+                            CommunityUI.RectButton("Retry Connection", RectBtnKind.Primary, 32, 12).Also(b => { b.HorizontalAlignment = HorizontalAlignment.Left; b.Click += (_, _) => _ = RefreshAsync(); })
+                        }
+                    }, new Thickness(18))
                 }
-            }, new Thickness(16)));
+            });
         }
     }
 
-    private void UpdateProfileChip()
+    private void UpdateProfileButton()
     {
-        _profileChipRow.Children.Clear();
+        _profileBtnContent.Children.Clear();
         if (_myProfile == null)
         {
-            _profileLabel.Text = "Claim Handle";
-            _profileChipRow.Children.Add(_profileLabel);
+            _profileLabel.Text = "Sign In";
+            _profileBtnContent.Children.Add(_profileLabel);
             return;
         }
         _profileLabel.Text = _myProfile.Handle;
-        _profileChipRow.Children.Add(_profileLabel);
-        if (_myProfile.IsOwner) _profileChipRow.Children.Add(BadgeChip.CreateOwnerCheckmark(14));
+        _profileBtnContent.Children.Add(_profileLabel);
+        if (_myProfile.IsOwner) _profileBtnContent.Children.Add(BadgeChip.CreateOwnerCheckmark(13));
         if (!string.IsNullOrEmpty(_myProfile.EquippedBadge) && _badgeMap.TryGetValue(_myProfile.EquippedBadge, out var bdef))
         {
-            var pill = BadgeChip.Create(bdef, compact: true);
-            pill.Margin = new Thickness(6, 0, 0, 0);
-            _profileChipRow.Children.Add(pill);
+            var tag = CommunityUI.SquareTag(bdef.Name);
+            tag.Margin = new Thickness(6, 0, 0, 0);
+            _profileBtnContent.Children.Add(tag);
         }
     }
 
-    private async Task RenderExploreAsync()
+    private void SetSingleColumnContent(UIElement content)
+    {
+        _workspaceHost.Children.Clear();
+        _workspaceHost.ColumnDefinitions.Clear();
+        _mainScroller.Content = content;
+        _workspaceHost.Children.Add(_mainScroller);
+    }
+
+    private async Task RenderExploreWorkshopAsync()
     {
         var caps = CommunityCapabilities.GetCapabilitySet(_selectedModelId, _selectedMode);
         if (_categoryFilter != "all" && !caps.AllowsCategory(_categoryFilter))
@@ -382,49 +339,217 @@ public sealed class CommunityBrowserWorkbench
             Uid = _filterUid
         });
 
-        _feedStack.Children.Clear();
+        _workspaceHost.Children.Clear();
+        _workspaceHost.ColumnDefinitions.Clear();
+        _workspaceHost.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(248) });
+        _workspaceHost.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(16) });
+        _workspaceHost.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        // Left Faceted Sidebar (Modrinth / Steam Workshop Pattern)
+        var sidebarScroll = new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            Content = _sidebarStack
+        };
+        var sidebarBorder = new Border
+        {
+            CornerRadius = new CornerRadius(8),
+            Background = new SolidColorBrush(CommunityUI.BgSidebar),
+            BorderBrush = new SolidColorBrush(CommunityUI.BorderSubtle),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(12),
+            Child = sidebarScroll
+        };
+        BuildSidebarFacets(caps);
+        _workspaceHost.Children.Add(sidebarBorder);
+
+        // Right Main Viewport
+        _mainFeedStack.Children.Clear();
+        _mainScroller.Content = _mainFeedStack;
+        _mainScroller.Padding = new Thickness(0, 0, 4, 8);
+        Grid.SetColumn(_mainScroller, 2);
+        _workspaceHost.Children.Add(_mainScroller);
+
         if (!catRes.Ok || catRes.Data == null)
         {
-            _statusLine.Text = catRes.Error ?? "Failed to load catalog.";
-            _feedStack.Children.Add(Kit.Info("Could not reach X20CTL Community right now."));
+            _statusLine.Text = catRes.Error ?? "Failed to reach server.";
+            _mainFeedStack.Children.Add(CommunityUI.CardSurface(new StackPanel
+            {
+                Children =
+                {
+                    Kit.Text("Could not load catalog", 15, "DS.Text", FontWeights.Bold),
+                    Kit.Text(catRes.Error ?? "Unable to contact X20ADMIN.", 12.5, "DS.TextSoft").Also(t => t.Margin = new Thickness(0, 4, 0, 12)),
+                    CommunityUI.RectButton("Retry", RectBtnKind.Primary, 32, 12).Also(b => { b.HorizontalAlignment = HorizontalAlignment.Left; b.Click += (_, _) => _ = RefreshAsync(); })
+                }
+            }, new Thickness(18)));
             return;
         }
 
         var data = catRes.Data;
         _ogWindowOpen = data.OgV0026Open;
-        _onlinePill.Text = $"Online Now: {data.OnlineCount}";
+        if (!_client.IsNetworkDisabled)
+            _onlineText.Text = $"{data.OnlineCount} online";
         _badgeMap.Clear();
         foreach (var b in data.BadgeCatalog) _badgeMap[b.Id] = b;
-        UpdateProfileChip();
+        UpdateProfileButton();
+        _statusLine.Text = $"Showing {data.Items.Count} {(data.Items.Count == 1 ? "result" : "results")}";
 
-        _cachedItems.Clear();
-        _cachedItems.AddRange(data.Items);
-        _statusLine.Text = $"{caps.ModelName} ({caps.ConnectionMode}) | Showing {data.Items.Count} verified items";
+        // Result Header Row
+        var resBar = new DockPanel { Margin = new Thickness(0, 0, 0, 12) };
+        var refreshBtn = CommunityUI.RectButton("Refresh", RectBtnKind.Secondary, 30, 11.5);
+        refreshBtn.Click += (_, _) => _ = RefreshAsync();
+        DockPanel.SetDock(refreshBtn, Dock.Right);
+        resBar.Children.Add(refreshBtn);
 
-        // Category pills (strictly gated by Capability Matrix!)
-        var catPills = new WrapPanel { Margin = new Thickness(0, 0, 0, 12) };
-        void AddCatPill(string key, string label)
+        var resTitle = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        resTitle.Children.Add(Kit.Text($"{caps.ModelName} ({caps.ConnectionMode})", 16, "DS.Text", FontWeights.Bold));
+        resTitle.Children.Add(Kit.Text($"  ·  {data.Items.Count} setups", 13, "DS.TextMuted").Also(t => t.VerticalAlignment = VerticalAlignment.Center));
+        if (!string.IsNullOrEmpty(_filterUid))
         {
-            var btn = new Button
-            {
-                Content = label,
-                Style = DS.Style(_categoryFilter == key ? "DS.ConsolePrimary" : "ActionButton"),
-                Height = 30,
-                MinHeight = 30,
-                Padding = new Thickness(11, 0, 11, 0),
-                FontSize = 11.5,
-                Margin = new Thickness(0, 0, 6, 4)
-            };
-            btn.Click += (_, _) => { _categoryFilter = key; _ = RefreshAsync(); };
-            catPills.Children.Add(btn);
+            var clearCreator = CommunityUI.RectButton($"Creator: {_filterUid}  ×", RectBtnKind.Secondary, 24, 11);
+            clearCreator.Margin = new Thickness(10, 0, 0, 0);
+            clearCreator.Click += (_, _) => { _filterUid = null; _ = RefreshAsync(); };
+            resTitle.Children.Add(clearCreator);
         }
-        AddCatPill("all", "All Allowed");
+        resBar.Children.Add(resTitle);
+        _mainFeedStack.Children.Add(resBar);
+
+        // Pinned Notes & Polls (clean announcement strips)
+        foreach (var note in data.Notes.Take(2))
+            _mainFeedStack.Children.Add(BuildOwnerNoteBanner(note));
+
+        var activePoll = data.Polls.FirstOrDefault(p => !p.Closed);
+        if (activePoll != null)
+            _mainFeedStack.Children.Add(BuildPollCard(activePoll));
+
+        if (data.Items.Count == 0)
+        {
+            bool hasFilter = !string.IsNullOrEmpty(_searchQuery) || _categoryFilter != "all" || !string.IsNullOrEmpty(_filterUid);
+            var emptyBtns = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 14, 0, 0) };
+            emptyBtns.Children.Add(CommunityUI.RectButton("Publish Setup", RectBtnKind.Primary, 34, 12.5).Also(b =>
+            {
+                b.Margin = new Thickness(0, 0, 8, 0);
+                b.Click += (_, _) =>
+                {
+                    var cat = _categoryFilter == "all" ? "setup" : _categoryFilter;
+                    var exp = _exportCurrentForSubmit?.Invoke(cat, _selectedMode);
+                    OpenShareDialog(cat, payload: exp?.Payload, shareCode: exp?.ShareCode, mediaBytes: exp?.MediaBytes, mediaType: exp?.MediaType);
+                };
+            }));
+            if (hasFilter)
+            {
+                emptyBtns.Children.Add(CommunityUI.RectButton("Reset Filters", RectBtnKind.Secondary, 34, 12.5).Also(b =>
+                {
+                    b.Click += (_, _) => { _categoryFilter = "all"; _searchQuery = ""; _searchBox.Text = ""; _filterUid = null; _ = RefreshAsync(); };
+                }));
+            }
+            else if (_myProfile == null)
+            {
+                emptyBtns.Children.Add(CommunityUI.RectButton("Sign In & Claim Handle", RectBtnKind.Secondary, 34, 12.5).Also(b =>
+                {
+                    b.Click += (_, _) => OpenProfileDialog();
+                }));
+            }
+
+            _mainFeedStack.Children.Add(CommunityUI.CardSurface(new StackPanel
+            {
+                Margin = new Thickness(12, 24, 12, 24),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Children =
+                {
+                    Kit.Text(hasFilter ? "No setups match these filters" : $"No published setups yet for {caps.ModelName}", 15.5, "DS.Text", FontWeights.SemiBold).Also(t => t.HorizontalAlignment = HorizontalAlignment.Center),
+                    Kit.Text($"Approved community setups, analog curves, and OLED screen art for {caps.ModelName} ({caps.ConnectionMode}) appear here once published.", 12.5, "DS.TextMuted").Also(t => { t.TextWrapping = TextWrapping.Wrap; t.TextAlignment = TextAlignment.Center; t.MaxWidth = 480; t.Margin = new Thickness(0, 6, 0, 0); }),
+                    emptyBtns
+                }
+            }, new Thickness(20)));
+            return;
+        }
+
+        // 2-Column Clean Steam / Modrinth Card Grid
+        var grid = new UniformGrid { Columns = 2, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(-5, 0, -5, 0) };
+        foreach (var item in data.Items)
+        {
+            var card = BuildWorkshopCard(item);
+            card.Margin = new Thickness(5);
+            grid.Children.Add(card);
+        }
+        _mainFeedStack.Children.Add(grid);
+    }
+
+    private void BuildSidebarFacets(CommunityCapabilitySet caps)
+    {
+        static void Detach(FrameworkElement el)
+        {
+            if (el.Parent is Panel p) p.Children.Remove(el);
+        }
+        Detach(_searchBox);
+        Detach(_modelPicker);
+        Detach(_modePicker);
+        Detach(_statusLine);
+        _sidebarStack.Children.Clear();
+
+        void SectionLabel(string text, double top = 8)
+        {
+            _sidebarStack.Children.Add(Kit.Text(text, 10, "DS.AccentHi", FontWeights.Bold).Also(t => t.Margin = new Thickness(0, top, 0, 3)));
+        }
+
+        // 1. Compact single-row Search Box + Go/Clear buttons
+        SectionLabel("SEARCH", 0);
+        var searchRow = new DockPanel { LastChildFill = true };
+        if (!string.IsNullOrEmpty(_searchQuery))
+        {
+            var clrBtn = CommunityUI.RectButton("Clr", RectBtnKind.Ghost, 28, 11);
+            clrBtn.Padding = new Thickness(7, 0, 7, 0);
+            clrBtn.Margin = new Thickness(4, 0, 0, 0);
+            clrBtn.Click += (_, _) => { _searchQuery = ""; _searchBox.Text = ""; _ = RefreshAsync(); };
+            DockPanel.SetDock(clrBtn, Dock.Right);
+            searchRow.Children.Add(clrBtn);
+        }
+        var goBtn = CommunityUI.RectButton("Go", RectBtnKind.Secondary, 28, 11);
+        goBtn.Padding = new Thickness(9, 0, 9, 0);
+        goBtn.Margin = new Thickness(5, 0, 0, 0);
+        goBtn.Click += (_, _) => { _searchQuery = _searchBox.Text.Trim(); _ = RefreshAsync(); };
+        DockPanel.SetDock(goBtn, Dock.Right);
+        searchRow.Children.Add(goBtn);
+        _searchBox.Height = 28;
+        _searchBox.Padding = new Thickness(7, 3, 7, 3);
+        _searchBox.FontSize = 11.5;
+        searchRow.Children.Add(_searchBox);
+        _sidebarStack.Children.Add(searchRow);
+
+        // 2. Hardware Filter
+        SectionLabel("HARDWARE");
+        _sidebarStack.Children.Add(Kit.Text("Controller", 10.5, "DS.TextMuted").Also(t => t.Margin = new Thickness(0, 0, 0, 2)));
+        _modelPicker.MinHeight = 30;
+        _modelPicker.Padding = new Thickness(8, 3, 8, 3);
+        _modelPicker.FontSize = 12;
+        _modelPicker.Margin = new Thickness(0, 0, 0, 4);
+        _sidebarStack.Children.Add(_modelPicker);
+        _sidebarStack.Children.Add(Kit.Text("Mode", 10.5, "DS.TextMuted").Also(t => t.Margin = new Thickness(0, 0, 0, 2)));
+        _modePicker.MinHeight = 30;
+        _modePicker.Padding = new Thickness(8, 3, 8, 3);
+        _modePicker.FontSize = 12;
+        _sidebarStack.Children.Add(_modePicker);
+
+        // 3. Categories (Sidebar Tree)
+        SectionLabel("CATEGORIES");
+        void AddCategoryRow(string key, string label)
+        {
+            var b = CommunityUI.SidebarRowButton(label, _categoryFilter == key, indented: true);
+            b.Margin = new Thickness(0, 1, 0, 1);
+            b.Height = 25;
+            b.MinHeight = 25;
+            b.Click += (_, _) => { _categoryFilter = key; _ = RefreshAsync(); };
+            _sidebarStack.Children.Add(b);
+        }
+        AddCategoryRow("all", "All Creations");
         foreach (var cat in caps.Categories)
         {
-            AddCatPill(cat, cat switch
+            AddCategoryRow(cat, cat switch
             {
-                "curve" => "Curves & Analog Studio",
-                "screen" => "OLED Screen",
+                "curve" => "Analog Curves",
+                "screen" => "OLED Screen Art",
                 "rgb" => "RGB Lighting",
                 "vibration" => "Vibration",
                 "macro" => "Macros",
@@ -434,146 +559,310 @@ public sealed class CommunityBrowserWorkbench
         }
         if (_categoryFilter == "screen" && caps.AllowsCategory("screen"))
         {
-            foreach (var (mk, ml) in new[] { ("all", "All Art"), ("image", "Images"), ("gif", "GIFs") })
+            foreach (var (mk, ml) in new[] { ("all", "All OLED Media"), ("image", "Static PNG"), ("gif", "Animated GIF") })
             {
-                var mb = new Button
-                {
-                    Content = ml,
-                    Style = DS.Style(_mediaFilter == mk ? "DS.ConsolePrimary" : "ActionButton"),
-                    Height = 30,
-                    MinHeight = 30,
-                    Padding = new Thickness(10, 0, 10, 0),
-                    FontSize = 11.5,
-                    Margin = new Thickness(8, 0, 4, 4)
-                };
+                var mb = CommunityUI.SidebarRowButton(ml, _mediaFilter == mk, indented: true);
+                mb.Margin = new Thickness(12, 1, 0, 1);
+                mb.Height = 24;
+                mb.MinHeight = 24;
                 mb.Click += (_, _) => { _mediaFilter = mk; _ = RefreshAsync(); };
-                catPills.Children.Add(mb);
+                _sidebarStack.Children.Add(mb);
             }
         }
-        _feedStack.Children.Add(catPills);
 
-        // Pinned Owner Notes
-        foreach (var note in data.Notes.Take(2))
+        // 4. Sort (compact 2x2 grid so zero sidebar scrollbar is needed)
+        SectionLabel("SORT BY");
+        var sortGrid = new UniformGrid { Columns = 2, Margin = new Thickness(-2, 0, -2, 0) };
+        foreach (var (sKey, sLbl) in new[]
         {
-            _feedStack.Children.Add(BuildOwnerNoteBanner(note));
+            ("trending", "Trending"),
+            ("installs", "Installs"),
+            ("top", "Top Rated"),
+            ("new", "Newest")
+        })
+        {
+            var act = _sort == sKey;
+            var sb = CommunityUI.RectButton(sLbl, act ? RectBtnKind.Primary : RectBtnKind.Secondary, 25, 11);
+            sb.Padding = new Thickness(6, 0, 6, 0);
+            sb.Margin = new Thickness(2);
+            sb.Click += (_, _) => { _sort = sKey; _ = RefreshAsync(); };
+            sortGrid.Children.Add(sb);
         }
+        _sidebarStack.Children.Add(sortGrid);
 
-        // Active Poll
-        var activePoll = data.Polls.FirstOrDefault(p => !p.Closed);
-        if (activePoll != null)
-        {
-            _feedStack.Children.Add(BuildPollCard(activePoll));
-        }
+        _statusLine.Margin = new Thickness(0, 8, 0, 0);
+        _statusLine.TextWrapping = TextWrapping.Wrap;
+        _sidebarStack.Children.Add(_statusLine);
+    }
 
-        // "For Your Games" strip from matched GameTags
-        var allGameTags = data.Items.SelectMany(i => i.GameTags).Distinct(StringComparer.OrdinalIgnoreCase).Take(8).ToList();
-        if (allGameTags.Count > 0)
+    private Border BuildWorkshopCard(CommunityItem item)
+    {
+        var outer = new DockPanel();
+
+        // Bottom crisp 3-action footer separated by 1px hairline
+        var footer = new Border
         {
-            var gameRow = new WrapPanel { Margin = new Thickness(0, 0, 0, 10), VerticalAlignment = VerticalAlignment.Center };
-            gameRow.Children.Add(Kit.Text("FOR YOUR GAMES:", 11, "DS.AccentHi", FontWeights.Bold).Also(t => { t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new Thickness(0, 0, 8, 4); }));
-            foreach (var g in allGameTags)
+            BorderBrush = new SolidColorBrush(Color.FromArgb(90, 29, 43, 70)),
+            BorderThickness = new Thickness(0, 1, 0, 0),
+            Padding = new Thickness(0, 10, 0, 0),
+            Margin = new Thickness(0, 10, 0, 0),
+        };
+        var footerDock = new DockPanel();
+
+        var voteBtn = CommunityUI.RectButton($"▲ {item.Upvotes}", RectBtnKind.Secondary, 28, 11.5);
+        voteBtn.Click += async (_, _) =>
+        {
+            var r = await _client.VoteItemAsync(item.Id, 1);
+            if (r.Ok) await RefreshAsync();
+            else _statusLine.Text = r.Error ?? "Sign in first to upvote.";
+        };
+        DockPanel.SetDock(voteBtn, Dock.Right);
+        footerDock.Children.Add(voteBtn);
+
+        var primaryBtns = new StackPanel { Orientation = Orientation.Horizontal };
+        var installBtn = CommunityUI.RectButton("Install", RectBtnKind.Primary, 28, 11.5);
+        installBtn.Margin = new Thickness(0, 0, 6, 0);
+        installBtn.Click += async (_, _) =>
+        {
+            await _client.RecordInstallAsync(item.Id);
+            InstallItemRequested?.Invoke(item, Array.Empty<string>());
+            _statusLine.Text = $"Installed '{item.Title}'.";
+        };
+        var inspectBtn = CommunityUI.RectButton("Inspect", RectBtnKind.Secondary, 28, 11.5);
+        inspectBtn.Click += (_, _) => _ = OpenItemInspectorModalAsync(item);
+        primaryBtns.Children.Add(installBtn);
+        primaryBtns.Children.Add(inspectBtn);
+        footerDock.Children.Add(primaryBtns);
+        footer.Child = footerDock;
+        DockPanel.SetDock(footer, Dock.Bottom);
+        outer.Children.Add(footer);
+
+        // Body row: Left Preview Thumbnail + Right Metadata
+        var mainDock = new DockPanel();
+        if (item.Category == "screen" && !string.IsNullOrEmpty(item.AssetUrl))
+        {
+            var oled = new AnimatedMediaView(136, 68, pixelArt: true, cornerRadius: 6)
             {
-                var gBtn = new Button { Content = g, Style = DS.Style("ActionButton"), Height = 26, MinHeight = 26, FontSize = 11, Padding = new Thickness(10, 0, 10, 0), Margin = new Thickness(0, 0, 6, 4) };
-                gBtn.Click += (_, _) => { _searchQuery = g; _searchBox.Text = g; _ = RefreshAsync(); };
-                gameRow.Children.Add(gBtn);
-            }
-            _feedStack.Children.Add(gameRow);
-        }
-
-        if (!string.IsNullOrEmpty(_filterUid))
-        {
-            var clearBtn = new Button { Content = $"Showing uploads by {_filterUid} (Click to Clear)", Style = DS.Style("ActionButton"), Height = 30, Margin = new Thickness(0, 0, 0, 10), HorizontalAlignment = HorizontalAlignment.Left };
-            clearBtn.Click += (_, _) => { _filterUid = null; _ = RefreshAsync(); };
-            _feedStack.Children.Add(clearBtn);
-        }
-
-        if (data.Items.Count == 0)
-        {
-            var emptyActions = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 12, 0, 0) };
-            var shareFirst = new Button
-            {
-                Content = "+ Share Current Setup",
-                Style = DS.Style("DS.ConsolePrimary"),
-                Height = 34, MinHeight = 34, Padding = new Thickness(14, 0, 14, 0),
-                Margin = new Thickness(0, 0, 8, 0)
+                BorderBrush = new SolidColorBrush(CommunityUI.BorderSubtle),
+                BorderThickness = new Thickness(1),
+                Margin = new Thickness(0, 0, 12, 0),
+                VerticalAlignment = VerticalAlignment.Top
             };
-            shareFirst.Click += (_, _) =>
+            oled.SetPlaceholder("OLED");
+            _ = Task.Run(async () =>
             {
-                var cat = _categoryFilter == "all" ? "setup" : _categoryFilter;
-                var exp = _exportCurrentForSubmit?.Invoke(cat, _selectedMode);
-                OpenShareDialog(cat, payload: exp?.Payload, shareCode: exp?.ShareCode, mediaBytes: exp?.MediaBytes, mediaType: exp?.MediaType);
+                var bytes = await _client.DownloadAssetAsync(item.AssetUrl, item.AssetSha256);
+                if (bytes != null) oled.Dispatcher.Invoke(() => oled.LoadBytes(bytes, "OLED"));
+            });
+            DockPanel.SetDock(oled, Dock.Left);
+            mainDock.Children.Add(oled);
+        }
+        else
+        {
+            var thumb = CommunityUI.BuildPreviewThumb(item.Category, item.ShareCode);
+            thumb.Margin = new Thickness(0, 0, 12, 0);
+            thumb.VerticalAlignment = VerticalAlignment.Top;
+            DockPanel.SetDock(thumb, Dock.Left);
+            mainDock.Children.Add(thumb);
+        }
+
+        var meta = new StackPanel();
+        var titleRow = new DockPanel { Margin = new Thickness(0, 0, 0, 3) };
+        var catTag = CommunityUI.SquareTag(item.MediaType == "gif" ? "GIF" : item.MediaType == "image" ? "PNG" : item.Category.ToUpperInvariant());
+        DockPanel.SetDock(catTag, Dock.Right);
+        titleRow.Children.Add(catTag);
+        titleRow.Children.Add(Kit.Text(item.Title, 14, "DS.Text", FontWeights.Bold).Also(t => t.TextTrimming = TextTrimming.CharacterEllipsis));
+        meta.Children.Add(titleRow);
+
+        var creatorLine = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 5) };
+        if (item.Creator != null)
+        {
+            var creatorBtn = CommunityUI.RectButton($"@{item.Creator.Handle}", RectBtnKind.Ghost, 22, 11.5);
+            creatorBtn.Padding = new Thickness(4, 0, 4, 0);
+            creatorBtn.Click += async (_, _) => await ShowCreatorCardAsync(item.Creator);
+            creatorLine.Children.Add(creatorBtn);
+            if (item.Creator.IsOwner) creatorLine.Children.Add(BadgeChip.CreateOwnerCheckmark(12));
+        }
+        creatorLine.Children.Add(Kit.Text($"  ·  {item.Installs} installs  ·  {item.WorksCount} verified", 11, "DS.TextMuted").Also(t => t.VerticalAlignment = VerticalAlignment.Center));
+        meta.Children.Add(creatorLine);
+
+        meta.Children.Add(Kit.Text(item.Description, 12, "DS.TextSoft").Also(t =>
+        {
+            t.TextWrapping = TextWrapping.Wrap;
+            t.MaxHeight = 36;
+            t.TextTrimming = TextTrimming.CharacterEllipsis;
+        }));
+
+        mainDock.Children.Add(meta);
+        outer.Children.Add(mainDock);
+
+        return CommunityUI.CardSurface(outer, new Thickness(14));
+    }
+
+    private async Task OpenItemInspectorModalAsync(CommunityItem item)
+    {
+        var modalRoot = new StackPanel();
+        var top = new DockPanel { Margin = new Thickness(0, 0, 0, 12) };
+        var closeBtn = CommunityUI.RectButton("Close", RectBtnKind.Secondary, 30, 11.5);
+        closeBtn.Click += (_, _) => CloseModal();
+        DockPanel.SetDock(closeBtn, Dock.Right);
+        top.Children.Add(closeBtn);
+        top.Children.Add(Kit.Text(item.Title, 18, "DS.Text", FontWeights.Bold));
+        modalRoot.Children.Add(top);
+
+        var tagRow = new WrapPanel { Margin = new Thickness(0, 0, 0, 10) };
+        tagRow.Children.Add(CommunityUI.SquareTag(item.Category.ToUpperInvariant()));
+        tagRow.Children.Add(CommunityUI.SquareTag($"{item.ModelId} / {item.ConnectionMode}"));
+        tagRow.Children.Add(CommunityUI.SquareTag($"v{item.Version}"));
+        if (item.Creator != null) tagRow.Children.Add(CommunityUI.SquareTag($"Maker: {item.Creator.Handle}"));
+        modalRoot.Children.Add(tagRow);
+
+        modalRoot.Children.Add(Kit.Text(item.Description, 13, "DS.TextSoft").Also(t => { t.TextWrapping = TextWrapping.Wrap; t.Margin = new Thickness(0, 0, 0, 12); }));
+
+        var actionRow = new WrapPanel { Margin = new Thickness(0, 0, 0, 14) };
+        actionRow.Children.Add(CommunityUI.RectButton("Install Setup", RectBtnKind.Primary, 32, 12).Also(b =>
+        {
+            b.Margin = new Thickness(0, 0, 6, 6);
+            b.Click += async (_, _) =>
+            {
+                await _client.RecordInstallAsync(item.Id);
+                InstallItemRequested?.Invoke(item, Array.Empty<string>());
+                CloseModal();
             };
-            emptyActions.Children.Add(shareFirst);
-            if (_myProfile == null)
+        }));
+        if (item.Category != "screen")
+        {
+            actionRow.Children.Add(CommunityUI.RectButton("Compare & 5s Test", RectBtnKind.Secondary, 32, 12).Also(b =>
             {
-                var claimBtn = new Button
+                b.Margin = new Thickness(0, 0, 6, 6);
+                b.Click += (_, _) =>
                 {
-                    Content = "Claim Creator Handle",
-                    Style = DS.Style("ActionButton"),
-                    Height = 34, MinHeight = 34, Padding = new Thickness(14, 0, 14, 0)
+                    var drawer = new CommunityDiffDrawer(item, _currentDraftSummary());
+                    drawer.InstallSelectedRequested += (it, secs) => { _ = _client.RecordInstallAsync(it.Id); InstallItemRequested?.Invoke(it, secs); };
+                    drawer.TestLiveRequested += (it, secs) => TestLiveRequested?.Invoke(it, secs);
+                    drawer.RevertLiveRequested += () => RevertLiveRequested?.Invoke();
+                    drawer.CloseRequested += CloseModal;
+                    ShowModal(drawer);
                 };
-                claimBtn.Click += (_, _) => OpenProfileDialog();
-                emptyActions.Children.Add(claimBtn);
-            }
-            _feedStack.Children.Add(Kit.Panel(null, null, null, new StackPanel
-            {
-                Children =
-                {
-                    Kit.Text($"No approved creations yet for {caps.ModelName} ({caps.ConnectionMode})", 15.5, "DS.Text", FontWeights.SemiBold),
-                    Kit.Text("Published curves, OLED screen art, RGB profiles, and full controller setups approved in X20ADMIN appear here automatically.", 12.5, "DS.TextSoft").Also(t => { t.TextWrapping = TextWrapping.Wrap; t.Margin = new Thickness(0, 4, 0, 0); }),
-                    emptyActions
-                }
-            }, new Thickness(18)));
-            return;
+            }));
         }
-
-        var cardsGrid = new WrapPanel();
-        foreach (var item in data.Items)
+        actionRow.Children.Add(CommunityUI.RectButton("Works Great", RectBtnKind.Secondary, 32, 12).Also(b =>
         {
-            cardsGrid.Children.Add(BuildItemCard(item));
+            b.Margin = new Thickness(0, 0, 6, 6);
+            b.Click += async (_, _) => { var r = await _client.MarkWorksAsync(item.Id, _selectedModelId); _statusLine.Text = r.Ok ? "Verified compatibility!" : (r.Error ?? "Sign in first."); };
+        }));
+        actionRow.Children.Add(CommunityUI.RectButton("Bookmark", RectBtnKind.Secondary, 32, 12).Also(b =>
+        {
+            b.Margin = new Thickness(0, 0, 6, 6);
+            b.Click += async (_, _) => { var r = await _client.ToggleBookmarkAsync(item.Id); _statusLine.Text = r.Ok ? (r.Data ? "Bookmarked." : "Removed bookmark.") : (r.Error ?? "Sign in first."); };
+        }));
+        actionRow.Children.Add(CommunityUI.RectButton("Remix", RectBtnKind.Secondary, 32, 12).Also(b =>
+        {
+            b.Margin = new Thickness(0, 0, 6, 6);
+            b.Click += (_, _) =>
+            {
+                var exp = _exportCurrentForSubmit?.Invoke(item.Category, _selectedMode);
+                OpenShareDialog(item.Category, $"Remix of {item.Title}", exp?.Payload ?? item.Payload, exp?.ShareCode ?? item.ShareCode, remixSourceId: item.Id);
+            };
+        }));
+        if (!string.IsNullOrEmpty(item.ShareCode))
+        {
+            actionRow.Children.Add(CommunityUI.RectButton("Copy Code", RectBtnKind.Secondary, 32, 12).Also(b =>
+            {
+                b.Margin = new Thickness(0, 0, 6, 6);
+                b.Click += (_, _) => { Clipboard.SetText(item.ShareCode); _statusLine.Text = "Copied share code."; };
+            }));
         }
-        _feedStack.Children.Add(cardsGrid);
+        actionRow.Children.Add(CommunityUI.RectButton("Report", RectBtnKind.Danger, 32, 12).Also(b =>
+        {
+            b.Margin = new Thickness(0, 0, 0, 6);
+            b.Click += async (_, _) => { var r = await _client.ReportAsync("item", item.Id, "Inappropriate or broken"); _statusLine.Text = r.Ok ? "Reported." : (r.Error ?? "Sign in first."); };
+        }));
+        modalRoot.Children.Add(actionRow);
+
+        // Comments Section inline inside Inspector
+        modalRoot.Children.Add(Kit.Text($"Comments ({item.CommentsCount})", 13.5, "DS.Text", FontWeights.SemiBold).Also(t => t.Margin = new Thickness(0, 0, 0, 8)));
+        var cList = new StackPanel();
+        var cRes = await _client.GetCommentsAsync(item.Id);
+        if (cRes.Ok && cRes.Data != null && cRes.Data.Count > 0)
+        {
+            foreach (var c in cRes.Data)
+            {
+                var cStack = new StackPanel();
+                var ch = new StackPanel { Orientation = Orientation.Horizontal };
+                ch.Children.Add(Kit.Text(c.Creator?.Handle ?? c.Uid, 12, "DS.AccentHi", FontWeights.Bold));
+                if (c.Creator?.IsOwner == true) ch.Children.Add(BadgeChip.CreateOwnerCheckmark(12));
+                cStack.Children.Add(ch);
+                cStack.Children.Add(Kit.Text(c.Body, 12, "DS.TextSoft").Also(t => t.TextWrapping = TextWrapping.Wrap));
+                cList.Children.Add(CommunityUI.CardSurface(cStack, new Thickness(10)).Also(b => b.Margin = new Thickness(0, 0, 0, 6)));
+            }
+        }
+        else
+        {
+            cList.Children.Add(Kit.Text("No comments yet.", 12, "DS.TextMuted"));
+        }
+        modalRoot.Children.Add(new ScrollViewer { MaxHeight = 200, Content = cList, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Margin = new Thickness(0, 0, 0, 10) });
+
+        var cBox = CommunityUI.RectInput("", 32);
+        var cSend = CommunityUI.RectButton("Post", RectBtnKind.Primary, 32, 12);
+        cSend.Margin = new Thickness(8, 0, 0, 0);
+        var cStatus = Kit.Text("", 11.5, "DS.TextMuted");
+        cSend.Click += async (_, _) =>
+        {
+            var r = await _client.AddCommentAsync(item.Id, cBox.Text.Trim());
+            if (r.Ok) await OpenItemInspectorModalAsync(item);
+            else cStatus.Text = r.Error ?? "Sign in first to comment.";
+        };
+        var compose = new DockPanel();
+        DockPanel.SetDock(cSend, Dock.Right);
+        compose.Children.Add(cSend);
+        compose.Children.Add(cBox);
+        modalRoot.Children.Add(compose);
+        modalRoot.Children.Add(cStatus.Also(t => t.Margin = new Thickness(0, 6, 0, 0)));
+
+        var sheet = new Border
+        {
+            Width = 620,
+            MaxHeight = 680,
+            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            CornerRadius = new CornerRadius(10),
+            BorderBrush = new SolidColorBrush(CommunityUI.BorderSubtle),
+            BorderThickness = new Thickness(1),
+            Background = new SolidColorBrush(CommunityUI.BgCard),
+            Padding = new Thickness(22),
+            Child = new ScrollViewer { Content = modalRoot, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }
+        };
+        var backdrop = new Grid { Background = new SolidColorBrush(Color.FromArgb(200, 3, 6, 16)), Children = { sheet } };
+        backdrop.MouseLeftButtonDown += (_, e) => { if (e.OriginalSource == backdrop) CloseModal(); };
+        ShowModal(backdrop);
     }
 
     private Border BuildOwnerNoteBanner(OwnerNote note)
     {
         var stack = new StackPanel();
-        var head = new DockPanel { Margin = new Thickness(0, 0, 0, 4) };
-        var titleRow = new StackPanel { Orientation = Orientation.Horizontal };
-        titleRow.Children.Add(Kit.Text("PINNED OWNER NOTE", 10.5, "DS.AccentHi", FontWeights.Bold).Also(t => t.Margin = new Thickness(0, 0, 8, 0)));
-        titleRow.Children.Add(Kit.Text("AmjadXCTL", 12, "DS.Text", FontWeights.Bold));
-        titleRow.Children.Add(BadgeChip.CreateOwnerCheckmark(14));
-        head.Children.Add(titleRow);
+        var head = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 4) };
+        head.Children.Add(CommunityUI.SquareTag("ANNOUNCEMENT", Colors.White, Color.FromArgb(95, 255, 122, 24), BadgeChip.OwnerOrange));
+        head.Children.Add(Kit.Text("AmjadXCTL", 12, "DS.Text", FontWeights.Bold).Also(t => t.VerticalAlignment = VerticalAlignment.Center));
+        head.Children.Add(BadgeChip.CreateOwnerCheckmark(13));
         stack.Children.Add(head);
-        stack.Children.Add(Kit.Text(note.Title, 14.5, "DS.Text", FontWeights.SemiBold));
-        stack.Children.Add(Kit.Text(note.Body, 12.5, "DS.TextSoft").Also(t => { t.TextWrapping = TextWrapping.Wrap; t.Margin = new Thickness(0, 4, 0, 8); }));
+        stack.Children.Add(Kit.Text(note.Title, 14, "DS.Text", FontWeights.SemiBold));
+        stack.Children.Add(Kit.Text(note.Body, 12.5, "DS.TextSoft").Also(t => { t.TextWrapping = TextWrapping.Wrap; t.Margin = new Thickness(0, 3, 0, 8); }));
 
         var reacts = new StackPanel { Orientation = Orientation.Horizontal };
         Button ReactBtn(string key, string label, int count)
         {
-            var b = new Button { Content = $"{label} {count}", Style = DS.Style("ActionButton"), Height = 28, MinHeight = 28, FontSize = 11.5, Padding = new Thickness(10, 0, 10, 0), Margin = new Thickness(0, 0, 6, 0) };
-            b.Click += async (_, _) =>
-            {
-                var r = await _client.ReactNoteAsync(note.Id, key);
-                if (r.Ok) await RefreshAsync();
-            };
+            var b = CommunityUI.RectButton($"{label} ({count})", RectBtnKind.Secondary, 26, 11);
+            b.Margin = new Thickness(0, 0, 6, 0);
+            b.Click += async (_, _) => { var r = await _client.ReactNoteAsync(note.Id, key); if (r.Ok) await RefreshAsync(); };
             return b;
         }
-        reacts.Children.Add(ReactBtn("heart", "Heart", note.HeartsCount));
+        reacts.Children.Add(ReactBtn("heart", "Like", note.HeartsCount));
         reacts.Children.Add(ReactBtn("thumb", "Helpful", note.ThumbsCount));
-        reacts.Children.Add(ReactBtn("fire", "Fire", note.FireCount));
+        reacts.Children.Add(ReactBtn("fire", "Featured", note.FireCount));
         stack.Children.Add(reacts);
 
-        return new Border
-        {
-            Background = new SolidColorBrush(Color.FromArgb(45, 255, 122, 24)),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(140, 255, 122, 24)),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(12),
-            Padding = new Thickness(14),
-            Margin = new Thickness(0, 0, 0, 10),
-            Child = stack
-        };
+        return CommunityUI.CardSurface(stack, new Thickness(14), BadgeChip.OwnerOrange).Also(b => b.Margin = new Thickness(0, 0, 0, 12));
     }
 
     private Border BuildPollCard(CommunityPoll poll)
@@ -586,188 +875,13 @@ public sealed class CommunityBrowserWorkbench
             int idx = i;
             var opt = poll.Options[i];
             int pct = (int)Math.Round(opt.Votes * 100.0 / total);
-            var btn = new Button
-            {
-                Content = $"{opt.Label}  ({opt.Votes} votes | {pct}%)",
-                Style = DS.Style("ActionButton"),
-                Height = 30,
-                MinHeight = 30,
-                HorizontalContentAlignment = HorizontalAlignment.Left,
-                Padding = new Thickness(12, 0, 12, 0),
-                Margin = new Thickness(0, 0, 0, 5)
-            };
-            btn.Click += async (_, _) =>
-            {
-                var r = await _client.VotePollAsync(poll.Id, idx);
-                if (r.Ok) await RefreshAsync();
-            };
+            var btn = CommunityUI.RectButton($"{opt.Label}  ({opt.Votes} votes · {pct}%)", RectBtnKind.Secondary, 30, 12);
+            btn.HorizontalContentAlignment = HorizontalAlignment.Left;
+            btn.Margin = new Thickness(0, 0, 0, 5);
+            btn.Click += async (_, _) => { var r = await _client.VotePollAsync(poll.Id, idx); if (r.Ok) await RefreshAsync(); };
             stack.Children.Add(btn);
         }
-        return Kit.Panel(null, null, null, stack, new Thickness(14)).Also(b => b.Margin = new Thickness(0, 0, 0, 12));
-    }
-
-    private Border BuildItemCard(CommunityItem item)
-    {
-        var stack = new StackPanel();
-
-        // Top Visual Zone (160x80 OLED Art Preview OR Setup/Curve Badge Header)
-        if (item.Category == "screen" && !string.IsNullOrEmpty(item.AssetUrl))
-        {
-            var oled = new AnimatedMediaView(220, 110, pixelArt: true, cornerRadius: 10)
-            {
-                BorderBrush = new SolidColorBrush(Color.FromRgb(42, 52, 74)),
-                BorderThickness = new Thickness(2),
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Margin = new Thickness(0, 0, 0, 6)
-            };
-            oled.SetPlaceholder("Loading OLED...");
-            _ = Task.Run(async () =>
-            {
-                var bytes = await _client.DownloadAssetAsync(item.AssetUrl, item.AssetSha256);
-                if (bytes != null)
-                    oled.Dispatcher.Invoke(() => oled.LoadBytes(bytes, "OLED Art"));
-            });
-            stack.Children.Add(oled);
-            // Bottom explicit Images vs GIFs tag
-            stack.Children.Add(new Border
-            {
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Background = new SolidColorBrush(Color.FromArgb(80, 30, 58, 120)),
-                CornerRadius = new CornerRadius(99),
-                Padding = new Thickness(10, 2, 10, 2),
-                Margin = new Thickness(0, 0, 0, 8),
-                Child = Kit.Text(item.MediaType == "gif" ? "GIF" : "Image", 10.5, "DS.AccentHi", FontWeights.Bold)
-            });
-        }
-        else
-        {
-            stack.Children.Add(new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                Margin = new Thickness(0, 0, 0, 6),
-                Children =
-                {
-                    MakeTagPill(item.Category.ToUpperInvariant()),
-                    MakeTagPill($"{item.ModelId} | {item.ConnectionMode}"),
-                    MakeTagPill($"v{item.Version}")
-                }
-            });
-        }
-
-        stack.Children.Add(Kit.Text(item.Title, 15, "DS.Text", FontWeights.Bold).Also(t => t.TextTrimming = TextTrimming.CharacterEllipsis));
-
-        // Maker Row (Clickable for CreatorHoverCard!)
-        if (item.Creator != null)
-        {
-            var makerRow = new StackPanel { Orientation = Orientation.Horizontal };
-            makerRow.Children.Add(Kit.Text($"by {item.Creator.Handle}", 12, "DS.AccentHi", FontWeights.SemiBold));
-            if (item.Creator.IsOwner) makerRow.Children.Add(BadgeChip.CreateOwnerCheckmark(13));
-            if (!string.IsNullOrEmpty(item.Creator.EquippedBadge) && _badgeMap.TryGetValue(item.Creator.EquippedBadge, out var bdef))
-            {
-                var bc = BadgeChip.Create(bdef, compact: true);
-                bc.Margin = new Thickness(6, 0, 0, 0);
-                makerRow.Children.Add(bc);
-            }
-            var makerBtn = new Button
-            {
-                Content = makerRow,
-                Style = DS.Style("ActionButton"),
-                Height = 26,
-                MinHeight = 26,
-                Padding = new Thickness(6, 0, 8, 0),
-                Margin = new Thickness(0, 4, 0, 6),
-                HorizontalAlignment = HorizontalAlignment.Left
-            };
-            makerBtn.Click += async (_, _) => await ShowCreatorCardAsync(item.Creator);
-            stack.Children.Add(makerBtn);
-        }
-
-        stack.Children.Add(Kit.Text(item.Description, 12, "DS.TextSoft").Also(t =>
-        {
-            t.TextWrapping = TextWrapping.Wrap;
-            t.MaxHeight = 42;
-            t.TextTrimming = TextTrimming.CharacterEllipsis;
-            t.Margin = new Thickness(0, 0, 0, 8);
-        }));
-
-        stack.Children.Add(Kit.Text($"Score {item.Score}  |  {item.Installs} installs  |  Works on {item.WorksCount} pads  |  {item.CommentsCount} comments", 11, "DS.TextMuted")
-            .Also(t => t.Margin = new Thickness(0, 0, 0, 8)));
-
-        // Action Row 1: Install, Compare/Test Live, Up/Down Vote, Works Great
-        var row1 = new WrapPanel { Margin = new Thickness(0, 0, 0, 6) };
-        var installBtn = new Button { Content = "Install", Style = DS.Style("DS.ConsolePrimary"), Height = 30, MinHeight = 30, FontSize = 11.5, Padding = new Thickness(12, 0, 12, 0), Margin = new Thickness(0, 0, 5, 4) };
-        installBtn.Click += async (_, _) =>
-        {
-            await _client.RecordInstallAsync(item.Id);
-            InstallItemRequested?.Invoke(item, Array.Empty<string>());
-            _statusLine.Text = $"Installed '{item.Title}'.";
-        };
-        row1.Children.Add(installBtn);
-
-        if (item.Category != "screen")
-        {
-            var cmpBtn = new Button { Content = "Compare", Style = DS.Style("ActionButton"), Height = 30, MinHeight = 30, FontSize = 11.5, Padding = new Thickness(10, 0, 10, 0), Margin = new Thickness(0, 0, 5, 4) };
-            cmpBtn.Click += (_, _) =>
-            {
-                var drawer = new CommunityDiffDrawer(item, _currentDraftSummary());
-                drawer.InstallSelectedRequested += (it, secs) => { _ = _client.RecordInstallAsync(it.Id); InstallItemRequested?.Invoke(it, secs); };
-                drawer.TestLiveRequested += (it, secs) => TestLiveRequested?.Invoke(it, secs);
-                drawer.RevertLiveRequested += () => RevertLiveRequested?.Invoke();
-                drawer.CloseRequested += CloseModal;
-                ShowModal(drawer);
-            };
-            row1.Children.Add(cmpBtn);
-        }
-
-        var upBtn = new Button { Content = $"▲ {item.Upvotes}", Style = DS.Style("ActionButton"), Height = 30, MinHeight = 30, FontSize = 11.5, Padding = new Thickness(8, 0, 8, 0), Margin = new Thickness(0, 0, 4, 4) };
-        upBtn.Click += async (_, _) => { var r = await _client.VoteItemAsync(item.Id, 1); if (r.Ok) await RefreshAsync(); else _statusLine.Text = r.Error ?? "Join first to vote."; };
-        row1.Children.Add(upBtn);
-
-        var worksBtn = new Button { Content = "Works Great", Style = DS.Style("ActionButton"), Height = 30, MinHeight = 30, FontSize = 11.5, Padding = new Thickness(8, 0, 8, 0), Margin = new Thickness(0, 0, 4, 4) };
-        worksBtn.Click += async (_, _) => { var r = await _client.MarkWorksAsync(item.Id, _selectedModelId); if (r.Ok) await RefreshAsync(); else _statusLine.Text = r.Error ?? "Join first to verify."; };
-        row1.Children.Add(worksBtn);
-        stack.Children.Add(row1);
-
-        // Action Row 2: Remix, Share Code, Bookmark, Comments, Report
-        var row2 = new WrapPanel();
-        if (!string.IsNullOrEmpty(item.ShareCode))
-        {
-            var codeBtn = new Button { Content = "Copy Code", Style = DS.Style("ActionButton"), Height = 26, MinHeight = 26, FontSize = 11, Padding = new Thickness(8, 0, 8, 0), Margin = new Thickness(0, 0, 4, 0) };
-            codeBtn.Click += (_, _) => { Clipboard.SetText(item.ShareCode); _statusLine.Text = "Copied curve / setup share code."; };
-            row2.Children.Add(codeBtn);
-        }
-        var remixBtn = new Button { Content = "Remix", Style = DS.Style("ActionButton"), Height = 26, MinHeight = 26, FontSize = 11, Padding = new Thickness(8, 0, 8, 0), Margin = new Thickness(0, 0, 4, 0) };
-        remixBtn.Click += (_, _) =>
-        {
-            var exp = _exportCurrentForSubmit?.Invoke(item.Category, _selectedMode);
-            OpenShareDialog(item.Category, $"Remix of {item.Title}", exp?.Payload ?? item.Payload, exp?.ShareCode ?? item.ShareCode, remixSourceId: item.Id);
-        };
-        row2.Children.Add(remixBtn);
-
-        var saveBtn = new Button { Content = "Save", Style = DS.Style("ActionButton"), Height = 26, MinHeight = 26, FontSize = 11, Padding = new Thickness(8, 0, 8, 0), Margin = new Thickness(0, 0, 4, 0) };
-        saveBtn.Click += async (_, _) => { var r = await _client.ToggleBookmarkAsync(item.Id); _statusLine.Text = r.Ok ? (r.Data ? "Bookmarked!" : "Removed bookmark.") : (r.Error ?? "Join first to bookmark."); };
-        row2.Children.Add(saveBtn);
-
-        var cmtBtn = new Button { Content = $"Comments ({item.CommentsCount})", Style = DS.Style("ActionButton"), Height = 26, MinHeight = 26, FontSize = 11, Padding = new Thickness(8, 0, 8, 0), Margin = new Thickness(0, 0, 4, 0) };
-        cmtBtn.Click += async (_, _) => await ShowCommentsDialogAsync(item);
-        row2.Children.Add(cmtBtn);
-
-        var reportBtn = new Button { Content = "Report", Style = DS.Style("ActionButton"), Height = 26, MinHeight = 26, FontSize = 11, Padding = new Thickness(8, 0, 8, 0) };
-        reportBtn.Click += async (_, _) => { var r = await _client.ReportAsync("item", item.Id, "Inappropriate or broken"); _statusLine.Text = r.Ok ? "Report sent to moderation." : (r.Error ?? "Join first to report."); };
-        row2.Children.Add(reportBtn);
-        stack.Children.Add(row2);
-
-        return new Border
-        {
-            Width = 340,
-            Background = new SolidColorBrush(Color.FromArgb(145, 13, 21, 42)),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(75, 110, 160, 235)),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(14),
-            Padding = new Thickness(14),
-            Margin = new Thickness(0, 0, 12, 12),
-            Child = stack
-        };
+        return CommunityUI.CardSurface(stack, new Thickness(14)).Also(b => b.Margin = new Thickness(0, 0, 0, 12));
     }
 
     private async Task ShowCreatorCardAsync(CreatorProfile creatorSummary)
@@ -790,8 +904,11 @@ public sealed class CommunityBrowserWorkbench
             _ = RefreshAsync();
         };
 
-        var wrap = new Grid { Background = new SolidColorBrush(Color.FromArgb(180, 3, 6, 16)) };
-        var closeOverlayBtn = new Button { Content = "Close Card", Style = DS.Style("ActionButton"), Height = 32, Margin = new Thickness(0, 10, 0, 0), HorizontalAlignment = HorizontalAlignment.Center };
+        var wrap = new Grid { Background = new SolidColorBrush(Color.FromArgb(190, 3, 6, 16)) };
+        wrap.MouseLeftButtonDown += (_, e) => { if (e.OriginalSource == wrap) CloseModal(); };
+        var closeOverlayBtn = CommunityUI.RectButton("Close", RectBtnKind.Secondary, 30, 12);
+        closeOverlayBtn.Margin = new Thickness(0, 10, 0, 0);
+        closeOverlayBtn.HorizontalAlignment = HorizontalAlignment.Center;
         closeOverlayBtn.Click += (_, _) => CloseModal();
         wrap.Children.Add(new StackPanel
         {
@@ -802,167 +919,166 @@ public sealed class CommunityBrowserWorkbench
         ShowModal(wrap);
     }
 
-    private async Task ShowCommentsDialogAsync(CommunityItem item)
+    private async Task RenderSavedAndMineAsync()
     {
-        var listStack = new StackPanel();
-        var res = await _client.GetCommentsAsync(item.Id);
-        if (res.Ok && res.Data != null && res.Data.Count > 0)
+        var stack = new StackPanel();
+        var savedRes = await _client.GetCatalogAsync(new CatalogQuery { BookmarkedBy = _client.Identity.Uid, Sort = "new" });
+        var mineRes = await _client.GetCatalogAsync(new CatalogQuery { Uid = _client.Identity.Uid, Status = "mine", Sort = "new" });
+
+        stack.Children.Add(Kit.Text("Saved Bookmarks", 16, "DS.Text", FontWeights.Bold).Also(t => t.Margin = new Thickness(0, 0, 0, 10)));
+        if (savedRes.Ok && savedRes.Data != null && savedRes.Data.Items.Count > 0)
         {
-            foreach (var c in res.Data)
+            var grid = new UniformGrid { Columns = 2, Margin = new Thickness(-5, 0, -5, 16) };
+            foreach (var s in savedRes.Data.Items) grid.Children.Add(BuildWorkshopCard(s).Also(b => b.Margin = new Thickness(5)));
+            stack.Children.Add(grid);
+        }
+        else
+        {
+            stack.Children.Add(CommunityUI.CardSurface(Kit.Text("No bookmarked setups yet. Open any Workshop card and click Bookmark.", 12.5, "DS.TextMuted"), new Thickness(16)).Also(b => b.Margin = new Thickness(0, 0, 0, 16)));
+        }
+
+        stack.Children.Add(Kit.Text("My Published & Pending Uploads", 16, "DS.Text", FontWeights.Bold).Also(t => t.Margin = new Thickness(0, 0, 0, 10)));
+        if (mineRes.Ok && mineRes.Data != null && mineRes.Data.Items.Count > 0)
+        {
+            foreach (var myItem in mineRes.Data.Items)
             {
-                var line = new StackPanel();
-                var h = new StackPanel { Orientation = Orientation.Horizontal };
-                h.Children.Add(Kit.Text(c.Creator?.Handle ?? c.Uid, 12, "DS.AccentHi", FontWeights.Bold));
-                if (c.Creator?.IsOwner == true) h.Children.Add(BadgeChip.CreateOwnerCheckmark(12));
-                line.Children.Add(h);
-                line.Children.Add(Kit.Text(c.Body, 12.5, "DS.TextSoft").Also(t => t.TextWrapping = TextWrapping.Wrap));
-                listStack.Children.Add(Kit.Panel(null, null, null, line, new Thickness(10)).Also(b => b.Margin = new Thickness(0, 0, 0, 6)));
+                var delBtn = CommunityUI.RectButton("Delete", RectBtnKind.Danger, 28, 11.5);
+                delBtn.Click += async (_, _) => { var dRes = await _client.DeleteItemAsync(myItem.Id); if (dRes.Ok) await RefreshAsync(); };
+                var row = new DockPanel();
+                DockPanel.SetDock(delBtn, Dock.Right);
+                row.Children.Add(delBtn);
+                row.Children.Add(new StackPanel
+                {
+                    Children =
+                    {
+                        Kit.Text($"{myItem.Title}  [{myItem.Status.ToUpperInvariant()} · v{myItem.Version}]", 13.5, "DS.Text", FontWeights.SemiBold),
+                        Kit.Text($"{myItem.Category}  ·  Score {myItem.Score}  ·  {myItem.Installs} installs", 12, "DS.TextMuted")
+                    }
+                });
+                stack.Children.Add(CommunityUI.CardSurface(row, new Thickness(12)).Also(b => b.Margin = new Thickness(0, 0, 0, 8)));
             }
         }
         else
         {
-            listStack.Children.Add(Kit.Text("No comments yet. Be the first to leave feedback.", 12.5, "DS.TextMuted"));
+            stack.Children.Add(CommunityUI.CardSurface(Kit.Text("You have not submitted any community creations from this device yet.", 12.5, "DS.TextMuted"), new Thickness(16)));
         }
 
-        var box = new TextBox { Padding = new Thickness(10, 8, 10, 8), Margin = new Thickness(0, 8, 8, 0) };
-        var send = new Button { Content = "Post", Style = DS.Style("DS.ConsolePrimary"), Height = 34, MinWidth = 80, Margin = new Thickness(0, 8, 0, 0) };
-        var status = Kit.Text("", 11.5, "DS.TextMuted");
-        send.Click += async (_, _) =>
-        {
-            var r = await _client.AddCommentAsync(item.Id, box.Text.Trim());
-            if (r.Ok)
-            {
-                CloseModal();
-                await RefreshAsync();
-            }
-            else status.Text = r.Error ?? "Claim a handle first to comment.";
-        };
-
-        var closeBtn = new Button { Content = "Close", Style = DS.Style("ActionButton"), Height = 30 };
-        closeBtn.Click += (_, _) => CloseModal();
-
-        var root = new StackPanel
-        {
-            Children =
-            {
-                new DockPanel { Children = { closeBtn.Also(b => DockPanel.SetDock(b, Dock.Right)), Kit.Text($"Comments: {item.Title}", 16, "DS.Text", FontWeights.Bold) } }.Also(d => d.Margin = new Thickness(0, 0, 0, 12)),
-                new ScrollViewer { MaxHeight = 320, Content = listStack, VerticalScrollBarVisibility = ScrollBarVisibility.Auto },
-                new DockPanel { Children = { send.Also(b => DockPanel.SetDock(b, Dock.Right)), box } },
-                status.Also(t => t.Margin = new Thickness(0, 6, 0, 0))
-            }
-        };
-        var sheet = new Border
-        {
-            MaxWidth = 560,
-            VerticalAlignment = VerticalAlignment.Center,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            CornerRadius = new CornerRadius(16),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(140, 96, 165, 250)),
-            BorderThickness = new Thickness(1),
-            Background = new SolidColorBrush(Color.FromRgb(10, 16, 30)),
-            Padding = new Thickness(20),
-            Child = root
-        };
-        var overlay = new Grid { Background = new SolidColorBrush(Color.FromArgb(195, 3, 6, 16)), Children = { sheet } };
-        ShowModal(overlay);
+        SetSingleColumnContent(stack);
     }
 
-    private async Task RenderRequestsAndChallengesAsync()
+    private async Task RenderRequestsBoardAsync()
     {
-        _feedStack.Children.Clear();
+        var stack = new StackPanel();
         var reqRes = await _client.GetRequestsAsync();
 
         var createStack = new StackPanel();
-        createStack.Children.Add(Kit.Text("Request a Setup, Curve, or OLED Screen Art", 14, "DS.Text", FontWeights.SemiBold).Also(t => t.Margin = new Thickness(0, 0, 0, 8)));
-        var rTitle = new TextBox { Padding = new Thickness(10, 6, 10, 6), Margin = new Thickness(0, 0, 0, 6) };
-        var rGame = new TextBox { Padding = new Thickness(10, 6, 10, 6), Margin = new Thickness(0, 0, 0, 8) };
-        var rBtn = new Button { Content = "Post Request", Style = DS.Style("DS.ConsolePrimary"), Height = 34, HorizontalAlignment = HorizontalAlignment.Left };
+        createStack.Children.Add(Kit.Text("Request a Setup, Curve, or OLED Screen Art", 14.5, "DS.Text", FontWeights.SemiBold).Also(t => t.Margin = new Thickness(0, 0, 0, 8)));
+        var rTitle = CommunityUI.RectInput("", 32);
+        rTitle.Margin = new Thickness(0, 3, 0, 8);
+        var rGame = CommunityUI.RectInput("", 32);
+        rGame.Margin = new Thickness(0, 3, 0, 10);
+        var rBtn = CommunityUI.RectButton("Post Request", RectBtnKind.Primary, 32, 12);
+        rBtn.HorizontalAlignment = HorizontalAlignment.Left;
         rBtn.Click += async (_, _) =>
         {
-            var res = await _client.CreateRequestAsync(rTitle.Text.Trim(), "Requested from X20CTL Community", "setup", _selectedModelId, _selectedMode, rGame.Text.Trim());
+            var res = await _client.CreateRequestAsync(rTitle.Text.Trim(), "Requested from X20CTL Workshop", "setup", _selectedModelId, _selectedMode, rGame.Text.Trim());
             if (res.Ok) await RefreshAsync();
-            else _statusLine.Text = res.Error ?? "Claim a handle first to post requests.";
+            else _statusLine.Text = res.Error ?? "Sign in first to post requests.";
         };
         createStack.Children.Add(Kit.Text("Request Title", 11.5, "DS.TextSoft"));
         createStack.Children.Add(rTitle);
         createStack.Children.Add(Kit.Text("Target Game (optional)", 11.5, "DS.TextSoft"));
         createStack.Children.Add(rGame);
         createStack.Children.Add(rBtn);
-        _feedStack.Children.Add(Kit.Panel(null, null, null, createStack, new Thickness(14)).Also(b => b.Margin = new Thickness(0, 0, 0, 12)));
+        stack.Children.Add(CommunityUI.CardSurface(createStack, new Thickness(16)).Also(b => b.Margin = new Thickness(0, 0, 0, 14)));
 
-        if (reqRes.Ok && reqRes.Data != null)
+        if (reqRes.Ok && reqRes.Data != null && reqRes.Data.Count > 0)
         {
             foreach (var r in reqRes.Data)
             {
                 var row = new DockPanel();
                 var actions = new StackPanel { Orientation = Orientation.Horizontal };
                 DockPanel.SetDock(actions, Dock.Right);
-                var voteBtn = new Button { Content = $"▲ {r.Upvotes}", Style = DS.Style("ActionButton"), Height = 30, Margin = new Thickness(0, 0, 6, 0) };
+                var voteBtn = CommunityUI.RectButton($"▲ {r.Upvotes}", RectBtnKind.Secondary, 28, 11.5);
+                voteBtn.Margin = new Thickness(0, 0, 6, 0);
                 voteBtn.Click += async (_, _) => { await _client.VoteRequestAsync(r.Id); await RefreshAsync(); };
-                var fulfillBtn = new Button { Content = "Fulfill Request", Style = DS.Style("DS.ConsolePrimary"), Height = 30 };
+                var fulfillBtn = CommunityUI.RectButton("Fulfill Request", RectBtnKind.Primary, 28, 11.5);
                 fulfillBtn.Click += (_, _) => OpenShareDialog(r.Category, r.Title, fulfillRequestId: r.Id);
                 actions.Children.Add(voteBtn);
                 actions.Children.Add(fulfillBtn);
                 row.Children.Add(actions);
-
                 row.Children.Add(new StackPanel
                 {
                     Children =
                     {
                         Kit.Text($"{r.Title}  [{r.Status.ToUpperInvariant()}]", 14, "DS.Text", FontWeights.SemiBold),
-                        Kit.Text($"{r.ModelId} / {r.ConnectionMode} | By {r.Creator?.Handle ?? r.Uid} | {r.GameTag}", 12, "DS.TextMuted")
+                        Kit.Text($"{r.ModelId} / {r.ConnectionMode}  ·  By {r.Creator?.Handle ?? r.Uid}  ·  {r.GameTag}", 12, "DS.TextMuted")
                     }
                 });
-                _feedStack.Children.Add(Kit.Panel(null, null, null, row, new Thickness(12)).Also(b => b.Margin = new Thickness(0, 0, 0, 8)));
+                stack.Children.Add(CommunityUI.CardSurface(row, new Thickness(12)).Also(b => b.Margin = new Thickness(0, 0, 0, 8)));
             }
         }
+        else
+        {
+            stack.Children.Add(CommunityUI.CardSurface(Kit.Text("No open setup requests yet. Ask the community for a game profile above.", 12.5, "DS.TextMuted"), new Thickness(16)));
+        }
+
+        SetSingleColumnContent(stack);
     }
 
-    private async Task RenderLoungeAsync()
+    private async Task RenderLoungeBoardAsync()
     {
-        _feedStack.Children.Clear();
+        var stack = new StackPanel();
         var lRes = await _client.GetLoungeAsync();
         if (!lRes.Ok)
         {
-            _feedStack.Children.Add(Kit.Info(lRes.Error ?? "Lounge unavailable right now."));
+            stack.Children.Add(CommunityUI.CardSurface(Kit.Text(lRes.Error ?? "Lounge unavailable right now.", 12.5, "DS.TextSoft"), new Thickness(16)));
+            SetSingleColumnContent(stack);
             return;
         }
         var (msgs, slowSec, paused) = lRes.Data;
-        _feedStack.Children.Add(Kit.Text($"Community Lounge | Slow-mode: {slowSec}s | {(paused ? "PAUSED by Owner" : "Open")}", 13, "DS.AccentHi", FontWeights.SemiBold).Also(t => t.Margin = new Thickness(0, 0, 0, 10)));
+        stack.Children.Add(Kit.Text($"Community Lounge  ·  Slow-mode: {slowSec}s  ·  {(paused ? "Paused by Owner" : "Open")}", 13, "DS.AccentHi", FontWeights.SemiBold).Also(t => t.Margin = new Thickness(0, 0, 0, 10)));
 
         var composer = new DockPanel { Margin = new Thickness(0, 0, 0, 12) };
-        var sendBtn = new Button { Content = "Send", Style = DS.Style("DS.ConsolePrimary"), Height = 36, MinWidth = 90 };
+        var sendBtn = CommunityUI.RectButton("Send", RectBtnKind.Primary, 34, 12.5);
         DockPanel.SetDock(sendBtn, Dock.Right);
-        var box = new TextBox { Padding = new Thickness(10, 8, 10, 8), Margin = new Thickness(0, 0, 8, 0) };
+        var box = CommunityUI.RectInput("", 34);
+        box.Margin = new Thickness(0, 0, 8, 0);
         sendBtn.Click += async (_, _) =>
         {
             var r = await _client.PostLoungeAsync(box.Text.Trim());
             if (r.Ok) await RefreshAsync();
-            else _statusLine.Text = r.Error ?? "Message could not be posted.";
+            else _statusLine.Text = r.Error ?? "Sign in first to chat.";
         };
         composer.Children.Add(sendBtn);
         composer.Children.Add(box);
-        _feedStack.Children.Add(composer);
+        stack.Children.Add(composer);
 
-        foreach (var m in msgs.AsEnumerable().Reverse())
+        if (msgs.Count == 0)
         {
-            var mRow = new StackPanel();
-            var top = new StackPanel { Orientation = Orientation.Horizontal };
-            top.Children.Add(Kit.Text(m.Creator?.Handle ?? m.Uid, 12.5, "DS.AccentHi", FontWeights.Bold));
-            if (m.Creator?.IsOwner == true) top.Children.Add(BadgeChip.CreateOwnerCheckmark(13));
-            mRow.Children.Add(top);
-            mRow.Children.Add(Kit.Text(m.Body, 13, "DS.Text").Also(t => t.TextWrapping = TextWrapping.Wrap));
-            _feedStack.Children.Add(Kit.Panel(null, null, null, mRow, new Thickness(10)).Also(b => b.Margin = new Thickness(0, 0, 0, 6)));
+            stack.Children.Add(CommunityUI.CardSurface(Kit.Text("No messages in the lounge yet. Say hello!", 12.5, "DS.TextMuted"), new Thickness(16)));
         }
+        else
+        {
+            foreach (var m in msgs.AsEnumerable().Reverse())
+            {
+                var mRow = new StackPanel();
+                var top = new StackPanel { Orientation = Orientation.Horizontal };
+                top.Children.Add(Kit.Text(m.Creator?.Handle ?? m.Uid, 12.5, "DS.AccentHi", FontWeights.Bold));
+                if (m.Creator?.IsOwner == true) top.Children.Add(BadgeChip.CreateOwnerCheckmark(13));
+                mRow.Children.Add(top);
+                mRow.Children.Add(Kit.Text(m.Body, 13, "DS.Text").Also(t => t.TextWrapping = TextWrapping.Wrap));
+                stack.Children.Add(CommunityUI.CardSurface(mRow, new Thickness(10)).Also(b => b.Margin = new Thickness(0, 0, 0, 6)));
+            }
+        }
+        SetSingleColumnContent(stack);
     }
 
-    private async Task RenderLeaderboardWatchingSavedAsync()
+    private async Task RenderLeaderboardAndWatchingAsync()
     {
-        _feedStack.Children.Clear();
+        var stack = new StackPanel();
         var lbRes = await _client.GetLeaderboardAsync("karma");
         var watchRes = await _client.GetWatchListsAsync();
-        var savedRes = await _client.GetCatalogAsync(new CatalogQuery { BookmarkedBy = _client.Identity.Uid, Sort = "new" });
-        var mineRes = await _client.GetCatalogAsync(new CatalogQuery { Uid = _client.Identity.Uid, Status = "mine", Sort = "new" });
 
         if (watchRes.Ok)
         {
@@ -971,71 +1087,51 @@ public sealed class CommunityBrowserWorkbench
             var chips = new WrapPanel();
             foreach (var maker in watchRes.Data.Watching)
             {
-                var btn = new Button { Content = $"Watching: {maker.Handle} (Karma {maker.Karma})", Style = DS.Style("ActionButton"), Height = 30, Margin = new Thickness(0, 0, 6, 6) };
+                var btn = CommunityUI.RectButton($"{maker.Handle} ({maker.Karma} karma)", RectBtnKind.Secondary, 28, 11.5);
+                btn.Margin = new Thickness(0, 0, 6, 6);
                 btn.Click += (_, _) => { _filterUid = maker.Uid; _subTab = "explore"; _ = RefreshAsync(); };
                 chips.Children.Add(btn);
             }
             if (chips.Children.Count == 0)
-                wPanel.Children.Add(Kit.Text("Not Watching any Makers yet. Click any creator handle to Watch their drops.", 12.5, "DS.TextMuted"));
+                wPanel.Children.Add(Kit.Text("Not Watching any Makers yet. Click any creator handle to Watch their setups.", 12.5, "DS.TextMuted"));
             else
                 wPanel.Children.Add(chips);
-            _feedStack.Children.Add(Kit.Panel(null, null, null, wPanel, new Thickness(14)).Also(b => b.Margin = new Thickness(0, 0, 0, 12)));
+            stack.Children.Add(CommunityUI.CardSurface(wPanel, new Thickness(14)).Also(b => b.Margin = new Thickness(0, 0, 0, 14)));
         }
 
-        if (savedRes.Ok && savedRes.Data != null && savedRes.Data.Items.Count > 0)
+        stack.Children.Add(Kit.Text("Top Community Makers", 16, "DS.Text", FontWeights.Bold).Also(t => t.Margin = new Thickness(0, 0, 0, 10)));
+        if (lbRes.Ok && lbRes.Data.Makers.Count > 0)
         {
-            _feedStack.Children.Add(Kit.Text("Saved Bookmarks", 16, "DS.Text", FontWeights.Bold).Also(t => t.Margin = new Thickness(0, 4, 0, 8)));
-            var wrap = new WrapPanel();
-            foreach (var sItem in savedRes.Data.Items) wrap.Children.Add(BuildItemCard(sItem));
-            _feedStack.Children.Add(wrap);
-        }
-
-        if (mineRes.Ok && mineRes.Data != null && mineRes.Data.Items.Count > 0)
-        {
-            _feedStack.Children.Add(Kit.Text("My Community Uploads", 16, "DS.Text", FontWeights.Bold).Also(t => t.Margin = new Thickness(0, 8, 0, 8)));
-            foreach (var myItem in mineRes.Data.Items)
-            {
-                var delBtn = new Button { Content = "Delete", Style = DS.Style("ActionButton"), Height = 30 };
-                delBtn.Click += async (_, _) =>
-                {
-                    var dRes = await _client.DeleteItemAsync(myItem.Id);
-                    if (dRes.Ok) await RefreshAsync();
-                };
-                var row = new DockPanel();
-                DockPanel.SetDock(delBtn, Dock.Right);
-                row.Children.Add(delBtn);
-                row.Children.Add(new StackPanel
-                {
-                    Children =
-                    {
-                        Kit.Text($"{myItem.Title}  [{myItem.Status.ToUpperInvariant()} | v{myItem.Version}]", 13.5, "DS.Text", FontWeights.SemiBold),
-                        Kit.Text($"Category: {myItem.Category} | Score {myItem.Score} | Installs {myItem.Installs}", 12, "DS.TextMuted")
-                    }
-                });
-                _feedStack.Children.Add(Kit.Panel(null, null, null, row, new Thickness(11)).Also(b => b.Margin = new Thickness(0, 0, 0, 6)));
-            }
-        }
-
-        if (lbRes.Ok)
-        {
-            _feedStack.Children.Add(Kit.Text("Top Community Makers", 16, "DS.Text", FontWeights.Bold).Also(t => t.Margin = new Thickness(0, 4, 0, 8)));
             int rank = 1;
             foreach (var maker in lbRes.Data.Makers)
             {
-                var line = new StackPanel { Orientation = Orientation.Horizontal };
+                var row = new DockPanel();
+                var viewBtn = CommunityUI.RectButton("View Profile", RectBtnKind.Secondary, 28, 11.5);
+                viewBtn.Click += async (_, _) => await ShowCreatorCardAsync(maker);
+                DockPanel.SetDock(viewBtn, Dock.Right);
+                row.Children.Add(viewBtn);
+
+                var line = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
                 line.Children.Add(Kit.Text($"#{rank++}  {maker.Handle}", 14, "DS.Text", FontWeights.SemiBold));
                 if (maker.IsOwner) line.Children.Add(BadgeChip.CreateOwnerCheckmark(14));
-                line.Children.Add(Kit.Text($"   |   Karma {maker.Karma}   |   Watchers {maker.WatchersCount}   |   Installs {maker.InstallsReceived}", 12.5, "DS.TextSoft"));
-                _feedStack.Children.Add(Kit.Panel(null, null, null, line, new Thickness(11)).Also(b => b.Margin = new Thickness(0, 0, 0, 6)));
+                line.Children.Add(Kit.Text($"   ·   Karma {maker.Karma}   ·   Watchers {maker.WatchersCount}   ·   Installs {maker.InstallsReceived}", 12.5, "DS.TextSoft"));
+                row.Children.Add(line);
+                stack.Children.Add(CommunityUI.CardSurface(row, new Thickness(12)).Also(b => b.Margin = new Thickness(0, 0, 0, 6)));
             }
         }
+        else
+        {
+            stack.Children.Add(CommunityUI.CardSurface(Kit.Text("No registered makers yet.", 12.5, "DS.TextMuted"), new Thickness(16)));
+        }
+
+        SetSingleColumnContent(stack);
     }
 
     private void OpenProfileDialog()
     {
         var dlg = new CreatorProfileDialog(_client, _myProfile, _badgeMap, _ogWindowOpen);
         dlg.CloseRequested += CloseModal;
-        dlg.ProfileUpdated += p => { _myProfile = p; UpdateProfileChip(); _ = RefreshAsync(); };
+        dlg.ProfileUpdated += p => { _myProfile = p; UpdateProfileButton(); _ = RefreshAsync(); };
         ShowModal(dlg);
     }
 
@@ -1050,19 +1146,5 @@ public sealed class CommunityBrowserWorkbench
     {
         _modalHost.Visibility = Visibility.Collapsed;
         _modalHost.Children.Clear();
-    }
-
-    private static Border MakeTagPill(string text)
-    {
-        return new Border
-        {
-            Background = new SolidColorBrush(Color.FromArgb(80, 30, 50, 90)),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(100, 96, 165, 250)),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(99),
-            Padding = new Thickness(8, 2, 8, 2),
-            Margin = new Thickness(0, 0, 6, 0),
-            Child = Kit.Text(text, 10.5, "DS.Text", FontWeights.SemiBold)
-        };
     }
 }

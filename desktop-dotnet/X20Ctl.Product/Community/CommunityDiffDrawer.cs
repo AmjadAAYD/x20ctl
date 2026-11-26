@@ -25,23 +25,24 @@ public sealed class CommunityDiffDrawer : Grid
     {
         _item = item;
         Background = new SolidColorBrush(Color.FromArgb(205, 3, 6, 16));
+        MouseLeftButtonDown += (_, e) => { if (e.OriginalSource == this) { StopSandboxTimer(); CloseRequested?.Invoke(); } };
 
         var card = new Border
         {
-            MaxWidth = 760,
+            MaxWidth = 740,
             MaxHeight = 640,
             VerticalAlignment = VerticalAlignment.Center,
             HorizontalAlignment = HorizontalAlignment.Center,
-            CornerRadius = new CornerRadius(18),
+            CornerRadius = new CornerRadius(10),
             BorderThickness = new Thickness(1),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(150, 96, 165, 250)),
-            Background = new SolidColorBrush(Color.FromRgb(10, 16, 30)),
-            Padding = new Thickness(24)
+            BorderBrush = new SolidColorBrush(CommunityUI.BorderSubtle),
+            Background = new SolidColorBrush(CommunityUI.BgCard),
+            Padding = new Thickness(22)
         };
 
         var root = new StackPanel();
         var header = new DockPanel { Margin = new Thickness(0, 0, 0, 14) };
-        var closeBtn = new Button { Content = "Close", Style = DS.Style("ActionButton"), Height = 32, MinHeight = 32, Padding = new Thickness(12, 0, 12, 0) };
+        var closeBtn = CommunityUI.RectButton("Close", RectBtnKind.Secondary, 30, 11.5);
         closeBtn.Click += (_, _) =>
         {
             StopSandboxTimer();
@@ -49,24 +50,24 @@ public sealed class CommunityDiffDrawer : Grid
         };
         DockPanel.SetDock(closeBtn, Dock.Right);
         header.Children.Add(closeBtn);
-        header.Children.Add(Kit.Text($"Compare With Mine: {item.Title}", 18, "DS.Text", FontWeights.Bold));
+        header.Children.Add(Kit.Text($"Compare & Cherry-Pick: {item.Title}", 17, "DS.Text", FontWeights.Bold));
         root.Children.Add(header);
 
         var cols = new Grid { Margin = new Thickness(0, 0, 0, 14) };
         cols.ColumnDefinitions.Add(new() { Width = new GridLength(1, GridUnitType.Star) });
-        cols.ColumnDefinitions.Add(new() { Width = new GridLength(14) });
+        cols.ColumnDefinitions.Add(new() { Width = new GridLength(12) });
         cols.ColumnDefinitions.Add(new() { Width = new GridLength(1, GridUnitType.Star) });
 
         var mineBox = MakeSummaryBox("YOUR CURRENT DRAFT", currentSummary);
         cols.Children.Add(mineBox);
 
-        var theirsBox = MakeSummaryBox($"COMMUNITY DROP ({item.ModelId} / {item.ConnectionMode})", FormatItemDetails(item));
+        var theirsBox = MakeSummaryBox($"WORKSHOP DROP ({item.ModelId} / {item.ConnectionMode})", FormatItemDetails(item));
         Grid.SetColumn(theirsBox, 2);
         cols.Children.Add(theirsBox);
         root.Children.Add(cols);
 
-        root.Children.Add(Kit.Text("Cherry-Pick Sections to Apply", 13.5, "DS.Text", FontWeights.SemiBold).Also(t => t.Margin = new Thickness(0, 0, 0, 8)));
-        var checksWrap = new WrapPanel { Margin = new Thickness(0, 0, 0, 14) };
+        root.Children.Add(Kit.Text("Sections to Apply", 13, "DS.Text", FontWeights.SemiBold).Also(t => t.Margin = new Thickness(0, 0, 0, 8)));
+        var checksWrap = new WrapPanel { Margin = new Thickness(0, 0, 0, 12) };
         foreach (var sec in DetectSections(item))
         {
             var cb = new CheckBox
@@ -81,19 +82,13 @@ public sealed class CommunityDiffDrawer : Grid
         }
         root.Children.Add(checksWrap);
 
-        var statusLine = Kit.Text("Preview safely or install selected sections directly into your local draft.", 12.5, "DS.TextSoft");
+        var statusLine = Kit.Text("Preview in a 5-second live sandbox or install selected sections into your local draft.", 12, "DS.TextSoft");
         statusLine.Margin = new Thickness(0, 0, 0, 12);
         root.Children.Add(statusLine);
 
         var actions = new StackPanel { Orientation = Orientation.Horizontal };
-        var installBtn = new Button
-        {
-            Content = "Install Selected",
-            Style = DS.Style("DS.ConsolePrimary"),
-            Height = 38,
-            Padding = new Thickness(16, 0, 16, 0),
-            Margin = new Thickness(0, 0, 10, 0)
-        };
+        var installBtn = CommunityUI.RectButton("Install Selected", RectBtnKind.Primary, 34, 12.5);
+        installBtn.Margin = new Thickness(0, 0, 8, 0);
         installBtn.Click += (_, _) =>
         {
             var picked = SelectedSections();
@@ -102,13 +97,7 @@ public sealed class CommunityDiffDrawer : Grid
             CloseRequested?.Invoke();
         };
 
-        var testBtn = new Button
-        {
-            Content = "Test Live (5s Sandbox)",
-            Style = DS.Style("ActionButton"),
-            Height = 38,
-            Padding = new Thickness(14, 0, 14, 0)
-        };
+        var testBtn = CommunityUI.RectButton("Test Live (5s Sandbox)", RectBtnKind.Secondary, 34, 12.5);
         testBtn.Click += (_, _) =>
         {
             var picked = SelectedSections();
@@ -155,25 +144,22 @@ public sealed class CommunityDiffDrawer : Grid
     private List<string> SelectedSections() =>
         _sectionChecks.Where(kv => kv.Value.IsChecked == true).Select(kv => kv.Key).ToList();
 
-    private static Border MakeSummaryBox(string heading, string body)
+    private static Border MakeSummaryBox(string heading, string body) => new()
     {
-        return new Border
+        Background = new SolidColorBrush(CommunityUI.BgInput),
+        BorderBrush = new SolidColorBrush(CommunityUI.BorderSubtle),
+        BorderThickness = new Thickness(1),
+        CornerRadius = new CornerRadius(8),
+        Padding = new Thickness(12),
+        Child = new StackPanel
         {
-            Background = new SolidColorBrush(Color.FromArgb(110, 16, 26, 48)),
-            BorderBrush = DS.Brush("DS.Hairline"),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(12),
-            Padding = new Thickness(14),
-            Child = new StackPanel
+            Children =
             {
-                Children =
-                {
-                    Kit.Text(heading, 11.5, "DS.AccentHi", FontWeights.Bold).Also(t => t.Margin = new Thickness(0, 0, 0, 8)),
-                    Kit.Text(body, 12.5, "DS.TextSoft").Also(t => t.TextWrapping = TextWrapping.Wrap)
-                }
+                Kit.Text(heading, 10.5, "DS.AccentHi", FontWeights.Bold).Also(t => t.Margin = new Thickness(0, 0, 0, 6)),
+                Kit.Text(body, 12, "DS.TextSoft").Also(t => t.TextWrapping = TextWrapping.Wrap)
             }
-        };
-    }
+        }
+    };
 
     private static IReadOnlyList<string> DetectSections(CommunityItem item)
     {

@@ -2,7 +2,6 @@ using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
-using System.Windows.Media.Effects;
 using System.Windows.Shapes;
 using X20Ctl.Zone.Community;
 
@@ -26,27 +25,19 @@ public static class BadgeChip
             Height = size,
             Stretch = Stretch.Uniform
         };
-        var badge = new Border
+        return new Border
         {
             Width = size,
             Height = size,
-            CornerRadius = new CornerRadius(size / 2),
+            CornerRadius = new CornerRadius(4),
             Background = new SolidColorBrush(OwnerOrange),
             BorderBrush = new SolidColorBrush(Color.FromRgb(0xFF, 0xB3, 0x6B)),
             BorderThickness = new Thickness(1),
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(5, 0, 0, 0),
             ToolTip = "AmjadXCTL - Verified X20CTL Creator & Owner",
-            Effect = new DropShadowEffect
-            {
-                Color = OwnerOrange,
-                BlurRadius = 10,
-                ShadowDepth = 0,
-                Opacity = 0.75
-            },
             Child = check
         };
-        return badge;
     }
 
     public static Border Create(BadgeDef def, bool compact = false)
@@ -56,15 +47,17 @@ public static class BadgeChip
         var text = ParseColor(def.TextHex, Color.FromRgb(0xDB, 0xEA, 0xFE));
 
         var row = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        var dot = new Ellipse
+        var marker = new Rectangle
         {
-            Width = compact ? 6 : 7,
-            Height = compact ? 6 : 7,
+            Width = compact ? 3 : 4,
+            Height = compact ? 10 : 12,
+            RadiusX = 1,
+            RadiusY = 1,
             Fill = new SolidColorBrush(border),
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(0, 0, 5, 0)
         };
-        row.Children.Add(dot);
+        row.Children.Add(marker);
         row.Children.Add(new TextBlock
         {
             Text = def.Name,
@@ -76,11 +69,11 @@ public static class BadgeChip
 
         return new Border
         {
-            CornerRadius = new CornerRadius(99),
+            CornerRadius = new CornerRadius(4),
             Background = new SolidColorBrush(bg),
             BorderBrush = new SolidColorBrush(border),
             BorderThickness = new Thickness(1),
-            Padding = compact ? new Thickness(7, 2, 7, 2) : new Thickness(9, 3, 9, 3),
+            Padding = compact ? new Thickness(6, 2, 7, 2) : new Thickness(8, 3, 9, 3),
             Margin = new Thickness(0, 0, 5, 4),
             ToolTip = $"{def.Name} ({def.Rarity})\n{def.Description}",
             Child = row
