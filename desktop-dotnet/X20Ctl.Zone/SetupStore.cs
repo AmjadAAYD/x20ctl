@@ -7,6 +7,8 @@ public sealed class SavedSetup
 {
     public string Id {get;set;}=Guid.NewGuid().ToString("N");public string Name {get;set;}="New setup";public string ModelId {get;set;}="x20";public DateTimeOffset Created {get;set;}=DateTimeOffset.UtcNow;
     public JsonElement? Snapshot {get;set;}public JsonElement? LegacyPayload {get;set;}public string? SourceIdentity {get;set;}public string? SourceHash {get;set;}public string? SourcePath {get;set;}
+    public string? Description {get;set;}public List<string>? Tags {get;set;}public string? AuthorHandle {get;set;}public string? AuthorUid {get;set;}
+    public string? CommunityItemId {get;set;}public int? CommunityVersion {get;set;}public string? RemixSourceId {get;set;}public DateTimeOffset? UpdatedAt {get;set;}
     [JsonExtensionData]public Dictionary<string,JsonElement>? Extra {get;set;}
 }
 public sealed class SetupStore
@@ -21,6 +23,8 @@ public sealed class SetupStore
     {snapshot.Validate();var saved=new SavedSetup{Name=Name(name),ModelId=snapshot.ModelId,Snapshot=JsonSerializer.SerializeToElement(snapshot,JsonOptions)};Mutate(list=>list.Add(saved));return saved;}
     public SavedSetup Duplicate(string id){var original=Find(id);var copy=JsonSerializer.Deserialize<SavedSetup>(JsonSerializer.Serialize(original,JsonOptions),JsonOptions)!;copy.Id=Guid.NewGuid().ToString("N");copy.Name=Name(original.Name+" copy");copy.SourceIdentity=null;copy.Created=DateTimeOffset.UtcNow;Mutate(list=>list.Add(copy));return copy;}
     public void Rename(string id,string name){string value=Name(name);Mutate(list=>list.Single(s=>s.Id==id).Name=value);}
+    public void UpdateCommunityMetadata(string id,string? description,List<string>? tags,string? authorHandle,string? authorUid,string? communityItemId,int? communityVersion,string? remixSourceId)
+        =>Mutate(list=>{var s=list.Single(x=>x.Id==id);s.Description=description;s.Tags=tags;s.AuthorHandle=authorHandle;s.AuthorUid=authorUid;s.CommunityItemId=communityItemId;s.CommunityVersion=communityVersion;s.RemixSourceId=remixSourceId;s.UpdatedAt=DateTimeOffset.UtcNow;});
     public void Delete(string id){Find(id);Mutate(list=>list.RemoveAll(s=>s.Id==id));}
     public SavedSetup Find(string id)=>library.Setups.Single(s=>s.Id==id);
     public SetupSnapshot NativeSnapshot(string id){var item=Find(id);if(!item.Snapshot.HasValue)throw new InvalidOperationException("Legacy payload is preserved, but its semantic migration has not been verified.");var snapshot=item.Snapshot.Value.Deserialize<SetupSnapshot>(JsonOptions)!;snapshot.Validate();return snapshot;}
