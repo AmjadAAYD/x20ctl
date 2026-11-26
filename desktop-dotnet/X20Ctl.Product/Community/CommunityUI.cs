@@ -1,8 +1,11 @@
 using System;
+using System.Globalization;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Shapes;
 using X20Ctl.Zone.PcMode;
 
@@ -189,13 +192,45 @@ public static class CommunityUI
         Template = BuildRectTextBoxTemplate(6)
     };
 
-    public static Border BuildPreviewThumb(string category, string? shareCode = null)
+    public static void AnimateModalIn(FrameworkElement element)
     {
-        var canvas = new Canvas { Width = 76, Height = 56, ClipToBounds = true };
+        if (ReviewSandbox.Active)
+        {
+            element.Opacity = 1;
+            return;
+        }
+        element.RenderTransformOrigin = new Point(0.5, 0.5);
+        var scale = new ScaleTransform(0.97, 0.97);
+        element.RenderTransform = scale;
+        element.Opacity = 0;
+
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        var dur = TimeSpan.FromMilliseconds(130);
+        element.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, dur) { EasingFunction = ease });
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(0.97, 1.0, dur) { EasingFunction = ease });
+        scale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(0.97, 1.0, dur) { EasingFunction = ease });
+    }
+
+    private static Color TryParseHexColor(string? hex, Color fallback)
+    {
+        if (string.IsNullOrWhiteSpace(hex)) return fallback;
+        string s = hex.Trim().TrimStart('#');
+        if (s.Length == 6 && uint.TryParse(s, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out uint rgb))
+            return Color.FromRgb((byte)((rgb >> 16) & 0xFF), (byte)((rgb >> 8) & 0xFF), (byte)(rgb & 0xFF));
+        return fallback;
+    }
+
+    public static Border BuildPreviewThumb(string category, string? shareCode = null, JsonElement? payload = null, double width = 88, double height = 64)
+    {
+        double cw = Math.Max(40, width - 2);
+        double ch = Math.Max(30, height - 2);
+        double sx = cw / 76.0;
+        double sy = ch / 56.0;
+        var canvas = new Canvas { Width = cw, Height = ch, ClipToBounds = true };
         var box = new Border
         {
-            Width = 78,
-            Height = 58,
+            Width = width,
+            Height = height,
             CornerRadius = new CornerRadius(6),
             Background = new SolidColorBrush(BgInput),
             BorderBrush = new SolidColorBrush(BorderSubtle),
@@ -203,13 +238,12 @@ public static class CommunityUI
             Child = canvas
         };
 
-        // Subtle instrument grid lines
         for (int g = 1; g < 4; g++)
         {
-            double x = 76.0 * g / 4.0;
-            double y = 56.0 * g / 4.0;
-            canvas.Children.Add(new Line { X1 = x, X2 = x, Y1 = 0, Y2 = 56, Stroke = new SolidColorBrush(Color.FromArgb(30, 148, 163, 184)), StrokeThickness = 1 });
-            canvas.Children.Add(new Line { X1 = 0, X2 = 76, Y1 = y, Y2 = y, Stroke = new SolidColorBrush(Color.FromArgb(30, 148, 163, 184)), StrokeThickness = 1 });
+            double x = cw * g / 4.0;
+            double y = ch * g / 4.0;
+            canvas.Children.Add(new Line { X1 = x, X2 = x, Y1 = 0, Y2 = ch, Stroke = new SolidColorBrush(Color.FromArgb(30, 148, 163, 184)), StrokeThickness = 1 });
+            canvas.Children.Add(new Line { X1 = 0, X2 = cw, Y1 = y, Y2 = y, Stroke = new SolidColorBrush(Color.FromArgb(30, 148, 163, 184)), StrokeThickness = 1 });
         }
 
         if (category == "curve")
@@ -221,52 +255,117 @@ public static class CommunityUI
                 {
                     double t = i / 16.0;
                     double yNorm = PadProcessor.Response(sc, decoded.Tuning, t);
-                    pts.Add(new Point(4 + t * 68, 52 - yNorm * 46));
+                    pts.Add(new Point(4 * sx + t * (cw - 8 * sx), (ch - 4 * sy) - yNorm * (ch - 10 * sy)));
                 }
             }
             else
             {
-                pts = [new(4, 52), new(28, 36), new(52, 16), new(72, 6)];
+                pts = [new(4 * sx, ch - 4 * sy), new(28 * sx, 36 * sy), new(52 * sx, 16 * sy), new(cw - 4 * sx, 6 * sy)];
             }
-            canvas.Children.Add(new Line { X1 = 4, Y1 = 52, X2 = 72, Y2 = 6, Stroke = new SolidColorBrush(Color.FromArgb(55, 148, 163, 184)), StrokeDashArray = [2, 2], StrokeThickness = 1 });
+            canvas.Children.Add(new Line { X1 = 4 * sx, Y1 = ch - 4 * sy, X2 = cw - 4 * sx, Y2 = 6 * sy, Stroke = new SolidColorBrush(Color.FromArgb(55, 148, 163, 184)), StrokeDashArray = [2, 2], StrokeThickness = 1 });
             canvas.Children.Add(new Polyline { Stroke = new SolidColorBrush(Color.FromRgb(56, 189, 248)), StrokeThickness = 2.2, Points = pts });
         }
         else if (category == "rgb")
         {
-            canvas.Children.Add(new Rectangle
+            Color primary = Color.FromRgb(56, 189, 248);
+            string hexLabel = "RGB";
+            if (payload is { ValueKind: JsonValueKind.Object } obj && obj.TryGetProperty("rgb", out var rgbProp) && rgbProp.ValueKind == JsonValueKind.String)
             {
-                Width = 60, Height = 10, RadiusX = 3, RadiusY = 3,
-                Fill = new LinearGradientBrush(Color.FromRgb(56, 189, 248), Color.FromRgb(255, 122, 24), 0)
-            }.Also(r => { Canvas.SetLeft(r, 8); Canvas.SetTop(r, 23); }));
+                hexLabel = rgbProp.GetString() ?? "RGB";
+                primary = TryParseHexColor(hexLabel, primary);
+            }
+            var accent = Color.FromRgb((byte)Math.Min(255, primary.R + 40), (byte)Math.Min(255, primary.G + 35), (byte)Math.Min(255, primary.B + 45));
+            for (int strip = 0; strip < 2; strip++)
+            {
+                canvas.Children.Add(new Rectangle
+                {
+                    Width = cw - 16 * sx,
+                    Height = 8 * sy,
+                    RadiusX = 3,
+                    RadiusY = 3,
+                    Fill = new LinearGradientBrush(primary, accent, 0)
+                }.Also(r => { Canvas.SetLeft(r, 8 * sx); Canvas.SetTop(r, (14 + strip * 14) * sy); }));
+            }
+            var lbl = new TextBlock { Text = hexLabel, FontSize = 9.5, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush(Color.FromRgb(203, 213, 225)) };
+            Canvas.SetLeft(lbl, 8 * sx);
+            Canvas.SetTop(lbl, 40 * sy);
+            canvas.Children.Add(lbl);
         }
         else if (category == "vibration")
         {
-            var wave = new PointCollection { new(6, 28), new(16, 14), new(26, 42), new(36, 10), new(46, 46), new(56, 18), new(70, 28) };
+            int strength = 70;
+            if (payload is { ValueKind: JsonValueKind.Object } obj && obj.TryGetProperty("strength", out var stProp) && stProp.ValueKind == JsonValueKind.Number)
+                strength = Math.Clamp(stProp.GetInt32(), 5, 200);
+            double amp = Math.Clamp(strength / 100.0, 0.25, 1.3);
+            double mid = ch * 0.44;
+            var wave = new PointCollection
+            {
+                new(6 * sx, mid),
+                new(16 * sx, mid - 13 * amp * sy),
+                new(26 * sx, mid + 13 * amp * sy),
+                new(36 * sx, mid - 18 * amp * sy),
+                new(46 * sx, mid + 17 * amp * sy),
+                new(56 * sx, mid - 10 * amp * sy),
+                new(cw - 6 * sx, mid)
+            };
             canvas.Children.Add(new Polyline { Stroke = new SolidColorBrush(Color.FromRgb(74, 222, 128)), StrokeThickness = 2, Points = wave });
+            var lbl = new TextBlock { Text = $"{strength}%", FontSize = 9.5, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush(Color.FromRgb(134, 239, 172)) };
+            Canvas.SetLeft(lbl, 8 * sx);
+            Canvas.SetTop(lbl, 40 * sy);
+            canvas.Children.Add(lbl);
         }
         else if (category == "macro")
         {
-            for (int k = 0; k < 3; k++)
+            string slot = "M1";
+            int count = 3;
+            if (payload is { ValueKind: JsonValueKind.Object } obj)
             {
-                var step = new Rectangle { Width = 14, Height = 10, RadiusX = 2, RadiusY = 2, Fill = new SolidColorBrush(Color.FromRgb(96, 165, 250)) };
-                Canvas.SetLeft(step, 10 + k * 21);
-                Canvas.SetTop(step, k % 2 == 0 ? 18 : 30);
+                if (obj.TryGetProperty("slot", out var sp) && sp.ValueKind == JsonValueKind.String) slot = sp.GetString() ?? "M1";
+                if (obj.TryGetProperty("events", out var ev) && ev.ValueKind == JsonValueKind.Array) count = Math.Max(1, ev.GetArrayLength());
+            }
+            int bars = Math.Clamp(count, 2, 4);
+            double stepW = (cw - 20 * sx - (bars - 1) * 4 * sx) / bars;
+            for (int k = 0; k < bars; k++)
+            {
+                var step = new Rectangle { Width = stepW, Height = 9 * sy, RadiusX = 2, RadiusY = 2, Fill = new SolidColorBrush(Color.FromRgb(96, 165, 250)) };
+                Canvas.SetLeft(step, 8 * sx + k * (stepW + 4 * sx));
+                Canvas.SetTop(step, (k % 2 == 0 ? 14 : 26) * sy);
                 canvas.Children.Add(step);
             }
+            var lbl = new TextBlock { Text = $"{slot} - {count}st", FontSize = 9.5, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush(Color.FromRgb(147, 197, 253)) };
+            Canvas.SetLeft(lbl, 8 * sx);
+            Canvas.SetTop(lbl, 40 * sy);
+            canvas.Children.Add(lbl);
         }
         else
         {
-            // Full setup controller outline badge
-            var label = new TextBlock
+            string[] tiles = category == "pack" ? ["PCK", "CRV", "RGB", "VIB"] : ["BTN", "CRV", "MAC", "VIB"];
+            for (int i = 0; i < 4; i++)
             {
-                Text = category == "pack" ? "PACK" : "SETUP",
-                FontSize = 11,
-                FontWeight = FontWeights.Bold,
-                Foreground = new SolidColorBrush(Color.FromRgb(96, 165, 250))
-            };
-            Canvas.SetLeft(label, 18);
-            Canvas.SetTop(label, 20);
-            canvas.Children.Add(label);
+                var col = i % 2;
+                var row = i / 2;
+                var tile = new Border
+                {
+                    Width = 26 * sx,
+                    Height = 16 * sy,
+                    CornerRadius = new CornerRadius(3),
+                    Background = new SolidColorBrush(Color.FromArgb(70, 56, 189, 248)),
+                    BorderBrush = new SolidColorBrush(Color.FromArgb(140, 56, 189, 248)),
+                    BorderThickness = new Thickness(1),
+                    Child = new TextBlock
+                    {
+                        Text = tiles[i],
+                        FontSize = 8.5 * Math.Min(sx, sy),
+                        FontWeight = FontWeights.Bold,
+                        Foreground = new SolidColorBrush(Color.FromRgb(186, 230, 253)),
+                        HorizontalAlignment = HorizontalAlignment.Center,
+                        VerticalAlignment = VerticalAlignment.Center
+                    }
+                };
+                Canvas.SetLeft(tile, (10 + col * 29) * sx);
+                Canvas.SetTop(tile, (10 + row * 19) * sy);
+                canvas.Children.Add(tile);
+            }
         }
 
         return box;

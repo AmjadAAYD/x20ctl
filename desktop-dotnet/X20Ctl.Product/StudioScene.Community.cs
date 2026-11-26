@@ -78,6 +78,7 @@ public partial class StudioScene
         if (res.Ok && res.Data != null && !res.Data.NotModified)
         {
             Dashboard?.UpdatePulse(res.Data, false);
+            Community?.ApplyPulse(res.Data);
         }
     }
 

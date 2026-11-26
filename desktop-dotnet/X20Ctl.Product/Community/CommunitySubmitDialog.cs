@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -14,24 +15,34 @@ public sealed partial class CommunitySubmitDialog : Grid
 {
     private sealed record CategoryChoice(string Key, string Label);
 
+    private static readonly string[] PopularGames =
+    [
+        "Apex Legends", "Call of Duty", "Valorant", "Fortnite", "Rocket League", "EA FC", "Elden Ring"
+    ];
+
     private readonly CommunityClient _client;
     private readonly string _modelId;
     private readonly string _connectionMode;
-    private readonly object? _payload;
-    private readonly string? _shareCode;
+    private readonly Func<string, (object? Payload, string? ShareCode, byte[]? MediaBytes, string? MediaType)>? _exportForCategory;
+    private object? _currentPayload;
+    private string? _currentShareCode;
+    private readonly string? _parentItemId;
     private readonly string? _remixSourceId;
     private readonly string? _fulfillRequestId;
     private byte[]? _mediaBytes;
     private string _mediaType = "none";
     private readonly AnimatedMediaView _oledPreview = new(160, 80, pixelArt: true, cornerRadius: 6);
     private readonly TextBlock _mediaBadge = Kit.Text("Screen Art 160x80 preview", 11.5, "DS.TextMuted");
+    private readonly TextBlock _attachmentSummaryText = Kit.Text("", 11.5, "DS.AccentHi", FontWeights.SemiBold);
     private readonly TextBlock _statusText = Kit.Text("", 12, "DS.TextSoft");
 
     public ComboBox CategoryInput { get; }
     public TextBox TitleInput { get; }
     public TextBox DescriptionInput { get; }
+    public TextBox GameInput { get; }
     public Button SubmitButton { get; }
     public string StatusText => _statusText.Text;
+    public string AttachmentSummary => _attachmentSummaryText.Text;
     public bool HasMediaBytes => _mediaBytes is { Length: > 0 };
 
     public event Action<CommunityItem>? Submitted;
@@ -55,6 +66,32 @@ public sealed partial class CommunitySubmitDialog : Grid
         _mediaType = isGif ? "gif" : "image";
         _mediaBadge.Text = isGif ? "Format: Animated GIF (160x80)" : "Format: Static PNG (160x80)";
         _oledPreview.LoadBytes(bytes, "160x80");
+        UpdateAttachmentSummary("screen");
+    }
+
+    private void UpdateAttachmentSummary(string cat)
+    {
+        if (cat == "screen")
+        {
+            _attachmentSummaryText.Text = _mediaBytes is { Length: > 0 }
+                ? $"Attached: 160x80 {(_mediaType == "gif" ? "Animated GIF" : "Static PNG")} ({Math.Max(1, _mediaBytes.Length / 1024)} KB)"
+                : "Attached: Select a 160x80 PNG or GIF below";
+            return;
+        }
+        if (cat == "curve")
+        {
+            var codeHint = !string.IsNullOrEmpty(_currentShareCode) ? $" ({_currentShareCode[..Math.Min(12, _currentShareCode.Length)]}...)" : "";
+            _attachmentSummaryText.Text = $"Attached: Analog Curve + Share Code{codeHint}";
+            return;
+        }
+        _attachmentSummaryText.Text = cat switch
+        {
+            "rgb" => "Attached: RGB Lighting configuration",
+            "vibration" => "Attached: Vibration & Haptics preset",
+            "macro" => "Attached: Paddle Macro sequence",
+            "pack" => "Attached: Curated Pack profile",
+            _ => "Attached: Full Controller Setup Snapshot"
+        };
     }
 
     [GeneratedRegex(@"(https?://|www\.|discord\.gg/|[a-z0-9-]+\.(com|net|org|io|gg|xyz|ru|cn)\b)", RegexOptions.IgnoreCase)]
@@ -72,13 +109,18 @@ public sealed partial class CommunitySubmitDialog : Grid
         byte[]? initialMediaBytes = null,
         string? initialMediaType = null,
         string? remixSourceId = null,
-        string? fulfillRequestId = null)
+        string? fulfillRequestId = null,
+        Func<string, (object? Payload, string? ShareCode, byte[]? MediaBytes, string? MediaType)>? exportForCategory = null,
+        string? parentItemId = null,
+        IReadOnlyList<string>? initialGameTags = null)
     {
         _client = client;
         _modelId = CommunityCapabilities.NormalizeModelId(modelId);
         _connectionMode = connectionMode == "native" ? "native" : "pc-mode";
-        _payload = payload;
-        _shareCode = shareCode;
+        _exportForCategory = exportForCategory;
+        _currentPayload = payload;
+        _currentShareCode = shareCode;
+        _parentItemId = parentItemId;
         _remixSourceId = remixSourceId;
         _fulfillRequestId = fulfillRequestId;
         _mediaBytes = initialMediaBytes;
@@ -90,8 +132,8 @@ public sealed partial class CommunitySubmitDialog : Grid
 
         var card = new Border
         {
-            Width = 600,
-            MaxHeight = 700,
+            Width = 620,
+            MaxHeight = 720,
             VerticalAlignment = VerticalAlignment.Center,
             HorizontalAlignment = HorizontalAlignment.Center,
             CornerRadius = new CornerRadius(10),
@@ -102,17 +144,19 @@ public sealed partial class CommunitySubmitDialog : Grid
         };
 
         var root = new StackPanel();
-        var header = new DockPanel { Margin = new Thickness(0, 0, 0, 12) };
+        var header = new DockPanel { Margin = new Thickness(0, 0, 0, 10) };
         var closeBtn = CommunityUI.RectButton("Close", RectBtnKind.Secondary, 30, 11.5);
         closeBtn.Click += (_, _) => CloseRequested?.Invoke();
         DockPanel.SetDock(closeBtn, Dock.Right);
         header.Children.Add(closeBtn);
-        header.Children.Add(Kit.Text("Publish to Workshop", 18, "DS.Text", FontWeights.Bold));
+        header.Children.Add(Kit.Text(!string.IsNullOrEmpty(_parentItemId) ? "Push Version Update" : "Publish to Workshop", 18, "DS.Text", FontWeights.Bold));
         root.Children.Add(header);
 
         root.Children.Add(Kit.Text(
-            $"Target: {caps.ModelName} ({caps.ConnectionMode})  |  Reviewed in X20ADMIN before publishing to the catalog.",
-            12, "DS.TextMuted").Also(t => { t.TextWrapping = TextWrapping.Wrap; t.Margin = new Thickness(0, 0, 0, 10); }));
+            !string.IsNullOrEmpty(_parentItemId)
+                ? $"Updating existing item {_parentItemId} (auto-increments v2+) on {caps.ModelName} ({caps.ConnectionMode})."
+                : $"Target: {caps.ModelName} ({caps.ConnectionMode})  |  Reviewed in X20ADMIN before publishing to the catalog.",
+            12, "DS.TextMuted").Also(t => { t.TextWrapping = TextWrapping.Wrap; t.Margin = new Thickness(0, 0, 0, 8); }));
 
         if (!string.IsNullOrEmpty(_remixSourceId))
         {
@@ -123,13 +167,18 @@ public sealed partial class CommunitySubmitDialog : Grid
         var categoryCombo = new ComboBox
         {
             MinHeight = 32,
-            Margin = new Thickness(0, 0, 0, 10),
+            Margin = new Thickness(0, 4, 0, 8),
             DisplayMemberPath = "Label",
-            SelectedValuePath = "Key"
+            SelectedValuePath = "Key",
+            IsEnabled = string.IsNullOrEmpty(_parentItemId)
         };
         foreach (var cat in caps.Categories) categoryCombo.Items.Add(new CategoryChoice(cat, CategoryDisplayLabel(cat)));
-        categoryCombo.SelectedValue = caps.AllowsCategory(initialCategory) ? initialCategory : caps.Categories[0];
+        string activeCat = caps.AllowsCategory(initialCategory) ? initialCategory : caps.Categories[0];
+        categoryCombo.SelectedValue = activeCat;
         CategoryInput = categoryCombo;
+
+        var attachCard = CommunityUI.CardSurface(_attachmentSummaryText.Also(t => t.TextWrapping = TextWrapping.Wrap), new Thickness(10, 7, 10, 7), CommunityUI.BorderFocus)
+            .Also(b => b.Margin = new Thickness(0, 0, 0, 10));
 
         var titleBox = CommunityUI.RectInput(initialTitle, 34);
         titleBox.Margin = new Thickness(0, 4, 0, 10);
@@ -137,12 +186,32 @@ public sealed partial class CommunitySubmitDialog : Grid
         var descBox = CommunityUI.RectInput(initialDescription, 72, multiline: true);
         descBox.Margin = new Thickness(0, 4, 0, 10);
         DescriptionInput = descBox;
-        var gameBox = CommunityUI.RectInput("", 32);
-        gameBox.Margin = new Thickness(0, 4, 0, 10);
+        var gameBox = CommunityUI.RectInput(initialGameTags is { Count: > 0 } ? string.Join(", ", initialGameTags) : "", 32);
+        gameBox.Margin = new Thickness(0, 4, 0, 6);
+        GameInput = gameBox;
+
+        var chipWrap = new WrapPanel { Margin = new Thickness(0, 0, 0, 10) };
+        foreach (var g in PopularGames)
+        {
+            var gameName = g;
+            var chip = CommunityUI.RectButton($"+ {gameName}", RectBtnKind.Secondary, 24, 10.5);
+            chip.Tag = $"gamechip:{gameName}";
+            chip.Padding = new Thickness(8, 0, 8, 0);
+            chip.Margin = new Thickness(0, 0, 5, 5);
+            chip.Click += (_, _) =>
+            {
+                var current = gameBox.Text.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+                int idx = current.FindIndex(x => string.Equals(x, gameName, StringComparison.OrdinalIgnoreCase));
+                if (idx >= 0) current.RemoveAt(idx);
+                else if (current.Count < 5) current.Add(gameName);
+                gameBox.Text = string.Join(", ", current);
+            };
+            chipWrap.Children.Add(chip);
+        }
 
         var mediaPanel = new StackPanel
         {
-            Visibility = string.Equals(categoryCombo.SelectedValue as string, "screen", StringComparison.OrdinalIgnoreCase)
+            Visibility = string.Equals(activeCat, "screen", StringComparison.OrdinalIgnoreCase)
                 ? Visibility.Visible : Visibility.Collapsed,
             Margin = new Thickness(0, 0, 0, 12)
         };
@@ -168,23 +237,37 @@ public sealed partial class CommunitySubmitDialog : Grid
         previewRow.Children.Add(new StackPanel { VerticalAlignment = VerticalAlignment.Center, Children = { pickMediaBtn, _mediaBadge.Also(t => t.Margin = new Thickness(0, 6, 0, 0)) } });
         mediaPanel.Children.Add(previewRow);
 
+        UpdateAttachmentSummary(activeCat);
+
         categoryCombo.SelectionChanged += (_, _) =>
         {
-            mediaPanel.Visibility = string.Equals(categoryCombo.SelectedValue as string, "screen", StringComparison.OrdinalIgnoreCase)
+            var newCat = categoryCombo.SelectedValue as string ?? "setup";
+            mediaPanel.Visibility = string.Equals(newCat, "screen", StringComparison.OrdinalIgnoreCase)
                 ? Visibility.Visible : Visibility.Collapsed;
+            if (string.IsNullOrEmpty(_parentItemId) && string.IsNullOrEmpty(_remixSourceId) && _exportForCategory != null)
+            {
+                var exp = _exportForCategory(newCat);
+                _currentPayload = exp.Payload;
+                _currentShareCode = exp.ShareCode;
+                if (newCat == "screen" && _mediaBytes == null && exp.MediaBytes is { Length: > 0 })
+                    LoadMediaBytes(exp.MediaBytes);
+            }
+            UpdateAttachmentSummary(newCat);
         };
 
         root.Children.Add(Kit.Text("Category", 12, "DS.TextSoft"));
         root.Children.Add(categoryCombo);
+        root.Children.Add(attachCard);
         root.Children.Add(Kit.Text("Title", 12, "DS.TextSoft"));
         root.Children.Add(titleBox);
         root.Children.Add(Kit.Text("Description (no external URLs)", 12, "DS.TextSoft"));
         root.Children.Add(descBox);
-        root.Children.Add(Kit.Text("Games (comma separated, optional)", 12, "DS.TextSoft"));
+        root.Children.Add(Kit.Text("Games (comma separated or quick tags)", 12, "DS.TextSoft"));
         root.Children.Add(gameBox);
+        root.Children.Add(chipWrap);
         root.Children.Add(mediaPanel);
 
-        var submitBtn = CommunityUI.RectButton("Submit to Workshop", RectBtnKind.Primary, 38, 13);
+        var submitBtn = CommunityUI.RectButton(!string.IsNullOrEmpty(_parentItemId) ? "Push Update to Workshop" : "Submit to Workshop", RectBtnKind.Primary, 38, 13);
         SubmitButton = submitBtn;
         submitBtn.Click += async (_, _) =>
         {
@@ -207,12 +290,13 @@ public sealed partial class CommunitySubmitDialog : Grid
                 category: cat,
                 modelId: _modelId,
                 connectionMode: _connectionMode,
-                payload: _payload,
-                shareCode: _shareCode,
+                payload: _currentPayload,
+                shareCode: _currentShareCode,
                 mediaBytes: cat == "screen" ? _mediaBytes : null,
                 mediaType: cat == "screen" ? _mediaType : "none",
                 tags: gTags,
                 gameTags: gTags,
+                parentItemId: _parentItemId,
                 remixSourceId: _remixSourceId,
                 fulfillRequestId: _fulfillRequestId);
             submitBtn.IsEnabled = true;
@@ -234,6 +318,7 @@ public sealed partial class CommunitySubmitDialog : Grid
         root.Children.Add(_statusText);
 
         card.Child = new ScrollViewer { Content = root, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+        CommunityUI.AnimateModalIn(card);
         Children.Add(card);
     }
 }

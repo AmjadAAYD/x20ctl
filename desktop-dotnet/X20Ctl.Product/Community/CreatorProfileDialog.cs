@@ -316,7 +316,7 @@ public sealed class CreatorProfileDialog : Grid
             flairStrip.Children.Add(flairPreview);
             root.Children.Add(CommunityUI.CardSurface(flairStrip, new Thickness(12, 8, 12, 8)).Also(b => b.Margin = new Thickness(0, 0, 0, 14)));
 
-            // Unlocked Achievements Showcase (2-col Reddit Trophy/Achievement grid)
+            // Unlocked & Locked Achievements Showcase with Filter Bar
             var unlockedSet = new HashSet<string>(_profile.Badges, StringComparer.OrdinalIgnoreCase);
             var unlockedDefs = new List<BadgeDef>();
             foreach (var bid in _profile.Badges)
@@ -324,34 +324,81 @@ public sealed class CreatorProfileDialog : Grid
                 if (_badgeCatalog.TryGetValue(bid, out var d)) unlockedDefs.Add(d);
                 else unlockedDefs.Add(new BadgeDef { Id = bid, Name = bid, Description = "Earned achievement." });
             }
-
-            root.Children.Add(Kit.Text($"Unlocked Achievements ({unlockedDefs.Count})", 13, "DS.Text", FontWeights.Bold).Also(t => t.Margin = new Thickness(0, 0, 0, 8)));
-            var unlockedGrid = new UniformGrid { Columns = 2, Margin = new Thickness(-4, 0, -4, 14) };
-            foreach (var def in unlockedDefs)
-            {
-                bool isEq = string.Equals(_profile.EquippedBadge, def.Id, StringComparison.OrdinalIgnoreCase);
-                var ac = BadgeChip.CreateAchievementCard(def, unlocked: true, equipped: isEq, _stats, EquipBadgeAsync);
-                ac.Margin = new Thickness(4);
-                unlockedGrid.Children.Add(ac);
-            }
-            root.Children.Add(unlockedGrid);
-
-            // Locked Achievements Showcase with real CreatorStats progress bars
             var lockedDefs = _badgeCatalog.Values
                 .Where(d => !unlockedSet.Contains(d.Id) && !string.Equals(d.Mode, "owner", StringComparison.OrdinalIgnoreCase))
                 .ToList();
-            if (lockedDefs.Count > 0)
+
+            var filterBar = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
+            var achHost = new StackPanel();
+            string activeAchFilter = "all";
+
+            void RenderAchievements()
             {
-                root.Children.Add(Kit.Text($"Locked Achievements ({lockedDefs.Count})", 13, "DS.TextSoft", FontWeights.Bold).Also(t => t.Margin = new Thickness(0, 0, 0, 8)));
-                var lockedGrid = new UniformGrid { Columns = 2, Margin = new Thickness(-4, 0, -4, 10) };
-                foreach (var def in lockedDefs)
+                filterBar.Children.Clear();
+                foreach (var (fk, fl) in new (string, string)[]
                 {
-                    var lc = BadgeChip.CreateAchievementCard(def, unlocked: false, equipped: false, _stats, null);
-                    lc.Margin = new Thickness(4);
-                    lockedGrid.Children.Add(lc);
+                    ("all", $"All ({unlockedDefs.Count + lockedDefs.Count})"),
+                    ("unlocked", $"Unlocked ({unlockedDefs.Count})"),
+                    ("locked", $"Locked ({lockedDefs.Count})"),
+                    ("rare", "Mythic & Legendary")
+                })
+                {
+                    var key = fk;
+                    var fb = CommunityUI.RectButton(fl, activeAchFilter == key ? RectBtnKind.Primary : RectBtnKind.Secondary, 28, 11.5);
+                    fb.Tag = $"achfilter:{key}";
+                    fb.Margin = new Thickness(0, 0, 6, 0);
+                    fb.Click += (_, _) => { activeAchFilter = key; RenderAchievements(); };
+                    filterBar.Children.Add(fb);
                 }
-                root.Children.Add(lockedGrid);
+
+                achHost.Children.Clear();
+                static bool IsHighRarity(BadgeDef d) =>
+                    string.Equals(d.Rarity, "mythic", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(d.Rarity, "legendary", StringComparison.OrdinalIgnoreCase);
+
+                var showUnlocked = activeAchFilter switch
+                {
+                    "locked" => new List<BadgeDef>(),
+                    "rare" => unlockedDefs.Where(IsHighRarity).ToList(),
+                    _ => unlockedDefs
+                };
+                var showLocked = activeAchFilter switch
+                {
+                    "unlocked" => new List<BadgeDef>(),
+                    "rare" => lockedDefs.Where(IsHighRarity).ToList(),
+                    _ => lockedDefs
+                };
+
+                if (showUnlocked.Count > 0)
+                {
+                    achHost.Children.Add(Kit.Text($"Unlocked Achievements ({showUnlocked.Count})", 13, "DS.Text", FontWeights.Bold).Also(t => t.Margin = new Thickness(0, 0, 0, 8)));
+                    var unlockedGrid = new UniformGrid { Columns = 2, Margin = new Thickness(-4, 0, -4, 14) };
+                    foreach (var def in showUnlocked)
+                    {
+                        bool isEq = string.Equals(_profile.EquippedBadge, def.Id, StringComparison.OrdinalIgnoreCase);
+                        var ac = BadgeChip.CreateAchievementCard(def, unlocked: true, equipped: isEq, _stats, EquipBadgeAsync);
+                        ac.Margin = new Thickness(4);
+                        unlockedGrid.Children.Add(ac);
+                    }
+                    achHost.Children.Add(unlockedGrid);
+                }
+                if (showLocked.Count > 0)
+                {
+                    achHost.Children.Add(Kit.Text($"Locked Achievements ({showLocked.Count})", 13, "DS.TextSoft", FontWeights.Bold).Also(t => t.Margin = new Thickness(0, 0, 0, 8)));
+                    var lockedGrid = new UniformGrid { Columns = 2, Margin = new Thickness(-4, 0, -4, 10) };
+                    foreach (var def in showLocked)
+                    {
+                        var lc = BadgeChip.CreateAchievementCard(def, unlocked: false, equipped: false, _stats, null);
+                        lc.Margin = new Thickness(4);
+                        lockedGrid.Children.Add(lc);
+                    }
+                    achHost.Children.Add(lockedGrid);
+                }
             }
+
+            RenderAchievements();
+            root.Children.Add(filterBar);
+            root.Children.Add(achHost);
         }
 
         _statusText.Margin = new Thickness(0, 10, 0, 0);
@@ -359,6 +406,7 @@ public sealed class CreatorProfileDialog : Grid
         root.Children.Add(_statusText);
 
         card.Child = new ScrollViewer { Content = root, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Padding = new Thickness(0, 0, 4, 0) };
+        CommunityUI.AnimateModalIn(card);
         Children.Add(card);
     }
 }
