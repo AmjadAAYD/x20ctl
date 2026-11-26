@@ -108,7 +108,7 @@ public sealed class CurveWorkbench
         var shareBtn = new Button
         {
             Content = "Share Curve",
-            Style = (Style)resources.FindResource("ActionButton"),
+            Style = DS.Style("DS.ConsoleBtn"),
             Height = 32, MinHeight = 0,
             Padding = new(12, 0, 12, 0),
             Margin = new(0, 0, 6, 0),
@@ -128,7 +128,7 @@ public sealed class CurveWorkbench
                 Tag = channel,
                 Height = 32,
                 MinHeight = 0,
-                Style = (Style)resources.FindResource("ActionButton"),
+                Style = DS.Style("DS.ConsoleBtn"),
                 Margin = new(2),
                 Padding = new(8, 0, 8, 0),
                 FontSize = 12.5,
@@ -140,7 +140,7 @@ public sealed class CurveWorkbench
         }
         heading.Children.Add(new Border
         {
-            CornerRadius = new(10),
+            CornerRadius = new(8),
             Background = new SolidColorBrush(Color.FromArgb(145, 7, 14, 30)),
             BorderBrush = new SolidColorBrush(Color.FromArgb(65, 110, 165, 240)),
             BorderThickness = new(1),
@@ -156,7 +156,7 @@ public sealed class CurveWorkbench
             var button = new Button
             {
                 Tag = preset,
-                Style = (Style)resources.FindResource("ActionButton"),
+                Style = DS.Style("DS.ConsoleBtn"),
                 Height = 34,
                 MinHeight = 0,
                 Padding = new(6, 0, 6, 0),
@@ -375,7 +375,8 @@ public sealed class CurveWorkbench
     (double Inner, double Outer, double Floor, double Ceiling) Zones()
     {
         var s = Draft[Channel]; var t = CurrentTuning;
-        return t == null ? (s.Inner, s.Outer, 0, 100) : t.Raw ? (0, 100, 0, 100) : (t.Inner, t.Outer, t.AntiDeadzone, t.MaxOutput);
+        double floor = t == null ? 0 : t.Raw ? 0 : (t.AntiDeadzone > 0 ? t.AntiDeadzone : (t.Lab?.RadialAntiDeadzone ?? 0));
+        return t == null ? (s.Inner, s.Outer, 0, 100) : t.Raw ? (0, 100, 0, 100) : (t.Inner, t.Outer, floor, t.MaxOutput);
     }
     public double Output(double pushed) => PadProcessor.Response(Setup(Draft[Channel]), CurrentTuning, pushed);
 
@@ -390,7 +391,10 @@ public sealed class CurveWorkbench
             {
                 case 0: t.Inner = Math.Clamp(value, 0, Math.Min(StickTuning.MaxInner, t.Outer - 1)); break;
                 case 1: t.Outer = Math.Clamp(value, Math.Max(StickTuning.MinOuter, t.Inner + 1), 100); break;
-                case 2: t.AntiDeadzone = Math.Clamp(value, 0, Math.Min(StickTuning.MaxAnti, t.MaxOutput - 1)); break;
+                case 2:
+                    t.AntiDeadzone = Math.Clamp(value, 0, Math.Min(StickTuning.MaxAnti, t.MaxOutput - 1));
+                    (t.Lab ??= new StickLabSettings()).RadialAntiDeadzone = t.AntiDeadzone;
+                    break;
                 default: t.MaxOutput = Math.Clamp(value, Math.Max(60, t.AntiDeadzone + 1), 100); break;
             }
             t.Raw = false;
@@ -404,7 +408,7 @@ public sealed class CurveWorkbench
         else return;
         Refresh(); Changed?.Invoke();
     }
-    static StickTuning? Copy(StickTuning? t) => t == null ? null : new() { Inner = t.Inner, Outer = t.Outer, SquareGate = t.SquareGate, AxisRatio = t.AxisRatio, AntiDeadzone = t.AntiDeadzone, MaxOutput = t.MaxOutput, Raw = t.Raw };
+    static StickTuning? Copy(StickTuning? t) => t == null ? null : new() { Inner = t.Inner, Outer = t.Outer, SquareGate = t.SquareGate, AxisRatio = t.AxisRatio, AntiDeadzone = t.AntiDeadzone, MaxOutput = t.MaxOutput, AutoCenterDrift = t.AutoCenterDrift, Raw = t.Raw, Lab = t.Lab?.Clone() };
 
     public void SelectChannel(CurveChannel channel) { Channel = channel; SelectedPoint = null; liveAt = -1; Refresh(); ChannelSelected?.Invoke(channel); }
     private void SelectPoint(int index) { SelectedPoint = index; RefreshPointReadout(); }
@@ -524,15 +528,32 @@ public sealed class CurveWorkbench
         string modeLabel = NativeHardwareMode
             ? (DesktopBoostActive ? "Native HW + Boost active" : "Native Hardware Curve")
             : "PC Mode DSP active";
+        var activeFlags = new List<string>(3);
+        if ((setting.Flags & (byte)CurveHardwareFlags.InvertX) != 0) activeFlags.Add("Invert X");
+        if ((setting.Flags & (byte)CurveHardwareFlags.InvertY) != 0) activeFlags.Add("Invert Y");
+        if ((setting.Flags & (byte)CurveHardwareFlags.SwapSticks) != 0) activeFlags.Add("Swap L/R");
+        string flagSuffix = activeFlags.Count > 0 ? "  ·  " + string.Join(" · ", activeFlags) : "";
         zoneFooterBadge.Text = limits
-            ? $"{modeLabel}  ·  DZ {z.Inner:0.#}%..{z.Outer:0.#}%  ·  Floor {z.Floor:0.#}% / Cap {z.Ceiling:0.#}%"
-            : (IsStick ? $"Native Hardware Curve  ·  DZ {z.Inner:0.#}%..{z.Outer:0.#}%" : $"Trigger range {z.Inner:0.#}% -> {z.Outer:0.#}%");
+            ? $"{modeLabel}  ·  DZ {z.Inner:0.#}%..{z.Outer:0.#}%  ·  Floor {z.Floor:0.#}% / Cap {z.Ceiling:0.#}%{flagSuffix}"
+            : (IsStick ? $"Native Hardware Curve  ·  DZ {z.Inner:0.#}%..{z.Outer:0.#}%{flagSuffix}" : $"Trigger range {z.Inner:0.#}% -> {z.Outer:0.#}%{flagSuffix}");
 
         RefreshPointReadout();
-        foreach (var button in channelButtons) button.Background = (CurveChannel)button.Tag == Channel ? Brushes.White : DS.Brush("Control.ButtonFill");
-        foreach (var button in channelButtons) button.Foreground = (CurveChannel)button.Tag == Channel ? new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(17, 24, 39))) : Brushes.LightSteelBlue;
-        foreach (var button in presetButtons) button.Foreground = (string)button.Tag == setting.Preset ? new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(17, 24, 39))) : Brushes.LightSteelBlue;
-        foreach (var button in presetButtons) button.Background = (string)button.Tag == setting.Preset ? Brushes.White : DS.Brush("Control.ButtonFill");
+        var activeFill = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(42, 108, 212)));
+        var activeBorder = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(111, 178, 255)));
+        foreach (var button in channelButtons)
+        {
+            bool active = (CurveChannel)button.Tag == Channel;
+            button.Background = active ? activeFill : DS.Brush("Control.ButtonFill");
+            button.BorderBrush = active ? activeBorder : DS.Brush("DS.Hairline");
+            button.Foreground = active ? Brushes.White : Brushes.LightSteelBlue;
+        }
+        foreach (var button in presetButtons)
+        {
+            bool active = (string)button.Tag == setting.Preset;
+            button.Background = active ? activeFill : DS.Brush("Control.ButtonFill");
+            button.BorderBrush = active ? activeBorder : DS.Brush("DS.Hairline");
+            button.Foreground = active ? Brushes.White : Brushes.LightSteelBlue;
+        }
         updating = false;
     }
     bool Dragging => new[] { first, second, deadHandle, fullHandle, floorHandle, ceilingHandle }.Any(t => t.IsDragging);

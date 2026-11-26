@@ -18,7 +18,7 @@ public partial class StudioScene
     {
         if (!ControllerWrites) return;
         buttonsPage.UseController(() => _ = ApplyToController(buttonsPage.SayController));
-        var curveApply = new Button { Content = "Apply to controller", Style = DS.Style("ActionButton"), Height = 44, MinHeight = 0, Padding = new(18, 0, 20, 0), Margin = new(0, 0, 8, 0) };
+        var curveApply = new Button { Content = "Apply to controller", Style = DS.Style("DS.ConsoleBtn"), Height = 44, MinHeight = 0, Padding = new(18, 0, 20, 0), Margin = new(0, 0, 8, 0) };
         curveApply.Click += (_, _) => _ = ApplyToController(text => ChangeCount.Text = text);
         RegisterFocus(curveApply); Curves.Toolbar.Children.Add(curveApply);
         // The themed Curves pages have no Apply button of their own, so a curve edit there is saved to the pad once it has settled for two seconds.

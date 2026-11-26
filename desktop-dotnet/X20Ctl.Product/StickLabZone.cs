@@ -346,7 +346,7 @@ public sealed class StickLabZone : Border
 
             var b = new Button
             {
-                Style = DS.Style("ActionButton"),
+                Style = DS.Style("DS.ConsoleCard"),
                 Height = 46, MinHeight = 0,
                 Margin = new(2),
                 Padding = new(6, 4, 6, 4),
@@ -1150,7 +1150,11 @@ public sealed class StickLabZone : Border
         };
         var curve = profile.Curves.GetValueOrDefault(cc.ToString()) ?? new SetupCurve("custom", "default", 0, 100, 85, 85, 170, 170);
         StickTuning? st = cc is CurveChannel.LeftStick or CurveChannel.RightStick ? profile.Sticks.GetValueOrDefault(cc.ToString()) : null;
-        return StickLabShareCode.Encode(cc, curve, st, profile.DPadSocd, profile.LeftStickSocd);
+        byte hwFlags = 0;
+        if (st?.Lab?.InvertX == true) hwFlags |= (byte)CurveHardwareFlags.InvertX;
+        if (st?.Lab?.InvertY == true) hwFlags |= (byte)CurveHardwareFlags.InvertY;
+        if (profile.SwapSticks) hwFlags |= (byte)CurveHardwareFlags.SwapSticks;
+        return StickLabShareCode.Encode(cc, curve, st, profile.DPadSocd, profile.LeftStickSocd, hwFlags);
     }
 
     void CopyShareCode()
@@ -1178,6 +1182,19 @@ public sealed class StickLabZone : Border
         profile.Curves[decoded.Channel] = decoded.Curve;
         if (decoded.Tuning != null && decoded.Channel is "LeftStick" or "RightStick")
             profile.Sticks[decoded.Channel] = decoded.Tuning;
+        if (decoded.Flags != 0)
+        {
+            if ((decoded.Flags & (byte)CurveHardwareFlags.SwapSticks) != 0)
+                profile.SwapSticks = true;
+            if (decoded.Channel is "LeftStick" or "RightStick" &&
+                ((decoded.Flags & (byte)(CurveHardwareFlags.InvertX | CurveHardwareFlags.InvertY)) != 0))
+            {
+                var st = GetOrCreateStick(decoded.Channel);
+                var lab = st.Lab ??= new StickLabSettings();
+                if ((decoded.Flags & (byte)CurveHardwareFlags.InvertX) != 0) lab.InvertX = true;
+                if ((decoded.Flags & (byte)CurveHardwareFlags.InvertY) != 0) lab.InvertY = true;
+            }
+        }
         profile.DPadSocd = decoded.DPadSocd;
         profile.LeftStickSocd = decoded.LeftStickSocd;
         PersistProfile($"Imported share code into {decoded.Channel}");
@@ -1244,6 +1261,21 @@ public sealed class StickLabZone : Border
         if (link == null) return new PcModeProfile();
         try { return link.Store.Get(PcModePage.StoreKey); }
         catch { return new PcModeProfile(); }
+    }
+
+    public void SuspendLiveTimer() => liveTimer.Stop();
+
+    public void ResumeFromProfile(PcModeProfile updated)
+    {
+        bool unchanged = ReferenceEquals(profile, updated)
+            || string.Equals(System.Text.Json.JsonSerializer.Serialize(profile), System.Text.Json.JsonSerializer.Serialize(updated), StringComparison.Ordinal);
+        profile = updated;
+        RefreshPcModeBadge();
+        if (!unchanged)
+            SelectChannel(channel);
+        else
+            RedrawSpline();
+        liveTimer.Start();
     }
 
     internal void FlushPendingSave()
@@ -1407,7 +1439,7 @@ public sealed class StickLabZone : Border
         var b = new Button
         {
             Content = label,
-            Style = DS.Style(primary ? "DS.ConsolePrimary" : "ActionButton"),
+            Style = DS.Style(primary ? "DS.ConsolePrimary" : "DS.ConsoleBtn"),
             Height = 34, MinHeight = 0,
             Padding = new(12, 0, 12, 0),
             FontSize = 12,
@@ -1455,9 +1487,9 @@ public sealed class StickLabZone : Border
             var btn = new Button
             {
                 Content = title, Height = 27, MinHeight = 0, Padding = new(10, 0, 10, 0), Margin = new(0, 0, 5, 4),
-                FontSize = 11.5, Style = DS.Style("ActionButton"),
+                FontSize = 11.5, Style = DS.Style("DS.ConsoleBtn"),
                 Background = selected ? new SolidColorBrush(Color.FromRgb(42, 108, 212)) : new SolidColorBrush(Color.FromArgb(145, 14, 24, 48)),
-                BorderBrush = selected ? Brushes.White : DS.Brush("DS.Hairline"),
+                BorderBrush = selected ? new SolidColorBrush(Color.FromRgb(111, 178, 255)) : DS.Brush("DS.Hairline"),
             };
             btn.Click += (_, _) =>
             {
@@ -1465,7 +1497,7 @@ public sealed class StickLabZone : Border
                 {
                     bool act = EqualityComparer<T>.Default.Equals(item.Val, captured);
                     item.Btn.Background = act ? new SolidColorBrush(Color.FromRgb(42, 108, 212)) : new SolidColorBrush(Color.FromArgb(145, 14, 24, 48));
-                    item.Btn.BorderBrush = act ? Brushes.White : DS.Brush("DS.Hairline");
+                    item.Btn.BorderBrush = act ? new SolidColorBrush(Color.FromRgb(111, 178, 255)) : DS.Brush("DS.Hairline");
                 }
                 if (!loading) onPicked(captured);
             };

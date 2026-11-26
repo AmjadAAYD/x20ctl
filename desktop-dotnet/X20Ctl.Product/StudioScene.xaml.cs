@@ -733,7 +733,7 @@ public partial class StudioScene : UserControl
         var clearTraceBtn = new Button
         {
             Content = "Clear Trace",
-            Style = DS.Style("ActionButton"),
+            Style = DS.Style("DS.ConsoleBtn"),
             Height = 26, MinHeight = 0,
             Padding = new(10, 0, 10, 0),
             FontSize = 11.5,
@@ -764,11 +764,13 @@ public partial class StudioScene : UserControl
         var linkSticks = new CheckBox { Style = DS.Style("DS.Toggle"), VerticalAlignment = VerticalAlignment.Center };
         var autoDrift = new CheckBox { Style = DS.Style("DS.Toggle"), VerticalAlignment = VerticalAlignment.Center };
         var rawBypass = new CheckBox { Style = DS.Style("DS.Toggle"), VerticalAlignment = VerticalAlignment.Center };
-        var circleBtn = new Button { Content = "Circular", Style = DS.Style("ActionButton"), Height = 28, MinHeight = 0, Padding = new(10, 0, 10, 0), FontSize = 11.5, Margin = new(0, 0, 3, 0) };
-        var squareBtn = new Button { Content = "Square", Style = DS.Style("ActionButton"), Height = 28, MinHeight = 0, Padding = new(10, 0, 10, 0), FontSize = 11.5 };
-        var radialDzBtn = new Button { Content = "Radial", Style = DS.Style("ActionButton"), Height = 28, MinHeight = 0, Padding = new(8, 0, 8, 0), FontSize = 11.5, Margin = new(0, 0, 3, 0) };
-        var axialDzBtn = new Button { Content = "Axial", Style = DS.Style("ActionButton"), Height = 28, MinHeight = 0, Padding = new(8, 0, 8, 0), FontSize = 11.5, Margin = new(0, 0, 3, 0) };
-        var hybridDzBtn = new Button { Content = "Hybrid", Style = DS.Style("ActionButton"), Height = 28, MinHeight = 0, Padding = new(8, 0, 8, 0), FontSize = 11.5 };
+        var invYQuick = new CheckBox { Style = DS.Style("DS.Toggle"), VerticalAlignment = VerticalAlignment.Center };
+        var swapQuick = new CheckBox { Style = DS.Style("DS.Toggle"), VerticalAlignment = VerticalAlignment.Center };
+        var circleBtn = new Button { Content = "Circular", Style = DS.Style("DS.ConsoleBtn"), Height = 28, MinHeight = 0, Padding = new(10, 0, 10, 0), FontSize = 11.5, Margin = new(0, 0, 3, 0) };
+        var squareBtn = new Button { Content = "Square", Style = DS.Style("DS.ConsoleBtn"), Height = 28, MinHeight = 0, Padding = new(10, 0, 10, 0), FontSize = 11.5 };
+        var radialDzBtn = new Button { Content = "Radial", Style = DS.Style("DS.ConsoleBtn"), Height = 28, MinHeight = 0, Padding = new(8, 0, 8, 0), FontSize = 11.5, Margin = new(0, 0, 3, 0) };
+        var axialDzBtn = new Button { Content = "Axial", Style = DS.Style("DS.ConsoleBtn"), Height = 28, MinHeight = 0, Padding = new(8, 0, 8, 0), FontSize = 11.5, Margin = new(0, 0, 3, 0) };
+        var hybridDzBtn = new Button { Content = "Hybrid", Style = DS.Style("DS.ConsoleBtn"), Height = 28, MinHeight = 0, Padding = new(8, 0, 8, 0), FontSize = 11.5 };
         var vertSlider = new Slider { Minimum = StickTuning.MinRatio, Maximum = StickTuning.MaxRatio, TickFrequency = 5, IsSnapToTickEnabled = true, Value = 100, Style = DS.Style("DS.Slider"), Height = 20 };
         var smoothSlider = new Slider { Minimum = 0, Maximum = 100, TickFrequency = 5, IsSnapToTickEnabled = true, Value = 0, Style = DS.Style("DS.Slider"), Height = 20 };
         var vertVal = Kit.Text("100%", 11.5, "DS.Text", FontWeights.SemiBold);
@@ -777,13 +779,43 @@ public partial class StudioScene : UserControl
 
         string ActiveStickKey() => Curves.Channel == CurveChannel.RightStick ? "RightStick" : "LeftStick";
 
+        void CommitProfileEdit(PcModeProfile p, string note)
+        {
+            p.Validate();
+            var link = pcLink;
+            if (Draft.PcMode && !p.IsNeutral && link != null && !PcModePage.MaySave(link.Preferences))
+            {
+                quickNote.Text = "Open PC Mode once to accept notice before applying PC-side changes.";
+                return;
+            }
+            ApplyNativeAndBoost(p, saveImmediate: false);
+            Curves.Refresh();
+            quickNote.Text = Draft.PcMode
+                ? (link?.Service.Enabled == true ? note + " · Active in PC Mode" : note + " · Saved (enable PC Mode to run live)")
+                : note + (Curves.DesktopBoostActive ? " · Native HW + Desktop Boost active" : " · Compiled to native curve (press Apply to save)");
+        }
+
+        void EditProfile(Action<PcModeProfile> mutator, string note)
+        {
+            if (syncingQuick) return;
+            try
+            {
+                var p = liveNativeProfile ?? (pcLink != null ? pcLink.Store.Get(PcModePage.StoreKey) : new PcModeProfile());
+                mutator(p);
+                CommitProfileEdit(p, note);
+            }
+            catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
+            {
+                quickNote.Text = ex.Message;
+            }
+        }
+
         void EditStick(Action<StickTuning> mutator, string note, bool allowRaw = false)
         {
             if (syncingQuick) return;
-            var link = pcLink;
             try
             {
-                var p = link != null ? link.Store.Get(PcModePage.StoreKey) : new PcModeProfile();
+                var p = liveNativeProfile ?? (pcLink != null ? pcLink.Store.Get(PcModePage.StoreKey) : new PcModeProfile());
                 var targets = linkSticks.IsChecked == true ? new[] { "LeftStick", "RightStick" } : new[] { ActiveStickKey() };
                 foreach (var k in targets)
                 {
@@ -792,17 +824,7 @@ public partial class StudioScene : UserControl
                     if (!allowRaw) st.Raw = false;
                     if (st.IsDefault) p.Sticks.Remove(k); else p.Sticks[k] = st;
                 }
-                p.Validate();
-                if (Draft.PcMode && !p.IsNeutral && link != null && !PcModePage.MaySave(link.Preferences))
-                {
-                    quickNote.Text = "Open PC Mode once to accept notice before applying PC-side changes.";
-                    return;
-                }
-                ApplyNativeAndBoost(p, saveImmediate: false);
-                Curves.Refresh();
-                quickNote.Text = Draft.PcMode
-                    ? (link?.Service.Enabled == true ? note + " · Active in PC Mode" : note + " · Saved (enable PC Mode to run live)")
-                    : note + (Curves.DesktopBoostActive ? " · Native HW + Desktop Boost active" : " · Compiled to native curve (press Apply to save)");
+                CommitProfileEdit(p, note);
             }
             catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
             {
@@ -813,18 +835,23 @@ public partial class StudioScene : UserControl
         void PaintQuickState()
         {
             syncingQuick = true;
+            var prof = liveNativeProfile ?? (pcLink != null ? pcLink.Store.Get(PcModePage.StoreKey) : null);
             var t = Curves.Tuning?.Invoke(Curves.Channel == CurveChannel.RightStick ? CurveChannel.RightStick : CurveChannel.LeftStick);
             bool sq = t?.SquareGate == true || (t?.Lab?.GateMorph ?? 0) >= 99;
             var shape = t?.Lab?.DeadzoneShape ?? DeadzoneShape.Radial;
             var activeBg = new SolidColorBrush(Color.FromRgb(42, 108, 212));
+            var activeBorder = new SolidColorBrush(Color.FromRgb(111, 178, 255));
             var idleBg = new SolidColorBrush(Color.FromArgb(145, 14, 24, 48));
-            circleBtn.Background = !sq ? activeBg : idleBg;
-            squareBtn.Background = sq ? activeBg : idleBg;
-            radialDzBtn.Background = shape == DeadzoneShape.Radial ? activeBg : idleBg;
-            axialDzBtn.Background = shape == DeadzoneShape.Axial ? activeBg : idleBg;
-            hybridDzBtn.Background = shape == DeadzoneShape.Hybrid ? activeBg : idleBg;
+            var idleBorder = DS.Brush("DS.Hairline");
+            circleBtn.Background = !sq ? activeBg : idleBg; circleBtn.BorderBrush = !sq ? activeBorder : idleBorder;
+            squareBtn.Background = sq ? activeBg : idleBg; squareBtn.BorderBrush = sq ? activeBorder : idleBorder;
+            radialDzBtn.Background = shape == DeadzoneShape.Radial ? activeBg : idleBg; radialDzBtn.BorderBrush = shape == DeadzoneShape.Radial ? activeBorder : idleBorder;
+            axialDzBtn.Background = shape == DeadzoneShape.Axial ? activeBg : idleBg; axialDzBtn.BorderBrush = shape == DeadzoneShape.Axial ? activeBorder : idleBorder;
+            hybridDzBtn.Background = shape == DeadzoneShape.Hybrid ? activeBg : idleBg; hybridDzBtn.BorderBrush = shape == DeadzoneShape.Hybrid ? activeBorder : idleBorder;
             autoDrift.IsChecked = t?.AutoCenterDrift == true;
             rawBypass.IsChecked = t?.Raw == true;
+            invYQuick.IsChecked = t?.Lab?.InvertY == true;
+            swapQuick.IsChecked = prof?.SwapSticks == true;
             vertSlider.Value = t?.AxisRatio ?? 100;
             vertVal.Text = $"{vertSlider.Value:0}%";
             smoothSlider.Value = t?.Lab?.Smoothing ?? 0;
@@ -843,6 +870,10 @@ public partial class StudioScene : UserControl
         autoDrift.Unchecked += (_, _) => EditStick(s => s.AutoCenterDrift = false, "Auto-fix resting drift turned off");
         rawBypass.Checked += (_, _) => EditStick(s => s.Raw = true, "Raw 1:1 bypass enabled", allowRaw: true);
         rawBypass.Unchecked += (_, _) => EditStick(s => s.Raw = false, "Raw 1:1 bypass turned off", allowRaw: true);
+        invYQuick.Checked += (_, _) => EditStick(s => (s.Lab ??= new StickLabSettings()).InvertY = true, "Invert Y axis enabled");
+        invYQuick.Unchecked += (_, _) => EditStick(s => (s.Lab ??= new StickLabSettings()).InvertY = false, "Invert Y axis disabled");
+        swapQuick.Checked += (_, _) => EditProfile(p => p.SwapSticks = true, "Swap L & R sticks enabled");
+        swapQuick.Unchecked += (_, _) => EditProfile(p => p.SwapSticks = false, "Swap L & R sticks disabled");
         vertSlider.ValueChanged += (_, _) => { vertVal.Text = $"{vertSlider.Value:0}%"; EditStick(s => s.AxisRatio = (int)Math.Round(vertSlider.Value), $"Vertical sensitivity set to {vertSlider.Value:0}%"); };
         smoothSlider.ValueChanged += (_, _) => { smoothVal.Text = $"{smoothSlider.Value:0}%"; EditStick(s => (s.Lab ??= new StickLabSettings()).Smoothing = Math.Round(smoothSlider.Value), $"Velocity smoothing set to {smoothSlider.Value:0}%"); };
 
@@ -906,20 +937,37 @@ public partial class StudioScene : UserControl
         slidersGrid.Children.Add(vertWell);
         slidersGrid.Children.Add(smoothWell);
 
-        // Row 2: Compact toggle bar
+        // Row 2: Compact 2-row hardware & quick toggle bar
         var toggleWell = new Border
         {
-            CornerRadius = new(9), Background = new SolidColorBrush(Color.FromArgb(145, 7, 14, 30)),
+            CornerRadius = new(7), Background = new SolidColorBrush(Color.FromArgb(145, 7, 14, 30)),
             BorderBrush = new SolidColorBrush(Color.FromArgb(65, 110, 165, 240)), BorderThickness = new(1), Padding = new(10, 4, 10, 4),
             Margin = new(0, 0, 0, 5),
-            Child = new UniformGrid
+            Child = new StackPanel
             {
-                Columns = 3,
                 Children =
                 {
-                    new StackPanel { Orientation = Orientation.Horizontal, Children = { autoDrift, Kit.Text("Auto-fix drift", 11.5, "DS.TextSoft").Also(t => { t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new(6, 0, 0, 0); }) } },
-                    new StackPanel { Orientation = Orientation.Horizontal, Children = { linkSticks, Kit.Text("Link L & R", 11.5, "DS.TextSoft").Also(t => { t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new(6, 0, 0, 0); }) } },
-                    new StackPanel { Orientation = Orientation.Horizontal, Children = { rawBypass, Kit.Text("Raw 1:1 bypass", 11.5, "DS.TextSoft").Also(t => { t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new(6, 0, 0, 0); }) } },
+                    new UniformGrid
+                    {
+                        Columns = 3,
+                        Children =
+                        {
+                            new StackPanel { Orientation = Orientation.Horizontal, Children = { autoDrift, Kit.Text("Auto-fix drift", 11.5, "DS.TextSoft").Also(t => { t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new(6, 0, 0, 0); }) } },
+                            new StackPanel { Orientation = Orientation.Horizontal, Children = { linkSticks, Kit.Text("Link L & R", 11.5, "DS.TextSoft").Also(t => { t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new(6, 0, 0, 0); }) } },
+                            new StackPanel { Orientation = Orientation.Horizontal, Children = { rawBypass, Kit.Text("Raw 1:1 bypass", 11.5, "DS.TextSoft").Also(t => { t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new(6, 0, 0, 0); }) } },
+                        }
+                    },
+                    new UniformGrid
+                    {
+                        Columns = 3,
+                        Margin = new(0, 3, 0, 0),
+                        Children =
+                        {
+                            new StackPanel { Orientation = Orientation.Horizontal, Children = { invYQuick, Kit.Text("Invert Y", 11.5, "DS.TextSoft").Also(t => { t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new(6, 0, 0, 0); }) } },
+                            new StackPanel { Orientation = Orientation.Horizontal, Children = { swapQuick, Kit.Text("Swap L/R", 11.5, "DS.TextSoft").Also(t => { t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new(6, 0, 0, 0); }) } },
+                            new Border(),
+                        }
+                    }
                 }
             }
         };
@@ -930,7 +978,7 @@ public partial class StudioScene : UserControl
         {
             var b = new Button
             {
-                Style = DS.Style("ActionButton"),
+                Style = DS.Style("DS.ConsoleBtn"),
                 Height = 38, MinHeight = 0,
                 HorizontalContentAlignment = HorizontalAlignment.Left,
                 Padding = new(10, 3, 10, 3),
@@ -961,7 +1009,7 @@ public partial class StudioScene : UserControl
         // Row 4: Refined PS5-native Analog Studio launch strip (zero loud solid blue slop)
         var advBadge = new Border
         {
-            CornerRadius = new(7),
+            CornerRadius = new(5),
             Background = new SolidColorBrush(Color.FromArgb(65, 56, 189, 248)),
             BorderBrush = new SolidColorBrush(Color.FromArgb(145, 56, 189, 248)),
             BorderThickness = new(1),
@@ -992,7 +1040,7 @@ public partial class StudioScene : UserControl
             HorizontalContentAlignment = HorizontalAlignment.Stretch,
             Margin = new(0, 4, 0, 0),
             Padding = new(10, 4, 10, 4),
-            Style = DS.Style("ActionButton"),
+            Style = DS.Style("DS.ConsoleBtn"),
             Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(215, 11, 22, 46))),
             BorderBrush = new SolidColorBrush(Color.FromArgb(120, 56, 189, 248)),
             BorderThickness = new(1),
@@ -1284,7 +1332,7 @@ public partial class StudioScene : UserControl
     {
         if (pcCurveApply == null)
         {
-            pcCurveApply = new Button { Content = "Apply to PC mode", Style = DS.Style("ActionButton"), Height = 44, MinHeight = 0, Padding = new(18, 0, 20, 0), Margin = new(0, 0, 8, 0), Visibility = Visibility.Collapsed };
+            pcCurveApply = new Button { Content = "Apply to PC mode", Style = DS.Style("DS.ConsoleBtn"), Height = 44, MinHeight = 0, Padding = new(18, 0, 20, 0), Margin = new(0, 0, 8, 0), Visibility = Visibility.Collapsed };
             pcCurveApply.Click += ApplyPcClick; RegisterFocus(pcCurveApply); Curves.Toolbar.Children.Add(pcCurveApply);
             Apply.Click -= ApplyPcClick; Apply.Click += ApplyPcClick;
         }
@@ -1301,6 +1349,8 @@ public partial class StudioScene : UserControl
     private void PcModeTab(object sender, RoutedEventArgs e) => ShowManagement("PcMode");
     public StickLabZone? StickLab { get; private set; }
     private StickLabZone? stickLabLayer;
+    private StickLabZone? cachedStickLab;
+    private bool cachedStickLabNativeHw;
     private readonly TranslateTransform rootSlideTransform = new();
     private readonly TranslateTransform labSlideTransform = new();
     private void OpenStickTools(object sender, RoutedEventArgs e) => OpenStickTools();
@@ -1313,16 +1363,27 @@ public partial class StudioScene : UserControl
         FlushPendingCurveSave();
         curvesDiagnostics?.Stop();
         bool nativeHw = !Draft.PcMode && Model.Id is "x20" or "x20_pro";
-        StickLab = new StickLabZone(Model, Player, PcMode, CloseStickTools, RequestPcMode, code =>
+        if (cachedStickLab != null && cachedStickLabNativeHw == nativeHw)
         {
-            CloseStickTools();
-            ShowManagement("Community");
-            var exp = ExportCurrentForCommunity("curve", Draft.PcMode ? "pc-mode" : "native");
-            Community?.OpenShareDialog("curve", "Custom Analog Curve", exp.Payload, code);
-        }, nativeHardware: nativeHw, onProfileUpdated: p => ApplyNativeAndBoost(p, saveImmediate: false));
+            var curProfile = liveNativeProfile ?? (pcLink != null ? pcLink.Store.Get(PcModePage.StoreKey) : new PcModeProfile());
+            cachedStickLab.ResumeFromProfile(curProfile);
+            StickLab = cachedStickLab;
+        }
+        else
+        {
+            cachedStickLab = new StickLabZone(Model, Player, PcMode, CloseStickTools, RequestPcMode, code =>
+            {
+                CloseStickTools();
+                ShowManagement("Community");
+                var exp = ExportCurrentForCommunity("curve", Draft.PcMode ? "pc-mode" : "native");
+                Community?.OpenShareDialog("curve", "Custom Analog Curve", exp.Payload, code);
+            }, nativeHardware: nativeHw, onProfileUpdated: p => ApplyNativeAndBoost(p, saveImmediate: false));
+            cachedStickLabNativeHw = nativeHw;
+            StickLab = cachedStickLab;
+            StickLabOverlayHost.Children.Clear();
+            StickLabOverlayHost.Children.Add(StickLab);
+        }
         stickLabLayer = StickLab;
-        StickLabOverlayHost.Children.Clear();
-        StickLabOverlayHost.Children.Add(StickLab);
         StickLabOverlayHost.Visibility = Visibility.Visible;
         RootLayout.Visibility = Visibility.Collapsed;
         StickLab.ExitButton.Focus();
@@ -1332,10 +1393,10 @@ public partial class StudioScene : UserControl
     {
         if (stickLabLayer == null) return;
         stickLabLayer.FlushPendingSave();
+        stickLabLayer.SuspendLiveTimer();
         FlushPendingCurveSave();
         stickLabLayer = null;
         StickLab = null;
-        StickLabOverlayHost.Children.Clear();
         StickLabOverlayHost.Visibility = Visibility.Collapsed;
         RootLayout.Visibility = Visibility.Visible;
         RootLayout.Opacity = 1;
@@ -1522,6 +1583,46 @@ public partial class StudioScene : UserControl
             ShowLayer(child, ReferenceEquals(child, target));
     }
 
+    public int RgbSelectedColor => rgbWindow?.SelectedRgb ?? 0;
+    public int VibrationStrength => vibrationDraft.Strength;
+    public MacroDraft MacroDraft => macroDraft;
+    public SetupStore SetupStore => setupStore;
+
+    internal LightingWindow EnsureRgbWorkbench()
+    {
+        if (Model.Id != "x20_pro") throw new InvalidOperationException("RGB configuration is verified for X20 Pro only.");
+        if (rgbBody == null || rgbWindow == null)
+        {
+            rgbWindow = new LightingWindow(RegisterFocus, animate);
+            rgbWindow.ShareCommunityRequested += () =>
+            {
+                ShowManagement("Community");
+                var exp = ExportCurrentForCommunity("rgb", Draft.PcMode ? "pc-mode" : "native");
+                Community?.OpenShareDialog("rgb", "RGB Lighting Profile", exp.Payload);
+            };
+            rgbBody = rgbWindow.DetachBody();
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, () => rgbWindow?.ReadOnOpen());
+        }
+        return rgbWindow;
+    }
+
+    internal ScreenWorkbench EnsureScreenWorkbench()
+    {
+        if (!ModelProfiles.For(Model.Id).HasScreen) throw new InvalidOperationException("This model has no Screen artwork feature.");
+        if (Screen == null)
+        {
+            Screen = new(this, RegisterFocus, () => ShowManagement("Device"));
+            Screen.BrowseCommunityRequested += () => { ShowManagement("Community"); Community?.SetPresetCategoryAndRefresh("screen"); };
+            Screen.ShareCommunityRequested += () =>
+            {
+                var exp = ExportCurrentForCommunity("screen", Draft.PcMode ? "pc-mode" : "native");
+                ShowManagement("Community");
+                Community?.OpenShareDialog("screen", "Custom Screen Art", exp.Payload, null, exp.MediaBytes, exp.MediaType);
+            };
+        }
+        return Screen;
+    }
+
     public void ShowManagement(string page)
     {
         if (PcDashboard && Model.Id is not ("x20_pro" or "x10") && page is "Device" or "Diagnostics") page = "PcMode";
@@ -1556,15 +1657,15 @@ public partial class StudioScene : UserControl
         DashboardFlip.Visibility = page == "Dashboard" ? Visibility.Visible : Visibility.Hidden;
         if (page == "Dashboard") { Dashboard ??= CreateDashboard(); Dashboard.SetWorkingState(Draft.UnsentChanges, activeSetup == null ? null : setupStore.Items.FirstOrDefault(x => x.Id == activeSetup)?.Name, Draft.PcMode); ShowMgmtPanel(Dashboard); ChangeCount.Text = "Select the controller to configure it · Your games are found automatically"; PrimaryHint.Text = " Select"; OverviewHint.Text = ""; DraftChip.Text = "Dashboard"; Dashboard.FocusHero(); }
         else if (page == "Device") { Device ??= new(Model, Player, this, RegisterFocus, () => ShowManagement("Diagnostics"), () => ShowManagement("Setups"), () => ShowManagement("Screen"), Model.Id == "x20_pro" && !Draft.PcMode ? FactoryReset : null); Device.TelemetryUpdated -= ApplyTelemetry; Device.TelemetryUpdated += ApplyTelemetry; if (currentTransport != null) Device.SetTransport(currentTransport); Device.SetBatteryLevel(currentBatteryLevel, currentTransport); Device.ShowBattery(BatteryVisible); if (currentFirmware != null) Device.SetFirmware(currentFirmware); else if (currentTransport == "2.4 GHz receiver") Device.SetFirmware("Not readable over XInput"); if (gameplayConnected != null || BluetoothLive) Device.SetConnection(Linked, BluetoothOnly); if (currentHardwareId != null) Device.SetHardwareId(currentHardwareId); Device.UpdateEngineStatus(NativeEngineStatus); ShowMgmtPanel(Device.Body); ManagementShelfHost.Children.Add(Device.Shelf); ChangeCount.Text = "Assigned model · Gameplay and configuration remain separate"; PrimaryHint.Text = " Open"; OverviewHint.Text = " My setups"; DraftChip.Text = "Controller overview"; }
-        else if (page == "RGB") { if (Model.Id != "x20_pro") throw new InvalidOperationException("RGB configuration is verified for X20 Pro only."); if (rgbBody == null) { rgbWindow = new LightingWindow(RegisterFocus, animate); rgbWindow.ShareCommunityRequested += () => { ShowManagement("Community"); var exp = ExportCurrentForCommunity("rgb", Draft.PcMode ? "pc-mode" : "native"); Community?.OpenShareDialog("rgb", "RGB Lighting Profile", exp.Payload); }; rgbBody = rgbWindow.DetachBody(); Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, () => rgbWindow?.ReadOnOpen()); } ShowMgmtPanel(rgbBody); ChangeCount.Text = "RGB lighting"; PrimaryHint.Text = " Select"; OverviewHint.Text = ""; DraftChip.Text = "RGB"; }
-        else if (page == "Screen") { if (!ModelProfiles.For(Model.Id).HasScreen) throw new InvalidOperationException("This model has no Screen artwork feature."); if (Screen == null) { Screen = new(this, RegisterFocus, () => ShowManagement("Device")); Screen.BrowseCommunityRequested += () => { ShowManagement("Community"); Community?.SetPresetCategoryAndRefresh("screen"); }; Screen.ShareCommunityRequested += () => { ShowManagement("Community"); Community?.OpenShareDialog("screen"); }; } ShowMgmtPanel(Screen.Body); ChangeCount.Text = "Screen artwork · local preview"; PrimaryHint.Text = " Select"; OverviewHint.Text = ""; DraftChip.Text = "Screen"; }
+        else if (page == "RGB") { EnsureRgbWorkbench(); ShowMgmtPanel(rgbBody!); ChangeCount.Text = "RGB lighting"; PrimaryHint.Text = " Select"; OverviewHint.Text = ""; DraftChip.Text = "RGB"; }
+        else if (page == "Screen") { var scr = EnsureScreenWorkbench(); ShowMgmtPanel(scr.Body); ChangeCount.Text = "Screen artwork · local preview"; PrimaryHint.Text = " Select"; OverviewHint.Text = ""; DraftChip.Text = "Screen"; }
         else if (page == "Diagnostics") { Diagnostics ??= new(Player, RegisterFocus, PcMode, model: Model); ShowMgmtPanel(Diagnostics.Body); Diagnostics.Start(); ChangeCount.Text = "Read-only input capture · Use Esc or the mouse to leave"; PrimaryHint.Text = ""; OverviewHint.Text = ""; DraftChip.Text = "Diagnostics"; Diagnostics.Reset.Focus(); }
         else if (page == "PcMode")
         {
             if (PcMode == null) { cachedMgmtFallbackPc ??= Kit.Text("PC mode isn't available in this window.", 16, "DS.TextSoft"); ShowMgmtPanel(cachedMgmtFallbackPc); }
             else
             {
-                if (cachedPcModeView == null) { var back = new Button { Style = DS.Style("ActionButton"), Height = 46, MinHeight = 0, Padding = new(22, 0, 24, 0), Content = Kit.Text("Back to Dashboard", 15.5, "DS.Text", FontWeights.SemiBold) }; back.Click += (_, _) => ShowManagement("Dashboard"); RegisterFocus(back); var pc = new PcModePage(PcMode.Service, PcMode.Store, PcMode.Preferences, back, ShowButtons) { Margin = new(30, 6, 30, 24) }; cachedPcModeView = new ScrollViewer { Content = pc, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }; cachedPcModeSwitch = pc.Switch; }
+                if (cachedPcModeView == null) { var back = new Button { Style = DS.Style("DS.ConsoleBtn"), Height = 46, MinHeight = 0, Padding = new(22, 0, 24, 0), Content = Kit.Text("Back to Dashboard", 15.5, "DS.Text", FontWeights.SemiBold) }; back.Click += (_, _) => ShowManagement("Dashboard"); RegisterFocus(back); var pc = new PcModePage(PcMode.Service, PcMode.Store, PcMode.Preferences, back, ShowButtons) { Margin = new(30, 6, 30, 24) }; cachedPcModeView = new ScrollViewer { Content = pc, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }; cachedPcModeSwitch = pc.Switch; }
                 ShowMgmtPanel(cachedPcModeView); cachedPcModeSwitch?.Focus();
             }
             ChangeCount.Text = pcLink?.Service.Enabled == true ? "PC mode is on · Buttons, Curves, Keyboard and Mouse apply on this PC" : "PC mode is off · Switch it on so games get this controller's settings"; PrimaryHint.Text = " Select"; OverviewHint.Text = ""; DraftChip.Text = "PC mode";
