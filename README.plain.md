@@ -47,7 +47,7 @@ Two-column PS5 console workspace with a single scrollable Left editor (**Color &
 
 #### Screen (`160x80`, X20 Pro)
 
-Pure OLED `#000000` preview embedded inside the EasySMX X20 Pro frame with built-in image, animated GIF, and offline **Animated Templates** (`Gamertag`, `Retro Grid`, `Acoustic Wave`, `Minimal Emblem`, `Starfield Warp`, `Plasma Ring`), accent swatches, brightness, contrast, rotation, `.bin` export, and **Browse Community** / **Share to Community** shortcuts for White flash mode upload over USB serial (`Controller off -> hold M -> plug USB`). Automatically locked while Eco Mode is enabled.
+Pure `#000000` 160x80 Screen Art preview embedded inside the EasySMX X20 Pro frame with built-in image, animated GIF, and offline **Animated Templates** (`Gamertag`, `Retro Grid`, `Acoustic Wave`, `Minimal Emblem`, `Starfield Warp`, `Plasma Ring`), accent swatches, brightness, contrast, rotation, `.bin` export, and **Browse Community** / **Share to Community** shortcuts for White flash mode upload over USB serial (`Controller off -> hold M -> plug USB`). Automatically locked while Eco Mode is enabled.
 
 #### Buttons
 
@@ -59,7 +59,7 @@ Inline 3-zone workspace with the 10-point response curve editor & deadzones on t
 
 #### Community Hub
 
-Available in both Native Mode (`X20`, `X20 Pro`) and PC Mode (`X20 Pro`, `X20`, `X05 Pro`, `X10`, `X15`, `D10`, `Dune 8K`, `Generic XInput`) with strict per-device capability filtering. Features local ECDSA P-256 Creator Identities (`X20-XXXX-XXXX` UIDs, `X20K1.` Recovery Keys, `64x64` PNG/GIF avatars, 27+ earned badges, **Watchers / Watching**, upvotes, Works Great verification, Compare & Cherry-Pick diff drawer with 5s live sandbox, Setup Requests, Slow-Mode Lounge, Owner Notes & Polls, and Pixel-Disarmed OLED Screen Image/GIF templates). Can be paused anytime via **Tools -> Offline mode**.
+Available in both Native Mode (`X20`, `X20 Pro`) and PC Mode (`X20 Pro`, `X20`, `X05 Pro`, `X10`, `X15`, `D10`, `Dune 8K`, `Generic XInput`) with strict per-device capability filtering. Features local ECDSA P-256 Creator Identities (`X20-XXXX-XXXX` UIDs, `X20K1.` Recovery Keys, `64x64` PNG/GIF avatars, 27+ earned Reddit-style Achievement badges, **Watchers / Watching**, upvotes, install counters, Works Great verification, Compare & Cherry-Pick diff drawer with 5s live sandbox, Setup Requests, Slow-Mode Lounge, Owner Notes & Polls, and Pixel-Disarmed Screen Art Image/GIF templates). Can be paused anytime via **Tools -> Offline mode**.
 
 #### Macros
 
