@@ -9,9 +9,108 @@ namespace X20Ctl.Product;
 
 public static class ProductLinks
 {
-    // Preserved desktop/service.py open_support action; no guessed donation destination.
-    public const string Support="https://ko-fi.com/x20ctl";
-    public static void OpenSupport(string url){if(url!=Support)throw new ArgumentException("Unsupported destination.");if(ReviewSandbox.Active)return;Process.Start(new ProcessStartInfo(url){UseShellExecute=true});}
+    public const string Support = "https://ko-fi.com/x20ctl";
+    public const string Referral = "https://www.easysmx.com/?ref=X20CTL";
+    public static void OpenSupport(string url)
+    {
+        if (url != Support && url != Referral) throw new ArgumentException("Unsupported destination.");
+        if (ReviewSandbox.Active) return;
+        Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+    }
+
+    /// <summary>Opens the unified two-option PS5-glass Support chooser under the clicked trigger.</summary>
+    public static void ShowSupportMenu(UIElement target, Action<string> openUrl)
+    {
+        var popup = new System.Windows.Controls.Primitives.Popup
+        {
+            PlacementTarget = target,
+            Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom,
+            VerticalOffset = 8,
+            StaysOpen = false,
+            AllowsTransparency = true,
+            PopupAnimation = System.Windows.Controls.Primitives.PopupAnimation.Fade,
+        };
+
+        Border OptionCard(string glyph, Color glyphColor, string title, string subtitle, Action onClick)
+        {
+            var iconBadge = new Border
+            {
+                Width = 34, Height = 34, CornerRadius = new(10),
+                Background = new SolidColorBrush(Color.FromArgb(36, glyphColor.R, glyphColor.G, glyphColor.B)),
+                Margin = new(0, 0, 12, 0),
+                Child = new TextBlock
+                {
+                    Text = glyph,
+                    FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"),
+                    FontSize = 15,
+                    Foreground = new SolidColorBrush(glyphColor),
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center,
+                }
+            };
+            var textStack = new StackPanel
+            {
+                VerticalAlignment = VerticalAlignment.Center,
+                Children =
+                {
+                    new TextBlock { Text = title, FontFamily = DS.Display, FontSize = 14, FontWeight = FontWeights.SemiBold, Foreground = DS.Brush("DS.Text") },
+                    new TextBlock { Text = subtitle, FontSize = 11.5, Foreground = DS.Brush("DS.TextSoft"), Margin = new(0, 2, 0, 0) },
+                }
+            };
+            var row = new StackPanel { Orientation = Orientation.Horizontal, Children = { iconBadge, textStack } };
+            var card = new Border
+            {
+                CornerRadius = new(10),
+                Padding = new(12, 10, 14, 10),
+                Cursor = Cursors.Hand,
+                Background = Brushes.Transparent,
+                BorderBrush = Brushes.Transparent,
+                BorderThickness = new(1),
+                Child = row,
+            };
+            card.MouseEnter += (_, _) =>
+            {
+                card.Background = new SolidColorBrush(Color.FromArgb(40, 125, 182, 255));
+                card.BorderBrush = new SolidColorBrush(Color.FromArgb(95, 125, 182, 255));
+            };
+            card.MouseLeave += (_, _) =>
+            {
+                card.Background = Brushes.Transparent;
+                card.BorderBrush = Brushes.Transparent;
+            };
+            card.MouseLeftButtonUp += (_, _) =>
+            {
+                popup.IsOpen = false;
+                onClick();
+            };
+            return card;
+        }
+
+        var list = new StackPanel { Width = 310 };
+        list.Children.Add(OptionCard(
+            "\uEB52", Color.FromRgb(255, 108, 140),
+            "Buy Me a Coffee (Ko-fi)",
+            "Support X20CTL development",
+            () => openUrl(Support)));
+        list.Children.Add(new Border { Height = 1, Background = DS.Brush("DS.Hairline"), Margin = new(8, 4, 8, 4) });
+        list.Children.Add(OptionCard(
+            "\uE8EC", Color.FromRgb(74, 222, 128),
+            "Use My EasySMX Referral (10% Off)",
+            "Get 10% off controllers while supporting us",
+            () => openUrl(Referral)));
+
+        popup.Child = new Border
+        {
+            CornerRadius = new(14),
+            Padding = new(6),
+            BorderThickness = new(1),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(140, 125, 182, 255)),
+            Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(245, 10, 19, 36))),
+            Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = Colors.Black, BlurRadius = 24, ShadowDepth = 6, Opacity = 0.6 },
+            Child = list,
+        };
+        popup.IsOpen = true;
+    }
 }
 // ProductSettings (the Tools hub) lives in ToolsHub.cs.
 

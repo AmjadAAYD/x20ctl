@@ -6,11 +6,13 @@ public enum ScreenTemplateKind
     RetroGrid,
     AcousticWave,
     MinimalEmblem,
+    StarfieldWarp,
+    PlasmaRing,
 }
 
 /// <summary>
 /// Pure cross-platform 160x80 RGBA animated template generator for White flash mode upload.
-/// Uses an embedded 5x7 crisp bitmap font so zero Windows GDI/WPF calls are needed.
+/// Uses pure #000000 AMOLED backgrounds, anti-aliased pixel blending, and crisp bitmap glyphs.
 /// </summary>
 public static class ScreenTemplates
 {
@@ -30,21 +32,28 @@ public static class ScreenTemplates
         for (int f = 0; f < count; f++)
         {
             double phase = (double)f / count * Math.PI * 2.0;
+            double progress = (double)f / count;
             var px = new byte[Width * Height * 4];
-            RenderBackground(px, ar, ag, ab);
+            RenderPureBlack(px);
             switch (kind)
             {
                 case ScreenTemplateKind.GamertagBadge:
-                    RenderGamertagBadge(px, cleanLabel, ar, ag, ab, phase);
+                    RenderObsidianTag(px, cleanLabel, ar, ag, ab, phase, progress);
                     break;
                 case ScreenTemplateKind.RetroGrid:
-                    RenderRetroGrid(px, cleanLabel, ar, ag, ab, phase);
+                    RenderCyberHorizon(px, cleanLabel, ar, ag, ab, progress);
                     break;
                 case ScreenTemplateKind.AcousticWave:
-                    RenderAcousticWave(px, cleanLabel, ar, ag, ab, phase);
+                    RenderPulseWave(px, cleanLabel, ar, ag, ab, phase);
                     break;
                 case ScreenTemplateKind.MinimalEmblem:
-                    RenderMinimalEmblem(px, cleanLabel, ar, ag, ab, phase);
+                    RenderMinimalTelemetry(px, cleanLabel, ar, ag, ab, phase, progress);
+                    break;
+                case ScreenTemplateKind.StarfieldWarp:
+                    RenderStarfieldWarp(px, cleanLabel, ar, ag, ab, progress);
+                    break;
+                case ScreenTemplateKind.PlasmaRing:
+                    RenderPlasmaRing(px, cleanLabel, ar, ag, ab, phase);
                     break;
             }
             frames[f] = px;
@@ -59,86 +68,243 @@ public static class ScreenTemplates
         return clean.Length == 0 ? "X20 PRO" : clean;
     }
 
-    static void RenderBackground(byte[] px, byte ar, byte ag, byte ab)
+    static void RenderPureBlack(byte[] px)
     {
-        for (int y = 0; y < Height; y++)
+        for (int i = 3; i < px.Length; i += 4)
+            px[i] = 255;
+    }
+
+    static void RenderObsidianTag(byte[] px, string label, byte ar, byte ag, byte ab, double phase, double progress)
+    {
+        // Corner tech brackets in accent color
+        int b = 8, t = 2;
+        FillRect(px, 6, 6, b, t, ar, ag, ab);
+        FillRect(px, 6, 6, t, b, ar, ag, ab);
+        FillRect(px, Width - 6 - b, 6, b, t, ar, ag, ab);
+        FillRect(px, Width - 6 - t, 6, t, b, ar, ag, ab);
+        FillRect(px, 6, Height - 8, b, t, ar, ag, ab);
+        FillRect(px, 6, Height - 6 - b, t, b, ar, ag, ab);
+        FillRect(px, Width - 6 - b, Height - 8, b, t, ar, ag, ab);
+        FillRect(px, Width - 6 - t, Height - 6 - b, t, b, ar, ag, ab);
+
+        // Smooth ambient glow behind text center
+        for (int y = 18; y < 56; y++)
         {
-            for (int x = 0; x < Width; x++)
+            for (int x = 16; x < Width - 16; x++)
             {
-                int i = (y * Width + x) * 4;
-                double v = (double)y / Height;
-                px[i] = (byte)Math.Clamp((int)(6 + ar * 0.06 * (1 - v)), 0, 255);
-                px[i + 1] = (byte)Math.Clamp((int)(8 + ag * 0.06 * (1 - v)), 0, 255);
-                px[i + 2] = (byte)Math.Clamp((int)(14 + ab * 0.08 * (1 - v)), 0, 255);
-                px[i + 3] = 255;
-            }
-        }
-    }
-
-    static void RenderGamertagBadge(byte[] px, string label, byte ar, byte ag, byte ab, double phase)
-    {
-        int scan = (int)Math.Round((Math.Sin(phase) * 0.5 + 0.5) * (Width - 20));
-        // Outer accent border
-        DrawRectOutline(px, 4, 4, Width - 8, Height - 8, ar, ag, ab);
-        // Sliding highlight bar top & bottom
-        FillRect(px, 8 + scan, 4, 16, 2, 245, 250, 255);
-        FillRect(px, Width - 24 - scan, Height - 6, 16, 2, 245, 250, 255);
-        DrawCenteredText(px, label, 28, 2, 248, 250, 255);
-        DrawCenteredText(px, "READY", 54, 1, ar, ag, ab);
-    }
-
-    static void RenderRetroGrid(byte[] px, string label, byte ar, byte ag, byte ab, double phase)
-    {
-        int offset = (int)(phase / (Math.PI * 2) * 16) % 16;
-        for (int y = 40; y < Height; y++)
-        {
-            double depth = (y - 39) / 40.0;
-            bool hLine = ((y + offset) % 8) == 0;
-            for (int x = 0; x < Width; x++)
-            {
-                double worldX = (x - 80) / Math.Max(0.15, depth);
-                bool vLine = Math.Abs(((int)Math.Round(worldX) % 24)) < 2;
-                if (hLine || vLine)
-                    BlendPixel(px, x, y, ar, ag, ab, 0.72);
-            }
-        }
-        // Horizon glow & centered tag
-        FillRect(px, 0, 39, Width, 2, ar, ag, ab);
-        DrawCenteredText(px, label, 14, 2, 248, 252, 255);
-    }
-
-    static void RenderAcousticWave(byte[] px, string label, byte ar, byte ag, byte ab, double phase)
-    {
-        const int bars = 20;
-        int barW = 5, gap = 2, startX = 11;
-        for (int b = 0; b < bars; b++)
-        {
-            double wave = 0.25 + 0.75 * (0.5 + 0.5 * Math.Sin(phase + b * 0.55));
-            int h = Math.Clamp((int)Math.Round(wave * 38), 4, 38);
-            int x = startX + b * (barW + gap);
-            FillRect(px, x, 68 - h, barW, h, ar, ag, ab);
-            FillRect(px, x, 68 - h, barW, 2, 245, 250, 255);
-        }
-        DrawCenteredText(px, label, 10, 2, 248, 252, 255);
-    }
-
-    static void RenderMinimalEmblem(byte[] px, string label, byte ar, byte ag, byte ab, double phase)
-    {
-        double pulseR = 22.0 + 3.0 * Math.Sin(phase);
-        for (int y = 0; y < Height; y++)
-        {
-            for (int x = 0; x < Width; x++)
-            {
-                double dx = x - 34, dy = y - 40;
+                double dx = (x - 80) / 58.0;
+                double dy = (y - 36) / 18.0;
                 double d = Math.Sqrt(dx * dx + dy * dy);
-                if (Math.Abs(d - pulseR) < 1.8)
-                    BlendPixel(px, x, y, ar, ag, ab, 0.95);
-                else if (d < 8)
-                    BlendPixel(px, x, y, 245, 250, 255, 0.9);
+                if (d < 1.0)
+                    BlendPixel(px, x, y, ar, ag, ab, (1.0 - d) * 0.22 * (0.85 + 0.15 * Math.Sin(phase)));
             }
         }
-        DrawText(px, label, 68, 30, 2, 248, 252, 255);
-        DrawText(px, "X20CTL", 68, 50, 1, ar, ag, ab);
+
+        // Seamless wrapping underline beam
+        int barW = 92;
+        int bx = (Width - barW) / 2;
+        FillRect(px, bx, 56, barW, 1, (byte)(ar / 4), (byte)(ag / 4), (byte)(ab / 4));
+        int pulsePos = (int)Math.Round(progress * barW);
+        for (int i = 0; i < 24; i++)
+        {
+            int pxX = bx + (pulsePos + i) % barW;
+            double a = Math.Sin(i / 23.0 * Math.PI);
+            BlendPixel(px, pxX, 55, ar, ag, ab, a * 0.9);
+            BlendPixel(px, pxX, 56, 250, 252, 255, a);
+        }
+
+        int scale = label.Length <= 8 ? 2 : 1;
+        int yText = scale == 2 ? 27 : 31;
+        DrawCenteredText(px, label, yText + 1, scale, (byte)(ar / 3), (byte)(ag / 3), (byte)(ab / 3));
+        DrawCenteredText(px, label, yText, scale, 250, 252, 255);
+    }
+
+    static void RenderCyberHorizon(byte[] px, string label, byte ar, byte ag, byte ab, double progress)
+    {
+        const int horizonY = 44;
+        // Soft atmospheric radial glow above horizon
+        for (int y = 0; y <= horizonY; y++)
+        {
+            double h = 1.0 - Math.Abs(horizonY - y) / 36.0;
+            if (h <= 0) continue;
+            for (int x = 12; x < Width - 12; x++)
+            {
+                double edge = 1.0 - Math.Abs(x - 80) / 70.0;
+                if (edge > 0)
+                    BlendPixel(px, x, y, ar, ag, ab, h * h * edge * 0.32);
+            }
+        }
+
+        // Smooth perspective ground lines
+        for (int row = 1; row <= 6; row++)
+        {
+            double z = (row - progress) / 6.0;
+            if (z <= 0.04) z += 1.0;
+            int y = horizonY + (int)Math.Round(Math.Pow(z, 1.75) * (Height - horizonY - 2));
+            if (y > horizonY && y < Height)
+            {
+                double alpha = 0.25 + 0.65 * z;
+                for (int x = 0; x < Width; x++)
+                    BlendPixel(px, x, y, ar, ag, ab, alpha * 0.78);
+            }
+        }
+        for (int ray = -4; ray <= 4; ray++)
+        {
+            double slope = ray * 0.62;
+            for (int y = horizonY + 1; y < Height; y++)
+            {
+                double t = (double)(y - horizonY) / (Height - horizonY);
+                int x = 80 + (int)Math.Round(slope * (y - horizonY) * 1.45);
+                BlendPixel(px, x, y, ar, ag, ab, 0.22 + 0.55 * t);
+                BlendPixel(px, x + 1, y, ar, ag, ab, 0.12 + 0.28 * t);
+            }
+        }
+
+        // Crisp luminous horizon beam
+        for (int x = 0; x < Width; x++)
+        {
+            double fade = 1.0 - Math.Pow(Math.Abs(x - 80) / 82.0, 1.6);
+            if (fade > 0)
+            {
+                BlendPixel(px, x, horizonY, 245, 250, 255, fade);
+                BlendPixel(px, x, horizonY - 1, ar, ag, ab, fade * 0.75);
+                BlendPixel(px, x, horizonY + 1, ar, ag, ab, fade * 0.75);
+            }
+        }
+
+        int scale = label.Length <= 9 ? 2 : 1;
+        DrawCenteredText(px, label, scale == 2 ? 14 : 18, scale, 250, 252, 255);
+    }
+
+    static void RenderPulseWave(byte[] px, string label, byte ar, byte ag, byte ab, double phase)
+    {
+        for (int x = 6; x < Width - 6; x++)
+        {
+            double nx = (x - 6) / (double)(Width - 12);
+            double env = Math.Sin(nx * Math.PI);
+            double y1 = 52.0 - env * (14.0 * Math.Sin(nx * Math.PI * 3.0 - phase) + 5.0 * Math.Cos(nx * Math.PI * 6.0 + phase));
+            double y2 = 52.0 + env * (9.0 * Math.Sin(nx * Math.PI * 2.5 + phase));
+
+            DrawAntiAliasedDot(px, x, y2, (byte)(ar / 2), (byte)(ag / 2), (byte)(ab / 2), 0.7);
+            DrawAntiAliasedDot(px, x, y1, ar, ag, ab, 1.0);
+            DrawAntiAliasedDot(px, x, y1 - 0.6, 250, 252, 255, 0.75);
+        }
+        int scale = label.Length <= 10 ? 2 : 1;
+        DrawCenteredText(px, label, 10, scale, 250, 252, 255);
+    }
+
+    static void RenderMinimalTelemetry(byte[] px, string label, byte ar, byte ag, byte ab, double phase, double progress)
+    {
+        const double cx = 31.0, cy = 40.0, r = 18.0;
+        for (int y = 16; y <= 64; y++)
+        {
+            for (int x = 8; x <= 56; x++)
+            {
+                double dx = x - cx, dy = y - cy;
+                double d = Math.Sqrt(dx * dx + dy * dy);
+                double ringDist = Math.Abs(d - r);
+                if (ringDist < 1.6)
+                {
+                    double ang = Math.Atan2(dy, dx);
+                    double rel = ((ang - phase) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
+                    double arc = rel < 2.4 ? 1.0 - rel / 2.4 : 0.18;
+                    BlendPixel(px, x, y, ar, ag, ab, (1.6 - ringDist) / 1.6 * arc);
+                }
+                else if (d < 5.5)
+                {
+                    double core = 0.7 + 0.3 * Math.Sin(phase);
+                    BlendPixel(px, x, y, 250, 252, 255, (5.5 - d) / 5.5 * core);
+                }
+            }
+        }
+
+        int scale = label.Length <= 8 ? 2 : 1;
+        DrawText(px, label, 64, scale == 2 ? 22 : 26, scale, 250, 252, 255);
+        // Clean micro telemetry bars below label
+        for (int b = 0; b < 6; b++)
+        {
+            int bx = 64 + b * 14;
+            int bh = 4 + (int)Math.Round(6.0 * (0.5 + 0.5 * Math.Sin(phase + b * 0.85)));
+            FillRect(px, bx, 56 - bh, 9, bh, ar, ag, ab);
+            FillRect(px, bx, 56 - bh, 9, 2, 245, 250, 255);
+        }
+        _ = progress;
+    }
+
+    static void RenderStarfieldWarp(byte[] px, string label, byte ar, byte ag, byte ab, double progress)
+    {
+        const int starCount = 34;
+        for (int s = 0; s < starCount; s++)
+        {
+            double angle = (s * 2.3999632) % (Math.PI * 2);
+            double speed = 0.7 + (s % 3) * 0.35;
+            double z = ((s / (double)starCount) + progress * speed) % 1.0;
+            double dist = 4.0 + Math.Pow(z, 1.8) * 76.0;
+            double tail = dist * 0.16 * (s % 2 == 0 ? 1.0 : 0.65);
+
+            int steps = 5;
+            for (int st = 0; st < steps; st++)
+            {
+                double rr = Math.Max(2.0, dist - st * (tail / steps));
+                double sx = 80.0 + Math.Cos(angle) * rr * 1.15;
+                double sy = 40.0 + Math.Sin(angle) * rr * 0.62;
+                double alpha = Math.Clamp(z * (1.0 - st / (double)steps), 0.08, 1.0);
+                if (st == 0) DrawAntiAliasedDot(px, sx, sy, 250, 252, 255, alpha);
+                else DrawAntiAliasedDot(px, sx, sy, ar, ag, ab, alpha * 0.85);
+            }
+        }
+
+        // Subtle dark vignette behind crisp label for readability
+        for (int y = 26; y < 52; y++)
+            for (int x = 22; x < Width - 22; x++)
+                BlendPixel(px, x, y, 0, 0, 0, 0.55);
+
+        int scale = label.Length <= 8 ? 2 : 1;
+        DrawCenteredText(px, label, scale == 2 ? 32 : 36, scale, 250, 252, 255);
+    }
+
+    static void RenderPlasmaRing(byte[] px, string label, byte ar, byte ag, byte ab, double phase)
+    {
+        const double cx = 80.0, cy = 40.0;
+        for (int y = 6; y < Height - 6; y++)
+        {
+            for (int x = 32; x < Width - 32; x++)
+            {
+                double dx = (x - cx) * 0.85, dy = y - cy;
+                double r = Math.Sqrt(dx * dx + dy * dy);
+                double ang = Math.Atan2(dy, dx);
+                double waveR = 27.0 + 2.2 * Math.Sin(ang * 4.0 - phase);
+                double d = Math.Abs(r - waveR);
+                if (d < 2.2)
+                {
+                    double glow = (2.2 - d) / 2.2;
+                    double seg = 0.5 + 0.5 * Math.Sin(ang * 2.0 + phase * 2.0);
+                    BlendPixel(px, x, y, ar, ag, ab, glow * (0.45 + 0.55 * seg));
+                    if (d < 0.85)
+                        BlendPixel(px, x, y, 250, 252, 255, glow * seg * 0.75);
+                }
+            }
+        }
+
+        for (int k = 0; k < 2; k++)
+        {
+            double a = phase + k * Math.PI;
+            DrawAntiAliasedDot(px, cx + Math.Cos(a) * 32.0, cy + Math.Sin(a) * 27.0, 255, 255, 255, 1.0);
+        }
+
+        int scale = label.Length <= 8 ? 2 : 1;
+        DrawCenteredText(px, label, scale == 2 ? 33 : 36, scale, 250, 252, 255);
+    }
+
+    static void DrawAntiAliasedDot(byte[] px, double x, double y, byte r, byte g, byte b, double alpha)
+    {
+        int x0 = (int)Math.Floor(x);
+        int y0 = (int)Math.Floor(y);
+        double fx = x - x0, fy = y - y0;
+        BlendPixel(px, x0, y0, r, g, b, alpha * (1 - fx) * (1 - fy));
+        BlendPixel(px, x0 + 1, y0, r, g, b, alpha * fx * (1 - fy));
+        BlendPixel(px, x0, y0 + 1, r, g, b, alpha * (1 - fx) * fy);
+        BlendPixel(px, x0 + 1, y0 + 1, r, g, b, alpha * fx * fy);
     }
 
     static void DrawCenteredText(byte[] px, string text, int y, int scale, byte r, byte g, byte b)
@@ -169,14 +335,6 @@ public static class ScreenTemplates
         }
     }
 
-    static void DrawRectOutline(byte[] px, int x, int y, int w, int h, byte r, byte g, byte b)
-    {
-        FillRect(px, x, y, w, 1, r, g, b);
-        FillRect(px, x, y + h - 1, w, 1, r, g, b);
-        FillRect(px, x, y, 1, h, r, g, b);
-        FillRect(px, x + w - 1, y, 1, h, r, g, b);
-    }
-
     static void FillRect(byte[] px, int x, int y, int w, int h, byte r, byte g, byte b)
     {
         for (int yy = Math.Max(0, y); yy < Math.Min(Height, y + h); yy++)
@@ -191,11 +349,12 @@ public static class ScreenTemplates
 
     static void BlendPixel(byte[] px, int x, int y, byte r, byte g, byte b, double alpha)
     {
-        if (x is < 0 or >= Width || y is < 0 or >= Height) return;
+        if (x is < 0 or >= Width || y is < 0 or >= Height || alpha <= 0) return;
+        double a = Math.Clamp(alpha, 0, 1);
         int i = (y * Width + x) * 4;
-        px[i] = (byte)Math.Clamp((int)(px[i] * (1 - alpha) + r * alpha), 0, 255);
-        px[i + 1] = (byte)Math.Clamp((int)(px[i + 1] * (1 - alpha) + g * alpha), 0, 255);
-        px[i + 2] = (byte)Math.Clamp((int)(px[i + 2] * (1 - alpha) + b * alpha), 0, 255);
+        px[i] = (byte)Math.Clamp((int)(px[i] * (1 - a) + r * a), 0, 255);
+        px[i + 1] = (byte)Math.Clamp((int)(px[i + 1] * (1 - a) + g * a), 0, 255);
+        px[i + 2] = (byte)Math.Clamp((int)(px[i + 2] * (1 - a) + b * a), 0, 255);
         px[i + 3] = 255;
     }
 

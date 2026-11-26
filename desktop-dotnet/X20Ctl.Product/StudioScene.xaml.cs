@@ -57,6 +57,7 @@ public partial class StudioScene : UserControl
     public event Action? BackRequested;
     /// <summary>The title-bar Support pill; the host decides how to open the link (and the stress harness stubs it).</summary>
     public event Action? SupportRequested;
+    public event Action<string>? SupportDestinationRequested;
     public event Action<string>? AgentScanRequested;
     public event Action<string>? AgentFeedbackRequested;
     private readonly ControllerLayout layout;
@@ -343,7 +344,11 @@ public partial class StudioScene : UserControl
             Content = new Border { CornerRadius = new(10), Height = 36, Padding = new(14, 0, 18, 0), BorderThickness = new(1), BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(160, 255, 150, 170))),
                 Background = new LinearGradientBrush(ThemeCatalog.R(Color.FromRgb(232, 54, 96)), ThemeCatalog.R(Color.FromRgb(196, 30, 78)), 0), Effect = new DropShadowEffect { Color = ThemeCatalog.R(Color.FromRgb(232, 54, 96)), BlurRadius = 18, ShadowDepth = 0, Opacity = .5 },
                 Child = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Children = { heart, new TextBlock { Text = "Support", FontFamily = DS.Display, FontSize = 15, FontWeight = FontWeights.SemiBold, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center } } } } };
-        support.Click += (_, _) => SupportRequested?.Invoke();
+        support.Click += (_, _) =>
+        {
+            if (SupportDestinationRequested is { } openUrl) ProductLinks.ShowSupportMenu(support, openUrl);
+            else SupportRequested?.Invoke();
+        };
         var pill = (Border)support.Content; support.MouseEnter += (_, _) => pill.BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(200, 255, 255, 255))); support.MouseLeave += (_, _) => pill.BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(160, 255, 150, 170)));
         var name = new Border { CornerRadius = new(18), Height = 36, Padding = new(14, 0, 16, 0), BorderThickness = new(1), BorderBrush = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(80, 125, 182, 255))), Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(60, 30, 60, 130))),
             Child = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Children = { new TextBlock { Text = "", FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"), FontSize = 16, Foreground = DS.Brush("DS.AccentHi"), VerticalAlignment = VerticalAlignment.Center, Margin = new(0, 0, 10, 0) }, new TextBlock { Text = Model.Name.Replace("EasySMX ", ""), FontFamily = DS.Display, FontSize = 15, FontWeight = FontWeights.SemiBold, Foreground = DS.Brush("DS.Text"), VerticalAlignment = VerticalAlignment.Center } } } };
@@ -363,7 +368,8 @@ public partial class StudioScene : UserControl
         var helpItem=new MenuItem {Header="Diagnostics and help"};helpItem.Click+=(_,_)=>ShowManagement("Diagnostics");more.ContextMenu.Items.Add(helpItem);
         more.Click+=(_,_)=>more.ContextMenu.IsOpen=true;
         var deviceBody=new StackPanel{Orientation=Orientation.Horizontal,Children={Kit.Text("",16,"DS.AccentHi").Also(t=>t.FontFamily=new FontFamily("Segoe Fluent Icons")),Kit.Text(Model.Name.Replace("EasySMX ",""),14,"DS.Text",FontWeights.SemiBold).Also(t=>t.Margin=new(10,0,8,0)),deviceState}};
-        deviceControl=new Button{Content=deviceBody,Style=DS.Style("Zone.Utility"),Height=36,MinHeight=0,Padding=new(10,0,10,0),ToolTip=new StackPanel{Children={Kit.Text($"{Model.Name} · Player {Player+1}",14,"DS.Text",FontWeights.SemiBold),batteryLabel,Kit.Text("Transport · Not reported",13,"DS.TextSoft")}}};
+        deviceState.TextTrimming=TextTrimming.None;
+        deviceControl=new Button{Content=deviceBody,Style=DS.Style("Zone.Utility"),Height=36,MinHeight=0,MinWidth=0,Width=double.NaN,Padding=new(12,0,14,0),ToolTip=new StackPanel{Children={Kit.Text($"{Model.Name} · Player {Player+1}",14,"DS.Text",FontWeights.SemiBold),batteryLabel,Kit.Text("Transport · Not reported",13,"DS.TextSoft")}}};
         deviceControl.Click+=(_,_)=>ShowManagement("Device");System.Windows.Automation.AutomationProperties.SetName(deviceControl,"Selected controller status and details");
         AgentTitleHost.Children.Add(agentPill);
         // PC Mode entry beside Agent XCTL (owner, 6 Nov 2026): every pad except the X20 family, scan -> type -> warning -> on
@@ -390,7 +396,8 @@ public partial class StudioScene : UserControl
         headerBattery.Show(Linked?level:null);
         headerBattery.Visibility=Visibility.Collapsed;
         batteryLabel.Visibility=BatteryVisible?Visibility.Visible:Visibility.Collapsed;
-        if(animate&&deviceControl.IsLoaded&&previousWidth>0&&previousText!=deviceState.Text){deviceControl.BeginAnimation(WidthProperty,null);deviceControl.Width=double.NaN;deviceControl.Measure(new Size(double.PositiveInfinity,36));double next=deviceControl.DesiredSize.Width;deviceControl.Width=next;deviceControl.BeginAnimation(WidthProperty,new DoubleAnimation(previousWidth,next,TimeSpan.FromMilliseconds(180)){FillBehavior=FillBehavior.Stop,EasingFunction=DS.EaseOut});}
+        if(animate&&deviceControl.IsLoaded&&previousWidth>0&&previousText!=deviceState.Text){deviceControl.BeginAnimation(WidthProperty,null);deviceControl.Width=double.NaN;deviceControl.Measure(new Size(double.PositiveInfinity,36));double next=Math.Ceiling(deviceControl.DesiredSize.Width)+2;var anim=new DoubleAnimation(previousWidth,next,TimeSpan.FromMilliseconds(180)){FillBehavior=FillBehavior.Stop,EasingFunction=DS.EaseOut};anim.Completed+=(_,_)=>deviceControl.Width=double.NaN;deviceControl.BeginAnimation(WidthProperty,anim);}
+        else deviceControl.Width=double.NaN;
     }
     internal bool BatteryVisible => PcMode?.Service.Enabled != true;
     internal void RefreshBatteryVisibility()

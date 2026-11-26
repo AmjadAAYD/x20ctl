@@ -205,7 +205,7 @@ public sealed partial class ProductHost : Grid
         PcMode.EnabledChanged+=()=>Studio?.PcModeEnabledChanged();
         MouseMode=new(assignmentPath==null?X20Ctl.Zone.Mouse.MouseProfile.DefaultPath:Path.Combine(Path.GetDirectoryName(Path.GetFullPath(assignmentPath))!,"mouse-fixture.json"),listen:assignmentPath==null){PcMode=PcMode};
         MouseMode.Changed+=()=>Dispatcher.BeginInvoke(()=>Studio?.MouseModeChanged());
-        Zone.SupportRequested+=OpenSupport;Zone.SettingsRequested+=ShowSettings;var languageMenu=new LanguageMenu(preferencesHealthy?preferences:null,zone);Children.Add(languageMenu);Panel.SetZIndex(languageMenu,9);
+        Zone.SupportRequested+=OpenSupport;Zone.SupportDestinationRequested+=OpenSupportDestination;Zone.SettingsRequested+=ShowSettings;var languageMenu=new LanguageMenu(preferencesHealthy?preferences:null,zone);Children.Add(languageMenu);Panel.SetZIndex(languageMenu,9);
         Catalog = new ControllerCatalog(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Data", "catalog.json")));
         store = new(assignmentPath ?? AppDataPaths.Roaming("native", "player-assignments.v1.json"));
         string dataRoot = AppDataPaths.RoamingRoot;
@@ -336,7 +336,7 @@ public sealed partial class ProductHost : Grid
             if(Studio!=opened||!opened.NeedsPcModeRefresh)return;
             EnterStudio(player);Studio?.ShowManagement("PcMode");
         });
-        opened.BackRequested += ReturnToZone;opened.SupportRequested+=OpenSupport;opened.ActiveSetupChanged+=id=>activeSetups[key]=id;opened.TelemetryUpdated+=data=>RecordTelemetry(data,player);
+        opened.BackRequested += ReturnToZone;opened.SupportRequested+=OpenSupport;opened.SupportDestinationRequested+=OpenSupportDestination;opened.ActiveSetupChanged+=id=>activeSetups[key]=id;opened.TelemetryUpdated+=data=>RecordTelemetry(data,player);
         // after PC mode's link is made, so edits not yet applied still light Apply
         if(pendingBack){StudioMemory.Restore(remembered!,draft,curveDraft,macroDraft,vibrationDraft);Studio.DraftsRestored();}
         Studio.SetBatteryLevel(batteryLevels[player]);
@@ -581,13 +581,14 @@ public sealed partial class ProductHost : Grid
         if(Intro!=null){Children.Remove(Intro);Intro=null;}Zone.Opacity=1;Zone.IsEnabled=true;if(updateText!=null)ShowUpdateNotice();ShowWhatsNewIfDue();
         if(preferencesHealthy)try{preferences.MarkIntroSeen();}catch(Exception error) when(error is IOException or InvalidOperationException){Zone.FeedbackText.Text="Startup preference could not be saved; original file preserved. "+error.Message;}
     }
-    private void OpenSupport(){try{support(ProductLinks.Support);}catch(Exception error){Zone.FeedbackText.Text="Could not open your browser. Support X20CTL: "+ProductLinks.Support+" · "+error.Message;}}
+    private void OpenSupport()=>OpenSupportDestination(ProductLinks.Support);
+    private void OpenSupportDestination(string url){try{support(url);}catch(Exception error){Zone.FeedbackText.Text="Could not open your browser. Support X20CTL: "+url+" · "+error.Message;}}
     public void ShowSettings()
     {
                 if (ThemeCatalog.Current.Id == "default") ReturnToZone();
         CloseSelector(); CloseSettings(); Zone.IsEnabled = false;
         if (Studio != null) { Studio.IsEnabled = false; Studio.Visibility = Visibility.Collapsed; }
-        Settings = new(OpenSupport, StartIntro, CloseSettings, OpenCheck, preferencesHealthy ? preferences : null, PcMode, pcModeStore, OpenWriteScan);
+        Settings = new(OpenSupport, StartIntro, CloseSettings, OpenCheck, preferencesHealthy ? preferences : null, PcMode, pcModeStore, OpenWriteScan, OpenSupportDestination);
         Children.Add(Settings); Panel.SetZIndex(Settings, 20); Fx.Appear(Settings, 1.04, 320); Settings.FocusFirst();
         _ = UpdateNativeContext();
     }

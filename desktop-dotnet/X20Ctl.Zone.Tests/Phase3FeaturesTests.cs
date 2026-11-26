@@ -187,7 +187,14 @@ public class Phase3FeaturesTests
         {
             var frames = ScreenTemplates.Generate(kind, "PLAYER 1", 0x3D8BFF, 12);
             Assert.Equal(12, frames.Length);
-            Assert.All(frames, f => Assert.Equal(160 * 80 * 4, f.Length));
+            Assert.All(frames, f =>
+            {
+                Assert.Equal(160 * 80 * 4, f.Length);
+                Assert.Equal(0, f[0]);
+                Assert.Equal(0, f[1]);
+                Assert.Equal(0, f[2]);
+                Assert.Equal(255, f[3]);
+            });
 
             var encoded = ScreenCodec.EncodeAnimationFitting(frames, 120, out int usedFrames, out int usedDelay);
             Assert.InRange(usedFrames, 1, 12);

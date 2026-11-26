@@ -147,6 +147,29 @@ public sealed class DashboardConsolePage : Grid
         deviceState.Text="Offline";deviceState.FontSize=18;deviceState.FontWeight=FontWeights.SemiBold;status.Children.Add(deviceState);
         status.Children.Add(Kit.Text("Current setup",12,"DS.TextMuted",FontWeights.SemiBold).Also(t=>t.Margin=new(0,6,0,2)));status.Children.Add(workingSetup);profileState.Margin=new(0,2,0,0);status.Children.Add(profileState);
         var stateGrid=new Grid{Margin=new(0,8,0,4)};stateGrid.ColumnDefinitions.Add(new());stateGrid.ColumnDefinitions.Add(new());stateGrid.RowDefinitions.Add(new());stateGrid.RowDefinitions.Add(new());
+        var ecoDetailsCard = new Border
+        {
+            Visibility = Visibility.Collapsed,
+            CornerRadius = new(12),
+            Padding = new(12, 10, 12, 10),
+            Margin = new(0, 6, 8, 6),
+            BorderThickness = new(1),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(75, 74, 222, 128)),
+            Background = new SolidColorBrush(Color.FromArgb(40, 16, 48, 36)),
+            Child = new StackPanel
+            {
+                Children =
+                {
+                    Kit.Text("WHAT ECO MODE DOES", 10.5, "DS.Success", FontWeights.SemiBold).Also(t => t.Margin = new(0, 0, 0, 4)),
+                    Kit.Text("• Turns off controller RGB LEDs via BLE and stops active lighting effects", 11.5, "DS.TextSoft").Also(t => t.TextWrapping = TextWrapping.Wrap),
+                    Kit.Text("• Stops all vibration, game rumble, and trigger motor output", 11.5, "DS.TextSoft").Also(t => t.TextWrapping = TextWrapping.Wrap),
+                    Kit.Text("• Locks Vibration, RGB, and Screen tabs to avoid accidental battery drain", 11.5, "DS.TextSoft").Also(t => t.TextWrapping = TextWrapping.Wrap),
+                    Kit.Text("• Stops system audio capture and ambient screen color sampling", 11.5, "DS.TextSoft").Also(t => t.TextWrapping = TextWrapping.Wrap),
+                    Kit.Text("• Pauses background Bluetooth battery polling", 11.5, "DS.TextSoft").Also(t => t.TextWrapping = TextWrapping.Wrap),
+                    Kit.Text("• Restores your previous LED brightness cleanly when switched off", 11.5, "DS.TextMuted").Also(t => t.TextWrapping = TextWrapping.Wrap),
+                }
+            }
+        };
         FrameworkElement BuildEcoContent()
         {
             var ecoPanel = new StackPanel();
@@ -174,6 +197,34 @@ public sealed class DashboardConsolePage : Grid
             ecoCellState.VerticalAlignment = VerticalAlignment.Center;
             row.Children.Add(ecoCellState);
             ecoPanel.Children.Add(row);
+
+            var ecoInfoLabel = new TextBlock
+            {
+                Text = "What's done in Eco mode?",
+                FontSize = 11.5,
+                Foreground = DS.Brush("DS.AccentHi"),
+                TextDecorations = TextDecorations.Underline,
+            };
+            var ecoInfoBtn = new Button
+            {
+                Content = ecoInfoLabel,
+                Cursor = Cursors.Hand,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                Margin = new(0, 4, 0, 0),
+                Padding = new(0),
+                Background = Brushes.Transparent,
+                BorderThickness = new(0),
+                Template = new ControlTemplate(typeof(Button)) { VisualTree = new FrameworkElementFactory(typeof(ContentPresenter)) },
+            };
+            ecoInfoBtn.MouseEnter += (_, _) => ecoInfoLabel.Foreground = Brushes.White;
+            ecoInfoBtn.MouseLeave += (_, _) => ecoInfoLabel.Foreground = DS.Brush("DS.AccentHi");
+            ecoInfoBtn.Click += (_, _) =>
+            {
+                bool show = ecoDetailsCard.Visibility != Visibility.Visible;
+                ecoDetailsCard.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+                ecoInfoLabel.Text = show ? "Hide Eco mode details" : "What's done in Eco mode?";
+            };
+            ecoPanel.Children.Add(ecoInfoBtn);
             return ecoPanel;
         }
         var cells = new (string Name, UIElement? Value, Func<FrameworkElement>? Custom)[]
@@ -221,7 +272,7 @@ public sealed class DashboardConsolePage : Grid
             }
             Grid.SetRow(cell,i/2);Grid.SetColumn(cell,i%2);
             stateGrid.Children.Add(cell);
-        }status.Children.Add(stateGrid);status.Children.Add(stateDetail);
+        }status.Children.Add(stateGrid);status.Children.Add(ecoDetailsCard);status.Children.Add(stateDetail);
         gamesCount=new TextBlock();SetWorkingState(draftChanges,null,false);
         var statusPanel=Kit.Panel(null,null,null,status);statusPanel.Margin=new(0,0,12,0);top.Children.Add(statusPanel);
 

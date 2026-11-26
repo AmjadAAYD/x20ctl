@@ -16,7 +16,7 @@ namespace X20Ctl.Product;
 /// <summary>On-demand 160x80 LCD artwork studio with synchronized hardware preview and White flash mode upload.</summary>
 public sealed class ScreenWorkbench
 {
-    static readonly Color LcdBacklightColor = Color.FromRgb(0x16, 0x1A, 0x24);
+    static readonly Color LcdBacklightColor = Color.FromRgb(0x00, 0x00, 0x00);
     static readonly Brush LcdBacklightBrush = FreezeBrush(new SolidColorBrush(LcdBacklightColor));
 
     static Brush FreezeBrush(Brush b) { b.Freeze(); return b; }
@@ -27,14 +27,17 @@ public sealed class ScreenWorkbench
     public Button Reset { get; }
     public Button Import { get; }
     public Button Preview { get; }
+    public event Action? BrowseCommunityRequested;
+    public event Action? ShareCommunityRequested;
     internal Button Retry => retry;
     internal Button Cancel => cancel;
     internal bool IsBusy => busy;
     internal string StatusText => status.Text;
     public byte[]? EncodedAsset => asset?.ToArray();
 
-    readonly Image image = new() { Stretch = Stretch.Uniform, Opacity = 0.92 };
-    readonly Image controllerImage = new() { Stretch = Stretch.UniformToFill, Opacity = 0.91 };
+    readonly Image image = new() { Stretch = Stretch.Uniform, Opacity = 1.0 };
+    readonly Image controllerImage = new() { Stretch = Stretch.UniformToFill, Opacity = 1.0 };
+    uint selectedTemplateAccent = 0x3D8BFF;
     readonly TextBlock details = Kit.Text("Choose an image or animated template", 12.5, "DS.Text", FontWeights.SemiBold);
     readonly TextBlock status = Kit.Text("Controller", 12.5, "DS.TextSoft");
     readonly TextBlock sizeText = Kit.Text("Upload 0 / 3,145,728 bytes", 11.5, "DS.TextMuted");
@@ -150,41 +153,84 @@ public sealed class ScreenWorkbench
             fileGrid.Children.Add(b);
         editor.Children.Add(fileGrid);
 
-        // Card 1: Built-in Wallpapers & Animated White-Mode Templates
+        // Card 1: Redesigned 160x80 Animated Templates + Accent Swatches + Community Access
         var sourceStack = new StackPanel();
-        sourceStack.Children.Add(Kit.Text("BUILT-IN WALLPAPERS & TEMPLATES", 10.5, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(0, 0, 0, 6)));
-        var wallpapers = new UniformGrid { Columns = 3, Margin = new(-2, 0, -2, 4) };
-        for (int i = 0; i < 6; i++)
-        {
-            int n = i;
-            wallpapers.Children.Add(ConsoleBtn(ScreenArtwork.WallpaperNames[i], () => LoadWallpaper(n)));
-        }
-        sourceStack.Children.Add(wallpapers);
+        var sourceHead = new DockPanel { Margin = new(0, 0, 0, 8) };
+        var communityBtns = new StackPanel { Orientation = Orientation.Horizontal };
+        var browseCommunityBtn = ConsoleBtn("Browse Community", () => BrowseCommunityRequested?.Invoke());
+        browseCommunityBtn.ToolTip = "Browse and install X20 Pro community GIFs and screen art";
+        var shareCommunityBtn = ConsoleBtn("Share to Community", () => ShareCommunityRequested?.Invoke());
+        shareCommunityBtn.ToolTip = "Submit this screen animation or artwork for community review";
+        communityBtns.Children.Add(browseCommunityBtn);
+        communityBtns.Children.Add(shareCommunityBtn);
+        DockPanel.SetDock(communityBtns, Dock.Right);
+        sourceHead.Children.Add(communityBtns);
+        sourceHead.Children.Add(Kit.Text("TEMPLATES · 160 x 80", 10.5, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.VerticalAlignment = VerticalAlignment.Center));
+        sourceStack.Children.Add(sourceHead);
 
-        var tmplLabel = new TextBox { Text = "X20 PRO", MaxLength = 14, Width = 148, Padding = new(8, 4, 8, 4), Margin = new(0, 4, 0, 6), HorizontalAlignment = HorizontalAlignment.Left };
-        var tmplGrid = new UniformGrid { Columns = 4, Margin = new(-2, 0, -2, 2) };
+        var tagAndColors = new DockPanel { Margin = new(0, 0, 0, 8) };
+        var swatches = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        var swatchButtons = new List<(Border Rim, uint Hex)>();
+        foreach (var (hex, name) in new (uint, string)[]
+        {
+            (0x3D8BFF, "Electric Blue"),
+            (0x22D3EE, "Cyber Cyan"),
+            (0xFF7A18, "Ember Orange"),
+            (0xEC4899, "Neon Magenta"),
+            (0x4ADE80, "Acid Lime"),
+            (0xF8FAFC, "Pure White"),
+        })
+        {
+            var c = Color.FromRgb((byte)(hex >> 16), (byte)(hex >> 8), (byte)hex);
+            var rim = new Border
+            {
+                Width = 22, Height = 22, CornerRadius = new(11), Margin = new(4, 0, 0, 0),
+                Background = new SolidColorBrush(c),
+                BorderThickness = new(hex == selectedTemplateAccent ? 2 : 1),
+                BorderBrush = hex == selectedTemplateAccent ? Brushes.White : new SolidColorBrush(Color.FromArgb(90, 255, 255, 255)),
+                Cursor = System.Windows.Input.Cursors.Hand,
+                ToolTip = name,
+            };
+            uint capturedHex = hex;
+            rim.MouseLeftButtonUp += (_, _) =>
+            {
+                selectedTemplateAccent = capturedHex;
+                foreach (var item in swatchButtons)
+                {
+                    item.Rim.BorderThickness = new(item.Hex == capturedHex ? 2 : 1);
+                    item.Rim.BorderBrush = item.Hex == capturedHex ? Brushes.White : new SolidColorBrush(Color.FromArgb(90, 255, 255, 255));
+                }
+            };
+            swatchButtons.Add((rim, hex));
+            swatches.Children.Add(rim);
+        }
+        DockPanel.SetDock(swatches, Dock.Right);
+        tagAndColors.Children.Add(swatches);
+        var tmplLabel = new TextBox
+        {
+            Text = "X20 PRO", MaxLength = 14, Width = 160, Height = 30,
+            Padding = new(8, 4, 8, 4), FontSize = 12,
+            Foreground = DS.Brush("DS.Text"), Background = new SolidColorBrush(Color.FromArgb(180, 10, 18, 34)),
+            BorderBrush = DS.Brush("DS.Hairline"), HorizontalAlignment = HorizontalAlignment.Left,
+        };
+        tagAndColors.Children.Add(tmplLabel);
+        sourceStack.Children.Add(tagAndColors);
+
+        var tmplGrid = new UniformGrid { Columns = 3, Margin = new(-2, 0, -2, 0) };
         foreach (var (tKind, tTitle) in new (ScreenTemplateKind, string)[]
         {
-            (ScreenTemplateKind.GamertagBadge, "Gamertag"),
-            (ScreenTemplateKind.RetroGrid, "Retro Grid"),
-            (ScreenTemplateKind.AcousticWave, "Acoustic"),
-            (ScreenTemplateKind.MinimalEmblem, "Minimal"),
+            (ScreenTemplateKind.GamertagBadge, "Obsidian Tag"),
+            (ScreenTemplateKind.RetroGrid, "Cyber Horizon"),
+            (ScreenTemplateKind.AcousticWave, "Pulse Wave"),
+            (ScreenTemplateKind.MinimalEmblem, "Studio Ring"),
+            (ScreenTemplateKind.StarfieldWarp, "Starfield Warp"),
+            (ScreenTemplateKind.PlasmaRing, "Plasma Halo"),
         })
         {
             var capturedKind = tKind;
             tmplGrid.Children.Add(ConsoleBtn(tTitle, () => LoadTemplate(capturedKind, tmplLabel.Text)));
         }
-        var tmplBody = new StackPanel
-        {
-            Margin = new(0, 6, 0, 2),
-            Children =
-            {
-                Kit.Text("Generates a 16-frame 160x80 animation ready for White flash mode.", 11.5, "DS.TextSoft").Also(t => { t.TextWrapping = TextWrapping.Wrap; t.Margin = new(0, 0, 0, 4); }),
-                tmplLabel,
-                tmplGrid,
-            }
-        };
-        sourceStack.Children.Add(new Expander { Header = "Animated Templates (White Mode Upload)", IsExpanded = false, Content = tmplBody, Margin = new(0, 4, 0, 0), Foreground = DS.Brush("DS.Text"), FontSize = 12, FontWeight = FontWeights.SemiBold });
+        sourceStack.Children.Add(tmplGrid);
         editor.Children.Add(MakeCard(sourceStack));
 
         // Card 2: Resolution Mode, Orientation, Framing & Color
@@ -324,7 +370,7 @@ public sealed class ScreenWorkbench
         rightGrid.RowDefinitions.Add(new() { Height = new(0.88, GridUnitType.Star) });
         rightGrid.RowDefinitions.Add(new() { Height = new(1.12, GridUnitType.Star) });
 
-        // Top Card: True 2:1 (160x80) LCD panel with non-AMOLED IPS backlight (#161A24) + glass sheen
+        // Top Card: True 2:1 (160x80) pure AMOLED black LCD panel + glass sheen
         var lcdSurface = new Grid { Width = 360, Height = 180, Background = LcdBacklightBrush };
         lcdSurface.Children.Add(image);
         lcdSurface.Children.Add(BuildGlassSheen());
@@ -344,7 +390,7 @@ public sealed class ScreenWorkbench
             VerticalAlignment = VerticalAlignment.Center,
             Children =
             {
-                Kit.Text("TARGET RESOLUTION · 160 x 80 IPS LCD", 10.5, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(0, 0, 0, 8)),
+                Kit.Text("TARGET RESOLUTION · 160 x 80", 10.5, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(0, 0, 0, 8)),
                 new Viewbox { MaxHeight = 200, Stretch = Stretch.Uniform, Child = lcdBezel },
                 new DockPanel
                 {
@@ -362,7 +408,7 @@ public sealed class ScreenWorkbench
         Grid.SetRow(topCard, 0);
         rightGrid.Children.Add(topCard);
 
-        // Bottom Card: Real X20 Pro controller with "EasySMX" screen replaced cleanly by synchronized non-AMOLED LCD
+        // Bottom Card: Zoomed X20 Pro upper torso with "EasySMX" screen replaced seamlessly on #000000 bezel
         var padContainer = new Grid { Width = 1536, Height = 1024, IsHitTestVisible = false };
         padContainer.Children.Add(new PhotoController("x20_pro"));
 
@@ -373,25 +419,46 @@ public sealed class ScreenWorkbench
 
         var embeddedLcd = new Border
         {
-            Width = 294,
-            Height = 144,
-            CornerRadius = new(13),
-            BorderThickness = new(2.5),
-            BorderBrush = FreezeBrush(new SolidColorBrush(Color.FromRgb(0x0B, 0x0E, 0x15))),
+            Width = 280,
+            Height = 140,
+            CornerRadius = new(12),
+            BorderThickness = new(2),
+            BorderBrush = LcdBacklightBrush,
             Background = LcdBacklightBrush,
             ClipToBounds = true,
             Child = new Border { CornerRadius = new(10), ClipToBounds = true, Child = screenStage },
         };
-        Canvas.SetLeft(embeddedLcd, 621);
-        Canvas.SetTop(embeddedLcd, 128);
+        Canvas.SetLeft(embeddedLcd, 627);
+        Canvas.SetTop(embeddedLcd, 113);
         padOverlay.Children.Add(embeddedLcd);
         padContainer.Children.Add(padOverlay);
+
+        // Zoomed viewport cropped tightly around the X20 Pro upper screen, bumpers, and sticks with soft bottom fade
+        var padCropStage = new Canvas
+        {
+            Width = 960,
+            Height = 510,
+            ClipToBounds = true,
+            IsHitTestVisible = false,
+            OpacityMask = new LinearGradientBrush(
+                new GradientStopCollection
+                {
+                    new(Colors.White, 0.0),
+                    new(Colors.White, 0.80),
+                    new(Colors.Transparent, 1.0),
+                },
+                new Point(0, 0),
+                new Point(0, 1)),
+        };
+        Canvas.SetLeft(padContainer, -288);
+        Canvas.SetTop(padContainer, -54);
+        padCropStage.Children.Add(padContainer);
 
         var bottomPreviewGrid = new Grid();
         bottomPreviewGrid.RowDefinitions.Add(new() { Height = GridLength.Auto });
         bottomPreviewGrid.RowDefinitions.Add(new() { Height = new(1, GridUnitType.Star) });
         bottomPreviewGrid.Children.Add(Kit.Text("ON-CONTROLLER LIVE PREVIEW · X20 PRO", 10.5, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(0, 0, 0, 4)));
-        var padViewbox = new Viewbox { Stretch = Stretch.Uniform, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Child = padContainer };
+        var padViewbox = new Viewbox { Stretch = Stretch.Uniform, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Child = padCropStage };
         Grid.SetRow(padViewbox, 1);
         bottomPreviewGrid.Children.Add(padViewbox);
 
@@ -437,10 +504,10 @@ public sealed class ScreenWorkbench
     {
         IsHitTestVisible = false,
         Background = new LinearGradientBrush(
-            Color.FromArgb(24, 255, 255, 255),
-            Color.FromArgb(4, 180, 210, 255),
+            Color.FromArgb(10, 255, 255, 255),
+            Color.FromArgb(0, 255, 255, 255),
             new Point(0, 0),
-            new Point(0.9, 1.0)),
+            new Point(0.8, 0.9)),
     };
 
     void SetPreviewSource(ImageSource? src)
@@ -472,16 +539,14 @@ public sealed class ScreenWorkbench
         if (decoder.Frames.Count > 512) throw new ArgumentException("Use 512 frames or fewer.");
         var decoded = ScreenMedia.Decode(decoder);
         ResetEdits(); frames.Clear(); frames.AddRange(decoded.Frames); sourceBytes = bytes; sourceAsset = null; sourceBuiltin = -1; sourceName = name; inputBytes = bytes.Length; FinishLoad();
-        notice.Text = frames.Count > 1 ? "GIF delays normalized · non-AMOLED IPS backlight preview" : "Non-AMOLED IPS backlight preview";
+        notice.Text = frames.Count > 1 ? "GIF delays normalized · pure 160x80 preview" : "160x80 screen preview";
     }
 
     public void LoadWallpaper(int index) { ResetEdits(); frames.Clear(); frames.Add(Bitmap(ScreenArtwork.Wallpaper(index))); sourceBytes = sourceAsset = null; sourceBuiltin = index; sourceName = ScreenArtwork.WallpaperNames[index]; inputBytes = 0; FinishLoad(); }
 
     void LoadTemplate(ScreenTemplateKind kind, string? tag)
     {
-        var c = ThemeCatalog.Current.Accent;
-        uint accent = ((uint)c.R << 16) | ((uint)c.G << 8) | c.B;
-        var generated = ScreenTemplates.Generate(kind, tag, accent, 16);
+        var generated = ScreenTemplates.Generate(kind, tag, selectedTemplateAccent, 16);
         ResetEdits(); frames.Clear(); foreach (var rgba in generated) frames.Add(Bitmap(rgba));
         sourceBytes = sourceAsset = null; sourceBuiltin = -1; sourceName = $"{kind} template"; inputBytes = 0; fps.Value = 8; FinishLoad(); _ = BuildPreviewAsync();
     }
@@ -496,7 +561,7 @@ public sealed class ScreenWorkbench
     }
 
     void ResetEdits() { loading = true; transferProgress.Value = 0; StopPreview(); zoom.Value = 1; panX.Value = panY.Value = brightness.Value = 0; contrast.Value = 1; rotation.SelectedIndex = fit.SelectedIndex = 0; animation.IsChecked = false; fps.Value = 5; planReady = false; }
-    void FinishLoad() { notice.Text = "Non-AMOLED IPS backlight preview"; frameLimit.Maximum = Math.Max(1, frames.Count); frameLimit.Value = frames.Count; animation.IsChecked = frames.Count > 1; loading = false; Refresh(); details.Text = $"{sourceName} · {frames.Count} frame{(frames.Count == 1 ? "" : "s")}"; }
+    void FinishLoad() { notice.Text = frames.Count > 1 ? "Animated 160x80 preview" : "160x80 screen preview"; frameLimit.Maximum = Math.Max(1, frames.Count); frameLimit.Value = frames.Count; animation.IsChecked = frames.Count > 1; loading = false; Refresh(); details.Text = $"{sourceName} · {frames.Count} frame{(frames.Count == 1 ? "" : "s")}"; }
 
     void Refresh()
     {

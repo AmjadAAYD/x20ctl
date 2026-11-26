@@ -66,7 +66,7 @@ public sealed partial class ProductSettings : Grid
     private readonly Button updateCheck, updateGo;
     private readonly CheckBox autoUpdate = new() { Style = DS.Style("DS.Toggle"), VerticalAlignment = VerticalAlignment.Center };
 
-    public ProductSettings(Action support, Action replay, Action close, Action check, X20Ctl.Zone.ProductPreferences? preferences = null, PcModeService? pcModeService = null, X20Ctl.Zone.PcMode.PcModeStore? pcModeStore = null, Action? writeScan = null)
+    public ProductSettings(Action support, Action replay, Action close, Action check, X20Ctl.Zone.ProductPreferences? preferences = null, PcModeService? pcModeService = null, X20Ctl.Zone.PcMode.PcModeStore? pcModeStore = null, Action? writeScan = null, Action<string>? openSupportUrl = null)
     {
         this.preferences = preferences;
         this.pcModeService = pcModeService;
@@ -110,9 +110,15 @@ public sealed partial class ProductSettings : Grid
         Grid.SetColumn(tiles, 2); hub.Children.Add(tiles);
         Replay = Card("", "Replay Intro", "Watch the X20CTL opening again.", Kit.Blue);
         About = Card("", "About", "What X20CTL is, who made it, and credits.", ThemeCatalog.R(Color.FromRgb(150, 175, 215)));
-        Support = Card("", "Support X20CTL", "Help keep it going on Ko-fi.", ThemeCatalog.R(Color.FromRgb(255, 92, 122)));
+        Support = Card("", "Support X20CTL", "Ko-fi or 10% off EasySMX referral.", ThemeCatalog.R(Color.FromRgb(255, 92, 122)));
         Star = Card("", "Star on GitHub", "AmjadAAYD/x20ctl", ThemeCatalog.R(Color.FromRgb(245, 200, 80))); // short enough that the tile never cuts it
-        Replay.Click += (_, _) => replay(); Support.Click += (_, _) => support(); Star.Click += (_, _) => Try(() => ExternalLinks.Open(ExternalLinks.Repository));
+        Replay.Click += (_, _) => replay();
+        Support.Click += (_, _) =>
+        {
+            if (openSupportUrl != null) ProductLinks.ShowSupportMenu(Support, openSupportUrl);
+            else support();
+        };
+        Star.Click += (_, _) => Try(() => ExternalLinks.Open(ExternalLinks.Repository));
         About.Click += (_, _) => ShowAbout(true);
         PcMode = Card("", "PC mode", "Remaps, turbo and macros for any pad.", ThemeCatalog.R(Color.FromRgb(52, 211, 153)));
         PcMode.Click += (_, _) => ShowPcMode(true);

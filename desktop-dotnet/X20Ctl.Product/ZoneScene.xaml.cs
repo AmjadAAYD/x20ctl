@@ -25,8 +25,13 @@ public partial class ZoneScene : UserControl
     public event Action<int, string>? StudioPageRequested;
     public event Action<int>? ControllerRemoved;
     public event Action? SupportRequested;
+    public event Action<string>? SupportDestinationRequested;
     public event Action? SettingsRequested;
-    private void Support(object sender,RoutedEventArgs e)=>SupportRequested?.Invoke();
+    private void Support(object sender,RoutedEventArgs e)
+    {
+        if (SupportDestinationRequested is { } openUrl) ProductLinks.ShowSupportMenu(SupportButton, openUrl);
+        else SupportRequested?.Invoke();
+    }
     private void Settings(object sender,RoutedEventArgs e)=>SettingsRequested?.Invoke();
     public bool SimulationNavigation { get; private set; }
     public bool ReducedMotion { get; }
