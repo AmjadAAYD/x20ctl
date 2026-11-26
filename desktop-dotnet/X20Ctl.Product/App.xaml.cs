@@ -366,6 +366,12 @@ public partial class App : Application
                 try { await Development.InputsReview.Run(e.Args[1]); } catch (Exception failure) { Directory.CreateDirectory(e.Args[1]); File.WriteAllText(Path.Combine(e.Args[1], "failure.txt"), failure.ToString()); }
                 Shutdown(0); return;
             }
+            if (e.Args.Length == 2 && e.Args[0] == "--verify-live-all")
+            {
+                ShutdownMode = ShutdownMode.OnExplicitShutdown; IntroView.SoundEnabled = false;
+                try { await Development.LiveFullAppVerifier.Run(e.Args[1]); } catch (Exception failure) { Directory.CreateDirectory(e.Args[1]); File.WriteAllText(Path.Combine(e.Args[1], "failure.txt"), failure.ToString()); Shutdown(1); return; }
+                Shutdown(0); return;
+            }
             if (e.Args.Length == 2 && e.Args[0] == "--review-battery")
             {
                 ShutdownMode = ShutdownMode.OnExplicitShutdown;
@@ -434,8 +440,8 @@ public partial class App : Application
             // Universal Haptics always starts disabled on launch until the user enables it.
             // HidHide's hide list outlives the app (it survives a reboot): every way out un-hides the controller, not only
             // the window closing: Windows signing out or shutting down, and a crash on any thread
-            SessionEnding += (_, _) => { UniversalHapticsService.Shutdown(); LightingEffectsService.Shutdown(); window.Host.MouseMode?.Dispose(); window.Host.PcMode?.Dispose(); };
-            Exit += (_, _) => { UniversalHapticsService.Shutdown(); LightingEffectsService.Shutdown(); window.Host.RememberStudio(); window.Host.MouseMode?.Dispose(); window.Host.PcMode?.Dispose(); };
+            SessionEnding += (_, _) => { window.Host.Studio?.SendOfflinePulseSync(); UniversalHapticsService.Shutdown(); LightingEffectsService.Shutdown(); window.Host.MouseMode?.Dispose(); window.Host.PcMode?.Dispose(); };
+            Exit += (_, _) => { window.Host.Studio?.SendOfflinePulseSync(); UniversalHapticsService.Shutdown(); LightingEffectsService.Shutdown(); window.Host.RememberStudio(); window.Host.MouseMode?.Dispose(); window.Host.PcMode?.Dispose(); };
             ForegroundApp.Start();
             AppDomain.CurrentDomain.UnhandledException += (_, _) => { try { window.Host.MouseMode?.Dispose(); window.Host.PcMode?.Dispose(); } catch (Exception) { } };
         }

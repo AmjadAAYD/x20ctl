@@ -45,7 +45,7 @@ public partial class StudioScene
         if (_pulseHooksBound) return;
         _pulseHooksBound = true;
 
-        _pulseTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(5) };
+        _pulseTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(45) };
         _pulseTimer.Tick += async (_, _) => await RefreshPulseAsync();
         Loaded += async (_, _) =>
         {
@@ -53,22 +53,31 @@ public partial class StudioScene
             await RefreshPulseAsync();
         };
         Unloaded += (_, _) => _pulseTimer.Stop();
+        if (Application.Current != null)
+        {
+            Application.Current.Exit += (_, _) => SendOfflinePulseSync();
+        }
+    }
+
+    internal void SendOfflinePulseSync()
+    {
+        try { _communityClient?.LeavePulseAsync().GetAwaiter().GetResult(); } catch { }
     }
 
     public async Task RefreshPulseAsync()
     {
         var client = EnsureCommunityClient();
-        bool isActive = Window.GetWindow(this)?.IsActive ?? true;
-        if (client.IsNetworkDisabled || !isActive)
+        if (client.IsNetworkDisabled)
         {
             Dashboard?.UpdatePulse(null, true);
+            await client.LeavePulseAsync();
             return;
         }
 
         var res = await client.GetPulseAsync();
         if (res.Ok && res.Data != null && !res.Data.NotModified)
         {
-            Dashboard?.UpdatePulse(res.Data, client.IsNetworkDisabled);
+            Dashboard?.UpdatePulse(res.Data, false);
         }
     }
 

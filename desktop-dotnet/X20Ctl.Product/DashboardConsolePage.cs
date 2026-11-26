@@ -121,9 +121,9 @@ public sealed class DashboardConsolePage : Grid
 
     private readonly TextBlock pulseOnlineLabel = Kit.Text("Community: Offline", 11.5, "DS.TextSoft", FontWeights.SemiBold);
     private readonly TextBlock bellBadgeText = Kit.Text("0", 10.5, "DS.Text", FontWeights.Bold);
-    private readonly Border bellBadgeBorder = new() { CornerRadius = new CornerRadius(99), Background = new SolidColorBrush(Color.FromRgb(0xFF, 0x7A, 0x18)), Padding = new Thickness(5, 1, 5, 1), Margin = new Thickness(6, 0, 0, 0), Visibility = Visibility.Collapsed };
+    private readonly Border bellBadgeBorder = new() { CornerRadius = new CornerRadius(4), Background = new SolidColorBrush(Color.FromRgb(0xFF, 0x7A, 0x18)), Padding = new Thickness(5, 1, 5, 1), Margin = new Thickness(6, 0, 0, 0), Visibility = Visibility.Collapsed };
     private readonly StackPanel notificationsList = new();
-    private readonly Border notificationsDrawer = new() { Visibility = Visibility.Collapsed, CornerRadius = new CornerRadius(10), BorderThickness = new Thickness(1), Padding = new Thickness(10, 8, 10, 8), Margin = new Thickness(0, 0, 0, 8), Background = new SolidColorBrush(Color.FromArgb(220, 8, 14, 28)), BorderBrush = new SolidColorBrush(Color.FromArgb(110, 96, 165, 250)) };
+    private readonly Border notificationsDrawer = new() { Visibility = Visibility.Collapsed, CornerRadius = new CornerRadius(8), BorderThickness = new Thickness(1), Padding = new Thickness(10, 8, 10, 8), Margin = new Thickness(0, 0, 0, 8), Background = new SolidColorBrush(Color.FromArgb(220, 8, 14, 28)), BorderBrush = new SolidColorBrush(Color.FromArgb(110, 96, 165, 250)) };
 
     public void UpdatePulse(X20Ctl.Zone.Community.PulseResponse? pulse, bool offline)
     {
@@ -133,7 +133,7 @@ public sealed class DashboardConsolePage : Grid
             bellBadgeBorder.Visibility = Visibility.Collapsed;
             return;
         }
-        pulseOnlineLabel.Text = $"Online Now: {pulse.OnlineCount}";
+        pulseOnlineLabel.Text = $"{pulse.OnlineCount} online";
         if (pulse.UnreadCount > 0)
         {
             bellBadgeText.Text = pulse.UnreadCount > 99 ? "99+" : pulse.UnreadCount.ToString();

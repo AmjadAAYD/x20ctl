@@ -1253,8 +1253,13 @@ public partial class StudioScene : UserControl
 
         void FinishClose()
         {
+            if (stickLabLayer != null) return;
             StickLabOverlayHost.Children.Clear();
             StickLabOverlayHost.Visibility = Visibility.Collapsed;
+            labSlideTransform.BeginAnimation(TranslateTransform.YProperty, null);
+            labSlideTransform.Y = 0;
+            StickLabOverlayHost.BeginAnimation(OpacityProperty, null);
+            StickLabOverlayHost.Opacity = 1;
             RootLayout.BeginAnimation(OpacityProperty, null);
             RootLayout.Opacity = 1;
             rootSlideTransform.BeginAnimation(TranslateTransform.YProperty, null);
@@ -1267,13 +1272,23 @@ public partial class StudioScene : UserControl
         if (animate)
         {
             var ease = new CubicEase { EasingMode = EasingMode.EaseInOut };
-            var dur = TimeSpan.FromMilliseconds(280);
+            var dur = TimeSpan.FromMilliseconds(260);
+            bool finished = false;
+            void CompleteOnce()
+            {
+                if (finished) return;
+                finished = true;
+                FinishClose();
+            }
             rootSlideTransform.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(h, 0, dur) { EasingFunction = ease, FillBehavior = FillBehavior.Stop });
             RootLayout.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, dur) { FillBehavior = FillBehavior.Stop });
             var labOut = new DoubleAnimation(0, -h * 0.2, dur) { EasingFunction = ease, FillBehavior = FillBehavior.Stop };
-            labOut.Completed += (_, _) => FinishClose();
+            labOut.Completed += (_, _) => CompleteOnce();
             labSlideTransform.BeginAnimation(TranslateTransform.YProperty, labOut);
-            StickLabOverlayHost.BeginAnimation(OpacityProperty, new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(220)) { FillBehavior = FillBehavior.Stop });
+            StickLabOverlayHost.BeginAnimation(OpacityProperty, new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(200)) { FillBehavior = FillBehavior.Stop });
+            var fallback = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(320) };
+            fallback.Tick += (_, _) => { fallback.Stop(); CompleteOnce(); };
+            fallback.Start();
         }
         else
         {

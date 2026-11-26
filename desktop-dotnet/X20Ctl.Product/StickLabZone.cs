@@ -162,6 +162,7 @@ public sealed class StickLabZone : Border
         ExitButton.MinWidth = 148;
         ExitButton.Height = 34;
         ExitButton.Margin = new(0, 0, 14, 0);
+        System.Windows.Shell.WindowChrome.SetIsHitTestVisibleInChrome(ExitButton, true);
         DockPanel.SetDock(ExitButton, Dock.Left);
         header.Children.Add(ExitButton);
 
@@ -175,10 +176,11 @@ public sealed class StickLabZone : Border
         enablePcBtn.Height = 32;
         enablePcBtn.Padding = new(12, 0, 12, 0);
         enablePcBtn.Margin = new(8, 0, 0, 0);
+        System.Windows.Shell.WindowChrome.SetIsHitTestVisibleInChrome(enablePcBtn, true);
 
         var pcPill = new Border
         {
-            CornerRadius = new(9),
+            CornerRadius = new(6),
             BorderThickness = new(1),
             BorderBrush = DS.Brush("DS.Hairline"),
             Background = new SolidColorBrush(Color.FromArgb(165, 10, 19, 38)),
@@ -193,7 +195,7 @@ public sealed class StickLabZone : Border
         var titleStack = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
         titleStack.Children.Add(new Border
         {
-            CornerRadius = new(8),
+            CornerRadius = new(6),
             Padding = new(10, 4, 10, 4),
             Margin = new(0, 0, 10, 0),
             Background = new SolidColorBrush(Color.FromArgb(55, 56, 189, 248)),
@@ -218,6 +220,7 @@ public sealed class StickLabZone : Border
             btn.Height = 32;
             btn.Margin = new(0, 0, 5, 0);
             btn.Padding = new(12, 0, 12, 0);
+            System.Windows.Shell.WindowChrome.SetIsHitTestVisibleInChrome(btn, true);
             channelButtons.Add(btn);
             channelBar.Children.Add(btn);
         }
