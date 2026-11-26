@@ -93,7 +93,8 @@ internal static class AutomatedE2ETester
             return (long)Math.Ceiling(sw.Elapsed.TotalMilliseconds);
         }
 
-        string? createdItemId = null;
+        var createdItemIds = new List<string>();
+        var createdSetupIds = new List<string>();
         CommunityClient? client = null;
 
         try
@@ -103,9 +104,10 @@ internal static class AutomatedE2ETester
             window.Host.EnterStudio(0);
             await WaitMs(700);
             var studio = window.Host.Studio!;
+            var initialSetupIds = studio.SetupStore.Items.Select(s => s.Id).ToHashSet();
             Require(!studio.Draft.PcMode, "Started X20 Pro in Native Controller Mode");
 
-            // 1. Warm up all Studio tabs once (first construction), then measure warm switch latencies (< 50 ms)
+            // 1. Warm up all Studio tabs once (first construction), then measure warm switch latencies (< 120 ms)
             Action[] warmActions =
             {
                 () => studio.ShowManagement("Dashboard"),
@@ -147,11 +149,13 @@ internal static class AutomatedE2ETester
                 Require(ms < 120, $"Warm tab switch {name} took {ms} ms (< 120 ms)");
             }
 
-            // 2. Native Curves + Analog Studio Hardware Compilation + Instant Exit
+            // 2. Native Curves + Analog Studio Hardware Compilation + Radial Anti-DZ + Warm Reopen + Zero Oval Pills
             studio.ShowCurves(true);
             await WaitMs(200);
             Require(studio.IsCurves && !studio.Draft.PcMode, "Curves tab open in Native mode");
             Require(studio.Curves.Floor.IsEnabled && studio.Curves.Ceiling.IsEnabled, "Native Floor & Ceiling curve sliders unlocked");
+            var ovalInCurves = FindButtonsWithStyle(studio.Curves.Inspector, "ActionButton");
+            Require(ovalInCurves.Count == 0, $"Zero oval ActionButton controls in Curves workspace (found {ovalInCurves.Count})");
             SaveShot("01-native-curves");
 
             long openLabMs = MeasureSwitch(() => studio.OpenStickTools(), "AnalogStudio.OpenCold");
@@ -159,11 +163,18 @@ internal static class AutomatedE2ETester
             Require(studio.StickLab != null, "Analog Studio opened cleanly in Native mode");
             Require(openLabMs < 650, $"Analog Studio cold open took {openLabMs} ms (< 650 ms)");
             Require(WindowChrome.GetIsHitTestVisibleInChrome(studio.StickLab!.ExitButton), "Return to Curves button is above WindowChrome");
+            var ovalInLab = FindButtonsWithStyle(studio.StickLab!, "ActionButton");
+            Require(ovalInLab.Count == 0, $"Zero oval ActionButton controls inside Analog Studio (found {ovalInLab.Count})");
 
-            // Click S-Curve archetype and toggle Invert Y Axis + Swap L & R Sticks inside Native Analog Studio
+            // Click S-Curve archetype, set Radial Anti-DZ to 15%, toggle Invert Y Axis + Swap L & R Sticks
             var sCurveBtn = FindButtonsContainingText(studio.StickLab!, "S-Curve").FirstOrDefault();
             Require(sCurveBtn != null, "Found S-Curve archetype card inside Analog Studio");
             sCurveBtn!.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            await WaitMs(120);
+
+            var radialSlider = FindSiblingSlider(studio.StickLab!, "Radial Anti-DZ");
+            Require(radialSlider != null, "Found Radial Anti-DZ slider inside Analog Studio");
+            radialSlider!.Value = 15;
             await WaitMs(120);
 
             var invY = FindSiblingToggle(studio.StickLab!, "Invert Y Axis");
@@ -177,13 +188,23 @@ internal static class AutomatedE2ETester
             var exitSw = Stopwatch.StartNew();
             studio.StickLab.ExitButton.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
             exitSw.Stop();
-            await WaitMs(250);
+            await WaitMs(200);
             Require(studio.StickLab == null && studio.IsCurves, "Returned instantaneously from Analog Studio to Curves");
             latencies.Add($"AnalogStudio.ReturnToCurves: {exitSw.Elapsed.TotalMilliseconds:0.0} ms");
+
+            // Verify warm cached Analog Studio reopen (< 120 ms)
+            long warmLabMs = MeasureSwitch(() => studio.OpenStickTools(), "AnalogStudio.OpenWarm");
+            await WaitMs(120);
+            Require(studio.StickLab != null && warmLabMs < 120, $"Warm Analog Studio reopen took {warmLabMs} ms (< 120 ms)");
+            studio.StickLab!.ExitButton.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            await WaitMs(200);
 
             var compiledLeft = studio.Curves.Draft[CurveChannel.LeftStick];
             byte expectedFlags = (byte)(CurveHardwareFlags.InvertY | CurveHardwareFlags.SwapSticks);
             Require((compiledLeft.Flags & expectedFlags) == expectedFlags, $"Native CurveDraft captured InvertY + SwapSticks flags (0x{compiledLeft.Flags:X2})");
+            Require(Math.Abs(studio.Curves.Floor.Value - 15) < 0.5, $"Radial Anti-DZ (15%) synced back to Curves Floor slider ({studio.Curves.Floor.Value:0.#}%)");
+            bool footerHasFlags = FindVisualChildren<TextBlock>(studio.Curves.Shelf).Any(t => t.Text.Contains("Invert Y") && t.Text.Contains("Swap L/R"));
+            Require(footerHasFlags, "Curves footer displays active Native Hardware Flags (Invert Y & Swap L/R)");
             var seed = new byte[15];
             seed[0] = 0x0E;
             var packed = ControllerRecords.BuildCurves(seed, compiledLeft, studio.Curves.Draft[CurveChannel.RightStick], false);
@@ -207,7 +228,6 @@ internal static class AutomatedE2ETester
                     await client.RegisterProfileAsync("AmjadXCTL", ownerPass);
             }
 
-            // Clean any leftover items from our own UID before asserting clean baseline
             var leftover = await client.GetCatalogAsync(new CatalogQuery { Uid = client.Identity.Uid, Status = "mine" });
             if (leftover.Ok && leftover.Data != null)
             {
@@ -220,11 +240,10 @@ internal static class AutomatedE2ETester
             AssertNoForbiddenStrings(community.Body, new[] { "OLED", "Stick Lab" }, Require, "Community Browse");
             SaveShot("05-community-empty-browse");
 
-            // Measure cached Community sub-tab switch speed after initial population
             foreach (var tabId in new[] { "saved", "requests", "lounge", "leaderboard", "explore" })
             {
                 community.SelectSubTab(tabId);
-                await WaitMs(900);
+                await WaitMs(800);
             }
             foreach (var tabId in new[] { "leaderboard", "requests", "explore" })
             {
@@ -232,12 +251,17 @@ internal static class AutomatedE2ETester
                 Require(subMs < 80, $"Cached Community sub-tab {tabId} rendered in {subMs} ms (< 80 ms)");
             }
 
-            // 5. Reddit Achievement Showcase + AI Badge Emblems Verification
+            // 5. Reddit Achievement Showcase + AI Badge Emblems + 64x64 Avatar Upload Verification
             var dlg = community.OpenProfileDialogForTest();
-            await WaitMs(1200);
+            await WaitMs(1100);
             Require(FindVisualChildren<ComboBox>(dlg).Count == 0, "Zero ComboBox controls inside CreatorProfileDialog");
             var imgs = FindVisualChildren<Image>(dlg).Where(i => i.Source is BitmapSource bs && bs.PixelWidth >= 64).ToList();
             Require(imgs.Count >= 1, $"Rendered {imgs.Count} high-res AI badge emblems (>=64px) in Achievements Showcase");
+
+            byte[] avatarPng = GenerateAvatarPng(64, 64);
+            bool pfpOk = await dlg.UploadAvatarBytesAsync(avatarPng, "image");
+            Require(pfpOk && !string.IsNullOrEmpty(dlg.CurrentProfile?.PfpUrl), $"Uploaded 64x64 avatar PNG cleanly ({dlg.CurrentProfile?.PfpUrl ?? "none"})");
+            await WaitMs(400);
             SaveShot("06-reddit-badges-modal");
 
             if (dlg.CurrentProfile != null)
@@ -254,7 +278,7 @@ internal static class AutomatedE2ETester
                 {
                     ogBtn.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
                     bool okOg = await WaitUntilAsync(() => dlg.CurrentProfile?.EquippedBadge == "og-v0026");
-                    Require(okOg, "Toggled Reddit flair to OG V0.026 via UI button (now: " + (dlg.CurrentProfile?.EquippedBadge ?? "null") + ")");
+                    Require(okOg, "Toggled Reddit flair to OG V0.026 via UI button");
 
                     var ownerBtn = FindVisualChildren<Button>(dlg).FirstOrDefault(b => Equals(b.Tag, "equip:amjad-verified"));
                     ownerBtn?.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
@@ -265,67 +289,213 @@ internal static class AutomatedE2ETester
             community.CloseModalForTest();
             await WaitMs(250);
 
-            // 6. Live X20ADMIN E2E Cycle: 0 Leaderboard -> Publish -> 0 installs -> Install -> 1 install & #1 Leaderboard -> Delete -> 0 items & 0 Leaderboard
+            // Helper to install, verify UI install counter increment, and delete via UI buttons
+            async Task InstallAndDeleteCardAsync(string itemId, string itemTitle, string expectedCategory, Action? onBeforeInstall, Action verifyApplied, string? shotName = null)
+            {
+                community.SetPresetCategoryAndRefresh(expectedCategory);
+                bool sawItem = await WaitUntilAsync(() => community.LastCatalog?.Items.Any(i => i.Id == itemId) == true, 10000);
+                Require(sawItem, $"Published '{itemTitle}' appeared live in Browse");
+                if (shotName != null)
+                {
+                    await WaitMs(600);
+                    SaveShot(shotName);
+                }
+
+                onBeforeInstall?.Invoke();
+                var installBtn = FindVisualChildren<Button>(community.Body).FirstOrDefault(b => Equals(b.Tag, $"install:{itemId}"));
+                Require(installBtn != null, $"Found UI Install button for '{itemTitle}'");
+                installBtn!.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+                bool sawInstallCount = await WaitUntilAsync(() => FindVisualChildren<TextBlock>(community.Body).Any(t => t.Text.Contains("1 install", StringComparison.OrdinalIgnoreCase)));
+                Require(sawInstallCount, $"Install counter incremented live for '{itemTitle}'");
+                await WaitMs(450);
+                verifyApplied();
+
+                var deleteBtn = FindVisualChildren<Button>(community.Body).FirstOrDefault(b => Equals(b.Tag, $"delete:{itemId}"));
+                Require(deleteBtn != null, $"Found UI Delete button for '{itemTitle}'");
+                deleteBtn!.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+                bool removed = await WaitUntilAsync(() => community.LastCatalog?.Items.Any(i => i.Id == itemId) == false);
+                Require(removed, $"Deleted '{itemTitle}' cleanly via UI");
+                createdItemIds.Remove(itemId);
+            }
+
+            // 6. Real UI Share -> Submit Dialog -> Install -> Delete: 160x80 Static PNG Screen Art
+            studio.ShowManagement("Screen");
+            await WaitMs(250);
+            byte[] staticPng = GenerateScreenArtworkPng(160, 80);
+            studio.Screen!.LoadImageBytes(staticPng, "e2e-static-screen.png");
+            await WaitMs(250);
+            var shareScreenBtn = FindButtonsContainingText(studio.Screen.Body, "Share to Community").FirstOrDefault();
+            Require(shareScreenBtn != null, "Found 'Share to Community' button inside Screen Studio");
+            shareScreenBtn!.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            bool submitDlgOpen = await WaitUntilAsync(() => community.ActiveSubmitDialog is { HasMediaBytes: true });
+            Require(submitDlgOpen, "Submit Dialog opened pre-loaded with 160x80 PNG from Screen Studio");
+
+            var subDlg = community.ActiveSubmitDialog!;
+            subDlg.TitleInput.Text = "E2E Cyber Grid 160x80 PNG";
+            subDlg.DescriptionInput.Text = "Automated E2E verification of static 160x80 Screen Art upload and direct install into Screen Studio.";
+            SaveShot("07-submit-screen-png-dialog");
+            subDlg.SubmitButton.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            bool dlgClosed = await WaitUntilAsync(() => community.ActiveSubmitDialog == null, 15000);
+            Require(dlgClosed, "Static PNG submitted & modal auto-closed cleanly");
+
+            community.SetPresetCategoryAndRefresh("screen");
+            bool sawPngItem = await WaitUntilAsync(() => community.LastCatalog?.Items.FirstOrDefault(i => i.Title == "E2E Cyber Grid 160x80 PNG") != null, 10000);
+            var pngItem = community.LastCatalog?.Items.FirstOrDefault(i => i.Title == "E2E Cyber Grid 160x80 PNG");
+            Require(sawPngItem && pngItem != null && pngItem.MediaType == "image", "Static PNG appears in Browse with PNG format tag");
+            createdItemIds.Add(pngItem!.Id);
+
+            await InstallAndDeleteCardAsync(
+                pngItem.Id, pngItem.Title, "screen",
+                onBeforeInstall: () => studio.Screen!.LoadWallpaper(0),
+                verifyApplied: () => Require(studio.Screen!.FrameCount == 1 && !studio.Screen.IsAnimated, $"Installed static 160x80 PNG directly into Screen Studio ({studio.Screen!.FrameCount}f)"),
+                shotName: "08-browse-screen-png");
+
+            // 7. Real UI Share -> Submit Dialog -> Install -> Delete: 160x80 4-Frame Animated GIF Screen Art
+            studio.ShowManagement("Screen");
+            await WaitMs(200);
+            byte[] animatedGif = GenerateScreenArtworkGif(160, 80, 4);
+            studio.Screen!.LoadImageBytes(animatedGif, "e2e-animated-pulse.gif");
+            await WaitMs(250);
+            Require(studio.Screen.FrameCount == 4 && studio.Screen.IsAnimated, $"Screen Studio decoded 4-frame GIF ({studio.Screen.FrameCount}f)");
+
+            shareScreenBtn = FindButtonsContainingText(studio.Screen.Body, "Share to Community").FirstOrDefault();
+            shareScreenBtn!.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            Require(await WaitUntilAsync(() => community.ActiveSubmitDialog is { HasMediaBytes: true }), "Submit Dialog pre-loaded with 4-frame 160x80 GIF");
+            subDlg = community.ActiveSubmitDialog!;
+            subDlg.TitleInput.Text = "E2E Pulse Wave 160x80 GIF";
+            subDlg.DescriptionInput.Text = "Automated E2E verification of multi-frame animated GIF upload and Screen Studio decode.";
+            subDlg.SubmitButton.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            bool gifDlgClosed = await WaitUntilAsync(() => community.ActiveSubmitDialog == null, 20000);
+            Require(gifDlgClosed, $"Animated GIF submitted & modal auto-closed cleanly (status: {subDlg.StatusText})");
+
+            community.SetPresetCategoryAndRefresh("screen");
+            bool sawGifItem = await WaitUntilAsync(() => community.LastCatalog?.Items.FirstOrDefault(i => i.Title == "E2E Pulse Wave 160x80 GIF") != null, 10000);
+            var gifItem = community.LastCatalog?.Items.FirstOrDefault(i => i.Title == "E2E Pulse Wave 160x80 GIF");
+            Require(sawGifItem && gifItem != null && gifItem.MediaType == "gif", "Animated GIF appears in Browse with GIF badge");
+            createdItemIds.Add(gifItem!.Id);
+
+            await InstallAndDeleteCardAsync(
+                gifItem.Id, gifItem.Title, "screen",
+                onBeforeInstall: () => studio.Screen!.LoadWallpaper(0),
+                verifyApplied: () => Require(studio.Screen!.FrameCount == 4 && studio.Screen.IsAnimated, $"Installed 4-frame GIF directly into Screen Studio ({studio.Screen!.FrameCount}f)"),
+                shotName: "09-browse-screen-gif");
+
+            // 8. Analog Curve -> Leaderboard #1 -> Install (verify Flags + Anti-DZ restore) -> Delete
             community.SelectSubTab("leaderboard");
             await WaitUntilAsync(() => community.LastLeaderboardMakers != null, 5000);
-            await WaitMs(300);
-            Require((community.LastLeaderboardMakers?.Count ?? 0) == 0, "Leaderboard shows 0 makers when creator has 0 published items");
-            SaveShot("07-leaderboard-before");
-
-            community.SetPresetCategoryAndRefresh("curve");
-            await WaitMs(900);
+            Require((community.LastLeaderboardMakers?.Count ?? 0) == 0, "Leaderboard shows 0 makers before publishing persistent item");
 
             string shareCode = StickLabShareCode.Encode(
                 CurveChannel.LeftStick,
-                new SetupCurve("custom", "scurve", 0, 100, 33, 25, 67, 75),
-                new StickTuning { Inner = 8, Outer = 92, AntiDeadzone = 15, MaxOutput = 90 });
-            var submitRes = await client.SubmitItemAsync(
-                category: "curve",
-                modelId: "x20-pro",
-                connectionMode: "native",
-                title: "X20 Pro Native S-Curve E2E",
-                description: "Automated E2E verification curve testing publish, install increment, leaderboard #1 ranking, and deletion.",
-                tags: new[] { "fps", "e2e" },
-                gameTags: Array.Empty<string>(),
-                payload: null,
+                new SetupCurve("custom", "scurve", 4, 96, 33, 25, 67, 75),
+                new StickTuning { Inner = 4, Outer = 96, AntiDeadzone = 15, MaxOutput = 90 },
+                flags: expectedFlags);
+            var curveRes = await client.SubmitItemAsync(
+                category: "curve", modelId: "x20-pro", connectionMode: "native",
+                title: "E2E Native Curve + Flags", description: "Verifying Flags + Radial Anti-DZ community install.",
+                tags: new[] { "fps" }, gameTags: Array.Empty<string>(),
+                payload: new { leftPreset = "custom", deadzone = 4, antiDeadzone = 15, flags = "Invert Y, Swap L/R" },
                 shareCode: shareCode);
-            Require(submitRes.Ok && submitRes.Data != null && submitRes.Data.Status == "approved", $"Owner published & auto-approved curve ({submitRes.Data?.Id ?? submitRes.Error})");
-            createdItemId = submitRes.Data!.Id;
+            Require(curveRes.Ok && curveRes.Data != null && curveRes.Data.Status == "approved", "Published curve item live");
+            createdItemIds.Add(curveRes.Data!.Id);
 
-            await community.RefreshAsync();
-            bool sawCreated = await WaitUntilAsync(() => community.LastCatalog?.Items.Any(i => i.Id == createdItemId && i.Installs == 0) == true);
-            Require(sawCreated, "Published curve appears in Browse with 0 installs");
-            SaveShot("08-published-curve-0-installs");
+            await InstallAndDeleteCardAsync(
+                curveRes.Data.Id, curveRes.Data.Title, "curve",
+                onBeforeInstall: () => { studio.Curves.Draft.SetPreset(CurveChannel.LeftStick, "default"); },
+                verifyApplied: () =>
+                {
+                    var lc = studio.Curves.Draft[CurveChannel.LeftStick];
+                    Require((lc.Flags & expectedFlags) == expectedFlags && Math.Abs(studio.Curves.Floor.Value - 15) < 0.5,
+                        $"Installed community curve restored Flags=0x{lc.Flags:X2} and Floor={studio.Curves.Floor.Value:0.#}%");
+                },
+                shotName: "10-browse-curve");
 
-            // Click real Install button on Workshop card
-            var installBtn = FindVisualChildren<Button>(community.Body).FirstOrDefault(b => Equals(b.Tag, $"install:{createdItemId}"));
-            Require(installBtn != null, "Found UI Install button on published curve card");
-            installBtn!.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
-            bool sawOneInstall = await WaitUntilAsync(() => FindVisualChildren<TextBlock>(community.Body).Any(t => t.Text.Contains("1 install", StringComparison.OrdinalIgnoreCase)));
-            Require(sawOneInstall, "UI Install counter incremented live to '1 install'");
-            SaveShot("09-installed-curve-1-install");
+            // 9. RGB Lighting + Vibration + Macro (real steps) + Full Setup via Diff Drawer
+            var rgbRes = await client.SubmitItemAsync(
+                category: "rgb", modelId: "x20-pro", connectionMode: "native",
+                title: "E2E Ember Orange RGB", description: "RGB lighting preset #FF5500.",
+                tags: new[] { "rgb" }, gameTags: Array.Empty<string>(),
+                payload: new { rgb = "#FF5500", mode = 0, brightness = 0x50 });
+            Require(rgbRes.Ok && rgbRes.Data != null, "Published RGB preset");
+            createdItemIds.Add(rgbRes.Data!.Id);
+            await InstallAndDeleteCardAsync(
+                rgbRes.Data.Id, rgbRes.Data.Title, "rgb",
+                onBeforeInstall: null,
+                verifyApplied: () => Require(studio.RgbSelectedColor == 0xFF5500, $"Installed RGB applied color #FF5500 (actual #{studio.RgbSelectedColor:X6})"));
 
-            // Leaderboard now shows #1 AmjadXCTL with Installs 1
-            community.SelectSubTab("leaderboard");
-            bool sawLeader = await WaitUntilAsync(() => community.LastLeaderboardMakers?.FirstOrDefault() is { Handle: "AmjadXCTL", InstallsReceived: >= 1 });
-            var topMaker = community.LastLeaderboardMakers?.FirstOrDefault();
-            Require(sawLeader, $"Leaderboard ranked #1 {topMaker?.Handle} with Installs={topMaker?.InstallsReceived}");
-            SaveShot("10-leaderboard-rank1-active");
+            var vibRes = await client.SubmitItemAsync(
+                category: "vibration", modelId: "x20-pro", connectionMode: "native",
+                title: "E2E Tactile 85% Rumble", description: "Vibration preset at 85%.",
+                tags: new[] { "rumble" }, gameTags: Array.Empty<string>(),
+                payload: new { strength = 85 });
+            Require(vibRes.Ok && vibRes.Data != null, "Published Vibration preset");
+            createdItemIds.Add(vibRes.Data!.Id);
+            await InstallAndDeleteCardAsync(
+                vibRes.Data.Id, vibRes.Data.Title, "vibration",
+                onBeforeInstall: null,
+                verifyApplied: () => Require(studio.VibrationStrength == 85, $"Installed Vibration applied strength {studio.VibrationStrength}%"));
 
-            // Switch back to Browse and click real Delete button
-            community.SelectSubTab("explore");
-            await WaitUntilAsync(() => FindVisualChildren<Button>(community.Body).Any(b => Equals(b.Tag, $"delete:{createdItemId}")));
-            var deleteBtn = FindVisualChildren<Button>(community.Body).FirstOrDefault(b => Equals(b.Tag, $"delete:{createdItemId}"));
-            Require(deleteBtn != null, "Found UI Delete button on own published curve card");
-            deleteBtn!.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
-            bool removed = await WaitUntilAsync(() => community.LastCatalog?.Items.Any(i => i.Id == createdItemId) == false);
-            createdItemId = null; // deleted cleanly via UI button
-            Require(removed, "Deleted curve removed cleanly from Workshop Browse");
-            SaveShot("11-deleted-clean-browse");
+            var macroRes = await client.SubmitItemAsync(
+                category: "macro", modelId: "x20-pro", connectionMode: "native",
+                title: "E2E Double Jump Macro", description: "2-step M1 macro sequence.",
+                tags: new[] { "macro" }, gameTags: Array.Empty<string>(),
+                payload: new
+                {
+                    slot = "M1",
+                    events = new[]
+                    {
+                        new SetupMacro(Guid.NewGuid(), new[] { "A" }, StickHeading.Neutral, StickHeading.Neutral, 40, 20),
+                        new SetupMacro(Guid.NewGuid(), new[] { "X" }, StickHeading.Neutral, StickHeading.Neutral, 40, 20),
+                    }
+                });
+            Require(macroRes.Ok && macroRes.Data != null, "Published Macro preset");
+            createdItemIds.Add(macroRes.Data!.Id);
+            await InstallAndDeleteCardAsync(
+                macroRes.Data.Id, macroRes.Data.Title, "macro",
+                onBeforeInstall: () => studio.MacroDraft.Clear("M1"),
+                verifyApplied: () => Require(studio.MacroDraft["M1"].Count == 2, $"Installed Macro loaded {studio.MacroDraft["M1"].Count} steps into M1"));
+
+            // Full Setup + Compare & Cherry-Pick Diff Drawer verification
+            studio.Draft.Set("A", "B");
+            var setupSnap = SetupSnapshot.Capture(studio.Model.Id, studio.Draft, studio.Curves.Draft, studio.MacroDraft, studio.VibrationStrength == 85 ? new VibrationDraft(studio.Model.Id) : new VibrationDraft(studio.Model.Id));
+            studio.Draft.Set("A", "A");
+            var setupRes = await client.SubmitItemAsync(
+                category: "setup", modelId: "x20-pro", connectionMode: "native",
+                title: "E2E Complete Pro Setup", description: "Full setup for Diff Drawer verification.",
+                tags: new[] { "pro" }, gameTags: Array.Empty<string>(),
+                payload: setupSnap);
+            Require(setupRes.Ok && setupRes.Data != null, "Published Full Setup");
+            createdItemIds.Add(setupRes.Data!.Id);
+
+            community.SetPresetCategoryAndRefresh("setup");
+            Require(await WaitUntilAsync(() => community.LastCatalog?.Items.Any(i => i.Id == setupRes.Data.Id) == true, 10000), "Full Setup visible in Browse");
+            await community.OpenItemInspectorForTestAsync(setupRes.Data);
+            await WaitMs(200);
+            var compareBtn = FindButtonsContainingText(community.Body, "Compare & 5s Test").FirstOrDefault();
+            Require(compareBtn != null, "Found Compare & 5s Test button inside Inspector");
+            compareBtn!.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            Require(await WaitUntilAsync(() => community.ActiveDiffDrawer != null), "Diff Drawer opened cleanly");
+            var drawerText = community.ActiveDiffDrawer!.TheirsSummaryText;
+            Require(!drawerText.Contains("ValueKind", StringComparison.OrdinalIgnoreCase), $"Diff Drawer formats real JSON values without ValueKind bugs");
+            SaveShot("11-diff-drawer-inspect");
+
+            community.ActiveDiffDrawer.InstallSelectedButton.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            Require(await WaitUntilAsync(() => community.ActiveDiffDrawer == null, 8000), "Diff Drawer closed after Install Selected");
+            await WaitMs(350);
+            Require(studio.Draft.Target("A") == "B", $"Diff Drawer cherry-pick applied A->B remap (actual: {studio.Draft.Target("A")})");
+            foreach (var added in studio.SetupStore.Items.Where(s => !initialSetupIds.Contains(s.Id)))
+                createdSetupIds.Add(added.Id);
+
+            // Delete setup item & verify clean 0-maker leaderboard
+            community.SetPresetCategoryAndRefresh("setup");
+            await WaitUntilAsync(() => FindVisualChildren<Button>(community.Body).Any(b => Equals(b.Tag, $"delete:{setupRes.Data.Id}")));
+            FindVisualChildren<Button>(community.Body).First(b => Equals(b.Tag, $"delete:{setupRes.Data.Id}")).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            Require(await WaitUntilAsync(() => community.LastCatalog?.Items.Any(i => i.Id == setupRes.Data.Id) == false), "Deleted Full Setup via UI Delete button");
+            createdItemIds.Remove(setupRes.Data.Id);
 
             community.SelectSubTab("leaderboard");
             bool emptyLb = await WaitUntilAsync(() => (community.LastLeaderboardMakers?.Count ?? 0) == 0);
-            Require(emptyLb, "Leaderboard returned to 0 makers after deleting only published item");
+            Require(emptyLb, "Leaderboard returned to 0 makers after deleting all E2E items");
             SaveShot("12-leaderboard-clean-after");
 
             studio.SendOfflinePulseSync();
@@ -343,13 +513,109 @@ internal static class AutomatedE2ETester
         }
         finally
         {
-            if (createdItemId != null && client != null)
+            if (client != null)
             {
-                try { await client.DeleteItemAsync(createdItemId); } catch { }
+                foreach (var leftoverId in createdItemIds)
+                {
+                    try { await client.DeleteItemAsync(leftoverId); } catch { }
+                }
+            }
+            if (window.Host.Studio is { } st)
+            {
+                foreach (var setupId in createdSetupIds)
+                {
+                    try { st.SetupStore.Delete(setupId); } catch { }
+                }
             }
             window.Host.Studio?.SendOfflinePulseSync();
             window.Close();
         }
+    }
+
+    private static byte[] GenerateAvatarPng(int width, int height)
+    {
+        var visual = new DrawingVisual();
+        using (var dc = visual.RenderOpen())
+        {
+            dc.DrawRectangle(new SolidColorBrush(Color.FromRgb(12, 22, 48)), null, new Rect(0, 0, width, height));
+            dc.DrawEllipse(new SolidColorBrush(Color.FromRgb(56, 189, 248)), new Pen(Brushes.White, 3), new Point(width / 2.0, height / 2.0), width * 0.34, height * 0.34);
+        }
+        var rtb = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
+        rtb.Render(visual);
+        var enc = new PngBitmapEncoder();
+        enc.Frames.Add(BitmapFrame.Create(rtb));
+        using var ms = new MemoryStream();
+        enc.Save(ms);
+        return ms.ToArray();
+    }
+
+    private static byte[] GenerateScreenArtworkPng(int width, int height)
+    {
+        var visual = new DrawingVisual();
+        using (var dc = visual.RenderOpen())
+        {
+            dc.DrawRectangle(new SolidColorBrush(Color.FromRgb(8, 16, 36)), null, new Rect(0, 0, width, height));
+            dc.DrawRectangle(null, new Pen(new SolidColorBrush(Color.FromRgb(56, 189, 248)), 2), new Rect(4, 4, width - 8, height - 8));
+            dc.DrawEllipse(new SolidColorBrush(Color.FromRgb(255, 122, 24)), null, new Point(width * 0.25, height * 0.5), 18, 18);
+            dc.DrawLine(new Pen(Brushes.White, 3), new Point(70, 20), new Point(145, 60));
+        }
+        var rtb = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
+        rtb.Render(visual);
+        var enc = new PngBitmapEncoder();
+        enc.Frames.Add(BitmapFrame.Create(rtb));
+        using var ms = new MemoryStream();
+        enc.Save(ms);
+        return ms.ToArray();
+    }
+
+    private static byte[] GenerateScreenArtworkGif(int width, int height, int frameCount)
+    {
+        var enc = new GifBitmapEncoder();
+        for (int f = 0; f < frameCount; f++)
+        {
+            var visual = new DrawingVisual();
+            using (var dc = visual.RenderOpen())
+            {
+                dc.DrawRectangle(new SolidColorBrush(Color.FromRgb(6, 12, 28)), null, new Rect(0, 0, width, height));
+                double barX = 16 + f * 32;
+                dc.DrawRectangle(new SolidColorBrush(Color.FromRgb(56, 189, 248)), null, new Rect(barX, 16, 28, height - 32));
+            }
+            var rtb = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
+            rtb.Render(visual);
+            enc.Frames.Add(BitmapFrame.Create(rtb));
+        }
+        using var ms = new MemoryStream();
+        enc.Save(ms);
+        return ms.ToArray();
+    }
+
+    private static List<Button> FindButtonsWithStyle(DependencyObject root, string styleKey)
+    {
+        var list = new List<Button>();
+        var targetStyle = Application.Current?.TryFindResource(styleKey) as Style;
+        if (targetStyle == null) return list;
+        foreach (var b in FindVisualChildren<Button>(root))
+        {
+            if (ReferenceEquals(b.Style, targetStyle))
+                list.Add(b);
+        }
+        return list;
+    }
+
+    private static Slider? FindSiblingSlider(DependencyObject root, string labelText)
+    {
+        foreach (var tb in FindVisualChildren<TextBlock>(root))
+        {
+            if (!string.Equals(tb.Text, labelText, StringComparison.OrdinalIgnoreCase)) continue;
+            DependencyObject? cur = VisualTreeHelper.GetParent(tb);
+            while (cur != null)
+            {
+                var found = FindVisualChildren<Slider>(cur).FirstOrDefault();
+                if (found != null) return found;
+                cur = VisualTreeHelper.GetParent(cur);
+            }
+        }
+        return null;
     }
 
     private static void ForceToggle(ToggleButton toggle, bool targetState)

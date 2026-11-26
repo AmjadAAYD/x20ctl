@@ -147,6 +147,11 @@ Official builds from [**Release V0.026**](https://github.com/AmjadAAYD/x20ctl/re
 - Uploads happen only when you explicitly confirm **Scan and send** in Controller Check or **Send to X20CTL** feedback. See [PRIVACY.md](PRIVACY.md) and [IF-YOUR-CONTROLLER-ISNT-WORKING.md](IF-YOUR-CONTROLLER-ISNT-WORKING.md).
 - X20CTL does not flash firmware.
 
+## Verification
+
+- **Core, protocol & PC engine tests:** `dotnet test desktop-dotnet\X20Ctl.Zone.Tests\X20Ctl.Zone.Tests.csproj` (1,256 passing unit tests covering BLE packet serialization, curve flags `InvertX`/`InvertY`/`SwapSticks`, `X20C1.` share codes, and local setup storage) and `python -m pytest tests` (344 passing controller/firmware tests).
+- **Live GUI & Workshop end-to-end suite:** Launch `X20Ctl.exe --test-e2e-full <out_dir>` to verify warm Studio tab switches, Analog Studio cold/warm reopen, radial anti-deadzone and hardware flag compilation, `64x64` PNG avatar upload, `160x80` static PNG and multi-frame animated GIF Screen Art publish/install flows, RGB/Vibration/Macro/Setup installs, Compare & Cherry-Pick diff drawer checks, and full cleanup.
+
 ## Credits
 
 - **Special thanks to Kiin from Team EasySMX** for supplying a free X20 Pro controller.
