@@ -137,4 +137,19 @@ public class ControllerRecordsTests
         Assert.True(compiled.Point1.X >= 1 && compiled.Point1.X < compiled.Point2.X && compiled.Point2.X <= 254);
         Assert.False(X20Ctl.Zone.PcMode.StickLabMath.RequiresDesktopBoost(new X20Ctl.Zone.PcMode.PcModeProfile()));
     }
+
+    [Fact]
+    public void StickLabShareCodeRoundTripsHardwareFlags()
+    {
+        byte flags = (byte)(CurveHardwareFlags.InvertY | CurveHardwareFlags.SwapSticks);
+        string code = X20Ctl.Zone.PcMode.StickLabShareCode.Encode(
+            CurveChannel.LeftStick,
+            new SetupCurve("custom", "scurve", 4, 96, 33, 25, 67, 75),
+            new X20Ctl.Zone.PcMode.StickTuning { Inner = 4, Outer = 96, AntiDeadzone = 15, MaxOutput = 95 },
+            flags: flags);
+        Assert.True(X20Ctl.Zone.PcMode.StickLabShareCode.TryDecode(code, out var decoded, out string err), err);
+        Assert.NotNull(decoded);
+        Assert.Equal(flags, decoded!.Flags);
+        Assert.Equal(15, decoded.Tuning!.AntiDeadzone);
+    }
 }

@@ -482,7 +482,8 @@ public static class StickLabShareCode
         SetupCurve Curve,
         StickTuning? Tuning,
         SocdMode DPadSocd = SocdMode.Off,
-        SocdMode LeftStickSocd = SocdMode.Off);
+        SocdMode LeftStickSocd = SocdMode.Off,
+        byte Flags = 0);
 
     static readonly JsonSerializerOptions CompactJson = new()
     {
@@ -491,9 +492,9 @@ public static class StickLabShareCode
         Converters = { new JsonStringEnumConverter() },
     };
 
-    public static string Encode(CurveChannel channel, SetupCurve curve, StickTuning? tuning = null, SocdMode dpadSocd = SocdMode.Off, SocdMode leftStickSocd = SocdMode.Off)
+    public static string Encode(CurveChannel channel, SetupCurve curve, StickTuning? tuning = null, SocdMode dpadSocd = SocdMode.Off, SocdMode leftStickSocd = SocdMode.Off, byte flags = 0)
     {
-        var payload = new Payload(channel.ToString(), curve, tuning, dpadSocd, leftStickSocd);
+        var payload = new Payload(channel.ToString(), curve, tuning, dpadSocd, leftStickSocd, flags);
         byte[] utf8 = JsonSerializer.SerializeToUtf8Bytes(payload, CompactJson);
         string b64 = Convert.ToBase64String(utf8).TrimEnd('=').Replace('+', '-').Replace('/', '_');
         byte crc = Crc8(utf8);
