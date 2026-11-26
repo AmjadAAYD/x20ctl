@@ -90,7 +90,7 @@ internal static class UpdateCheck
 /// app and system versions are sent, and only when they press Send.</summary>
 internal static class FeedbackClient
 {
-    public const string Endpoint = "https://x20-admin.vercel.app/api/feedback";
+    public const string Endpoint = "https://x20ctl-workshop.aaydamjad.workers.dev/api/feedback";
     public static readonly (string Id, string Label)[] Categories = [("bug", "Something's broken"), ("feature", "Idea or request"), ("compatibility", "My controller"), ("other", "Something else")];
 
     public static async Task<string> Send(string category, string message, string? controller, string? connection)

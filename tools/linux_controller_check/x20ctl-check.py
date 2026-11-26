@@ -30,7 +30,7 @@ from urllib import request, error
 
 VERSION = "2.0.0-local"
 HOST = "x20ctl-linux-controller-check"
-ENDPOINT = "https://x20-admin.vercel.app/api/controller-report"
+ENDPOINT = "https://x20ctl-workshop.aaydamjad.workers.dev/api/controller-report"
 DISCORD = "mistermajid"
 EVENT = struct.Struct("llHHi")  # struct input_event on 64-bit and 32-bit glibc/musl
 EV_KEY, EV_ABS, EV_SYN = 1, 3, 0
@@ -40,7 +40,7 @@ KEY_NAMES = {0x130: "BTN_SOUTH", 0x131: "BTN_EAST", 0x132: "BTN_C", 0x133: "BTN_
              0x220: "BTN_DPAD_UP", 0x221: "BTN_DPAD_DOWN", 0x222: "BTN_DPAD_LEFT", 0x223: "BTN_DPAD_RIGHT"}
 KNOWN = {(0x045E, 0x028E): "Xbox 360-compatible identity. Most pads in XInput mode, EasySMX included, use it; it proves nothing about the model.",
          (0x045E, 0x02E0): "Xbox Wireless (Bluetooth) identity, shared by many pads.",
-         (0x0079, 0x181C): "Generic DragonRise DInput gamepad identity (often shown as STK-7024X in Steam). Seen on multiple EasySMX controllers (X20, X20 Pro, X15) in DInput mode — does not identify a specific model.",
+         (0x0079, 0x181C): "Generic DragonRise DInput gamepad identity (often shown as STK-7024X in Steam). Seen on multiple EasySMX controllers (X20, X20 Pro, X15) in DInput mode - does not identify a specific model.",
          (0x1D57, 0xFA60): "A Xenta wireless keyboard and mouse receiver. It is not an EasySMX receiver; the X20's own dongle shows the pad's identity instead.",
          (0x1A34, 0xF517): "Reported for the EasySMX X15's 2.4 GHz receiver. The vendor's X20 receiver tool also opens this id (found in its code, not yet seen here).",
          (0x2345, 0xE062): "Reported for the EasySMX D10's receiver, a vendor-defined HID device (research notes, not yet seen here).",

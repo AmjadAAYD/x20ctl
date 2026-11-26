@@ -12,7 +12,7 @@ namespace X20Ctl.Zone.Community;
 
 public sealed class CommunityClient
 {
-    public const string DefaultBaseUrl = "https://x20-admin.vercel.app";
+    public const string DefaultBaseUrl = "https://x20ctl-workshop.aaydamjad.workers.dev";
     private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 
     private readonly HttpClient _http;

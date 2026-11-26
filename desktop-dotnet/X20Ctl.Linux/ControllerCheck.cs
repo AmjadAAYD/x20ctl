@@ -67,7 +67,7 @@ internal sealed unsafe class EvReader : IDisposable
 /// in tools/linux_controller_check. Read-only. The in-app version has not been run against a real pad yet.</summary>
 internal static class CheckEngine
 {
-    public const string Version = "2.1.0-studio", Endpoint = "https://x20-admin.vercel.app/api/controller-report", Host = "x20ctl-linux-studio-check";
+    public const string Version = "2.1.0-studio", Endpoint = "https://x20ctl-workshop.aaydamjad.workers.dev/api/controller-report", Host = "x20ctl-linux-studio-check";
     public sealed record Step(string Id, string Prompt, string Kind);
     public static readonly Step[] Steps =
     [
