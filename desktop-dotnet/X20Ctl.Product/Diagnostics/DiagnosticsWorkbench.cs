@@ -62,7 +62,9 @@ public sealed partial class DiagnosticsWorkbench
     readonly Dictionary<ushort, (Border Cell, TextBlock Count)> cells = new();
     readonly List<Button> slotButtons = new();
     public Button Reset { get; }
+    public void ClearMeasurements() => Clear();
     readonly PcModeLink? link;
+    readonly TextBlock? telemetrySourceVal, telemetryDriftVal, telemetryCircVal, telemetrySnapVal;
     readonly Dictionary<StickStats, (string Key, Button Use, TextBlock Said)> apply = new();
     readonly Dictionary<StickStats, double> suggested = new();
 
@@ -96,15 +98,63 @@ public sealed partial class DiagnosticsWorkbench
         page.Children.Add(measureCentre);page.Children.Add(driftDetails);
 
         var top = TelemetryGrid = new Grid { Margin = telemetryOnly ? new(0) : new(0, 18, 0, 0) };
-        for (int i = 0; i < (compact ? 3 : 4); i++) top.ColumnDefinitions.Add(new() { Width = new GridLength(i < 2 ? 1.15 : 1, GridUnitType.Star) });
-        leftView = StickCard(top, 0, "Left stick", left, "LeftStick", register); rightView = StickCard(top, 1, "Right stick", right, "RightStick", register);
-        var triggers = new Grid(); triggers.ColumnDefinitions.Add(new()); triggers.ColumnDefinitions.Add(new());
-        ltView = TriggerColumn(triggers, 0, "LT"); rtView = TriggerColumn(triggers, 1, "RT");
-        Card(top, 2, "Triggers", triggers, telemetryOnlyMode ? new Thickness(12, 10, 12, 10) : null);
-        rateText = Kit.Text("", 15, "DS.Text").Also(t => { t.TextWrapping = TextWrapping.Wrap; t.TextTrimming = TextTrimming.None; });
-        rawText = Wrap("", 13.5, "DS.TextSoft", 12);
-        Card(top, 3, "Observed input updates", new StackPanel { Children = { rateText, rawText,
-            Wrap("XInput state changes are not hardware polling rate. Raw Input report counts below are separate, unassociated devices; they are not verified as this selected controller.", 12.5, "DS.TextMuted", 12) } });
+        if (telemetryOnly)
+        {
+            top.RowDefinitions.Add(new() { Height = new(1, GridUnitType.Star) });
+            top.RowDefinitions.Add(new() { Height = GridLength.Auto });
+            top.ColumnDefinitions.Add(new() { Width = new(1.12, GridUnitType.Star) });
+            top.ColumnDefinitions.Add(new() { Width = new(1.12, GridUnitType.Star) });
+            top.ColumnDefinitions.Add(new() { Width = new(0.86, GridUnitType.Star) });
+            leftView = StickCard(top, 0, "Left stick", left, "LeftStick", register);
+            rightView = StickCard(top, 1, "Right stick", right, "RightStick", register);
+            var triggers = new Grid(); triggers.ColumnDefinitions.Add(new()); triggers.ColumnDefinitions.Add(new());
+            ltView = TriggerColumn(triggers, 0, "LT"); rtView = TriggerColumn(triggers, 1, "RT");
+            Card(top, 2, "Triggers", triggers, new Thickness(10, 8, 10, 8));
+            rateText = Kit.Text("", 13, "DS.Text").Also(t => { t.TextWrapping = TextWrapping.Wrap; });
+            rawText = Wrap("", 12, "DS.TextSoft", 8);
+
+            var strip = new System.Windows.Controls.Primitives.UniformGrid { Columns = 4, Margin = new(0, 8, 0, 0) };
+            Border MetricWell(string cap, out TextBlock valText)
+            {
+                valText = Kit.Text("Waiting", 12, "DS.Text", FontWeights.SemiBold).Also(t => t.TextTrimming = TextTrimming.CharacterEllipsis);
+                return new Border
+                {
+                    CornerRadius = new(8),
+                    Background = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(6, 13, 28))),
+                    BorderBrush = new SolidColorBrush(Color.FromArgb(65, 96, 155, 230)),
+                    BorderThickness = new(1),
+                    Padding = new(9, 6, 9, 6),
+                    Margin = new(0, 0, 6, 0),
+                    Child = new StackPanel
+                    {
+                        Children =
+                        {
+                            Kit.Text(cap, 9.5, "DS.AccentHi", FontWeights.Bold),
+                            valText
+                        }
+                    }
+                };
+            }
+            strip.Children.Add(MetricWell("SOURCE", out telemetrySourceVal));
+            strip.Children.Add(MetricWell("L / R DRIFT", out telemetryDriftVal));
+            strip.Children.Add(MetricWell("CIRCULARITY", out telemetryCircVal));
+            strip.Children.Add(MetricWell("SNAPBACK PEAK", out telemetrySnapVal).Also(b => b.Margin = new(0)));
+            Grid.SetRow(strip, 1);
+            Grid.SetColumnSpan(strip, 3);
+            top.Children.Add(strip);
+        }
+        else
+        {
+            for (int i = 0; i < (compact ? 3 : 4); i++) top.ColumnDefinitions.Add(new() { Width = new GridLength(i < 2 ? 1.15 : 1, GridUnitType.Star) });
+            leftView = StickCard(top, 0, "Left stick", left, "LeftStick", register); rightView = StickCard(top, 1, "Right stick", right, "RightStick", register);
+            var triggers = new Grid(); triggers.ColumnDefinitions.Add(new()); triggers.ColumnDefinitions.Add(new());
+            ltView = TriggerColumn(triggers, 0, "LT"); rtView = TriggerColumn(triggers, 1, "RT");
+            Card(top, 2, "Triggers", triggers, null);
+            rateText = Kit.Text("", 15, "DS.Text").Also(t => { t.TextWrapping = TextWrapping.Wrap; t.TextTrimming = TextTrimming.None; });
+            rawText = Wrap("", 13.5, "DS.TextSoft", 12);
+            Card(top, 3, "Observed input updates", new StackPanel { Children = { rateText, rawText,
+                Wrap("XInput state changes are not hardware polling rate. Raw Input report counts below are separate, unassociated devices; they are not verified as this selected controller.", 12.5, "DS.TextMuted", 12) } });
+        }
         page.Children.Add(top);
 
         var grid = new WrapPanel();
@@ -232,8 +282,15 @@ public sealed partial class DiagnosticsWorkbench
             numericValues.Text=!seen?"No input data · Raw HID report bytes unavailable":rawValues?$"XInput integers · LX {left.X}  LY {left.Y}  RX {right.X}  RY {right.Y}  LT {lt.Value}  RT {rt.Value} · Raw HID bytes unavailable":$"Normalized · L ({left.X/32767d:0.000}, {left.Y/32767d:0.000})  R ({right.X/32767d:0.000}, {right.Y/32767d:0.000})  LT {lt.Value/255d:0.000}  RT {rt.Value/255d:0.000}";
             DrawStick(leftView, left, leftSnapback); DrawStick(rightView, right, rightSnapback);
             DrawTrigger(ltView, lt); DrawTrigger(rtView, rt);
-            foreach(var view in new[]{leftView,rightView}) {view.Dot.Visibility=seen?Visibility.Visible:Visibility.Collapsed;view.Reach.Visibility=seen?Visibility.Visible:Visibility.Collapsed;if(!seen){view.Resting.Visibility=Visibility.Collapsed;view.Stats.Text="No input source · Connect or select a controller";}}
-            if(!seen){ltView.Bar.Height=rtView.Bar.Height=0;ltView.Range.Visibility=rtView.Range.Visibility=Visibility.Collapsed;ltView.Stats.Text=rtView.Stats.Text="No data";}
+            foreach (var view in new[] { leftView, rightView }) { view.Dot.Visibility = seen ? Visibility.Visible : Visibility.Collapsed; view.Reach.Visibility = seen ? Visibility.Visible : Visibility.Collapsed; if (!seen) { view.Resting.Visibility = Visibility.Collapsed; view.Stats.Text = telemetryOnlyMode ? "Ready · Move stick around edge" : "No input source · Connect or select a controller"; } }
+            if (!seen) { ltView.Bar.Height = rtView.Bar.Height = 0; ltView.Range.Visibility = rtView.Range.Visibility = Visibility.Collapsed; ltView.Stats.Text = rtView.Stats.Text = telemetryOnlyMode ? "Idle" : "No data"; }
+            if (telemetryOnlyMode && telemetrySourceVal != null && telemetryDriftVal != null && telemetryCircVal != null && telemetrySnapVal != null)
+            {
+                telemetrySourceVal.Text = seen ? $"XInput P{s + 1} · {changes.Current(now)}/s" : (running ? "Standby · Ready" : "Paused");
+                telemetryDriftVal.Text = left.Rest is { } lr ? $"L {Math.Sqrt(lr.X * lr.X + lr.Y * lr.Y):0.0}% / R {(right.Rest is { } rr ? Math.Sqrt(rr.X * rr.X + rr.Y * rr.Y).ToString("0.0") + "%" : "--")}" : "Release to read";
+                telemetryCircVal.Text = left.CircularityError is { } lc ? $"L {lc:0.0}% err" : $"L {left.Covered * 100 / StickStats.Sectors}% swept";
+                telemetrySnapVal.Text = $"{Math.Max(leftSnapback.PeakBouncePct, rightSnapback.PeakBouncePct):0.0}% ({leftSnapback.BounceEvents + rightSnapback.BounceEvents})";
+            }
             if (s < 0 && keyboardPreview is { } keys)
             {
                 source.Text = "Keyboard preview · WASD / arrows · Q / E triggers. Connect a controller for measured circularity error.";
@@ -355,17 +412,17 @@ public sealed partial class DiagnosticsWorkbench
         var dot = new Ellipse { Width = 12, Height = 12, Fill = Brushes.White };
         canvas.Children.Add(reach); canvas.Children.Add(rest); canvas.Children.Add(dot);
         var stats = Kit.Text("", telemetryOnlyMode ? 12 : 13.5, "DS.TextSoft").Also(t => { t.TextWrapping = TextWrapping.Wrap; t.TextTrimming = TextTrimming.None; t.Margin = new(0, telemetryOnlyMode ? 6 : 12, 0, 0); t.LineHeight = telemetryOnlyMode ? 17 : 21; });
-        UIElement canvasVisual = telemetryOnlyMode ? new Viewbox { MaxHeight = 138, Stretch = Stretch.Uniform, HorizontalAlignment = HorizontalAlignment.Left, Child = canvas } : canvas;
+        UIElement canvasVisual = telemetryOnlyMode ? new Viewbox { MaxHeight = 134, Stretch = Stretch.Uniform, HorizontalAlignment = HorizontalAlignment.Center, Child = canvas } : canvas;
         var content = new StackPanel { Children = { canvasVisual, stats } };
         if (link != null)
         {
-            var use = Pill("Use as dead zone"); use.Height = telemetryOnlyMode ? 28 : 34; use.Margin = new(0, telemetryOnlyMode ? 6 : 10, 0, 0); use.HorizontalAlignment = HorizontalAlignment.Left; use.Visibility = Visibility.Collapsed;
+            var use = Pill("Use as dead zone"); use.Height = telemetryOnlyMode ? 26 : 34; use.Margin = new(0, telemetryOnlyMode ? 4 : 10, 0, 0); use.HorizontalAlignment = HorizontalAlignment.Left; use.Visibility = Visibility.Collapsed;
             use.ToolTip = "Sets this stick's inner dead zone in PC mode just past where it rests, so the drift never reaches games";
             var said = Wrap("", 12, "DS.TextMuted", 4);
             use.Click += (_, _) => UseAsDeadZone(source); register(use);
             apply[source] = (key, use, said); content.Children.Add(use); content.Children.Add(said);
         }
-        Card(row, column, title, content, telemetryOnlyMode ? new Thickness(12, 10, 12, 10) : null);
+        Card(row, column, title, content, telemetryOnlyMode ? new Thickness(10, 8, 10, 8) : null);
         return (reach, dot, rest, stats);
     }
 
@@ -374,10 +431,10 @@ public sealed partial class DiagnosticsWorkbench
         double h = telemetryOnlyMode ? 112 : 150;
         var bar = new Rectangle { Fill = Blue(220), VerticalAlignment = VerticalAlignment.Bottom, RadiusX = 6, RadiusY = 6 };
         var range = new Rectangle { Fill = Edge(40), VerticalAlignment = VerticalAlignment.Bottom };
-        var well = new Border { Width = telemetryOnlyMode ? 36 : 42, Height = h, CornerRadius = new(8), Background = Dark, BorderBrush = Edge(60), BorderThickness = new(1), HorizontalAlignment = HorizontalAlignment.Left,
+        var well = new Border { Width = telemetryOnlyMode ? 38 : 42, Height = h, CornerRadius = new(8), Background = Dark, BorderBrush = Edge(60), BorderThickness = new(1), HorizontalAlignment = HorizontalAlignment.Center,
             Child = new Grid { Children = { range, bar } } };
-        var stats = Kit.Text("", telemetryOnlyMode ? 12 : 13, "DS.TextSoft").Also(t => { t.TextWrapping = TextWrapping.Wrap; t.TextTrimming = TextTrimming.None; t.Margin = new(0, telemetryOnlyMode ? 6 : 10, 0, 0); });
-        var stack = new StackPanel { Children = { Kit.Text(name, telemetryOnlyMode ? 13.5 : 15, "DS.Text", FontWeights.SemiBold).Also(t => t.Margin = new(0, 0, 0, 6)), well, stats } };
+        var stats = Kit.Text("", telemetryOnlyMode ? 11.5 : 13, "DS.TextSoft").Also(t => { t.TextWrapping = TextWrapping.Wrap; t.TextTrimming = TextTrimming.None; t.HorizontalAlignment = telemetryOnlyMode ? HorizontalAlignment.Center : HorizontalAlignment.Left; t.Margin = new(0, telemetryOnlyMode ? 6 : 10, 0, 0); });
+        var stack = new StackPanel { HorizontalAlignment = telemetryOnlyMode ? HorizontalAlignment.Center : HorizontalAlignment.Stretch, Children = { Kit.Text(name, telemetryOnlyMode ? 13 : 15, "DS.Text", FontWeights.SemiBold).Also(t => { t.HorizontalAlignment = telemetryOnlyMode ? HorizontalAlignment.Center : HorizontalAlignment.Left; t.Margin = new(0, 0, 0, 6); }), well, stats } };
         Grid.SetColumn(stack, column); host.Children.Add(stack);
         return (bar, range, stats);
     }
@@ -388,9 +445,33 @@ public sealed partial class DiagnosticsWorkbench
         Canvas.SetLeft(e, Plot / 2 - radius); Canvas.SetTop(e, Plot / 2 - radius); return e;
     }
 
-    static void Card(Grid row, int column, string title, UIElement content, Thickness? pad = null)
+    void Card(Grid row, int column, string title, UIElement content, Thickness? pad = null)
     {
-        var card = Kit.Panel(title, null, null, content, pad); card.Margin = new(column == 0 ? 0 : 8, 0, column == 3 ? 0 : 8, 0);
+        FrameworkElement card;
+        if (telemetryOnlyMode)
+        {
+            card = new Border
+            {
+                CornerRadius = new(11),
+                Background = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(6, 13, 28))),
+                BorderBrush = new SolidColorBrush(Color.FromArgb(65, 96, 155, 230)),
+                BorderThickness = new(1),
+                Padding = pad ?? new Thickness(10, 8, 10, 8),
+                Margin = new(column == 0 ? 0 : 4, 0, column == 2 ? 0 : 4, 0),
+                Child = new DockPanel
+                {
+                    Children =
+                    {
+                        Kit.Text(title.ToUpperInvariant(), 10, "DS.AccentHi", FontWeights.Bold).Also(t => { DockPanel.SetDock(t, Dock.Top); t.Margin = new(0, 0, 0, 6); }),
+                        content
+                    }
+                }
+            };
+        }
+        else
+        {
+            card = Kit.Panel(title, null, null, content, pad).Also(c => c.Margin = new(column == 0 ? 0 : 8, 0, column == 3 ? 0 : 8, 0));
+        }
         Grid.SetColumn(card, column); row.Children.Add(card);
     }
 

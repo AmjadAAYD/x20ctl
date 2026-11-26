@@ -37,6 +37,7 @@ public sealed class CommunityBrowserWorkbench
     private readonly TextBlock _statusLine = Kit.Text("Ready", 12, "DS.TextMuted");
     private readonly StackPanel _profileChipRow = new() { Orientation = Orientation.Horizontal };
     private readonly StackPanel _feedStack = new();
+    private readonly Dictionary<string, Button> _subTabButtons = new(StringComparer.OrdinalIgnoreCase);
     private readonly Grid _modalHost = new() { Visibility = Visibility.Collapsed };
     private readonly TextBox _searchBox = new() { Width = 220, Padding = new Thickness(10, 6, 10, 6), FontSize = 12.5 };
     private readonly ComboBox _modelPicker = new() { MinWidth = 140, MinHeight = 32, FontSize = 12.5 };
@@ -96,6 +97,7 @@ public sealed class CommunityBrowserWorkbench
 
     private void BuildLayout()
     {
+        Body.Margin = new Thickness(28, 6, 28, 18);
         Body.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         Body.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         Body.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
@@ -190,6 +192,7 @@ public sealed class CommunityBrowserWorkbench
         var stack = new StackPanel();
 
         // Sub-tabs row
+        _subTabButtons.Clear();
         var subTabRow = new WrapPanel { Margin = new Thickness(0, 0, 0, 8) };
         Button SubTabBtn(string id, string label)
         {
@@ -203,7 +206,8 @@ public sealed class CommunityBrowserWorkbench
                 FontSize = 12,
                 Margin = new Thickness(0, 0, 6, 4)
             };
-            b.Click += (_, _) => { _subTab = id; _filterUid = null; _ = RefreshAsync(); };
+            _subTabButtons[id] = b;
+            b.Click += (_, _) => { _subTab = id; _filterUid = null; UpdateSubTabStyles(); _ = RefreshAsync(); };
             return b;
         }
         subTabRow.Children.Add(SubTabBtn("explore", "Explore Catalog"));
@@ -274,8 +278,15 @@ public sealed class CommunityBrowserWorkbench
         return stack;
     }
 
+    private void UpdateSubTabStyles()
+    {
+        foreach (var (id, btn) in _subTabButtons)
+            btn.Style = DS.Style(_subTab == id ? "DS.ConsolePrimary" : "ActionButton");
+    }
+
     public async Task RefreshAsync()
     {
+        UpdateSubTabStyles();
         if (_client.IsNetworkDisabled)
         {
             _onlinePill.Text = "Offline Mode";
@@ -288,31 +299,50 @@ public sealed class CommunityBrowserWorkbench
             _statusLine.Text = "Syncing with X20ADMIN...";
         }
 
-        // Refresh profile quietly if registered
-        var profRes = await _client.GetProfileAsync(_client.Identity.Uid);
-        if (profRes.Ok)
+        try
         {
-            _myProfile = profRes.Data.Creator;
-            UpdateProfileChip();
-        }
+            // Refresh profile quietly if registered
+            var profRes = await _client.GetProfileAsync(_client.Identity.Uid);
+            if (profRes.Ok)
+            {
+                _myProfile = profRes.Data.Creator;
+                UpdateProfileChip();
+            }
 
-        if (_subTab == "requests")
-        {
-            await RenderRequestsAndChallengesAsync();
-            return;
-        }
-        if (_subTab == "lounge")
-        {
-            await RenderLoungeAsync();
-            return;
-        }
-        if (_subTab == "social")
-        {
-            await RenderLeaderboardWatchingSavedAsync();
-            return;
-        }
+            if (_subTab == "requests")
+            {
+                await RenderRequestsAndChallengesAsync();
+                return;
+            }
+            if (_subTab == "lounge")
+            {
+                await RenderLoungeAsync();
+                return;
+            }
+            if (_subTab == "social")
+            {
+                await RenderLeaderboardWatchingSavedAsync();
+                return;
+            }
 
-        await RenderExploreAsync();
+            await RenderExploreAsync();
+        }
+        catch (Exception ex)
+        {
+            _statusLine.Text = $"Community sync interrupted: {ex.Message}";
+            _feedStack.Children.Clear();
+            var retryBtn = new Button { Content = "Retry Connection", Style = DS.Style("DS.ConsolePrimary"), Height = 32, MinHeight = 32, Padding = new Thickness(14, 0, 14, 0), Margin = new Thickness(0, 10, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
+            retryBtn.Click += (_, _) => _ = RefreshAsync();
+            _feedStack.Children.Add(Kit.Panel(null, null, null, new StackPanel
+            {
+                Children =
+                {
+                    Kit.Text("Community Feed Unavailable", 15, "DS.Text", FontWeights.SemiBold),
+                    Kit.Text(ex.Message, 12.5, "DS.TextSoft").Also(t => { t.TextWrapping = TextWrapping.Wrap; t.Margin = new Thickness(0, 4, 0, 0); }),
+                    retryBtn
+                }
+            }, new Thickness(16)));
+        }
     }
 
     private void UpdateProfileChip()
@@ -393,7 +423,7 @@ public sealed class CommunityBrowserWorkbench
         {
             AddCatPill(cat, cat switch
             {
-                "curve" => "Curves & Stick Lab",
+                "curve" => "Curves & Analog Studio",
                 "screen" => "OLED Screen",
                 "rgb" => "RGB Lighting",
                 "vibration" => "Vibration",
@@ -459,7 +489,41 @@ public sealed class CommunityBrowserWorkbench
 
         if (data.Items.Count == 0)
         {
-            _feedStack.Children.Add(Kit.Info("No approved community items match this hardware/filter yet. Be the first to share one!"));
+            var emptyActions = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 12, 0, 0) };
+            var shareFirst = new Button
+            {
+                Content = "+ Share Current Setup",
+                Style = DS.Style("DS.ConsolePrimary"),
+                Height = 34, MinHeight = 34, Padding = new Thickness(14, 0, 14, 0),
+                Margin = new Thickness(0, 0, 8, 0)
+            };
+            shareFirst.Click += (_, _) =>
+            {
+                var cat = _categoryFilter == "all" ? "setup" : _categoryFilter;
+                var exp = _exportCurrentForSubmit?.Invoke(cat, _selectedMode);
+                OpenShareDialog(cat, payload: exp?.Payload, shareCode: exp?.ShareCode, mediaBytes: exp?.MediaBytes, mediaType: exp?.MediaType);
+            };
+            emptyActions.Children.Add(shareFirst);
+            if (_myProfile == null)
+            {
+                var claimBtn = new Button
+                {
+                    Content = "Claim Creator Handle",
+                    Style = DS.Style("ActionButton"),
+                    Height = 34, MinHeight = 34, Padding = new Thickness(14, 0, 14, 0)
+                };
+                claimBtn.Click += (_, _) => OpenProfileDialog();
+                emptyActions.Children.Add(claimBtn);
+            }
+            _feedStack.Children.Add(Kit.Panel(null, null, null, new StackPanel
+            {
+                Children =
+                {
+                    Kit.Text($"No approved creations yet for {caps.ModelName} ({caps.ConnectionMode})", 15.5, "DS.Text", FontWeights.SemiBold),
+                    Kit.Text("Published curves, OLED screen art, RGB profiles, and full controller setups approved in X20ADMIN appear here automatically.", 12.5, "DS.TextSoft").Also(t => { t.TextWrapping = TextWrapping.Wrap; t.Margin = new Thickness(0, 4, 0, 0); }),
+                    emptyActions
+                }
+            }, new Thickness(18)));
             return;
         }
 
@@ -669,7 +733,7 @@ public sealed class CommunityBrowserWorkbench
         if (!string.IsNullOrEmpty(item.ShareCode))
         {
             var codeBtn = new Button { Content = "Copy Code", Style = DS.Style("ActionButton"), Height = 26, MinHeight = 26, FontSize = 11, Padding = new Thickness(8, 0, 8, 0), Margin = new Thickness(0, 0, 4, 0) };
-            codeBtn.Click += (_, _) => { Clipboard.SetText(item.ShareCode); _statusLine.Text = "Copied Stick Lab / setup share code."; };
+            codeBtn.Click += (_, _) => { Clipboard.SetText(item.ShareCode); _statusLine.Text = "Copied curve / setup share code."; };
             row2.Children.Add(codeBtn);
         }
         var remixBtn = new Button { Content = "Remix", Style = DS.Style("ActionButton"), Height = 26, MinHeight = 26, FontSize = 11, Padding = new Thickness(8, 0, 8, 0), Margin = new Thickness(0, 0, 4, 0) };

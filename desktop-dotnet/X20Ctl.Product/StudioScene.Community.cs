@@ -113,7 +113,7 @@ public partial class StudioScene
     {
         ShowManagement("Community");
         var exp = ExportCurrentForCommunity("curve", Draft.PcMode ? "pc-mode" : "native");
-        Community?.OpenShareDialog("curve", "Custom Curve / Stick Lab", exp.Payload, exp.ShareCode);
+        Community?.OpenShareDialog("curve", "Custom Curve / Analog Studio", exp.Payload, exp.ShareCode);
     }
 
     private string BuildCurrentDraftSummary()

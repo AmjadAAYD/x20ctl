@@ -43,16 +43,23 @@ internal static class ThemeReview
             await host.Zone.FocusPlayerAsync(0); await Shot("2b-hero"); await host.Zone.FocusPlayerAsync(null);
             host.EnterStudio(0); await Shot("3-dashboard", 1400);
             var studio = host.Studio!;
+            studio.Dashboard!.ToggleEcoDetails(true);
+            if (!studio.Dashboard.IsEcoDetailsOpen) throw new InvalidOperationException("Dashboard Eco details failed to open.");
+            await Shot("3b-dashboard-eco", 250);
+            studio.Dashboard.ToggleEcoDetails(false);
+            if (studio.Dashboard.IsEcoDetailsOpen) throw new InvalidOperationException("Dashboard Eco details failed to close.");
             studio.ShowButtons(); studio.SelectControl("A"); await Shot("4-buttons");
 
             studio.ShowCurves(true); await Shot("5-curves");
             studio.ShowMacros(true); if (studio.Macros is { } macros && macros.Draft.CanEdit && macros.Draft[macros.Slot].Count == 0) { for (int i = 0; i < 3; i++) macros.Add(); macros.Select(1); } await Shot("6-macros");
             studio.ShowVibration(true); await Shot("7-vibration");
             studio.ShowManagement("Device"); await Shot("8-device");
-            foreach (var (page, shot) in new[] { ("PcMode", "8b-pcmode"), ("Mouse", "8c-mouse"), ("Setups", "8d-setups"), ("Tester", "8e-tester"), ("Diagnostics", "8f-diagnostics") })
+            foreach (var (page, shot) in new[] { ("PcMode", "8b-pcmode"), ("Mouse", "8c-mouse"), ("Setups", "8d-setups"), ("Tester", "8e-tester"), ("Diagnostics", "8f-diagnostics"), ("Community", "8k-community") })
             {
                 studio.ShowManagement(page);
+                if (studio.CurrentPage != page) throw new InvalidOperationException("Studio failed to navigate to " + page);
                 if (page == "Setups" && studio.Setups is { } setups && setups.Cards.Count == 0) { for (int i = 0; i < 3; i++) setups.Create(false); setups.Select(setups.Store.Items[0].Id); }
+                if (page == "Community" && studio.Community == null) throw new InvalidOperationException("Community workbench failed to initialize.");
                 await Shot(shot);
             }
             studio.ShowCurves(true); studio.OpenStickTools(); await Shot("8g-advanced");

@@ -53,9 +53,9 @@ Pure OLED `#000000` preview embedded inside the EasySMX X20 Pro frame with built
 
 Pick any front or rear button (`M1–M4` / `M1–M6`) using the interactive visualizer and press what it should send. Includes **Test mapping**, **All assignments**, and draft preview before writing.
 
-#### Curves & Stick Lab Zone
+#### Curves & Analog Studio
 
-Inline 3-zone workspace with the 10-point response curve editor & deadzones on the left, live hardware **Stick & Trigger Diagnostics** on top right, and quick controls + **Go Advanced?** full-screen PS5-inspired **Stick Lab Zone** on bottom right: Fritsch-Carlson monotonic cubic splines, Smart Curve Maker, Radial/Axial/Hybrid deadzones, anti-deadzones, gate morphing (`Circular <-> Square`), axis rotation, 4/8-way angle snapping, adaptive smoothing, trigger splines, snapback detector, and `X20C1.` share codes.
+Inline 3-zone workspace with the 10-point response curve editor & deadzones on the left, live hardware **Stick & Trigger Telemetry** on top right, and quick tuning controls + **Go Advanced** full-screen PS5-inspired **Analog Studio** on bottom right: Fritsch-Carlson monotonic cubic splines, Curve Archetypes, Radial/Axial/Hybrid deadzones, anti-deadzones, gate morphing (`Circular <-> Square`), axis rotation, 4/8-way angle snapping, adaptive smoothing, trigger splines, snapback detector, and `X20C1.` share codes.
 
 #### Community Hub
 

@@ -4,7 +4,6 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Effects;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 using X20Ctl.Product.Scanner;
@@ -15,10 +14,10 @@ using X20Ctl.Zone.PcMode;
 namespace X20Ctl.Product;
 
 /// <summary>
-/// Full-screen PS5 slide-down Stick Lab zone: 10-point spline curves, Radial/Axial/Hybrid deadzones,
+/// Full-screen PS5 slide-down Analog Studio zone: 10-point spline curves, Radial/Axial/Hybrid deadzones,
 /// Radial+Axial anti-deadzone, Gate Morph, Rotation, Angle Snap, Velocity Smoothing, Invert/Swap,
-/// SOCD, Sniper, Auto-Sprint, Trigger Lab (Rapid-Trigger &amp; Dual-Stage), live Dual-Dot diagnostics,
-/// Snapback peak meter, and X20C1 share codes.
+/// SOCD, Sniper, Auto-Sprint, Trigger Lab (Rapid-Trigger &amp; Dual-Stage), live Dual-Dot vector scope,
+/// axis deflection bars, Snapback peak meter, and X20C1 share codes.
 /// </summary>
 public sealed class StickLabZone : Border
 {
@@ -37,16 +36,16 @@ public sealed class StickLabZone : Border
     int? draggedPointIndex;
 
     public Button ExitButton { get; }
-    readonly TextBlock statusText = Kit.Text("", 13, "DS.TextSoft");
-    readonly TextBlock pcModeBadge = Kit.Text("", 12.5, "DS.Text", FontWeights.SemiBold);
+    readonly TextBlock statusText = Kit.Text("Ready", 11.5, "DS.TextMuted");
+    readonly TextBlock pcModeBadge = Kit.Text("", 12, "DS.Text", FontWeights.SemiBold);
     readonly Button enablePcBtn;
     readonly StackPanel channelBar = new() { Orientation = Orientation.Horizontal };
     readonly StackPanel centerContent = new();
     readonly List<Button> channelButtons = [];
 
-    // 10-point spline canvas
-    const double CL = 40, CT = 18, CW = 380, CH = 250;
-    readonly Canvas splineCanvas = new() { Width = 446, Height = 300, Background = Brushes.Transparent };
+    // Column 1: 10-point spline canvas + HUD + node chips
+    const double CL = 36, CT = 14, CW = 392, CH = 236;
+    readonly Canvas splineCanvas = new() { Width = 446, Height = 278, Background = Brushes.Transparent };
     readonly Polyline splineLine = new()
     {
         Stroke = new SolidColorBrush(Color.FromRgb(96, 188, 255)),
@@ -55,7 +54,7 @@ public sealed class StickLabZone : Border
     };
     readonly Polygon splineArea = new()
     {
-        Fill = new LinearGradientBrush(Color.FromArgb(48, 61, 139, 255), Color.FromArgb(0, 61, 139, 255), 90),
+        Fill = new LinearGradientBrush(Color.FromArgb(56, 56, 189, 248), Color.FromArgb(0, 56, 189, 248), 90),
     };
     readonly Ellipse splineLiveDot = new()
     {
@@ -64,56 +63,61 @@ public sealed class StickLabZone : Border
         Stroke = Brushes.White, StrokeThickness = 1.5,
         Visibility = Visibility.Collapsed, IsHitTestVisible = false,
     };
-    readonly TextBlock pointsSummaryText = Kit.Text("", 12, "DS.TextSoft");
+    readonly TextBlock splineHudText = Kit.Text("4 nodes · 50% -> 50% (1.00x)", 11, "DS.AccentHi", FontWeights.SemiBold);
+    readonly WrapPanel nodeChipPanel = new();
 
-    // Live Dual-Dot Diagnostics Visualizer
-    const double VisSize = 236, VisHalf = 118, VisUnit = 92;
+    // Column 3: Live Dual-Dot Vector Scope + 6-Tile Telemetry Matrix + Axis Deflection Bars
+    const double VisSize = 252, VisHalf = 126, VisUnit = 98;
     readonly Canvas visCanvas = new() { Width = VisSize, Height = VisSize, ClipToBounds = true };
     readonly Polygon gatePolygon = new()
     {
-        Stroke = new SolidColorBrush(Color.FromArgb(145, 116, 200, 255)),
+        Stroke = new SolidColorBrush(Color.FromArgb(165, 116, 200, 255)),
         StrokeThickness = 1.6,
-        Fill = new SolidColorBrush(Color.FromArgb(20, 61, 139, 255)),
+        Fill = new SolidColorBrush(Color.FromArgb(24, 61, 139, 255)),
     };
     readonly Polygon reachTrace = new()
     {
-        Stroke = new SolidColorBrush(Color.FromArgb(170, 56, 189, 248)),
+        Stroke = new SolidColorBrush(Color.FromArgb(185, 56, 189, 248)),
         StrokeThickness = 1.4,
-        Fill = new SolidColorBrush(Color.FromArgb(24, 56, 189, 248)),
+        Fill = new SolidColorBrush(Color.FromArgb(28, 56, 189, 248)),
     };
-    readonly Shape deadzoneOverlay = new Ellipse();
     readonly System.Windows.Shapes.Path axialCrossOverlay = new()
     {
-        Stroke = new SolidColorBrush(Color.FromArgb(130, 232, 54, 79)),
+        Stroke = new SolidColorBrush(Color.FromArgb(140, 232, 54, 79)),
         StrokeThickness = 1.4,
-        Fill = new SolidColorBrush(Color.FromArgb(30, 232, 54, 79)),
+        Fill = new SolidColorBrush(Color.FromArgb(32, 232, 54, 79)),
     };
     readonly Ellipse innerDzRing = new()
     {
-        Stroke = new SolidColorBrush(Color.FromArgb(150, 232, 54, 79)),
+        Stroke = new SolidColorBrush(Color.FromArgb(160, 232, 54, 79)),
         StrokeThickness = 1.4,
-        Fill = new SolidColorBrush(Color.FromArgb(28, 232, 54, 79)),
+        Fill = new SolidColorBrush(Color.FromArgb(30, 232, 54, 79)),
     };
     readonly Ellipse outerDzRing = new()
     {
-        Stroke = new SolidColorBrush(Color.FromArgb(120, 61, 214, 140)),
+        Stroke = new SolidColorBrush(Color.FromArgb(135, 61, 214, 140)),
         StrokeThickness = 1.4,
         StrokeDashArray = [4, 3],
     };
-    readonly Ellipse rawDot = new() { Width = 10, Height = 10, Fill = new SolidColorBrush(Color.FromArgb(200, 180, 195, 220)) };
+    readonly Ellipse rawDot = new() { Width = 10, Height = 10, Fill = new SolidColorBrush(Color.FromArgb(215, 180, 195, 220)) };
     readonly Ellipse outDot = new()
     {
         Width = 14, Height = 14,
         Fill = new SolidColorBrush(Color.FromRgb(56, 214, 168)),
         Stroke = Brushes.White, StrokeThickness = 1.8,
     };
-    readonly TextBlock diagMetricsText = Kit.Text("", 12.5, "DS.TextSoft");
-    readonly TextBlock shareStatusText = Kit.Text("", 12, "DS.TextMuted");
+
+    readonly TextBlock scopeHeaderTag = Kit.Text("LEFT STICK · STANDBY", 10.5, "DS.AccentHi", FontWeights.Bold);
+    TextBlock tileRaw = null!, tileOut = null!, tileGain = null!, tileCirc = null!, tileDrift = null!, tileSnap = null!;
+    readonly Dictionary<string, (Border Fill, Border Track, TextBlock Val)> axisMeters = new();
+    Button bypassBtn = null!;
+
+    readonly TextBlock shareStatusText = Kit.Text("", 11.5, "DS.TextMuted");
     readonly TextBox codeBox = new()
     {
-        Height = 32, MinWidth = 180, MaxWidth = 260, FontSize = 12,
+        Height = 32, FontSize = 12, FontFamily = new FontFamily("Consolas"),
         Padding = new(8, 5, 8, 5), Foreground = Brushes.White,
-        Background = new SolidColorBrush(Color.FromArgb(180, 10, 18, 34)),
+        Background = new SolidColorBrush(Color.FromRgb(6, 13, 28)),
         BorderBrush = DS.Brush("DS.Hairline"), VerticalContentAlignment = VerticalAlignment.Center,
     };
 
@@ -121,9 +125,8 @@ public sealed class StickLabZone : Border
     readonly WindowsReader? reader;
     readonly StickStats diagStatsLeft = new(), diagStatsRight = new();
     readonly StickSnapbackDetector snapLeft = new(), snapRight = new();
-    double simRx, simRy, simLx, simLy;
+    double simRx, simRy, simLx, simLy, simLt, simRt;
     bool hasRealInput;
-    PadState lastPad;
 
     public StickLabZone(ControllerModel model, int playerSlot, PcModeLink? link, Action close, Action? requestEnablePcMode = null, Action<string>? shareRequested = null)
     {
@@ -135,10 +138,10 @@ public sealed class StickLabZone : Border
         this.shareRequested = shareRequested;
 
         Background = new LinearGradientBrush(
-            ThemeCatalog.R(Color.FromRgb(7, 13, 28)),
-            ThemeCatalog.R(Color.FromRgb(4, 8, 20)), 90);
+            ThemeCatalog.R(Color.FromRgb(6, 11, 24)),
+            ThemeCatalog.R(Color.FromRgb(3, 6, 16)), 90);
         BorderThickness = new(0);
-        Padding = new(24, 18, 24, 18);
+        Padding = new(22, 16, 22, 16);
 
         profile = LoadProfile();
 
@@ -149,15 +152,16 @@ public sealed class StickLabZone : Border
 
         var root = new Grid();
         root.RowDefinitions.Add(new() { Height = GridLength.Auto });
-        root.RowDefinitions.Add(new() { Height = new(14) });
+        root.RowDefinitions.Add(new() { Height = new(12) });
         root.RowDefinitions.Add(new() { Height = new(1, GridUnitType.Star) });
         Child = root;
 
         // ---- TOP HEADER ----
         var header = new DockPanel();
         ExitButton = ActionBtn("< Return to Curves", close, primary: false);
-        ExitButton.MinWidth = 156;
-        ExitButton.Margin = new(0, 0, 16, 0);
+        ExitButton.MinWidth = 148;
+        ExitButton.Height = 34;
+        ExitButton.Margin = new(0, 0, 14, 0);
         DockPanel.SetDock(ExitButton, Dock.Left);
         header.Children.Add(ExitButton);
 
@@ -174,11 +178,11 @@ public sealed class StickLabZone : Border
 
         var pcPill = new Border
         {
-            CornerRadius = new(10),
+            CornerRadius = new(9),
             BorderThickness = new(1),
             BorderBrush = DS.Brush("DS.Hairline"),
-            Background = new SolidColorBrush(Color.FromArgb(140, 14, 24, 46)),
-            Padding = new(12, 6, 12, 6),
+            Background = new SolidColorBrush(Color.FromArgb(165, 10, 19, 38)),
+            Padding = new(11, 6, 11, 6),
             VerticalAlignment = VerticalAlignment.Center,
             Child = pcModeBadge,
         };
@@ -191,13 +195,13 @@ public sealed class StickLabZone : Border
         {
             CornerRadius = new(8),
             Padding = new(10, 4, 10, 4),
-            Margin = new(0, 0, 12, 0),
-            Background = new SolidColorBrush(Color.FromArgb(75, 56, 189, 248)),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(140, 56, 189, 248)),
+            Margin = new(0, 0, 10, 0),
+            Background = new SolidColorBrush(Color.FromArgb(55, 56, 189, 248)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(150, 56, 189, 248)),
             BorderThickness = new(1),
-            Child = Kit.Text("STICK LAB", 13, "DS.Text", FontWeights.Bold),
+            Child = Kit.Text("ANALOG STUDIO", 12.5, "DS.AccentHi", FontWeights.Bold),
         });
-        titleStack.Children.Add(Kit.Text(model.Name.Replace("EasySMX ", ""), 16, "DS.Text", FontWeights.SemiBold).Also(t => { t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new(0, 0, 18, 0); }));
+        titleStack.Children.Add(Kit.Text(model.Name.Replace("EasySMX ", ""), 15, "DS.Text", FontWeights.SemiBold).Also(t => { t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new(0, 0, 16, 0); }));
 
         foreach (var (ch, title) in new (LabChannel, string)[]
         {
@@ -211,8 +215,8 @@ public sealed class StickLabZone : Border
             var captured = ch;
             var btn = ActionBtn(title, () => SelectChannel(captured), primary: false);
             btn.Tag = ch;
-            btn.Height = 34;
-            btn.Margin = new(0, 0, 6, 0);
+            btn.Height = 32;
+            btn.Margin = new(0, 0, 5, 0);
             btn.Padding = new(12, 0, 12, 0);
             channelButtons.Add(btn);
             channelBar.Children.Add(btn);
@@ -221,32 +225,29 @@ public sealed class StickLabZone : Border
         header.Children.Add(titleStack);
         root.Children.Add(header);
 
-        // ---- 3-COLUMN WORKSPACE ----
+        // ---- 3-COLUMN WORKSPACE (Zero Dead Space) ----
         var body = new Grid();
-        body.ColumnDefinitions.Add(new() { Width = new(1.02, GridUnitType.Star) });
-        body.ColumnDefinitions.Add(new() { Width = new(14) });
+        body.ColumnDefinitions.Add(new() { Width = new(1.04, GridUnitType.Star) });
+        body.ColumnDefinitions.Add(new() { Width = new(12) });
         body.ColumnDefinitions.Add(new() { Width = new(1.18, GridUnitType.Star) });
-        body.ColumnDefinitions.Add(new() { Width = new(14) });
-        body.ColumnDefinitions.Add(new() { Width = new(0.95, GridUnitType.Star) });
+        body.ColumnDefinitions.Add(new() { Width = new(12) });
+        body.ColumnDefinitions.Add(new() { Width = new(0.98, GridUnitType.Star) });
         Grid.SetRow(body, 2);
         root.Children.Add(body);
 
-        // Column 1: 10-Point Spline Curve Editor + Smart Curve Maker + Share Code Bar
         body.Children.Add(BuildSplineColumn());
 
-        // Column 2: Scrollable Complete Parameters Studio
         var centerScroll = new ScrollViewer
         {
             Content = centerContent,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Padding = new(0, 0, 6, 0),
+            Padding = new(0, 0, 4, 0),
         };
-        var centerCard = GlassCard("TUNING PARAMETERS · LIVE DSP", centerScroll);
+        var centerCard = GlassCard("LIVE DSP STUDIO · SIGNAL PIPELINE", centerScroll);
         Grid.SetColumn(centerCard, 2);
         body.Children.Add(centerCard);
 
-        // Column 3: Live Dual-Dot Visualizer + Circularity + Snapback Meter
         var rightCard = BuildDiagnosticsColumn();
         Grid.SetColumn(rightCard, 4);
         body.Children.Add(rightCard);
@@ -262,25 +263,23 @@ public sealed class StickLabZone : Border
 
     Border BuildSplineColumn()
     {
-        var stack = new StackPanel();
-
-        // Build chart gridlines once
+        // Chart Gridlines
         for (int t = 0; t <= 100; t += 25)
         {
             double gx = CX(t), gy = CY(t);
-            splineCanvas.Children.Add(new Line { X1 = gx, X2 = gx, Y1 = CT, Y2 = CT + CH, Stroke = new SolidColorBrush(Color.FromArgb(40, 140, 175, 255)), StrokeThickness = 1 });
-            splineCanvas.Children.Add(new Line { X1 = CL, X2 = CL + CW, Y1 = gy, Y2 = gy, Stroke = new SolidColorBrush(Color.FromArgb(40, 140, 175, 255)), StrokeThickness = 1 });
-            var tx = new TextBlock { Text = t.ToString(), FontSize = 11, Foreground = DS.Brush("DS.TextMuted") };
-            Canvas.SetLeft(tx, gx - 8); Canvas.SetTop(tx, CT + CH + 6);
+            splineCanvas.Children.Add(new Line { X1 = gx, X2 = gx, Y1 = CT, Y2 = CT + CH, Stroke = new SolidColorBrush(Color.FromArgb(42, 140, 175, 255)), StrokeThickness = 1 });
+            splineCanvas.Children.Add(new Line { X1 = CL, X2 = CL + CW, Y1 = gy, Y2 = gy, Stroke = new SolidColorBrush(Color.FromArgb(42, 140, 175, 255)), StrokeThickness = 1 });
+            var tx = new TextBlock { Text = t.ToString(), FontSize = 10.5, Foreground = DS.Brush("DS.TextMuted") };
+            Canvas.SetLeft(tx, gx - 7); Canvas.SetTop(tx, CT + CH + 5);
             splineCanvas.Children.Add(tx);
-            var ty = new TextBlock { Text = t.ToString(), FontSize = 11, Foreground = DS.Brush("DS.TextMuted") };
-            Canvas.SetLeft(ty, 8); Canvas.SetTop(ty, gy - 8);
+            var ty = new TextBlock { Text = t.ToString(), FontSize = 10.5, Foreground = DS.Brush("DS.TextMuted") };
+            Canvas.SetLeft(ty, 6); Canvas.SetTop(ty, gy - 7);
             splineCanvas.Children.Add(ty);
         }
         splineCanvas.Children.Add(new Line
         {
             X1 = CL, Y1 = CT + CH, X2 = CL + CW, Y2 = CT,
-            Stroke = new SolidColorBrush(Color.FromArgb(80, 200, 220, 255)),
+            Stroke = new SolidColorBrush(Color.FromArgb(85, 200, 220, 255)),
             StrokeDashArray = [4, 4], StrokeThickness = 1.2,
         });
         splineCanvas.Children.Add(splineArea);
@@ -291,11 +290,26 @@ public sealed class StickLabZone : Border
         splineCanvas.MouseMove += OnSplineCanvasMove;
         splineCanvas.MouseLeftButtonUp += (_, _) => { draggedPointIndex = null; splineCanvas.ReleaseMouseCapture(); };
 
-        stack.Children.Add(new Viewbox { MaxHeight = 310, Stretch = Stretch.Uniform, Child = splineCanvas });
-        stack.Children.Add(Kit.Text("Click graph to add point (up to 10) · Drag to shape · Right-click a node to remove", 11.5, "DS.TextMuted").Also(t => { t.Margin = new(0, 4, 0, 8); t.TextWrapping = TextWrapping.Wrap; }));
+        var chartContainer = new Grid();
+        chartContainer.Children.Add(new Viewbox { Stretch = Stretch.Uniform, Child = splineCanvas });
+        var hudBadge = new Border
+        {
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Top,
+            CornerRadius = new(7),
+            Background = new SolidColorBrush(Color.FromArgb(195, 10, 20, 42)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(85, 56, 189, 248)),
+            BorderThickness = new(1),
+            Padding = new(8, 3, 8, 3),
+            Margin = new(4, 2, 0, 0),
+            IsHitTestVisible = false,
+            Child = splineHudText
+        };
+        chartContainer.Children.Add(hudBadge);
+        var chartWell = DarkWell(chartContainer, new Thickness(8, 6, 8, 6));
 
-        stack.Children.Add(Kit.Text("SMART CURVE MAKER", 10.5, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(0, 0, 0, 6)));
-        var makerGrid = new UniformGrid { Columns = 3, Margin = new(-2, 0, -2, 8) };
+        // 6 Visual Curve Archetype Cards with mini polyline sparklines
+        var archetypeGrid = new UniformGrid { Columns = 3, Rows = 2, Margin = new(-2, 0, -2, 0) };
         foreach (var (key, label) in new (string, string)[]
         {
             ("linear", "Linear"),
@@ -307,39 +321,128 @@ public sealed class StickLabZone : Border
         })
         {
             string k = key;
-            var b = ActionBtn(label, () => ApplySmartCurve(k), primary: false);
-            b.Height = 30; b.FontSize = 11.5; b.Margin = new(2);
-            makerGrid.Children.Add(b);
+            var previewPts = StickLabMath.GenerateSmartCurve(k);
+            var spark = new Canvas { Width = 54, Height = 20, HorizontalAlignment = HorizontalAlignment.Center, Margin = new(0, 0, 0, 2) };
+            var polyPts = new PointCollection();
+            for (int s = 0; s <= 12; s++)
+            {
+                double x = s / 12.0;
+                double y = StickLabMath.EvaluateSpline(previewPts, x);
+                polyPts.Add(new Point(x * 54.0, 20.0 - y * 20.0));
+            }
+            spark.Children.Add(new Line { X1 = 0, Y1 = 20, X2 = 54, Y2 = 0, Stroke = new SolidColorBrush(Color.FromArgb(55, 180, 205, 245)), StrokeDashArray = [2, 2], StrokeThickness = 1 });
+            spark.Children.Add(new Polyline { Stroke = new SolidColorBrush(Color.FromRgb(96, 188, 255)), StrokeThickness = 1.8, Points = polyPts });
+
+            var b = new Button
+            {
+                Style = DS.Style("ActionButton"),
+                Height = 46, MinHeight = 0,
+                Margin = new(2),
+                Padding = new(6, 4, 6, 4),
+                Content = new StackPanel
+                {
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    Children =
+                    {
+                        spark,
+                        Kit.Text(label, 11, "DS.Text", FontWeights.SemiBold).Also(t => t.HorizontalAlignment = HorizontalAlignment.Center)
+                    }
+                }
+            };
+            b.Click += (_, _) => ApplySmartCurve(k);
+            archetypeGrid.Children.Add(b);
         }
-        stack.Children.Add(makerGrid);
-        stack.Children.Add(pointsSummaryText.Also(t => { t.TextWrapping = TextWrapping.Wrap; t.Margin = new(0, 0, 0, 10); }));
 
-        // Share code bar
-        stack.Children.Add(Kit.Rule().Also(r => r.Margin = new(0, 4, 0, 10)));
-        stack.Children.Add(Kit.Text("CURVE SHARE CODE (X20C1)", 10.5, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(0, 0, 0, 6)));
-        var codeRow = new WrapPanel { Margin = new(0, 0, 0, 4) };
-        codeRow.Children.Add(codeBox.Also(b => b.Margin = new(0, 0, 6, 4)));
-        codeRow.Children.Add(ActionBtn("Copy", CopyShareCode, primary: false).Also(b => { b.Height = 32; b.Margin = new(0, 0, 6, 4); }));
-        codeRow.Children.Add(ActionBtn("Apply Code", ApplyShareCode, primary: false).Also(b => { b.Height = 32; b.Margin = new(0, 0, 6, 4); }));
+        // Control Nodes Tray + 4 Quick Tools
+        var toolsRow = new UniformGrid { Columns = 4, Margin = new(-2, 6, -2, 0) };
+        Button MiniTool(string txt, Action act)
+        {
+            var b = ActionBtn(txt, act, primary: false);
+            b.Height = 28; b.FontSize = 11; b.Padding = new(4, 0, 4, 0); b.Margin = new(2, 0, 2, 0);
+            return b;
+        }
+        toolsRow.Children.Add(MiniTool("+ Midpoint", AddMidpointNode));
+        toolsRow.Children.Add(MiniTool("Smooth", SmoothSplineNodes));
+        toolsRow.Children.Add(MiniTool("Mirror L<->R", MirrorSplineToOtherStick));
+        toolsRow.Children.Add(MiniTool("Reset Curve", () => ApplySmartCurve("linear")));
+
+        var nodesWell = DarkWell(new StackPanel
+        {
+            Children =
+            {
+                new DockPanel
+                {
+                    Margin = new(0, 0, 0, 5),
+                    Children =
+                    {
+                        Kit.Text("Click graph: add · Drag: shape · Right-click: remove", 10, "DS.TextMuted").Also(t => { DockPanel.SetDock(t, Dock.Right); t.VerticalAlignment = VerticalAlignment.Center; }),
+                        Kit.Text("ACTIVE NODES", 10, "DS.AccentHi", FontWeights.Bold).Also(t => t.VerticalAlignment = VerticalAlignment.Center),
+                    }
+                },
+                nodeChipPanel,
+                toolsRow
+            }
+        }, new Thickness(10, 8, 10, 8));
+
+        // Share & Import Code Deck
+        var shareBtns = new UniformGrid { Columns = shareRequested != null ? 3 : 2, Margin = new(-2, 6, -2, 0) };
+        shareBtns.Children.Add(ActionBtn("Copy Code", CopyShareCode, primary: false).Also(b => { b.Height = 30; b.FontSize = 11.5; b.Margin = new(2, 0, 2, 0); }));
+        shareBtns.Children.Add(ActionBtn("Apply Code", ApplyShareCode, primary: false).Also(b => { b.Height = 30; b.FontSize = 11.5; b.Margin = new(2, 0, 2, 0); }));
         if (shareRequested != null)
-            codeRow.Children.Add(ActionBtn("Share Online", () => shareRequested(ExportCurrentShareCode()), primary: true).Also(b => { b.Height = 32; b.Margin = new(0, 0, 0, 4); }));
-        stack.Children.Add(codeRow);
-        stack.Children.Add(shareStatusText);
+            shareBtns.Children.Add(ActionBtn("Share Online", () => shareRequested(ExportCurrentShareCode()), primary: true).Also(b => { b.Height = 30; b.FontSize = 11.5; b.Margin = new(2, 0, 2, 0); }));
 
-        return GlassCard("10-POINT SPLINE CURVE DESIGNER", stack);
+        var shareWell = DarkWell(new StackPanel
+        {
+            Children =
+            {
+                Kit.Text("SHARE & IMPORT CODE (X20C1)", 10, "DS.AccentHi", FontWeights.Bold).Also(t => t.Margin = new(0, 0, 0, 5)),
+                codeBox,
+                shareBtns,
+                shareStatusText.Also(t => t.Margin = new(0, 4, 0, 0))
+            }
+        }, new Thickness(10, 8, 10, 8));
+
+        var colGrid = new Grid();
+        colGrid.RowDefinitions.Add(new() { Height = new(1, GridUnitType.Star) }); // Spline instrument bay
+        colGrid.RowDefinitions.Add(new() { Height = GridLength.Auto });          // Archetypes
+        colGrid.RowDefinitions.Add(new() { Height = GridLength.Auto });          // Node tray & tools
+        colGrid.RowDefinitions.Add(new() { Height = GridLength.Auto });          // X20C1 Share bar
+
+        colGrid.Children.Add(chartWell);
+
+        var archWrap = new StackPanel { Margin = new(0, 8, 0, 0) };
+        archWrap.Children.Add(Kit.Text("CURVE ARCHETYPES", 10, "DS.AccentHi", FontWeights.Bold).Also(t => t.Margin = new(0, 0, 0, 4)));
+        archWrap.Children.Add(archetypeGrid);
+        Grid.SetRow(archWrap, 1);
+        colGrid.Children.Add(archWrap);
+
+        nodesWell.Margin = new(0, 8, 0, 0);
+        Grid.SetRow(nodesWell, 2);
+        colGrid.Children.Add(nodesWell);
+
+        shareWell.Margin = new(0, 8, 0, 0);
+        Grid.SetRow(shareWell, 3);
+        colGrid.Children.Add(shareWell);
+
+        return GlassCard("10-POINT SPLINE DESIGNER", colGrid);
     }
 
     Border BuildDiagnosticsColumn()
     {
-        var stack = new StackPanel();
         visCanvas.Children.Add(new Ellipse
         {
             Width = VisUnit * 2, Height = VisUnit * 2,
-            Stroke = new SolidColorBrush(Color.FromArgb(60, 140, 175, 255)),
+            Stroke = new SolidColorBrush(Color.FromArgb(65, 140, 175, 255)),
             StrokeThickness = 1.2,
         }.Also(e => { Canvas.SetLeft(e, VisHalf - VisUnit); Canvas.SetTop(e, VisHalf - VisUnit); }));
-        visCanvas.Children.Add(new Line { X1 = VisHalf, X2 = VisHalf, Y1 = VisHalf - VisUnit, Y2 = VisHalf + VisUnit, Stroke = new SolidColorBrush(Color.FromArgb(40, 140, 175, 255)) });
-        visCanvas.Children.Add(new Line { Y1 = VisHalf, Y2 = VisHalf, X1 = VisHalf - VisUnit, X2 = VisHalf + VisUnit, Stroke = new SolidColorBrush(Color.FromArgb(40, 140, 175, 255)) });
+        visCanvas.Children.Add(new Ellipse
+        {
+            Width = VisUnit, Height = VisUnit,
+            Stroke = new SolidColorBrush(Color.FromArgb(35, 140, 175, 255)),
+            StrokeThickness = 1, StrokeDashArray = [3, 3]
+        }.Also(e => { Canvas.SetLeft(e, VisHalf - VisUnit / 2); Canvas.SetTop(e, VisHalf - VisUnit / 2); }));
+        visCanvas.Children.Add(new Line { X1 = VisHalf, X2 = VisHalf, Y1 = VisHalf - VisUnit, Y2 = VisHalf + VisUnit, Stroke = new SolidColorBrush(Color.FromArgb(42, 140, 175, 255)) });
+        visCanvas.Children.Add(new Line { Y1 = VisHalf, Y2 = VisHalf, X1 = VisHalf - VisUnit, X2 = VisHalf + VisUnit, Stroke = new SolidColorBrush(Color.FromArgb(42, 140, 175, 255)) });
         visCanvas.Children.Add(gatePolygon);
         visCanvas.Children.Add(reachTrace);
         visCanvas.Children.Add(axialCrossOverlay);
@@ -348,30 +451,125 @@ public sealed class StickLabZone : Border
         visCanvas.Children.Add(rawDot);
         visCanvas.Children.Add(outDot);
 
-        stack.Children.Add(new Viewbox { MaxHeight = 250, Child = visCanvas, Margin = new(0, 0, 0, 8) });
+        var scopeInner = new DockPanel();
+        var scopeTop = new DockPanel { Margin = new(0, 0, 0, 4) };
+        var legend = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        legend.Children.Add(new Ellipse { Width = 8, Height = 8, Fill = new SolidColorBrush(Color.FromRgb(180, 195, 220)), Margin = new(0, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center });
+        legend.Children.Add(Kit.Text("Raw", 10.5, "DS.TextSoft").Also(t => t.Margin = new(0, 0, 10, 0)));
+        legend.Children.Add(new Ellipse { Width = 9, Height = 9, Fill = new SolidColorBrush(Color.FromRgb(56, 214, 168)), Margin = new(0, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center });
+        legend.Children.Add(Kit.Text("Out", 10.5, "DS.Text"));
+        DockPanel.SetDock(legend, Dock.Right);
+        scopeTop.Children.Add(legend);
+        scopeTop.Children.Add(scopeHeaderTag.Also(t => t.VerticalAlignment = VerticalAlignment.Center));
+        DockPanel.SetDock(scopeTop, Dock.Top);
+        scopeInner.Children.Add(scopeTop);
+        scopeInner.Children.Add(new Viewbox { Stretch = Stretch.Uniform, Child = visCanvas });
+        var scopeWell = DarkWell(scopeInner, new Thickness(10, 8, 10, 8));
 
-        var legend = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new(0, 0, 0, 10) };
-        legend.Children.Add(new Ellipse { Width = 9, Height = 9, Fill = new SolidColorBrush(Color.FromRgb(180, 195, 220)), Margin = new(0, 0, 5, 0) });
-        legend.Children.Add(Kit.Text("Raw Input", 11.5, "DS.TextSoft").Also(t => t.Margin = new(0, 0, 14, 0)));
-        legend.Children.Add(new Ellipse { Width = 10, Height = 10, Fill = new SolidColorBrush(Color.FromRgb(56, 214, 168)), Margin = new(0, 0, 5, 0) });
-        legend.Children.Add(Kit.Text("Game Output", 11.5, "DS.Text"));
-        stack.Children.Add(legend);
+        // 6-Tile Telemetry Matrix (UniformGrid 2x3)
+        var matrix = new UniformGrid { Columns = 2, Rows = 3, Margin = new(-3, 8, -3, 0) };
+        matrix.Children.Add(TelemetryTile("RAW INPUT", "0.00, 0.00", out tileRaw));
+        matrix.Children.Add(TelemetryTile("PROCESSED OUT", "0.00, 0.00", out tileOut));
+        matrix.Children.Add(TelemetryTile("PUSH / GAIN", "0% -> 0% · 1.00x", out tileGain));
+        matrix.Children.Add(TelemetryTile("CIRCULARITY", "0% swept", out tileCirc));
+        matrix.Children.Add(TelemetryTile("CENTER DRIFT", "Release stick", out tileDrift));
+        matrix.Children.Add(TelemetryTile("SNAPBACK PEAK", "0.0% · 0 hits", out tileSnap));
 
-        stack.Children.Add(diagMetricsText.Also(t => { t.TextWrapping = TextWrapping.Wrap; t.LineHeight = 20; t.Margin = new(0, 0, 0, 10); }));
+        // Axis & Trigger Deflection Bars
+        var barsPanel = new StackPanel();
+        barsPanel.Children.Add(Kit.Text("LIVE AXIS & TRIGGER OUTPUT", 10, "DS.AccentHi", FontWeights.Bold).Also(t => t.Margin = new(0, 0, 0, 5)));
+        barsPanel.Children.Add(BuildAxisMeter("LX / RX", "X", Color.FromRgb(96, 188, 255)));
+        barsPanel.Children.Add(BuildAxisMeter("LY / RY", "Y", Color.FromRgb(56, 214, 168)));
+        barsPanel.Children.Add(BuildAxisMeter("LT", "LT", Color.FromRgb(255, 196, 92)));
+        barsPanel.Children.Add(BuildAxisMeter("RT", "RT", Color.FromRgb(232, 92, 128)));
+        var barsWell = DarkWell(barsPanel, new Thickness(10, 8, 10, 8));
+        barsWell.Margin = new(0, 8, 0, 0);
 
-        var diagActions = new WrapPanel();
-        diagActions.Children.Add(ActionBtn("Use Drift as Deadzone", UseMeasuredDriftAsDeadzone, primary: false).Also(b => { b.Height = 32; b.Margin = new(0, 0, 6, 6); }));
-        diagActions.Children.Add(ActionBtn("Reset Trace", () =>
+        // 4-Button Calibration & A/B Deck
+        var deck = new UniformGrid { Columns = 2, Rows = 2, Margin = new(-2, 8, -2, 0) };
+        bypassBtn = ActionBtn("DSP Active (Click A/B)", ToggleBypassCurrentStick, primary: false);
+        bypassBtn.Height = 30; bypassBtn.FontSize = 11.5; bypassBtn.Margin = new(2);
+        deck.Children.Add(ActionBtn("Use Drift as DZ", UseMeasuredDriftAsDeadzone, primary: false).Also(b => { b.Height = 30; b.FontSize = 11.5; b.Margin = new(2); }));
+        deck.Children.Add(bypassBtn);
+        deck.Children.Add(ActionBtn("Reset Trace", () =>
         {
             diagStatsLeft.Reset(); diagStatsRight.Reset();
             snapLeft.Reset(); snapRight.Reset();
             UpdateLiveVisualizer(0, 0, 0, 0);
-        }, primary: false).Also(b => { b.Height = 32; b.Margin = new(0, 0, 6, 6); }));
-        diagActions.Children.Add(ActionBtn("Reset Channel", ResetActiveChannel, primary: false).Also(b => { b.Height = 32; b.Margin = new(0, 0, 0, 6); }));
-        stack.Children.Add(diagActions);
-        stack.Children.Add(statusText.Also(t => { t.TextWrapping = TextWrapping.Wrap; t.Margin = new(0, 8, 0, 0); }));
+            statusText.Text = "Cleared circularity sweep and snapback history.";
+        }, primary: false).Also(b => { b.Height = 30; b.FontSize = 11.5; b.Margin = new(2); }));
+        deck.Children.Add(ActionBtn("Reset Channel", ResetActiveChannel, primary: false).Also(b => { b.Height = 30; b.FontSize = 11.5; b.Margin = new(2); }));
 
-        return GlassCard("LIVE DIAGNOSTICS · RAW VS PROCESSED", stack);
+        var rightGrid = new Grid();
+        rightGrid.RowDefinitions.Add(new() { Height = new(1, GridUnitType.Star) });
+        rightGrid.RowDefinitions.Add(new() { Height = GridLength.Auto });
+        rightGrid.RowDefinitions.Add(new() { Height = GridLength.Auto });
+        rightGrid.RowDefinitions.Add(new() { Height = GridLength.Auto });
+        rightGrid.RowDefinitions.Add(new() { Height = GridLength.Auto });
+
+        rightGrid.Children.Add(scopeWell);
+        Grid.SetRow(matrix, 1); rightGrid.Children.Add(matrix);
+        Grid.SetRow(barsWell, 2); rightGrid.Children.Add(barsWell);
+        Grid.SetRow(deck, 3); rightGrid.Children.Add(deck);
+        Grid.SetRow(statusText, 4); statusText.Margin = new(0, 6, 0, 0); statusText.TextWrapping = TextWrapping.Wrap; rightGrid.Children.Add(statusText);
+
+        return GlassCard("LIVE VECTOR SCOPE & TELEMETRY", rightGrid);
+    }
+
+    Border TelemetryTile(string label, string initial, out TextBlock valueOut)
+    {
+        valueOut = Kit.Text(initial, 11.5, "DS.Text", FontWeights.SemiBold).Also(t => t.TextTrimming = TextTrimming.CharacterEllipsis);
+        var tile = DarkWell(new StackPanel
+        {
+            Children =
+            {
+                Kit.Text(label, 9.5, "DS.AccentHi", FontWeights.Bold),
+                valueOut.Also(v => v.Margin = new(0, 2, 0, 0))
+            }
+        }, new Thickness(9, 6, 9, 6));
+        tile.Margin = new(3);
+        return tile;
+    }
+
+    FrameworkElement BuildAxisMeter(string label, string key, Color accent)
+    {
+        var track = new Border
+        {
+            Height = 8,
+            CornerRadius = new(4),
+            Background = new SolidColorBrush(Color.FromArgb(140, 14, 24, 46)),
+            ClipToBounds = true,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        var fill = new Border
+        {
+            Height = 8,
+            Width = 0,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            CornerRadius = new(4),
+            Background = new SolidColorBrush(accent)
+        };
+        track.Child = fill;
+        var val = Kit.Text("0%", 10.5, "DS.TextSoft", FontWeights.SemiBold).Also(t => { t.Width = 42; t.TextAlignment = TextAlignment.Right; });
+        axisMeters[key] = (fill, track, val);
+
+        var row = new DockPanel { Margin = new(0, 2, 0, 2) };
+        var lbl = Kit.Text(label, 10.5, "DS.TextMuted", FontWeights.SemiBold).Also(t => { t.Width = 52; t.VerticalAlignment = VerticalAlignment.Center; });
+        DockPanel.SetDock(lbl, Dock.Left);
+        DockPanel.SetDock(val, Dock.Right);
+        row.Children.Add(lbl);
+        row.Children.Add(val);
+        row.Children.Add(track);
+        return row;
+    }
+
+    void UpdateAxisMeter(string key, double pct)
+    {
+        if (!axisMeters.TryGetValue(key, out var m)) return;
+        double clamped = Math.Clamp(pct, 0, 100);
+        double trackW = m.Track.ActualWidth > 10 ? m.Track.ActualWidth : 160;
+        m.Fill.Width = trackW * (clamped / 100.0);
+        m.Val.Text = $"{clamped:0}%";
     }
 
     public void SelectChannel(LabChannel next)
@@ -380,7 +578,7 @@ public sealed class StickLabZone : Border
         foreach (var b in channelButtons)
         {
             bool active = b.Tag is LabChannel c && c == channel;
-            b.Background = active ? new SolidColorBrush(Color.FromRgb(56, 128, 232)) : new SolidColorBrush(Color.FromArgb(140, 18, 30, 58));
+            b.Background = active ? new SolidColorBrush(Color.FromRgb(42, 108, 212)) : new SolidColorBrush(Color.FromArgb(145, 14, 24, 48));
             b.BorderBrush = active ? Brushes.White : DS.Brush("DS.Hairline");
         }
         RebuildCenterControls();
@@ -392,14 +590,13 @@ public sealed class StickLabZone : Border
     {
         hasRealInput = true;
         simLx = lx; simLy = ly; simRx = rx; simRy = ry;
-        lastPad = new PadState(0, 0, 0, ToShort(lx), ToShort(ly), ToShort(rx), ToShort(ry));
         UpdateLiveVisualizer(lx, ly, rx, ry);
     }
 
     public void ClearLive()
     {
         hasRealInput = false;
-        simLx = simLy = simRx = simRy = 0;
+        simLx = simLy = simRx = simRy = simLt = simRt = 0;
         UpdateLiveVisualizer(0, 0, 0, 0);
     }
 
@@ -412,13 +609,13 @@ public sealed class StickLabZone : Border
             {
                 hasRealInput = true;
                 var p = state.Pad;
-                lastPad = new PadState(p.Buttons, p.LT, p.RT, p.LX, p.LY, p.RX, p.RY);
                 diagStatsLeft.Add(p.LX, p.LY);
                 diagStatsRight.Add(p.RX, p.RY);
                 snapLeft.Observe(p.LX, p.LY);
                 snapRight.Observe(p.RX, p.RY);
                 simLx = p.LX / 32767.0; simLy = p.LY / 32767.0;
                 simRx = p.RX / 32767.0; simRy = p.RY / 32767.0;
+                simLt = p.LT / 255.0; simRt = p.RT / 255.0;
                 UpdateLiveVisualizer(simLx, simLy, simRx, simRy);
                 return;
             }
@@ -444,6 +641,12 @@ public sealed class StickLabZone : Border
         var lab = tune.Lab ?? new StickLabSettings();
         var curve = profile.Curves.GetValueOrDefault((right ? CurveChannel.RightStick : CurveChannel.LeftStick).ToString());
 
+        if (bypassBtn != null)
+        {
+            bypassBtn.Content = tune.Raw ? "Bypass ON (1:1 Raw)" : "DSP Active (Click A/B)";
+            bypassBtn.BorderBrush = tune.Raw ? DS.Brush("DS.Warn") : DS.Brush("DS.Hairline");
+        }
+
         double rawX = right ? rx : lx;
         double rawY = right ? ry : ly;
         short inX = ToShort(rawX), inY = ToShort(rawY);
@@ -455,7 +658,6 @@ public sealed class StickLabZone : Border
         Canvas.SetLeft(outDot, VisHalf + outX * VisUnit - 7);
         Canvas.SetTop(outDot, VisHalf - outY * VisUnit - 7);
 
-        // Draw Gate Morph outline (0% circle -> 100% square)
         double morph = tune.SquareGate ? 100.0 : lab.GateMorph;
         var gatePts = new PointCollection(48);
         for (int i = 0; i < 48; i++)
@@ -467,7 +669,6 @@ public sealed class StickLabZone : Border
         }
         gatePolygon.Points = gatePts;
 
-        // Deadzone shape overlay
         double innerR = Math.Clamp(tune.Inner / 100.0, 0, 0.45) * VisUnit;
         double outerR = Math.Clamp(tune.Outer / 100.0, 0.5, 1.0) * VisUnit;
         if (lab.DeadzoneShape == DeadzoneShape.Axial)
@@ -489,7 +690,6 @@ public sealed class StickLabZone : Border
         outerDzRing.Width = outerR * 2; outerDzRing.Height = outerR * 2;
         Canvas.SetLeft(outerDzRing, VisHalf - outerR); Canvas.SetTop(outerDzRing, VisHalf - outerR);
 
-        // Reach trace from active stick
         var st = right ? diagStatsRight : diagStatsLeft;
         var sb = right ? snapRight : snapLeft;
         var rPts = new PointCollection(StickStats.Sectors);
@@ -501,18 +701,22 @@ public sealed class StickLabZone : Border
         }
         reachTrace.Points = rPts;
 
-        // Update metrics readout
         double rawMag = Math.Min(1.0, Math.Sqrt(rawX * rawX + rawY * rawY));
         double outMag = Math.Min(1.0, Math.Sqrt(outX * outX + outY * outY));
-        string circ = st.CircularityError is { } ce ? $"{ce:0.0}%" : $"{st.Covered * 100 / StickStats.Sectors}% swept";
-        string rest = st.Rest is { } rd ? $"{rd.X:+0.0;-0.0;0.0}%, {rd.Y:+0.0;-0.0;0.0}%" : "Release stick to measure";
-        string bits = st.ResolutionBits is { } bt ? $"{bt}-bit" : "Move slowly";
-        diagMetricsText.Text =
-            $"{(right ? "Right Stick" : "Left Stick")} · {(hasRealInput ? "Live Hardware" : "Idle / Ready")}\n" +
-            $"Raw ({rawX:0.00}, {rawY:0.00}) -> Output ({outX:0.00}, {outY:0.00}) [{outMag:P0}]\n" +
-            $"Circularity: {circ}  ·  Resolution: {bits}\n" +
-            $"Resting center: {rest}\n" +
-            $"Snapback peak: {sb.PeakBouncePct:0.0}% ({sb.BounceEvents} bounces)";
+        double gain = rawMag > 0.03 ? outMag / rawMag : 1.0;
+
+        scopeHeaderTag.Text = $"{(right ? "RIGHT STICK" : "LEFT STICK")} · {(hasRealInput ? "LIVE HARDWARE" : "STANDBY")}";
+        tileRaw.Text = $"{rawX:+0.00;-0.00;0.00}, {rawY:+0.00;-0.00;0.00}";
+        tileOut.Text = $"{outX:+0.00;-0.00;0.00}, {outY:+0.00;-0.00;0.00}";
+        tileGain.Text = $"{rawMag * 100:0}% -> {outMag * 100:0}% ({gain:0.00}x)";
+        tileCirc.Text = st.CircularityError is { } ce ? $"{ce:0.0}% err" : $"{st.Covered * 100 / StickStats.Sectors}% swept";
+        tileDrift.Text = st.Rest is { } rd ? $"{rd.X:+0.0;-0.0;0.0}%, {rd.Y:+0.0;-0.0;0.0}%" : "Release stick";
+        tileSnap.Text = $"{sb.PeakBouncePct:0.0}% ({sb.BounceEvents} hits)";
+
+        UpdateAxisMeter("X", Math.Abs(outX) * 100.0);
+        UpdateAxisMeter("Y", Math.Abs(outY) * 100.0);
+        UpdateAxisMeter("LT", simLt * 100.0);
+        UpdateAxisMeter("RT", simRt * 100.0);
 
         if (rawMag > 0.02)
         {
@@ -539,114 +743,167 @@ public sealed class StickLabZone : Border
             var tune = GetOrCreateStick(key);
             var lab = tune.Lab ??= new StickLabSettings();
 
-            centerContent.Children.Add(SectionLabel("DEADZONE & ANTI-DEADZONE"));
-            centerContent.Children.Add(SegmentRow("Shape",
-                [("Radial", DeadzoneShape.Radial), ("Axial (Cross)", DeadzoneShape.Axial), ("Hybrid", DeadzoneShape.Hybrid)],
-                lab.DeadzoneShape, shape => { lab.DeadzoneShape = shape; PersistProfile("Deadzone shape: " + shape); }));
-
-            centerContent.Children.Add(FineSlider("Inner Deadzone", 0, 40, 0.1, tune.Inner, v => $"{v:0.0}%",
-                v => { tune.Inner = Math.Round(v, 1); if (tune.Outer <= tune.Inner + 1) tune.Outer = Math.Min(100, tune.Inner + 5); PersistProfile(); RedrawSpline(); }));
-            centerContent.Children.Add(FineSlider("Outer Threshold (Full At)", 60, 100, 0.5, tune.Outer, v => $"{v:0.0}%",
-                v => { tune.Outer = Math.Max(tune.Inner + 2, Math.Round(v, 1)); PersistProfile(); RedrawSpline(); }));
-            double radialAnti = lab.RadialAntiDeadzone > 0 ? lab.RadialAntiDeadzone : tune.AntiDeadzone;
-            centerContent.Children.Add(FineSlider("Radial Anti-Deadzone", 0, 40, 0.5, radialAnti, v => $"{v:0.0}%",
-                v => { lab.RadialAntiDeadzone = tune.AntiDeadzone = Math.Round(v, 1); PersistProfile(); RedrawSpline(); }));
-            centerContent.Children.Add(FineSlider("Axial Anti-Deadzone (Cross Floor)", 0, 30, 0.5, lab.AxialAntiDeadzone, v => $"{v:0.0}%",
-                v => { lab.AxialAntiDeadzone = Math.Round(v, 1); PersistProfile(); }));
-            centerContent.Children.Add(FineSlider("Maximum Output Cap", 60, 100, 1, tune.MaxOutput, v => $"{v:0}%",
-                v => { tune.MaxOutput = Math.Round(v); PersistProfile(); RedrawSpline(); }));
-
-            centerContent.Children.Add(SectionLabel("GEOMETRY, TILT & RESPONSE FEEL"));
             double gateVal = tune.SquareGate ? 100 : lab.GateMorph;
-            centerContent.Children.Add(FineSlider("Gate Shape Morph (Circle <-> Square)", 0, 100, 5, gateVal, v => v >= 99 ? "100% Square" : v <= 1 ? "0% Circle" : $"{v:0}%",
-                v => { lab.GateMorph = v; tune.SquareGate = v >= 99; PersistProfile(); }));
-            centerContent.Children.Add(FineSlider("Stick Rotation / Thumb Tilt", -45, 45, 1, lab.RotationDegrees, v => $"{v:+0;-0;0} deg",
-                v => { lab.RotationDegrees = Math.Round(v); PersistProfile(); }));
-            centerContent.Children.Add(FineSlider("Cardinal / 8-Way Angle Snap", 0, 15, 0.5, lab.AngleSnapDegrees, v => v <= 0.1 ? "Off" : $"{v:0.0} deg",
-                v => { lab.AngleSnapDegrees = Math.Round(v, 1); PersistProfile(); }));
-            centerContent.Children.Add(ToggleRow("8-Way Diagonal Angle Snap (instead of 4 cardinal)", lab.AngleSnap8Way, on => { lab.AngleSnap8Way = on; PersistProfile(); }));
-            centerContent.Children.Add(FineSlider("Vertical / Axis Ratio", StickTuning.MinRatio, StickTuning.MaxRatio, 5, tune.AxisRatio, v => $"{v:0}%",
-                v => { tune.AxisRatio = (int)Math.Round(v); PersistProfile(); }));
-            centerContent.Children.Add(FineSlider("Velocity-Aware Smoothing (Noise Filter)", 0, 100, 5, lab.Smoothing, v => $"{v:0}%",
-                v => { lab.Smoothing = Math.Round(v); PersistProfile(); }));
+            double radialAnti = lab.RadialAntiDeadzone > 0 ? lab.RadialAntiDeadzone : tune.AntiDeadzone;
 
-            centerContent.Children.Add(SectionLabel("ORIENTATION & UTILITIES"));
-            centerContent.Children.Add(ToggleRow("Invert X Axis", lab.InvertX, on => { lab.InvertX = on; PersistProfile(); }));
-            centerContent.Children.Add(ToggleRow("Invert Y Axis", lab.InvertY, on => { lab.InvertY = on; PersistProfile(); }));
-            centerContent.Children.Add(ToggleRow("Swap Left & Right Sticks", profile.SwapSticks, on => { profile.SwapSticks = on; PersistProfile("Sticks swapped: " + (on ? "On" : "Off")); }));
-            centerContent.Children.Add(ToggleRow("Auto-Center Resting Drift (<= 6%)", tune.AutoCenterDrift, on => { tune.AutoCenterDrift = on; PersistProfile(); }));
-            centerContent.Children.Add(ToggleRow("Bypass X20CTL Stick Processing (Raw 1:1)", tune.Raw, on => { tune.Raw = on; PersistProfile(); RedrawSpline(); }));
+            centerContent.Children.Add(BentoModule("DEADZONE & GATE GEOMETRY", "STAGE 1", new StackPanel
+            {
+                Children =
+                {
+                    SegmentRow("Deadzone Shape",
+                        [("Radial", DeadzoneShape.Radial), ("Axial (Cross)", DeadzoneShape.Axial), ("Hybrid", DeadzoneShape.Hybrid)],
+                        lab.DeadzoneShape, shape => { lab.DeadzoneShape = shape; PersistProfile("Deadzone shape: " + shape); }),
+                    FineSlider("Gate Shape Morph (Circle <-> Square)", 0, 100, 5, gateVal, v => v >= 99 ? "100% Square" : v <= 1 ? "0% Circle" : $"{v:0}%",
+                        v => { lab.GateMorph = v; tune.SquareGate = v >= 99; PersistProfile(); }),
+                    TwoCol(
+                        FineSlider("Inner Deadzone", 0, 40, 0.1, tune.Inner, v => $"{v:0.0}%",
+                            v => { tune.Inner = Math.Round(v, 1); if (tune.Outer <= tune.Inner + 1) tune.Outer = Math.Min(100, tune.Inner + 5); PersistProfile(); RedrawSpline(); }),
+                        FineSlider("Outer Full At", 60, 100, 0.5, tune.Outer, v => $"{v:0.0}%",
+                            v => { tune.Outer = Math.Max(tune.Inner + 2, Math.Round(v, 1)); PersistProfile(); RedrawSpline(); })),
+                    TwoCol(
+                        FineSlider("Radial Anti-DZ", 0, 40, 0.5, radialAnti, v => $"{v:0.0}%",
+                            v => { lab.RadialAntiDeadzone = tune.AntiDeadzone = Math.Round(v, 1); PersistProfile(); RedrawSpline(); }),
+                        FineSlider("Axial Anti-DZ", 0, 30, 0.5, lab.AxialAntiDeadzone, v => $"{v:0.0}%",
+                            v => { lab.AxialAntiDeadzone = Math.Round(v, 1); PersistProfile(); })),
+                    FineSlider("Maximum Output Cap", 60, 100, 1, tune.MaxOutput, v => $"{v:0}%",
+                        v => { tune.MaxOutput = Math.Round(v); PersistProfile(); RedrawSpline(); })
+                }
+            }));
 
-            var copyOther = ActionBtn($"Copy {key} Settings to {otherKey}", () =>
+            centerContent.Children.Add(BentoModule("AXIS TILT, ANGLE SNAP & FEEL", "STAGE 2", new StackPanel
+            {
+                Children =
+                {
+                    TwoCol(
+                        FineSlider("Thumb Tilt Rotation", -45, 45, 1, lab.RotationDegrees, v => $"{v:+0;-0;0} deg",
+                            v => { lab.RotationDegrees = Math.Round(v); PersistProfile(); }),
+                        FineSlider("Angle Snap Cone", 0, 15, 0.5, lab.AngleSnapDegrees, v => v <= 0.1 ? "Off" : $"{v:0.0} deg",
+                            v => { lab.AngleSnapDegrees = Math.Round(v, 1); PersistProfile(); })),
+                    ToggleRow("8-Way Diagonal Angle Snap (vs 4 cardinal)", lab.AngleSnap8Way, on => { lab.AngleSnap8Way = on; PersistProfile(); }),
+                    TwoCol(
+                        FineSlider("Vertical / Axis Ratio", StickTuning.MinRatio, StickTuning.MaxRatio, 5, tune.AxisRatio, v => $"{v:0}%",
+                            v => { tune.AxisRatio = (int)Math.Round(v); PersistProfile(); }),
+                        FineSlider("Velocity Smoothing", 0, 100, 5, lab.Smoothing, v => $"{v:0}%",
+                            v => { lab.Smoothing = Math.Round(v); PersistProfile(); }))
+                }
+            }));
+
+            var oriGrid = new UniformGrid { Columns = 2, Margin = new(0, 0, 0, 6) };
+            oriGrid.Children.Add(ToggleRow("Invert X Axis", lab.InvertX, on => { lab.InvertX = on; PersistProfile(); }).Also(f => ((FrameworkElement)f).Margin = new(0, 0, 10, 0)));
+            oriGrid.Children.Add(ToggleRow("Invert Y Axis", lab.InvertY, on => { lab.InvertY = on; PersistProfile(); }));
+            oriGrid.Children.Add(ToggleRow("Swap L & R Sticks", profile.SwapSticks, on => { profile.SwapSticks = on; PersistProfile("Sticks swapped: " + (on ? "On" : "Off")); }).Also(f => ((FrameworkElement)f).Margin = new(0, 0, 10, 0)));
+            oriGrid.Children.Add(ToggleRow("Auto-Center Drift (<=6%)", tune.AutoCenterDrift, on => { tune.AutoCenterDrift = on; PersistProfile(); }));
+
+            var copyOther = ActionBtn($"Mirror {key} Settings to {otherKey}", () =>
             {
                 var clone = CloneStick(tune);
                 profile.Sticks[otherKey] = clone;
                 if (profile.Curves.TryGetValue(key, out var sc)) profile.Curves[otherKey] = sc with { };
                 PersistProfile($"Copied settings cleanly to {otherKey}");
             }, primary: false);
-            copyOther.Margin = new(0, 8, 0, 4);
-            centerContent.Children.Add(copyOther);
+            copyOther.Height = 32; copyOther.HorizontalAlignment = HorizontalAlignment.Stretch;
+
+            centerContent.Children.Add(BentoModule("ORIENTATION & CHANNEL SYNC", "STAGE 3", new StackPanel
+            {
+                Children =
+                {
+                    oriGrid,
+                    ToggleRow("Bypass DSP Processing (Raw 1:1 Pass-through)", tune.Raw, on => { tune.Raw = on; PersistProfile(); RedrawSpline(); }),
+                    copyOther
+                }
+            }));
         }
         else if (channel is LabChannel.LeftTrigger or LabChannel.RightTrigger)
         {
             string tKey = channel == LabChannel.LeftTrigger ? "LT" : "RT";
             var tt = profile.Triggers.TryGetValue(tKey, out var existing) ? existing : (profile.Triggers[tKey] = new TriggerTuning());
 
-            centerContent.Children.Add(SectionLabel($"{tKey} TRIGGER RANGE & RESPONSE"));
-            centerContent.Children.Add(SegmentRow("Force Preset",
-                [("Linear", TriggerPreset.Linear), ("Hair", TriggerPreset.HairTrigger), ("Racing", TriggerPreset.RacingThrottle), ("Sniper", TriggerPreset.Sniper), ("Digital", TriggerPreset.DigitalClick)],
-                tt.Preset, p => { tt.Preset = p; PersistProfile($"{tKey} preset: {p}"); RedrawSpline(); }));
+            centerContent.Children.Add(BentoModule($"{tKey} RANGE & FORCE CURVE", "TRIGGER", new StackPanel
+            {
+                Children =
+                {
+                    SegmentRow("Force Preset",
+                        [("Linear", TriggerPreset.Linear), ("Hair", TriggerPreset.HairTrigger), ("Racing", TriggerPreset.RacingThrottle), ("Sniper", TriggerPreset.Sniper), ("Digital", TriggerPreset.DigitalClick)],
+                        tt.Preset, p => { tt.Preset = p; PersistProfile($"{tKey} preset: {p}"); RedrawSpline(); }),
+                    TwoCol(
+                        FineSlider("Inner Deadzone", 0, 40, 1, tt.InnerDeadzonePct, v => $"{v:0}%",
+                            v => { tt.InnerDeadzonePct = (int)Math.Round(v); if (tt.OuterThresholdPct <= tt.InnerDeadzonePct + 5) tt.OuterThresholdPct = Math.Min(100, tt.InnerDeadzonePct + 10); PersistProfile(); }),
+                        FineSlider("Full Output At", 50, 100, 1, tt.OuterThresholdPct, v => $"{v:0}%",
+                            v => { tt.OuterThresholdPct = Math.Max(tt.InnerDeadzonePct + 10, (int)Math.Round(v)); PersistProfile(); }))
+                }
+            }));
 
-            centerContent.Children.Add(FineSlider("Trigger Inner Deadzone", 0, 40, 1, tt.InnerDeadzonePct, v => $"{v:0}%",
-                v => { tt.InnerDeadzonePct = (int)Math.Round(v); if (tt.OuterThresholdPct <= tt.InnerDeadzonePct + 5) tt.OuterThresholdPct = Math.Min(100, tt.InnerDeadzonePct + 10); PersistProfile(); }));
-            centerContent.Children.Add(FineSlider("Trigger Full Output At", 50, 100, 1, tt.OuterThresholdPct, v => $"{v:0}%",
-                v => { tt.OuterThresholdPct = Math.Max(tt.InnerDeadzonePct + 10, (int)Math.Round(v)); PersistProfile(); }));
+            centerContent.Children.Add(BentoModule("RAPID-TRIGGER DYNAMIC RESET", "ESPORTS", new StackPanel
+            {
+                Children =
+                {
+                    ToggleRow("Enable Rapid-Trigger (Dynamic Actuation & Release)", tt.RapidTrigger, on => { tt.RapidTrigger = on; PersistProfile($"{tKey} Rapid-Trigger: {(on ? "On" : "Off")}"); }),
+                    TwoCol(
+                        FineSlider("Actuation Travel", 1, 50, 1, tt.ActuationPct, v => $"{v:0}%",
+                            v => { tt.ActuationPct = (int)Math.Round(v); PersistProfile(); }),
+                        FineSlider("Release Reset Delta", 1, 35, 1, tt.ResetDeltaPct, v => $"{v:0}%",
+                            v => { tt.ResetDeltaPct = (int)Math.Round(v); PersistProfile(); }))
+                }
+            }));
 
-            centerContent.Children.Add(SectionLabel("RAPID-TRIGGER (WOOTING-STYLE DYNAMIC RESET)"));
-            centerContent.Children.Add(ToggleRow("Enable Rapid-Trigger", tt.RapidTrigger, on => { tt.RapidTrigger = on; PersistProfile($"{tKey} Rapid-Trigger: {(on ? "On" : "Off")}"); }));
-            centerContent.Children.Add(FineSlider("Actuation Travel Sensitivity", 1, 50, 1, tt.ActuationPct, v => $"{v:0}%",
-                v => { tt.ActuationPct = (int)Math.Round(v); PersistProfile(); }));
-            centerContent.Children.Add(FineSlider("Release Reset Hysteresis", 1, 35, 1, tt.ResetDeltaPct, v => $"{v:0}%",
-                v => { tt.ResetDeltaPct = (int)Math.Round(v); PersistProfile(); }));
-
-            centerContent.Children.Add(SectionLabel("DUAL-STAGE TRIGGER (SOFT PULL VS FULL CLICK)"));
-            centerContent.Children.Add(ToggleRow("Enable Dual-Stage Output", tt.DualStage, on => { tt.DualStage = on; PersistProfile(); }));
-            centerContent.Children.Add(FineSlider("Full Click Threshold", 55, 98, 1, tt.FullPullPct, v => $"{v:0}%",
-                v => { tt.FullPullPct = (int)Math.Round(v); PersistProfile(); }));
-            centerContent.Children.Add(SegmentRow("Full Click Output Action",
-                [("Off", ""), ("A", "A"), ("B", "B"), ("X", "X"), ("L3", "L3"), ("R3", "R3"), ("Space", "K:32")],
-                tt.FullPullOutput ?? "", outName => { tt.FullPullOutput = string.IsNullOrEmpty(outName) ? null : outName; PersistProfile(); }));
+            centerContent.Children.Add(BentoModule("DUAL-STAGE FULL CLICK OUTPUT", "HYBRID", new StackPanel
+            {
+                Children =
+                {
+                    ToggleRow("Enable Dual-Stage Threshold Trigger", tt.DualStage, on => { tt.DualStage = on; PersistProfile(); }),
+                    FineSlider("Full Click Threshold", 55, 98, 1, tt.FullPullPct, v => $"{v:0}%",
+                        v => { tt.FullPullPct = (int)Math.Round(v); PersistProfile(); }),
+                    SegmentRow("Full Click Action",
+                        [("Off", ""), ("A", "A"), ("B", "B"), ("X", "X"), ("L3", "L3"), ("R3", "R3"), ("Space", "K:32")],
+                        tt.FullPullOutput ?? "", outName => { tt.FullPullOutput = string.IsNullOrEmpty(outName) ? null : outName; PersistProfile(); })
+                }
+            }));
         }
         else // Competitive
         {
-            centerContent.Children.Add(SectionLabel("SOCD CLEANER (FIGHTING & STRAFE PRECISION)"));
-            centerContent.Children.Add(SegmentRow("D-Pad SOCD Mode",
-                [("Off", SocdMode.Off), ("Neutral", SocdMode.Neutral), ("Last Input", SocdMode.LastInput), ("Up Priority", SocdMode.UpPriority)],
-                profile.DPadSocd, m => { profile.DPadSocd = m; PersistProfile("D-Pad SOCD: " + m); }));
-            centerContent.Children.Add(SegmentRow("Left Stick SOCD Mode",
-                [("Off", SocdMode.Off), ("Neutral", SocdMode.Neutral), ("Last Input", SocdMode.LastInput)],
-                profile.LeftStickSocd, m => { profile.LeftStickSocd = m; PersistProfile("Stick SOCD: " + m); }));
+            centerContent.Children.Add(BentoModule("SOCD CLEANER", "STRAFE / FIGHT", new StackPanel
+            {
+                Children =
+                {
+                    SegmentRow("D-Pad SOCD Mode",
+                        [("Off", SocdMode.Off), ("Neutral", SocdMode.Neutral), ("Last Input", SocdMode.LastInput), ("Up Priority", SocdMode.UpPriority)],
+                        profile.DPadSocd, m => { profile.DPadSocd = m; PersistProfile("D-Pad SOCD: " + m); }),
+                    SegmentRow("Left Stick SOCD Mode",
+                        [("Off", SocdMode.Off), ("Neutral", SocdMode.Neutral), ("Last Input", SocdMode.LastInput)],
+                        profile.LeftStickSocd, m => { profile.LeftStickSocd = m; PersistProfile("Stick SOCD: " + m); })
+                }
+            }));
 
-            centerContent.Children.Add(SectionLabel("PRECISION AIM (SNIPER & ADS AUTO-LINK)"));
             var sn = profile.Sniper ??= new SniperModifier();
-            centerContent.Children.Add(ToggleRow("Enable Right Stick Precision Sniper", sn.Enabled, on => { sn.Enabled = on; PersistProfile(); }));
-            centerContent.Children.Add(ToggleRow("Auto-Engage When Holding LT (ADS Link)", sn.AdsLeftTriggerLink, on => { sn.AdsLeftTriggerLink = on; PersistProfile(); }));
-            centerContent.Children.Add(SegmentRow("Manual Modifier Button",
-                [("LT", "LT"), ("RT", "RT"), ("LB", "LB"), ("RB", "RB"), ("L3", "L3"), ("R3", "R3")],
-                sn.ModifierButton, btn => { sn.ModifierButton = btn; PersistProfile(); }));
-            centerContent.Children.Add(FineSlider("Precision Sensitivity Scale", 20, 95, 5, sn.ScalePct, v => $"{v:0}%",
-                v => { sn.ScalePct = (int)Math.Round(v); PersistProfile(); }));
+            centerContent.Children.Add(BentoModule("PRECISION AIM · ADS SNIPER CURVE", "AIM ASSIST", new StackPanel
+            {
+                Children =
+                {
+                    ToggleRow("Enable Right Stick Precision Sniper", sn.Enabled, on => { sn.Enabled = on; PersistProfile(); }),
+                    ToggleRow("Auto-Engage When Holding LT (ADS Link)", sn.AdsLeftTriggerLink, on => { sn.AdsLeftTriggerLink = on; PersistProfile(); }),
+                    SegmentRow("Manual Modifier Button",
+                        [("LT", "LT"), ("RT", "RT"), ("LB", "LB"), ("RB", "RB"), ("L3", "L3"), ("R3", "R3")],
+                        sn.ModifierButton, btn => { sn.ModifierButton = btn; PersistProfile(); }),
+                    FineSlider("Precision Sensitivity Scale", 20, 95, 5, sn.ScalePct, v => $"{v:0}%",
+                        v => { sn.ScalePct = (int)Math.Round(v); PersistProfile(); })
+                }
+            }));
 
-            centerContent.Children.Add(SectionLabel("OUTER-RING AUTO-SPRINT (SAVES L3 STICK CLICK)"));
             var sp = profile.AutoSprint ??= new AutoSprintSettings();
-            centerContent.Children.Add(ToggleRow("Auto-Trigger L3 at Full Left Stick Push", sp.Enabled, on => { sp.Enabled = on; PersistProfile("Auto-Sprint: " + (on ? "On" : "Off")); }));
-            centerContent.Children.Add(FineSlider("Outer Ring Threshold", 75, 98, 1, sp.OuterThresholdPct, v => $"{v:0}%",
-                v => { sp.OuterThresholdPct = (int)Math.Round(v); PersistProfile(); }));
+            centerContent.Children.Add(BentoModule("OUTER-RING AUTO-SPRINT", "ERGONOMICS", new StackPanel
+            {
+                Children =
+                {
+                    ToggleRow("Auto-Trigger L3 at Full Left Stick Push", sp.Enabled, on => { sp.Enabled = on; PersistProfile("Auto-Sprint: " + (on ? "On" : "Off")); }),
+                    FineSlider("Outer Ring Threshold", 75, 98, 1, sp.OuterThresholdPct, v => $"{v:0}%",
+                        v => { sp.OuterThresholdPct = (int)Math.Round(v); PersistProfile(); })
+                }
+            }));
 
-            centerContent.Children.Add(SectionLabel("VIRTUAL OUTPUT REPORT RATE CAP"));
-            centerContent.Children.Add(SegmentRow("Hz Cap",
-                [("Uncapped", 0), ("250 Hz", 250), ("500 Hz", 500), ("750 Hz", 750), ("1000 Hz", 1000)],
-                profile.OutputRateHz, hz => { profile.OutputRateHz = hz; PersistProfile($"Output rate: {(hz == 0 ? "Uncapped" : hz + " Hz")}"); }));
+            centerContent.Children.Add(BentoModule("VIRTUAL OUTPUT REPORT RATE CAP", "POLLING",
+                SegmentRow("Hz Cap",
+                    [("Uncapped", 0), ("250 Hz", 250), ("500 Hz", 500), ("750 Hz", 750), ("1000 Hz", 1000)],
+                    profile.OutputRateHz, hz => { profile.OutputRateHz = hz; PersistProfile($"Output rate: {(hz == 0 ? "Uncapped" : hz + " Hz")}"); })));
         }
 
         loading = false;
@@ -654,7 +911,6 @@ public sealed class StickLabZone : Border
 
     void RedrawSpline()
     {
-        // Remove previous node thumbs
         foreach (var thumb in splineCanvas.Children.OfType<Thumb>().ToList())
             splineCanvas.Children.Remove(thumb);
 
@@ -710,7 +966,92 @@ public sealed class StickLabZone : Border
             splineCanvas.Children.Add(knob);
         }
 
-        pointsSummaryText.Text = $"{pts.Count}/10 points: " + string.Join("  ", pts.Select(p => $"({p.X:0},{p.Y:0})"));
+        double midY = StickLabMath.EvaluateSpline(pts, 0.5) * 100.0;
+        splineHudText.Text = $"{pts.Count}/10 nodes · 50% -> {midY:0}% ({midY / 50.0:0.00}x)";
+
+        nodeChipPanel.Children.Clear();
+        for (int i = 0; i < pts.Count; i++)
+        {
+            var pt = pts[i];
+            nodeChipPanel.Children.Add(new Border
+            {
+                CornerRadius = new(5),
+                Background = new SolidColorBrush(Color.FromArgb(145, 16, 28, 56)),
+                BorderBrush = new SolidColorBrush(Color.FromArgb(75, 96, 165, 250)),
+                BorderThickness = new(1),
+                Padding = new(6, 2, 6, 2),
+                Margin = new(0, 0, 4, 4),
+                Child = Kit.Text($"P{i + 1} {pt.X:0},{pt.Y:0}", 10, "DS.TextSoft", FontWeights.SemiBold)
+            });
+        }
+    }
+
+    void AddMidpointNode()
+    {
+        var list = ActiveSplinePoints();
+        if (list.Count >= StickLabSettings.MaxCustomPoints)
+        {
+            statusText.Text = "Maximum 10 control points reached. Right-click a point on the graph to remove one.";
+            return;
+        }
+        int bestIdx = 0;
+        double bestGap = -1;
+        for (int i = 0; i < list.Count - 1; i++)
+        {
+            double gap = list[i + 1].X - list[i].X;
+            if (gap > bestGap) { bestGap = gap; bestIdx = i; }
+        }
+        double mx = Math.Round((list[bestIdx].X + list[bestIdx + 1].X) / 2.0, 1);
+        double my = Math.Round(StickLabMath.EvaluateSpline(list, mx / 100.0) * 100.0, 1);
+        list.Add(new CurvePoint(mx, my));
+        list = StickLabMath.NormalizePoints(list);
+        SetActiveSplinePoints(list);
+        PersistProfile($"Added midpoint node ({mx:0}%, {my:0}%)");
+        RedrawSpline();
+    }
+
+    void SmoothSplineNodes()
+    {
+        var list = ActiveSplinePoints();
+        if (list.Count <= 2) { statusText.Text = "Need 3+ points to smooth interior nodes."; return; }
+        var next = new List<CurvePoint>(list.Count) { list[0] };
+        for (int i = 1; i < list.Count - 1; i++)
+        {
+            double avgY = Math.Round((list[i - 1].Y + list[i].Y * 2.0 + list[i + 1].Y) / 4.0, 1);
+            next.Add(new CurvePoint(list[i].X, Math.Clamp(avgY, 0, 100)));
+        }
+        next.Add(list[^1]);
+        SetActiveSplinePoints(next);
+        PersistProfile("Smoothed interior spline nodes");
+        RedrawSpline();
+    }
+
+    void MirrorSplineToOtherStick()
+    {
+        if (channel is LabChannel.LeftTrigger or LabChannel.RightTrigger)
+        {
+            string src = channel == LabChannel.LeftTrigger ? "LT" : "RT";
+            string dst = channel == LabChannel.LeftTrigger ? "RT" : "LT";
+            (profile.Triggers.TryGetValue(dst, out var dt) ? dt : (profile.Triggers[dst] = new TriggerTuning())).CustomPoints = ActiveSplinePoints().ToList();
+            PersistProfile($"Mirrored {src} spline to {dst}");
+            return;
+        }
+        string sKey = channel == LabChannel.RightStick ? "RightStick" : "LeftStick";
+        string dKey = channel == LabChannel.RightStick ? "LeftStick" : "RightStick";
+        var dstTune = GetOrCreateStick(dKey);
+        (dstTune.Lab ??= new StickLabSettings()).CustomPoints = ActiveSplinePoints().ToList();
+        PersistProfile($"Mirrored {sKey} spline to {dKey}");
+    }
+
+    void ToggleBypassCurrentStick()
+    {
+        string key = channel == LabChannel.RightStick ? "RightStick" : "LeftStick";
+        var tune = GetOrCreateStick(key);
+        tune.Raw = !tune.Raw;
+        PersistProfile(tune.Raw ? $"{key} bypassed (1:1 Raw)" : $"{key} DSP active");
+        RebuildCenterControls();
+        RedrawSpline();
+        UpdateLiveVisualizer(simLx, simLy, simRx, simRy);
     }
 
     void OnSplineCanvasDown(object sender, MouseButtonEventArgs e)
@@ -732,10 +1073,7 @@ public sealed class StickLabZone : Border
         RedrawSpline();
     }
 
-    void OnSplineCanvasMove(object sender, MouseEventArgs e)
-    {
-        _ = draggedPointIndex;
-    }
+    void OnSplineCanvasMove(object sender, MouseEventArgs e) => _ = draggedPointIndex;
 
     List<CurvePoint> ActiveSplinePoints()
     {
@@ -771,7 +1109,7 @@ public sealed class StickLabZone : Border
     {
         var pts = StickLabMath.GenerateSmartCurve(kind);
         SetActiveSplinePoints(pts);
-        PersistProfile($"Applied Smart Curve: {kind}");
+        PersistProfile($"Applied curve archetype: {kind}");
         RedrawSpline();
     }
 
@@ -887,7 +1225,7 @@ public sealed class StickLabZone : Border
         if (loading) return;
         if (link == null)
         {
-            statusText.Text = (note != null ? note + " · " : "") + "Previewing in local sandbox (assign in PC Mode to apply to games)";
+            statusText.Text = (note != null ? note + " · " : "") + "Previewing locally (enable PC Mode to apply live)";
             return;
         }
         try
@@ -895,7 +1233,7 @@ public sealed class StickLabZone : Border
             profile.Validate();
             if (!profile.IsNeutral && !PcModePage.MaySave(link.Preferences))
             {
-                statusText.Text = "Saved draft in Stick Lab · Enable PC Mode notice to apply live";
+                statusText.Text = "Saved draft in Analog Studio · Enable PC Mode notice to apply live";
                 return;
             }
             link.Store.Save(PcModePage.StoreKey, profile);
@@ -937,18 +1275,66 @@ public sealed class StickLabZone : Border
         BorderThickness = new(1),
         BorderBrush = new SolidColorBrush(Color.FromArgb(75, 125, 175, 240)),
         Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(195, 10, 19, 38))),
-        Padding = new(16, 14, 16, 14),
+        Padding = new(14, 12, 14, 12),
         Child = new DockPanel
         {
             Children =
             {
-                Kit.Text(title, 11, "DS.TextMuted", FontWeights.SemiBold).Also(t => { DockPanel.SetDock(t, Dock.Top); t.Margin = new(0, 0, 0, 10); }),
+                Kit.Text(title, 10.5, "DS.TextMuted", FontWeights.Bold).Also(t => { DockPanel.SetDock(t, Dock.Top); t.Margin = new(0, 0, 0, 8); }),
                 child,
             }
         }
     };
 
-    static TextBlock SectionLabel(string text) => Kit.Text(text, 11, "DS.AccentHi", FontWeights.SemiBold).Also(t => t.Margin = new(0, 10, 0, 6));
+    static Border DarkWell(UIElement child, Thickness pad) => new()
+    {
+        CornerRadius = new(10),
+        BorderThickness = new(1),
+        BorderBrush = new SolidColorBrush(Color.FromArgb(62, 96, 155, 230)),
+        Background = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(6, 13, 28))),
+        Padding = pad,
+        Child = child,
+    };
+
+    static Border BentoModule(string title, string badge, UIElement content)
+    {
+        var header = new DockPanel { Margin = new(0, 0, 0, 8) };
+        var pill = new Border
+        {
+            CornerRadius = new(5),
+            Background = new SolidColorBrush(Color.FromArgb(48, 56, 189, 248)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(95, 56, 189, 248)),
+            BorderThickness = new(1),
+            Padding = new(6, 1, 6, 1),
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = Kit.Text(badge, 9, "DS.AccentHi", FontWeights.Bold)
+        };
+        DockPanel.SetDock(pill, Dock.Right);
+        header.Children.Add(pill);
+        header.Children.Add(new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            VerticalAlignment = VerticalAlignment.Center,
+            Children =
+            {
+                new Ellipse { Width = 6, Height = 6, Fill = DS.Brush("DS.AccentHi"), Margin = new(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center },
+                Kit.Text(title, 10.5, "DS.Text", FontWeights.Bold)
+            }
+        });
+        return DarkWell(new StackPanel { Children = { header, content } }, new Thickness(12, 10, 12, 10)).Also(b => b.Margin = new(0, 0, 0, 10));
+    }
+
+    static Grid TwoCol(UIElement left, UIElement right)
+    {
+        var g = new Grid();
+        g.ColumnDefinitions.Add(new() { Width = new(1, GridUnitType.Star) });
+        g.ColumnDefinitions.Add(new() { Width = new(12) });
+        g.ColumnDefinitions.Add(new() { Width = new(1, GridUnitType.Star) });
+        g.Children.Add(left);
+        Grid.SetColumn(right, 2);
+        g.Children.Add(right);
+        return g;
+    }
 
     static Button ActionBtn(string label, Action onClick, bool primary)
     {
@@ -956,9 +1342,9 @@ public sealed class StickLabZone : Border
         {
             Content = label,
             Style = DS.Style(primary ? "DS.ConsolePrimary" : "ActionButton"),
-            Height = 36, MinHeight = 0,
-            Padding = new(14, 0, 14, 0),
-            FontSize = 12.5,
+            Height = 34, MinHeight = 0,
+            Padding = new(12, 0, 12, 0),
+            FontSize = 12,
             Cursor = Cursors.Hand,
         };
         b.Click += (_, _) => onClick();
@@ -967,17 +1353,17 @@ public sealed class StickLabZone : Border
 
     FrameworkElement FineSlider(string label, double min, double max, double step, double initial, Func<double, string> fmt, Action<double> onChanged)
     {
-        var val = Kit.Text(fmt(initial), 12, "DS.Text", FontWeights.SemiBold);
+        var val = Kit.Text(fmt(initial), 11.5, "DS.Text", FontWeights.SemiBold);
         DockPanel.SetDock(val, Dock.Right);
-        var head = new DockPanel { Margin = new(0, 0, 0, 2), Children = { val, Kit.Text(label, 12.5, "DS.TextSoft") } };
+        var head = new DockPanel { Margin = new(0, 0, 0, 1), Children = { val, Kit.Text(label, 11.5, "DS.TextSoft").Also(t => t.TextTrimming = TextTrimming.CharacterEllipsis) } };
         var sl = new Slider
         {
             Minimum = min, Maximum = max, Value = Math.Clamp(initial, min, max),
             SmallChange = step, LargeChange = step * 5, TickFrequency = step, IsSnapToTickEnabled = true,
-            Style = DS.Style("DS.Slider"), Height = 22,
+            Style = DS.Style("DS.Slider"), Height = 20,
         };
         sl.ValueChanged += (_, _) => { val.Text = fmt(sl.Value); if (!loading) onChanged(sl.Value); };
-        return new StackPanel { Margin = new(0, 2, 0, 8), Children = { head, sl } };
+        return new StackPanel { Margin = new(0, 2, 0, 6), Children = { head, sl } };
     }
 
     FrameworkElement ToggleRow(string label, bool initial, Action<bool> onChanged)
@@ -985,16 +1371,16 @@ public sealed class StickLabZone : Border
         var cb = new CheckBox { Style = DS.Style("DS.Toggle"), IsChecked = initial, VerticalAlignment = VerticalAlignment.Center };
         cb.Checked += (_, _) => { if (!loading) onChanged(true); };
         cb.Unchecked += (_, _) => { if (!loading) onChanged(false); };
-        var dock = new DockPanel { Margin = new(0, 4, 0, 8) };
+        var dock = new DockPanel { Margin = new(0, 3, 0, 6) };
         DockPanel.SetDock(cb, Dock.Right);
         dock.Children.Add(cb);
-        dock.Children.Add(Kit.Text(label, 12.5, "DS.Text").Also(t => t.VerticalAlignment = VerticalAlignment.Center));
+        dock.Children.Add(Kit.Text(label, 11.5, "DS.Text").Also(t => { t.VerticalAlignment = VerticalAlignment.Center; t.TextTrimming = TextTrimming.CharacterEllipsis; t.Margin = new(0, 0, 6, 0); }));
         return dock;
     }
 
     FrameworkElement SegmentRow<T>(string label, (string Title, T Value)[] options, T current, Action<T> onPicked)
     {
-        var wrap = new WrapPanel { Margin = new(0, 4, 0, 8) };
+        var wrap = new WrapPanel { Margin = new(0, 3, 0, 6) };
         var buttons = new List<(Button Btn, T Val)>();
         foreach (var (title, value) in options)
         {
@@ -1002,9 +1388,9 @@ public sealed class StickLabZone : Border
             bool selected = EqualityComparer<T>.Default.Equals(value, current);
             var btn = new Button
             {
-                Content = title, Height = 28, MinHeight = 0, Padding = new(10, 0, 10, 0), Margin = new(0, 0, 6, 4),
+                Content = title, Height = 27, MinHeight = 0, Padding = new(10, 0, 10, 0), Margin = new(0, 0, 5, 4),
                 FontSize = 11.5, Style = DS.Style("ActionButton"),
-                Background = selected ? new SolidColorBrush(Color.FromRgb(56, 128, 232)) : new SolidColorBrush(Color.FromArgb(140, 18, 30, 58)),
+                Background = selected ? new SolidColorBrush(Color.FromRgb(42, 108, 212)) : new SolidColorBrush(Color.FromArgb(145, 14, 24, 48)),
                 BorderBrush = selected ? Brushes.White : DS.Brush("DS.Hairline"),
             };
             btn.Click += (_, _) =>
@@ -1012,7 +1398,7 @@ public sealed class StickLabZone : Border
                 foreach (var item in buttons)
                 {
                     bool act = EqualityComparer<T>.Default.Equals(item.Val, captured);
-                    item.Btn.Background = act ? new SolidColorBrush(Color.FromRgb(56, 128, 232)) : new SolidColorBrush(Color.FromArgb(140, 18, 30, 58));
+                    item.Btn.Background = act ? new SolidColorBrush(Color.FromRgb(42, 108, 212)) : new SolidColorBrush(Color.FromArgb(145, 14, 24, 48));
                     item.Btn.BorderBrush = act ? Brushes.White : DS.Brush("DS.Hairline");
                 }
                 if (!loading) onPicked(captured);
@@ -1020,6 +1406,6 @@ public sealed class StickLabZone : Border
             buttons.Add((btn, captured));
             wrap.Children.Add(btn);
         }
-        return new StackPanel { Children = { Kit.Text(label, 12, "DS.TextSoft"), wrap } };
+        return new StackPanel { Children = { Kit.Text(label, 11.5, "DS.TextSoft"), wrap } };
     }
 }

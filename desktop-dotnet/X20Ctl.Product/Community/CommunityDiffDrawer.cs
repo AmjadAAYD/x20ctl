@@ -177,7 +177,7 @@ public sealed class CommunityDiffDrawer : Grid
 
     private static IReadOnlyList<string> DetectSections(CommunityItem item)
     {
-        if (item.Category == "curve") return new[] { "Curves & Deadzones", "Stick Lab Tuning" };
+        if (item.Category == "curve") return new[] { "Curves & Deadzones", "Analog Studio Tuning" };
         if (item.Category == "screen") return new[] { "OLED Screen Art" };
         if (item.Category == "rgb") return new[] { "RGB Lighting" };
         if (item.Category == "vibration") return new[] { "Vibration Motors" };

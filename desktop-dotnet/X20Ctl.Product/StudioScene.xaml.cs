@@ -717,9 +717,9 @@ public partial class StudioScene : UserControl
         CurvesPageHost.ColumnDefinitions.Clear();
         CurvesPageHost.ColumnDefinitions.Add(new() { Width = new(1.06, GridUnitType.Star) });
         CurvesPageHost.ColumnDefinitions.Add(new() { Width = new(14) });
-        CurvesPageHost.ColumnDefinitions.Add(new() { Width = new(1.04, GridUnitType.Star) });
+        CurvesPageHost.ColumnDefinitions.Add(new() { Width = new(0.98, GridUnitType.Star) });
 
-        // Left Column (Full Height): Curve Editor + Inline Deadzone Sliders (zero controller logo, zero popups)
+        // Left Column (Full Height): Curve Editor + Inline Deadzone Sliders
         var leftStack = new Grid();
         leftStack.RowDefinitions.Add(new() { Height = new(1, GridUnitType.Star) });
         leftStack.RowDefinitions.Add(new() { Height = GridLength.Auto });
@@ -729,14 +729,31 @@ public partial class StudioScene : UserControl
         var leftCard = Kit.Panel(null, null, null, leftStack, new Thickness(16, 12, 16, 12));
         CurvesPageHost.Children.Add(leftCard);
 
-        // Right Column: Top = Live Diagnostics Showcase (Sticks + Triggers), Bottom = Quick Controls + "Go Advanced?" Slide Trigger
+        // Right Column: Top = Live Analog Telemetry Instrument Wells, Bottom = Analog Quick Tuning + Analog Studio
         var rightGrid = new Grid();
-        rightGrid.RowDefinitions.Add(new() { Height = new(1.04, GridUnitType.Star) });
-        rightGrid.RowDefinitions.Add(new() { Height = new(12) });
-        rightGrid.RowDefinitions.Add(new() { Height = new(0.96, GridUnitType.Star) });
+        rightGrid.RowDefinitions.Add(new() { Height = new(0.92, GridUnitType.Star) });
+        rightGrid.RowDefinitions.Add(new() { Height = new(10) });
+        rightGrid.RowDefinitions.Add(new() { Height = new(1.08, GridUnitType.Star) });
 
         curvesDiagnostics = new Diagnostics.DiagnosticsWorkbench(Player, RegisterFocus, PcMode, compact: true, model: Model, telemetryOnly: true);
-        var diagCard = Kit.Panel("LIVE STICK & TRIGGER DIAGNOSTICS", null, null, curvesDiagnostics.TelemetryGrid, new Thickness(14, 10, 14, 10));
+        var clearTraceBtn = new Button
+        {
+            Content = "Clear Trace",
+            Style = DS.Style("ActionButton"),
+            Height = 26, MinHeight = 0,
+            Padding = new(10, 0, 10, 0),
+            FontSize = 11.5,
+        };
+        clearTraceBtn.Click += (_, _) => curvesDiagnostics?.ClearMeasurements();
+        var diagHeader = new DockPanel { Margin = new(0, 0, 0, 8) };
+        DockPanel.SetDock(clearTraceBtn, Dock.Right);
+        diagHeader.Children.Add(clearTraceBtn);
+        diagHeader.Children.Add(Kit.Text("LIVE ANALOG TELEMETRY", 11.5, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.VerticalAlignment = VerticalAlignment.Center));
+        var diagDock = new DockPanel();
+        DockPanel.SetDock(diagHeader, Dock.Top);
+        diagDock.Children.Add(diagHeader);
+        diagDock.Children.Add(curvesDiagnostics.TelemetryGrid);
+        var diagCard = Kit.Panel(null, null, null, diagDock, new Thickness(14, 10, 14, 10));
         rightGrid.Children.Add(diagCard);
 
         var quickCard = BuildQuickStickTuningCard();
@@ -752,20 +769,26 @@ public partial class StudioScene : UserControl
         bool syncingQuick = false;
         var linkSticks = new CheckBox { Style = DS.Style("DS.Toggle"), VerticalAlignment = VerticalAlignment.Center };
         var autoDrift = new CheckBox { Style = DS.Style("DS.Toggle"), VerticalAlignment = VerticalAlignment.Center };
-        var squareBtn = new Button { Content = "Square Gate", Style = DS.Style("ActionButton"), Height = 30, MinHeight = 0, Padding = new(12, 0, 12, 0), FontSize = 12 };
-        var circleBtn = new Button { Content = "Circular Gate", Style = DS.Style("ActionButton"), Height = 30, MinHeight = 0, Padding = new(12, 0, 12, 0), FontSize = 12, Margin = new(0, 0, 6, 0) };
-        var vertSlider = new Slider { Minimum = StickTuning.MinRatio, Maximum = StickTuning.MaxRatio, TickFrequency = 5, IsSnapToTickEnabled = true, Value = 100, Style = DS.Style("DS.Slider"), Height = 22 };
-        var vertVal = Kit.Text("100%", 12, "DS.Text", FontWeights.SemiBold);
-        var quickNote = Kit.Text("Easy stick setup. Everything stays inline in this tab.", 11.5, "DS.TextMuted");
+        var rawBypass = new CheckBox { Style = DS.Style("DS.Toggle"), VerticalAlignment = VerticalAlignment.Center };
+        var circleBtn = new Button { Content = "Circular", Style = DS.Style("ActionButton"), Height = 28, MinHeight = 0, Padding = new(10, 0, 10, 0), FontSize = 11.5, Margin = new(0, 0, 3, 0) };
+        var squareBtn = new Button { Content = "Square", Style = DS.Style("ActionButton"), Height = 28, MinHeight = 0, Padding = new(10, 0, 10, 0), FontSize = 11.5 };
+        var radialDzBtn = new Button { Content = "Radial", Style = DS.Style("ActionButton"), Height = 28, MinHeight = 0, Padding = new(8, 0, 8, 0), FontSize = 11.5, Margin = new(0, 0, 3, 0) };
+        var axialDzBtn = new Button { Content = "Axial", Style = DS.Style("ActionButton"), Height = 28, MinHeight = 0, Padding = new(8, 0, 8, 0), FontSize = 11.5, Margin = new(0, 0, 3, 0) };
+        var hybridDzBtn = new Button { Content = "Hybrid", Style = DS.Style("ActionButton"), Height = 28, MinHeight = 0, Padding = new(8, 0, 8, 0), FontSize = 11.5 };
+        var vertSlider = new Slider { Minimum = StickTuning.MinRatio, Maximum = StickTuning.MaxRatio, TickFrequency = 5, IsSnapToTickEnabled = true, Value = 100, Style = DS.Style("DS.Slider"), Height = 20 };
+        var smoothSlider = new Slider { Minimum = 0, Maximum = 100, TickFrequency = 5, IsSnapToTickEnabled = true, Value = 0, Style = DS.Style("DS.Slider"), Height = 20 };
+        var vertVal = Kit.Text("100%", 11.5, "DS.Text", FontWeights.SemiBold);
+        var smoothVal = Kit.Text("0%", 11.5, "DS.Text", FontWeights.SemiBold);
+        var quickNote = Kit.Text("Inline DSP tuning. Applies immediately when PC Mode is active.", 11.5, "DS.TextMuted");
 
         string ActiveStickKey() => Curves.Channel == CurveChannel.RightStick ? "RightStick" : "LeftStick";
 
-        void EditStick(Action<StickTuning> mutator, string note)
+        void EditStick(Action<StickTuning> mutator, string note, bool allowRaw = false)
         {
             if (syncingQuick) return;
             if (pcLink is not { } link)
             {
-                quickNote.Text = note + " (open PC Mode or Stick Lab to save PC-side DSP)";
+                quickNote.Text = note + " (open PC Mode or Analog Studio to save PC-side DSP)";
                 return;
             }
             try
@@ -776,7 +799,7 @@ public partial class StudioScene : UserControl
                 {
                     var st = p.Sticks.TryGetValue(k, out var ex) ? ex : new StickTuning();
                     mutator(st);
-                    st.Raw = false;
+                    if (!allowRaw) st.Raw = false;
                     if (st.IsDefault) p.Sticks.Remove(k); else p.Sticks[k] = st;
                 }
                 p.Validate();
@@ -801,11 +824,20 @@ public partial class StudioScene : UserControl
             syncingQuick = true;
             var t = Curves.Tuning?.Invoke(Curves.Channel == CurveChannel.RightStick ? CurveChannel.RightStick : CurveChannel.LeftStick);
             bool sq = t?.SquareGate == true || (t?.Lab?.GateMorph ?? 0) >= 99;
-            circleBtn.Background = !sq ? new SolidColorBrush(Color.FromRgb(56, 128, 232)) : new SolidColorBrush(Color.FromArgb(140, 18, 30, 58));
-            squareBtn.Background = sq ? new SolidColorBrush(Color.FromRgb(56, 128, 232)) : new SolidColorBrush(Color.FromArgb(140, 18, 30, 58));
+            var shape = t?.Lab?.DeadzoneShape ?? DeadzoneShape.Radial;
+            var activeBg = new SolidColorBrush(Color.FromRgb(42, 108, 212));
+            var idleBg = new SolidColorBrush(Color.FromArgb(145, 14, 24, 48));
+            circleBtn.Background = !sq ? activeBg : idleBg;
+            squareBtn.Background = sq ? activeBg : idleBg;
+            radialDzBtn.Background = shape == DeadzoneShape.Radial ? activeBg : idleBg;
+            axialDzBtn.Background = shape == DeadzoneShape.Axial ? activeBg : idleBg;
+            hybridDzBtn.Background = shape == DeadzoneShape.Hybrid ? activeBg : idleBg;
             autoDrift.IsChecked = t?.AutoCenterDrift == true;
+            rawBypass.IsChecked = t?.Raw == true;
             vertSlider.Value = t?.AxisRatio ?? 100;
             vertVal.Text = $"{vertSlider.Value:0}%";
+            smoothSlider.Value = t?.Lab?.Smoothing ?? 0;
+            smoothVal.Text = $"{smoothSlider.Value:0}%";
             syncingQuick = false;
         }
         RefreshQuickStickControls = PaintQuickState;
@@ -813,63 +845,168 @@ public partial class StudioScene : UserControl
 
         circleBtn.Click += (_, _) => { EditStick(s => { s.SquareGate = false; if (s.Lab != null) s.Lab.GateMorph = 0; }, "Circular gate selected"); PaintQuickState(); };
         squareBtn.Click += (_, _) => { EditStick(s => { s.SquareGate = true; (s.Lab ??= new StickLabSettings()).GateMorph = 100; }, "Square gate selected (faster diagonals)"); PaintQuickState(); };
+        radialDzBtn.Click += (_, _) => { EditStick(s => (s.Lab ??= new StickLabSettings()).DeadzoneShape = DeadzoneShape.Radial, "Radial deadzone selected"); PaintQuickState(); };
+        axialDzBtn.Click += (_, _) => { EditStick(s => (s.Lab ??= new StickLabSettings()).DeadzoneShape = DeadzoneShape.Axial, "Axial cross deadzone selected"); PaintQuickState(); };
+        hybridDzBtn.Click += (_, _) => { EditStick(s => (s.Lab ??= new StickLabSettings()).DeadzoneShape = DeadzoneShape.Hybrid, "Hybrid deadzone selected"); PaintQuickState(); };
         autoDrift.Checked += (_, _) => EditStick(s => s.AutoCenterDrift = true, "Auto-fix resting drift enabled");
         autoDrift.Unchecked += (_, _) => EditStick(s => s.AutoCenterDrift = false, "Auto-fix resting drift turned off");
+        rawBypass.Checked += (_, _) => EditStick(s => s.Raw = true, "Raw 1:1 bypass enabled", allowRaw: true);
+        rawBypass.Unchecked += (_, _) => EditStick(s => s.Raw = false, "Raw 1:1 bypass turned off", allowRaw: true);
         vertSlider.ValueChanged += (_, _) => { vertVal.Text = $"{vertSlider.Value:0}%"; EditStick(s => s.AxisRatio = (int)Math.Round(vertSlider.Value), $"Vertical sensitivity set to {vertSlider.Value:0}%"); };
+        smoothSlider.ValueChanged += (_, _) => { smoothVal.Text = $"{smoothSlider.Value:0}%"; EditStick(s => (s.Lab ??= new StickLabSettings()).Smoothing = Math.Round(smoothSlider.Value), $"Velocity smoothing set to {smoothSlider.Value:0}%"); };
 
-        var gateRow = new DockPanel { Margin = new(0, 0, 0, 8) };
-        var gateBtns = new StackPanel { Orientation = Orientation.Horizontal, Children = { circleBtn, squareBtn } };
-        DockPanel.SetDock(gateBtns, Dock.Right);
-        gateRow.Children.Add(gateBtns);
-        gateRow.Children.Add(Kit.Text("Stick Gate", 13, "DS.Text", FontWeights.SemiBold).Also(t => t.VerticalAlignment = VerticalAlignment.Center));
+        // Row 0: Gate + Deadzone shape side-by-side in crisp dark wells
+        var segGrid = new Grid { Margin = new(0, 0, 0, 5) };
+        segGrid.ColumnDefinitions.Add(new() { Width = new(1, GridUnitType.Star) });
+        segGrid.ColumnDefinitions.Add(new() { Width = new(8) });
+        segGrid.ColumnDefinitions.Add(new() { Width = new(1.35, GridUnitType.Star) });
+        var gateWell = new Border
+        {
+            CornerRadius = new(9), Background = new SolidColorBrush(Color.FromArgb(145, 7, 14, 30)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(65, 110, 165, 240)), BorderThickness = new(1), Padding = new(8, 4, 8, 4),
+            Child = new DockPanel
+            {
+                Children =
+                {
+                    new UniformGrid { Columns = 2, Children = { circleBtn, squareBtn } }.Also(u => DockPanel.SetDock(u, Dock.Right)),
+                    Kit.Text("Gate", 11.5, "DS.TextSoft", FontWeights.SemiBold).Also(t => t.VerticalAlignment = VerticalAlignment.Center)
+                }
+            }
+        };
+        var shapeWell = new Border
+        {
+            CornerRadius = new(9), Background = new SolidColorBrush(Color.FromArgb(145, 7, 14, 30)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(65, 110, 165, 240)), BorderThickness = new(1), Padding = new(8, 4, 8, 4),
+            Child = new DockPanel
+            {
+                Children =
+                {
+                    new UniformGrid { Columns = 3, Children = { radialDzBtn, axialDzBtn, hybridDzBtn } }.Also(u => DockPanel.SetDock(u, Dock.Right)),
+                    Kit.Text("Shape", 11.5, "DS.TextSoft", FontWeights.SemiBold).Also(t => t.VerticalAlignment = VerticalAlignment.Center)
+                }
+            }
+        };
+        Grid.SetColumn(shapeWell, 2);
+        segGrid.Children.Add(gateWell);
+        segGrid.Children.Add(shapeWell);
 
-        var toggleRow = new WrapPanel { Margin = new(0, 0, 0, 8) };
-        toggleRow.Children.Add(autoDrift);
-        toggleRow.Children.Add(Kit.Text("Auto-fix drift", 12.5, "DS.TextSoft").Also(t => { t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new(8, 0, 18, 0); }));
-        toggleRow.Children.Add(linkSticks);
-        toggleRow.Children.Add(Kit.Text("Link Left & Right sticks", 12.5, "DS.TextSoft").Also(t => { t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new(8, 0, 0, 0); }));
+        // Row 1: Two side-by-side sliders (Vertical look speed & Smoothing)
+        var slidersGrid = new Grid { Margin = new(0, 0, 0, 5) };
+        slidersGrid.ColumnDefinitions.Add(new() { Width = new(1, GridUnitType.Star) });
+        slidersGrid.ColumnDefinitions.Add(new() { Width = new(10) });
+        slidersGrid.ColumnDefinitions.Add(new() { Width = new(1, GridUnitType.Star) });
+        var vertWell = new StackPanel
+        {
+            Children =
+            {
+                new DockPanel { Children = { vertVal.Also(v => DockPanel.SetDock(v, Dock.Right)), Kit.Text("Vertical look speed", 11.5, "DS.TextSoft") } },
+                vertSlider
+            }
+        };
+        var smoothWell = new StackPanel
+        {
+            Children =
+            {
+                new DockPanel { Children = { smoothVal.Also(v => DockPanel.SetDock(v, Dock.Right)), Kit.Text("Velocity smoothing", 11.5, "DS.TextSoft") } },
+                smoothSlider
+            }
+        };
+        Grid.SetColumn(smoothWell, 2);
+        slidersGrid.Children.Add(vertWell);
+        slidersGrid.Children.Add(smoothWell);
 
-        var vertHead = new DockPanel { Margin = new(0, 0, 0, 2), Children = { vertVal.Also(v => DockPanel.SetDock(v, Dock.Right)), Kit.Text("Vertical look speed", 12.5, "DS.TextSoft") } };
+        // Row 2: Compact toggle bar
+        var toggleWell = new Border
+        {
+            CornerRadius = new(9), Background = new SolidColorBrush(Color.FromArgb(145, 7, 14, 30)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(65, 110, 165, 240)), BorderThickness = new(1), Padding = new(10, 4, 10, 4),
+            Margin = new(0, 0, 0, 5),
+            Child = new UniformGrid
+            {
+                Columns = 3,
+                Children =
+                {
+                    new StackPanel { Orientation = Orientation.Horizontal, Children = { autoDrift, Kit.Text("Auto-fix drift", 11.5, "DS.TextSoft").Also(t => { t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new(6, 0, 0, 0); }) } },
+                    new StackPanel { Orientation = Orientation.Horizontal, Children = { linkSticks, Kit.Text("Link L & R", 11.5, "DS.TextSoft").Also(t => { t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new(6, 0, 0, 0); }) } },
+                    new StackPanel { Orientation = Orientation.Horizontal, Children = { rawBypass, Kit.Text("Raw 1:1 bypass", 11.5, "DS.TextSoft").Also(t => { t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new(6, 0, 0, 0); }) } },
+                }
+            }
+        };
 
-        var styleRow = new UniformGrid { Columns = 3, Margin = new(-2, 6, -2, 8) };
-        Button StyleTile(string title, string preset, double inner, double outer, bool sq)
+        // Row 3: 4 structured Playstyle Preset Cards (2x2 grid with spec subtitles)
+        var styleGrid = new UniformGrid { Columns = 2, Rows = 2, Margin = new(-2, 0, -2, 3) };
+        Button StyleTile(string title, string specs, string preset, double inner, double outer, bool sq, bool raw)
         {
             var b = new Button
             {
-                Content = title, Style = DS.Style("ActionButton"), Height = 30, MinHeight = 0,
-                Padding = new(8, 0, 8, 0), Margin = new(2), FontSize = 11.5,
+                Style = DS.Style("ActionButton"),
+                Height = 38, MinHeight = 0,
+                HorizontalContentAlignment = HorizontalAlignment.Left,
+                Padding = new(10, 3, 10, 3),
+                Margin = new(2),
+                Content = new StackPanel
+                {
+                    Children =
+                    {
+                        Kit.Text(title, 11.5, "DS.Text", FontWeights.SemiBold),
+                        Kit.Text(specs, 10, "DS.TextMuted")
+                    }
+                }
             };
             b.Click += (_, _) =>
             {
                 if (Curves.Draft.CanEdit) Curves.SetPreset(preset);
-                EditStick(s => { s.Inner = inner; s.Outer = outer; s.SquareGate = sq; }, title + " profile applied");
+                EditStick(s => { s.Inner = inner; s.Outer = outer; s.SquareGate = sq; s.Raw = raw; }, title + " preset applied", allowRaw: raw);
                 PaintQuickState();
             };
             RegisterFocus(b);
             return b;
         }
-        styleRow.Children.Add(StyleTile("FPS Precision", "fine", 4, 95, false));
-        styleRow.Children.Add(StyleTile("Rocket League", "quick", 5, 85, true));
-        styleRow.Children.Add(StyleTile("Racing Smooth", "smooth", 2, 100, false));
+        styleGrid.Children.Add(StyleTile("FPS Precision", "Fine · 4% DZ · Circular", "fine", 4, 95, false, false));
+        styleGrid.Children.Add(StyleTile("Rocket League", "Quick · 5% DZ · Square", "quick", 5, 85, true, false));
+        styleGrid.Children.Add(StyleTile("Racing Smooth", "Smooth · 2% DZ · Circular", "smooth", 2, 100, false, false));
+        styleGrid.Children.Add(StyleTile("Raw Linear 1:1", "Default · 0% DZ · Bypass", "default", 0, 100, false, true));
 
+        // Row 4: Refined PS5-native Analog Studio launch strip (zero loud solid blue slop)
+        var advBadge = new Border
+        {
+            CornerRadius = new(7),
+            Background = new SolidColorBrush(Color.FromArgb(65, 56, 189, 248)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(145, 56, 189, 248)),
+            BorderThickness = new(1),
+            Padding = new(10, 4, 10, 4),
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = Kit.Text("Go Advanced  >", 11.5, "DS.AccentHi", FontWeights.Bold)
+        };
+        var advContent = new DockPanel();
+        DockPanel.SetDock(advBadge, Dock.Right);
+        advContent.Children.Add(advBadge);
+        var accentStripe = new Border { Width = 3, CornerRadius = new(2), Background = DS.Brush("DS.AccentHi"), Margin = new(0, 2, 10, 2) };
+        DockPanel.SetDock(accentStripe, Dock.Left);
+        advContent.Children.Add(accentStripe);
+        advContent.Children.Add(new StackPanel
+        {
+            VerticalAlignment = VerticalAlignment.Center,
+            Children =
+            {
+                Kit.Text("Analog Studio", 13, "DS.Text", FontWeights.Bold),
+                Kit.Text("10-pt splines · Gate morph · Rapid-trigger · SOCD · X20C1 codes", 10, "DS.TextMuted").Also(t => t.TextTrimming = TextTrimming.CharacterEllipsis)
+            }
+        });
         var goAdvancedBtn = new Button
         {
             Height = 42, MinHeight = 42,
             Cursor = Cursors.Hand,
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            Margin = new(0, 6, 0, 0),
-            Style = DS.Style("DS.ConsolePrimary"),
-            ToolTip = "Slide down into the full-screen Stick Lab zone (10-point splines, deadzone shapes, tilt, smoothing, SOCD, rapid-trigger & live dual-dot diagnostics)",
-            Content = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Children =
-                {
-                    new TextBlock { Text = "Go Advanced?", FontFamily = DS.Display, FontSize = 14.5, FontWeight = FontWeights.Bold, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center },
-                    new TextBlock { Text = "  ·  Open Full Stick Lab  ⌄", FontSize = 12, Foreground = new SolidColorBrush(Color.FromArgb(220, 225, 240, 255)), VerticalAlignment = VerticalAlignment.Center },
-                }
-            }
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
+            Margin = new(0, 4, 0, 0),
+            Padding = new(10, 4, 10, 4),
+            Style = DS.Style("ActionButton"),
+            Background = new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(215, 11, 22, 46))),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(120, 56, 189, 248)),
+            BorderThickness = new(1),
+            ToolTip = "Open full-screen Analog Studio (10-point splines, deadzone shapes, tilt, smoothing, SOCD, rapid-trigger & live vector diagnostics)",
+            Content = advContent
         };
         goAdvancedBtn.Click += (_, _) => OpenStickTools();
         RegisterFocus(goAdvancedBtn);
@@ -881,16 +1018,14 @@ public partial class StudioScene : UserControl
         {
             Children =
             {
-                gateRow,
-                toggleRow,
-                vertHead,
-                vertSlider,
-                Kit.Text("PLAYSTYLE QUICK PRESETS", 10.5, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(0, 4, 0, 2)),
-                styleRow,
+                segGrid,
+                slidersGrid,
+                toggleWell,
+                styleGrid,
                 quickNote,
             }
         });
-        return Kit.Panel("QUICK STICK CONTROLS", null, null, body, new Thickness(16, 12, 16, 12));
+        return Kit.Panel("ANALOG QUICK TUNING", null, null, body, new Thickness(14, 10, 14, 10));
     }
 
     private readonly Dictionary<Button,Panel> curveToolbarParents=new();
@@ -1065,13 +1200,19 @@ public partial class StudioScene : UserControl
     private readonly TranslateTransform labSlideTransform = new();
     private void OpenStickTools(object sender, RoutedEventArgs e) => OpenStickTools();
 
-    /// <summary>Full-screen PS5 slide-down Stick Lab zone: hides tabs and Studio chrome cleanly until Return or Esc.</summary>
+    /// <summary>Full-screen PS5 slide-down Analog Studio zone: hides tabs and Studio chrome cleanly until Return or Esc.</summary>
     public void OpenStickTools()
     {
         CancelRemapCapture();
         if (stickLabLayer != null) return;
         curvesDiagnostics?.Stop();
-        StickLab = new StickLabZone(Model, Player, PcMode, CloseStickTools, RequestPcMode);
+        StickLab = new StickLabZone(Model, Player, PcMode, CloseStickTools, RequestPcMode, code =>
+        {
+            CloseStickTools();
+            ShowManagement("Community");
+            var exp = ExportCurrentForCommunity("curve", Draft.PcMode ? "pc-mode" : "native");
+            Community?.OpenShareDialog("curve", "Custom Analog Curve", exp.Payload, code);
+        });
         stickLabLayer = StickLab;
         StickLabOverlayHost.Children.Clear();
         StickLabOverlayHost.Children.Add(StickLab);
@@ -1243,7 +1384,7 @@ public partial class StudioScene : UserControl
         ApplyPcDashboard();
         DraftBar.Visibility=page=="Dashboard"?Visibility.Collapsed:Visibility.Visible;RootLayout.RowDefinitions[2].Height=new(page=="Dashboard"?0:40);
         Apply.Visibility=StatusNote.Visibility=page=="Dashboard"?Visibility.Collapsed:Visibility.Visible;ChangeCount.Visibility=page=="Dashboard"?Visibility.Collapsed:Visibility.Visible;
-        if(page is not ("Dashboard" or "PcMode" or "Device" or "RGB" or "Screen" or "Diagnostics" or "Mouse" or "Keyboard" or "Tester" or "Setups"))throw new ArgumentException("Unknown Studio page.");
+        if(page is not ("Dashboard" or "PcMode" or "Device" or "RGB" or "Screen" or "Diagnostics" or "Mouse" or "Keyboard" or "Tester" or "Setups" or "Community"))throw new ArgumentException("Unknown Studio page.");
         if(IsCurves)ShowCurves(false);if(IsMacros)ShowMacros(false);if(IsVibration)ShowVibration(false);HideManagement();ManagementPage=page;bool immediate=page is "Dashboard" or "Mouse" or "Keyboard" or "Diagnostics" or "Device" or "RGB" or "Screen" or "PcMode" or "Community";DraftBar.Visibility=immediate?Visibility.Collapsed:Visibility.Visible;RootLayout.RowDefinitions[2].Height=new(immediate?0:40);Apply.Visibility=StatusNote.Visibility=immediate?Visibility.Collapsed:Visibility.Visible;ChangeCount.Visibility=page=="Dashboard"?Visibility.Collapsed:Visibility.Visible;
         HardwareStage.Visibility=InspectorStage.Visibility=AssignmentShelf.Visibility=OverviewChoice.Visibility=ResetAllChoice.Visibility=Visibility.Collapsed;
         ManagementBodyHost.Visibility=ManagementShelfFrame.Visibility=Visibility.Visible;ManagementBodyHost.Children.Clear();ManagementShelfHost.Children.Clear();

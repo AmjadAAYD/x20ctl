@@ -26,8 +26,21 @@ public sealed class DashboardConsolePage : Grid
     private readonly Image logo = new() { Stretch = Stretch.Uniform, MaxHeight = 86, MaxWidth = 380, HorizontalAlignment = HorizontalAlignment.Left };
     private readonly TextBlock featuredTitle = Kit.Text("", 34, "DS.Text", FontWeights.SemiBold), featuredMeta = Kit.Text("", 16, "DS.TextSoft");
     private readonly TextBlock changesCount = Kit.Text("Off", 16, "DS.Text", FontWeights.SemiBold);
-    private readonly TextBlock ecoCellState = Kit.Text("Off", 14, "DS.TextSoft", FontWeights.SemiBold);
+    private readonly TextBlock ecoCellState = Kit.Text("Off", 13.5, "DS.TextSoft", FontWeights.SemiBold);
     private readonly CheckBox ecoSwitch = new() { Style = DS.Style("DS.Toggle"), VerticalAlignment = VerticalAlignment.Center };
+    private readonly Grid ecoOverlay = new() { Visibility = Visibility.Collapsed, Background = new SolidColorBrush(Color.FromArgb(165, 3, 6, 16)) };
+    private readonly TextBlock ecoOverlayStatus = Kit.Text("Eco mode is currently OFF", 12, "DS.TextMuted", FontWeights.SemiBold);
+    private readonly Button ecoOverlayToggleBtn = new() { Content = "Turn Eco Mode On", Style = DS.Style("ActionButton"), Height = 32, MinHeight = 32, Padding = new Thickness(12, 0, 12, 0), FontSize = 12 };
+    public bool IsEcoDetailsOpen => ecoOverlay.Visibility == Visibility.Visible;
+    public void ToggleEcoDetails(bool? open = null)
+    {
+        bool show = open ?? ecoOverlay.Visibility != Visibility.Visible;
+        ecoOverlay.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        bool on = UniversalHapticsService.IsPowerSavingActive;
+        ecoOverlayStatus.Text = on ? "● Eco mode is currently ON" : "○ Eco mode is currently OFF";
+        ecoOverlayStatus.Foreground = DS.Brush(on ? "DS.Success" : "DS.TextMuted");
+        ecoOverlayToggleBtn.Content = on ? "Turn Eco Mode Off" : "Turn Eco Mode On";
+    }
     private bool syncingEcoSwitch;
     private readonly TextBlock connectionValue=Kit.Text("Not detected",17,"DS.TextSoft"), batteryValue=Kit.Text("Not reported",17,"DS.TextSoft"), firmwareValue=Kit.Text("Not reported",17,"DS.TextSoft");
     private readonly TextBlock profileState=Kit.Text("No game-specific setup linked",13,"DS.TextSoft");
@@ -73,7 +86,7 @@ public sealed class DashboardConsolePage : Grid
     private bool? inputConnected;
     private readonly TextBlock deviceState = Kit.Text("Controller offline", 28, "DS.Text", FontWeights.SemiBold);
     private readonly TextBlock stateDetail = Kit.Text("Connect your controller to use live input.", 14, "DS.TextSoft");
-    private readonly TextBlock workingSetup = Kit.Text("Current working settings", 20, "DS.Text", FontWeights.SemiBold);
+    private readonly TextBlock workingSetup = Kit.Text("Current working settings", 17.5, "DS.Text", FontWeights.SemiBold);
     private readonly TextBlock changesLabel = Kit.Text("", 14, "DS.TextSoft");
     private readonly Button setupAction = new() { Style=DS.Style("ActionButton"),HorizontalAlignment=HorizontalAlignment.Left,Margin=new(0,12,0,0) };
     internal TextBlock ThemeSetup => workingSetup; internal TextBlock ThemeConnection => connectionValue; internal TextBlock ThemeBattery => batteryValue; internal TextBlock ThemeChanges => changesLabel;
@@ -214,45 +227,132 @@ public sealed class DashboardConsolePage : Grid
             FontSize = 11.5,
             Margin = new Thickness(6, 0, 0, 0)
         };
-        commBtn.Click += (_, _) => { OpenCommunityRequested?.Invoke(); PageRequested?.Invoke("Community"); };
+        commBtn.Click += (_, _) => OpenCommunityRequested?.Invoke();
         var headerRow = new DockPanel { Margin = new Thickness(0, 0, 0, 2) };
         var pulseBtns = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Children = { pulseOnlineLabel.Also(t => { t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new Thickness(0, 0, 8, 0); }), bellBtn, commBtn } };
         DockPanel.SetDock(pulseBtns, Dock.Right);
         headerRow.Children.Add(pulseBtns);
-        deviceState.Text="Offline";deviceState.FontSize=18;deviceState.FontWeight=FontWeights.SemiBold;deviceState.VerticalAlignment=VerticalAlignment.Center;
+        deviceState.Text="Offline";deviceState.FontSize=17;deviceState.FontWeight=FontWeights.SemiBold;deviceState.VerticalAlignment=VerticalAlignment.Center;
         headerRow.Children.Add(deviceState);
         notificationsDrawer.Child = notificationsList;
         status.Children.Add(headerRow);
         status.Children.Add(notificationsDrawer);
-        status.Children.Add(Kit.Text("Current setup",12,"DS.TextMuted",FontWeights.SemiBold).Also(t=>t.Margin=new(0,6,0,2)));status.Children.Add(workingSetup);profileState.Margin=new(0,2,0,0);status.Children.Add(profileState);
-        var stateGrid=new Grid{Margin=new(0,8,0,4)};stateGrid.ColumnDefinitions.Add(new());stateGrid.ColumnDefinitions.Add(new());stateGrid.RowDefinitions.Add(new());stateGrid.RowDefinitions.Add(new());
-        var ecoDetailsCard = new Border
+        status.Children.Add(Kit.Text("Current setup",11.5,"DS.TextMuted",FontWeights.SemiBold).Also(t=>t.Margin=new(0,3,0,1)));status.Children.Add(workingSetup);profileState.FontSize=12;profileState.Margin=new(0,1,0,0);status.Children.Add(profileState);
+        var stateGrid=new Grid{Margin=new(0,6,0,3)};stateGrid.ColumnDefinitions.Add(new());stateGrid.ColumnDefinitions.Add(new());stateGrid.RowDefinitions.Add(new());stateGrid.RowDefinitions.Add(new());
+
+        var ecoCloseTop = new Button { Content = "Close", Style = DS.Style("ActionButton"), Height = 30, MinHeight = 30, Padding = new(12, 0, 12, 0), FontSize = 12 };
+        ecoCloseTop.Click += (_, _) => ToggleEcoDetails(false);
+        var ecoGotIt = new Button { Content = "Got it", Style = DS.Style("DS.ConsolePrimary"), Height = 34, MinHeight = 34, Padding = new(16, 0, 16, 0), FontSize = 12.5, Margin = new(8, 0, 0, 0) };
+        ecoGotIt.Click += (_, _) => ToggleEcoDetails(false);
+        ecoOverlayToggleBtn.Click += (_, _) =>
         {
-            Visibility = Visibility.Collapsed,
-            CornerRadius = new(12),
-            Padding = new(12, 10, 12, 10),
-            Margin = new(0, 6, 8, 6),
+            UniversalHapticsService.SetPowerSavingMode(!UniversalHapticsService.IsPowerSavingActive);
+            ToggleEcoDetails(true);
+        };
+
+        var ecoBullets = new StackPanel { Margin = new(0, 8, 0, 12) };
+        foreach (var (tag, desc) in new[]
+        {
+            ("LEDs Off", "Turns off controller RGB LEDs via BLE and stops all active lighting effects"),
+            ("Motors Paused", "Stops vibration, game rumble boosts, and adaptive trigger motor output"),
+            ("Tabs Locked", "Locks Vibration, RGB, and Screen tabs to prevent accidental battery drain"),
+            ("Audio & Capture", "Stops system FFT audio capture and ambient screen color sampling"),
+            ("BLE Idle", "Pauses background Bluetooth battery polling until Eco mode is switched off"),
+            ("Clean Restore", "Restores your previous LED brightness and unlocks tabs the instant you exit Eco"),
+        })
+        {
+            var pill = new Border
+            {
+                CornerRadius = new(6),
+                Background = new SolidColorBrush(Color.FromArgb(46, 74, 222, 128)),
+                BorderBrush = new SolidColorBrush(Color.FromArgb(95, 74, 222, 128)),
+                BorderThickness = new(1),
+                Padding = new(7, 2, 7, 2),
+                Margin = new(0, 0, 10, 0),
+                VerticalAlignment = VerticalAlignment.Top,
+                Child = Kit.Text(tag, 10.5, "DS.Success", FontWeights.Bold),
+            };
+            var rowItem = new DockPanel { Margin = new(0, 0, 0, 7) };
+            DockPanel.SetDock(pill, Dock.Left);
+            rowItem.Children.Add(pill);
+            rowItem.Children.Add(Kit.Text(desc, 12.5, "DS.TextSoft").Also(t => { t.TextWrapping = TextWrapping.Wrap; t.VerticalAlignment = VerticalAlignment.Center; }));
+            ecoBullets.Children.Add(rowItem);
+        }
+
+        var ecoFooter = new DockPanel { Margin = new(0, 4, 0, 0) };
+        var ecoFooterBtns = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Children = { ecoOverlayToggleBtn, ecoGotIt } };
+        DockPanel.SetDock(ecoFooterBtns, Dock.Right);
+        ecoOverlayStatus.VerticalAlignment = VerticalAlignment.Center;
+        ecoFooter.Children.Add(ecoFooterBtns);
+        ecoFooter.Children.Add(ecoOverlayStatus);
+
+        var ecoModalCard = new Border
+        {
+            MaxWidth = 540,
+            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            CornerRadius = new(16),
+            Padding = new(22, 18, 22, 18),
             BorderThickness = new(1),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(75, 74, 222, 128)),
-            Background = new SolidColorBrush(Color.FromArgb(40, 16, 48, 36)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(145, 74, 222, 128)),
+            Background = new SolidColorBrush(ThemeCatalog.R(Color.FromRgb(10, 22, 34))),
+            Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 32, ShadowDepth = 8, Opacity = 0.65 },
             Child = new StackPanel
             {
                 Children =
                 {
-                    Kit.Text("WHAT ECO MODE DOES", 10.5, "DS.Success", FontWeights.SemiBold).Also(t => t.Margin = new(0, 0, 0, 4)),
-                    Kit.Text("• Turns off controller RGB LEDs via BLE and stops active lighting effects", 11.5, "DS.TextSoft").Also(t => t.TextWrapping = TextWrapping.Wrap),
-                    Kit.Text("• Stops all vibration, game rumble, and trigger motor output", 11.5, "DS.TextSoft").Also(t => t.TextWrapping = TextWrapping.Wrap),
-                    Kit.Text("• Locks Vibration, RGB, and Screen tabs to avoid accidental battery drain", 11.5, "DS.TextSoft").Also(t => t.TextWrapping = TextWrapping.Wrap),
-                    Kit.Text("• Stops system audio capture and ambient screen color sampling", 11.5, "DS.TextSoft").Also(t => t.TextWrapping = TextWrapping.Wrap),
-                    Kit.Text("• Pauses background Bluetooth battery polling", 11.5, "DS.TextSoft").Also(t => t.TextWrapping = TextWrapping.Wrap),
-                    Kit.Text("• Restores your previous LED brightness cleanly when switched off", 11.5, "DS.TextMuted").Also(t => t.TextWrapping = TextWrapping.Wrap),
+                    new DockPanel
+                    {
+                        Margin = new(0, 0, 0, 6),
+                        Children =
+                        {
+                            ecoCloseTop.Also(b => DockPanel.SetDock(b, Dock.Right)),
+                            Kit.Text("ECO SAVER MODE", 11, "DS.Success", FontWeights.Bold).Also(t => t.VerticalAlignment = VerticalAlignment.Center),
+                        }
+                    },
+                    Kit.Text("What does Eco mode do?", 20, "DS.Text", FontWeights.Bold),
+                    Kit.Text("One toggle cuts controller power draw and protects remaining battery across your session.", 12.5, "DS.TextSoft").Also(t => { t.TextWrapping = TextWrapping.Wrap; t.Margin = new(0, 3, 0, 4); }),
+                    ecoBullets,
+                    Kit.Rule().Also(r => r.Margin = new(0, 0, 0, 10)),
+                    ecoFooter,
                 }
             }
         };
+        ecoModalCard.MouseLeftButtonDown += (_, e) => e.Handled = true;
+        ecoOverlay.Children.Add(ecoModalCard);
+        ecoOverlay.MouseLeftButtonDown += (_, _) => ToggleEcoDetails(false);
+
         FrameworkElement BuildEcoContent()
         {
             var ecoPanel = new StackPanel();
-            ecoPanel.Children.Add(Kit.Text("Enable battery saving mode?", 12, "DS.TextMuted").Also(t => t.Margin = new(0, 0, 0, 3)));
+            var ecoHead = new DockPanel { Margin = new(0, 0, 0, 2) };
+            var ecoInfoLabel = new TextBlock
+            {
+                Text = "What's done in Eco mode?",
+                FontSize = 11,
+                Foreground = DS.Brush("DS.AccentHi"),
+                TextDecorations = TextDecorations.Underline,
+            };
+            var ecoInfoBtn = new Button
+            {
+                Content = ecoInfoLabel,
+                Cursor = Cursors.Hand,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new(6, 0, 0, 0),
+                Padding = new(2, 0, 2, 0),
+                Background = Brushes.Transparent,
+                BorderThickness = new(0),
+                ToolTip = "See every power-saving action Eco mode performs",
+                Template = new ControlTemplate(typeof(Button)) { VisualTree = new FrameworkElementFactory(typeof(ContentPresenter)) },
+            };
+            ecoInfoBtn.MouseEnter += (_, _) => ecoInfoLabel.Foreground = Brushes.White;
+            ecoInfoBtn.MouseLeave += (_, _) => ecoInfoLabel.Foreground = DS.Brush("DS.AccentHi");
+            ecoInfoBtn.Click += (_, _) => ToggleEcoDetails();
+            DockPanel.SetDock(ecoInfoBtn, Dock.Right);
+            ecoHead.Children.Add(ecoInfoBtn);
+            ecoHead.Children.Add(Kit.Text("Eco saver", 11.5, "DS.TextMuted").Also(t => t.VerticalAlignment = VerticalAlignment.Center));
+            ecoPanel.Children.Add(ecoHead);
+
             var row = new DockPanel { LastChildFill = true };
             ecoSwitch.IsChecked = UniversalHapticsService.Store.Snapshot().PowerSavingMode;
             ecoSwitch.ToolTip = "Shuts off controller LEDs via BLE, kills vibration & game rumble, locks Vibration/RGB/Screen, stops audio capture, and pauses BLE polling.";
@@ -264,6 +364,7 @@ public sealed class DashboardConsolePage : Grid
                 syncingEcoSwitch = false;
                 ecoCellState.Text = on ? "On · Eco Saver" : "Off";
                 ecoCellState.Foreground = DS.Brush(on ? "DS.Success" : "DS.TextSoft");
+                if (IsEcoDetailsOpen) ToggleEcoDetails(true);
             }
             SyncEco();
             ecoSwitch.Checked += (_, _) => { if (!syncingEcoSwitch) UniversalHapticsService.SetPowerSavingMode(true); SyncEco(); };
@@ -276,34 +377,6 @@ public sealed class DashboardConsolePage : Grid
             ecoCellState.VerticalAlignment = VerticalAlignment.Center;
             row.Children.Add(ecoCellState);
             ecoPanel.Children.Add(row);
-
-            var ecoInfoLabel = new TextBlock
-            {
-                Text = "What's done in Eco mode?",
-                FontSize = 11.5,
-                Foreground = DS.Brush("DS.AccentHi"),
-                TextDecorations = TextDecorations.Underline,
-            };
-            var ecoInfoBtn = new Button
-            {
-                Content = ecoInfoLabel,
-                Cursor = Cursors.Hand,
-                HorizontalAlignment = HorizontalAlignment.Left,
-                Margin = new(0, 4, 0, 0),
-                Padding = new(0),
-                Background = Brushes.Transparent,
-                BorderThickness = new(0),
-                Template = new ControlTemplate(typeof(Button)) { VisualTree = new FrameworkElementFactory(typeof(ContentPresenter)) },
-            };
-            ecoInfoBtn.MouseEnter += (_, _) => ecoInfoLabel.Foreground = Brushes.White;
-            ecoInfoBtn.MouseLeave += (_, _) => ecoInfoLabel.Foreground = DS.Brush("DS.AccentHi");
-            ecoInfoBtn.Click += (_, _) =>
-            {
-                bool show = ecoDetailsCard.Visibility != Visibility.Visible;
-                ecoDetailsCard.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
-                ecoInfoLabel.Text = show ? "Hide Eco mode details" : "What's done in Eco mode?";
-            };
-            ecoPanel.Children.Add(ecoInfoBtn);
             return ecoPanel;
         }
         var cells = new (string Name, UIElement? Value, Func<FrameworkElement>? Custom)[]
@@ -322,12 +395,12 @@ public sealed class DashboardConsolePage : Grid
             else
             {
                 var text=new StackPanel();
-                text.Children.Add(Kit.Text(cells[i].Name,12,"DS.TextMuted").Also(t=>t.Margin=new(0,0,0,3)));
-                if (cells[i].Value is TextBlock tb) tb.TextWrapping=TextWrapping.Wrap;
+                text.Children.Add(Kit.Text(cells[i].Name,11.5,"DS.TextMuted").Also(t=>t.Margin=new(0,0,0,2)));
+                if (cells[i].Value is TextBlock tb) { tb.FontSize=14.5; tb.TextWrapping=TextWrapping.Wrap; }
                 text.Children.Add(cells[i].Value!);
                 content = text;
             }
-            var cell=new Border{CornerRadius=new(12),Padding=new(8,6,8,6),Margin=new(0,0,8,6),Background=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(16,180,205,240))),Child=content};
+            var cell=new Border{CornerRadius=new(11),Padding=new(9,5,9,5),Margin=new(0,0,8,5),Background=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(16,180,205,240))),Child=content};
             if (cells[i].Name == "Battery") batteryCell = cell;
             if (cells[i].Name == "Battery" && model.Id is "x20" or "x20_pro")
             {
@@ -351,9 +424,9 @@ public sealed class DashboardConsolePage : Grid
             }
             Grid.SetRow(cell,i/2);Grid.SetColumn(cell,i%2);
             stateGrid.Children.Add(cell);
-        }status.Children.Add(stateGrid);status.Children.Add(ecoDetailsCard);status.Children.Add(stateDetail);
+        }status.Children.Add(stateGrid);status.Children.Add(stateDetail);
         gamesCount=new TextBlock();SetWorkingState(draftChanges,null,false);
-        var statusPanel=Kit.Panel(null,null,null,status);statusPanel.Margin=new(0,0,12,0);top.Children.Add(statusPanel);
+        var statusPanel=Kit.Panel(null,null,null,status,new Thickness(14,10,14,10));statusPanel.Margin=new(0,0,12,0);top.Children.Add(statusPanel);
 
         var lower = new Grid();lower.RowDefinitions.Add(new() { Height = GridLength.Auto });lower.RowDefinitions.Add(new() { Height = new(1,GridUnitType.Star) });Grid.SetRow(lower,2);Children.Add(lower);
         var header = new DockPanel { Margin = new(0,0,0,12) };
@@ -390,6 +463,7 @@ public sealed class DashboardConsolePage : Grid
 
         PreviewKeyDown += OnKey; PreviewKeyDown += (_, _) => SetPad(true); PreviewMouseMove += (_, _) => SetPad(false);
         Grid.SetRowSpan(raiseLayer, 4); Children.Add(raiseLayer); // last, so a raised tile is above everything on the page
+        Grid.SetRowSpan(ecoOverlay, 4); Panel.SetZIndex(ecoOverlay, 99); Children.Add(ecoOverlay);
     }
 
     protected override Size MeasureOverride(Size availableSize)
