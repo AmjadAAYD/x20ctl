@@ -323,6 +323,153 @@ public static class StickLabMath
         double by = uy * (1.0 - t) + sqY * t;
         return (bx * mag, by * mag);
     }
+
+    /// <summary>
+    /// Compiles full Analog Studio tuning (deadzones, 10-pt spline, anti-deadzone floor, max-output cap,
+    /// trigger force preset, Invert X/Y, Swap L/R) into an onboard X20/X20 Pro 2-point BLE hardware CurveSetting.
+    /// </summary>
+    public static CurveSetting CompileToNativeHardware(
+        CurveSetting current,
+        StickTuning? stick,
+        TriggerTuning? trigger,
+        bool swapSticks,
+        bool isTrigger)
+    {
+        if (isTrigger)
+        {
+            int inner = trigger != null ? Math.Clamp(trigger.InnerDeadzonePct, 0, 99) : current.Inner;
+            int outer = trigger != null ? Math.Clamp(trigger.OuterThresholdPct, inner + 1, 100) : current.Outer;
+            var preset = trigger?.Preset ?? TriggerPreset.Linear;
+            bool hasCustom = trigger?.CustomPoints is { Count: >= 2 };
+            if (!hasCustom && preset == TriggerPreset.Linear)
+                return current with { Inner = inner, Outer = outer, Flags = 0 };
+
+            Span<double> samples = stackalloc double[11];
+            for (int i = 0; i <= 10; i++)
+            {
+                double x = i / 10.0;
+                double baseY = hasCustom
+                    ? EvaluateSpline(trigger!.CustomPoints, x)
+                    : current.Preset != "default"
+                        ? PadProcessor.Through(x, current.Point1.X / 255.0, current.Point1.Y / 255.0, current.Point2.X / 255.0, current.Point2.Y / 255.0)
+                        : x;
+                double y = preset switch
+                {
+                    TriggerPreset.HairTrigger => baseY < 0.02 ? 0.0 : Math.Clamp((baseY - 0.02) / 0.35, 0.0, 1.0),
+                    TriggerPreset.RacingThrottle => Math.Pow(baseY, 1.6),
+                    TriggerPreset.Sniper => baseY < 0.35 ? 0.0 : Math.Clamp((baseY - 0.35) / 0.65, 0.0, 1.0),
+                    TriggerPreset.DigitalClick => baseY >= 0.15 ? 1.0 : 0.0,
+                    _ => baseY
+                };
+                samples[i] = Math.Clamp(y, 0.0, 1.0);
+            }
+            var (tp1, tp2) = FitTwoPoints(samples);
+            return new CurveSetting("custom", inner, outer, tp1, tp2) { BasePreset = current.BasePreset, Flags = 0 };
+        }
+
+        byte hwFlags = 0;
+        if (stick?.Lab?.InvertX == true) hwFlags |= (byte)CurveHardwareFlags.InvertX;
+        if (stick?.Lab?.InvertY == true) hwFlags |= (byte)CurveHardwareFlags.InvertY;
+        if (swapSticks) hwFlags |= (byte)CurveHardwareFlags.SwapSticks;
+
+        if (stick?.Raw == true)
+            return new CurveSetting("default", 0, 100, (85, 85), (170, 170)) { BasePreset = "default", Flags = hwFlags };
+
+        int sInner = stick != null ? (int)Math.Clamp(Math.Round(stick.Inner), 0, 99) : current.Inner;
+        int sOuter = stick != null ? (int)Math.Clamp(Math.Round(stick.Outer), sInner + 1, 100) : current.Outer;
+        bool hasSpline = stick?.Lab?.CustomPoints is { Count: >= 2 };
+        double anti = stick != null ? (stick.Lab is { RadialAntiDeadzone: > 0 } ? stick.Lab.RadialAntiDeadzone : stick.AntiDeadzone) : 0;
+        double cap = stick?.MaxOutput ?? 100.0;
+
+        if (!hasSpline && anti <= 0.1 && cap >= 99.9)
+            return current with { Inner = sInner, Outer = sOuter, Flags = hwFlags };
+
+        Span<double> stickSamples = stackalloc double[11];
+        double floor = Math.Clamp(anti / 100.0, 0.0, 0.45);
+        double ceil = Math.Clamp(cap / 100.0, 0.6, 1.0);
+        for (int i = 0; i <= 10; i++)
+        {
+            double x = i / 10.0;
+            double baseY = hasSpline
+                ? EvaluateSpline(stick!.Lab!.CustomPoints, x)
+                : PadProcessor.Through(x, current.Point1.X / 255.0, current.Point1.Y / 255.0, current.Point2.X / 255.0, current.Point2.Y / 255.0);
+            stickSamples[i] = x <= 0.001 ? 0.0 : Math.Clamp(floor + (ceil - floor) * baseY, 0.0, 1.0);
+        }
+        var (sp1, sp2) = FitTwoPoints(stickSamples);
+        return new CurveSetting("custom", sInner, sOuter, sp1, sp2) { BasePreset = current.BasePreset, Flags = hwFlags };
+    }
+
+    static ((int X, int Y) P1, (int X, int Y) P2) FitTwoPoints(ReadOnlySpan<double> targetSamples)
+    {
+        // Target samples sit at x = 0.0, 0.1, ..., 1.0. Place knots at 1/3 (x1=85) and 2/3 (x2=170) or optimize directly.
+        int bestX1 = 85, bestY1 = (int)Math.Round(Math.Clamp(targetSamples[3] * 0.67 + targetSamples[4] * 0.33, 0, 1) * 255);
+        int bestX2 = 170, bestY2 = (int)Math.Round(Math.Clamp(targetSamples[7] * 0.67 + targetSamples[6] * 0.33, 0, 1) * 255);
+        double bestErr = double.MaxValue;
+
+        static double EvalError(ReadOnlySpan<double> samples, int x1, int y1, int x2, int y2)
+        {
+            double fx1 = x1 / 255.0, fy1 = y1 / 255.0, fx2 = x2 / 255.0, fy2 = y2 / 255.0;
+            double err = 0;
+            for (int i = 1; i <= 9; i++)
+            {
+                double diff = PadProcessor.Through(i / 10.0, fx1, fy1, fx2, fy2) - samples[i];
+                err += diff * diff;
+            }
+            return err;
+        }
+
+        // Fast coarse scan around standard 1/3 & 2/3 anchors and shaped inflection points
+        ReadOnlySpan<int> x1Cand = [38, 64, 85, 110];
+        ReadOnlySpan<int> x2Cand = [145, 170, 196, 218];
+        foreach (int cx1 in x1Cand)
+        foreach (int cx2 in x2Cand)
+        {
+            if (cx2 <= cx1 + 12) continue;
+            int idx1 = Math.Clamp((int)Math.Round(cx1 / 25.5), 1, 9);
+            int idx2 = Math.Clamp((int)Math.Round(cx2 / 25.5), 1, 9);
+            int baseY1 = (int)Math.Round(targetSamples[idx1] * 255);
+            int baseY2 = (int)Math.Round(targetSamples[idx2] * 255);
+            for (int dy1 = -24; dy1 <= 24; dy1 += 12)
+            for (int dy2 = -24; dy2 <= 24; dy2 += 12)
+            {
+                int py1 = Math.Clamp(baseY1 + dy1, 0, 255);
+                int py2 = Math.Clamp(baseY2 + dy2, 0, 255);
+                double err = EvalError(targetSamples, cx1, py1, cx2, py2);
+                if (err < bestErr) { bestErr = err; bestX1 = cx1; bestY1 = py1; bestX2 = cx2; bestY2 = py2; }
+            }
+        }
+        // Fine coordinate polish around best
+        int ax1 = bestX1, ay1 = bestY1, ax2 = bestX2, ay2 = bestY2;
+        for (int dy1 = -8; dy1 <= 8; dy1 += 2)
+        for (int dy2 = -8; dy2 <= 8; dy2 += 2)
+        {
+            int py1 = Math.Clamp(ay1 + dy1, 0, 255);
+            int py2 = Math.Clamp(ay2 + dy2, 0, 255);
+            double err = EvalError(targetSamples, ax1, py1, ax2, py2);
+            if (err < bestErr) { bestErr = err; bestX1 = ax1; bestY1 = py1; bestX2 = ax2; bestY2 = py2; }
+        }
+
+        return ((bestX1, bestY1), (bestX2, bestY2));
+    }
+
+    /// <summary>True only when advanced 2D or temporal rules exist that the 7-byte BLE chip packet cannot encode natively.</summary>
+    public static bool RequiresDesktopBoost(PcModeProfile p)
+    {
+        if (p.DPadSocd != SocdMode.Off || p.LeftStickSocd != SocdMode.Off) return true;
+        if (p.OutputRateHz > 0) return true;
+        if (p.Sniper is { Enabled: true } || p.AutoSprint is { Enabled: true }) return true;
+        foreach (var s in p.Sticks.Values)
+        {
+            if (s.SquareGate || s.AxisRatio != 100 || s.AutoCenterDrift) return true;
+            if (s.Lab is { } lab && (lab.GateMorph > 1 || lab.DeadzoneShape != DeadzoneShape.Radial || lab.AxialAntiDeadzone > 0 || Math.Abs(lab.RotationDegrees) > 0.1 || lab.AngleSnapDegrees > 0.1 || lab.Smoothing > 0 || Math.Abs(lab.DriftOffsetX) > 1e-4 || Math.Abs(lab.DriftOffsetY) > 1e-4))
+                return true;
+        }
+        foreach (var t in p.Triggers.Values)
+        {
+            if (t.RapidTrigger || t.DualStage) return true;
+        }
+        return false;
+    }
 }
 
 /// <summary>Compact checksummed curve/lab preset code format (`X20C1.&lt;base64url&gt;.&lt;crc8&gt;`) for sharing and paste.</summary>

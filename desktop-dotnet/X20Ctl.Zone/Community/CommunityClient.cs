@@ -182,19 +182,32 @@ public sealed class CommunityClient
         string uid,
         CancellationToken ct = default)
     {
+        var full = await GetProfileWithStatsAsync(uid, ct).ConfigureAwait(false);
+        return full.Ok
+            ? ApiResult<(CreatorProfile, List<CommunityItem>, List<BadgeDef>)>.Success((full.Data.Creator, full.Data.Uploads, full.Data.Badges))
+            : ApiResult<(CreatorProfile, List<CommunityItem>, List<BadgeDef>)>.Fail(full.Error ?? "Profile unavailable");
+    }
+
+    public async Task<ApiResult<(CreatorProfile Creator, List<CommunityItem> Uploads, List<BadgeDef> Badges, CreatorStats? Stats)>> GetProfileWithStatsAsync(
+        string uid,
+        CancellationToken ct = default)
+    {
         var (ok, doc, err) = await SendJsonAsync(
             HttpMethod.Get,
             $"/api/community/profile/{Uri.EscapeDataString(uid)}?viewerUid={Uri.EscapeDataString(_identity.Uid)}",
             "",
             null,
             ct).ConfigureAwait(false);
-        if (!ok || doc == null) return ApiResult<(CreatorProfile, List<CommunityItem>, List<BadgeDef>)>.Fail(err ?? "Profile unavailable");
+        if (!ok || doc == null) return ApiResult<(CreatorProfile, List<CommunityItem>, List<BadgeDef>, CreatorStats?)>.Fail(err ?? "Profile unavailable");
         using (doc)
         {
             var creator = doc.RootElement.GetProperty("creator").Deserialize<CreatorProfile>(JsonOpts)!;
             var uploads = doc.RootElement.GetProperty("uploads").Deserialize<List<CommunityItem>>(JsonOpts) ?? new();
             var badges = doc.RootElement.GetProperty("badgeCatalog").Deserialize<List<BadgeDef>>(JsonOpts) ?? new();
-            return ApiResult<(CreatorProfile, List<CommunityItem>, List<BadgeDef>)>.Success((creator, uploads, badges));
+            CreatorStats? stats = doc.RootElement.TryGetProperty("stats", out var statsEl) && statsEl.ValueKind == JsonValueKind.Object
+                ? statsEl.Deserialize<CreatorStats>(JsonOpts)
+                : null;
+            return ApiResult<(CreatorProfile, List<CommunityItem>, List<BadgeDef>, CreatorStats?)>.Success((creator, uploads, badges, stats));
         }
     }
 
@@ -339,10 +352,20 @@ public sealed class CommunityClient
         return ok ? ApiResult<bool>.Success(true) : ApiResult<bool>.Fail(err ?? "Delete failed");
     }
 
-    public async Task RecordInstallAsync(string itemId, CancellationToken ct = default)
+    public async Task<CommunityItem?> RecordInstallAsync(string itemId, CancellationToken ct = default)
     {
-        var (_, doc, _) = await SendJsonAsync(HttpMethod.Post, "/api/community/install", "", new { itemId }, ct).ConfigureAwait(false);
-        doc?.Dispose();
+        var (ok, doc, _) = await SendJsonAsync(HttpMethod.Post, "/api/community/install", "", new { itemId }, ct).ConfigureAwait(false);
+        if (!ok || doc == null)
+        {
+            doc?.Dispose();
+            return null;
+        }
+        using (doc)
+        {
+            return doc.RootElement.TryGetProperty("item", out var itemEl)
+                ? itemEl.Deserialize<CommunityItem>(JsonOpts)
+                : null;
+        }
     }
 
     public async Task<ApiResult<CommunityItem>> MarkWorksAsync(string itemId, string modelId, CancellationToken ct = default)

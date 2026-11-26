@@ -1,10 +1,21 @@
 namespace X20Ctl.Zone;
 
 public enum CurveChannel { LeftStick, RightStick, LeftTrigger, RightTrigger }
-/// <summary>Frontend draft only. Percent deadzones are not wire bytes or a readback.</summary>
+
+[Flags]
+public enum CurveHardwareFlags : byte
+{
+    None = 0,
+    InvertX = 0x01,
+    InvertY = 0x02,
+    SwapSticks = 0x04
+}
+
+/// <summary>Frontend draft and hardware channel encoding (bits 0-2 of wire byte 6 hold InvertX, InvertY, SwapSticks).</summary>
 public sealed record CurveSetting(string Preset, int Inner, int Outer, (int X,int Y) Point1, (int X,int Y) Point2)
 {
     public string BasePreset { get; init; } = Preset;
+    public byte Flags { get; init; }
     public static readonly CurveSetting Default = new("default",0,100,(85,85),(170,170));
 }
 public sealed class CurveDraft(string modelId)

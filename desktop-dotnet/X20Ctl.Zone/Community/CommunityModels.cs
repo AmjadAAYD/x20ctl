@@ -17,6 +17,51 @@ public sealed class BadgeDef
     public string GlowHex { get; set; } = "#3B82F6";
     public string Rarity { get; set; } = "common";
     public string Mode { get; set; } = "auto";
+    public string? RuleMetric { get; set; }
+    public int? RuleThreshold { get; set; }
+    public string? IconKey { get; set; }
+    public string? ImageUrl { get; set; }
+}
+
+public sealed class CreatorStats
+{
+    public int ApprovedCount { get; set; }
+    public int CurveCount { get; set; }
+    public int ScreenCount { get; set; }
+    public int MacroCount { get; set; }
+    public int LightVibeCount { get; set; }
+    public int PackCount { get; set; }
+    public int InstallsReceived { get; set; }
+    public int Karma { get; set; }
+    public int WatchersCount { get; set; }
+    public int RemixedByOthers { get; set; }
+    public int RemixesPublished { get; set; }
+    public int WorksConfirmed { get; set; }
+    public int RequestsFulfilled { get; set; }
+    public int NightOwl { get; set; }
+    public int LoungePosts { get; set; }
+    public int ZeroDeadzoneCount { get; set; }
+
+    public int ReadMetric(string? metric) => metric switch
+    {
+        "approvedCount" => ApprovedCount,
+        "curveCount" => CurveCount,
+        "screenCount" => ScreenCount,
+        "macroCount" => MacroCount,
+        "lightVibeCount" => LightVibeCount,
+        "packCount" => PackCount,
+        "installsReceived" => InstallsReceived,
+        "karma" => Karma,
+        "watchersCount" => WatchersCount,
+        "remixedByOthers" => RemixedByOthers,
+        "remixesPublished" => RemixesPublished,
+        "worksConfirmed" => WorksConfirmed,
+        "requestsFulfilled" => RequestsFulfilled,
+        "nightOwl" => NightOwl,
+        "loungePosts" => LoungePosts,
+        "zeroDeadzoneCount" => ZeroDeadzoneCount,
+        _ => 0
+    };
 }
 
 public sealed class CreatorProfile
@@ -30,6 +75,7 @@ public sealed class CreatorProfile
     public int WatchersCount { get; set; }
     public int WatchingCount { get; set; }
     public int InstallsReceived { get; set; }
+    public int ApprovedCount { get; set; }
     public bool HasPfp { get; set; }
     public string? PfpUrl { get; set; }
     public string TrustTier { get; set; } = "new";

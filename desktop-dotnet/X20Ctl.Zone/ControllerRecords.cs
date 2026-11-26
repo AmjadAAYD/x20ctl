@@ -62,9 +62,13 @@ public static class ControllerRecords
         int at = 1 + channel * ChannelSize, scale = trigger ? TriggerScale : StickScale;
         (int, int) first = (record[at + 2], record[at + 3]), second = (record[at + 4], record[at + 5]);
         string preset = CurveDraft.Presets.FirstOrDefault(p => p.Value.First == first && p.Value.Second == second).Key ?? "custom";
-        return new CurveSetting(preset, record[at] / scale, 100 - record[at + 1] / scale, first, second) { BasePreset = preset == "custom" ? "default" : preset };
+        return new CurveSetting(preset, record[at] / scale, 100 - record[at + 1] / scale, first, second)
+        {
+            BasePreset = preset == "custom" ? "default" : preset,
+            Flags = (byte)(record[at + 6] & 0x07)
+        };
     }
-    /// <summary>Only a channel that differs is changed, so the pad's own odd values and flags survive.</summary>
+    /// <summary>Only a channel that differs is changed, so the pad's own odd values and unknown flag bits survive.</summary>
     public static byte[] BuildCurves(byte[] current, CurveSetting first, CurveSetting second, bool trigger)
     {
         Check(current);
@@ -73,10 +77,13 @@ public static class ControllerRecords
         {
             var wanted = channel == 0 ? first : second;
             var held = ParseChannel(current, channel, trigger);
-            if ((held.Inner, held.Outer, held.Point1, held.Point2) == (wanted.Inner, wanted.Outer, wanted.Point1, wanted.Point2)) continue;
+            byte wantedHw = (byte)(wanted.Flags & 0x07);
+            byte heldHw = (byte)(held.Flags & 0x07);
+            if ((held.Inner, held.Outer, held.Point1, held.Point2, heldHw) == (wanted.Inner, wanted.Outer, wanted.Point1, wanted.Point2, wantedHw)) continue;
             int at = 1 + channel * ChannelSize, scale = trigger ? TriggerScale : StickScale;
             next[at] = (byte)(wanted.Inner * scale); next[at + 1] = (byte)((100 - wanted.Outer) * scale);
             next[at + 2] = (byte)wanted.Point1.X; next[at + 3] = (byte)wanted.Point1.Y; next[at + 4] = (byte)wanted.Point2.X; next[at + 5] = (byte)wanted.Point2.Y;
+            next[at + 6] = (byte)((next[at + 6] & ~0x07) | wantedHw);
         }
         return next;
     }

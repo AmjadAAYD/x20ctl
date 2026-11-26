@@ -807,18 +807,48 @@ public sealed class PadProcessor
     /// Bezier handles).</summary>
     public static double Through(double x, double x1, double y1, double x2, double y2)
     {
-        var knots = new[] { (X: 0d, Y: 0d), (X: x1, Y: y1), (X: x2, Y: y2), (X: 1d, Y: 1d) }.OrderBy(p => p.X).GroupBy(p => p.X).Select(g => g.Last()).ToArray();
-        var deltas = Enumerable.Range(0, knots.Length - 1).Select(i => (knots[i + 1].Y - knots[i].Y) / (knots[i + 1].X - knots[i].X)).ToArray();
-        var slopes = Enumerable.Range(0, knots.Length).Select(i => i == 0 ? deltas[0] : i == knots.Length - 1 ? deltas[^1] : deltas[i - 1] * deltas[i] <= 0 ? 0 : (deltas[i - 1] + deltas[i]) / 2).ToArray();
-        for (int i = 0; i < deltas.Length; i++)
+        if (x <= 0) return 0;
+        if (x >= 1) return 1;
+
+        Span<double> kx = stackalloc double[4];
+        Span<double> ky = stackalloc double[4];
+        Span<(double X, double Y)> raw = [(0d, 0d), (x1, y1), (x2, y2), (1d, 1d)];
+        // Insertion sort 4 knots by X (keeping last value on exact duplicate X)
+        for (int i = 1; i < 4; i++)
         {
-            double d = deltas[i]; if (d == 0) { slopes[i] = slopes[i + 1] = 0; continue; }
-            double a = slopes[i] / d, b = slopes[i + 1] / d;
-            if (a * a + b * b > 9) { double scale = 3 / Math.Sqrt(a * a + b * b); slopes[i] = scale * a * d; slopes[i + 1] = scale * b * d; }
+            var item = raw[i];
+            int j = i - 1;
+            while (j >= 0 && raw[j].X > item.X) { raw[j + 1] = raw[j]; j--; }
+            raw[j + 1] = item;
         }
-        if (x <= knots[0].X) return Math.Clamp(knots[0].Y, 0, 1); if (x >= knots[^1].X) return Math.Clamp(knots[^1].Y, 0, 1);
-        int s = Enumerable.Range(0, knots.Length - 1).First(i => x >= knots[i].X && x < knots[i + 1].X);
-        double span = knots[s + 1].X - knots[s].X, t = (x - knots[s].X) / span, t2 = t * t, t3 = t2 * t;
-        return Math.Clamp((2 * t3 - 3 * t2 + 1) * knots[s].Y + (t3 - 2 * t2 + t) * span * slopes[s] + (-2 * t3 + 3 * t2) * knots[s + 1].Y + (t3 - t2) * span * slopes[s + 1], 0, 1);
+        int count = 0;
+        for (int i = 0; i < 4; i++)
+        {
+            if (count > 0 && raw[i].X == kx[count - 1]) { ky[count - 1] = raw[i].Y; continue; }
+            kx[count] = raw[i].X; ky[count] = raw[i].Y; count++;
+        }
+        if (count < 2) return Math.Clamp(ky[0], 0, 1);
+
+        Span<double> deltas = stackalloc double[3];
+        Span<double> slopes = stackalloc double[4];
+        for (int i = 0; i < count - 1; i++)
+            deltas[i] = (ky[i + 1] - ky[i]) / (kx[i + 1] - kx[i]);
+        for (int i = 0; i < count; i++)
+            slopes[i] = i == 0 ? deltas[0] : i == count - 1 ? deltas[count - 2] : (deltas[i - 1] * deltas[i] <= 0 ? 0 : (deltas[i - 1] + deltas[i]) * 0.5);
+        for (int i = 0; i < count - 1; i++)
+        {
+            double d = deltas[i];
+            if (d == 0) { slopes[i] = slopes[i + 1] = 0; continue; }
+            double a = slopes[i] / d, b = slopes[i + 1] / d;
+            double h2 = a * a + b * b;
+            if (h2 > 9) { double scale = 3 / Math.Sqrt(h2); slopes[i] = scale * a * d; slopes[i + 1] = scale * b * d; }
+        }
+        if (x <= kx[0]) return Math.Clamp(ky[0], 0, 1);
+        if (x >= kx[count - 1]) return Math.Clamp(ky[count - 1], 0, 1);
+        int s = 0;
+        for (int i = 0; i < count - 1; i++)
+            if (x >= kx[i] && x < kx[i + 1]) { s = i; break; }
+        double span = kx[s + 1] - kx[s], t = (x - kx[s]) / span, t2 = t * t, t3 = t2 * t;
+        return Math.Clamp((2 * t3 - 3 * t2 + 1) * ky[s] + (t3 - 2 * t2 + t) * span * slopes[s] + (-2 * t3 + 3 * t2) * ky[s + 1] + (t3 - t2) * span * slopes[s + 1], 0, 1);
     }
 }
