@@ -23,7 +23,7 @@ public partial class StudioScene
     /// <summary>Remap capture or macro recording: nothing else may act on a press.</summary>
     public bool OwnsAllInput => CapturingRemap || InputContext == InputOwner.MacroRecording;
     /// <summary>Buttons is browsing and capture can begin (R3 on the controller, or a slot on the page).</summary>
-    public bool CanEngageRemap => OnButtonsPage && buttonsPage != null && !CapturingRemap && !IsTrying && !AgentOpen && stickToolsLayer == null && trial == null;
+    public bool CanEngageRemap => OnButtonsPage && buttonsPage != null && !CapturingRemap && !IsTrying && !AgentOpen && stickLabLayer == null && trial == null;
     public void BeginRemapCapture() { if (CanEngageRemap) buttonsPage!.BeginListening(ButtonsConsolePage.Listen.Source); }
     public void CancelRemapCapture() => buttonsPage?.CancelListening();
     /// <summary>The pad's held buttons, from every accepted native sample; capture starts from them.</summary>

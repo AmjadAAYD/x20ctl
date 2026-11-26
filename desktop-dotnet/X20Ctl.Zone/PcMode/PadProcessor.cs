@@ -2,13 +2,13 @@ using System.Text.Json.Serialization;
 
 namespace X20Ctl.Zone.PcMode;
 
-public enum SocdMode { Off, LastInput, Neutral }
+public enum SocdMode { Off, LastInput, Neutral, UpPriority }
 
 public enum TriggerPreset { Linear, HairTrigger, RacingThrottle, Sniper, DigitalClick }
 
 public enum MacroPlayMode { Once, WhileHeld, Toggle, RepeatN }
 
-/// <summary>Rapid-trigger, force-curve preset, and dual-stage output settings for one trigger (LT or RT).</summary>
+/// <summary>Rapid-trigger, force-curve preset, custom 10-point spline, and dual-stage output settings for one trigger (LT or RT).</summary>
 public sealed class TriggerTuning
 {
     public TriggerPreset Preset { get; set; } = TriggerPreset.Linear;
@@ -19,7 +19,11 @@ public sealed class TriggerTuning
     public int HalfPullPct { get; set; } = 45;
     public int FullPullPct { get; set; } = 92;
     public string? FullPullOutput { get; set; }
-    [JsonIgnore] public bool IsDefault => Preset == TriggerPreset.Linear && !RapidTrigger && !DualStage && string.IsNullOrEmpty(FullPullOutput);
+    public int InnerDeadzonePct { get; set; }
+    public int OuterThresholdPct { get; set; } = 100;
+    public List<CurvePoint> CustomPoints { get; set; } = [];
+    [JsonIgnore] public bool IsDefault => Preset == TriggerPreset.Linear && !RapidTrigger && !DualStage && string.IsNullOrEmpty(FullPullOutput)
+        && InnerDeadzonePct == 0 && OuterThresholdPct == 100 && (CustomPoints == null || CustomPoints.Count == 0);
 }
 
 /// <summary>Hold-to-aim precision scaling and optional alternate curve applied to the right stick while held.</summary>
@@ -27,6 +31,7 @@ public sealed class SniperModifier
 {
     public bool Enabled { get; set; }
     public string ModifierButton { get; set; } = "LT";
+    public bool AdsLeftTriggerLink { get; set; }
     public int ScalePct { get; set; } = 55;
     public SetupCurve? AlternateCurve { get; set; }
     [JsonIgnore] public bool IsDefault => !Enabled;
@@ -104,6 +109,10 @@ public sealed class PcModeProfile
     public Dictionary<string, MacroOptions> MacroOptions { get; set; } = new();
     /// <summary>PC-side virtual pad report rate cap in Hz (0 = uncapped, 250, 500, 750, 1000).</summary>
     public int OutputRateHz { get; set; }
+    /// <summary>Swaps physical Left and Right sticks on PC output.</summary>
+    public bool SwapSticks { get; set; }
+    /// <summary>Automatically clicks L3 when Left Stick pushes past the outer ring threshold.</summary>
+    public AutoSprintSettings? AutoSprint { get; set; }
 
     /// <summary>What the real pad gets for a game's motor value (0-255): scaled, lifted to the floor, never past full power.</summary>
     public int ShapeRumble(int game, bool left)
@@ -121,6 +130,8 @@ public sealed class PcModeProfile
         && (Sniper == null || Sniper.IsDefault)
         && MacroOptions.Values.All(o => o.IsDefault)
         && OutputRateHz == 0
+        && !SwapSticks
+        && (AutoSprint == null || AutoSprint.IsDefault)
         && Vibration == 100 && VibrationLeft == 100 && VibrationRight == 100 && VibrationFloor == 0;
     public static bool IsDefault(SetupCurve c) => c.Inner == 0 && c.Outer == 100 && c.X1 == 85 && c.Y1 == 85 && c.X2 == 170 && c.Y2 == 170;
     public const int MinTurboHz = 2, MaxTurboHz = 30;
@@ -170,7 +181,8 @@ public sealed class PcModeProfile
             {
                 if (trig is not ("LT" or "RT") || tt == null || !Enum.IsDefined(tt.Preset)
                     || tt.ActuationPct is < 1 or > 90 || tt.ResetDeltaPct is < 1 or > 50
-                    || tt.HalfPullPct is < 10 or > 80 || tt.FullPullPct is < 50 or > 100 || tt.FullPullPct <= tt.HalfPullPct)
+                    || tt.HalfPullPct is < 10 or > 80 || tt.FullPullPct is < 50 or > 100 || tt.FullPullPct <= tt.HalfPullPct
+                    || tt.InnerDeadzonePct is < 0 or > 40 || tt.OuterThresholdPct is < 50 or > 100 || tt.InnerDeadzonePct >= tt.OuterThresholdPct)
                     throw new InvalidDataException("Invalid trigger tuning.");
                 if (!string.IsNullOrEmpty(tt.FullPullOutput) && !(Known(tt.FullPullOutput) || KeyCatalog.IsValid(tt.FullPullOutput)))
                     throw new InvalidDataException("Unknown dual-stage trigger output.");
@@ -222,7 +234,9 @@ public sealed class StickTuning
     public bool AutoCenterDrift { get; set; }
     /// <summary>Pure raw 1:1: the stick passes through untouched; its curve, dead zones and the rest are ignored.</summary>
     public bool Raw { get; set; }
-    [System.Text.Json.Serialization.JsonIgnore] public bool IsDefault => Inner == 0 && Outer == 100 && !SquareGate && AxisRatio == 100 && AntiDeadzone == 0 && MaxOutput == 100 && !AutoCenterDrift && !Raw;
+    /// <summary>Extended Stick Lab DSP settings (deadzone shape, anti-deadzone, rotation, snap, gate morph, spline).</summary>
+    public StickLabSettings? Lab { get; set; }
+    [System.Text.Json.Serialization.JsonIgnore] public bool IsDefault => Inner == 0 && Outer == 100 && !SquareGate && AxisRatio == 100 && AntiDeadzone == 0 && MaxOutput == 100 && !AutoCenterDrift && !Raw && (Lab == null || Lab.IsDefault);
 }
 
 /// <summary>
@@ -250,8 +264,8 @@ public sealed class PadProcessor
     sealed class TriggerState { public bool Actuated; public byte MinSeen = 255, MaxSeen; public bool DualKeyHeld; }
     readonly TriggerState ltState = new(), rtState = new();
 
-    // Drift auto-compensator state (capped at <= 6%)
-    sealed class DriftState { public double BiasX, BiasY, LastX, LastY; public int RestCount; }
+    // Drift auto-compensator & adaptive smoothing state
+    sealed class DriftState { public double BiasX, BiasY, LastX, LastY; public int RestCount; public double SmoothX, SmoothY; public bool HasSmooth; }
     readonly DriftState leftDrift = new(), rightDrift = new();
 
     /// <summary>Keyboard and mouse actions the combos asked for since the last call, in order. The caller sends them to Windows.</summary>
@@ -355,22 +369,38 @@ public sealed class PadProcessor
 
         var lTune = Tuning("LeftStick");
         var rTune = Tuning("RightStick");
-        (short rawLx, short rawLy) = CleanStickSocd(input.LeftX, input.LeftY);
+        short lInX = profile.SwapSticks ? input.RightX : input.LeftX;
+        short lInY = profile.SwapSticks ? input.RightY : input.LeftY;
+        short rInX = profile.SwapSticks ? input.LeftX : input.RightX;
+        short rInY = profile.SwapSticks ? input.LeftY : input.RightY;
+        (short rawLx, short rawLy) = CleanStickSocd(lInX, lInY);
         if (lTune?.AutoCenterDrift == true) (rawLx, rawLy) = CompensateDrift(rawLx, rawLy, leftDrift);
-        short rInX = input.RightX, rInY = input.RightY;
         if (rTune?.AutoCenterDrift == true) (rInX, rInY) = CompensateDrift(rInX, rInY, rightDrift);
 
         (short lx, short ly) = Stick(rawLx, rawLy, Curve(CurveChannel.LeftStick), lTune);
+        if (lTune?.Lab is { Smoothing: > 0 } lLab && !lTune.Raw)
+            (lx, ly) = ApplySmoothing(lx, ly, lLab.Smoothing, leftDrift);
+
         var rCurve = Curve(CurveChannel.RightStick);
-        bool sniperActive = profile.Sniper is { Enabled: true } sn && raw.Contains(sn.ModifierButton);
+        bool sniperActive = profile.Sniper is { Enabled: true } sn && (raw.Contains(sn.ModifierButton) || (sn.AdsLeftTriggerLink && input.LeftTrigger > PadButtons.TriggerThreshold));
         if (sniperActive && profile.Sniper!.AlternateCurve is { } altCurve)
             rCurve = altCurve;
         (short rx, short ry) = Stick(rInX, rInY, rCurve, rTune);
+        if (rTune?.Lab is { Smoothing: > 0 } rLab && !rTune.Raw)
+            (rx, ry) = ApplySmoothing(rx, ry, rLab.Smoothing, rightDrift);
         if (sniperActive)
         {
             double s = Math.Clamp(profile.Sniper!.ScalePct / 100.0, 0.15, 1.0);
             rx = ToShort(rx / 32767.0 * s);
             ry = ToShort(ry / 32767.0 * s);
+        }
+
+        // Auto-Sprint outer ring check on Left Stick
+        if (profile.AutoSprint is { Enabled: true } sprint && lTune?.Raw != true)
+        {
+            double lNorm = Math.Sqrt((rawLx / 32768.0) * (rawLx / 32768.0) + (rawLy / 32768.0) * (rawLy / 32768.0)) * 100.0;
+            if (lNorm >= Math.Clamp(sprint.OuterThresholdPct, 75, 99) && PadButtons.Mask.ContainsKey(sprint.OutputButton))
+                target[sprint.OutputButton] = 255;
         }
 
         if (playing != null)
@@ -461,6 +491,8 @@ public sealed class PadProcessor
             buttons = (ushort)(buttons & ~(PadButtons.Up | PadButtons.Down));
             if (profile.DPadSocd == SocdMode.LastInput)
                 buttons |= dpadLastV >= 0 ? PadButtons.Up : PadButtons.Down;
+            else if (profile.DPadSocd == SocdMode.UpPriority)
+                buttons |= PadButtons.Up;
         }
         return buttons;
     }
@@ -502,7 +534,16 @@ public sealed class PadProcessor
 
     byte ShapeTrigger(string name, byte value, SetupCurve? curve, TriggerTuning? tuning, TriggerState st, Dictionary<string, byte> target)
     {
-        byte shaped = Trigger(value, curve);
+        if (tuning is { InnerDeadzonePct: > 0 } or { OuterThresholdPct: < 100 })
+        {
+            double inPct = (tuning?.InnerDeadzonePct ?? 0) / 100.0;
+            double outPct = Math.Clamp((tuning?.OuterThresholdPct ?? 100) / 100.0, inPct + 0.05, 1.0);
+            double normIn = Math.Clamp((value / 255.0 - inPct) / (outPct - inPct), 0.0, 1.0);
+            value = (byte)Math.Clamp(Math.Round(normIn * 255.0), 0, 255);
+        }
+        byte shaped = tuning?.CustomPoints is { Count: > 0 } pts
+            ? (byte)Math.Clamp(Math.Round(StickLabMath.EvaluateSpline(pts, value / 255.0) * 255.0), 0, 255)
+            : Trigger(value, curve);
         if (tuning == null || tuning.IsDefault) return shaped;
 
         double norm = shaped / 255.0;
@@ -664,34 +705,99 @@ public sealed class PadProcessor
     /// diagonals keep their direction.</summary>
     /// <summary>The stick tuning then adds a square gate (diagonals reach full on both axes, as on a square-gated
     /// stick) and an axis ratio (vertical speed against horizontal).</summary>
-    internal static (short, short) Stick(short x, short y, SetupCurve? curve, StickTuning? tuning = null)
+    static (short X, short Y) ApplySmoothing(short x, short y, double smoothingPct, DriftState state)
+    {
+        double nx = x / 32767.0, ny = y / 32767.0;
+        if (!state.HasSmooth)
+        {
+            state.SmoothX = nx; state.SmoothY = ny; state.HasSmooth = true;
+            return (x, y);
+        }
+        double delta = Math.Sqrt((nx - state.SmoothX) * (nx - state.SmoothX) + (ny - state.SmoothY) * (ny - state.SmoothY));
+        double strength = Math.Clamp(smoothingPct / 100.0, 0.0, 0.95);
+        // Fast flicks above 25% step delta automatically bypass smoothing for zero snap lag
+        double alpha = delta > 0.25 ? 1.0 : Math.Clamp(1.0 - strength * 0.85 * (1.0 - delta * 2.5), 0.12, 1.0);
+        state.SmoothX += (nx - state.SmoothX) * alpha;
+        state.SmoothY += (ny - state.SmoothY) * alpha;
+        return (ToShort(Math.Clamp(state.SmoothX, -1, 1)), ToShort(Math.Clamp(state.SmoothY, -1, 1)));
+    }
+
+    public static (short, short) Stick(short x, short y, SetupCurve? curve, StickTuning? tuning = null)
     {
         if (curve == null && tuning == null || tuning?.Raw == true) return (x, y);
-        double nx = x / 32768.0, ny = y / 32768.0, m = Math.Min(1, Math.Sqrt(nx * nx + ny * ny));
-        if (m <= 0) return (0, 0);
-        double shaped = Response(curve, tuning, m), ux = nx / m, uy = ny / m;
-        if (tuning?.SquareGate == true)
-        {   // the direction alone, stretched until its larger axis is full: a push to the circular edge at 45° gives (1, 1)
-            double length = Math.Sqrt(nx * nx + ny * ny), edge = Math.Max(Math.Abs(nx), Math.Abs(ny)) / length;
-            ux = nx / length / edge; uy = ny / length / edge;
+        var lab = tuning?.Lab;
+        double nx = x / 32768.0, ny = y / 32768.0;
+
+        if (lab != null)
+        {
+            nx = Math.Clamp(nx - lab.DriftOffsetX, -1.0, 1.0);
+            ny = Math.Clamp(ny - lab.DriftOffsetY, -1.0, 1.0);
+            if (lab.InvertX) nx = -nx;
+            if (lab.InvertY) ny = -ny;
+            (nx, ny) = StickLabMath.Rotate(nx, ny, lab.RotationDegrees);
         }
+
+        double inner = (tuning?.Inner ?? curve?.Inner ?? 0) / 100.0;
+        double outer = (tuning?.Outer ?? curve?.Outer ?? 100) / 100.0;
+        var shape = lab?.DeadzoneShape ?? DeadzoneShape.Radial;
+
+        double ux, uy, scaledMag;
+        if (shape == DeadzoneShape.Radial)
+        {
+            double m = Math.Min(1.0, Math.Sqrt(nx * nx + ny * ny));
+            if (m <= 0) return (0, 0);
+            ux = nx / m; uy = ny / m;
+            scaledMag = m;
+        }
+        else
+        {
+            (ux, uy) = StickLabMath.ApplyDeadzone(nx, ny, shape, inner, outer, out scaledMag);
+            if (scaledMag <= 0) return (0, 0);
+        }
+
+        if (lab is { AngleSnapDegrees: > 0 })
+            (ux, uy) = StickLabMath.AngleSnap(ux, uy, lab.AngleSnapDegrees, lab.AngleSnap8Way);
+
+        double shaped = shape == DeadzoneShape.Radial
+            ? Response(curve, tuning, scaledMag)
+            : ResponseFromScaled(curve, tuning, scaledMag);
+
+        if (shaped <= 0) return (0, 0);
+
+        double morphPct = tuning?.SquareGate == true ? 100.0 : (lab?.GateMorph ?? 0.0);
+        (double outX, double outY) = StickLabMath.MorphGate(ux, uy, shaped, morphPct);
+
+        if (lab is { AxialAntiDeadzone: > 0 })
+        {
+            double axFloor = lab.AxialAntiDeadzone / 100.0;
+            if (Math.Abs(outX) > 1e-4) outX = Math.Sign(outX) * Math.Clamp(axFloor + Math.Abs(outX) * (1.0 - axFloor), 0, 1);
+            if (Math.Abs(outY) > 1e-4) outY = Math.Sign(outY) * Math.Clamp(axFloor + Math.Abs(outY) * (1.0 - axFloor), 0, 1);
+        }
+
         double ratio = (tuning?.AxisRatio ?? 100) / 100.0;
-        return (ToShort(Math.Clamp(ux * shaped, -1, 1)), ToShort(Math.Clamp(uy * shaped * ratio, -1, 1)));
+        return (ToShort(Math.Clamp(outX, -1, 1)), ToShort(Math.Clamp(outY * ratio, -1, 1)));
     }
     internal static byte Trigger(byte value, SetupCurve? curve) => curve == null ? value : (byte)Math.Clamp(Math.Round(Response(curve, null, value / 255.0) * 255), 0, 255);
     static short ToShort(double v) => (short)Math.Clamp(Math.Round(v * 32767), -32768, 32767);
 
-    /// <summary>Output (0–1) for how far a stick or trigger is pushed (0–1): dead zones, then the curve. The page's
+    /// <summary>Output (0-1) for how far a stick or trigger is pushed (0-1): dead zones, then the curve. The page's
     /// number table shows exactly this.</summary>
     public static double Response(SetupCurve? curve, StickTuning? tuning, double pushed)
     {
         if (tuning?.Raw == true) return Math.Clamp(pushed, 0, 1);
         double inner = (tuning?.Inner ?? curve?.Inner ?? 0) / 100.0, outer = (tuning?.Outer ?? curve?.Outer ?? 100) / 100.0;
-        double scaled = Math.Clamp((pushed - inner) / (outer - inner), 0, 1);
-        double y = curve == null ? scaled : Through(scaled, curve.X1 / 255.0, curve.Y1 / 255.0, curve.X2 / 255.0, curve.Y2 / 255.0);
+        double scaled = Math.Clamp((pushed - inner) / Math.Max(0.05, outer - inner), 0, 1);
+        return ResponseFromScaled(curve, tuning, scaled);
+    }
+
+    static double ResponseFromScaled(SetupCurve? curve, StickTuning? tuning, double scaled)
+    {
+        double y = tuning?.Lab?.CustomPoints is { Count: > 0 } customPts
+            ? StickLabMath.EvaluateSpline(customPts, scaled)
+            : curve == null ? scaled : Through(scaled, curve.X1 / 255.0, curve.Y1 / 255.0, curve.X2 / 255.0, curve.Y2 / 255.0);
         if (tuning == null || y <= 0) return y;
-        // anti-deadzone and max output squeeze the curve between a floor and a ceiling; inside the dead zone stays 0
-        double floor = tuning.AntiDeadzone / 100.0, ceiling = tuning.MaxOutput / 100.0;
+        double radialAnti = tuning.Lab is { RadialAntiDeadzone: > 0 } ? tuning.Lab.RadialAntiDeadzone : tuning.AntiDeadzone;
+        double floor = radialAnti / 100.0, ceiling = tuning.MaxOutput / 100.0;
         return floor + (ceiling - floor) * y;
     }
 

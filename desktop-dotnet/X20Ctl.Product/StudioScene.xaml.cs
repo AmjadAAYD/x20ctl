@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -8,6 +9,7 @@ using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.Windows.Media.Effects;
 using X20Ctl.Zone;
+using X20Ctl.Zone.PcMode;
 namespace X20Ctl.Product;
 
 public partial class StudioScene : UserControl
@@ -75,7 +77,7 @@ public partial class StudioScene : UserControl
     {
         InitializeComponent(); Player = player; Model = model; Draft = draft; PadColours.ActivePlayer = player;
         setupStore=setups??new(Path.Combine(Path.GetTempPath(),"x20ctl-render-setup-"+Guid.NewGuid().ToString("N")+".json"));legacySources=legacy??Array.Empty<string>();activeSetup=activeId;
-        Unloaded+=(_,_)=>{SuspendMacroActivity();StopTry();Tester?.ExitCapture();Diagnostics?.Stop();};
+        Unloaded+=(_,_)=>{SuspendMacroActivity();StopTry();Tester?.ExitCapture();Diagnostics?.Stop();curvesDiagnostics?.Stop();};
         IsEnabledChanged += (_, _) => { if (!IsEnabled) SuspendMacroActivity(); };
         IsVisibleChanged += (_, _) => { if (!IsVisible) SuspendMacroActivity(); };
         macroDraft=macros ?? new MacroDraft(model.Id);vibrationDraft=vibration??new(model.Id);
@@ -95,10 +97,9 @@ public partial class StudioScene : UserControl
         PreviewGotKeyboardFocus += (_, _) => Dispatcher.BeginInvoke(UpdateHints, System.Windows.Threading.DispatcherPriority.Background);
         foreach (var h in buttonsPage.Hotspots) RegisterFocus(h);
         Curves = new(curveDraft ?? new CurveDraft(model.Id), this,animate); ModelProfiles.Wear(Curves.Inspector, model.Id, "Curves", draft.PcMode);
-        // The footer retains scope; on compact windows avoid a repeated multi-line notice crowding out the graph.
-        var curveScope=Curves.Inspector.Children.OfType<Border>().FirstOrDefault();if(curveScope!=null){Curves.Inspector.ToolTip=draft.PcMode?"Saved on this PC for the selected player. Nothing is written to the controller.":model.Id is "x20" or "x20_pro"?"Local curve drafts for sticks and triggers.":"Local preview. Native configuration is unavailable for this model.";Curves.Inspector.SizeChanged+=(_,_)=>curveScope.Visibility=Curves.Inspector.ActualWidth<680?Visibility.Collapsed:Visibility.Visible;} CurveInspectorHost.Children.Add(Kit.Panel(null, null, null, Curves.Inspector)); CurveShelfHost.Children.Add(Curves.Shelf);
-        Curves.ChannelSelected += channel => { SelectControl(channel switch { CurveChannel.LeftStick => "LSTICK_ANALOG", CurveChannel.RightStick => "RSTICK_ANALOG", CurveChannel.LeftTrigger => "LT", _ => "RT" }); UpdateCurveContext(); EnterMotion(CurveInspectorHost,12,220); };
-        Curves.Changed += UpdateCurveContext; foreach (Button button in Curves.Buttons) RegisterFocus(button);
+        BuildCurvesWorkspace();
+        Curves.ChannelSelected += channel => { SelectControl(channel switch { CurveChannel.LeftStick => "LSTICK_ANALOG", CurveChannel.RightStick => "RSTICK_ANALOG", CurveChannel.LeftTrigger => "LT", _ => "RT" }); UpdateCurveContext(); RefreshQuickStickControls?.Invoke(); };
+        Curves.Changed += () => { UpdateCurveContext(); RefreshQuickStickControls?.Invoke(); }; foreach (Button button in Curves.Buttons) RegisterFocus(button);
         ResetAllCurvesAction=new MenuItem {Header="Reset all curves",ToolTip="Reset local drafts for both sticks and both triggers."};
         ResetAllCurvesAction.Click+=ResetAll;
         CurveMoreChoice.ContextMenu=new ContextMenu();
@@ -120,7 +121,7 @@ public partial class StudioScene : UserControl
             RootLayout.RowDefinitions[2].Height = new(IsCurves||IsVibration||ManagementPage is "Dashboard" or "Mouse" or "Keyboard" or "Diagnostics" or "Device" or "RGB" or "Screen" or "PcMode"?0:expanded?44:40);
             UpdateNavigation();
             SizeAgentController();
-            RootLayout.RowDefinitions[4].Height = new(IsCurves?144:IsVibration?54:compact?170:expanded?206:184);
+            RootLayout.RowDefinitions[4].Height = new(IsCurves?0:IsVibration?54:compact?170:expanded?206:184);
             RootLayout.RowDefinitions[5].Height = new(expanded?78:66);
             SecondaryFooterHint.Visibility=ActualWidth<1100 || ManagementPage=="Tester"?Visibility.Collapsed:Visibility.Visible;
             StatusNote.Visibility=IsCurves||IsVibration||ManagementPage is "Dashboard" or "Mouse" or "Keyboard" or "Diagnostics" or "Device" or "RGB" or "Screen" or "PcMode" || ActualWidth<1350?Visibility.Collapsed:Visibility.Visible;
@@ -706,14 +707,201 @@ public partial class StudioScene : UserControl
     private void ResetAll(object sender, RoutedEventArgs e) { if (IsCurves) {Curves.ResetAll();} else {Draft.ResetAll(); RefreshEditor();} }
     private void ResetCurrentCurve(object sender,RoutedEventArgs e) {if(IsCurves)Curves.Reset();}
     private void MoreCurveActions(object sender,RoutedEventArgs e) {if(IsCurves && CurveMoreChoice.ContextMenu is {} menu) {menu.PlacementTarget=CurveMoreChoice;menu.IsOpen=true;}}
+    private Diagnostics.DiagnosticsWorkbench? curvesDiagnostics;
+    private Action? RefreshQuickStickControls;
+
+    void BuildCurvesWorkspace()
+    {
+        CurvesPageHost.Children.Clear();
+        CurvesPageHost.ColumnDefinitions.Clear();
+        CurvesPageHost.ColumnDefinitions.Add(new() { Width = new(1.06, GridUnitType.Star) });
+        CurvesPageHost.ColumnDefinitions.Add(new() { Width = new(14) });
+        CurvesPageHost.ColumnDefinitions.Add(new() { Width = new(1.04, GridUnitType.Star) });
+
+        // Left Column (Full Height): Curve Editor + Inline Deadzone Sliders (zero controller logo, zero popups)
+        var leftStack = new Grid();
+        leftStack.RowDefinitions.Add(new() { Height = new(1, GridUnitType.Star) });
+        leftStack.RowDefinitions.Add(new() { Height = GridLength.Auto });
+        leftStack.Children.Add(Curves.Inspector);
+        Grid.SetRow(Curves.Shelf, 1);
+        leftStack.Children.Add(Curves.Shelf);
+        var leftCard = Kit.Panel(null, null, null, leftStack, new Thickness(16, 12, 16, 12));
+        CurvesPageHost.Children.Add(leftCard);
+
+        // Right Column: Top = Live Diagnostics Showcase (Sticks + Triggers), Bottom = Quick Controls + "Go Advanced?" Slide Trigger
+        var rightGrid = new Grid();
+        rightGrid.RowDefinitions.Add(new() { Height = new(1.04, GridUnitType.Star) });
+        rightGrid.RowDefinitions.Add(new() { Height = new(12) });
+        rightGrid.RowDefinitions.Add(new() { Height = new(0.96, GridUnitType.Star) });
+
+        curvesDiagnostics = new Diagnostics.DiagnosticsWorkbench(Player, RegisterFocus, PcMode, compact: true, model: Model, telemetryOnly: true);
+        var diagCard = Kit.Panel("LIVE STICK & TRIGGER DIAGNOSTICS", null, null, curvesDiagnostics.TelemetryGrid, new Thickness(14, 10, 14, 10));
+        rightGrid.Children.Add(diagCard);
+
+        var quickCard = BuildQuickStickTuningCard();
+        Grid.SetRow(quickCard, 2);
+        rightGrid.Children.Add(quickCard);
+
+        Grid.SetColumn(rightGrid, 2);
+        CurvesPageHost.Children.Add(rightGrid);
+    }
+
+    Border BuildQuickStickTuningCard()
+    {
+        bool syncingQuick = false;
+        var linkSticks = new CheckBox { Style = DS.Style("DS.Toggle"), VerticalAlignment = VerticalAlignment.Center };
+        var autoDrift = new CheckBox { Style = DS.Style("DS.Toggle"), VerticalAlignment = VerticalAlignment.Center };
+        var squareBtn = new Button { Content = "Square Gate", Style = DS.Style("ActionButton"), Height = 30, MinHeight = 0, Padding = new(12, 0, 12, 0), FontSize = 12 };
+        var circleBtn = new Button { Content = "Circular Gate", Style = DS.Style("ActionButton"), Height = 30, MinHeight = 0, Padding = new(12, 0, 12, 0), FontSize = 12, Margin = new(0, 0, 6, 0) };
+        var vertSlider = new Slider { Minimum = StickTuning.MinRatio, Maximum = StickTuning.MaxRatio, TickFrequency = 5, IsSnapToTickEnabled = true, Value = 100, Style = DS.Style("DS.Slider"), Height = 22 };
+        var vertVal = Kit.Text("100%", 12, "DS.Text", FontWeights.SemiBold);
+        var quickNote = Kit.Text("Easy stick setup. Everything stays inline in this tab.", 11.5, "DS.TextMuted");
+
+        string ActiveStickKey() => Curves.Channel == CurveChannel.RightStick ? "RightStick" : "LeftStick";
+
+        void EditStick(Action<StickTuning> mutator, string note)
+        {
+            if (syncingQuick) return;
+            if (pcLink is not { } link)
+            {
+                quickNote.Text = note + " (open PC Mode or Stick Lab to save PC-side DSP)";
+                return;
+            }
+            try
+            {
+                var p = link.Store.Get(PcModePage.StoreKey);
+                var targets = linkSticks.IsChecked == true ? new[] { "LeftStick", "RightStick" } : new[] { ActiveStickKey() };
+                foreach (var k in targets)
+                {
+                    var st = p.Sticks.TryGetValue(k, out var ex) ? ex : new StickTuning();
+                    mutator(st);
+                    st.Raw = false;
+                    if (st.IsDefault) p.Sticks.Remove(k); else p.Sticks[k] = st;
+                }
+                p.Validate();
+                if (!p.IsNeutral && !PcModePage.MaySave(link.Preferences))
+                {
+                    quickNote.Text = "Open PC Mode once to accept notice before applying PC-side changes.";
+                    return;
+                }
+                link.Store.Save(PcModePage.StoreKey, p);
+                link.Service.Reload();
+                Curves.Refresh();
+                quickNote.Text = link.Service.Enabled ? note + " · Active in PC Mode" : note + " · Saved (enable PC Mode to run live)";
+            }
+            catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
+            {
+                quickNote.Text = ex.Message;
+            }
+        }
+
+        void PaintQuickState()
+        {
+            syncingQuick = true;
+            var t = Curves.Tuning?.Invoke(Curves.Channel == CurveChannel.RightStick ? CurveChannel.RightStick : CurveChannel.LeftStick);
+            bool sq = t?.SquareGate == true || (t?.Lab?.GateMorph ?? 0) >= 99;
+            circleBtn.Background = !sq ? new SolidColorBrush(Color.FromRgb(56, 128, 232)) : new SolidColorBrush(Color.FromArgb(140, 18, 30, 58));
+            squareBtn.Background = sq ? new SolidColorBrush(Color.FromRgb(56, 128, 232)) : new SolidColorBrush(Color.FromArgb(140, 18, 30, 58));
+            autoDrift.IsChecked = t?.AutoCenterDrift == true;
+            vertSlider.Value = t?.AxisRatio ?? 100;
+            vertVal.Text = $"{vertSlider.Value:0}%";
+            syncingQuick = false;
+        }
+        RefreshQuickStickControls = PaintQuickState;
+        PaintQuickState();
+
+        circleBtn.Click += (_, _) => { EditStick(s => { s.SquareGate = false; if (s.Lab != null) s.Lab.GateMorph = 0; }, "Circular gate selected"); PaintQuickState(); };
+        squareBtn.Click += (_, _) => { EditStick(s => { s.SquareGate = true; (s.Lab ??= new StickLabSettings()).GateMorph = 100; }, "Square gate selected (faster diagonals)"); PaintQuickState(); };
+        autoDrift.Checked += (_, _) => EditStick(s => s.AutoCenterDrift = true, "Auto-fix resting drift enabled");
+        autoDrift.Unchecked += (_, _) => EditStick(s => s.AutoCenterDrift = false, "Auto-fix resting drift turned off");
+        vertSlider.ValueChanged += (_, _) => { vertVal.Text = $"{vertSlider.Value:0}%"; EditStick(s => s.AxisRatio = (int)Math.Round(vertSlider.Value), $"Vertical sensitivity set to {vertSlider.Value:0}%"); };
+
+        var gateRow = new DockPanel { Margin = new(0, 0, 0, 8) };
+        var gateBtns = new StackPanel { Orientation = Orientation.Horizontal, Children = { circleBtn, squareBtn } };
+        DockPanel.SetDock(gateBtns, Dock.Right);
+        gateRow.Children.Add(gateBtns);
+        gateRow.Children.Add(Kit.Text("Stick Gate", 13, "DS.Text", FontWeights.SemiBold).Also(t => t.VerticalAlignment = VerticalAlignment.Center));
+
+        var toggleRow = new WrapPanel { Margin = new(0, 0, 0, 8) };
+        toggleRow.Children.Add(autoDrift);
+        toggleRow.Children.Add(Kit.Text("Auto-fix drift", 12.5, "DS.TextSoft").Also(t => { t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new(8, 0, 18, 0); }));
+        toggleRow.Children.Add(linkSticks);
+        toggleRow.Children.Add(Kit.Text("Link Left & Right sticks", 12.5, "DS.TextSoft").Also(t => { t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new(8, 0, 0, 0); }));
+
+        var vertHead = new DockPanel { Margin = new(0, 0, 0, 2), Children = { vertVal.Also(v => DockPanel.SetDock(v, Dock.Right)), Kit.Text("Vertical look speed", 12.5, "DS.TextSoft") } };
+
+        var styleRow = new UniformGrid { Columns = 3, Margin = new(-2, 6, -2, 8) };
+        Button StyleTile(string title, string preset, double inner, double outer, bool sq)
+        {
+            var b = new Button
+            {
+                Content = title, Style = DS.Style("ActionButton"), Height = 30, MinHeight = 0,
+                Padding = new(8, 0, 8, 0), Margin = new(2), FontSize = 11.5,
+            };
+            b.Click += (_, _) =>
+            {
+                if (Curves.Draft.CanEdit) Curves.SetPreset(preset);
+                EditStick(s => { s.Inner = inner; s.Outer = outer; s.SquareGate = sq; }, title + " profile applied");
+                PaintQuickState();
+            };
+            RegisterFocus(b);
+            return b;
+        }
+        styleRow.Children.Add(StyleTile("FPS Precision", "fine", 4, 95, false));
+        styleRow.Children.Add(StyleTile("Rocket League", "quick", 5, 85, true));
+        styleRow.Children.Add(StyleTile("Racing Smooth", "smooth", 2, 100, false));
+
+        var goAdvancedBtn = new Button
+        {
+            Height = 42, MinHeight = 42,
+            Cursor = Cursors.Hand,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Margin = new(0, 6, 0, 0),
+            Style = DS.Style("DS.ConsolePrimary"),
+            ToolTip = "Slide down into the full-screen Stick Lab zone (10-point splines, deadzone shapes, tilt, smoothing, SOCD, rapid-trigger & live dual-dot diagnostics)",
+            Content = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Children =
+                {
+                    new TextBlock { Text = "Go Advanced?", FontFamily = DS.Display, FontSize = 14.5, FontWeight = FontWeights.Bold, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center },
+                    new TextBlock { Text = "  ·  Open Full Stick Lab  ⌄", FontSize = 12, Foreground = new SolidColorBrush(Color.FromArgb(220, 225, 240, 255)), VerticalAlignment = VerticalAlignment.Center },
+                }
+            }
+        };
+        goAdvancedBtn.Click += (_, _) => OpenStickTools();
+        RegisterFocus(goAdvancedBtn);
+
+        var body = new DockPanel();
+        DockPanel.SetDock(goAdvancedBtn, Dock.Bottom);
+        body.Children.Add(goAdvancedBtn);
+        body.Children.Add(new StackPanel
+        {
+            Children =
+            {
+                gateRow,
+                toggleRow,
+                vertHead,
+                vertSlider,
+                Kit.Text("PLAYSTYLE QUICK PRESETS", 10.5, "DS.TextMuted", FontWeights.SemiBold).Also(t => t.Margin = new(0, 4, 0, 2)),
+                styleRow,
+                quickNote,
+            }
+        });
+        return Kit.Panel("QUICK STICK CONTROLS", null, null, body, new Thickness(16, 12, 16, 12));
+    }
+
     private readonly Dictionary<Button,Panel> curveToolbarParents=new();
     private void PlaceCurveToolbar(bool inEditor)
     {
-        foreach(var button in new[]{ResetCurveChoice,StickToolsChoice,CurveMoreChoice,TryChoice})
+        foreach(var button in new[]{ResetCurveChoice,CurveMoreChoice})
         {
             if(inEditor && button.Parent is Panel parent && !ReferenceEquals(parent,Curves.Toolbar)){curveToolbarParents[button]=parent;parent.Children.Remove(button);Curves.Toolbar.Children.Add(button);button.Margin=new(0,0,8,0);}
             else if(!inEditor && curveToolbarParents.TryGetValue(button,out var original)){Curves.Toolbar.Children.Remove(button);original.Children.Add(button);}
         }
+        StickToolsChoice.Visibility = Visibility.Collapsed;
+        TryChoice.Content = "Try it";
     }
     public void ShowCurves(bool value)
     {
@@ -724,21 +912,33 @@ public partial class StudioScene : UserControl
         if(IsMacros)ShowMacros(false);
         if (value == IsCurves) return;
         if (value) previousButtonControl = SelectedControl;
-        StudioBody.ColumnDefinitions[0].Width=new(value?1:1.5,GridUnitType.Star);StudioBody.ColumnDefinitions[2].Width=new(value?1.5:1,GridUnitType.Star);
-        HardwareSurface.Visibility=value?Visibility.Visible:Visibility.Collapsed;IsCurves = value; ButtonsNav.IsChecked = !value; CurvesNav.IsChecked = value;
-        if (value) HardwareStage.Visibility = InspectorStage.Visibility = Visibility.Visible;
+        HardwareSurface.Visibility=Visibility.Collapsed;IsCurves = value; ButtonsNav.IsChecked = !value; CurvesNav.IsChecked = value;
+        if (value)
+        {
+            HardwareStage.Visibility = InspectorStage.Visibility = AssignmentShelf.Visibility = Visibility.Collapsed;
+            CurvesPageHost.Visibility = Visibility.Visible;
+            Grid.SetRowSpan(StudioBody, 2);
+            curvesDiagnostics?.Start();
+        }
+        else
+        {
+            curvesDiagnostics?.Stop();
+            CurvesPageHost.Visibility = Visibility.Collapsed;
+            Grid.SetRowSpan(StudioBody, 1);
+            HardwareStage.Visibility = InspectorStage.Visibility = AssignmentShelf.Visibility = Visibility.Visible;
+        }
         MappingHero.Visibility = value ? Visibility.Collapsed : Visibility.Visible; AssignmentOverview.Visibility = Visibility.Collapsed;
-        CurveInspectorHost.Visibility = CurveShelfFrame.Visibility = value ? Visibility.Visible : Visibility.Collapsed;
-        AssignmentShelf.Visibility = value ? Visibility.Collapsed : Visibility.Visible;
+        CurveInspectorHost.Visibility = CurveShelfFrame.Visibility = Visibility.Collapsed;
         OverviewChoice.Visibility=ResetAllChoice.Visibility=value?Visibility.Collapsed:Visibility.Visible;
         ResetCurveChoice.Visibility=CurveMoreChoice.Visibility=value?Visibility.Visible:Visibility.Collapsed;
-        StickToolsChoice.Visibility=value&&PcMode!=null?Visibility.Visible:Visibility.Collapsed;if(!value)CloseStickTools();
+        StickToolsChoice.Visibility=Visibility.Collapsed;if(!value)CloseStickTools();
         HardwareShortcuts.Visibility=FrontChoice.Visibility=RearChoice.Visibility=value?Visibility.Collapsed:Visibility.Visible;
-        foreach (var control in controls.Values) control.IsEnabled = !value || control.Region.Key is "L3" or "R3" or "LSTICK_ANALOG" or "RSTICK_ANALOG" or "LT" or "RT";
         FrontChoice.IsEnabled = !value; RearChoice.IsEnabled = !value && HasRearArtwork;
-        PlaceCurveToolbar(value);RootLayout.RowDefinitions[4].Height=new(value?144:184);if(value){DraftBar.Visibility=Visibility.Collapsed;RootLayout.RowDefinitions[2].Height=new(0);Apply.Visibility=StatusNote.Visibility=Visibility.Collapsed;TryChoice.Content="Keyboard test";}
-        if (value) Curves.SelectChannel(Curves.Channel); else { if(previousButtonControl.Length>0) SelectControl(previousButtonControl);else ClearSelection();RefreshEditor(); }
-        EnterMotion(value ? CurveInspectorHost : MappingHero, value ? 14 : -14, 220); EnterMotion(value ? CurveShelfHost : QuickTargets, value ? 14 : -14, 220); UpdateButtonsPage();
+        PlaceCurveToolbar(value);RootLayout.RowDefinitions[4].Height=new(value?0:184);
+        if(value){DraftBar.Visibility=Visibility.Collapsed;RootLayout.RowDefinitions[2].Height=new(0);Apply.Visibility=StatusNote.Visibility=Visibility.Collapsed;}
+        if (value) { Curves.SelectChannel(Curves.Channel); RefreshQuickStickControls?.Invoke(); }
+        else { if(previousButtonControl.Length>0) SelectControl(previousButtonControl);else ClearSelection();RefreshEditor(); }
+        EnterMotion(value ? CurvesPageHost : MappingHero, value ? 14 : -14, 220); UpdateButtonsPage();
     }
     private void UpdateCurveContext()
     {
@@ -858,22 +1058,85 @@ public partial class StudioScene : UserControl
     }
     private void PcNoticeAccepted() => SyncPcMode();
     private void PcModeTab(object sender, RoutedEventArgs e) => ShowManagement("PcMode");
-    public StickToolsPanel? StickTools { get; private set; }
-    private Grid? stickToolsLayer;
-    private void OpenStickTools(object sender,RoutedEventArgs e)=>OpenStickTools();
-    /// <summary>Curves → Advanced: the fine stick tools, over the Studio until Done (or B / Esc).</summary>
+    public StickLabZone? StickLab { get; private set; }
+    private StickLabZone? stickLabLayer;
+    private readonly TranslateTransform rootSlideTransform = new();
+    private readonly TranslateTransform labSlideTransform = new();
+    private void OpenStickTools(object sender, RoutedEventArgs e) => OpenStickTools();
+
+    /// <summary>Full-screen PS5 slide-down Stick Lab zone: hides tabs and Studio chrome cleanly until Return or Esc.</summary>
     public void OpenStickTools()
     {
         CancelRemapCapture();
-        if(PcMode==null||stickToolsLayer!=null)return;
-        StickTools=new StickToolsPanel(PcMode,CloseStickTools);
-        stickToolsLayer=new Grid{Background=new SolidColorBrush(ThemeCatalog.R(Color.FromArgb(200,3,6,16))),Children={StickTools}};
-        Grid.SetZIndex(stickToolsLayer,50);StudioShell.Children.Add(stickToolsLayer);Fx.Appear(stickToolsLayer,1.03,240);StickTools.Done.Focus();
+        if (stickLabLayer != null) return;
+        curvesDiagnostics?.Stop();
+        StickLab = new StickLabZone(Model, Player, PcMode, CloseStickTools, RequestPcMode);
+        stickLabLayer = StickLab;
+        StickLabOverlayHost.Children.Clear();
+        StickLabOverlayHost.Children.Add(StickLab);
+        StickLabOverlayHost.Visibility = Visibility.Visible;
+        double h = Math.Max(700, ActualHeight > 100 ? ActualHeight : 900);
+        RootLayout.RenderTransform = rootSlideTransform;
+        StickLabOverlayHost.RenderTransform = labSlideTransform;
+
+        if (animate)
+        {
+            var ease = new CubicEase { EasingMode = EasingMode.EaseInOut };
+            var dur = TimeSpan.FromMilliseconds(320);
+            rootSlideTransform.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(0, h, dur) { EasingFunction = ease, FillBehavior = FillBehavior.HoldEnd });
+            RootLayout.BeginAnimation(OpacityProperty, new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(220)) { FillBehavior = FillBehavior.HoldEnd });
+            labSlideTransform.Y = -h * 0.22;
+            labSlideTransform.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(-h * 0.22, 0, dur) { EasingFunction = ease, FillBehavior = FillBehavior.HoldEnd });
+            StickLabOverlayHost.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(260)) { FillBehavior = FillBehavior.HoldEnd });
+        }
+        else
+        {
+            rootSlideTransform.Y = h;
+            RootLayout.Opacity = 0;
+            labSlideTransform.Y = 0;
+            StickLabOverlayHost.Opacity = 1;
+        }
+        StickLab.ExitButton.Focus();
     }
+
     public void CloseStickTools()
     {
-        if(stickToolsLayer==null)return;var leaving=stickToolsLayer;stickToolsLayer=null;StickTools=null;
-        Fx.Leave(leaving,()=>StudioShell.Children.Remove(leaving),1.02,200);if(IsCurves)StickToolsChoice.Focus();
+        if (stickLabLayer == null) return;
+        var leaving = stickLabLayer;
+        stickLabLayer = null;
+        StickLab = null;
+        double h = Math.Max(700, ActualHeight > 100 ? ActualHeight : 900);
+        RootLayout.RenderTransform = rootSlideTransform;
+        StickLabOverlayHost.RenderTransform = labSlideTransform;
+
+        void FinishClose()
+        {
+            StickLabOverlayHost.Children.Clear();
+            StickLabOverlayHost.Visibility = Visibility.Collapsed;
+            RootLayout.BeginAnimation(OpacityProperty, null);
+            RootLayout.Opacity = 1;
+            rootSlideTransform.BeginAnimation(TranslateTransform.YProperty, null);
+            rootSlideTransform.Y = 0;
+            Curves.Refresh();
+            RefreshQuickStickControls?.Invoke();
+            if (IsCurves) curvesDiagnostics?.Start();
+        }
+
+        if (animate)
+        {
+            var ease = new CubicEase { EasingMode = EasingMode.EaseInOut };
+            var dur = TimeSpan.FromMilliseconds(280);
+            rootSlideTransform.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(h, 0, dur) { EasingFunction = ease, FillBehavior = FillBehavior.Stop });
+            RootLayout.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, dur) { FillBehavior = FillBehavior.Stop });
+            var labOut = new DoubleAnimation(0, -h * 0.2, dur) { EasingFunction = ease, FillBehavior = FillBehavior.Stop };
+            labOut.Completed += (_, _) => FinishClose();
+            labSlideTransform.BeginAnimation(TranslateTransform.YProperty, labOut);
+            StickLabOverlayHost.BeginAnimation(OpacityProperty, new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(220)) { FillBehavior = FillBehavior.Stop });
+        }
+        else
+        {
+            FinishClose();
+        }
     }
     private void ButtonsTab(object sender,RoutedEventArgs e) => ShowButtons();
     /// <summary>Open the Buttons page from anywhere (tab, Dashboard hero, review harnesses).</summary>
@@ -1071,11 +1334,11 @@ public partial class StudioScene : UserControl
         controllerConnection.Set(connected ? "Live input" : "Offline", connected ? ChipKind.Success : ChipKind.Neutral);
         GameplayConnection.Text=connected?"● Live input":"● No input";
         GameplayConnection.Foreground=(Brush)FindResource(connected?"Ice":"Amber");buttonsPage?.SetConnected(connected);
-        if(!connected){Curves.ShowLive(-1);StickTools?.ClearLive();}
+        if(!connected){Curves.ShowLive(-1);StickLab?.ClearLive();}
     }
     public void ObserveLiveInput(double lx, double ly, double rx, double ry, double lt, double rt)
     {
-        StickTools?.ShowLive(lx,ly,rx,ry);
+        StickLab?.ShowLive(lx, ly, rx, ry);
         ActiveLive.SetInput(lx, ly, rx, ry, lt, rt);
         // the Curves graph follows the real stick or trigger whenever a controller is connected; Try it is the keyboard's
         if (IsCurves && ManagementPage == null)
@@ -1189,7 +1452,7 @@ public partial class StudioScene : UserControl
         if (Keyboard.FocusedElement is TextBox { IsReadOnly: false, IsEnabled: true } field && (controller ? e.Key == Key.B : e.Key == Key.Escape)) { LeaveField(field); e.Handled = true; return; }
         bool typing = !controller && Keyboard.FocusedElement is TextBox { IsReadOnly: false };
         // the Advanced stick tools own the keyboard while open (arrows nudge their sliders); Esc closes them
-        if (stickToolsLayer != null) { if (e.Key == Key.Escape) { CloseStickTools(); e.Handled = true; } return; }
+        if (stickLabLayer != null) { if (e.Key == Key.Escape) { CloseStickTools(); e.Handled = true; } return; }
         // the agent window: Esc puts it away, and while typing to it every key is the text box's
         if (agentTour != null) { if (e.Key == Key.Escape) agentTour.Skip(); e.Handled = true; return; }
         if (AgentOpen && e.Key == Key.Escape) { if (agentPanel!.SettingsOpen) agentPanel.ShowSettingsPage(false); else CloseAgent(); e.Handled = true; return; }

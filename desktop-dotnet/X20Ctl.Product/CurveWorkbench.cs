@@ -50,6 +50,7 @@ public sealed class CurveWorkbench
     private readonly TextBlock editHint = new() { Text="← / →  1% steps · Shift  5% steps",FontSize=13,Foreground=Brushes.LightSteelBlue,HorizontalAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Bottom };
     public event Action<CurveChannel>? ChannelSelected;
     public event Action? Changed;
+    public event Action? ShareCurveRequested;
     private readonly List<Button> channelButtons = new(), presetButtons = new();
     // the plot: 408 x 240 inside a 480 x 300 canvas
     private const double L=38,T=16,PW=408,PH=240;
@@ -70,7 +71,7 @@ public sealed class CurveWorkbench
     private readonly StackPanel floorPanel=new() {Margin=new(10,0,24,0)}, ceilingPanel=new() {Margin=new(10,0,24,0)};
     private readonly TextBox pointInput=new(){Width=86,MinHeight=34,Padding=new(8,3,8,3),Margin=new(6,0,14,0)},pointOutput=new(){Width=86,MinHeight=34,Padding=new(8,3,8,3),Margin=new(6,0,0,0)};
     private readonly StackPanel pointEditor=new(){Orientation=Orientation.Horizontal,Visibility=Visibility.Hidden};
-    private readonly TextBlock liveReadout=new(){FontSize=14,Foreground=Brushes.LightSteelBlue,Text="Connect a controller or use Keyboard test"};
+    private readonly TextBlock liveReadout=new(){FontSize=14,Foreground=Brushes.LightSteelBlue,Text="Connect a controller to trace input live"};
     private bool updating;
     private double liveAt=-1;
     public bool AnimationsEnabled { get; }
@@ -167,6 +168,14 @@ public sealed class CurveWorkbench
             kind++;
         }
         editHint.Visibility=Visibility.Collapsed;
+        var shareBtn = new Button
+        {
+            Content = "Share Curve", Style = (Style)resources.FindResource("ActionButton"),
+            Height = 36, MinHeight = 0, Padding = new(14, 0, 14, 0), Margin = new(8, 0, 0, 0),
+            ToolTip = "Submit this curve to the X20CTL Community Browser",
+        };
+        shareBtn.Click += (_, _) => ShareCurveRequested?.Invoke();
+        Toolbar.Children.Add(shareBtn);
         if(IllustratedThemeUI.Current!=null){response.Effect=null;liveDot.Effect=null;}
         Refresh();
     }
@@ -262,7 +271,7 @@ public sealed class CurveWorkbench
     /// <summary>The real controller, live: how far this stick (or trigger) is pushed, 0–1. Always on while one is connected.</summary>
     public void ShowLive(double pushed)
     {
-        if(pushed<0){liveReadout.Text="Input unavailable · Connect a controller or use keyboard simulation";liveDot.Visibility=liveTag.Visibility=liveGuide.Visibility=Visibility.Collapsed;liveAt=-1;return;}
+        if(pushed<0){liveReadout.Text="Connect a controller to trace input live";liveDot.Visibility=liveTag.Visibility=liveGuide.Visibility=Visibility.Collapsed;liveAt=-1;return;}
         pushed=Math.Clamp(pushed,0,1);liveReadout.Text=$"Input {pushed:P0} → Output {Output(pushed):P0}";
         if(pushed<.02){if(liveAt>=0){liveAt=-1;liveDot.Visibility=liveTag.Visibility=liveGuide.Visibility=Visibility.Collapsed;}return;}
         if(Math.Abs(pushed-liveAt)<.004)return;liveAt=pushed;

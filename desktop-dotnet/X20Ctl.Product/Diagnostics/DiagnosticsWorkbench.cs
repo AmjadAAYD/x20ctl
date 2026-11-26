@@ -38,6 +38,7 @@ public sealed partial class DiagnosticsWorkbench
     [DllImport("winmm.dll")] static extern uint timeEndPeriod(uint period);
 
     public Grid Body { get; } = new();
+    internal Grid TelemetryGrid { get; }
     readonly int preferredSlot;
     double[]? keyboardPreview;
     public void PreviewKeyboard(double lx, double ly, double rx, double ry, double leftTrigger, double rightTrigger)
@@ -45,7 +46,9 @@ public sealed partial class DiagnosticsWorkbench
     readonly object gate = new();
     readonly StickStats left = new(), right = new();
     readonly TriggerStats lt = new(), rt = new();
+    readonly StickSnapbackDetector leftSnapback = new(), rightSnapback = new();
     readonly ButtonStats presses = new();
+    readonly bool telemetryOnlyMode;
     readonly RateMeter changes = new(), reads = new();
     readonly Stopwatch clock = new();
     readonly DispatcherTimer timer;
@@ -63,13 +66,13 @@ public sealed partial class DiagnosticsWorkbench
     readonly Dictionary<StickStats, (string Key, Button Use, TextBlock Said)> apply = new();
     readonly Dictionary<StickStats, double> suggested = new();
 
-    public DiagnosticsWorkbench(int player, Action<Button> register, PcModeLink? link = null, bool compact = false,ControllerModel? model=null)
+    public DiagnosticsWorkbench(int player, Action<Button> register, PcModeLink? link = null, bool compact = false,ControllerModel? model=null, bool telemetryOnly = false)
     {
-        preferredSlot = player; this.link = link;assignedModel=model?.Name??"Unspecified";
+        preferredSlot = player; this.link = link;assignedModel=model?.Name??"Unspecified"; telemetryOnlyMode = telemetryOnly;
         static string Key(string name)=>name switch{"View"=>"SELECT","Menu"=>"START","Home"=>"HOME","Up"=>"DPAD_UP","Down"=>"DPAD_DOWN","Left"=>"DPAD_LEFT","Right"=>"DPAD_RIGHT",_=>name};
         Buttons=ReportedButtons.Where(b=>model==null||model.FrontButtons.ContainsKey(Key(b.Name))).ToArray();Masks=Buttons.Select(b=>b.Mask).ToArray();
-        var scroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
-        var page = new StackPanel { Margin = new(30, 6, 30, 24) }; scroll.Content = page; Body.Children.Add(scroll);
+        var scroll = new ScrollViewer { VerticalScrollBarVisibility = telemetryOnly ? ScrollBarVisibility.Disabled : ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
+        var page = new StackPanel { Margin = telemetryOnly ? new(0) : new(30, 6, 30, 24) }; scroll.Content = page; Body.Children.Add(scroll);
 
         var head = new DockPanel();
         var actions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Top }; DockPanel.SetDock(actions, Dock.Right); head.Children.Add(actions);
@@ -92,12 +95,12 @@ public sealed partial class DiagnosticsWorkbench
         measureCentre.Click+=async(_,_)=>{measureCentre.IsEnabled=false;driftCancel?.Cancel();driftCancel=new();try{driftResult=await DriftCapture.Measure(chosen>=0?chosen:preferredSlot,new Progress<double>(v=>driftDetails.Text=$"Release both sticks · Sampling {v*5:0.0} / 5 seconds"),driftCancel.Token);driftDetails.Text=driftResult is {} d?$"Measured centre X/Y · Left {d.Left.X:0.00}% / {d.Left.Y:0.00}% · Right {d.Right.X:0.00}% / {d.Right.Y:0.00}% · Peak deviation {d.Left.Peak:0.00}% / {d.Right.Peak:0.00}%" : "Selected input unavailable · No centre samples";}catch(OperationCanceledException){}catch(Exception error)when(error is IOException or ArgumentException){driftDetails.Text=error.Message;}finally{measureCentre.IsEnabled=true;}};
         page.Children.Add(measureCentre);page.Children.Add(driftDetails);
 
-        var top = new Grid { Margin = new(0, 18, 0, 0) };
+        var top = TelemetryGrid = new Grid { Margin = telemetryOnly ? new(0) : new(0, 18, 0, 0) };
         for (int i = 0; i < (compact ? 3 : 4); i++) top.ColumnDefinitions.Add(new() { Width = new GridLength(i < 2 ? 1.15 : 1, GridUnitType.Star) });
         leftView = StickCard(top, 0, "Left stick", left, "LeftStick", register); rightView = StickCard(top, 1, "Right stick", right, "RightStick", register);
         var triggers = new Grid(); triggers.ColumnDefinitions.Add(new()); triggers.ColumnDefinitions.Add(new());
         ltView = TriggerColumn(triggers, 0, "LT"); rtView = TriggerColumn(triggers, 1, "RT");
-        Card(top, 2, "Triggers", triggers);
+        Card(top, 2, "Triggers", triggers, telemetryOnlyMode ? new Thickness(12, 10, 12, 10) : null);
         rateText = Kit.Text("", 15, "DS.Text").Also(t => { t.TextWrapping = TextWrapping.Wrap; t.TextTrimming = TextTrimming.None; });
         rawText = Wrap("", 13.5, "DS.TextSoft", 12);
         Card(top, 3, "Observed input updates", new StackPanel { Children = { rateText, rawText,
@@ -124,6 +127,17 @@ public sealed partial class DiagnosticsWorkbench
             head.Visibility = Visibility.Collapsed;
             buttonsCard.Visibility = Visibility.Collapsed;
             foreach (FrameworkElement card in top.Children) if (Grid.GetColumn(card) == 3) card.Visibility = Visibility.Collapsed;
+            if (telemetryOnly)
+            {
+                page.Children.Remove(top);
+                var modelLine = page.Children.OfType<TextBlock>().FirstOrDefault(t => t != source && t != numericValues && t != driftDetails);
+                if (modelLine != null) modelLine.Visibility = Visibility.Collapsed;
+                source.Visibility = Visibility.Collapsed;
+                valuesToggle.Visibility = Visibility.Collapsed;
+                numericValues.Visibility = Visibility.Collapsed;
+                measureCentre.Visibility = Visibility.Collapsed;
+                driftDetails.Visibility = Visibility.Collapsed;
+            }
         }
         Refresh();
     }
@@ -152,7 +166,7 @@ public sealed partial class DiagnosticsWorkbench
 
     void Clear()
     {
-        lock (gate) { left.Reset(); right.Reset(); lt.Reset(); rt.Reset(); leftNoise.Reset(); rightNoise.Reset(); ltLinear.Reset(); rtLinear.Reset(); ResetSessionAnalytics(); presses.Reset(); changes.Reset(); reads.Reset(); seen = false; }
+        lock (gate) { left.Reset(); right.Reset(); lt.Reset(); rt.Reset(); leftSnapback.Reset(); rightSnapback.Reset(); leftNoise.Reset(); rightNoise.Reset(); ltLinear.Reset(); rtLinear.Reset(); ResetSessionAnalytics(); presses.Reset(); changes.Reset(); reads.Reset(); seen = false; }
         raw?.Reset();driftResult=null;driftDetails.Text="";
     }
 
@@ -170,6 +184,7 @@ public sealed partial class DiagnosticsWorkbench
                     lock (gate)
                     {
                         reads.Add(now);left.Add(state.Pad.LX,state.Pad.LY);right.Add(state.Pad.RX,state.Pad.RY);lt.Add(state.Pad.LT);rt.Add(state.Pad.RT);
+                        leftSnapback.Observe(state.Pad.LX, state.Pad.LY); rightSnapback.Observe(state.Pad.RX, state.Pad.RY);
                         leftNoise.Add(state.Pad.LX,state.Pad.LY);rightNoise.Add(state.Pad.RX,state.Pad.RY);
                         ltLinear.Add(state.Pad.LT);rtLinear.Add(state.Pad.RT);
                         RecordSessionSample(new X20Ctl.Zone.PcMode.PadState(state.Pad.Buttons, state.Pad.LT, state.Pad.RT, state.Pad.LX, state.Pad.LY, state.Pad.RX, state.Pad.RY), Environment.TickCount64);
@@ -215,7 +230,7 @@ public sealed partial class DiagnosticsWorkbench
                 : !seen ? $"Slot {s + 1}: waiting for the controller."
                 : $"Reading XInput slot {s + 1}{(PcModeService.IsVirtual(s) ? " (PC mode's virtual pad: this shows PC mode's output, not the controller)" : "")} · {reads.Current(now)} reads a second";
             numericValues.Text=!seen?"No input data · Raw HID report bytes unavailable":rawValues?$"XInput integers · LX {left.X}  LY {left.Y}  RX {right.X}  RY {right.Y}  LT {lt.Value}  RT {rt.Value} · Raw HID bytes unavailable":$"Normalized · L ({left.X/32767d:0.000}, {left.Y/32767d:0.000})  R ({right.X/32767d:0.000}, {right.Y/32767d:0.000})  LT {lt.Value/255d:0.000}  RT {rt.Value/255d:0.000}";
-            DrawStick(leftView, left); DrawStick(rightView, right);
+            DrawStick(leftView, left, leftSnapback); DrawStick(rightView, right, rightSnapback);
             DrawTrigger(ltView, lt); DrawTrigger(rtView, rt);
             foreach(var view in new[]{leftView,rightView}) {view.Dot.Visibility=seen?Visibility.Visible:Visibility.Collapsed;view.Reach.Visibility=seen?Visibility.Visible:Visibility.Collapsed;if(!seen){view.Resting.Visibility=Visibility.Collapsed;view.Stats.Text="No input source · Connect or select a controller";}}
             if(!seen){ltView.Bar.Height=rtView.Bar.Height=0;ltView.Range.Visibility=rtView.Range.Visibility=Visibility.Collapsed;ltView.Stats.Text=rtView.Stats.Text="No data";}
@@ -270,7 +285,7 @@ public sealed partial class DiagnosticsWorkbench
     static Brush Edge(byte a) => Freeze(new SolidColorBrush(Color.FromArgb(a, 140, 175, 255)));
     static Brush Freeze(Brush b) { b.Freeze(); return b; }
 
-    void DrawStick((Polygon Reach, Ellipse Dot, Ellipse Resting, TextBlock Stats) view, StickStats stats)
+    void DrawStick((Polygon Reach, Ellipse Dot, Ellipse Resting, TextBlock Stats) view, StickStats stats, StickSnapbackDetector snap)
     {
         var points = new PointCollection(StickStats.Sectors);
         for (int i = 0; i < StickStats.Sectors; i++)
@@ -295,13 +310,14 @@ public sealed partial class DiagnosticsWorkbench
         }
         else { lines.Add("Near-center average: release the stick to collect samples"); if (apply.TryGetValue(stats, out var a)) a.Use.Visibility = Visibility.Collapsed; }
         lines.Add(stats.ResolutionBits is { } bits ? $"Observed step estimate: {bits} effective bits" : "Smallest step: move it slowly to measure");
-        if(stats.HasSamples){lines.Add($"Range X {stats.MinX/32767d:0.000} → {stats.MaxX/32767d:0.000} · Y {stats.MinY/32767d:0.000} → {stats.MaxY/32767d:0.000}");lines.Add($"Smallest delta X {stats.SmallestXDelta?.ToString("0.00000")??"—"} · Y {stats.SmallestYDelta?.ToString("0.00000")??"—"}");}
+        if (snap.PeakBouncePct > 0) lines.Add($"Snapback peak: {snap.PeakBouncePct:0.0}% ({snap.BounceEvents} bounce{(snap.BounceEvents == 1 ? "" : "s")})");
+        if(stats.HasSamples){lines.Add($"Range X {stats.MinX/32767d:0.000} -> {stats.MaxX/32767d:0.000} · Y {stats.MinY/32767d:0.000} -> {stats.MaxY/32767d:0.000}");}
         view.Stats.Text = string.Join(Environment.NewLine, lines);
     }
 
-    static void DrawTrigger((Rectangle Bar, Rectangle Range, TextBlock Stats) view, TriggerStats stats)
+    void DrawTrigger((Rectangle Bar, Rectangle Range, TextBlock Stats) view, TriggerStats stats)
     {
-        const double height = 150;
+        double height = telemetryOnlyMode ? 112 : 150;
         view.Bar.Height = stats.Value / 255.0 * height;
         bool any = stats.Max >= stats.Min;
         view.Range.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
@@ -338,28 +354,30 @@ public sealed partial class DiagnosticsWorkbench
         var rest = new Ellipse { Width = 8, Height = 8, Fill = DS.Brush("DS.Warn") };
         var dot = new Ellipse { Width = 12, Height = 12, Fill = Brushes.White };
         canvas.Children.Add(reach); canvas.Children.Add(rest); canvas.Children.Add(dot);
-        var stats = Kit.Text("", 13.5, "DS.TextSoft").Also(t => { t.TextWrapping = TextWrapping.Wrap; t.TextTrimming = TextTrimming.None; t.Margin = new(0, 12, 0, 0); t.LineHeight = 21; });
-        var content = new StackPanel { Children = { canvas, stats } };
+        var stats = Kit.Text("", telemetryOnlyMode ? 12 : 13.5, "DS.TextSoft").Also(t => { t.TextWrapping = TextWrapping.Wrap; t.TextTrimming = TextTrimming.None; t.Margin = new(0, telemetryOnlyMode ? 6 : 12, 0, 0); t.LineHeight = telemetryOnlyMode ? 17 : 21; });
+        UIElement canvasVisual = telemetryOnlyMode ? new Viewbox { MaxHeight = 138, Stretch = Stretch.Uniform, HorizontalAlignment = HorizontalAlignment.Left, Child = canvas } : canvas;
+        var content = new StackPanel { Children = { canvasVisual, stats } };
         if (link != null)
         {
-            var use = Pill("Use as dead zone"); use.Height = 34; use.Margin = new(0, 10, 0, 0); use.HorizontalAlignment = HorizontalAlignment.Left; use.Visibility = Visibility.Collapsed;
+            var use = Pill("Use as dead zone"); use.Height = telemetryOnlyMode ? 28 : 34; use.Margin = new(0, telemetryOnlyMode ? 6 : 10, 0, 0); use.HorizontalAlignment = HorizontalAlignment.Left; use.Visibility = Visibility.Collapsed;
             use.ToolTip = "Sets this stick's inner dead zone in PC mode just past where it rests, so the drift never reaches games";
-            var said = Wrap("", 12.5, "DS.TextMuted", 6);
+            var said = Wrap("", 12, "DS.TextMuted", 4);
             use.Click += (_, _) => UseAsDeadZone(source); register(use);
             apply[source] = (key, use, said); content.Children.Add(use); content.Children.Add(said);
         }
-        Card(row, column, title, content);
+        Card(row, column, title, content, telemetryOnlyMode ? new Thickness(12, 10, 12, 10) : null);
         return (reach, dot, rest, stats);
     }
 
-    static (Rectangle, Rectangle, TextBlock) TriggerColumn(Grid host, int column, string name)
+    (Rectangle, Rectangle, TextBlock) TriggerColumn(Grid host, int column, string name)
     {
+        double h = telemetryOnlyMode ? 112 : 150;
         var bar = new Rectangle { Fill = Blue(220), VerticalAlignment = VerticalAlignment.Bottom, RadiusX = 6, RadiusY = 6 };
         var range = new Rectangle { Fill = Edge(40), VerticalAlignment = VerticalAlignment.Bottom };
-        var well = new Border { Width = 42, Height = 150, CornerRadius = new(8), Background = Dark, BorderBrush = Edge(60), BorderThickness = new(1), HorizontalAlignment = HorizontalAlignment.Left,
+        var well = new Border { Width = telemetryOnlyMode ? 36 : 42, Height = h, CornerRadius = new(8), Background = Dark, BorderBrush = Edge(60), BorderThickness = new(1), HorizontalAlignment = HorizontalAlignment.Left,
             Child = new Grid { Children = { range, bar } } };
-        var stats = Kit.Text("", 13, "DS.TextSoft").Also(t => { t.TextWrapping = TextWrapping.Wrap; t.TextTrimming = TextTrimming.None; t.Margin = new(0, 10, 0, 0); });
-        var stack = new StackPanel { Children = { Kit.Text(name, 15, "DS.Text", FontWeights.SemiBold).Also(t => t.Margin = new(0, 0, 0, 8)), well, stats } };
+        var stats = Kit.Text("", telemetryOnlyMode ? 12 : 13, "DS.TextSoft").Also(t => { t.TextWrapping = TextWrapping.Wrap; t.TextTrimming = TextTrimming.None; t.Margin = new(0, telemetryOnlyMode ? 6 : 10, 0, 0); });
+        var stack = new StackPanel { Children = { Kit.Text(name, telemetryOnlyMode ? 13.5 : 15, "DS.Text", FontWeights.SemiBold).Also(t => t.Margin = new(0, 0, 0, 6)), well, stats } };
         Grid.SetColumn(stack, column); host.Children.Add(stack);
         return (bar, range, stats);
     }
@@ -370,9 +388,9 @@ public sealed partial class DiagnosticsWorkbench
         Canvas.SetLeft(e, Plot / 2 - radius); Canvas.SetTop(e, Plot / 2 - radius); return e;
     }
 
-    static void Card(Grid row, int column, string title, UIElement content)
+    static void Card(Grid row, int column, string title, UIElement content, Thickness? pad = null)
     {
-        var card = Kit.Panel(title, null, null, content); card.Margin = new(column == 0 ? 0 : 8, 0, column == 3 ? 0 : 8, 0);
+        var card = Kit.Panel(title, null, null, content, pad); card.Margin = new(column == 0 ? 0 : 8, 0, column == 3 ? 0 : 8, 0);
         Grid.SetColumn(card, column); row.Children.Add(card);
     }
 
