@@ -29,6 +29,8 @@ public sealed class ScreenWorkbench
     public Button Preview { get; }
     public event Action? BrowseCommunityRequested;
     public event Action? ShareCommunityRequested;
+    public int FrameCount => frames.Count;
+    public bool IsAnimated => animation.IsChecked == true && frames.Count > 1;
     internal Button Retry => retry;
     internal Button Cancel => cancel;
     internal bool IsBusy => busy;
@@ -531,7 +533,7 @@ public sealed class ScreenWorkbench
         LoadImageBytes(File.ReadAllBytes(path), info.Name);
     }
 
-    void LoadImageBytes(byte[] bytes, string name)
+    public void LoadImageBytes(byte[] bytes, string name)
     {
         if (bytes.Length > ScreenCodec.InputLimit) throw new ArgumentException("Choose a file up to 64 MiB.");
         using var stream = new MemoryStream(bytes);
@@ -573,6 +575,37 @@ public sealed class ScreenWorkbench
 
     internal byte[] FirstCroppedPixels => Rgba(Crop(frames[0]));
     internal byte[] CroppedFramesBytes => frames.SelectMany(f => Rgba(Crop(f))).ToArray();
+
+    /// <summary>Renders the active 160x80 screen composition as PNG (still) or multi-frame GIF (animated) for Community Workshop upload.</summary>
+    public (byte[]? Bytes, string MediaType) ExportCommunityMedia()
+    {
+        if (frames.Count == 0) return (null, "none");
+        bool animated = IsAnimated;
+        if (animated)
+        {
+            int limit = Math.Clamp((int)Math.Round(frameLimit.Value), 2, Math.Min(40, frames.Count));
+            var step = Math.Max(1, frames.Count / limit);
+            var encoder = new GifBitmapEncoder();
+            int count = 0;
+            for (int i = 0; i < frames.Count && count < 40; i += step, count++)
+            {
+                var adjusted = Bitmap(ScreenArtwork.Adjust(Rgba(Crop(frames[i])), brightness.Value, contrast.Value));
+                encoder.Frames.Add(BitmapFrame.Create(adjusted));
+            }
+            using var ms = new MemoryStream();
+            encoder.Save(ms);
+            return (ms.ToArray(), "gif");
+        }
+        else
+        {
+            var adjusted = Bitmap(ScreenArtwork.Adjust(Rgba(Crop(frames[0])), brightness.Value, contrast.Value));
+            var encoder = new PngBitmapEncoder();
+            encoder.Frames.Add(BitmapFrame.Create(adjusted));
+            using var ms = new MemoryStream();
+            encoder.Save(ms);
+            return (ms.ToArray(), "image");
+        }
+    }
 
     BitmapSource Crop(BitmapSource source)
     {

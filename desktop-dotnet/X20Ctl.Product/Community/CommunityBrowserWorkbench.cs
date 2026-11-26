@@ -43,6 +43,9 @@ public sealed class CommunityBrowserWorkbench
     private (List<CreatorProfile> Makers, List<CreatorProfile> Watchers, List<CreatorProfile> Watching)? _cachedLeaderboard;
 
     public string CurrentSubTab => _subTab;
+    public CommunitySubmitDialog? ActiveSubmitDialog { get; private set; }
+    public CommunityDiffDrawer? ActiveDiffDrawer { get; private set; }
+    private Button _publishBtn = null!;
     public CatalogResponse? LastCatalog => _cachedCatalog;
     public List<CreatorProfile>? LastLeaderboardMakers => _cachedLeaderboard?.Makers;
 
@@ -121,8 +124,31 @@ public sealed class CommunityBrowserWorkbench
             _client, category, _selectedModelId, _selectedMode,
             title, "", payload, shareCode, mediaBytes, mediaType, remixSourceId, fulfillRequestId);
         dlg.CloseRequested += CloseModal;
-        dlg.Submitted += item => { _statusLine.Text = $"Submitted '{item.Title}' to X20ADMIN queue."; _ = RefreshAsync(); };
+        dlg.Submitted += item =>
+        {
+            CloseModal();
+            _statusLine.Text = item.Status == "approved"
+                ? $"Published '{item.Title}' live!"
+                : $"Submitted '{item.Title}' to X20ADMIN queue.";
+            _ = RefreshAsync();
+        };
+        ActiveSubmitDialog = dlg;
         ShowModal(dlg);
+    }
+
+    private void UpdatePublishButtonLabel()
+    {
+        if (_publishBtn == null) return;
+        _publishBtn.Content = _categoryFilter switch
+        {
+            "screen" => "Publish Screen Art",
+            "curve" => "Publish Curve",
+            "rgb" => "Publish RGB",
+            "vibration" => "Publish Vibration",
+            "macro" => "Publish Macro",
+            "pack" => "Publish Pack",
+            _ => "Publish Setup"
+        };
     }
 
     private void BuildShell()
@@ -149,14 +175,14 @@ public sealed class CommunityBrowserWorkbench
         profileBtn.Click += (_, _) => OpenProfileDialog();
         rightBar.Children.Add(profileBtn);
 
-        var publishBtn = CommunityUI.RectButton("Publish Setup", RectBtnKind.Primary, 32, 12);
-        publishBtn.Click += (_, _) =>
+        _publishBtn = CommunityUI.RectButton("Publish Setup", RectBtnKind.Primary, 32, 12);
+        _publishBtn.Click += (_, _) =>
         {
             var cat = _categoryFilter == "all" ? "setup" : _categoryFilter;
             var exp = _exportCurrentForSubmit?.Invoke(cat, _selectedMode);
             OpenShareDialog(cat, payload: exp?.Payload, shareCode: exp?.ShareCode, mediaBytes: exp?.MediaBytes, mediaType: exp?.MediaType);
         };
-        rightBar.Children.Add(publishBtn);
+        rightBar.Children.Add(_publishBtn);
 
         topDock.Children.Add(rightBar);
         topDock.Children.Add(_navTabHost);
@@ -536,6 +562,7 @@ public sealed class CommunityBrowserWorkbench
 
     private void BuildSidebarFacets(CommunityCapabilitySet caps)
     {
+        UpdatePublishButtonLabel();
         static void Detach(FrameworkElement el)
         {
             if (el.Parent is Panel p) p.Children.Remove(el);
@@ -846,10 +873,17 @@ public sealed class CommunityBrowserWorkbench
                 b.Click += (_, _) =>
                 {
                     var drawer = new CommunityDiffDrawer(item, _currentDraftSummary());
-                    drawer.InstallSelectedRequested += (it, secs) => { _ = _client.RecordInstallAsync(it.Id); InstallItemRequested?.Invoke(it, secs); };
+                    drawer.InstallSelectedRequested += async (it, secs) =>
+                    {
+                        await _client.RecordInstallAsync(it.Id);
+                        InstallItemRequested?.Invoke(it, secs);
+                        CloseModal();
+                        await RefreshAsync();
+                    };
                     drawer.TestLiveRequested += (it, secs) => TestLiveRequested?.Invoke(it, secs);
                     drawer.RevertLiveRequested += () => RevertLiveRequested?.Invoke();
                     drawer.CloseRequested += CloseModal;
+                    ActiveDiffDrawer = drawer;
                     ShowModal(drawer);
                 };
             }));
@@ -1304,6 +1338,8 @@ public sealed class CommunityBrowserWorkbench
         return dlg;
     }
 
+    public Task OpenItemInspectorForTestAsync(CommunityItem item) => OpenItemInspectorModalAsync(item);
+
     public void CloseModalForTest() => CloseModal();
 
     private void OpenProfileDialog()
@@ -1320,6 +1356,8 @@ public sealed class CommunityBrowserWorkbench
 
     private void CloseModal()
     {
+        ActiveSubmitDialog = null;
+        ActiveDiffDrawer = null;
         _modalHost.Visibility = Visibility.Collapsed;
         _modalHost.Children.Clear();
     }

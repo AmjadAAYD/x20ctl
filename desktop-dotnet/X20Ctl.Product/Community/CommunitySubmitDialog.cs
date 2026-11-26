@@ -12,6 +12,8 @@ namespace X20Ctl.Product.Community;
 
 public sealed partial class CommunitySubmitDialog : Grid
 {
+    private sealed record CategoryChoice(string Key, string Label);
+
     private readonly CommunityClient _client;
     private readonly string _modelId;
     private readonly string _connectionMode;
@@ -25,8 +27,35 @@ public sealed partial class CommunitySubmitDialog : Grid
     private readonly TextBlock _mediaBadge = Kit.Text("Screen Art 160x80 preview", 11.5, "DS.TextMuted");
     private readonly TextBlock _statusText = Kit.Text("", 12, "DS.TextSoft");
 
+    public ComboBox CategoryInput { get; }
+    public TextBox TitleInput { get; }
+    public TextBox DescriptionInput { get; }
+    public Button SubmitButton { get; }
+    public string StatusText => _statusText.Text;
+    public bool HasMediaBytes => _mediaBytes is { Length: > 0 };
+
     public event Action<CommunityItem>? Submitted;
     public event Action? CloseRequested;
+
+    private static string CategoryDisplayLabel(string key) => key switch
+    {
+        "curve" => "Analog Curve",
+        "screen" => "Screen Art (160x80)",
+        "rgb" => "RGB Lighting",
+        "vibration" => "Vibration Preset",
+        "macro" => "Macro Sequence",
+        "pack" => "Curated Pack",
+        _ => "Full Setup"
+    };
+
+    public void LoadMediaBytes(byte[] bytes)
+    {
+        _mediaBytes = bytes;
+        bool isGif = bytes.Length >= 6 && bytes[0] == 'G' && bytes[1] == 'I' && bytes[2] == 'F';
+        _mediaType = isGif ? "gif" : "image";
+        _mediaBadge.Text = isGif ? "Format: Animated GIF (160x80)" : "Format: Static PNG (160x80)";
+        _oledPreview.LoadBytes(bytes, "160x80");
+    }
 
     [GeneratedRegex(@"(https?://|www\.|discord\.gg/|[a-z0-9-]+\.(com|net|org|io|gg|xyz|ru|cn)\b)", RegexOptions.IgnoreCase)]
     private static partial Regex ExternalUrlRegex();
@@ -91,20 +120,29 @@ public sealed partial class CommunitySubmitDialog : Grid
                 .Also(t => t.Margin = new Thickness(0, 0, 0, 8)));
         }
 
-        var categoryCombo = new ComboBox { MinHeight = 32, Margin = new Thickness(0, 0, 0, 10) };
-        foreach (var cat in caps.Categories) categoryCombo.Items.Add(cat);
-        categoryCombo.SelectedItem = caps.AllowsCategory(initialCategory) ? initialCategory : caps.Categories[0];
+        var categoryCombo = new ComboBox
+        {
+            MinHeight = 32,
+            Margin = new Thickness(0, 0, 0, 10),
+            DisplayMemberPath = "Label",
+            SelectedValuePath = "Key"
+        };
+        foreach (var cat in caps.Categories) categoryCombo.Items.Add(new CategoryChoice(cat, CategoryDisplayLabel(cat)));
+        categoryCombo.SelectedValue = caps.AllowsCategory(initialCategory) ? initialCategory : caps.Categories[0];
+        CategoryInput = categoryCombo;
 
         var titleBox = CommunityUI.RectInput(initialTitle, 34);
         titleBox.Margin = new Thickness(0, 4, 0, 10);
+        TitleInput = titleBox;
         var descBox = CommunityUI.RectInput(initialDescription, 72, multiline: true);
         descBox.Margin = new Thickness(0, 4, 0, 10);
+        DescriptionInput = descBox;
         var gameBox = CommunityUI.RectInput("", 32);
         gameBox.Margin = new Thickness(0, 4, 0, 10);
 
         var mediaPanel = new StackPanel
         {
-            Visibility = string.Equals(categoryCombo.SelectedItem as string, "screen", StringComparison.OrdinalIgnoreCase)
+            Visibility = string.Equals(categoryCombo.SelectedValue as string, "screen", StringComparison.OrdinalIgnoreCase)
                 ? Visibility.Visible : Visibility.Collapsed,
             Margin = new Thickness(0, 0, 0, 12)
         };
@@ -112,7 +150,7 @@ public sealed partial class CommunitySubmitDialog : Grid
         _oledPreview.BorderBrush = new SolidColorBrush(CommunityUI.BorderSubtle);
         _oledPreview.BorderThickness = new Thickness(1);
         _oledPreview.Margin = new Thickness(0, 0, 14, 0);
-        if (_mediaBytes != null) _oledPreview.LoadBytes(_mediaBytes, "No media");
+        if (_mediaBytes is { Length: > 0 }) LoadMediaBytes(_mediaBytes);
         else _oledPreview.SetPlaceholder("160x80");
         previewRow.Children.Add(_oledPreview);
 
@@ -125,18 +163,14 @@ public sealed partial class CommunitySubmitDialog : Grid
                 Title = "Select 160x80 Screen Art Image or GIF"
             };
             if (dlg.ShowDialog() != true) return;
-            _mediaBytes = await File.ReadAllBytesAsync(dlg.FileName);
-            bool isGif = _mediaBytes.Length >= 6 && _mediaBytes[0] == 'G' && _mediaBytes[1] == 'I' && _mediaBytes[2] == 'F';
-            _mediaType = isGif ? "gif" : "image";
-            _mediaBadge.Text = isGif ? "Format: GIF (animated)" : "Format: Image (PNG)";
-            _oledPreview.LoadBytes(_mediaBytes);
+            LoadMediaBytes(await File.ReadAllBytesAsync(dlg.FileName));
         };
         previewRow.Children.Add(new StackPanel { VerticalAlignment = VerticalAlignment.Center, Children = { pickMediaBtn, _mediaBadge.Also(t => t.Margin = new Thickness(0, 6, 0, 0)) } });
         mediaPanel.Children.Add(previewRow);
 
         categoryCombo.SelectionChanged += (_, _) =>
         {
-            mediaPanel.Visibility = string.Equals(categoryCombo.SelectedItem as string, "screen", StringComparison.OrdinalIgnoreCase)
+            mediaPanel.Visibility = string.Equals(categoryCombo.SelectedValue as string, "screen", StringComparison.OrdinalIgnoreCase)
                 ? Visibility.Visible : Visibility.Collapsed;
         };
 
@@ -150,14 +184,15 @@ public sealed partial class CommunitySubmitDialog : Grid
         root.Children.Add(gameBox);
         root.Children.Add(mediaPanel);
 
-        var submitBtn = CommunityUI.RectButton("Submit for Review", RectBtnKind.Primary, 38, 13);
+        var submitBtn = CommunityUI.RectButton("Submit to Workshop", RectBtnKind.Primary, 38, 13);
+        SubmitButton = submitBtn;
         submitBtn.Click += async (_, _) =>
         {
             var t = titleBox.Text.Trim();
             var d = descBox.Text.Trim();
             if (t.Length < 3) { _statusText.Text = "Title must be at least 3 characters."; return; }
             if (ExternalUrlRegex().IsMatch($"{t} {d}")) { _statusText.Text = "External URLs are blocked for community safety."; return; }
-            var cat = categoryCombo.SelectedItem as string ?? "setup";
+            var cat = categoryCombo.SelectedValue as string ?? "setup";
             if (cat == "screen" && (_mediaBytes == null || _mediaBytes.Length == 0))
             {
                 _statusText.Text = "Please choose a 160x80 PNG or GIF image first.";
@@ -183,7 +218,9 @@ public sealed partial class CommunitySubmitDialog : Grid
             submitBtn.IsEnabled = true;
             if (res.Ok && res.Data != null)
             {
-                _statusText.Text = $"Submitted! ID {res.Data.Id} queued in X20ADMIN.";
+                _statusText.Text = res.Data.Status == "approved"
+                    ? "Published live to Workshop!"
+                    : $"Submitted! ID {res.Data.Id} queued in X20ADMIN.";
                 Submitted?.Invoke(res.Data);
             }
             else

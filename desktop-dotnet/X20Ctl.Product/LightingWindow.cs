@@ -548,6 +548,22 @@ internal sealed class LightingWindow : Window
         modes.SelectedIndex = BatteryMode;
     }
 
+    internal void ApplyCommunityPreset(string? hexColor, int modeIndex, byte levelByte)
+    {
+        SelectSection(0);
+        if (!string.IsNullOrWhiteSpace(hexColor))
+        {
+            var raw = hexColor.Trim().TrimStart('#');
+            if (raw.Length == 6 && int.TryParse(raw, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out int rgbVal))
+                SetColour(rgbVal);
+        }
+        if (modeIndex >= 0 && modeIndex < modes.Items.Count)
+            modes.SelectedIndex = modeIndex;
+        ShowLevel(levelByte);
+        UpdateStatusAndVisual();
+        status.Text = "Loaded community RGB preset. Click Apply to write to controller.";
+    }
+
     void SetAdvanced(bool open)
     {
         advancedOpen = open;

@@ -16,6 +16,9 @@ public sealed class CommunityDiffDrawer : Grid
     private readonly Dictionary<string, CheckBox> _sectionChecks = new();
     private DispatcherTimer? _sandboxTimer;
 
+    public Button InstallSelectedButton { get; }
+    public string TheirsSummaryText { get; }
+
     public event Action<CommunityItem, IReadOnlyList<string>>? InstallSelectedRequested;
     public event Action<CommunityItem, IReadOnlyList<string>>? TestLiveRequested;
     public event Action? RevertLiveRequested;
@@ -61,7 +64,9 @@ public sealed class CommunityDiffDrawer : Grid
         var mineBox = MakeSummaryBox("YOUR CURRENT DRAFT", currentSummary);
         cols.Children.Add(mineBox);
 
-        var theirsBox = MakeSummaryBox($"WORKSHOP DROP ({item.ModelId} / {item.ConnectionMode})", FormatItemDetails(item));
+        var theirsText = FormatItemDetails(item);
+        TheirsSummaryText = theirsText;
+        var theirsBox = MakeSummaryBox($"WORKSHOP DROP ({item.ModelId} / {item.ConnectionMode})", theirsText);
         Grid.SetColumn(theirsBox, 2);
         cols.Children.Add(theirsBox);
         root.Children.Add(cols);
@@ -88,6 +93,7 @@ public sealed class CommunityDiffDrawer : Grid
 
         var actions = new StackPanel { Orientation = Orientation.Horizontal };
         var installBtn = CommunityUI.RectButton("Install Selected", RectBtnKind.Primary, 34, 12.5);
+        InstallSelectedButton = installBtn;
         installBtn.Margin = new Thickness(0, 0, 8, 0);
         installBtn.Click += (_, _) =>
         {
@@ -189,7 +195,20 @@ public sealed class CommunityDiffDrawer : Grid
         if (item.Payload is JsonElement el && el.ValueKind == JsonValueKind.Object)
         {
             foreach (var prop in el.EnumerateObject().Take(8))
-                lines.Add($"{prop.Name}: {prop.Value.ValueKind}");
+            {
+                string val = prop.Value.ValueKind switch
+                {
+                    JsonValueKind.String => prop.Value.GetString() ?? "",
+                    JsonValueKind.Number => prop.Value.GetRawText(),
+                    JsonValueKind.True => "Yes",
+                    JsonValueKind.False => "No",
+                    JsonValueKind.Array => $"{prop.Value.GetArrayLength()} items",
+                    JsonValueKind.Object => $"{prop.Value.EnumerateObject().Count()} fields",
+                    _ => "Set"
+                };
+                if (val.Length > 48) val = val[..45] + "...";
+                lines.Add($"{prop.Name}: {val}");
+            }
         }
         return string.Join("\n", lines);
     }

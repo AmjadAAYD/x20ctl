@@ -20,6 +20,7 @@ public sealed class CreatorProfileDialog : Grid
     private CreatorProfile? _profile;
     private CreatorStats? _stats;
     private bool _statsFetchStarted;
+    private AnimatedMediaView? _pfpView;
     private readonly TextBlock _statusText = Kit.Text("", 12, "DS.TextSoft");
 
     public CreatorProfile? CurrentProfile => _profile;
@@ -52,6 +53,22 @@ public sealed class CreatorProfileDialog : Grid
     {
         _stats = stats;
         BuildContent();
+    }
+
+    public async Task<bool> UploadAvatarBytesAsync(byte[] bytes, string declaredType = "image")
+    {
+        _statusText.Text = "Disarming and uploading avatar...";
+        var res = await _client.UpdateProfileAsync(pfpBytes: bytes, pfpDeclaredType: declaredType);
+        if (res.Ok && res.Data != null)
+        {
+            _profile = res.Data;
+            _pfpView?.LoadBytes(bytes);
+            _statusText.Text = "Avatar updated.";
+            ProfileUpdated?.Invoke(res.Data);
+            return true;
+        }
+        _statusText.Text = res.Error ?? "Avatar upload failed.";
+        return false;
     }
 
     public async Task EquipBadgeAsync(string badgeId)
@@ -224,6 +241,7 @@ public sealed class CreatorProfileDialog : Grid
         {
             var topRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 14) };
             var pfpView = new AnimatedMediaView(60, 60, pixelArt: false, cornerRadius: 8) { Margin = new Thickness(0, 0, 14, 0) };
+            _pfpView = pfpView;
             pfpView.SetPlaceholder(_profile.Handle[..Math.Min(2, _profile.Handle.Length)].ToUpperInvariant(), BadgeChip.OwnerOrange);
             if (!string.IsNullOrEmpty(_profile.PfpUrl))
             {
@@ -258,19 +276,7 @@ public sealed class CreatorProfileDialog : Grid
                 if (dlg.ShowDialog() != true) return;
                 var bytes = await File.ReadAllBytesAsync(dlg.FileName);
                 var declared = dlg.FileName.EndsWith(".gif", StringComparison.OrdinalIgnoreCase) ? "gif" : "image";
-                _statusText.Text = "Disarming and uploading avatar...";
-                var res = await _client.UpdateProfileAsync(pfpBytes: bytes, pfpDeclaredType: declared);
-                if (res.Ok && res.Data != null)
-                {
-                    _profile = res.Data;
-                    pfpView.LoadBytes(bytes);
-                    _statusText.Text = "Avatar updated.";
-                    ProfileUpdated?.Invoke(res.Data);
-                }
-                else
-                {
-                    _statusText.Text = res.Error ?? "Avatar upload failed.";
-                }
+                await UploadAvatarBytesAsync(bytes, declared);
             };
             btnRow.Children.Add(uploadPfpBtn);
 

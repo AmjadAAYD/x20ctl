@@ -138,19 +138,35 @@ public partial class StudioScene
 
     private (object? Payload, string? ShareCode, byte[]? MediaBytes, string? MediaType) ExportCurrentForCommunity(string category, string targetMode)
     {
+        if (category == "screen")
+        {
+            if (Screen != null)
+            {
+                var (bytes, mType) = Screen.ExportCommunityMedia();
+                if (bytes is { Length: > 0 })
+                    return (new { frames = Screen.FrameCount, animated = Screen.IsAnimated }, null, bytes, mType);
+            }
+            return (null, null, null, "none");
+        }
         if (category == "curve")
         {
             var left = Curves.Draft[CurveChannel.LeftStick];
             var right = Curves.Draft[CurveChannel.RightStick];
-            var tuning = pcLink?.Store.Get(PcModePage.StoreKey);
+            var tuning = liveNativeProfile ?? pcLink?.Store.Get(PcModePage.StoreKey);
             var leftTuning = tuning?.Sticks.TryGetValue("LeftStick", out var lt) == true ? lt : new StickTuning();
+            byte hwFlags = 0;
+            if (leftTuning.Lab?.InvertX == true) hwFlags |= (byte)CurveHardwareFlags.InvertX;
+            if (leftTuning.Lab?.InvertY == true) hwFlags |= (byte)CurveHardwareFlags.InvertY;
+            if (tuning?.SwapSticks == true) hwFlags |= (byte)CurveHardwareFlags.SwapSticks;
+            if (hwFlags == 0) hwFlags = left.Flags;
             var setupCurve = new SetupCurve(left.Preset, left.BasePreset, left.Inner, left.Outer, left.Point1.X, left.Point1.Y, left.Point2.X, left.Point2.Y);
             string shareCode = StickLabShareCode.Encode(
                 CurveChannel.LeftStick,
                 setupCurve,
                 leftTuning,
                 tuning?.DPadSocd ?? SocdMode.Off,
-                tuning?.LeftStickSocd ?? SocdMode.Off);
+                tuning?.LeftStickSocd ?? SocdMode.Off,
+                hwFlags);
             return (new
             {
                 leftPreset = left.Preset,
@@ -160,6 +176,7 @@ public partial class StudioScene
                 rightInner = right.Inner,
                 rightOuter = right.Outer,
                 deadzone = left.Inner,
+                flags = hwFlags,
                 leftStick = leftTuning
             }, shareCode, null, "none");
         }
@@ -169,22 +186,31 @@ public partial class StudioScene
             {
                 rgb = rgbWindow != null ? $"#{rgbWindow.SelectedRgb:X6}" : "#38BDF8",
                 mode = rgbWindow?.SelectedModeIndex ?? 0,
-                brightness = rgbWindow?.SelectedLevelByte ?? 0x50
+                brightness = rgbWindow?.SelectedLevelByte ?? (byte)0x50
             }, null, null, "none");
         }
         if (category == "vibration")
         {
             return (new
             {
-                strength = vibrationDraft.Strength
+                strength = vibrationDraft.Strength,
+                left = vibrationDraft.Left,
+                right = vibrationDraft.Right,
+                floor = vibrationDraft.Floor
             }, null, null, "none");
         }
         if (category == "macro")
         {
+            string slot = Macros?.Slot ?? (macroDraft.SlotNames.FirstOrDefault() ?? "M1");
+            var events = macroDraft[slot].Select(e => new SetupMacro(e.Id, e.Buttons.ToArray(), e.Left, e.Right, e.HoldMs, e.PauseMs)).ToArray();
+            var opts = macroDraft.Options(slot);
             return (new
             {
-                slot = Macros?.Slot ?? "M1",
-                events = macroDraft[Macros?.Slot ?? "M1"].Count
+                slot,
+                trigger = macroDraft.Trigger(slot),
+                repeat = opts.RepeatCount,
+                mode = opts.Mode.ToString(),
+                events
             }, null, null, "none");
         }
         var snap = SetupSnapshot.Capture(Model.Id, Draft, Curves.Draft, macroDraft, vibrationDraft);
@@ -206,7 +232,9 @@ public partial class StudioScene
                 var ext = item.MediaType == "gif" ? "gif" : "png";
                 var outPath = Path.Combine(dir, $"{item.Id}.{ext}");
                 await File.WriteAllBytesAsync(outPath, bytes);
-                ChangeCount.Text = $"Saved Screen Art to {Path.GetFileName(outPath)}";
+                var scr = EnsureScreenWorkbench();
+                scr.LoadImageBytes(bytes, Path.GetFileName(outPath));
+                ChangeCount.Text = $"Loaded Screen Art '{item.Title}' ({scr.FrameCount}f)";
             }
             return;
         }
@@ -222,30 +250,101 @@ public partial class StudioScene
                     int outer = Math.Clamp(sc.Outer, inner + 1, 100);
                     var next = new CurveSetting(sc.Preset, inner, outer, (Math.Clamp(sc.X1, 0, 255), Math.Clamp(sc.Y1, 0, 255)), (Math.Clamp(sc.X2, 0, 255), Math.Clamp(sc.Y2, 0, 255)))
                     {
-                        BasePreset = sc.BasePreset
+                        BasePreset = sc.BasePreset,
+                        Flags = decoded.Flags
                     };
                     Curves.Draft.Set(ch, next);
-                    Curves.Refresh();
                 }
-                if (pcLink is { } link && decoded.Tuning != null)
+                if (decoded.Tuning != null || decoded.Flags != 0)
                 {
                     try
                     {
-                        var p = link.Store.Get(PcModePage.StoreKey);
-                        p.Sticks[ch.ToString()] = decoded.Tuning;
+                        var p = liveNativeProfile ?? (pcLink != null ? pcLink.Store.Get(PcModePage.StoreKey) : new PcModeProfile());
+                        if (decoded.Tuning != null)
+                        {
+                            if (decoded.Tuning.AntiDeadzone > 0)
+                                (decoded.Tuning.Lab ??= new StickLabSettings()).RadialAntiDeadzone = decoded.Tuning.AntiDeadzone;
+                            p.Sticks[ch.ToString()] = decoded.Tuning;
+                        }
+                        if (decoded.Flags != 0)
+                        {
+                            if ((decoded.Flags & (byte)CurveHardwareFlags.SwapSticks) != 0) p.SwapSticks = true;
+                            if ((decoded.Flags & (byte)(CurveHardwareFlags.InvertX | CurveHardwareFlags.InvertY)) != 0)
+                            {
+                                var st = p.Sticks.TryGetValue(ch.ToString(), out var ex) ? ex : (p.Sticks[ch.ToString()] = new StickTuning());
+                                var lab = st.Lab ??= new StickLabSettings();
+                                if ((decoded.Flags & (byte)CurveHardwareFlags.InvertX) != 0) lab.InvertX = true;
+                                if ((decoded.Flags & (byte)CurveHardwareFlags.InvertY) != 0) lab.InvertY = true;
+                            }
+                        }
                         p.DPadSocd = decoded.DPadSocd;
                         p.LeftStickSocd = decoded.LeftStickSocd;
                         p.Validate();
-                        link.Store.Save(PcModePage.StoreKey, p);
-                        link.Service.Reload();
+                        ApplyNativeAndBoost(p, saveImmediate: false);
                     }
                     catch
                     {
                         // Guard PC mode notice constraints cleanly
                     }
                 }
+                Curves.Refresh();
+                RefreshQuickStickControls?.Invoke();
+                UpdateCurveContext();
             }
             ChangeCount.Text = $"Applied curve: {item.Title}";
+            return;
+        }
+
+        if (item.Category == "rgb" && item.Payload is JsonElement rgbEl && rgbEl.ValueKind == JsonValueKind.Object)
+        {
+            string? hexStr = rgbEl.TryGetProperty("rgb", out var rProp) && rProp.ValueKind == JsonValueKind.String ? rProp.GetString() : null;
+            int modeIdx = rgbEl.TryGetProperty("mode", out var mProp) && mProp.TryGetInt32(out int mVal) ? mVal : 0;
+            byte levelByte = rgbEl.TryGetProperty("brightness", out var bProp) && bProp.TryGetInt32(out int bVal) ? (byte)Math.Clamp(bVal, 0, 255) : (byte)0x50;
+            EnsureRgbWorkbench().ApplyCommunityPreset(hexStr, modeIdx, levelByte);
+            ChangeCount.Text = $"Loaded RGB lighting: {item.Title}";
+            return;
+        }
+
+        if (item.Category == "vibration" && item.Payload is JsonElement vibEl && vibEl.ValueKind == JsonValueKind.Object)
+        {
+            if (vibEl.TryGetProperty("strength", out var sProp) && sProp.TryGetInt32(out int sVal) && vibrationDraft.CanEdit)
+            {
+                vibrationDraft.Set(Math.Clamp(sVal, 0, vibrationDraft.Max));
+                if (vibrationDraft.PcMode &&
+                    vibEl.TryGetProperty("left", out var lProp) && lProp.TryGetInt32(out int lVal) &&
+                    vibEl.TryGetProperty("right", out var rProp) && rProp.TryGetInt32(out int rVal) &&
+                    vibEl.TryGetProperty("floor", out var fProp) && fProp.TryGetInt32(out int fVal))
+                {
+                    vibrationDraft.SetMotors(lVal, rVal, fVal);
+                }
+                Vibration?.Refresh();
+                SyncPcMode();
+            }
+            ChangeCount.Text = $"Applied vibration ({vibrationDraft.Strength}%): {item.Title}";
+            return;
+        }
+
+        if (item.Category == "macro" && item.Payload is JsonElement macEl && macEl.ValueKind == JsonValueKind.Object)
+        {
+            string slot = macEl.TryGetProperty("slot", out var slProp) && slProp.ValueKind == JsonValueKind.String
+                ? (slProp.GetString() ?? "M1")
+                : (macroDraft.SlotNames.FirstOrDefault() ?? "M1");
+            if (macroDraft.CanEdit && macroDraft.SlotNames.Contains(slot) &&
+                macEl.TryGetProperty("events", out var evProp) && evProp.ValueKind == JsonValueKind.Array)
+            {
+                var steps = JsonSerializer.Deserialize<SetupMacro[]>(evProp.GetRawText(), SetupStore.JsonOptions);
+                if (steps != null)
+                {
+                    var converted = steps.Select(s => new MacroEvent(s.Id == Guid.Empty ? Guid.NewGuid() : s.Id, s.Buttons ?? Array.Empty<string>(), s.Left, s.Right, s.HoldMs, s.PauseMs)).ToList();
+                    macroDraft.Replace(slot, converted);
+                    if (macEl.TryGetProperty("trigger", out var tProp) && tProp.ValueKind == JsonValueKind.String && macroDraft.PcMode)
+                        macroDraft.SetTrigger(slot, tProp.GetString());
+                    Macros?.SelectSlot(slot);
+                    Macros?.Refresh();
+                    UpdateMacroContext();
+                }
+            }
+            ChangeCount.Text = $"Loaded macro {slot} ({macroDraft[slot].Count} steps): {item.Title}";
             return;
         }
 
@@ -256,8 +355,45 @@ public partial class StudioScene
                 var snap = JsonSerializer.Deserialize<SetupSnapshot>(payloadEl.GetRawText(), SetupStore.JsonOptions);
                 if (snap != null && snap.ModelId == Model.Id)
                 {
-                    if (all || sections.Contains("Buttons & Remaps"))
+                    if (all)
+                    {
                         LoadSetup(snap);
+                    }
+                    else
+                    {
+                        snap.Validate();
+                        if (sections.Contains("Buttons & Remaps"))
+                        {
+                            Draft.ResetAll();
+                            foreach (var (key, value) in snap.Mappings) Draft.Set(key, value);
+                        }
+                        if (sections.Contains("Curves & Deadzones"))
+                        {
+                            foreach (var (key, value) in snap.Curves)
+                                Curves.Draft.Set(Enum.Parse<CurveChannel>(key), new(value.Preset, value.Inner, value.Outer, (value.X1, value.Y1), (value.X2, value.Y2)) { BasePreset = value.BasePreset });
+                            Curves.Refresh();
+                            UpdateCurveContext();
+                        }
+                        if (sections.Contains("Macros") && macroDraft.CanEdit)
+                        {
+                            foreach (var slot in macroDraft.SlotNames)
+                            {
+                                if (snap.Macros.TryGetValue(slot, out var steps))
+                                    macroDraft.Replace(slot, steps.Select(s => new MacroEvent(s.Id == Guid.Empty ? Guid.NewGuid() : s.Id, s.Buttons ?? Array.Empty<string>(), s.Left, s.Right, s.HoldMs, s.PauseMs)));
+                            }
+                            Macros?.Refresh();
+                            UpdateMacroContext();
+                        }
+                        if (sections.Contains("Vibration Motors") && vibrationDraft.CanEdit)
+                        {
+                            vibrationDraft.Set(Math.Clamp(snap.Vibration, 0, vibrationDraft.Max));
+                            if (vibrationDraft.PcMode && snap.Motors is { Length: 3 })
+                                vibrationDraft.SetMotors(snap.Motors[0], snap.Motors[1], snap.Motors[2]);
+                            Vibration?.Refresh();
+                        }
+                        SyncPcMode();
+                        RefreshEditor();
+                    }
                     var created = setupStore.Create(item.Title, snap);
                     setupStore.UpdateCommunityMetadata(created.Id, item.Description, item.Tags, item.Creator?.Handle, item.Uid, item.Id, item.Version, item.RemixSourceId);
                     Setups?.Refresh();
