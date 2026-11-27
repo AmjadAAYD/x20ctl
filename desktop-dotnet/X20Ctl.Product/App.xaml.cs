@@ -44,6 +44,21 @@ public partial class App : Application
           catch (Exception failure) { Directory.CreateDirectory(e.Args[1]); File.WriteAllText(Path.Combine(e.Args[1], "failure.txt"), failure.ToString()); Shutdown(1); }
           return;
       }
+      if (e.Args.Length == 4 && e.Args[0] == "--d10-driver-switch")
+      {
+          ShutdownMode = ShutdownMode.OnExplicitShutdown;
+          var res = D10DriverManager.ExecuteElevatedSwitch(
+              string.Equals(e.Args[1], "winusb", StringComparison.OrdinalIgnoreCase),
+              e.Args[2]);
+          try
+          {
+              string json = System.Text.Json.JsonSerializer.Serialize(res);
+              File.WriteAllText(e.Args[3], json);
+          }
+          catch { }
+          Shutdown(res.Success ? 0 : 1);
+          return;
+      }
       if (e.Args.Length == 2 && e.Args[0] == "--test-e2e-full")
             {
                 ShutdownMode = ShutdownMode.OnExplicitShutdown;

@@ -101,7 +101,7 @@ public partial class StudioScene
                 macroDraft,
                 vibrationDraft,
                 initial,
-                (settings, calibration) => d10Store.Save(new D10SavedConfig { Settings = settings.Clone(), Calibration = calibration }),
+                cfg => d10Store.Save(cfg),
                 ApplyToController,
                 slot => OpenMacroSlot(slot),
                 () =>

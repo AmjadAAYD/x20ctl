@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Threading;
 using X20Ctl.Zone;
 using X20Ctl.Zone.D10;
 
@@ -8,8 +9,10 @@ namespace X20Ctl.Product;
 
 /// <summary>
 /// Dedicated EasySMX D10 native workbench:
-/// 6-axis IMU motion steering / aiming / gyro mouse, independent M1/M2/M paddle actions,
-/// direct EP02 dual motor intensity and pulse testing, resting bias calibration, and live telemetry.
+/// 6-axis IMU motion steering / aiming / gyro mouse with DSP filters,
+/// M+D-pad quick profiles and game auto-switching, independent M1/M2/M paddle/key/macro routing,
+/// direct EP02 dual motor intensity and pulse testing, resting + 15-pose 3-axis calibration,
+/// and Direct USB (WinUSB) driver switching/recovery.
 /// </summary>
 public sealed class D10HardwareWorkbench
 {
@@ -19,14 +22,15 @@ public sealed class D10HardwareWorkbench
     private readonly CurveDraft curves;
     private readonly MacroDraft macros;
     private readonly VibrationDraft vibration;
-    private readonly D10MotionSettings settings;
-    private readonly Action<D10MotionSettings, D10CalibrationData> saveConfig;
+    private readonly D10SavedConfig config;
+    private readonly Action<D10SavedConfig> saveConfig;
     private readonly Func<Action<string>, Task> applyToController;
     private readonly Action<string> openMacro;
     private readonly Action onChanged;
 
-    private D10CalibrationData calibration;
     private D10DirectSession? session;
+    private DispatcherTimer? gameWatchTimer;
+    private string? lastAutoSwitchedExe;
 
     private readonly TextBlock statusBanner = ManagementVisuals.Copy("Connect EasySMX D10 via Direct USB (WinUSB) for 6-axis motion and independent M1/M2 paddles, or test standard vibration.", 13.5);
     private readonly Border statePill;
@@ -36,11 +40,16 @@ public sealed class D10HardwareWorkbench
     private readonly ComboBox modeBox;
     private readonly Slider fullScaleSlider, deadzoneSlider, sensSlider, tauSlider;
     private readonly TextBlock fullScaleVal, deadzoneVal, sensVal, tauVal;
-    private readonly CheckBox invertBox, vibGuardBox, leadBox;
+    private readonly CheckBox invertBox, vibGuardBox, leadBox, trajGateBox, harmonicBox, boostBox, shortcutsBox;
 
     private readonly Border steerBarFill;
     private readonly TextBlock telemetryText = ManagementVisuals.Copy("Roll: 0.0 deg   |   Pitch: 0.0 deg   |   Gyro Z: 0.0 dps   |   Rate: 0 Hz", 13, true);
     private readonly Border m1Indicator, m2Indicator, mIndicator;
+
+    private readonly ComboBox profileBox, quickSlotBox;
+    private readonly Button newProfileBtn, dupProfileBtn, delProfileBtn, useLastGameBtn;
+    private readonly TextBox gameExesBox;
+    private readonly CheckBox autoSwitchBox;
 
     private readonly ComboBox m1Box, m2Box, mBox;
     private readonly Slider leftMotorSlider, rightMotorSlider;
@@ -48,11 +57,18 @@ public sealed class D10HardwareWorkbench
     private readonly TextBlock rightMotorVal = Kit.Text("100%", 13, "DS.Text", FontWeights.SemiBold);
     private readonly Button pulseLeftBtn, pulseRightBtn, stopMotorsBtn;
 
-    private readonly Button calibrateBtn, resetCalBtn;
-    private readonly TextBlock calStatusText = ManagementVisuals.Copy("Place controller on a flat desk and run 1.5s resting calibration.", 13);
+    private readonly Button calibrateBtn, multiCalBtn, resetCalBtn;
+    private readonly TextBlock calStatusText = ManagementVisuals.Copy("Place controller on a flat desk for 1.5s resting cal, or run 15-pose 3-axis calibration.", 12.5);
+
+    private readonly Button refreshDriverBtn, switchWinUsbBtn, restoreXboxBtn;
+    private readonly TextBlock driverStatusText = ManagementVisuals.Copy("Probing Windows USB driver state...", 12.5);
+    private D10DriverProbe? lastDriverProbe;
 
     private CancellationTokenSource? calCts;
+    private bool calRunningMulti;
     private bool syncing;
+
+    private D10MotionSettings ActiveSettings => config.GetActiveProfile().Settings;
 
     public D10HardwareWorkbench(
         FrameworkElement resources,
@@ -62,7 +78,7 @@ public sealed class D10HardwareWorkbench
         MacroDraft macros,
         VibrationDraft vibration,
         D10SavedConfig initialConfig,
-        Action<D10MotionSettings, D10CalibrationData> saveConfig,
+        Action<D10SavedConfig> saveConfig,
         Func<Action<string>, Task> applyToController,
         Action<string> openMacro,
         Action onChanged)
@@ -71,8 +87,7 @@ public sealed class D10HardwareWorkbench
         this.curves = curves;
         this.macros = macros;
         this.vibration = vibration;
-        this.settings = initialConfig.Settings.Clone().Validated();
-        this.calibration = initialConfig.Calibration;
+        this.config = (initialConfig ?? new D10SavedConfig()).EnsureDefaults();
         this.saveConfig = saveConfig;
         this.applyToController = applyToController;
         this.openMacro = openMacro;
@@ -101,9 +116,9 @@ public sealed class D10HardwareWorkbench
         {
             if (session != null)
             {
-                calibration = session.Recenter();
+                config.Calibration = session.Recenter();
                 PersistConfig();
-                statusBanner.Text = $"Gyro center updated to {calibration.CenterAngleDeg:0.1} deg.";
+                statusBanner.Text = $"Gyro center updated to {config.Calibration.CenterAngleDeg:0.1} deg.";
             }
             else
             {
@@ -142,7 +157,7 @@ public sealed class D10HardwareWorkbench
         cols.Children.Add(leftCol);
         cols.Children.Add(rightCol);
 
-        // Left 1: 6-Axis Motion Tuning
+        // Left 1: 6-Axis Motion Tuning & DSP
         var motionBody = new StackPanel();
         var modeRow = new DockPanel { Margin = new(0, 0, 0, 10) };
         modeBox = new ComboBox
@@ -169,15 +184,23 @@ public sealed class D10HardwareWorkbench
         (tauSlider, tauVal) = BuildSliderRow(motionBody, "Complementary Filter Tau", 0.05, 0.80, 0.01, 0.20, "s", CommitMotionSettings);
 
         invertBox = MakeCheck("Invert Roll Axis");
-        vibGuardBox = MakeCheck("Rumble Vibration Guard");
-        leadBox = MakeCheck("Velocity Lead Compensation");
-        foreach (var cb in new[] { invertBox, vibGuardBox, leadBox })
+        vibGuardBox = MakeCheck("Vibration Guard");
+        leadBox = MakeCheck("Velocity Lead");
+        trajGateBox = MakeCheck("Trajectory Gate");
+        harmonicBox = MakeCheck("18-45 Hz Motor Filter");
+        boostBox = MakeCheck("Mid-Range Boost");
+        shortcutsBox = MakeCheck("M + D-Pad Shortcuts");
+        foreach (var cb in new[] { invertBox, vibGuardBox, leadBox, trajGateBox, harmonicBox, boostBox, shortcutsBox })
         {
             cb.Checked += (_, _) => CommitMotionSettings();
             cb.Unchecked += (_, _) => CommitMotionSettings();
         }
-        motionBody.Children.Add(new WrapPanel { Margin = new(0, 6, 0, 0), Children = { invertBox, vibGuardBox, leadBox } });
-        var motionPanel = Kit.Panel("6-Axis IMU Control", "Fused complementary gyro + accelerometer pipeline", null, motionBody, new Thickness(16));
+        motionBody.Children.Add(new WrapPanel
+        {
+            Margin = new(0, 6, 0, 0),
+            Children = { invertBox, vibGuardBox, leadBox, trajGateBox, harmonicBox, boostBox, shortcutsBox }
+        });
+        var motionPanel = Kit.Panel("6-Axis IMU Control", "Fused complementary gyro + accelerometer pipeline and rumble DSP", null, motionBody, new Thickness(16));
         motionPanel.Margin = new(0, 0, 0, 12);
         leftCol.Children.Add(motionPanel);
 
@@ -213,9 +236,88 @@ public sealed class D10HardwareWorkbench
         btnStrip.Children.Add(m2Indicator);
         btnStrip.Children.Add(mIndicator);
         teleBody.Children.Add(btnStrip);
-        leftCol.Children.Add(Kit.Panel("Live 6-Axis & Paddle Telemetry", "Real-time Direct USB sensor stream and M/M1/M2 physical state", null, teleBody, new Thickness(16)));
+        teleBody.Children.Add(ManagementVisuals.Copy("Shortcuts: M+D-Pad tap = Slots 1-4  |  Hold 3s M+Up = Toggle Gyro  |  Hold 3s M+Down = Recenter", 11.5).Also(t => t.Margin = new(0, 8, 0, 0)));
+        var telePanel = Kit.Panel("Live 6-Axis & Paddle Telemetry", "Real-time Direct USB sensor stream and M/M1/M2 physical state", null, teleBody, new Thickness(16));
+        telePanel.Margin = new(0, 0, 0, 12);
+        leftCol.Children.Add(telePanel);
 
-        // Right 1: Independent Rear Paddles
+        // Left 3: Motion Profiles, Quick Slots & Foreground Game Auto-Switching
+        var profBody = new StackPanel();
+        var profSelectRow = new DockPanel { Margin = new(0, 0, 0, 8) };
+        profileBox = new ComboBox
+        {
+            Width = 220,
+            MinHeight = 32,
+            DisplayMemberPath = "Name",
+            SelectedValuePath = "Id",
+        };
+        profileBox.SelectionChanged += (_, _) =>
+        {
+            if (syncing || profileBox.SelectedValue is not string pid) return;
+            ActivateProfileById(pid, "Loaded motion profile");
+        };
+        DockPanel.SetDock(profileBox, Dock.Right);
+        profSelectRow.Children.Add(profileBox);
+        profSelectRow.Children.Add(Kit.Text("Active Profile", 13.5, "DS.Text", FontWeights.SemiBold).Also(t => t.VerticalAlignment = VerticalAlignment.Center));
+        profBody.Children.Add(profSelectRow);
+
+        newProfileBtn = FlatAction("New", CreateNewProfile, register);
+        dupProfileBtn = FlatAction("Duplicate", DuplicateCurrentProfile, register);
+        delProfileBtn = FlatAction("Delete", DeleteCurrentProfile, register);
+        dupProfileBtn.Margin = new(8, 0, 8, 0);
+        profBody.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Margin = new(0, 0, 0, 10), Children = { newProfileBtn, dupProfileBtn, delProfileBtn } });
+
+        var slotRow = new DockPanel { Margin = new(0, 0, 0, 8) };
+        quickSlotBox = new ComboBox
+        {
+            Width = 220,
+            MinHeight = 32,
+            DisplayMemberPath = "Value",
+            SelectedValuePath = "Key",
+            ItemsSource = new[]
+            {
+                new KeyValuePair<int, string>(0, "No Quick Slot"),
+                new KeyValuePair<int, string>(1, "Slot 1 (M + D-Pad Up)"),
+                new KeyValuePair<int, string>(2, "Slot 2 (M + D-Pad Right)"),
+                new KeyValuePair<int, string>(3, "Slot 3 (M + D-Pad Down)"),
+                new KeyValuePair<int, string>(4, "Slot 4 (M + D-Pad Left)"),
+            }
+        };
+        quickSlotBox.SelectionChanged += (_, _) => CommitProfileMetadata();
+        DockPanel.SetDock(quickSlotBox, Dock.Right);
+        slotRow.Children.Add(quickSlotBox);
+        slotRow.Children.Add(Kit.Text("Quick Slot", 13.5, "DS.Text", FontWeights.SemiBold).Also(t => t.VerticalAlignment = VerticalAlignment.Center));
+        profBody.Children.Add(slotRow);
+
+        var exeRow = new DockPanel { Margin = new(0, 0, 0, 8) };
+        useLastGameBtn = FlatAction("Use Last Game", UseLastForegroundGame, register);
+        useLastGameBtn.MinHeight = 30;
+        useLastGameBtn.Padding = new(10, 4, 10, 4);
+        useLastGameBtn.Margin = new(8, 0, 0, 0);
+        DockPanel.SetDock(useLastGameBtn, Dock.Right);
+        gameExesBox = new TextBox
+        {
+            MinHeight = 30,
+            Padding = new(8, 4, 8, 4),
+            Background = new SolidColorBrush(Color.FromRgb(14, 24, 48)),
+            Foreground = DS.Brush("DS.Text"),
+            BorderBrush = DS.Brush("DS.Hairline"),
+            BorderThickness = new(1),
+            ToolTip = "Comma-separated process names (e.g. forza_gaming.exe, assettocorsa.exe)",
+        };
+        gameExesBox.LostFocus += (_, _) => CommitProfileMetadata();
+        exeRow.Children.Add(useLastGameBtn);
+        exeRow.Children.Add(gameExesBox);
+        profBody.Children.Add(Kit.Text("Linked Game Executables (.exe)", 12.5, "DS.TextSoft").Also(t => t.Margin = new(0, 0, 0, 4)));
+        profBody.Children.Add(exeRow);
+
+        autoSwitchBox = MakeCheck("Auto-switch profile when linked game is in foreground");
+        autoSwitchBox.Checked += (_, _) => CommitAutoSwitch();
+        autoSwitchBox.Unchecked += (_, _) => CommitAutoSwitch();
+        profBody.Children.Add(autoSwitchBox);
+        leftCol.Children.Add(Kit.Panel("Motion Profiles & Auto-Switch", "Manage quick slots (M + D-Pad) and per-game automatic presets", null, profBody, new Thickness(16)));
+
+        // Right 1: Independent Rear Paddles, Macros & Keyboard/Mouse
         var paddlesBody = new StackPanel();
         var actionChoices = D10PaddleActions.All.Select(k => new KeyValuePair<string, string>(k, D10PaddleActions.Label(k))).ToArray();
         m1Box = BuildPaddleRow(paddlesBody, "M1 Paddle", actionChoices);
@@ -228,7 +330,7 @@ public sealed class D10HardwareWorkbench
         macroBtnRow.Children.Add(editM1);
         macroBtnRow.Children.Add(editM2);
         paddlesBody.Children.Add(macroBtnRow);
-        var paddlesPanel = Kit.Panel("Independent M1 / M2 / M Controls", "Remap hardware paddles, toggle gyro, or fire X20CTL macros", null, paddlesBody, new Thickness(16));
+        var paddlesPanel = Kit.Panel("Independent M1 / M2 / M Controls", "Remap hardware paddles to Xbox inputs, keys, mouse clicks, or macros", null, paddlesBody, new Thickness(16));
         paddlesPanel.Margin = new(0, 0, 0, 12);
         rightCol.Children.Add(paddlesPanel);
 
@@ -246,24 +348,70 @@ public sealed class D10HardwareWorkbench
         motorPanel.Margin = new(0, 0, 0, 12);
         rightCol.Children.Add(motorPanel);
 
-        // Right 3: Calibration
+        // Right 3: Calibration & Direct USB Driver Switcher
         var calBody = new StackPanel();
-        calibrateBtn = FlatAction("Calibrate Center & Gyro Bias", () => _ = RunCalibrationAsync(), register);
-        resetCalBtn = FlatAction("Reset Calibration", () =>
+        calibrateBtn = FlatAction("Quick Desk Cal (1.5s)", () => _ = RunCalibrationAsync(multiPose: false), register);
+        multiCalBtn = FlatAction("15-Pose 3-Axis Cal", () =>
         {
-            calibration = D10CalibrationData.Default;
-            if (session != null) session.UpdateCalibration(calibration);
+            if (calRunningMulti && calCts != null) { calCts.Cancel(); return; }
+            _ = RunCalibrationAsync(multiPose: true);
+        }, register);
+        resetCalBtn = FlatAction("Reset", () =>
+        {
+            config.Calibration = D10CalibrationData.Default;
+            if (session != null) session.UpdateCalibration(config.Calibration);
             PersistConfig();
             calStatusText.Text = "Reset to factory D10 baseline calibration.";
         }, register);
-        resetCalBtn.Margin = new(8, 0, 0, 0);
-        calibrateBtn.IsEnabled = resetCalBtn.IsEnabled = !ReviewSandbox.Active;
-        calBody.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = { calibrateBtn, resetCalBtn } });
-        calBody.Children.Add(calStatusText.Also(t => t.Margin = new(0, 10, 0, 0)));
-        calBody.Children.Add(ManagementVisuals.Copy("Connects non-destructively to Direct USB (WinUSB) interfaces when present. Controller and receiver firmware are never modified.", 12).Also(t => t.Margin = new(0, 8, 0, 0)));
-        rightCol.Children.Add(Kit.Panel("Sensor Calibration & Driver Info", "Stationary resting bias and tilt zeroing", null, calBody, new Thickness(16)));
+        multiCalBtn.Margin = new(8, 0, 8, 0);
+        calibrateBtn.IsEnabled = multiCalBtn.IsEnabled = resetCalBtn.IsEnabled = !ReviewSandbox.Active;
+        calBody.Children.Add(new WrapPanel { Children = { calibrateBtn, multiCalBtn, resetCalBtn } });
+        calBody.Children.Add(calStatusText.Also(t => t.Margin = new(0, 8, 0, 10)));
 
+        calBody.Children.Add(new Border { Height = 1, Background = DS.Brush("DS.Hairline"), Margin = new(0, 2, 0, 10) });
+        calBody.Children.Add(Kit.Text("Windows Direct USB Driver Mode (No Firmware Modification)", 13, "DS.Text", FontWeights.SemiBold));
+        calBody.Children.Add(driverStatusText.Also(t => t.Margin = new(0, 4, 0, 8)));
+
+        refreshDriverBtn = FlatAction("Refresh Driver", RefreshDriverStatus, register);
+        switchWinUsbBtn = FlatAction("Switch to Direct USB", () => _ = SwitchDriverAsync(toWinUsb: true), register);
+        restoreXboxBtn = FlatAction("Restore Xbox / Recovery", () => _ = SwitchDriverAsync(toWinUsb: false), register);
+        switchWinUsbBtn.Margin = new(8, 0, 8, 0);
+        calBody.Children.Add(new WrapPanel { Children = { refreshDriverBtn, switchWinUsbBtn, restoreXboxBtn } });
+        rightCol.Children.Add(Kit.Panel("Calibration & Direct USB Driver", "Gyro zeroing, 15-pose 3-axis accelerometer fit, and WinUSB switching", null, calBody, new Thickness(16)));
+
+        RefreshDriverStatus();
         RefreshFromDrafts();
+        StartForegroundAutoSwitch();
+    }
+
+    private void StartForegroundAutoSwitch()
+    {
+        if (ReviewSandbox.Active) return;
+        gameWatchTimer = new DispatcherTimer(DispatcherPriority.Background)
+        {
+            Interval = TimeSpan.FromMilliseconds(1200),
+        };
+        gameWatchTimer.Tick += (_, _) => CheckForegroundGameSwitch();
+        gameWatchTimer.Start();
+    }
+
+    private void CheckForegroundGameSwitch()
+    {
+        if (!config.AutoSwitchByGame || ReviewSandbox.Active) return;
+        string? exe = ForegroundApp.Exe;
+        if (string.IsNullOrWhiteSpace(exe))
+        {
+            lastAutoSwitchedExe = null;
+            return;
+        }
+        if (string.Equals(exe, lastAutoSwitchedExe, StringComparison.OrdinalIgnoreCase)) return;
+
+        var matched = config.FindByProcessExe(exe);
+        lastAutoSwitchedExe = exe;
+        if (matched == null || string.Equals(matched.Id, config.ActiveProfileId, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        ActivateProfileById(matched.Id, $"Auto-switched to \"{matched.Name}\" for {exe}");
     }
 
     private ComboBox BuildPaddleRow(Panel parent, string label, KeyValuePair<string, string>[] choices)
@@ -271,7 +419,7 @@ public sealed class D10HardwareWorkbench
         var row = new DockPanel { Margin = new(0, 0, 0, 8) };
         var box = new ComboBox
         {
-            Width = 200,
+            Width = 215,
             MinHeight = 32,
             ItemsSource = choices,
             DisplayMemberPath = "Value",
@@ -353,8 +501,8 @@ public sealed class D10HardwareWorkbench
     {
         Content = text,
         Foreground = DS.Brush("DS.Text"),
-        FontSize = 13,
-        Margin = new(0, 4, 14, 4),
+        FontSize = 12.5,
+        Margin = new(0, 4, 12, 4),
     };
 
     private static Button FlatAction(string text, Action onClick, Action<Button> register, bool primary = false)
@@ -371,31 +519,165 @@ public sealed class D10HardwareWorkbench
         return button;
     }
 
+    private void CreateNewProfile()
+    {
+        int n = config.Profiles.Count + 1;
+        int? freeSlot = Enumerable.Range(1, 4).FirstOrDefault(s => config.FindByQuickSlot(s) == null);
+        var created = new D10NamedProfile
+        {
+            Id = Guid.NewGuid().ToString("N")[..8],
+            Name = $"Motion Profile {n}",
+            QuickSlot = freeSlot is >= 1 and <= 4 ? freeSlot : null,
+            Settings = ActiveSettings.Clone().Validated(),
+        };
+        config.Profiles.Add(created);
+        ActivateProfileById(created.Id, $"Created \"{created.Name}\"");
+    }
+
+    private void DuplicateCurrentProfile()
+    {
+        var cur = config.GetActiveProfile();
+        var copy = new D10NamedProfile
+        {
+            Id = Guid.NewGuid().ToString("N")[..8],
+            Name = cur.Name + " Copy",
+            QuickSlot = null,
+            Settings = cur.Settings.Clone().Validated(),
+        };
+        config.Profiles.Add(copy);
+        ActivateProfileById(copy.Id, $"Duplicated \"{cur.Name}\"");
+    }
+
+    private void DeleteCurrentProfile()
+    {
+        if (config.Profiles.Count <= 1)
+        {
+            statusBanner.Text = "At least one D10 motion profile is required.";
+            return;
+        }
+        var cur = config.GetActiveProfile();
+        config.Profiles.Remove(cur);
+        config.EnsureDefaults();
+        PersistConfig();
+        RefreshFromDrafts();
+        session?.UpdateMotionSettings(ActiveSettings);
+        statusBanner.Text = $"Deleted \"{cur.Name}\". Active: \"{config.GetActiveProfile().Name}\".";
+    }
+
+    private void UseLastForegroundGame()
+    {
+        string? exe = ForegroundApp.Last?.Exe;
+        if (string.IsNullOrWhiteSpace(exe))
+        {
+            statusBanner.Text = "No recent non-X20CTL game window detected yet. Tab into your game once, then return.";
+            return;
+        }
+        var existing = gameExesBox.Text
+            .Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToList();
+        if (!existing.Any(x => string.Equals(x, exe, StringComparison.OrdinalIgnoreCase)))
+            existing.Add(exe);
+        gameExesBox.Text = string.Join(", ", existing);
+        CommitProfileMetadata();
+        statusBanner.Text = $"Linked {exe} to \"{config.GetActiveProfile().Name}\".";
+    }
+
+    private void CommitProfileMetadata()
+    {
+        if (syncing) return;
+        var active = config.GetActiveProfile();
+        int chosenSlot = quickSlotBox.SelectedValue is int s ? s : 0;
+        if (chosenSlot is >= 1 and <= 4)
+        {
+            foreach (var p in config.Profiles)
+                if (p.Id != active.Id && p.QuickSlot == chosenSlot) p.QuickSlot = null;
+            active.QuickSlot = chosenSlot;
+        }
+        else
+        {
+            active.QuickSlot = null;
+        }
+
+        active.GameExes = gameExesBox.Text
+            .Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(x => x.ToLowerInvariant())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        PersistConfig();
+        RefreshProfileControls();
+    }
+
+    private void CommitAutoSwitch()
+    {
+        if (syncing) return;
+        config.AutoSwitchByGame = autoSwitchBox.IsChecked == true;
+        PersistConfig();
+    }
+
+    private void ActivateProfileById(string profileId, string reason)
+    {
+        var active = config.SetActiveProfile(profileId);
+        PersistConfig();
+        RefreshFromDrafts();
+        session?.UpdateMotionSettings(active.Settings);
+        statusBanner.Text = $"{reason}: {active.Name}";
+    }
+
     private void CommitMotionSettings()
     {
         if (syncing) return;
-        settings.Mode = (D10MotionMode)Math.Clamp(modeBox.SelectedIndex, 0, 3);
-        settings.FullScaleDegrees = fullScaleSlider.Value;
-        settings.DeadzoneDegrees = deadzoneSlider.Value;
-        settings.Sensitivity = sensSlider.Value;
-        settings.FilterTauSeconds = tauSlider.Value;
-        settings.InvertAxis = invertBox.IsChecked == true;
-        settings.VibrationGuard = vibGuardBox.IsChecked == true;
-        settings.VelocityLead = leadBox.IsChecked == true;
-        settings.Validated();
-        session?.UpdateMotionSettings(settings);
+        var s = ActiveSettings;
+        s.Mode = (D10MotionMode)Math.Clamp(modeBox.SelectedIndex, 0, 3);
+        s.FullScaleDegrees = fullScaleSlider.Value;
+        s.DeadzoneDegrees = deadzoneSlider.Value;
+        s.Sensitivity = sensSlider.Value;
+        s.FilterTauSeconds = tauSlider.Value;
+        s.InvertAxis = invertBox.IsChecked == true;
+        s.VibrationGuard = vibGuardBox.IsChecked == true;
+        s.VelocityLead = leadBox.IsChecked == true;
+        s.TrajectoryGate = trajGateBox.IsChecked == true;
+        s.MotorHarmonicFilter = harmonicBox.IsChecked == true;
+        s.MidRangeBoost = boostBox.IsChecked == true;
+        s.ShortcutsEnabled = shortcutsBox.IsChecked == true;
+        s.Validated();
+        config.Settings = s.Clone();
+        session?.UpdateMotionSettings(s);
         onChanged();
     }
 
     private void CommitPaddleBindings()
     {
         if (syncing) return;
-        if (m1Box.SelectedValue is string m1) settings.M1Binding = m1;
-        if (m2Box.SelectedValue is string m2) settings.M2Binding = m2;
-        if (mBox.SelectedValue is string mb) settings.MBinding = mb;
-        settings.Validated();
-        session?.UpdateMotionSettings(settings);
+        var s = ActiveSettings;
+        if (m1Box.SelectedValue is string m1) s.M1Binding = m1;
+        if (m2Box.SelectedValue is string m2) s.M2Binding = m2;
+        if (mBox.SelectedValue is string mb) s.MBinding = mb;
+        s.Validated();
+        config.Settings = s.Clone();
+        session?.UpdateMotionSettings(s);
         onChanged();
+    }
+
+    private void RefreshProfileControls()
+    {
+        bool prevSync = syncing;
+        syncing = true;
+        try
+        {
+            var active = config.GetActiveProfile();
+            profileBox.ItemsSource = config.Profiles.ToArray();
+            profileBox.SelectedValue = active.Id;
+            quickSlotBox.SelectedValue = active.QuickSlot ?? 0;
+            gameExesBox.Text = string.Join(", ", active.GameExes);
+            autoSwitchBox.IsChecked = config.AutoSwitchByGame;
+            delProfileBtn.IsEnabled = !ReviewSandbox.Active && config.Profiles.Count > 1;
+            newProfileBtn.IsEnabled = dupProfileBtn.IsEnabled = useLastGameBtn.IsEnabled = !ReviewSandbox.Active;
+        }
+        finally
+        {
+            syncing = prevSync;
+        }
     }
 
     public void RefreshFromDrafts()
@@ -403,22 +685,28 @@ public sealed class D10HardwareWorkbench
         syncing = true;
         try
         {
-            modeBox.SelectedIndex = (int)settings.Mode;
-            fullScaleSlider.Value = settings.FullScaleDegrees;
-            deadzoneSlider.Value = settings.DeadzoneDegrees;
-            sensSlider.Value = settings.Sensitivity;
-            tauSlider.Value = settings.FilterTauSeconds;
-            fullScaleVal.Text = $"{settings.FullScaleDegrees:0.##} deg";
-            deadzoneVal.Text = $"{settings.DeadzoneDegrees:0.##} deg";
-            sensVal.Text = $"{settings.Sensitivity:0.##} x";
-            tauVal.Text = $"{settings.FilterTauSeconds:0.##} s";
-            invertBox.IsChecked = settings.InvertAxis;
-            vibGuardBox.IsChecked = settings.VibrationGuard;
-            leadBox.IsChecked = settings.VelocityLead;
+            RefreshProfileControls();
+            var s = ActiveSettings;
+            modeBox.SelectedIndex = (int)s.Mode;
+            fullScaleSlider.Value = s.FullScaleDegrees;
+            deadzoneSlider.Value = s.DeadzoneDegrees;
+            sensSlider.Value = s.Sensitivity;
+            tauSlider.Value = s.FilterTauSeconds;
+            fullScaleVal.Text = $"{s.FullScaleDegrees:0.##} deg";
+            deadzoneVal.Text = $"{s.DeadzoneDegrees:0.##} deg";
+            sensVal.Text = $"{s.Sensitivity:0.##} x";
+            tauVal.Text = $"{s.FilterTauSeconds:0.##} s";
+            invertBox.IsChecked = s.InvertAxis;
+            vibGuardBox.IsChecked = s.VibrationGuard;
+            leadBox.IsChecked = s.VelocityLead;
+            trajGateBox.IsChecked = s.TrajectoryGate;
+            harmonicBox.IsChecked = s.MotorHarmonicFilter;
+            boostBox.IsChecked = s.MidRangeBoost;
+            shortcutsBox.IsChecked = s.ShortcutsEnabled;
 
-            m1Box.SelectedValue = settings.M1Binding;
-            m2Box.SelectedValue = settings.M2Binding;
-            mBox.SelectedValue = settings.MBinding;
+            m1Box.SelectedValue = s.M1Binding;
+            m2Box.SelectedValue = s.M2Binding;
+            mBox.SelectedValue = s.MBinding;
 
             leftMotorSlider.Value = vibration.SupportsNativeMotors ? vibration.Left : vibration.Strength;
             rightMotorSlider.Value = vibration.SupportsNativeMotors ? vibration.Right : vibration.Strength;
@@ -433,15 +721,79 @@ public sealed class D10HardwareWorkbench
         }
     }
 
-    public void PersistConfig() => saveConfig(settings, calibration);
+    public void PersistConfig()
+    {
+        config.Settings = ActiveSettings.Clone();
+        saveConfig(config);
+    }
 
     public void SetStatus(string message) => statusBanner.Text = message;
 
+    private void RefreshDriverStatus()
+    {
+        if (ReviewSandbox.Active)
+        {
+            driverStatusText.Text = "Driver probe paused in preview sandbox.";
+            refreshDriverBtn.IsEnabled = switchWinUsbBtn.IsEnabled = restoreXboxBtn.IsEnabled = false;
+            return;
+        }
+
+        lastDriverProbe = D10DriverManager.ProbeDevice();
+        driverStatusText.Text = lastDriverProbe.Summary;
+        refreshDriverBtn.IsEnabled = true;
+        switchWinUsbBtn.IsEnabled = lastDriverProbe.InstanceId != null &&
+                                    lastDriverProbe.State is D10DriverState.OfficialXbox or D10DriverState.PartialWinUsb;
+        restoreXboxBtn.IsEnabled = lastDriverProbe.InstanceId != null &&
+                                   lastDriverProbe.State is D10DriverState.WinUsbReady or D10DriverState.PartialWinUsb;
+    }
+
+    private async Task SwitchDriverAsync(bool toWinUsb)
+    {
+        if (ReviewSandbox.Active) return;
+        RefreshDriverStatus();
+        if (lastDriverProbe?.InstanceId is not string instanceId)
+        {
+            statusBanner.Text = lastDriverProbe?.Summary ?? "Connect a single EasySMX D10 device first.";
+            return;
+        }
+
+        string title = toWinUsb ? "Switch D10 to Direct USB (WinUSB)" : "Restore Official Xbox 360 Driver";
+        string question = toWinUsb
+            ? $"Switch {instanceId} to Windows inbox WinUSB driver so X20CTL can read 6-axis IMU and rear paddles?\n\nYour controller and receiver firmware are NOT modified."
+            : $"Restore Windows official Xbox 360 driver on {instanceId} and remove Direct USB WinUSB bindings?";
+
+        if (MessageBox.Show(question, title, MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+            return;
+
+        if (session != null) ShutdownSession();
+
+        refreshDriverBtn.IsEnabled = switchWinUsbBtn.IsEnabled = restoreXboxBtn.IsEnabled = false;
+        driverStatusText.Text = toWinUsb ? "Installing inbox WinUSB binding..." : "Restoring official Xbox 360 driver...";
+        statusBanner.Text = driverStatusText.Text;
+
+        try
+        {
+            var res = await D10DriverManager.RunElevatedActionAsync(toWinUsb, instanceId);
+            statusBanner.Text = res.Message;
+            driverStatusText.Text = res.Message;
+        }
+        catch (Exception ex)
+        {
+            statusBanner.Text = "Driver switch failed: " + ex.Message;
+            driverStatusText.Text = statusBanner.Text;
+        }
+        finally
+        {
+            RefreshDriverStatus();
+        }
+    }
+
     private async Task SaveAndApplyAsync()
     {
+        CommitProfileMetadata();
         PersistConfig();
         session?.UpdateDrafts(buttons, curves, macros, vibration);
-        session?.UpdateMotionSettings(settings);
+        session?.UpdateMotionSettings(ActiveSettings);
         await applyToController(msg => statusBanner.Text = msg);
     }
 
@@ -465,9 +817,21 @@ public sealed class D10HardwareWorkbench
                 return;
             }
 
-            var created = D10UsbClient.StartSession(settings, calibration, buttons, curves, macros, vibration);
+            var created = D10UsbClient.StartSession(ActiveSettings, config.Calibration, buttons, curves, macros, vibration);
             created.TelemetryUpdated += t => Body.Dispatcher.BeginInvoke(() => RenderTelemetry(t));
             created.StatusChanged += s => Body.Dispatcher.BeginInvoke(() => statusBanner.Text = s);
+            created.QuickSlotRequested += slot => Body.Dispatcher.BeginInvoke(() =>
+            {
+                var found = config.FindByQuickSlot(slot);
+                if (found != null) ActivateProfileById(found.Id, $"M+D-Pad Slot {slot}");
+                else statusBanner.Text = $"No D10 profile assigned to Quick Slot {slot}.";
+            });
+            created.CalibrationUpdated += cal => Body.Dispatcher.BeginInvoke(() =>
+            {
+                config.Calibration = cal;
+                PersistConfig();
+            });
+            created.QuickCalibrateRequested += () => Body.Dispatcher.BeginInvoke(() => _ = RunCalibrationAsync(multiPose: false));
             created.Faulted += err => Body.Dispatcher.BeginInvoke(() =>
             {
                 statusBanner.Text = err;
@@ -509,7 +873,7 @@ public sealed class D10HardwareWorkbench
         stateText.Text = kind switch
         {
             D10LinkKind.WiredUsb => "Wired USB (EP83)",
-            D10LinkKind.WirelessReceiver => "2.4G Direct (V0.5ae)",
+            D10LinkKind.WirelessReceiver => "2.4G Direct",
             _ => "Disconnected",
         };
         stateText.Foreground = kind == D10LinkKind.Disconnected
@@ -555,7 +919,7 @@ public sealed class D10HardwareWorkbench
         }
     }
 
-    private async Task RunCalibrationAsync()
+    private async Task RunCalibrationAsync(bool multiPose)
     {
         if (session == null)
         {
@@ -565,14 +929,28 @@ public sealed class D10HardwareWorkbench
         calCts?.Cancel();
         calCts?.Dispose();
         calCts = new CancellationTokenSource();
+        calRunningMulti = multiPose;
         calibrateBtn.IsEnabled = false;
-        calStatusText.Text = "Keep controller still on a flat surface (calibrating 0%)...";
+        multiCalBtn.Content = multiPose ? "Cancel 15-Pose" : "15-Pose 3-Axis Cal";
+        multiCalBtn.IsEnabled = multiPose;
+        calStatusText.Text = multiPose
+            ? "Starting 15-pose 3-axis capture: hold Pose 1 steady..."
+            : "Keep controller still on a flat surface (calibrating 0%)...";
         try
         {
-            var res = await session.CalibrateAsync(p => Body.Dispatcher.BeginInvoke(() => calStatusText.Text = $"Calibrating stationary gyro bias ({p * 100:0}%)..."), calCts.Token);
-            calibration = res;
+            D10CalibrationData res = multiPose
+                ? await session.CalibrateMultiPoseAsync(
+                    st => Body.Dispatcher.BeginInvoke(() => calStatusText.Text = st.Message),
+                    calCts.Token)
+                : await session.CalibrateAsync(
+                    p => Body.Dispatcher.BeginInvoke(() => calStatusText.Text = $"Calibrating stationary gyro bias ({p * 100:0}%)..."),
+                    calCts.Token);
+
+            config.Calibration = res;
             PersistConfig();
-            calStatusText.Text = $"Calibrated cleanly: Center {res.CenterAngleDeg:0.2} deg, Gyro bias ({res.GyroBiasX:0.1}, {res.GyroBiasY:0.1}, {res.GyroBiasZ:0.1}).";
+            calStatusText.Text = multiPose
+                ? $"15-Pose calibrated: Offsets ({res.AccelOffsetX:0}, {res.AccelOffsetY:0}, {res.AccelOffsetZ:0}), Scales ({res.AccelScaleX:0}, {res.AccelScaleY:0}, {res.AccelScaleZ:0})."
+                : $"Calibrated cleanly: Center {res.CenterAngleDeg:0.2} deg, Gyro bias ({res.GyroBiasX:0.1}, {res.GyroBiasY:0.1}, {res.GyroBiasZ:0.1}).";
         }
         catch (OperationCanceledException)
         {
@@ -584,12 +962,15 @@ public sealed class D10HardwareWorkbench
         }
         finally
         {
-            calibrateBtn.IsEnabled = !ReviewSandbox.Active;
+            calRunningMulti = false;
+            multiCalBtn.Content = "15-Pose 3-Axis Cal";
+            calibrateBtn.IsEnabled = multiCalBtn.IsEnabled = !ReviewSandbox.Active;
         }
     }
 
     public void ShutdownSession()
     {
+        try { gameWatchTimer?.Stop(); } catch { }
         try { calCts?.Cancel(); } catch { }
         calCts?.Dispose();
         calCts = null;
