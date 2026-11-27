@@ -9,7 +9,8 @@ public class StudioFlowTests
         var catalog = Catalog(); Assert.Equal(7, catalog.Models.Count); Assert.Null(catalog.Find("x05")); // the X05 was removed (owner, 24 Oct 2026)
         Assert.Equal("SUPPORTED", catalog.Get("x20").Support);
         Assert.Equal("SUPPORTED", catalog.Get("x10").Support);
-        Assert.All(catalog.Models.Where(m => m.Id != "x20" && m.Id != "x20_pro" && m.Id != "x10"), model => Assert.NotEqual("SUPPORTED", model.Support));
+        Assert.Equal("SUPPORTED", catalog.Get("d10").Support);
+        Assert.All(catalog.Models.Where(m => m.Id != "x20" && m.Id != "x20_pro" && m.Id != "x10" && m.Id != "d10"), model => Assert.NotEqual("SUPPORTED", model.Support));
     }
     [Theory] [InlineData(0)] [InlineData(1)] [InlineData(2)] [InlineData(3)]
     public void AssignmentChangesOnlyClickedPlayerAndKeepsItHero(int index)

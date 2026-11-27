@@ -617,10 +617,10 @@
       "M1",
       "M2"
     ],
-    "backend": null,
+    "backend": "d10_usb",
     "visible": true,
-    "placeholder": true,
-    "softwareControl": "input_only_experimental",
+    "placeholder": false,
+    "softwareControl": "supported",
     "connectionModes": [
       "USB",
       "2.4 GHz",
@@ -744,7 +744,7 @@
       "rgb": [],
       "screen": null
     },
-    "availability": "input_experimental",
+    "availability": "configuration",
     "inputBackend": "correlated_xinput",
     "known": [
       "Receiver 2345:E062 and its USB/HID interfaces are documented in a public owner dump.",

@@ -11,12 +11,12 @@ public sealed class VibrationDraft(string modelId)
     public bool Modified => Strength != DefaultStrength || Left != 100 || Right != 100 || Floor != 0;
     /// <summary>PC mode scales a game's vibration on the PC, so any model can set it while PC mode is on.</summary>
     public bool PcMode { get; set; }
-    public bool SupportsNativeMotors => modelId == "x10";
-    public bool CanEdit => modelId is "x20" or "x20_pro" or "x10" || PcMode;
+    public bool SupportsNativeMotors => modelId is "x10" or "d10";
+    public bool CanEdit => modelId is "x20" or "x20_pro" or "x10" or "d10" || PcMode;
     /// <summary>On the pad itself 100% is the most; PC mode can boost a game's rumble up to 200%.</summary>
     public int Max => PcMode ? X20Ctl.Zone.PcMode.PcModeProfile.MaxVibration : 100;
-    public bool CanApplyHardware => modelId == "x10" && !PcMode;
-    public bool CanTestHardware => modelId == "x10" && !PcMode;
+    public bool CanApplyHardware => modelId is "x10" or "d10" && !PcMode;
+    public bool CanTestHardware => modelId is "x10" or "d10" && !PcMode;
 
     public void Set(int percent)
     {

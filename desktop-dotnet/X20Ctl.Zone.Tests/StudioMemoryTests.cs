@@ -29,9 +29,33 @@ public class StudioMemoryTests
     public void ALockedEditorKeepsWhatItHasAndTheRestStillComesBack()
     {
         var saved = new StudioMemory.Entry { Mappings = { ["A"] = "B" }, Vibration = 40 };
-        var x20 = new VibrationDraft("x20"); var buttons = new ButtonDraft("d10"); // not unlocked: PC mode off
-        StudioMemory.Restore(saved, buttons, new CurveDraft("d10"), new MacroDraft("d10"), x20);
+        var x20 = new VibrationDraft("x20"); var buttons = new ButtonDraft("x15"); // not unlocked: PC mode off
+        StudioMemory.Restore(saved, buttons, new CurveDraft("x15"), new MacroDraft("x15"), x20);
         Assert.Equal("A", buttons.Target("A")); Assert.Equal(40, x20.Strength);
+    }
+
+    [Fact]
+    public void NativeD10EditorRestoresMappingsCurvesMacrosAndVibration()
+    {
+        var buttons = new ButtonDraft("d10");
+        var curves = new CurveDraft("d10");
+        var macros = new MacroDraft("d10");
+        var vibration = new VibrationDraft("d10");
+        Assert.True(buttons.CanEdit("A"));
+        Assert.True(curves.CanEdit);
+        Assert.True(macros.CanEdit);
+
+        var saved = new StudioMemory.Entry
+        {
+            Mappings = { ["A"] = "B" },
+            Vibration = 64,
+            VibrationLeft = 55,
+            VibrationRight = 80
+        };
+        StudioMemory.Restore(saved, buttons, curves, macros, vibration);
+        Assert.Equal("B", buttons.Target("A"));
+        Assert.Equal(55, vibration.Left);
+        Assert.Equal(80, vibration.Right);
     }
 
     [Fact]

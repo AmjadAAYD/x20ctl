@@ -26,7 +26,7 @@ public static class CommunityCapabilities
         new CommunityModelInfo("x05-pro", "X05 Pro", false),
         new CommunityModelInfo("x10", "X10", true),
         new CommunityModelInfo("x15", "X15", false),
-        new CommunityModelInfo("d10", "D10", false),
+        new CommunityModelInfo("d10", "D10", true),
         new CommunityModelInfo("dune-8k", "Dune 8K", false),
         new CommunityModelInfo("generic-xinput", "Generic XInput", false)
     };
@@ -37,6 +37,8 @@ public static class CommunityCapabilities
         { "buttons", "curves", "macros" };
     private static readonly string[] NativeX10Features =
         { "buttons", "curves", "macros", "vibration" };
+    private static readonly string[] NativeD10Features =
+        { "buttons", "curves", "macros", "vibration", "gyros" };
     private static readonly string[] PcModeFeatures =
         { "buttons", "curves", "keyboard", "mouse", "macros" };
 
@@ -88,6 +90,10 @@ public static class CommunityCapabilities
         if (mode == "native" && model.Id == "x10")
         {
             return new CommunityCapabilitySet(model.Id, model.DisplayName, mode, NativeX10Features, NativeX10Categories);
+        }
+        if (mode == "native" && model.Id == "d10")
+        {
+            return new CommunityCapabilitySet(model.Id, model.DisplayName, mode, NativeD10Features, NativeX10Categories);
         }
         return new CommunityCapabilitySet(model.Id, model.DisplayName, "pc-mode", PcModeFeatures, LimitedCategories);
     }

@@ -27,10 +27,10 @@ public sealed class SetupSnapshot
     };
     public void Validate()
     {
-        // PC mode setups: non-native pads, plus X20 Pro or X10 when saved with PC-mode-only fields (boosted motors or button triggers).
-        bool nativePad=ModelId is "x20" or "x20_pro" or "x10";
-        bool pcMotors=Motors is {Length:3} && (ModelId!="x10" || Motors[0]>100 || Motors[1]>100 || Motors[2]>0);
-        bool pc=!nativePad && X20Ctl.Zone.PcMode.PcModeEntry.IsAvailable(ModelId) || (ModelId is "x20_pro" or "x10") && (pcMotors||Triggers!=null);
+        // PC mode setups: non-native pads, plus X20 Pro, X10, or D10 when saved with PC-mode-only fields (boosted motors or button triggers).
+        bool nativePad=ModelId is "x20" or "x20_pro" or "x10" or "d10";
+        bool pcMotors=Motors is {Length:3} && ((ModelId is not ("x10" or "d10")) || Motors[0]>100 || Motors[1]>100 || Motors[2]>0);
+        bool pc=!nativePad && X20Ctl.Zone.PcMode.PcModeEntry.IsAvailable(ModelId) || (ModelId is "x20_pro" or "x10" or "d10") && (pcMotors||Triggers!=null);
         if(!nativePad && !pc || Mappings==null || Curves==null || Macros==null || Curves.Values.Any(v=>v==null) || Macros.Values.Any(v=>v==null || v.Any(e=>e==null||e.Buttons==null)) || !Mappings.Keys.Order().SequenceEqual(ButtonDraft.Sources.Order()) || !Curves.Keys.Order().SequenceEqual(Enum.GetNames<CurveChannel>().Order()) || !Macros.Keys.Order().SequenceEqual(new MacroDraft(ModelId).SlotNames.Order()))throw new InvalidDataException("Unsupported native setup model or incomplete fields.");
         var buttons=new ButtonDraft(ModelId){PcMode=pc};foreach(var (key,value) in Mappings)buttons.Set(key,value);
         var curves=new CurveDraft(ModelId){PcMode=pc};foreach(var (key,value) in Curves)curves.Set(Enum.Parse<CurveChannel>(key),new(value.Preset,value.Inner,value.Outer,(value.X1,value.Y1),(value.X2,value.Y2)){BasePreset=value.BasePreset});
