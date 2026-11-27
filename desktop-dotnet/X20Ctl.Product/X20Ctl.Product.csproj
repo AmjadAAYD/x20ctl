@@ -17,6 +17,8 @@
     <EngineBesideExe Condition="'$(EngineBesideExe)' == ''">true</EngineBesideExe>
     <!-- release builds (-p:ElevateAtLaunch=true) ask for administrator permission when opened, so PC mode can install its drivers; dev builds don't -->
     <ApplicationManifest Condition="'$(ElevateAtLaunch)' == 'true'">app.elevated.manifest</ApplicationManifest>
+    <!-- Disable /CETCOMPAT so singlefilehost.exe does not abort (0x80131506) on Windows 11 21H2 systems lacking QueueUserAPC2 -->
+    <CETCompat>false</CETCompat>
   </PropertyGroup>
   <ItemGroup>
     <!-- WinForms is used only for the tray NotifyIcon; keep its namespaces out of the WPF code -->
