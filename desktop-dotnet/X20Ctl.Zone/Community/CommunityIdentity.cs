@@ -19,18 +19,20 @@ public sealed class CommunityIdentityData
 public sealed class CommunityIdentity : IDisposable
 {
     private readonly ECDsa _ecdsa;
+    private string? _storagePath;
 
     public string Uid { get; }
     public string PublicKeyBase64 { get; }
     public string? Handle { get; set; }
 
-    private CommunityIdentity(ECDsa ecdsa, string? handle = null)
+    private CommunityIdentity(ECDsa ecdsa, string? handle = null, string? storagePath = null)
     {
         _ecdsa = ecdsa;
         var spki = ecdsa.ExportSubjectPublicKeyInfo();
         PublicKeyBase64 = Convert.ToBase64String(spki);
         Uid = DeriveUidFromSpki(spki);
         Handle = handle;
+        _storagePath = storagePath;
     }
 
     public static string DeriveUidFromSpki(byte[] spkiBytes)
@@ -66,7 +68,7 @@ public sealed class CommunityIdentity : IDisposable
                 {
                     var ecdsa = ECDsa.Create();
                     ecdsa.ImportPkcs8PrivateKey(Convert.FromBase64String(data.PrivateKeyPkcs8Base64), out _);
-                    return new CommunityIdentity(ecdsa, data.Handle);
+                    return new CommunityIdentity(ecdsa, data.Handle, path);
                 }
             }
             catch
@@ -81,8 +83,9 @@ public sealed class CommunityIdentity : IDisposable
 
     public void Save(string? path = null)
     {
-        path ??= GetDefaultPath();
-        var dir = Path.GetDirectoryName(path);
+        var targetPath = string.IsNullOrWhiteSpace(path) ? (_storagePath ?? GetDefaultPath()) : path;
+        _storagePath = targetPath;
+        var dir = Path.GetDirectoryName(targetPath);
         if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
         var data = new CommunityIdentityData
         {
@@ -91,7 +94,7 @@ public sealed class CommunityIdentity : IDisposable
             PrivateKeyPkcs8Base64 = Convert.ToBase64String(_ecdsa.ExportPkcs8PrivateKey()),
             Handle = Handle
         };
-        File.WriteAllText(path, JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true }), Encoding.UTF8);
+        File.WriteAllText(targetPath, JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true }), Encoding.UTF8);
     }
 
     public string ExportRecoveryKey()
@@ -108,7 +111,7 @@ public sealed class CommunityIdentity : IDisposable
         var bytes = Base64UrlDecode(trimmed[6..]);
         var ecdsa = ECDsa.Create();
         ecdsa.ImportPkcs8PrivateKey(bytes, out _);
-        var id = new CommunityIdentity(ecdsa);
+        var id = new CommunityIdentity(ecdsa, storagePath: savePath);
         if (!string.IsNullOrWhiteSpace(savePath))
             id.Save(savePath);
         return id;
