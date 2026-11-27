@@ -118,7 +118,7 @@ Walks through every button, stick, trigger, report rate, and identity check loca
 | **EasySMX X15** | Read-only preview | Yes | Full Windows/Linux PC mode support |
 | **EasySMX X10** | Full native BLE configuration (`Buttons`, `Curves`, `Macros`, `Turbo`, dual motors, calibration, factory reset) | Yes | Bidirectional KRLY Bluetooth LE GATT + read-back verification (`0x3A` rear paddles, `0x45` motor test, `0x78`/`0x41` calibration) |
 | **EasySMX X05 Pro** | Read-only preview | Yes | DInput recognition helper in Write scan |
-| **EasySMX D10** | Read-only preview | Yes | Full PC mode profiles, curves, keyboard & mouse |
+| **EasySMX D10** | Full native Direct USB (`Buttons`, `Curves`, `Macros`, `Vibration`, `D10 Motion` 6-axis IMU) | Yes | WinUSB wired (`EP81`/`EP83`/`EP02`) and 2.4 GHz (`C0/5A` + `C0/5C`) 6-axis steering/aim/mouse fusion, independent `M1`/`M2`/`M` rear routing, dual-motor testing |
 | **EasySMX Dune 8K** | 4-motor haptic visualizer & `M1–M4` layout | Yes | PC mode remapping & trigger rumble; native protocol unverified |
 
 - **DInput tip (`STK-7024X` / `0079:181C`):** If Steam or Windows labels your pad `STK-7024X`, switch it back to XInput mode for full PC mode and X20 Pro identification.
@@ -149,7 +149,7 @@ Official builds from [**Release V0.026**](https://github.com/AmjadAAYD/x20ctl/re
 
 ## Verification
 
-- **Core, protocol & PC engine tests:** `dotnet test desktop-dotnet\Product.sln` (1,261 passing unit tests covering BLE packet serialization, full X10 KRLY read/write/verify sessions, curve flags `InvertX`/`InvertY`/`SwapSticks`, `X20C1.` share codes, and local setup storage) and `python -m pytest tests` (378 passing controller/firmware tests).
+- **Core, protocol & PC engine tests:** `dotnet test desktop-dotnet\Product.sln` (1,269 passing unit tests covering BLE packet serialization, X10 KRLY sessions, D10 Direct USB wire parsing, IMU fusion/calibration, curve flags `InvertX`/`InvertY`/`SwapSticks`, `X20C1.` share codes, and local setup storage) and `python -m pytest tests` (378 passing controller/firmware tests).
 - **Live GUI & Workshop end-to-end suite:** Launch `X20Ctl.exe --test-e2e-full <out_dir>` (or offline `X20Ctl.exe --test-e2e-x10 <out_dir>`) to verify warm Studio tab switches, Analog Studio cold/warm reopen, radial anti-deadzone and hardware flag compilation, EasySMX X10 Native Mode & `X10 Native` tab panels, all 27/27 unique badge bitmaps, achievement filters, Alerts Bell modal, `64x64` PNG avatar upload, `160x80` static PNG and multi-frame animated GIF Screen Art publish/zoom (`2x` `320x160`)/install flows, dynamic Publish category switching, game quick-chips, upvote/comment/bookmark and `Saved & Mine` `v2` update flow, RGB/Vibration/Macro/Setup installs, Compare & Cherry-Pick diff drawer checks, leaderboard metric toggles, and full cleanup.
 - **Windows 11 21H2 single-file compatibility:** Published Windows binaries disable `/CETCOMPAT` (`<CETCompat>false</CETCompat>`) so `.NET` singlefilehost does not abort on unpatched Windows 11 21H2 (`Build 22000.194`) systems lacking `QueueUserAPC2`.
 
