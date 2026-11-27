@@ -92,6 +92,14 @@ public sealed class VibrationWorkbench
     bool syncingAppCalib;
 
     // Left-column compact live telemetry & motion dock (GPU ScaleTransform meters)
+    Button? applyControllerBtn;
+    Func<Action<string>, Task>? applyControllerHandler;
+    public void UseController(Func<Action<string>, Task> apply)
+    {
+        applyControllerHandler = apply;
+        if (applyControllerBtn != null)
+            applyControllerBtn.Visibility = Visibility.Visible;
+    }
     readonly ScaleTransform?[] dockMeterScales = new ScaleTransform?[4];
     ScaleTransform? dockRmsScale, dockVocalScale;
     readonly TextBlock dockStatusText = Kit.Text("Ready", 12, "DS.TextSoft").Also(t => t.TextWrapping = TextWrapping.Wrap);
@@ -490,6 +498,16 @@ public sealed class VibrationWorkbench
     FrameworkElement BuildHeroDeck(Func<string, Action, string, Button> makeButton)
     {
         var deck = new StackPanel();
+        applyControllerBtn = makeButton("Apply to controller", () =>
+        {
+            if (applyControllerHandler != null) _ = applyControllerHandler(msg => Readback.Text = msg);
+        }, "DS.ConsoleBtn");
+        applyControllerBtn.HorizontalAlignment = HorizontalAlignment.Stretch;
+        applyControllerBtn.MinHeight = 36;
+        applyControllerBtn.Margin = new(0, 0, 0, 6);
+        applyControllerBtn.Visibility = applyControllerHandler != null ? Visibility.Visible : Visibility.Collapsed;
+        deck.Children.Add(applyControllerBtn);
+
         toggleUniversalBtn = makeButton("Enable Universal Haptics", () => _ = ToggleUniversalHapticsAsync(), "DS.ConsolePrimary");
         toggleUniversalBtn.HorizontalAlignment = HorizontalAlignment.Stretch;
         toggleUniversalBtn.MinHeight = 42;
@@ -599,7 +617,7 @@ public sealed class VibrationWorkbench
             };
             face.Content = new StackPanel { Children = { nameLabel, pctLabel, roleTag } };
 
-            bool share = Draft.PcMode && !IsTrigger(z);
+            bool share = (Draft.PcMode || Draft.SupportsNativeMotors) && !IsTrigger(z);
             var slider = new Slider
             {
                 Minimum = 0,
@@ -2396,6 +2414,12 @@ public sealed class VibrationWorkbench
                         : "No controller found.";
                 }
             }
+            else if (Draft.CanTestHardware)
+            {
+                Readback.Text = $"Pulsing {name.ToLowerInvariant()} over Bluetooth at {percent}%...";
+                await X10BleClient.TestMotorAsync(zone == Zone.LeftGrip, percent);
+                Readback.Text = $"{name} pulsed over Bluetooth at {percent}%.";
+            }
             else
             {
                 Readback.Text = $"Buzzing the {name.ToLowerInvariant()} at {percent}%...";
@@ -2600,7 +2624,7 @@ public sealed class VibrationWorkbench
             slider.Value = get();
             label.Text = get() + unit;
         }
-        if (Draft.PcMode)
+        if (Draft.PcMode || Draft.SupportsNativeMotors)
         {
             if (ZoneSlider(Zone.LeftGrip) is { } l) l.Value = Draft.Left;
             if (ZoneSlider(Zone.RightGrip) is { } r) r.Value = Draft.Right;

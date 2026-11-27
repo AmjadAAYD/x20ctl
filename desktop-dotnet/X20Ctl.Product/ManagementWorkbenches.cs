@@ -77,10 +77,11 @@ public sealed partial class DeviceWorkbench
     }
     public void SetBatteryLevel(string? level) => SetBatteryLevel(level, null);
     public void SetConnection(bool connected, bool bluetoothOnly = false)=>connection.Text=connected?(bluetoothOnly?"Connected over Bluetooth":"Gameplay input detected"):"Not detected";
+    private Action? openX10Native;
     public void UpdateEngineStatus(string status) { /* Process availability does not establish hardware configuration support. */ }
-    public DeviceWorkbench(ControllerModel model,int player,FrameworkElement resources,Action<Button> register,Action tester,Action setups,Action? screen=null,Func<Action<string>,Task>? factoryReset=null)
+    public DeviceWorkbench(ControllerModel model,int player,FrameworkElement resources,Action<Button> register,Action tester,Action setups,Action? screen=null,Func<Action<string>,Task>? factoryReset=null,Action? openX10Native=null)
     {
-        targetModel=model.Id;State=new(model.Id,player);
+        targetModel=model.Id;State=new(model.Id,player);this.openX10Native=openX10Native;
         Body.ColumnDefinitions.Add(new(){Width=new(1,GridUnitType.Star)});Body.ColumnDefinitions.Add(new(){Width=new(1.25,GridUnitType.Star)});
         var hardware=new Grid();hardware.RowDefinitions.Add(new(){Height=GridLength.Auto});hardware.RowDefinitions.Add(new());hardware.RowDefinitions.Add(new(){Height=GridLength.Auto});
         var identity=new StackPanel{Children={ManagementVisuals.Copy($"PLAYER {player+1}",13),ManagementVisuals.Copy(model.Name,28,true),ManagementVisuals.Copy("Assigned controller",14)}};hardware.Children.Add(identity);
@@ -119,7 +120,7 @@ public sealed partial class DeviceWorkbench
         {var row=new Grid{Margin=new(0,0,0,10)};row.ColumnDefinitions.Add(new(){Width=new(110)});row.ColumnDefinitions.Add(new());row.Children.Add(ManagementVisuals.Copy(label,14));var detail=ManagementVisuals.Copy(value,14,true);Grid.SetColumn(detail,1);row.Children.Add(detail);support.Children.Add(row);}
         overview.Children.Add(Kit.Panel("Model capabilities",null,null,support));
         if(model.Id=="x10")overview.Children.Add(X10Panel(resources,register));
-        var compatibility=new StackPanel{Children={ManagementVisuals.Copy(model.Id=="x10"?"PC mode configures it. Its own settings read over Bluetooth; saving to it is locked.":profile.SupportsLocalDrafts?"Local drafts available. Native configuration writes remain locked.":"Layout and artwork available. Native configuration is unavailable for this model.",14),ManagementVisuals.Copy("Gyro, rear controls and independent motors appear only when the connected interface supports them.",13).Also(t=>t.Margin=new(0,8,0,0))}};
+        var compatibility=new StackPanel{Children={ManagementVisuals.Copy(model.Id=="x10"?"Full native Bluetooth configuration (Buttons, Curves, Macros, Vibration, Turbo and Calibration) plus PC Mode.":profile.SupportsLocalDrafts?"Local drafts available. Native configuration writes remain locked.":"Layout and artwork available. Native configuration is unavailable for this model.",14),ManagementVisuals.Copy("Gyro, rear controls and independent motors appear only when the connected interface supports them.",13).Also(t=>t.Margin=new(0,8,0,0))}};
         var supportPanel=Kit.Panel("X20CTL support",null,null,compatibility);supportPanel.Margin=new(0,12,0,0);overview.Children.Add(supportPanel);
         if(factoryReset!=null)
         {
@@ -140,17 +141,15 @@ public sealed partial class DeviceWorkbench
 }
 public sealed partial class DeviceWorkbench
 {
-    /// <summary>The X10's own settings, read over Bluetooth (KRLY, thanks to Edgard's EasyGamepad). Read only: changing
-    /// them on the controller stays locked until it's tested on a real X10.</summary>
     public Button? ReadX10 {get;private set;}
-    public TextBlock X10Status {get;}=ManagementVisuals.Copy("Pair the X10 with Windows in Bluetooth mode, then read it.",14);
+    public TextBlock X10Status {get;}=ManagementVisuals.Copy("Pair the X10 with Windows in Bluetooth mode to read, customize, and save directly to the controller.",14);
     FrameworkElement X10Panel(FrameworkElement resources,Action<Button> register)
     {
         var rows=new StackPanel{Margin=new(0,10,0,0)};
         var body=new StackPanel{Children={X10Status,rows}};
         ReadX10=ManagementVisuals.Action(resources,"Read from controller",async()=>
         {
-            ReadX10!.IsEnabled=false;X10Status.Text="Reading the X10 over Bluetooth…";rows.Children.Clear();x10BatteryRow=null;
+            ReadX10!.IsEnabled=false;X10Status.Text="Reading the X10 over Bluetooth...";rows.Children.Clear();x10BatteryRow=null;
             try
             {
                 var reading=await X10BleClient.ReadAsync();
@@ -167,9 +166,15 @@ public sealed partial class DeviceWorkbench
             catch(Exception error){X10Status.Text=error is OperationCanceledException?"Stopped.":error.Message;} // an async click: nothing may escape
             finally{ReadX10!.IsEnabled=!ReviewSandbox.Active;}
         },register);
-        ReadX10.HorizontalAlignment=HorizontalAlignment.Left;ReadX10.Margin=new(0,12,0,0);ReadX10.IsEnabled=!ReviewSandbox.Active;
-        body.Children.Add(ReadX10);
-        body.Children.Add(ManagementVisuals.Copy("Saving to the X10 unlocks once it's tested on a real X10. PC mode works meanwhile.",13).Also(t=>t.Margin=new(0,10,0,0)));
+        ReadX10.HorizontalAlignment=HorizontalAlignment.Left;ReadX10.IsEnabled=!ReviewSandbox.Active;
+        var actionsRow=new StackPanel{Orientation=Orientation.Horizontal,Margin=new(0,12,0,0),Children={ReadX10}};
+        if(openX10Native!=null)
+        {
+            var openNative=ManagementVisuals.Action(resources,"Open X10 Native Controls",()=>openX10Native(),register);
+            openNative.Margin=new(8,0,0,0);
+            actionsRow.Children.Add(openNative);
+        }
+        body.Children.Add(actionsRow);
         var panel=Kit.Panel("On the controller",null,null,body);panel.Margin=new(0,12,0,0);return panel;
     }
 }

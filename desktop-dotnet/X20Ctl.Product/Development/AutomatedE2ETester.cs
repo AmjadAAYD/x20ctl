@@ -640,6 +640,9 @@ internal static class AutomatedE2ETester
 
             studio.SendOfflinePulseSync();
 
+            // 10. EasySMX X10 Native Studio smoke & UI verification (no physical pad required)
+            await VerifyX10StudioAsync(window, WaitMs, Require, SaveShot);
+
             var report = new List<string>();
             report.Add("=== X20CTL AUTOMATED E2E VERIFICATION REPORT ===");
             report.Add($"Timestamp: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
@@ -670,6 +673,95 @@ internal static class AutomatedE2ETester
             window.Host.Studio?.SendOfflinePulseSync();
             window.Close();
         }
+    }
+
+    public static async Task RunX10Only(string outputDir)
+    {
+        Directory.CreateDirectory(outputDir);
+        ReviewSandbox.Active = false;
+        ReviewSandbox.HideLibrary = true;
+        IntroView.SoundEnabled = false;
+
+        var checks = new List<string>();
+        var window = new ProductWindow(
+            reducedMotion: true,
+            assignmentPath: Path.Combine(outputDir, "assignments.json"),
+            startMaximized: false,
+            firstRun: false,
+            nativeEngine: false,
+            fullscreen: false,
+            trayIcon: false);
+        Application.Current.MainWindow = window;
+        window.Show();
+        window.Activate();
+
+        async Task WaitMs(int ms = 200)
+        {
+            await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
+            await Task.Delay(ms);
+            window.UpdateLayout();
+        }
+        void Require(bool cond, string label)
+        {
+            checks.Add($"{(cond ? "PASS" : "FAIL")}: {label}");
+            if (!cond) throw new InvalidOperationException("Automated X10 E2E failed: " + label);
+        }
+        void SaveShot(string name)
+        {
+            window.UpdateLayout();
+            var target = window.Stage;
+            var rtb = new RenderTargetBitmap((int)Math.Ceiling(Math.Max(1200, target.ActualWidth)), (int)Math.Ceiling(Math.Max(700, target.ActualHeight)), 96, 96, PixelFormats.Pbgra32);
+            rtb.Render(target);
+            var enc = new PngBitmapEncoder();
+            enc.Frames.Add(BitmapFrame.Create(rtb));
+            using var fs = File.Create(Path.Combine(outputDir, name + ".png"));
+            enc.Save(fs);
+        }
+
+        try
+        {
+            await WaitMs(350);
+            await VerifyX10StudioAsync(window, WaitMs, Require, SaveShot);
+            File.WriteAllLines(Path.Combine(outputDir, "x10-e2e-report.txt"), checks);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    private static async Task VerifyX10StudioAsync(
+        ProductWindow window,
+        Func<int, Task> WaitMs,
+        Action<bool, string> Require,
+        Action<string> SaveShot)
+    {
+        window.Host.Zone.AssignController(1, window.Host.Catalog.Get("x10"));
+        window.Host.EnterStudio(1);
+        await WaitMs(450);
+        var x10Studio = window.Host.Studio!;
+        Require(x10Studio.Model.Id == "x10" && !x10Studio.Draft.PcMode, "X10 opens in Native Mode by default");
+        Require(x10Studio.Draft.CanEdit("A") && x10Studio.Curves.Draft.CanEdit && x10Studio.MacroDraft.CanEdit, "X10 native Buttons, Curves, and Macros unlock without PC mode");
+
+        x10Studio.ShowButtons();
+        await WaitMs(120);
+        AssertNoForbiddenStrings(window, new[] { "OLED", "Stick Lab", "Switch PC mode on to remap" }, Require, "X10 Buttons tab");
+
+        x10Studio.ShowCurves(true);
+        await WaitMs(120);
+        x10Studio.ShowMacros(true);
+        await WaitMs(120);
+        x10Studio.ShowVibration(true);
+        await WaitMs(120);
+        x10Studio.ShowManagement("Device");
+        await WaitMs(120);
+        AssertNoForbiddenStrings(window, new[] { "saving to it is locked", "stays locked" }, Require, "X10 Device tab");
+
+        x10Studio.ShowManagement("X10Native");
+        await WaitMs(200);
+        Require(x10Studio.X10Hardware != null && x10Studio.ManagementPage == "X10Native", "X10 Native tab rendered");
+        AssertNoForbiddenStrings(window, new[] { "OLED", "Stick Lab" }, Require, "X10 Native tab");
+        SaveShot("13-x10-native-studio");
     }
 
     private static byte[] GenerateAvatarPng(int width, int height)

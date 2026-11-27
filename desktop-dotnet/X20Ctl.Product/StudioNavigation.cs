@@ -20,9 +20,9 @@ public partial class StudioScene
     private void QueueNavigation(){if(navigationQueued)return;navigationQueued=true;Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded,new Action(()=>{navigationQueued=false;UpdateNavigation();}));}
     private void BuildNavigation()
     {
-        navigation=new[]{DashboardNav,ButtonsNav,CurvesNav,MacrosNav,VibrationNav,PcModeNav,RgbNav,ScreenNav,DeviceNav,MouseNav,SetupsNav,CommunityNav}.Where(t=>(t!=RgbNav||Model.Id=="x20_pro")&&(t!=ScreenNav||ModelProfiles.For(Model.Id).HasScreen)).ToArray();
+        navigation=new[]{DashboardNav,ButtonsNav,CurvesNav,MacrosNav,VibrationNav,X10NativeNav,PcModeNav,RgbNav,ScreenNav,DeviceNav,MouseNav,SetupsNav,CommunityNav}.Where(t=>(t!=RgbNav||Model.Id=="x20_pro")&&(t!=ScreenNav||ModelProfiles.For(Model.Id).HasScreen)&&(t!=X10NativeNav||Model.Id=="x10")).ToArray();
         baseNavigation=navigation;
-        RgbNav.Visibility=Model.Id=="x20_pro"?Visibility.Visible:Visibility.Collapsed;ScreenNav.Visibility=ModelProfiles.For(Model.Id).HasScreen?Visibility.Visible:Visibility.Collapsed;
+        RgbNav.Visibility=Model.Id=="x20_pro"?Visibility.Visible:Visibility.Collapsed;ScreenNav.Visibility=ModelProfiles.For(Model.Id).HasScreen?Visibility.Visible:Visibility.Collapsed;X10NativeNav.Visibility=Model.Id=="x10"&&!Draft.PcMode?Visibility.Visible:Visibility.Collapsed;
         string group="studio-tabs-"+Guid.NewGuid().ToString("N");DiagnosticsNav.GroupName=group;DiagnosticsNav.Checked+=(_,_)=>QueueNavigation();UiSound.SetCue(DiagnosticsNav,UiSound.Cue.Tab);foreach(var tab in navigation){UiSound.SetCue(tab,UiSound.Cue.Tab);tab.GroupName=group;tab.Checked+=(_,_)=>QueueNavigation();}
         pcTabs=PcModePage.Sections.Select(name=>
         {
@@ -63,7 +63,7 @@ public partial class StudioScene
             double moreWidth=NavigationMore.DesiredSize.Width;
             var overflow=new HashSet<RadioButton>();
             // Keep the PC input editors beside each other. Move PC utilities and secondary pages first.
-            foreach(var tab in pcTabs.Reverse().Concat(new[]{DeviceNav,CommunityNav,SetupsNav,ScreenNav,RgbNav,MacrosNav,VibrationNav,CurvesNav,MouseNav,KeyboardNav!,ButtonsNav,DashboardNav}).Where(navigation.Contains))
+            foreach(var tab in pcTabs.Reverse().Concat(new[]{DeviceNav,CommunityNav,SetupsNav,ScreenNav,RgbNav,X10NativeNav,MacrosNav,VibrationNav,CurvesNav,MouseNav,KeyboardNav!,ButtonsNav,DashboardNav}).Where(navigation.Contains))
             {
                 if(used+moreWidth<=available)break;
                 used-=tab.DesiredSize.Width;tab.Visibility=Visibility.Collapsed;

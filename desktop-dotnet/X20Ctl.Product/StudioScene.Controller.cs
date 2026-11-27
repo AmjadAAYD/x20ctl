@@ -4,15 +4,20 @@ using System.Windows;
 using System.Windows.Controls;
 using X20Ctl.Product.Scanner;
 using X20Ctl.Zone;
+using X20Ctl.Zone.X10;
 namespace X20Ctl.Product;
 
-/// <summary>An X20 Pro keeps its mappings, curves and macros in its own memory: the tabs open on what it holds, and Apply
-/// to controller writes what changed over Bluetooth, on any transport the pad is playing on.</summary>
+/// <summary>An X20 Pro or X10 keeps its mappings, curves and macros in its own memory: the tabs open on what it holds, and Apply
+/// to controller writes what changed over Bluetooth.</summary>
 public partial class StudioScene
 {
     static readonly HashSet<ButtonDraft> filledFromController = new(); // drafts outlive a Studio, so reopening keeps unsaved edits
+    readonly X10NativeDraft x10Draft = new();
+    X10HardwareSnapshot? x10LastSnapshot;
+    X10SyncReport? x10LastSyncReport;
+    public X10HardwareWorkbench? X10Hardware { get; private set; }
     bool controllerBusy;
-    bool ControllerWrites => Model.Id == "x20_pro" && !Draft.PcMode && !ReviewSandbox.Active;
+    bool ControllerWrites => Model.Id is "x20_pro" or "x10" && !Draft.PcMode && !ReviewSandbox.Active;
 
     void UseControllerWrites()
     {
@@ -30,9 +35,89 @@ public partial class StudioScene
         }
         Loaded += (_, _) => _ = LoadFromController(buttonsPage.SayController);
     }
+
     void UseControllerWrites(MacroWorkbench macros)
     {
         if (ControllerWrites) macros.UseController(say => ApplyToController(say));
+    }
+
+    void UseControllerWrites(VibrationWorkbench vibration)
+    {
+        if (Model.Id == "x10" && ControllerWrites)
+            vibration.UseController(say => ApplyToController(say));
+    }
+
+    internal X10HardwareWorkbench EnsureX10Workbench()
+    {
+        if (Model.Id != "x10") throw new InvalidOperationException("X10 native workbench is only available for EasySMX X10.");
+        if (X10Hardware == null)
+        {
+            X10Hardware = new X10HardwareWorkbench(
+                this,
+                RegisterFocus,
+                Draft,
+                Curves.Draft,
+                macroDraft,
+                vibrationDraft,
+                x10Draft,
+                ReadX10FromController,
+                ApplyToController,
+                FactoryReset,
+                () => ShowCurves(true),
+                slot => OpenMacroSlot(slot),
+                () =>
+                {
+                    Vibration?.Refresh();
+                    Curves.Refresh();
+                    Macros?.Refresh();
+                    UpdateCurveContext();
+                    UpdateMacroContext();
+                });
+            if (x10LastSnapshot != null) X10Hardware.SetSnapshot(x10LastSnapshot);
+            if (x10LastSyncReport != null) X10Hardware.SetSyncReport(x10LastSyncReport);
+        }
+        else
+        {
+            X10Hardware.RefreshFromDrafts();
+        }
+        return X10Hardware;
+    }
+
+    async Task ReadX10FromController(Action<string> say)
+    {
+        if (ReviewSandbox.Active) return;
+        if (controllerBusy) { say("The controller is busy. Try again in a moment."); return; }
+        controllerBusy = true;
+        say("Reading X10 over Bluetooth...");
+        try
+        {
+            var snap = await X10BleClient.ReadAsync();
+            ApplyX10Snapshot(snap);
+            filledFromController.Add(Draft);
+            say("Read X10 configuration and synced all native tabs.");
+        }
+        catch (Exception error) when (Failure(error)) { say("Couldn't read the controller: " + error.Message); }
+        finally { controllerBusy = false; }
+    }
+
+    private void ApplyX10Snapshot(X10HardwareSnapshot snap)
+    {
+        x10LastSnapshot = snap;
+        X10ProfileBridge.LoadIntoDrafts(snap, Draft, Curves.Draft, macroDraft, vibrationDraft, x10Draft);
+        if (snap.Battery is { } bat) currentBatteryLevel = bat.Percent.ToString();
+        currentFirmware = snap.Version.Firmware;
+        currentTransport = "Bluetooth LE (KRLY)";
+        Device?.SetFirmware(currentFirmware);
+        Device?.SetBatteryLevel(currentBatteryLevel, currentTransport);
+        Dashboard?.SetFirmware(currentFirmware);
+        Dashboard?.SetBatteryLevel(currentBatteryLevel, currentTransport);
+        Curves.Refresh();
+        Macros?.Refresh();
+        Vibration?.Refresh();
+        X10Hardware?.SetSnapshot(snap);
+        RefreshEditor();
+        UpdateCurveContext();
+        UpdateMacroContext();
     }
 
     async Task LoadFromController(Action<string> say)
@@ -41,9 +126,17 @@ public partial class StudioScene
         controllerBusy = true;
         try
         {
-            ControllerRecords.Load(await LightingBleClient.ReadConfigAsync(), Draft, Curves.Draft, macroDraft);
+            if (Model.Id == "x10")
+            {
+                var snap = await X10BleClient.ReadAsync();
+                ApplyX10Snapshot(snap);
+            }
+            else
+            {
+                ControllerRecords.Load(await LightingBleClient.ReadConfigAsync(), Draft, Curves.Draft, macroDraft);
+                Curves.Refresh(); Macros?.Refresh(); RefreshEditor(); UpdateCurveContext(); UpdateMacroContext();
+            }
             filledFromController.Add(Draft);
-            Curves.Refresh(); Macros?.Refresh(); RefreshEditor(); UpdateCurveContext(); UpdateMacroContext();
             say("Showing what's on the controller. Apply to save changes.");
         }
         catch (Exception error) when (Failure(error)) { say("Couldn't read the controller: " + error.Message); }
@@ -53,6 +146,34 @@ public partial class StudioScene
     async Task ApplyToController(Action<string> say)
     {
         if (controllerBusy) { say("The controller is busy. Try again in a moment."); return; }
+        if (Model.Id == "x10")
+        {
+            controllerBusy = true;
+            say("Writing configuration to X10...");
+            try
+            {
+                FlushPendingCurveSave();
+                var profile = X10ProfileBridge.BuildProfile(Draft, Curves.Draft, macroDraft, vibrationDraft, x10Draft);
+                var report = await X10BleClient.ApplyAsync(profile, say);
+                x10LastSyncReport = report;
+                if (report.ReadBack != null) x10LastSnapshot = report.ReadBack;
+                X10Hardware?.SetSyncReport(report);
+                filledFromController.Add(Draft);
+                string message = report.Status switch
+                {
+                    Krly.VerificationStatus.Matched => "Saved on X10 and verified by read-back.",
+                    Krly.VerificationStatus.Mismatch => "Saved, but read-back differed on: " + string.Join(", ", report.DifferingGroups),
+                    _ => "Saved on X10 (read-back confirmation unavailable).",
+                };
+                say(message);
+                buttonsPage?.SayController(message);
+                X10Hardware?.SetStatus(message);
+            }
+            catch (Exception error) when (Failure(error)) { say("Couldn't write to the controller: " + error.Message); }
+            finally { controllerBusy = false; }
+            return;
+        }
+
         if (!filledFromController.Contains(Draft))
         {
             // writing without knowing what it holds could wipe its macros
@@ -61,12 +182,12 @@ public partial class StudioScene
             say("Read the controller. Make your change, then Apply.");
             return;
         }
-        controllerBusy = true; say("Writing to the controller…");
+        controllerBusy = true; say("Writing to the controller...");
         try
         {
             FlushPendingCurveSave();
             int changed = await LightingBleClient.WriteConfigAsync(held => ControllerRecords.Compose(held, Draft, Curves.Draft, macroDraft));
-            say(changed == 0 ? "The controller already has this." : $"Saved on the controller · {changed} setting{(changed == 1 ? "" : "s")} changed.");
+            say(changed == 0 ? "The controller already has this." : $"Saved on the controller - {changed} setting{(changed == 1 ? "" : "s")} changed.");
         }
         catch (Exception error) when (Failure(error)) { say("Couldn't write to the controller: " + error.Message); }
         finally { controllerBusy = false; }
@@ -76,17 +197,37 @@ public partial class StudioScene
     {
         if (ReviewSandbox.Active) return;
         if (controllerBusy) { say("The controller is busy. Try again in a moment."); return; }
-        controllerBusy = true; say("Resetting the controller…");
+        controllerBusy = true; say("Resetting the controller...");
         try
         {
+            if (Model.Id == "x10")
+            {
+                var snap = await X10BleClient.FactoryResetAsync();
+                filledFromController.Remove(Draft);
+                Draft.ResetAll();
+                Curves.Draft.ResetAll();
+                foreach (var s in macroDraft.SlotNames) macroDraft.Clear(s);
+                vibrationDraft.Reset();
+                x10Draft.Reset();
+                if (snap != null) ApplyX10Snapshot(snap);
+                else
+                {
+                    Curves.Refresh(); Macros?.Refresh(); Vibration?.Refresh(); X10Hardware?.RefreshFromDrafts();
+                    RefreshEditor(); UpdateCurveContext(); UpdateMacroContext();
+                }
+                say(snap != null ? "X10 factory reset complete and fresh state read back." : "X10 factory reset command acknowledged.");
+                return;
+            }
+
             int changed = await LightingBleClient.FactoryResetAsync();
             filledFromController.Clear();
             controllerBusy = false;
             await LoadFromController(_ => { });
-            say(changed == 0 ? "Nothing changed on the controller." : $"Controller reset · {changed} setting{(changed == 1 ? "" : "s")} changed.");
+            say(changed == 0 ? "Nothing changed on the controller." : $"Controller reset - {changed} setting{(changed == 1 ? "" : "s")} changed.");
         }
         catch (Exception error) when (Failure(error)) { say("Couldn't finish the reset: " + error.Message); }
         finally { controllerBusy = false; }
     }
+
     static bool Failure(Exception error) => error is IOException or TimeoutException or FormatException or ArgumentException or InvalidOperationException or COMException or UnauthorizedAccessException;
 }

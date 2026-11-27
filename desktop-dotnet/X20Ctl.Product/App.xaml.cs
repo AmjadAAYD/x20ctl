@@ -30,7 +30,14 @@ public partial class App : Application
         KeepTooltipsInside();
         try
         {
-            if (e.Args.Length == 2 && e.Args[0] == "--test-e2e-full")
+            if (e.Args.Length == 2 && e.Args[0] == "--test-e2e-x10")
+      {
+          ShutdownMode = ShutdownMode.OnExplicitShutdown;
+          try { await Development.AutomatedE2ETester.RunX10Only(e.Args[1]); Shutdown(0); }
+          catch (Exception failure) { Directory.CreateDirectory(e.Args[1]); File.WriteAllText(Path.Combine(e.Args[1], "failure.txt"), failure.ToString()); Shutdown(1); }
+          return;
+      }
+      if (e.Args.Length == 2 && e.Args[0] == "--test-e2e-full")
             {
                 ShutdownMode = ShutdownMode.OnExplicitShutdown;
                 try { await Development.AutomatedE2ETester.Run(e.Args[1]); Shutdown(0); }
