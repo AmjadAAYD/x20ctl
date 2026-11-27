@@ -204,4 +204,169 @@ public sealed class D10Tests
             if (File.Exists(tempPath)) File.Delete(tempPath);
         }
     }
+
+    [Fact]
+    public void MotorHarmonicCancellerAttenuates28HzRumbleWhilePreservingTurn()
+    {
+        var filter = new D10MotorHarmonicCanceller();
+        double dt = 0.005;
+        double maxResidualAtRest = 0.0;
+        for (int i = 0; i < 400; i++)
+        {
+            double tone = 25.0 * Math.Sin(2.0 * Math.PI * 28.0 * (i * dt));
+            var outRes = filter.Update(tone, dt, active: true);
+            if (i > 300)
+                maxResidualAtRest = Math.Max(maxResidualAtRest, Math.Abs(outRes.CleanRateDps));
+        }
+        Assert.True(maxResidualAtRest < 10.0, $"Expected 28Hz tone to attenuate cleanly, got {maxResidualAtRest:0.2}");
+
+        var steadyTurn = filter.Update(45.0, dt, active: true);
+        Assert.True(steadyTurn.CleanRateDps > 20.0);
+    }
+
+    [Fact]
+    public void TrajectoryGateRejectsIsolatedImpulseAndDeferrsDuplicateWirelessSample()
+    {
+        var gate = new D10TrajectoryGate();
+        Assert.False(gate.Update(10.0, freshSample: true, 0.005, enabled: true).Held);
+        Assert.False(gate.Update(12.0, freshSample: true, 0.005, enabled: true).Held);
+
+        // Single 180 dps spike is held for 1 frame rather than immediately leaking through.
+        var held = gate.Update(194.0, freshSample: true, 0.005, enabled: true);
+        Assert.True(held.Held);
+        Assert.InRange(held.OutputRateDps, 12.0, 16.0);
+
+        // Repeated duplicate wireless tuple within 12 ms defers confirmation.
+        var deferred = gate.Update(194.0, freshSample: false, 0.005, enabled: true);
+        Assert.True(deferred.Held);
+
+        // Dropping back to baseline cancels the isolated spike.
+        var recovered = gate.Update(13.0, freshSample: true, 0.005, enabled: true);
+        Assert.False(recovered.Held);
+        Assert.Equal(13.0, recovered.OutputRateDps, 3);
+
+        // Sustained jump releases on second fresh confirming frame.
+        Assert.True(gate.Update(190.0, freshSample: true, 0.005, enabled: true).Held);
+        var confirmed = gate.Update(192.0, freshSample: true, 0.005, enabled: true);
+        Assert.False(confirmed.Held);
+        Assert.Equal(192.0, confirmed.OutputRateDps, 3);
+    }
+
+    [Fact]
+    public void MidRangeBoostIsMonotonicAndClamped()
+    {
+        double a = D10MidRangeBoost.Apply(0.0, 0.2, 0.08);
+        double b = D10MidRangeBoost.Apply(0.5, 0.2, 0.08);
+        double c = D10MidRangeBoost.Apply(1.0, 0.2, 0.08);
+        Assert.Equal(0.0, a, 5);
+        Assert.True(b > 0.5 && b < c);
+        Assert.Equal(1.0, c, 5);
+    }
+
+    [Fact]
+    public void ShortcutDetectorHandlesShortLongAndDiagonalNeutralReset()
+    {
+        var det = new D10ShortcutDetector();
+
+        // Short M + Up -> release before 3000 ms emits Short Up.
+        Assert.Null(det.Update(new D10ExtraButtons(M: true, false, false, DpadUp: true, false, false, false), 100));
+        var shortUp = det.Update(new D10ExtraButtons(M: true, false, false, DpadUp: false, false, false, false), 450);
+        Assert.Equal(new D10ShortcutGesture(D10ShortcutKind.Short, D10ShortcutDir.Up), shortUp);
+
+        // Release to full neutral before next gesture.
+        Assert.Null(det.Update(D10ExtraButtons.None, 500));
+
+        // Long M + Down -> 3000 ms hold emits Long Down once.
+        Assert.Null(det.Update(new D10ExtraButtons(M: true, false, false, false, DpadDown: true, false, false), 1000));
+        var longDown = det.Update(new D10ExtraButtons(M: true, false, false, false, DpadDown: true, false, false), 4000);
+        Assert.Equal(new D10ShortcutGesture(D10ShortcutKind.Long, D10ShortcutDir.Down), longDown);
+        Assert.Null(det.Update(new D10ExtraButtons(M: true, false, false, false, DpadDown: true, false, false), 4500));
+
+        // Ambiguous diagonal cancels until neutral.
+        Assert.Null(det.Update(D10ExtraButtons.None, 4600));
+        Assert.Null(det.Update(new D10ExtraButtons(M: true, false, false, DpadUp: true, false, DpadLeft: true, false), 5000));
+        Assert.Null(det.Update(new D10ExtraButtons(M: true, false, false, DpadUp: true, false, false, false), 5100));
+        Assert.Null(det.Update(D10ExtraButtons.None, 5200));
+    }
+
+    [Fact]
+    public void EllipsoidFitterAndMultiPoseCalibratorRecoverAccelOffsetsAndScales()
+    {
+        // Synthetic unit directions across 15 orientations with known offset (450, 1200, -350) and scales (4100, 4250, 4400)
+        var dirs = new (double X, double Y, double Z)[]
+        {
+            (0, 0, 1), (0, 0, -1), (1, 0, 0), (-1, 0, 0), (0, 1, 0), (0, -1, 0),
+            (0.707, 0.707, 0), (-0.707, 0.707, 0), (0.707, -0.707, 0), (-0.707, -0.707, 0),
+            (0.707, 0, 0.707), (-0.707, 0, 0.707), (0, 0.707, 0.707), (0, -0.707, 0.707),
+            (0.577, 0.577, 0.577),
+        };
+        var cal = new D10MultiPoseCalibrator(D10LinkKind.WiredUsb);
+        foreach (var d in dirs)
+        {
+            double norm = Math.Sqrt(d.X * d.X + d.Y * d.Y + d.Z * d.Z);
+            short ax = (short)Math.Round(450 + (d.X / norm) * 4100);
+            short ay = (short)Math.Round(1200 + (d.Y / norm) * 4250);
+            short az = (short)Math.Round(-350 + (d.Z / norm) * 4400);
+            var sample = new D10ImuSample(ax, ay, az, 0, 0, 0, D10ExtraButtons.None);
+            D10MultiPoseStatus st = default!;
+            for (int i = 0; i < D10MultiPoseCalibrator.SamplesPerPose + 2; i++)
+                st = cal.Feed(sample);
+        }
+
+        Assert.True(cal.IsComplete);
+        var fitted = cal.BuildResult();
+        Assert.True(fitted.IsCalibrated);
+        Assert.InRange(fitted.AccelOffsetX, 445, 455);
+        Assert.InRange(fitted.AccelOffsetY, 1195, 1205);
+        Assert.InRange(fitted.AccelOffsetZ, -355, -345);
+        Assert.InRange(fitted.AccelScaleX, 4090, 4110);
+        Assert.InRange(fitted.AccelScaleY, 4240, 4260);
+        Assert.InRange(fitted.AccelScaleZ, 4390, 4410);
+    }
+
+    [Fact]
+    public void MultiProfileStoreSupportsQuickSlotsGameExesAndV1Migration()
+    {
+        string tempPath = Path.Combine(Path.GetTempPath(), $"x20ctl-d10-v2-{Guid.NewGuid():N}.json");
+        try
+        {
+            // v1 file migration: preserves existing Settings in default Quick Slot 1 profile.
+            File.WriteAllText(tempPath, """
+            {
+              "Version": 1,
+              "Settings": {
+                "Mode": "SteerLeftStick",
+                "FullScaleDegrees": 45
+              }
+            }
+            """);
+            var store = new D10ProfileStore(tempPath);
+            var migrated = store.Load();
+            Assert.Equal(2, migrated.Version);
+            Assert.Single(migrated.Profiles);
+            Assert.Equal(45.0, migrated.GetActiveProfile().Settings.FullScaleDegrees);
+            Assert.Equal(1, migrated.GetActiveProfile().QuickSlot);
+
+            migrated.Profiles.Add(new D10NamedProfile
+            {
+                Id = "rally",
+                Name = "Rally Racing",
+                QuickSlot = 2,
+                GameExes = ["dirt2.exe", "wrc.exe"],
+                Settings = new D10MotionSettings { Mode = D10MotionMode.SteerLeftStick, M1Binding = "K:32" }
+            });
+            store.Save(migrated);
+
+            var reloaded = store.Load();
+            Assert.Equal("rally", reloaded.FindByQuickSlot(2)?.Id);
+            Assert.Equal("rally", reloaded.FindByProcessExe("DIRT2.EXE")?.Id);
+            Assert.True(D10PaddleActions.IsHostKeyOrMouse("K:32"));
+            Assert.True(D10PaddleActions.IsHostKeyOrMouse("M:LeftClick"));
+            Assert.False(D10PaddleActions.IsHostKeyOrMouse("A"));
+        }
+        finally
+        {
+            if (File.Exists(tempPath)) File.Delete(tempPath);
+        }
+    }
 }

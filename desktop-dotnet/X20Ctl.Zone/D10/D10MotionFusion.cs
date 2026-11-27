@@ -16,8 +16,18 @@ public static class D10PaddleActions
     public const string MacroM1 = "MACRO_M1";
     public const string MacroM2 = "MACRO_M2";
 
+    public static IReadOnlyList<string> HostKeyAndMouse { get; } =
+    [
+        "K:32", "K:16", "K:17", "K:18", "K:9", "K:27", "K:13",
+        "K:69", "K:70", "K:81", "K:82", "K:86", "K:67", "K:71",
+        "M:LeftClick", "M:RightClick", "M:MiddleClick", "M:Back", "M:Forward"
+    ];
+
     public static IReadOnlyList<string> All { get; } =
-        [None, ToggleMotion, RecenterGyro, MacroM1, MacroM2, .. ButtonDraft.Targets];
+        [None, ToggleMotion, RecenterGyro, MacroM1, MacroM2, .. ButtonDraft.Targets, .. HostKeyAndMouse];
+
+    public static bool IsHostKeyOrMouse(string action) =>
+        !string.IsNullOrEmpty(action) && (action.StartsWith("K:", StringComparison.Ordinal) || action.StartsWith("M:", StringComparison.Ordinal));
 
     public static string Label(string action) => action switch
     {
@@ -32,6 +42,25 @@ public static class D10PaddleActions
         "DPAD_RIGHT" => "D-Pad Right",
         "SELECT" => "View / Back",
         "START" => "Menu / Start",
+        "K:32" => "Key: Space",
+        "K:16" => "Key: Shift",
+        "K:17" => "Key: Ctrl",
+        "K:18" => "Key: Alt",
+        "K:9" => "Key: Tab",
+        "K:27" => "Key: Esc",
+        "K:13" => "Key: Enter",
+        "K:69" => "Key: E",
+        "K:70" => "Key: F",
+        "K:81" => "Key: Q",
+        "K:82" => "Key: R",
+        "K:86" => "Key: V",
+        "K:67" => "Key: C",
+        "K:71" => "Key: G",
+        "M:LeftClick" => "Mouse: Left Click",
+        "M:RightClick" => "Mouse: Right Click",
+        "M:MiddleClick" => "Mouse: Middle Click",
+        "M:Back" => "Mouse: Back (X1)",
+        "M:Forward" => "Mouse: Forward (X2)",
         _ => action,
     };
 }
@@ -46,6 +75,14 @@ public sealed class D10MotionSettings
     public bool InvertAxis { get; set; }
     public bool VibrationGuard { get; set; } = true;
     public bool VelocityLead { get; set; } = true;
+    public bool TrajectoryGate { get; set; } = true;
+    public bool MotorHarmonicFilter { get; set; } = true;
+    public bool MidRangeBoost { get; set; } = true;
+    public double MidRangeBoostStrength { get; set; } = 0.08;
+    public bool ShortcutsEnabled { get; set; } = true;
+    public bool ShortcutRumbleFeedback { get; set; } = true;
+    public int Ep81NeutralTimeoutMs { get; set; } = 100;
+    public int Ep83MotionTimeoutMs { get; set; } = 200;
     public string M1Binding { get; set; } = "A";
     public string M2Binding { get; set; } = "B";
     public string MBinding { get; set; } = D10PaddleActions.ToggleMotion;
@@ -57,6 +94,9 @@ public sealed class D10MotionSettings
         if (DeadzoneDegrees >= FullScaleDegrees) DeadzoneDegrees = Math.Max(0.0, FullScaleDegrees - 5.0);
         Sensitivity = Math.Clamp(double.IsFinite(Sensitivity) ? Sensitivity : 1.0, 0.2, 3.0);
         FilterTauSeconds = Math.Clamp(double.IsFinite(FilterTauSeconds) ? FilterTauSeconds : 0.20, 0.05, 0.80);
+        MidRangeBoostStrength = Math.Clamp(double.IsFinite(MidRangeBoostStrength) ? MidRangeBoostStrength : 0.08, 0.0, 0.40);
+        Ep81NeutralTimeoutMs = Math.Clamp(Ep81NeutralTimeoutMs, 40, 2000);
+        Ep83MotionTimeoutMs = Math.Clamp(Ep83MotionTimeoutMs, 40, 2000);
         if (!D10PaddleActions.All.Contains(M1Binding)) M1Binding = "A";
         if (!D10PaddleActions.All.Contains(M2Binding)) M2Binding = "B";
         if (!D10PaddleActions.All.Contains(MBinding)) MBinding = D10PaddleActions.ToggleMotion;
@@ -73,6 +113,14 @@ public sealed class D10MotionSettings
         InvertAxis = InvertAxis,
         VibrationGuard = VibrationGuard,
         VelocityLead = VelocityLead,
+        TrajectoryGate = TrajectoryGate,
+        MotorHarmonicFilter = MotorHarmonicFilter,
+        MidRangeBoost = MidRangeBoost,
+        MidRangeBoostStrength = MidRangeBoostStrength,
+        ShortcutsEnabled = ShortcutsEnabled,
+        ShortcutRumbleFeedback = ShortcutRumbleFeedback,
+        Ep81NeutralTimeoutMs = Ep81NeutralTimeoutMs,
+        Ep83MotionTimeoutMs = Ep83MotionTimeoutMs,
         M1Binding = M1Binding,
         M2Binding = M2Binding,
         MBinding = MBinding,
@@ -184,6 +232,8 @@ public sealed class D10Calibrator
 public sealed class D10MotionProcessor
 {
     private readonly object sync = new();
+    private readonly D10TrajectoryGate trajectoryGate = new();
+    private readonly D10MotorHarmonicCanceller harmonicCanceller = new();
     private D10MotionSettings settings = new();
     private D10CalibrationData calibration = D10CalibrationData.Default;
 
@@ -210,6 +260,8 @@ public sealed class D10MotionProcessor
             initialized = false;
             rollDeg = pitchDeg = 0;
             prevGz = highFreqRms = 0;
+            trajectoryGate.Reset();
+            harmonicCanceller.Reset();
         }
     }
 
@@ -222,7 +274,12 @@ public sealed class D10MotionProcessor
         }
     }
 
-    public D10LiveTelemetry Update(D10ImuSample sample, D10LinkKind link, double rawDtSeconds, bool rumbleActive = false)
+    public D10LiveTelemetry Update(
+        D10ImuSample sample,
+        D10LinkKind link,
+        double rawDtSeconds,
+        bool rumbleActive = false,
+        bool freshGyroSample = true)
     {
         lock (sync)
         {
@@ -244,15 +301,22 @@ public sealed class D10MotionProcessor
 
             double gx = Math.Clamp((sample.Gx - cal.GyroBiasX) / cal.GyroCountsPerDps, -600.0, 600.0);
             double gy = Math.Clamp((sample.Gy - cal.GyroBiasY) / cal.GyroCountsPerDps, -600.0, 600.0);
-            double gz = Math.Clamp((sample.Gz - cal.GyroBiasZ) / cal.GyroCountsPerDps, -600.0, 600.0);
+            double rawGz = (sample.Gz - cal.GyroBiasZ) / cal.GyroCountsPerDps;
+
+            var gateOut = trajectoryGate.Update(rawGz, freshGyroSample, dt, cfg.TrajectoryGate);
+            double gatedGz = Math.Clamp(gateOut.OutputRateDps, -600.0, 600.0);
+
+            bool harmonicActive = cfg.MotorHarmonicFilter && cfg.VibrationGuard && (rumbleActive || highFreqRms > 8.0);
+            var harmonicOut = harmonicCanceller.Update(gatedGz, dt, harmonicActive);
+            double cleanGz = harmonicOut.CleanRateDps;
 
             // Estimate high-frequency motor chatter on Gyro Z so rumble feedback does not shake steering.
-            double deltaGz = gz - prevGz;
-            prevGz = gz;
+            double deltaGz = cleanGz - prevGz;
+            prevGz = cleanGz;
             double rmsAlpha = Math.Clamp(dt / 0.12, 0.01, 0.5);
             highFreqRms = Math.Sqrt((1.0 - rmsAlpha) * (highFreqRms * highFreqRms) + rmsAlpha * (deltaGz * deltaGz));
-            bool damping = cfg.VibrationGuard && (rumbleActive || highFreqRms > 12.0);
-            double effectiveGz = damping ? gz * 0.45 : gz;
+            bool damping = cfg.VibrationGuard && (rumbleActive || highFreqRms > 12.0 || Math.Abs(harmonicOut.RemovedDps) > 1.0);
+            double effectiveGz = damping ? cleanGz * 0.45 : cleanGz;
             double effectiveGy = damping ? gy * 0.45 : gy;
 
             if (!initialized && accelMag is >= 0.55 and <= 1.60)
@@ -292,6 +356,11 @@ public sealed class D10MotionProcessor
                 {
                     double span = Math.Max(1.0, cfg.FullScaleDegrees - cfg.DeadzoneDegrees);
                     double norm = Math.Clamp((mag - cfg.DeadzoneDegrees) / span * cfg.Sensitivity, 0.0, 1.0);
+                    if (cfg.MidRangeBoost && cfg.MidRangeBoostStrength > 0.0)
+                    {
+                        double startFrac = Math.Clamp(7.0 / Math.Max(15.0, cfg.FullScaleDegrees), 0.10, 0.50);
+                        norm = D10MidRangeBoost.Apply(norm, startFrac, cfg.MidRangeBoostStrength);
+                    }
                     outX = Math.Sign(relativeRoll) * norm * sign;
                 }
             }
@@ -309,7 +378,7 @@ public sealed class D10MotionProcessor
                 pitchDeg,
                 gx,
                 gy,
-                gz,
+                cleanGz,
                 accelMag,
                 outX,
                 outY,
