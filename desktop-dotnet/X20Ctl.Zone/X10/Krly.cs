@@ -12,10 +12,15 @@ public static class Krly
     public static readonly Guid Notify = Guid.Parse("0000ff02-0000-1000-8000-00805f9b34fb");
     /// <summary>Writes go out in chunks of at most this many bytes, whatever the MTU.</summary>
     public const int ChunkSize = 20;
+    public const int MaxMacroSteps = 32;
 
     public const byte SetMode = 0x01, FactoryReset = 0x05, QueryBattery = 0x31, EndUpload = 0x34, Motors = 0x35,
         BeginUpload = 0x36, Turbo = 0x37, Triggers = 0x39, MacroStep = 0x3A, Mapping = 0x3D, Sticks = 0x3E,
-        QueryMappings = 0x50, QuerySettings = 0x77, QueryVersion = 0x84;
+        SelfCalStart = 0x41, SelfCalStop = 0x42, SelfCalResultA = 0x43, MotorTest = 0x45, SelfCalResultB = 0x49,
+        QueryMappings = 0x50, QuerySettings = 0x77, Calibrate = 0x78, QueryMacros = 0x79, QueryVersion = 0x84;
+
+    public static readonly HashSet<string> RearPaddles = new(StringComparer.Ordinal) { "M1", "M2", "M3", "M4" };
+    public static readonly HashSet<string> PhysicalPaddles = new(StringComparer.Ordinal) { "M1", "M2" };
 
     public static byte[] Frame(byte command, byte[] payload, byte sequence)
     {
@@ -48,7 +53,7 @@ public static class Krly
         return raw[1] switch
         {
             0x84 when raw.Length >= 17 => new(Part(4, 7), Part(7, 10), Part(10, 14), Part(14, 17)),
-            0x09 when raw.Length >= 11 => new(Part(2, 5), Part(5, 8), Part(8, 11), raw.Length >= 15 ? Part(11, 14) : "—"),
+            0x09 when raw.Length >= 11 => new(Part(2, 5), Part(5, 8), Part(8, 11), raw.Length >= 15 ? Part(11, 14) : "-"),
             _ => null,
         };
     }
@@ -136,6 +141,105 @@ public static class Krly
         }
     }
 
+    public enum PaddleSlotKind { Default, Disabled, Passthrough, Macro }
+    public sealed record PaddleMacroStep(int HoldMs, int WaitMs, string Key);
+    public sealed record PaddleAssignment(string Paddle, PaddleSlotKind Kind, string? TargetKey, bool Repeat, IReadOnlyList<PaddleMacroStep> Steps);
+
+    /// <summary>Collects and decodes the macro sub-pages reply (command 0x79, request [0x01, 0x01]). Authoritative for M1/M2.</summary>
+    public sealed class MacroPages
+    {
+        int? next, total; readonly List<byte> content = [];
+        public IReadOnlyDictionary<string, PaddleAssignment>? Accept(byte[] raw)
+        {
+            if (raw.Length < 5 || raw[1] != QueryMacros) throw new FormatException("Not a macro page.");
+            int pages = raw[2], page = raw[3];
+            if (pages > 64 || page > pages || (next == null ? page > 1 : page != next) || (total != null && total != pages)) throw new FormatException("Macro pages arrived out of order.");
+            total = pages; next = page + 1;
+            content.AddRange(raw[4..^1]);
+            if (content.Count > 4096) throw new FormatException("The macro reply is too long.");
+            return page == pages ? DecodeSlots([.. content]) : null;
+        }
+
+        public static IReadOnlyDictionary<string, PaddleAssignment> DecodeSlots(byte[] blob)
+        {
+            var result = new Dictionary<string, PaddleAssignment>(StringComparer.Ordinal);
+            int offset = 0;
+            while (offset + 7 <= blob.Length)
+            {
+                byte triggerCode = blob[offset];
+                if (KeyName(triggerCode) is not { } trigger || !RearPaddles.Contains(trigger))
+                {
+                    offset++;
+                    continue;
+                }
+                bool repeat = blob[offset + 1] == 0;
+                int stepCount = blob[offset + 6];
+                int cursor = offset + 7;
+                if (stepCount == 0)
+                {
+                    result[trigger] = new PaddleAssignment(trigger, PaddleSlotKind.Disabled, null, false, []);
+                    offset = cursor;
+                    continue;
+                }
+
+                var steps = new List<PaddleMacroStep>(stepCount);
+                bool parsedAll = true;
+                for (int s = 0; s < stepCount; s++)
+                {
+                    if (cursor + 6 > blob.Length) { parsedAll = false; break; }
+                    // byte cursor+0 is step index
+                    int holdMs = (blob[cursor + 1] << 8) | blob[cursor + 2];
+                    int waitMs = (blob[cursor + 3] << 8) | blob[cursor + 4];
+                    byte countOrKey = blob[cursor + 5];
+                    cursor += 6;
+
+                    string? stepKey = null;
+                    if (countOrKey == 0)
+                    {
+                        stepKey = null;
+                    }
+                    else if (countOrKey <= 8 && cursor + countOrKey <= blob.Length)
+                    {
+                        for (int k = 0; k < countOrKey; k++)
+                            stepKey ??= KeyName(blob[cursor + k]);
+                        cursor += countOrKey;
+                    }
+                    else
+                    {
+                        // Compact layout stores a single output key byte directly in the count slot.
+                        stepKey = KeyName(countOrKey);
+                    }
+
+                    if (stepKey != null)
+                        steps.Add(new PaddleMacroStep(holdMs, waitMs, stepKey));
+                }
+
+                if (!parsedAll)
+                    break;
+
+                if (steps.Count == 0)
+                {
+                    result[trigger] = new PaddleAssignment(trigger, PaddleSlotKind.Disabled, null, false, []);
+                }
+                else if (steps.Count == 1 && steps[0].HoldMs == 0 && steps[0].WaitMs <= 1)
+                {
+                    result[trigger] = new PaddleAssignment(trigger, PaddleSlotKind.Passthrough, steps[0].Key, false, []);
+                }
+                else
+                {
+                    result[trigger] = new PaddleAssignment(trigger, PaddleSlotKind.Macro, null, repeat, steps.AsReadOnly());
+                }
+                offset = cursor;
+            }
+            return result;
+        }
+    }
+
+    public enum CalibrationTarget : byte { Sticks = 1, Triggers = 2 }
+    public enum CalibrationPhase : byte { Active = 1, Retry = 2, Succeeded = 3 }
+    public sealed record CalibrationEvent(CalibrationPhase Phase, byte Detail);
+    public enum VerificationStatus { Matched, Mismatch, Unconfirmed }
+
     /// <summary>Splits a byte stream of notifications into whole frames (a notification may hold part of one, or several).</summary>
     public sealed class FrameReader
     {
@@ -158,8 +262,6 @@ public static class Krly
         }
     }
 
-    // ---- writes: encoded and tested, NOT sent. They stay locked until a real X10 confirms ACK, read-back and persistence.
-
     public static byte[] TriggersPayload(Range left, Range right) { left.Validate(); right.Validate(); return [(byte)left.Min, (byte)left.Max, (byte)right.Min, (byte)right.Max]; }
     public static byte[] SticksPayload(Stick left, Stick right)
     {
@@ -170,27 +272,113 @@ public static class Krly
         left is < 0 or > 100 || right is < 0 or > 100 ? throw new ArgumentOutOfRangeException(nameof(left)) : [(byte)left, (byte)right];
     public static byte[] MappingPayload(string source, string target) => [Key(source), Key(target)];
     public static byte[] TurboPayload(TurboEntry t) => t.Rate is < 1 or > 20 ? throw new ArgumentOutOfRangeException(nameof(t)) : [Key(t.Key), (byte)(t.Automatic ? 1 : 0), (byte)t.Rate];
-    /// <summary>One macro step; durations are big-endian; the repeat byte is inverted (0 = repeat).</summary>
+
+    /// <summary>One macro step via 0x3A; durations are big-endian; the repeat byte is inverted (0 = repeat).</summary>
     public static byte[] MacroStepPayload(string trigger, bool repeat, int index, int holdMs, int waitMs, string key)
     {
-        if (index is < 0 or > 31 || holdMs is < 1 or > 65535 || waitMs is < 0 or > 65535) throw new ArgumentOutOfRangeException(nameof(index));
+        if (!RearPaddles.Contains(trigger)) throw new ArgumentException($"'{trigger}' is not a rear paddle slot.", nameof(trigger));
+        if (index is < 0 or >= MaxMacroSteps || holdMs is < 1 or > 65535 || waitMs is < 0 or > 65535) throw new ArgumentOutOfRangeException(nameof(index));
         return [Key(trigger), (byte)(repeat ? 0 : 1), (byte)index, (byte)(holdMs >> 8), (byte)holdMs, (byte)(waitMs >> 8), (byte)waitMs, Key(key)];
     }
 
-    /// <summary>The order EasyGamepad applies a profile in, each step awaiting an ACK (byte 2 == 0): editing mode, begin,
-    /// triggers, sticks, mappings, motors, end, normal mode. Macros and turbo are left out here.</summary>
-    public static IReadOnlyList<(byte Command, byte[] Payload)> ApplyPlan(Settings settings, IReadOnlyDictionary<string, string> mappings)
+    /// <summary>Rear paddle passthrough via 0x3A (8 bytes). Rear paddles must never be sent via 0x3D.</summary>
+    public static byte[] PaddlePassthroughPayload(string paddle, string targetKey)
+    {
+        if (!RearPaddles.Contains(paddle)) throw new ArgumentException($"'{paddle}' is not a rear paddle slot.", nameof(paddle));
+        if (RearPaddles.Contains(targetKey)) throw new ArgumentException("A rear paddle cannot map to another rear paddle.", nameof(targetKey));
+        return [Key(paddle), 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, Key(targetKey)];
+    }
+
+    /// <summary>Explicit rear paddle disable / clear via 0x3A (7 bytes, no key byte).</summary>
+    public static byte[] PaddleClearPayload(string paddle)
+    {
+        if (!RearPaddles.Contains(paddle)) throw new ArgumentException($"'{paddle}' is not a rear paddle slot.", nameof(paddle));
+        return [Key(paddle), 0x01, 0x00, 0x00, 0x00, 0x00, 0x00];
+    }
+
+    public static byte[] FactoryResetPayload() => [0x00];
+
+    /// <summary>Live motor pulse / stop payload for 0x45: channel 1=left, 2=right, 0=stop both.</summary>
+    public static byte[] MotorTestPayload(int left, int right, byte channel)
+    {
+        if (left is < 0 or > 100) throw new ArgumentOutOfRangeException(nameof(left));
+        if (right is < 0 or > 100) throw new ArgumentOutOfRangeException(nameof(right));
+        if (channel > 2) throw new ArgumentOutOfRangeException(nameof(channel));
+        return [(byte)left, (byte)right, channel];
+    }
+    public static byte[] MotorTestLeftPayload(int strength) => MotorTestPayload(strength, 0, 1);
+    public static byte[] MotorTestRightPayload(int strength) => MotorTestPayload(0, strength, 2);
+    public static byte[] MotorStopPayload() => MotorTestPayload(0, 0, 0);
+
+    public static byte[] CalibrationPayload(bool start, CalibrationTarget target) => [(byte)(start ? 1 : 2), (byte)target];
+
+    public static CalibrationEvent? ParseCalibrationEvent(byte[] raw) =>
+        raw.Length >= 4 && raw[1] == Calibrate && raw[2] is >= 1 and <= 3 ? new CalibrationEvent((CalibrationPhase)raw[2], raw[3]) : null;
+
+    public static bool? ParseSelfCalibrationResult(byte[] raw) =>
+        raw.Length >= 3 && raw[1] is SelfCalResultA or SelfCalResultB ? raw[2] == 0 : null;
+
+    /// <summary>Full ordered KRLY upload plan: 0x01(10) -> 0x36 -> 0x3A (paddles/macros) -> 0x37 (turbo) -> 0x39 (triggers) -> 0x3E (sticks) -> 0x3D (face buttons only) -> 0x35 (motors) -> 0x34 -> 0x01(00).</summary>
+    public static IReadOnlyList<(byte Command, byte[] Payload)> BuildUploadPlan(
+        Settings settings,
+        IReadOnlyDictionary<string, string> faceMappings,
+        IReadOnlyList<PaddleAssignment> paddles)
     {
         settings.Validate();
         var plan = new List<(byte, byte[])> { (SetMode, [0x10]), (BeginUpload, [0, 0]) };
+
+        foreach (var paddle in paddles)
+        {
+            if (!RearPaddles.Contains(paddle.Paddle))
+                throw new ArgumentException($"Unknown rear paddle '{paddle.Paddle}'.", nameof(paddles));
+            switch (paddle.Kind)
+            {
+                case PaddleSlotKind.Macro:
+                    if (paddle.Steps.Count == 0 || paddle.Steps.Count > MaxMacroSteps)
+                        throw new FormatException($"Macro on {paddle.Paddle} must have 1 to {MaxMacroSteps} steps.");
+                    for (int i = 0; i < paddle.Steps.Count; i++)
+                    {
+                        var step = paddle.Steps[i];
+                        plan.Add((MacroStep, MacroStepPayload(paddle.Paddle, paddle.Repeat, i, step.HoldMs, step.WaitMs, step.Key)));
+                    }
+                    break;
+                case PaddleSlotKind.Passthrough:
+                    if (string.IsNullOrEmpty(paddle.TargetKey))
+                        throw new FormatException($"Passthrough target missing for {paddle.Paddle}.");
+                    plan.Add((MacroStep, PaddlePassthroughPayload(paddle.Paddle, paddle.TargetKey)));
+                    break;
+                case PaddleSlotKind.Disabled:
+                    plan.Add((MacroStep, PaddleClearPayload(paddle.Paddle)));
+                    break;
+            }
+        }
+
         plan.AddRange(settings.Turbo.Select(t => (Turbo, TurboPayload(t))));
         plan.Add((Triggers, TriggersPayload(settings.LeftTrigger, settings.RightTrigger)));
         plan.Add((Sticks, SticksPayload(settings.LeftStick, settings.RightStick)));
-        plan.AddRange(mappings.Select(m => (Mapping, MappingPayload(m.Key, m.Value))));
+
+        foreach (var (source, target) in faceMappings)
+        {
+            if (RearPaddles.Contains(source)) continue;
+            plan.Add((Mapping, MappingPayload(source, target)));
+        }
+
         plan.Add((Motors, MotorsPayload(settings.LeftMotor, settings.RightMotor)));
         plan.Add((EndUpload, []));
         plan.Add((SetMode, [0x00]));
         return plan;
     }
+
+    /// <summary>Convenience overload converting any rear paddle entries in mappings to 0x3A passthrough writes automatically.</summary>
+    public static IReadOnlyList<(byte Command, byte[] Payload)> ApplyPlan(Settings settings, IReadOnlyDictionary<string, string> mappings)
+    {
+        var paddles = mappings.Where(kv => RearPaddles.Contains(kv.Key))
+            .Select(kv => new PaddleAssignment(kv.Key, PaddleSlotKind.Passthrough, kv.Value, false, []))
+            .ToList();
+        var face = mappings.Where(kv => !RearPaddles.Contains(kv.Key))
+            .ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.Ordinal);
+        return BuildUploadPlan(settings, face, paddles);
+    }
+
     public static bool IsAck(byte[] raw, byte command) => raw.Length >= 3 && raw[1] == command && raw[2] == 0;
 }

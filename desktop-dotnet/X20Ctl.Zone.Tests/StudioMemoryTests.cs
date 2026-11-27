@@ -29,9 +29,41 @@ public class StudioMemoryTests
     public void ALockedEditorKeepsWhatItHasAndTheRestStillComesBack()
     {
         var saved = new StudioMemory.Entry { Mappings = { ["A"] = "B" }, Vibration = 40 };
-        var x20 = new VibrationDraft("x20"); var buttons = new ButtonDraft("x10"); // not unlocked: PC mode off
-        StudioMemory.Restore(saved, buttons, new CurveDraft("x10"), new MacroDraft("x10"), x20);
+        var x20 = new VibrationDraft("x20"); var buttons = new ButtonDraft("d10"); // not unlocked: PC mode off
+        StudioMemory.Restore(saved, buttons, new CurveDraft("d10"), new MacroDraft("d10"), x20);
         Assert.Equal("A", buttons.Target("A")); Assert.Equal(40, x20.Strength);
+    }
+
+    [Fact]
+    public void X10NativeDraftsUnlockWithoutPcModeAndPreserveSplitMotors()
+    {
+        var b = new ButtonDraft("x10");
+        var c = new CurveDraft("x10");
+        var m = new MacroDraft("x10");
+        var v = new VibrationDraft("x10");
+        Assert.True(b.CanEdit("A"));
+        Assert.True(c.CanEdit);
+        Assert.True(m.CanEdit);
+        Assert.True(v.CanEdit);
+        Assert.True(v.SupportsNativeMotors);
+        Assert.True(v.CanApplyHardware);
+        Assert.True(v.CanTestHardware);
+
+        b.Set("A", "X");
+        c.Set(CurveChannel.LeftStick, c[CurveChannel.LeftStick] with { Inner = 8, Outer = 92, Flags = (byte)CurveHardwareFlags.InvertY });
+        m.Add("M1", 25);
+        v.SetMotors(80, 40, 0);
+
+        var snap = SetupSnapshot.Capture("x10", b, c, m, v);
+        Assert.NotNull(snap.Motors);
+        Assert.Equal([80, 40, 0], snap.Motors);
+        snap.Validate();
+
+        var bBack = new ButtonDraft("x10"); var cBack = new CurveDraft("x10"); var mBack = new MacroDraft("x10"); var vBack = new VibrationDraft("x10");
+        snap.LoadInto(bBack, cBack, mBack, vBack);
+        Assert.Equal("X", bBack.Target("A"));
+        Assert.Equal((80, 40), (vBack.Left, vBack.Right));
+        Assert.Single(mBack["M1"]);
     }
 }
 

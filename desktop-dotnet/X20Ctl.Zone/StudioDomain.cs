@@ -24,9 +24,10 @@ public sealed class ControllerCatalog
             { var stick = sticks.GetProperty(side); var center = stick.TryGetProperty("cap", out var cap) && cap.ValueKind == JsonValueKind.Object ? cap : stick; points[name] = new(center.GetProperty("x").GetDouble(), center.GetProperty("y").GetDouble()); }
             points["LSTICK_ANALOG"] = points["L3"]; points["RSTICK_ANALOG"] = points["R3"];
             if (id == "x20") { points["HOME"] = new(.5, .301); points["CAPTURE"] = new(646d / 1536, 262d / 1024); points["TURBO"] = new(879d / 1536, 264d / 1024); }
-            bool supported = (id == "x20" || id == "x20_pro") && item.GetProperty("backend").GetString() == "x20_keylinker";
+            string backend = item.GetProperty("backend").GetString() ?? "";
+            bool supported = ((id == "x20" || id == "x20_pro") && backend == "x20_keylinker") || (id == "x10" && backend == "x10_krly");
             string support = supported ? "SUPPORTED" : item.GetProperty("availability").GetString() == "preview" ? "PREVIEW" : "RESEARCH";
-            string summary = supported ? "Verified legacy configuration. Native connection pending." : X20Ctl.Zone.PcMode.PcModeEntry.IsAvailable(id) ? "Full PC Mode Configuration" : "Configuration unverified. Model preview available.";
+            string summary = id == "x10" ? "Full native Bluetooth configuration and PC Mode." : supported ? "Verified legacy configuration. Native connection pending." : X20Ctl.Zone.PcMode.PcModeEntry.IsAvailable(id) ? "Full PC Mode Configuration" : "Configuration unverified. Model preview available.";
             models.Add(new(id, "EasySMX " + item.GetProperty("name").GetString(), support, summary, visual.GetProperty("asset").GetString()!, points));
         }
         if (models.Select(m => m.Id).Distinct().Count() != models.Count) throw new InvalidDataException("Duplicate catalog model.");
@@ -109,7 +110,7 @@ public sealed class ButtonDraft
     public ButtonDraft(string modelId) { ModelId = modelId; }
     /// <summary>PC mode applies the draft on the PC, so any model can be edited while it's on.</summary>
     public bool PcMode { get; set; }
-    public bool CanEdit(string source) => (ModelId is "x20" or "x20_pro" || PcMode) && Sources.Contains(source);
+    public bool CanEdit(string source) => (ModelId is "x20" or "x20_pro" or "x10" || PcMode) && Sources.Contains(source);
     public string Target(string source) => changes.GetValueOrDefault(source, source);
     public void Set(string source, string target)
     {

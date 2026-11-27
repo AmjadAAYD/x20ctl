@@ -24,7 +24,7 @@ public static class CommunityCapabilities
         new CommunityModelInfo("x20-pro", "X20 Pro", true),
         new CommunityModelInfo("x20", "X20", true),
         new CommunityModelInfo("x05-pro", "X05 Pro", false),
-        new CommunityModelInfo("x10", "X10", false),
+        new CommunityModelInfo("x10", "X10", true),
         new CommunityModelInfo("x15", "X15", false),
         new CommunityModelInfo("d10", "D10", false),
         new CommunityModelInfo("dune-8k", "Dune 8K", false),
@@ -35,11 +35,15 @@ public static class CommunityCapabilities
         { "buttons", "curves", "keyboard", "mouse", "macros", "rgb", "vibration", "screen", "gyros", "battery" };
     private static readonly string[] NativeX20Features =
         { "buttons", "curves", "macros" };
+    private static readonly string[] NativeX10Features =
+        { "buttons", "curves", "macros", "vibration" };
     private static readonly string[] PcModeFeatures =
         { "buttons", "curves", "keyboard", "mouse", "macros" };
 
     private static readonly string[] NativeX20ProCategories =
         { "setup", "curve", "screen", "rgb", "vibration", "macro", "pack" };
+    private static readonly string[] NativeX10Categories =
+        { "setup", "curve", "vibration", "macro", "pack" };
     private static readonly string[] LimitedCategories =
         { "setup", "curve", "macro", "pack" };
 
@@ -80,6 +84,10 @@ public static class CommunityCapabilities
         if (mode == "native" && model.Id == "x20")
         {
             return new CommunityCapabilitySet(model.Id, model.DisplayName, mode, NativeX20Features, LimitedCategories);
+        }
+        if (mode == "native" && model.Id == "x10")
+        {
+            return new CommunityCapabilitySet(model.Id, model.DisplayName, mode, NativeX10Features, NativeX10Categories);
         }
         return new CommunityCapabilitySet(model.Id, model.DisplayName, "pc-mode", PcModeFeatures, LimitedCategories);
     }

@@ -71,7 +71,7 @@ public sealed class StudioMemory
             if (e.Triggers.TryGetValue(slot, out var trigger)) Try(() => macros.SetTrigger(slot, trigger));
         }
         if (vibration.CanEdit) Try(() => vibration.Set(Math.Clamp(e.Vibration, 0, vibration.Max))); // 150% from PC mode is 100% on the pad
-        if (vibration.PcMode) Try(() => vibration.SetMotors(e.VibrationLeft, e.VibrationRight, e.VibrationFloor));
+        if (vibration.PcMode || vibration.SupportsNativeMotors) Try(() => vibration.SetMotors(Math.Clamp(e.VibrationLeft, 0, vibration.Max), Math.Clamp(e.VibrationRight, 0, vibration.Max), vibration.PcMode ? e.VibrationFloor : 0));
     }
 
     public void Put(int player, string model, Entry entry)

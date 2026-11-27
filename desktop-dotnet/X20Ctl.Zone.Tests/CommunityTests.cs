@@ -43,6 +43,14 @@ public sealed class CommunityTests
         Assert.True(x20Native.AllowsCategory("curve"));
         Assert.True(x20Native.AllowsCategory("macro"));
 
+        var x10Native = CommunityCapabilities.GetCapabilitySet("x10", "native");
+        Assert.Equal("native", x10Native.ConnectionMode);
+        Assert.False(x10Native.AllowsCategory("screen"));
+        Assert.False(x10Native.AllowsCategory("rgb"));
+        Assert.True(x10Native.AllowsCategory("vibration"));
+        Assert.True(x10Native.AllowsCategory("curve"));
+        Assert.True(x10Native.AllowsCategory("macro"));
+
         var duneNativeRequested = CommunityCapabilities.GetCapabilitySet("dune-8k", "native");
         Assert.Equal("pc-mode", duneNativeRequested.ConnectionMode);
         Assert.True(duneNativeRequested.Supports("keyboard"));
