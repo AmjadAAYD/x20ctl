@@ -4,11 +4,11 @@ using System.Windows;
 using System.Windows.Controls;
 using X20Ctl.Product.Scanner;
 using X20Ctl.Zone;
+using X20Ctl.Zone.D10;
 using X20Ctl.Zone.X10;
 namespace X20Ctl.Product;
 
-/// <summary>An X20 Pro or X10 keeps its mappings, curves and macros in its own memory: the tabs open on what it holds, and Apply
-/// to controller writes what changed over Bluetooth.</summary>
+/// <summary>An X20 Pro, X10, or D10 keeps its native profile: the tabs load its settings and Apply writes/syncs to hardware or Direct USB.</summary>
 public partial class StudioScene
 {
     static readonly HashSet<ButtonDraft> filledFromController = new(); // drafts outlive a Studio, so reopening keeps unsaved edits
@@ -16,8 +16,12 @@ public partial class StudioScene
     X10HardwareSnapshot? x10LastSnapshot;
     X10SyncReport? x10LastSyncReport;
     public X10HardwareWorkbench? X10Hardware { get; private set; }
+
+    readonly D10ProfileStore d10Store = new();
+    public D10HardwareWorkbench? D10Hardware { get; private set; }
+
     bool controllerBusy;
-    bool ControllerWrites => Model.Id is "x20_pro" or "x10" && !Draft.PcMode && !ReviewSandbox.Active;
+    bool ControllerWrites => Model.Id is "x20_pro" or "x10" or "d10" && !Draft.PcMode && !ReviewSandbox.Active;
 
     void UseControllerWrites()
     {
@@ -43,7 +47,7 @@ public partial class StudioScene
 
     void UseControllerWrites(VibrationWorkbench vibration)
     {
-        if (Model.Id == "x10" && ControllerWrites)
+        if (Model.Id is "x10" or "d10" && ControllerWrites)
             vibration.UseController(say => ApplyToController(say));
     }
 
@@ -81,6 +85,39 @@ public partial class StudioScene
             X10Hardware.RefreshFromDrafts();
         }
         return X10Hardware;
+    }
+
+    internal D10HardwareWorkbench EnsureD10Workbench()
+    {
+        if (Model.Id != "d10") throw new InvalidOperationException("D10 native workbench is only available for EasySMX D10.");
+        if (D10Hardware == null)
+        {
+            var initial = d10Store.Load();
+            D10Hardware = new D10HardwareWorkbench(
+                this,
+                RegisterFocus,
+                Draft,
+                Curves.Draft,
+                macroDraft,
+                vibrationDraft,
+                initial,
+                (settings, calibration) => d10Store.Save(new D10SavedConfig { Settings = settings.Clone(), Calibration = calibration }),
+                ApplyToController,
+                slot => OpenMacroSlot(slot),
+                () =>
+                {
+                    Vibration?.Refresh();
+                    Curves.Refresh();
+                    Macros?.Refresh();
+                    UpdateCurveContext();
+                    UpdateMacroContext();
+                });
+        }
+        else
+        {
+            D10Hardware.RefreshFromDrafts();
+        }
+        return D10Hardware;
     }
 
     async Task ReadX10FromController(Action<string> say)
@@ -123,6 +160,19 @@ public partial class StudioScene
     async Task LoadFromController(Action<string> say)
     {
         if (filledFromController.Contains(Draft)) return;
+        if (Model.Id == "d10")
+        {
+            var probe = D10UsbClient.ProbeStatus();
+            if (probe.HasWinUsbDevice)
+            {
+                currentTransport = probe.DetectedLink == D10LinkKind.WiredUsb ? "Direct USB (EP83)" : "2.4 GHz Receiver (WinUSB)";
+                Device?.SetTransport(currentTransport);
+                Dashboard?.SetTransport(currentTransport);
+            }
+            filledFromController.Add(Draft);
+            say("D10 native profile ready. Open D10 Motion to connect Direct USB or save changes.");
+            return;
+        }
         controllerBusy = true;
         try
         {
@@ -146,6 +196,17 @@ public partial class StudioScene
     async Task ApplyToController(Action<string> say)
     {
         if (controllerBusy) { say("The controller is busy. Try again in a moment."); return; }
+        if (Model.Id == "d10")
+        {
+            D10Hardware?.PersistConfig();
+            D10Hardware?.RefreshFromDrafts();
+            filledFromController.Add(Draft);
+            string msg = "Saved D10 native settings, 6-axis motion profile, and active session.";
+            say(msg);
+            buttonsPage?.SayController(msg);
+            D10Hardware?.SetStatus(msg);
+            return;
+        }
         if (Model.Id == "x10")
         {
             controllerBusy = true;

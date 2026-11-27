@@ -643,6 +643,9 @@ internal static class AutomatedE2ETester
             // 10. EasySMX X10 Native Studio smoke & UI verification (no physical pad required)
             await VerifyX10StudioAsync(window, WaitMs, Require, SaveShot);
 
+            // 11. EasySMX D10 Native USB & 6-Axis Motion verification (no physical pad required)
+            await VerifyD10StudioAsync(window, WaitMs, Require, SaveShot);
+
             var report = new List<string>();
             report.Add("=== X20CTL AUTOMATED E2E VERIFICATION REPORT ===");
             report.Add($"Timestamp: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
@@ -762,6 +765,95 @@ internal static class AutomatedE2ETester
         Require(x10Studio.X10Hardware != null && x10Studio.ManagementPage == "X10Native", "X10 Native tab rendered");
         AssertNoForbiddenStrings(window, new[] { "OLED", "Stick Lab" }, Require, "X10 Native tab");
         SaveShot("13-x10-native-studio");
+    }
+
+    public static async Task RunD10Only(string outputDir)
+    {
+        Directory.CreateDirectory(outputDir);
+        ReviewSandbox.Active = false;
+        ReviewSandbox.HideLibrary = true;
+        IntroView.SoundEnabled = false;
+
+        var checks = new List<string>();
+        var window = new ProductWindow(
+            reducedMotion: true,
+            assignmentPath: Path.Combine(outputDir, "assignments.json"),
+            startMaximized: false,
+            firstRun: false,
+            nativeEngine: false,
+            fullscreen: false,
+            trayIcon: false);
+        Application.Current.MainWindow = window;
+        window.Show();
+        window.Activate();
+
+        async Task WaitMs(int ms = 200)
+        {
+            await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
+            await Task.Delay(ms);
+            window.UpdateLayout();
+        }
+        void Require(bool cond, string label)
+        {
+            checks.Add($"{(cond ? "PASS" : "FAIL")}: {label}");
+            if (!cond) throw new InvalidOperationException("Automated D10 E2E failed: " + label);
+        }
+        void SaveShot(string name)
+        {
+            window.UpdateLayout();
+            var target = window.Stage;
+            var rtb = new RenderTargetBitmap((int)Math.Ceiling(Math.Max(1200, target.ActualWidth)), (int)Math.Ceiling(Math.Max(700, target.ActualHeight)), 96, 96, PixelFormats.Pbgra32);
+            rtb.Render(target);
+            var enc = new PngBitmapEncoder();
+            enc.Frames.Add(BitmapFrame.Create(rtb));
+            using var fs = File.Create(Path.Combine(outputDir, name + ".png"));
+            enc.Save(fs);
+        }
+
+        try
+        {
+            await WaitMs(350);
+            await VerifyD10StudioAsync(window, WaitMs, Require, SaveShot);
+            File.WriteAllLines(Path.Combine(outputDir, "d10-e2e-report.txt"), checks);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    private static async Task VerifyD10StudioAsync(
+        ProductWindow window,
+        Func<int, Task> WaitMs,
+        Action<bool, string> Require,
+        Action<string> SaveShot)
+    {
+        window.Host.Zone.AssignController(2, window.Host.Catalog.Get("d10"));
+        window.Host.EnterStudio(2);
+        await WaitMs(450);
+        var d10Studio = window.Host.Studio!;
+        Require(d10Studio.Model.Id == "d10" && !d10Studio.Draft.PcMode, "D10 opens in Native Mode by default");
+        Require(d10Studio.Draft.CanEdit("A") && d10Studio.Curves.Draft.CanEdit && d10Studio.MacroDraft.CanEdit, "D10 native Buttons, Curves, and Macros unlock without PC mode");
+
+        d10Studio.ShowButtons();
+        await WaitMs(120);
+        AssertNoForbiddenStrings(window, new[] { "OLED", "Stick Lab", "Switch PC mode on to remap" }, Require, "D10 Buttons tab");
+
+        d10Studio.ShowCurves(true);
+        await WaitMs(120);
+        d10Studio.ShowMacros(true);
+        await WaitMs(120);
+        d10Studio.ShowVibration(true);
+        await WaitMs(120);
+        d10Studio.ShowManagement("Device");
+        await WaitMs(120);
+        AssertNoForbiddenStrings(window, new[] { "saving to it is locked", "stays locked" }, Require, "D10 Device tab");
+
+        d10Studio.ShowManagement("D10Native");
+        await WaitMs(200);
+        Require(d10Studio.D10Hardware != null && d10Studio.ManagementPage == "D10Native", "D10 Motion tab rendered");
+        AssertNoForbiddenStrings(window, new[] { "OLED", "Stick Lab" }, Require, "D10 Motion tab");
+        SaveShot("14-d10-native-studio");
     }
 
     private static byte[] GenerateAvatarPng(int width, int height)

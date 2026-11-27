@@ -77,7 +77,7 @@ public partial class StudioScene : UserControl
     {
         InitializeComponent(); Player = player; Model = model; Draft = draft; PadColours.ActivePlayer = player;
         setupStore=setups??new(Path.Combine(Path.GetTempPath(),"x20ctl-render-setup-"+Guid.NewGuid().ToString("N")+".json"));legacySources=legacy??Array.Empty<string>();activeSetup=activeId;
-        Unloaded+=(_,_)=>{SuspendMacroActivity();StopTry();Tester?.ExitCapture();Diagnostics?.Stop();curvesDiagnostics?.Stop();X10Hardware?.StopActiveCalibration();};
+        Unloaded+=(_,_)=>{SuspendMacroActivity();StopTry();Tester?.ExitCapture();Diagnostics?.Stop();curvesDiagnostics?.Stop();X10Hardware?.StopActiveCalibration();D10Hardware?.ShutdownSession();};
         IsEnabledChanged += (_, _) => { if (!IsEnabled) SuspendMacroActivity(); };
         IsVisibleChanged += (_, _) => { if (!IsVisible) SuspendMacroActivity(); };
         macroDraft=macros ?? new MacroDraft(model.Id);vibrationDraft=vibration??new(model.Id);
@@ -87,7 +87,7 @@ public partial class StudioScene : UserControl
         layout = ControlRegions.Owned(model, File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Data/control-shapes.json")), File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Data/x20-rear.json")));
         TargetChoice.ItemsSource = ButtonDraft.Targets.Select(key => new KeyValuePair<string, string>(key, Label(key))).ToArray();
         RearChoice.IsEnabled = HasRearArtwork;
-        CurvesNav.ToolTip = draft.PcMode ? "PC mode curves · Page Down" : model.Id is "x20" or "x20_pro" or "x10" ? "Local curve drafts · Page Down" : "Curve preview · read-only for this model · Page Down";
+        CurvesNav.ToolTip = draft.PcMode ? "PC mode curves · Page Down" : model.Id is "x20" or "x20_pro" or "x10" or "d10" ? "Local curve drafts · Page Down" : "Curve preview · read-only for this model · Page Down";
         Unloaded+=(_,_)=>{PcModePage.ProfileChanged-=PcProfileChanged;PcModePage.NoticeAccepted-=PcNoticeAccepted;};
         Loaded+=(_,_)=>{PcModePage.ProfileChanged-=PcProfileChanged;PcModePage.ProfileChanged+=PcProfileChanged;PcModePage.NoticeAccepted-=PcNoticeAccepted;PcModePage.NoticeAccepted+=PcNoticeAccepted;};
         BuildTargets(); BuildInventory();
@@ -1174,7 +1174,7 @@ public partial class StudioScene : UserControl
     internal void ApplyNativeAndBoost(PcModeProfile p, bool saveImmediate = false)
     {
         liveNativeProfile = p;
-        bool nativeHw = Model.Id is "x20" or "x20_pro" or "x10" && !Draft.PcMode;
+        bool nativeHw = Model.Id is "x20" or "x20_pro" or "x10" or "d10" && !Draft.PcMode;
         bool boost = StickLabMath.RequiresDesktopBoost(p);
         Curves.NativeHardwareMode = nativeHw;
         Curves.DesktopBoostActive = boost;
@@ -1230,7 +1230,7 @@ public partial class StudioScene : UserControl
 
     private void WireCurveTuning()
     {
-        bool nativeEditable = Model.Id is "x20" or "x20_pro" or "x10";
+        bool nativeEditable = Model.Id is "x20" or "x20_pro" or "x10" or "d10";
         if (pcLink is not { } link && !nativeEditable) { Curves.Tuning = null; Curves.SaveTuning = null; Curves.ResetResponse = null; Curves.Refresh(); return; }
         Curves.NativeHardwareMode = !Draft.PcMode && nativeEditable;
         Curves.ResetResponse = channels =>
@@ -1293,7 +1293,7 @@ public partial class StudioScene : UserControl
         }
     }
     private PcModeSync? pcSync;
-    internal bool NeedsPcModeRefresh => Model.Id is "x20_pro" or "x10" && pcLink!=null && !nativeBoostActive && Draft.PcMode!=pcLink.Service.Enabled;
+    internal bool NeedsPcModeRefresh => Model.Id is "x20_pro" or "x10" or "d10" && pcLink!=null && !nativeBoostActive && Draft.PcMode!=pcLink.Service.Enabled;
     internal void PcModeEnabledChanged()
     {
         RefreshBatteryVisibility();
@@ -1362,7 +1362,7 @@ public partial class StudioScene : UserControl
         if (stickLabLayer != null) return;
         FlushPendingCurveSave();
         curvesDiagnostics?.Stop();
-        bool nativeHw = !Draft.PcMode && Model.Id is "x20" or "x20_pro" or "x10";
+        bool nativeHw = !Draft.PcMode && Model.Id is "x20" or "x20_pro" or "x10" or "d10";
         if (cachedStickLab != null && cachedStickLabNativeHw == nativeHw)
         {
             var curProfile = liveNativeProfile ?? (pcLink != null ? pcLink.Store.Get(PcModePage.StoreKey) : new PcModeProfile());
@@ -1534,12 +1534,12 @@ public partial class StudioScene : UserControl
     /// <summary>PC Mode is on for a pad that has the PC Mode entry: its dashboard has no Device or Diagnostics pages (owner, 6 Nov 2026).</summary>
     // owner, 7 Nov 2026: PC mode is how these controllers are set up. The X20 Pro (lab, 8 Nov) shows PC mode's tabs only while
     // PC mode is on; switched off, it is the X20 Pro Studio of the release, saving to the controller itself.
-    private bool PcDashboard => PcModeEntryAvailable && pcLink != null && (Model.Id is not ("x20_pro" or "x10") || pcLink.Service.Enabled);
+    private bool PcDashboard => PcModeEntryAvailable && pcLink != null && (Model.Id is not ("x20_pro" or "x10" or "d10") || pcLink.Service.Enabled);
     private void ApplyPcDashboard()
     {
         bool on = PcDashboard;
-        // X20 Pro and X10 keep their native tabs and Device tab until PC mode is switched on.
-        bool native = Model.Id is "x20_pro" or "x10", swap = on && (!native || Draft.PcMode), noDevice = on && !native;
+        // X20 Pro, X10, and D10 keep their native tabs and Device tab until PC mode is switched on.
+        bool native = Model.Id is "x20_pro" or "x10" or "d10", swap = on && (!native || Draft.PcMode), noDevice = on && !native;
         DiagnosticsNav.Visibility = Visibility.Collapsed; PcModeNav.Visibility = Visibility.Collapsed;
         if (baseNavigation.Length == 0) return; // the strip is not built yet; it calls this again
         var list = new List<RadioButton>();
@@ -1547,6 +1547,7 @@ public partial class StudioScene : UserControl
         {
             if (t == PcModeNav) { if (on) list.AddRange(pcTabs); }
             else if (t == X10NativeNav && (Model.Id != "x10" || Draft.PcMode)) continue;
+            else if (t == D10NativeNav && (Model.Id != "d10" || Draft.PcMode)) continue;
             else if (t == DeviceNav && noDevice) continue;
             else if (t == MouseNav) continue; // placed below
             // owner, 7 Nov 2026: with PC mode on, Keyboard takes Macros' place and Mouse sits beside it
@@ -1561,6 +1562,7 @@ public partial class StudioScene : UserControl
         // so a tab collapsed into More is not flashed back onto the strip on every page change.
         if (!on) foreach (var t in pcTabs) t.Visibility = Visibility.Collapsed;
         if (Model.Id != "x10" || Draft.PcMode) X10NativeNav.Visibility = Visibility.Collapsed;
+        if (Model.Id != "d10" || Draft.PcMode) D10NativeNav.Visibility = Visibility.Collapsed;
         if (noDevice) DeviceNav.Visibility = Visibility.Collapsed; // the strip only ever shows tabs, so hide it here
         if (swap && KeyboardNav != null) MacrosNav.Visibility = Visibility.Collapsed;
         if (KeyboardNav != null && !swap) KeyboardNav.Visibility = Visibility.Collapsed;
@@ -1627,9 +1629,9 @@ public partial class StudioScene : UserControl
 
     public void ShowManagement(string page)
     {
-        if (PcDashboard && Model.Id is not ("x20_pro" or "x10") && page is "Device" or "Diagnostics") page = "PcMode";
+        if (PcDashboard && Model.Id is not ("x20_pro" or "x10" or "d10") && page is "Device" or "Diagnostics") page = "PcMode";
         ApplyPcDashboard();
-        if (page is not ("Dashboard" or "PcMode" or "Device" or "X10Native" or "RGB" or "Screen" or "Diagnostics" or "Mouse" or "Keyboard" or "Tester" or "Setups" or "Community")) throw new ArgumentException("Unknown Studio page.");
+        if (page is not ("Dashboard" or "PcMode" or "Device" or "X10Native" or "D10Native" or "RGB" or "Screen" or "Diagnostics" or "Mouse" or "Keyboard" or "Tester" or "Setups" or "Community")) throw new ArgumentException("Unknown Studio page.");
         if (IsCurves) ShowCurves(false, restoreButtons: false);
         if (IsMacros) ShowMacros(false, restoreButtons: false);
         if (IsVibration) ShowVibration(false, restoreButtons: false);
@@ -1642,7 +1644,7 @@ public partial class StudioScene : UserControl
             ManagementShelfHost.Children.Clear();
         }
         ManagementPage = page;
-        bool immediate = page is "Dashboard" or "Mouse" or "Keyboard" or "Diagnostics" or "Device" or "X10Native" or "RGB" or "Screen" or "PcMode" or "Community";
+        bool immediate = page is "Dashboard" or "Mouse" or "Keyboard" or "Diagnostics" or "Device" or "X10Native" or "D10Native" or "RGB" or "Screen" or "PcMode" or "Community";
         DraftBar.Visibility = immediate ? Visibility.Collapsed : Visibility.Visible; RootLayout.RowDefinitions[2].Height = new(immediate ? 0 : 40);
         Apply.Visibility = StatusNote.Visibility = immediate ? Visibility.Collapsed : Visibility.Visible;
         ChangeCount.Visibility = page == "Dashboard" ? Visibility.Collapsed : Visibility.Visible;
@@ -1650,7 +1652,7 @@ public partial class StudioScene : UserControl
         ShowLayer(ManagementBodyHost, true);
         ManagementShelfFrame.Visibility = Visibility.Visible;
         ButtonsNav.IsChecked = CurvesNav.IsChecked = MacrosNav.IsChecked = VibrationNav.IsChecked = false;
-        DeviceNav.IsChecked = page == "Device"; X10NativeNav.IsChecked = page == "X10Native"; RgbNav.IsChecked = page == "RGB"; ScreenNav.IsChecked = page == "Screen";
+        DeviceNav.IsChecked = page == "Device"; X10NativeNav.IsChecked = page == "X10Native"; D10NativeNav.IsChecked = page == "D10Native"; RgbNav.IsChecked = page == "RGB"; ScreenNav.IsChecked = page == "Screen";
         DiagnosticsNav.IsChecked = page == "Diagnostics"; MouseNav.IsChecked = page == "Mouse";
         if (KeyboardNav != null) KeyboardNav.IsChecked = page == "Keyboard";
         PcModeNav.IsChecked = false;
@@ -1659,8 +1661,9 @@ public partial class StudioScene : UserControl
         CommunityNav.IsChecked = page == "Community"; DashboardNav.IsChecked = page == "Dashboard";
         DashboardFlip.Visibility = page == "Dashboard" ? Visibility.Visible : Visibility.Hidden;
         if (page == "Dashboard") { Dashboard ??= CreateDashboard(); Dashboard.SetWorkingState(Draft.UnsentChanges, activeSetup == null ? null : setupStore.Items.FirstOrDefault(x => x.Id == activeSetup)?.Name, Draft.PcMode); ShowMgmtPanel(Dashboard); ChangeCount.Text = "Select the controller to configure it · Your games are found automatically"; PrimaryHint.Text = " Select"; OverviewHint.Text = ""; DraftChip.Text = "Dashboard"; Dashboard.FocusHero(); }
-        else if (page == "Device") { Device ??= new(Model, Player, this, RegisterFocus, () => ShowManagement("Diagnostics"), () => ShowManagement("Setups"), () => ShowManagement("Screen"), Model.Id is "x20_pro" or "x10" && !Draft.PcMode ? FactoryReset : null, Model.Id == "x10" && !Draft.PcMode ? () => ShowManagement("X10Native") : null); Device.TelemetryUpdated -= ApplyTelemetry; Device.TelemetryUpdated += ApplyTelemetry; if (currentTransport != null) Device.SetTransport(currentTransport); Device.SetBatteryLevel(currentBatteryLevel, currentTransport); Device.ShowBattery(BatteryVisible); if (currentFirmware != null) Device.SetFirmware(currentFirmware); else if (currentTransport == "2.4 GHz receiver") Device.SetFirmware("Not readable over XInput"); if (gameplayConnected != null || BluetoothLive) Device.SetConnection(Linked, BluetoothOnly); if (currentHardwareId != null) Device.SetHardwareId(currentHardwareId); Device.UpdateEngineStatus(NativeEngineStatus); ShowMgmtPanel(Device.Body); ManagementShelfHost.Children.Add(Device.Shelf); ChangeCount.Text = "Assigned model · Gameplay and configuration remain separate"; PrimaryHint.Text = " Open"; OverviewHint.Text = " My setups"; DraftChip.Text = "Controller overview"; }
+        else if (page == "Device") { Device ??= new(Model, Player, this, RegisterFocus, () => ShowManagement("Diagnostics"), () => ShowManagement("Setups"), () => ShowManagement("Screen"), Model.Id is "x20_pro" or "x10" && !Draft.PcMode ? FactoryReset : null, Model.Id == "x10" && !Draft.PcMode ? () => ShowManagement("X10Native") : null, Model.Id == "d10" && !Draft.PcMode ? () => ShowManagement("D10Native") : null); Device.TelemetryUpdated -= ApplyTelemetry; Device.TelemetryUpdated += ApplyTelemetry; if (currentTransport != null) Device.SetTransport(currentTransport); Device.SetBatteryLevel(currentBatteryLevel, currentTransport); Device.ShowBattery(BatteryVisible); if (currentFirmware != null) Device.SetFirmware(currentFirmware); else if (currentTransport == "2.4 GHz receiver") Device.SetFirmware("Not readable over XInput"); if (gameplayConnected != null || BluetoothLive) Device.SetConnection(Linked, BluetoothOnly); if (currentHardwareId != null) Device.SetHardwareId(currentHardwareId); Device.UpdateEngineStatus(NativeEngineStatus); ShowMgmtPanel(Device.Body); ManagementShelfHost.Children.Add(Device.Shelf); ChangeCount.Text = "Assigned model · Gameplay and configuration remain separate"; PrimaryHint.Text = " Open"; OverviewHint.Text = " My setups"; DraftChip.Text = "Controller overview"; }
         else if (page == "X10Native") { var x10w = EnsureX10Workbench(); ShowMgmtPanel(x10w.Body); ChangeCount.Text = "X10 Native hardware configuration"; PrimaryHint.Text = " Select"; OverviewHint.Text = ""; DraftChip.Text = "X10 Native"; }
+        else if (page == "D10Native") { var d10w = EnsureD10Workbench(); ShowMgmtPanel(d10w.Body); ChangeCount.Text = "D10 Direct USB and 6-axis motion configuration"; PrimaryHint.Text = " Select"; OverviewHint.Text = ""; DraftChip.Text = "D10 Motion"; }
         else if (page == "RGB") { EnsureRgbWorkbench(); ShowMgmtPanel(rgbBody!); ChangeCount.Text = "RGB lighting"; PrimaryHint.Text = " Select"; OverviewHint.Text = ""; DraftChip.Text = "RGB"; }
         else if (page == "Screen") { var scr = EnsureScreenWorkbench(); ShowMgmtPanel(scr.Body); ChangeCount.Text = "Screen artwork · local preview"; PrimaryHint.Text = " Select"; OverviewHint.Text = ""; DraftChip.Text = "Screen"; }
         else if (page == "Diagnostics") { Diagnostics ??= new(Player, RegisterFocus, PcMode, model: Model); ShowMgmtPanel(Diagnostics.Body); Diagnostics.Start(); ChangeCount.Text = "Read-only input capture · Use Esc or the mouse to leave"; PrimaryHint.Text = ""; OverviewHint.Text = ""; DraftChip.Text = "Diagnostics"; Diagnostics.Reset.Focus(); }
@@ -1680,8 +1683,8 @@ public partial class StudioScene : UserControl
         else if (page == "Community") { var comm = EnsureCommunityWorkbench(); ShowMgmtPanel(comm.Body); ChangeCount.Text = "X20CTL Community Hub"; PrimaryHint.Text = " Select"; OverviewHint.Text = ""; DraftChip.Text = "Community"; }
         else { if (Setups == null) { Setups = new(setupStore, new ControllerCatalog(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Data/catalog.json"))), Model.Id, this, RegisterFocus, () => SetupSnapshot.Capture(Model.Id, Draft, Curves.Draft, macroDraft, vibrationDraft), LoadSetup, legacySources, activeSetup); Setups.Changed += () => { if (Dashboard != null) ManagementBodyHost.Children.Remove(Dashboard); Dashboard = null; UpdateSetupContext(); }; Setups.BrowseCommunitySetupsRequested += () => { ShowManagement("Community"); Community?.SetPresetCategoryAndRefresh("setup"); }; Setups.ShareSetupRequested += saved => { ShowManagement("Community"); Community?.OpenShareDialog("setup", saved.Name, saved.Snapshot); }; } Setups.RefreshCurrent(); ShowMgmtPanel(Setups.Body); ManagementShelfHost.Children.Add(Setups.Shelf); UpdateSetupContext(); }
         PrimaryGlyph.Text = page == "Tester" ? "↵" : "A"; BackGlyph.Text = page is "Tester" or "Diagnostics" ? "Esc" : "B"; SecondaryFooterHint.Visibility = ActualWidth < 1100 || page is "Tester" or "Diagnostics" ? Visibility.Collapsed : Visibility.Visible;
-        Grid.SetRowSpan(StudioBody, page is "Setups" or "Dashboard" or "Diagnostics" or "Mouse" or "Keyboard" or "PcMode" or "Device" or "X10Native" or "RGB" or "Screen" or "Community" ? 2 : 1);
-        if (page is "Setups" or "Dashboard" or "Diagnostics" or "Mouse" or "Keyboard" or "PcMode" or "Device" or "X10Native" or "RGB" or "Screen" or "Community") ManagementShelfFrame.Visibility = Visibility.Collapsed;
+        Grid.SetRowSpan(StudioBody, page is "Setups" or "Dashboard" or "Diagnostics" or "Mouse" or "Keyboard" or "PcMode" or "Device" or "X10Native" or "D10Native" or "RGB" or "Screen" or "Community" ? 2 : 1);
+        if (page is "Setups" or "Dashboard" or "Diagnostics" or "Mouse" or "Keyboard" or "PcMode" or "Device" or "X10Native" or "D10Native" or "RGB" or "Screen" or "Community") ManagementShelfFrame.Visibility = Visibility.Collapsed;
         InputContextChanged?.Invoke(); Apply.IsEnabled = false;
         UpdateButtonsPage();
     }
@@ -1701,7 +1704,7 @@ public partial class StudioScene : UserControl
         ShowLayer(ManagementBodyHost, false);
         ManagementShelfFrame.Visibility = Visibility.Collapsed;
         foreach (UIElement c in ManagementBodyHost.Children) ShowLayer(c, false);
-        X10NativeNav.IsChecked = RgbNav.IsChecked = ScreenNav.IsChecked = DeviceNav.IsChecked = DiagnosticsNav.IsChecked = MouseNav.IsChecked = PcModeNav.IsChecked = TesterNav.IsChecked = SetupsNav.IsChecked = CommunityNav.IsChecked = DashboardNav.IsChecked = false;
+        X10NativeNav.IsChecked = D10NativeNav.IsChecked = RgbNav.IsChecked = ScreenNav.IsChecked = DeviceNav.IsChecked = DiagnosticsNav.IsChecked = MouseNav.IsChecked = PcModeNav.IsChecked = TesterNav.IsChecked = SetupsNav.IsChecked = CommunityNav.IsChecked = DashboardNav.IsChecked = false;
         X10Hardware?.StopActiveCalibration();
         if (KeyboardNav != null) KeyboardNav.IsChecked = false;
         if (restoreButtons)
@@ -1716,7 +1719,7 @@ public partial class StudioScene : UserControl
             UpdateButtonsPage();
         }
     }
-    private void LoadSetup(SetupSnapshot snapshot){if(snapshot.ModelId!=Model.Id)throw new InvalidOperationException("Setup model does not match this player.");snapshot.LoadInto(Draft,Curves.Draft,macroDraft,vibrationDraft);Curves.Refresh();Macros?.Refresh();Vibration?.Refresh();X10Hardware?.RefreshFromDrafts();SyncPcMode();}
+    private void LoadSetup(SetupSnapshot snapshot){if(snapshot.ModelId!=Model.Id)throw new InvalidOperationException("Setup model does not match this player.");snapshot.LoadInto(Draft,Curves.Draft,macroDraft,vibrationDraft);Curves.Refresh();Macros?.Refresh();Vibration?.Refresh();X10Hardware?.RefreshFromDrafts();D10Hardware?.RefreshFromDrafts();SyncPcMode();}
     private void UpdateSetupContext(){if(ManagementPage!="Setups"||Setups==null)return;activeSetup=Setups.ActiveId;ActiveSetupChanged?.Invoke(activeSetup);ChangeCount.Text=activeSetup==null?"Local setup library · Hardware application unavailable":"Setup open in local editor · Hardware unchanged";PrimaryHint.Text=" Select / Open";OverviewHint.Text=" New setup";DraftChip.Text="My setups";Apply.IsEnabled=false;}
     public bool DeliverGameplayFrame(TesterFrame frame)=>ManagementPage=="Tester" && Tester?.Receive(frame)==true;
 
@@ -1873,6 +1876,7 @@ public partial class StudioScene : UserControl
         StopTry(); ShowMacros(true); Macros?.SelectSlot(key); return Macros != null;
     }
     private void X10NativeTab(object sender,RoutedEventArgs e)=>ShowManagement("X10Native");
+    private void D10NativeTab(object sender,RoutedEventArgs e)=>ShowManagement("D10Native");
     private void RgbTab(object sender,RoutedEventArgs e)=>ShowManagement("RGB");
     private void ScreenTab(object sender,RoutedEventArgs e)=>ShowManagement("Screen");
     private void DeviceTab(object sender,RoutedEventArgs e)=>ShowManagement("Device");private void TesterTab(object sender,RoutedEventArgs e)=>ShowManagement("Tester");private void DiagnosticsTab(object sender,RoutedEventArgs e)=>ShowManagement("Diagnostics");private void MouseTab(object sender,RoutedEventArgs e)=>ShowManagement("Mouse");private void SetupsTab(object sender,RoutedEventArgs e)=>ShowManagement("Setups");private void CommunityTab(object sender,RoutedEventArgs e)=>ShowManagement("Community");
@@ -1999,7 +2003,7 @@ public partial class StudioScene : UserControl
             e.Handled = true;
         }
     }
-    private RadioButton? GetActiveTab() => new[] { DashboardNav, ButtonsNav, CurvesNav, MacrosNav, VibrationNav, X10NativeNav, PcModeNav, RgbNav, ScreenNav, DeviceNav, DiagnosticsNav, MouseNav, KeyboardNav, TesterNav, SetupsNav, CommunityNav }.FirstOrDefault(t => t?.IsChecked == true);
+    private RadioButton? GetActiveTab() => new[] { DashboardNav, ButtonsNav, CurvesNav, MacrosNav, VibrationNav, X10NativeNav, D10NativeNav, PcModeNav, RgbNav, ScreenNav, DeviceNav, DiagnosticsNav, MouseNav, KeyboardNav, TesterNav, SetupsNav, CommunityNav }.FirstOrDefault(t => t?.IsChecked == true);
     private void FocusCurrentTarget() { if (OnButtonsPage && buttonsPage != null) { buttonsPage.FocusOutput(Draft.Target(SelectedControl)); return; } targetButtons.FirstOrDefault(b => b.IsEnabled && (string)b.Tag == Draft.Target(SelectedControl))?.Focus(); }
     private static string TargetGlyph(string key) => key switch { "DPAD_UP" => "↑", "DPAD_DOWN" => "↓", "DPAD_LEFT" => "←", "DPAD_RIGHT" => "→", _ => Glyph(key) };
     private static string Glyph(string key) => key switch { "DPAD_UP" => "D↑", "DPAD_DOWN" => "D↓", "DPAD_LEFT" => "D←", "DPAD_RIGHT" => "D→", "SELECT" => "View", "START" => "Menu", "HOME" => "Guide", "CAPTURE" => "C", "TURBO" => "T", _ => key };

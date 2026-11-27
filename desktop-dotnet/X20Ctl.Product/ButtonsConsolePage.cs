@@ -211,7 +211,7 @@ public sealed partial class ButtonsConsolePage : Grid
         sendsName.Text = waitTarget ? CapturePrompt : editable ? target=="NONE"?"Disabled":Kind(target) : has ? "Can't change" : "Then press its new job";
         selectionTitle.Text=has?label(Source):"Select a control";
         sentence.Text=!has?(connected?"Select a control on the picture, or press R3 and then the button.":"Select a control on the picture. Physical detection is unavailable while offline."):editable?$"Current mapping: {Short(Source)} → {Short(target)}":"This input can be inspected; remapping is unavailable.";
-        readOnly.Text = model.Id is not ("x20" or "x20_pro" or "x10") && !draft.PcMode ? "Switch PC mode on to remap this controller: open the PC mode tab, turn it on, then come back here." : !has || editable ? "" : $"{name} can't be remapped. It has no button role to swap.";
+        readOnly.Text = model.Id is not ("x20" or "x20_pro" or "x10" or "d10") && !draft.PcMode ? "Switch PC mode on to remap this controller: open the PC mode tab, turn it on, then come back here." : !has || editable ? "" : $"{name} can't be remapped. It has no button role to swap.";
         readOnly.Visibility = readOnly.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed; sentence.Visibility = sentence.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         restore.Visibility = changed ? Visibility.Visible : Visibility.Collapsed;restore.Content=$"Restore {Short(Source)} → {Short(Source)}";
         outputPicker.Visibility=editable?Visibility.Visible:Visibility.Collapsed;tryButton.Visibility=changed?Visibility.Visible:Visibility.Collapsed;
@@ -461,7 +461,7 @@ public sealed partial class ButtonsConsolePage : Grid
     private void BuildOverview()
     {
         overview.Children.Clear(); overview.Children.Add(Kit.Section("All assignments", 0));
-        if (model.Id is not ("x20" or "x20_pro" or "x10") && !draft.PcMode) { overview.Children.Add(Kit.Info("No verified mappings for this model yet.")); return; }
+        if (model.Id is not ("x20" or "x20_pro" or "x10" or "d10") && !draft.PcMode) { overview.Children.Add(Kit.Info("No verified mappings for this model yet.")); return; }
         foreach (var (name, _, keys) in Groups.Take(4))
         {
             var rows = keys.Where(ButtonDraft.Sources.Contains).Select(k => (label(k), draft.Target(k) == k ? "Default" : "→ " + label(draft.Target(k)), draft.Target(k) == k ? (string?)null : "DS.AccentHi")).ToArray();

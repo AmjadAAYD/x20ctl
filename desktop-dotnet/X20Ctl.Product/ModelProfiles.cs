@@ -12,7 +12,7 @@ public sealed record ModelProfile(string Id, string Sticks, string Triggers, str
 {
     /// <summary>Models whose local editor formats are implemented; this does not authorize hardware writes.</summary>
     public bool HasScreen => Id == "x20_pro";
-    public bool SupportsLocalDrafts => Id is "x20" or "x20_pro" or "x10";
+    public bool SupportsLocalDrafts => Id is "x20" or "x20_pro" or "x10" or "d10";
     /// <summary>One line naming what is known, for banners and the Device page.</summary>
     public string Summary => $"{Sticks} sticks · {Triggers} triggers · {(Paddles.Length == 0 ? "no back buttons" : string.Join("/", Paddles))} · {Motors}";
 }
@@ -25,7 +25,7 @@ public static class ModelProfiles
         ["x20_pro"] = new("x20_pro", "TMR, adjustable tension", "Hall / microswitch", ["M1", "M2", "M3", "M4", "M5", "M6"], "4 motors (grips + triggers), instant brake", "Not published", "Gyro", "1000–1200 mAh (sources disagree)", 0, "Smart display · RGB"),
         ["x05_pro"] = new("x05_pro", "Hall", "Dual-stage Hall / microswitch", ["M1", "M2"], "2 grip motors", "1000 Hz wired and 2.4G", "Unconfirmed", "Unknown", 0, "RGB"),
         ["x10"] = new("x10", "Hall", "Hall", ["M1", "M2"], "2 grip motors", "Not published", "6-axis (Switch mode)", "Unknown", 0, "Mechanical ABXY · QMacro"),
-        ["d10"] = new("d10", "TMR", "Hall / microswitch", ["M1", "M2"], "2 grip motors, 4 strength levels", "1000 Hz wired and 2.4G", "Gyro", "Unknown", 0, "Charging dock · no KeyLinker · receiver 2345:E062"),
+        ["d10"] = new("d10", "TMR", "Hall / microswitch", ["M1", "M2"], "2 grip motors", "Up to 500 Hz Direct USB", "6-axis IMU", "Unknown", 0, "Charging dock | Direct USB 6-axis motion & M1/M2 | receiver 2345:E062"),
         ["dune"] = new("dune", "TMR", "Unknown", ["M1", "M2", "M3", "M4"], "4 motors (grips + triggers)", "8000 Hz (8K edition)", "Unknown", "Unknown", 0, "1.3 in. LCD · charging dock · M1/M2 on the top, M3/M4 on the back"),
         ["x15"] = new("x15", "Hall", "Hall", ["M1", "M2"], "2 grip motors", "1000 / 250 / 125 Hz", "Unconfirmed", "Unknown", 0, "KeyLinker app · receiver 1A34:F517"),
     };

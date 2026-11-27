@@ -78,10 +78,11 @@ public sealed partial class DeviceWorkbench
     public void SetBatteryLevel(string? level) => SetBatteryLevel(level, null);
     public void SetConnection(bool connected, bool bluetoothOnly = false)=>connection.Text=connected?(bluetoothOnly?"Connected over Bluetooth":"Gameplay input detected"):"Not detected";
     private Action? openX10Native;
+    private Action? openD10Native;
     public void UpdateEngineStatus(string status) { /* Process availability does not establish hardware configuration support. */ }
-    public DeviceWorkbench(ControllerModel model,int player,FrameworkElement resources,Action<Button> register,Action tester,Action setups,Action? screen=null,Func<Action<string>,Task>? factoryReset=null,Action? openX10Native=null)
+    public DeviceWorkbench(ControllerModel model,int player,FrameworkElement resources,Action<Button> register,Action tester,Action setups,Action? screen=null,Func<Action<string>,Task>? factoryReset=null,Action? openX10Native=null,Action? openD10Native=null)
     {
-        targetModel=model.Id;State=new(model.Id,player);this.openX10Native=openX10Native;
+        targetModel=model.Id;State=new(model.Id,player);this.openX10Native=openX10Native;this.openD10Native=openD10Native;
         Body.ColumnDefinitions.Add(new(){Width=new(1,GridUnitType.Star)});Body.ColumnDefinitions.Add(new(){Width=new(1.25,GridUnitType.Star)});
         var hardware=new Grid();hardware.RowDefinitions.Add(new(){Height=GridLength.Auto});hardware.RowDefinitions.Add(new());hardware.RowDefinitions.Add(new(){Height=GridLength.Auto});
         var identity=new StackPanel{Children={ManagementVisuals.Copy($"PLAYER {player+1}",13),ManagementVisuals.Copy(model.Name,28,true),ManagementVisuals.Copy("Assigned controller",14)}};hardware.Children.Add(identity);
@@ -120,7 +121,8 @@ public sealed partial class DeviceWorkbench
         {var row=new Grid{Margin=new(0,0,0,10)};row.ColumnDefinitions.Add(new(){Width=new(110)});row.ColumnDefinitions.Add(new());row.Children.Add(ManagementVisuals.Copy(label,14));var detail=ManagementVisuals.Copy(value,14,true);Grid.SetColumn(detail,1);row.Children.Add(detail);support.Children.Add(row);}
         overview.Children.Add(Kit.Panel("Model capabilities",null,null,support));
         if(model.Id=="x10")overview.Children.Add(X10Panel(resources,register));
-        var compatibility=new StackPanel{Children={ManagementVisuals.Copy(model.Id=="x10"?"Full native Bluetooth configuration (Buttons, Curves, Macros, Vibration, Turbo and Calibration) plus PC Mode.":profile.SupportsLocalDrafts?"Local drafts available. Native configuration writes remain locked.":"Layout and artwork available. Native configuration is unavailable for this model.",14),ManagementVisuals.Copy("Gyro, rear controls and independent motors appear only when the connected interface supports them.",13).Also(t=>t.Margin=new(0,8,0,0))}};
+        if(model.Id=="d10")overview.Children.Add(D10Panel(resources,register));
+        var compatibility=new StackPanel{Children={ManagementVisuals.Copy(model.Id=="x10"?"Full native Bluetooth configuration (Buttons, Curves, Macros, Vibration, Turbo and Calibration) plus PC Mode.":model.Id=="d10"?"Native Direct USB 6-axis motion, independent M1/M2/M controls, EP02 dual motor rumble, and PC Mode.":profile.SupportsLocalDrafts?"Local drafts available. Native configuration writes remain locked.":"Layout and artwork available. Native configuration is unavailable for this model.",14),ManagementVisuals.Copy("Gyro, rear controls and independent motors appear only when the connected interface supports them.",13).Also(t=>t.Margin=new(0,8,0,0))}};
         var supportPanel=Kit.Panel("X20CTL support",null,null,compatibility);supportPanel.Margin=new(0,12,0,0);overview.Children.Add(supportPanel);
         if(factoryReset!=null)
         {
@@ -176,6 +178,26 @@ public sealed partial class DeviceWorkbench
         }
         body.Children.Add(actionsRow);
         var panel=Kit.Panel("On the controller",null,null,body);panel.Margin=new(0,12,0,0);return panel;
+    }
+
+    FrameworkElement D10Panel(FrameworkElement resources,Action<Button> register)
+    {
+        var probeStatus=ManagementVisuals.Copy("Check Direct USB (WinUSB) interfaces for wired EP83 or 2.4 GHz 6-axis motion and M1/M2 controls.",14);
+        var row=new StackPanel{Orientation=Orientation.Horizontal,Margin=new(0,12,0,0)};
+        var checkBtn=ManagementVisuals.Action(resources,"Probe Direct USB",()=>{
+            var res=D10UsbClient.ProbeStatus();
+            probeStatus.Text=res.Summary;
+        },register);
+        row.Children.Add(checkBtn);
+        if(openD10Native!=null)
+        {
+            var openMotion=ManagementVisuals.Action(resources,"Open D10 Motion Controls",()=>openD10Native(),register);
+            openMotion.Margin=new(8,0,0,0);
+            row.Children.Add(openMotion);
+        }
+        var panel=Kit.Panel("Direct USB & 6-Axis IMU",null,null,new StackPanel{Children={probeStatus,row}});
+        panel.Margin=new(0,12,0,0);
+        return panel;
     }
 }
 public sealed partial class TesterWorkbench

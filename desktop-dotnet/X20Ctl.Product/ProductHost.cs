@@ -316,7 +316,7 @@ public sealed partial class ProductHost : Grid
         // with PC mode on, the Buttons, Curves and Macros tabs edit PC mode's settings, for any model
         // 6 Nov 2026: the X20 Pro is the PC Mode rework's test pad, so with PC mode on its tabs edit the virtual pad too; with it off they write on the pad (Apply to controller) as before
         // owner, 7 Nov 2026: every controller but the X20 and X20 Pro is set up through PC mode, so its tabs always edit PC mode
-        bool pc=PcMode!=null&&pcModeStore!=null&&X20Ctl.Zone.PcMode.PcModeEntry.IsAvailable(model.Id)&&(model.Id is not ("x20_pro" or "x10")||PcMode.Enabled); // X20 Pro and X10 edit PC mode only while it is on, else the controller itself
+        bool pc=PcMode!=null&&pcModeStore!=null&&X20Ctl.Zone.PcMode.PcModeEntry.IsAvailable(model.Id)&&(model.Id is not ("x20_pro" or "x10" or "d10")||PcMode.Enabled); // X20 Pro, X10, and D10 edit PC mode only while it is on, else native
         if(draft.PcMode&&!pc&&model.Id!="x20")PcModeSync.Clear(draft,curveDraft,macroDraft); // while still unlocked
         draft.PcMode=curveDraft.PcMode=macroDraft.PcMode=vibrationDraft.PcMode=pc;
         if(pcModeStore!=null)PcModePage.UsePlayer(player,pcModeStore); // each controller has its own PC mode settings

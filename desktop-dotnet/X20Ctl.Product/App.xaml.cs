@@ -37,6 +37,13 @@ public partial class App : Application
           catch (Exception failure) { Directory.CreateDirectory(e.Args[1]); File.WriteAllText(Path.Combine(e.Args[1], "failure.txt"), failure.ToString()); Shutdown(1); }
           return;
       }
+      if (e.Args.Length == 2 && e.Args[0] == "--test-e2e-d10")
+      {
+          ShutdownMode = ShutdownMode.OnExplicitShutdown;
+          try { await Development.AutomatedE2ETester.RunD10Only(e.Args[1]); Shutdown(0); }
+          catch (Exception failure) { Directory.CreateDirectory(e.Args[1]); File.WriteAllText(Path.Combine(e.Args[1], "failure.txt"), failure.ToString()); Shutdown(1); }
+          return;
+      }
       if (e.Args.Length == 2 && e.Args[0] == "--test-e2e-full")
             {
                 ShutdownMode = ShutdownMode.OnExplicitShutdown;

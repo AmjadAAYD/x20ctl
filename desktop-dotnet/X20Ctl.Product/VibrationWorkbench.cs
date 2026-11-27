@@ -21,6 +21,7 @@ public sealed class VibrationWorkbench
     public Grid Body { get; } = new();
     public Grid Shelf { get; } = new();
     public VibrationDraft Draft { get; }
+    private readonly string modelId;
     public Slider Strength { get; } = new() { Minimum = 0, Maximum = 100, TickFrequency = 1, IsSnapToTickEnabled = true };
     public Button Test { get; }
     public TextBlock Readback { get; } = new() { FontSize = 13.5, Foreground = DS.Brush("DS.TextSoft"), TextWrapping = TextWrapping.Wrap };
@@ -188,6 +189,7 @@ public sealed class VibrationWorkbench
     public VibrationWorkbench(X20Ctl.Zone.VibrationDraft draft, FrameworkElement resources, Action<Button> register, bool animations, string model = "x20")
     {
         Draft = draft;
+        modelId = model;
         previewStrength = draft.Strength;
         HasTriggers = ModelProfiles.For(model).Motors.Contains("triggers");
         try { patternStore.Load(); } catch { }
@@ -2416,9 +2418,18 @@ public sealed class VibrationWorkbench
             }
             else if (Draft.CanTestHardware)
             {
-                Readback.Text = $"Pulsing {name.ToLowerInvariant()} over Bluetooth at {percent}%...";
-                await X10BleClient.TestMotorAsync(zone == Zone.LeftGrip, percent);
-                Readback.Text = $"{name} pulsed over Bluetooth at {percent}%.";
+                if (modelId == "d10")
+                {
+                    Readback.Text = $"Pulsing {name.ToLowerInvariant()} via D10 at {percent}%...";
+                    await D10UsbClient.TryQuickPulseAsync(zone == Zone.LeftGrip, percent);
+                    Readback.Text = $"{name} pulsed at {percent}%.";
+                }
+                else
+                {
+                    Readback.Text = $"Pulsing {name.ToLowerInvariant()} over Bluetooth at {percent}%...";
+                    await X10BleClient.TestMotorAsync(zone == Zone.LeftGrip, percent);
+                    Readback.Text = $"{name} pulsed over Bluetooth at {percent}%.";
+                }
             }
             else
             {
