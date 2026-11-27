@@ -116,7 +116,7 @@ Walks through every button, stick, trigger, report rate, and identity check loca
 | **EasySMX X20** | Buttons, curves, macros (`M1–M4`), vibration | Yes | Full BLE GATT configuration + read-back verification |
 | **EasySMX X20 Pro** | Buttons, curves, macros (`M1–M6`), 4-motor vibration, RGB Studio, `160x80` screen | Yes | Simultaneous 2.4 GHz dongle (`413D:2131`) + unpaired BLE when PC Bluetooth is on |
 | **EasySMX X15** | Read-only preview | Yes | Full Windows/Linux PC mode support |
-| **EasySMX X10** | Experimental read-only Bluetooth (KRLY) | Yes | Ported from EasyGamepad; awaiting physical X10 test |
+| **EasySMX X10** | Full native BLE configuration (`Buttons`, `Curves`, `Macros`, `Turbo`, dual motors, calibration, factory reset) | Yes | Bidirectional KRLY Bluetooth LE GATT + read-back verification (`0x3A` rear paddles, `0x45` motor test, `0x78`/`0x41` calibration) |
 | **EasySMX X05 Pro** | Read-only preview | Yes | DInput recognition helper in Write scan |
 | **EasySMX D10** | Read-only preview | Yes | Full PC mode profiles, curves, keyboard & mouse |
 | **EasySMX Dune 8K** | 4-motor haptic visualizer & `M1–M4` layout | Yes | PC mode remapping & trigger rumble; native protocol unverified |
@@ -149,8 +149,9 @@ Official builds from [**Release V0.026**](https://github.com/AmjadAAYD/x20ctl/re
 
 ## Verification
 
-- **Core, protocol & PC engine tests:** `dotnet test desktop-dotnet\X20Ctl.Zone.Tests\X20Ctl.Zone.Tests.csproj` (1,256 passing unit tests covering BLE packet serialization, curve flags `InvertX`/`InvertY`/`SwapSticks`, `X20C1.` share codes, and local setup storage) and `python -m pytest tests` (344 passing controller/firmware tests).
-- **Live GUI & Workshop end-to-end suite:** Launch `X20Ctl.exe --test-e2e-full <out_dir>` to verify warm Studio tab switches, Analog Studio cold/warm reopen, radial anti-deadzone and hardware flag compilation, all 27/27 unique `64px+` badge bitmaps, achievement filters, Alerts Bell modal, `64x64` PNG avatar upload, `160x80` static PNG and multi-frame animated GIF Screen Art publish/zoom (`2x` `320x160`)/install flows, dynamic Publish category switching, game quick-chips, upvote/comment/bookmark and `Saved & Mine` `v2` update flow, RGB/Vibration/Macro/Setup installs, Compare & Cherry-Pick diff drawer checks, leaderboard metric toggles, and full cleanup.
+- **Core, protocol & PC engine tests:** `dotnet test desktop-dotnet\Product.sln` (1,261 passing unit tests covering BLE packet serialization, full X10 KRLY read/write/verify sessions, curve flags `InvertX`/`InvertY`/`SwapSticks`, `X20C1.` share codes, and local setup storage) and `python -m pytest tests` (378 passing controller/firmware tests).
+- **Live GUI & Workshop end-to-end suite:** Launch `X20Ctl.exe --test-e2e-full <out_dir>` (or offline `X20Ctl.exe --test-e2e-x10 <out_dir>`) to verify warm Studio tab switches, Analog Studio cold/warm reopen, radial anti-deadzone and hardware flag compilation, EasySMX X10 Native Mode & `X10 Native` tab panels, all 27/27 unique badge bitmaps, achievement filters, Alerts Bell modal, `64x64` PNG avatar upload, `160x80` static PNG and multi-frame animated GIF Screen Art publish/zoom (`2x` `320x160`)/install flows, dynamic Publish category switching, game quick-chips, upvote/comment/bookmark and `Saved & Mine` `v2` update flow, RGB/Vibration/Macro/Setup installs, Compare & Cherry-Pick diff drawer checks, leaderboard metric toggles, and full cleanup.
+- **Windows 11 21H2 single-file compatibility:** Published Windows binaries disable `/CETCOMPAT` (`<CETCompat>false</CETCompat>`) so `.NET` singlefilehost does not abort on unpatched Windows 11 21H2 (`Build 22000.194`) systems lacking `QueueUserAPC2`.
 
 ## Credits
 

@@ -4,10 +4,11 @@
 
 ## [V0.026] - 2026-11-25
 
-This release introduces the offline Universal Haptics engine, a ground-up rework of the Vibration and RGB workspaces, a real Battery Saving (Eco) mode that locks power-drawing subsystems, DS4Windows and Steam Input profile imports, standalone Mouse Mode, an expanded offline game scanner, and faster macro workflows.
+This release introduces the offline Universal Haptics engine, a ground-up rework of the Vibration and RGB workspaces, a real Battery Saving (Eco) mode that locks power-drawing subsystems, DS4Windows and Steam Input profile imports, standalone Mouse Mode, an expanded offline game scanner, full native EasySMX X10 Bluetooth LE configuration, and a startup fix for early Windows 11 21H2 builds.
 
 ### Added
 
+- **Full Native EasySMX X10 Bluetooth LE Support (`X10 Native`).** Unlocks native editing across Buttons, Curves (deadzones/outer limits plus X/Y axis inversion), Macros (M1/M2 multi-step sequences via `0x3A`, passthrough remapping, or explicit 7-byte disable), Dual Motor intensity + live 500 ms pulse testing (`0x45`), Hardware Turbo (`0x37`), stick/trigger/self-calibration (`0x78` / `0x41`), factory reset (`0x05`), and post-write read-back verification (`0x77` / `0x50` / `0x79`).
 - **Universal Haptics Engine (Games, Racing, FPS, Cinema & Music).** Offline pure-C# audio-to-haptics classifier trained on multitrack studio stems (`MUSDB18`) and sound effects (`ESC-50` plus game SFX, `<0.2 ms` inference) fused with 50 Hz XInput controller polling (`A`, `B`, `X`, `Y`, `LB`, `RB`, `LT`, `RT`), foreground auto-detection across 115+ built-in games and media apps, automatic WASAPI audio-device hot-switch recovery, Right-Grip-first game physics with menu and dialogue suppression, loudness-calibrated Music Mode (`0.34` anchor) with a neural vocal gate, **Music Mode Sub-Presets** (`Chill`, `Vocals`, `Club`), **Comfort Tiers** (`Feather`, `Balanced`, `Full Punch`), and per-app Surface & Combat calibration (`0-150%`). Starts off every launch until enabled from the Vibration tab, system tray, or `Ctrl+Alt+H`.
 - **Audio Reactive RGB & 4-motor Audio Haptics.** 1024-pt Mid-Side FFT audio engine powering 6 reactive RGB styles (including `Auto` vibe detection) and an 8-band frequency spectrum (`SUB` to `AIR` plus harmonic `VOCAL` tracking) mapped to individual grip and trigger roles.
 - **Full Battery Saving (Eco) Mode.** Replaces the Dashboard `Changes` box with an **Enable battery saving mode?** hardware switch. Turning Eco mode on switches controller LEDs off via BLE (`ModeOff`, `0x00`), stops Universal Haptics and zeroes all grip/trigger motors, blocks PC Mode game rumble forwarding, stops audio FFT capture, pauses periodic BLE battery polling, and greys out and locks **Vibration**, **RGB**, and **Screen** with `"Eco mode must be turned off"` and a one-click turn-off action.
@@ -23,6 +24,7 @@ This release introduces the offline Universal Haptics engine, a ground-up rework
 
 ### Fixed
 
+- **Windows 11 21H2 (`Build 22000.194`) single-file CET startup crash (`0x80131506`).** Disabled `/CETCOMPAT` in `X20Ctl.Product.csproj` so .NET 10 `singlefilehost` does not abort on unpatched 21H2 installs lacking `QueueUserAPC2`.
 - **Mouse Mode works with PC Mode off.** Desktop and launcher Mouse Mode now runs directly even when PC Mode is switched off.
 - **Idle Vibration preview stuck at 70%.** Fixed the preview animation and grip readouts moving at 70% while the controller was idle; all channels now rest cleanly at 0%.
 - **Lingering tooltips after closing or minimizing.** Fixed floating hover popups remaining visible after hiding, minimizing, or closing the studio window.
