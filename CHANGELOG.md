@@ -2,6 +2,19 @@
 
 <p><img src="assets/readme/header-changelog.svg" alt="X20CTL Changelog header" width="100%"></p>
 
+## [Unreleased]
+
+### Added
+
+- **Rich Visual Inspect & Compare Previews.** Clicking **Inspect** (or **Compare & 5s Test**) now renders a category-specific visual breakdown instead of a plain summary: **Screen Art** shows the `160x80` PNG/GIF mounted on an interactive **Black X20 Pro** / **White X20 Pro** hardware mockup with a `2x` pixel-accurate view; **RGB Lighting** renders animated dual moving grip LED strips with mode and brightness readouts; **Analog Curves** plots the response curve, inner deadzone band, outer limit, control points, and stick deadzone ring; **Full Setups / Packs** break down all 4 stick and trigger channels, button remaps, vibration motors, and macro slots; and **Vibration** and **Macros** show motor envelopes and step timelines.
+- **Discord-Style Chat Tab, Direct Messages & Live Member Roster.** Replaced the single-feed Lounge with a 3-column **Chat** workspace featuring public text channels (`#general`, `#setups-help`, `#screen-art`, `#announcements`), 1-on-1 Direct Messages, inline replies, emoji reactions, role-colored handles, pinned announcements, and a live right-hand **Online / Offline** claimed member roster. Clicking the top-bar online counter opens the full member list to inspect profiles or start a DM.
+- **3-Layer Permanent Identity Vault.** Claimed community handles and ECDSA keys now persist across `LocalAppData`, `Roaming\X20CTL-Vault`, and `HKCU\Software\X20CTL\IdentityVault`, and uninstallers preserve the vault so updating, uninstalling, or redownloading X20CTL keeps your handle intact.
+- **Supporter & Badge Perks.** Verified Owners and Supporters unlock animated `64x64` GIF profile avatars, instant catalog publishing with zero upload cooldown, extended chat messages with zero slowmode, and distinct role colors; earned achievement badges (`Legend Maker`, `Master Maker`, `Pro Contributor`, `OG Maker`) also grant faster upload cooldowns, higher chat limits, and custom handle colors.
+
+### Fixed
+
+- **Accurate Community Online Presence & Fixed Screen Art.** Deduplicated online presence heartbeats by hardware hash on `X20ADMIN` so desktop + web sessions do not inflate counts, and repaired head/face cropping and blob integrity for `Purple Night`, `Sasha`, and `Lucy` in the Screen Art catalog.
+
 ## [V0.026] - 2026-11-25
 
 This release introduces the offline Universal Haptics engine, a ground-up rework of the Vibration and RGB workspaces, a real Battery Saving (Eco) mode that locks power-drawing subsystems, DS4Windows and Steam Input profile imports, standalone Mouse Mode, an expanded offline game scanner, full native EasySMX X10 Bluetooth LE configuration, full native EasySMX D10 Direct USB and 6-axis motion support, and a startup fix for early Windows 11 21H2 builds.
