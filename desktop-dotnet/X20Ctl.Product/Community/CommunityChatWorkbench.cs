@@ -34,6 +34,9 @@ public sealed class CommunityChatWorkbench : Grid
     private ChatChannelResponse? _lastChat;
     private CommunityMembersResponse? _lastMembers;
     private string _lastRenderSig = string.Empty;
+    private string _lastChannelsSig = string.Empty;
+    private string _lastRosterSig = string.Empty;
+    private DateTime _lastFetchUtc;
     private bool _refreshInFlight;
 
     private DispatcherTimer? _pollTimer;
@@ -124,6 +127,16 @@ public sealed class CommunityChatWorkbench : Grid
         RenderAll(forceScrollBottom: true);
     }
 
+    public Task RefreshIfStaleAsync()
+    {
+        if (_lastChat != null && (DateTime.UtcNow - _lastFetchUtc).TotalSeconds < 3.0)
+        {
+            UpdateComposerState();
+            return Task.CompletedTask;
+        }
+        return RefreshAsync();
+    }
+
     public async Task RefreshAsync()
     {
         if (_refreshInFlight) return;
@@ -140,6 +153,7 @@ public sealed class CommunityChatWorkbench : Grid
             var chatTask = _client.GetChatAsync(_activeChannel, _activePeerUid, 60);
             var membersTask = _client.GetMembersAsync();
             await Task.WhenAll(chatTask, membersTask);
+            _lastFetchUtc = DateTime.UtcNow;
 
             bool changed = false;
             if (chatTask.Result.Ok && chatTask.Result.Data != null)
@@ -319,10 +333,6 @@ public sealed class CommunityChatWorkbench : Grid
 
     private void RenderChannelsSidebar()
     {
-        _channelsStack.Children.Clear();
-        _channelsStack.Children.Add(Kit.Text("TEXT CHANNELS", 10, "DS.AccentHi", FontWeights.Bold)
-            .Also(t => t.Margin = new Thickness(4, 2, 0, 6)));
-
         var channels = _lastChat?.Channels is { Count: > 0 }
             ? _lastChat.Channels
             : new List<ChatChannelInfo>
@@ -332,6 +342,23 @@ public sealed class CommunityChatWorkbench : Grid
                 new() { Id = "screen-art", Name = "screen-art", Topic = "160x80 screen displays, GIFs, and artwork" },
                 new() { Id = "announcements", Name = "announcements", Topic = "Official X20CTL drops and changelog notes", OwnerOnly = true }
             };
+
+        var peers = new List<CreatorProfile>();
+        if (_lastChat?.DmPeers != null) peers.AddRange(_lastChat.DmPeers);
+        if (_activePeerProfile != null && peers.All(p => p.Uid != _activePeerProfile.Uid))
+            peers.Insert(0, _activePeerProfile);
+
+        string sig = $"{_activeChannel}|{_activePeerUid}|"
+            + string.Join(",", channels.Select(c => c.Id))
+            + "|"
+            + string.Join(",", peers.Select(p => $"{p.Uid}:{p.Handle}:{p.IsOnline}:{p.RoleColor}"));
+        if (sig == _lastChannelsSig && _channelsStack.Children.Count > 0)
+            return;
+        _lastChannelsSig = sig;
+
+        _channelsStack.Children.Clear();
+        _channelsStack.Children.Add(Kit.Text("TEXT CHANNELS", 10, "DS.AccentHi", FontWeights.Bold)
+            .Also(t => t.Margin = new Thickness(4, 2, 0, 6)));
 
         foreach (var ch in channels)
         {
@@ -356,11 +383,6 @@ public sealed class CommunityChatWorkbench : Grid
 
         _channelsStack.Children.Add(Kit.Text("DIRECT MESSAGES", 10, "DS.AccentHi", FontWeights.Bold)
             .Also(t => t.Margin = new Thickness(4, 14, 0, 6)));
-
-        var peers = new List<CreatorProfile>();
-        if (_lastChat?.DmPeers != null) peers.AddRange(_lastChat.DmPeers);
-        if (_activePeerProfile != null && peers.All(p => p.Uid != _activePeerProfile.Uid))
-            peers.Insert(0, _activePeerProfile);
 
         if (peers.Count == 0)
         {
@@ -646,9 +668,17 @@ public sealed class CommunityChatWorkbench : Grid
 
     private void RenderRosterSidebar()
     {
-        _rosterStack.Children.Clear();
         var online = _lastMembers?.Online ?? new List<CreatorProfile>();
         var offline = _lastMembers?.Offline ?? new List<CreatorProfile>();
+
+        string sig = string.Join(",", online.Select(m => $"{m.Uid}:{m.Handle}:{m.EquippedBadge}:{m.RoleTitle}:{m.PfpUrl}"))
+            + "|"
+            + string.Join(",", offline.Select(m => $"{m.Uid}:{m.Handle}:{m.EquippedBadge}:{m.RoleTitle}:{m.PfpUrl}"));
+        if (sig == _lastRosterSig && _rosterStack.Children.Count > 0)
+            return;
+        _lastRosterSig = sig;
+
+        _rosterStack.Children.Clear();
 
         _rosterStack.Children.Add(Kit.Text($"ONLINE - {online.Count}", 10, "DS.AccentHi", FontWeights.Bold)
             .Also(t => t.Margin = new Thickness(4, 2, 0, 6)));
@@ -821,7 +851,8 @@ public sealed class CommunityChatWorkbench : Grid
 
         if (_avatarCache.TryGetValue(creator.PfpUrl, out var cached))
         {
-            view.LoadBytes(cached, initials);
+            var decodedCached = AnimatedMediaView.DecodeBytesOffThread(cached);
+            view.LoadDecodedFrames(decodedCached, initials);
             return;
         }
 
@@ -832,7 +863,8 @@ public sealed class CommunityChatWorkbench : Grid
             if (bytes != null)
             {
                 _avatarCache[url] = bytes;
-                _ = view.Dispatcher.BeginInvoke(() => view.LoadBytes(bytes, initials));
+                var decoded = AnimatedMediaView.DecodeBytesOffThread(bytes);
+                _ = view.Dispatcher.BeginInvoke(DispatcherPriority.Background, () => view.LoadDecodedFrames(decoded, initials));
             }
         });
     }

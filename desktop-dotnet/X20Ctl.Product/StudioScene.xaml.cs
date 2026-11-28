@@ -1535,6 +1535,8 @@ public partial class StudioScene : UserControl
     // owner, 7 Nov 2026: PC mode is how these controllers are set up. The X20 Pro (lab, 8 Nov) shows PC mode's tabs only while
     // PC mode is on; switched off, it is the X20 Pro Studio of the release, saving to the controller itself.
     private bool PcDashboard => PcModeEntryAvailable && pcLink != null && (Model.Id is not ("x20_pro" or "x10" or "d10") || pcLink.Service.Enabled);
+    private (bool On, bool Swap, bool NoDevice, string ModelId)? lastNavLayoutKey;
+
     private void ApplyPcDashboard()
     {
         bool on = PcDashboard;
@@ -1542,6 +1544,9 @@ public partial class StudioScene : UserControl
         bool native = Model.Id is "x20_pro" or "x10" or "d10", swap = on && (!native || Draft.PcMode), noDevice = on && !native;
         DiagnosticsNav.Visibility = Visibility.Collapsed; PcModeNav.Visibility = Visibility.Collapsed;
         if (baseNavigation.Length == 0) return; // the strip is not built yet; it calls this again
+        var layoutKey = (on, swap, noDevice, Model.Id);
+        if (lastNavLayoutKey == layoutKey) return;
+        lastNavLayoutKey = layoutKey;
         var list = new List<RadioButton>();
         foreach (var t in baseNavigation)
         {
@@ -1638,6 +1643,7 @@ public partial class StudioScene : UserControl
         if (ManagementPage != null && ManagementPage != page)
         {
             if (ManagementPage == "Screen") Screen?.StopPreview();
+            if (ManagementPage == "Community") Community?.SetHostVisible(false);
             if (ManagementPage == "X10Native") X10Hardware?.StopActiveCalibration();
             if (ManagementPage == "Diagnostics") Diagnostics?.Stop();
             if (ManagementPage == "Tester") { navigationMode = navigationBeforeTester; Tester?.ExitCapture(); }
@@ -1680,7 +1686,7 @@ public partial class StudioScene : UserControl
         else if (page == "Mouse") { if (MouseService == null) { cachedMgmtFallbackMouse ??= Kit.Text("Mouse mode isn't available in this window.", 16, "DS.TextSoft"); ShowMgmtPanel(cachedMgmtFallbackMouse); } else { Mouse ??= new(MouseService, RegisterFocus, Player, Model, layout); ShowMgmtPanel(Mouse.Body); Mouse.Switch.Focus(); } ChangeCount.Text = "Controller as mouse · Saved on this PC"; PrimaryHint.Text = " Select"; OverviewHint.Text = ""; DraftChip.Text = "Mouse"; }
         else if (page == "Keyboard") ShowKeyboardPage();
         else if (page == "Tester") { Tester ??= new(Model, layout, this, RegisterFocus, () => ShowManagement("Device"), animate); Tester.Enter(); ShowMgmtPanel(Tester.Body); ManagementShelfHost.Children.Add(Tester.Shelf); ChangeCount.Text = "Tester owns gameplay input · UI input navigation paused"; PrimaryHint.Text = " Exit Tester"; OverviewHint.Text = ""; DraftChip.Text = "Gameplay tester"; navigationBeforeTester = navigationMode; navigationMode = true; Tester.Exit.Focus(); }
-        else if (page == "Community") { var comm = EnsureCommunityWorkbench(); ShowMgmtPanel(comm.Body); ChangeCount.Text = "X20CTL Community Hub"; PrimaryHint.Text = " Select"; OverviewHint.Text = ""; DraftChip.Text = "Community"; }
+        else if (page == "Community") { var comm = EnsureCommunityWorkbench(); ShowMgmtPanel(comm.Body); comm.SetHostVisible(true); ChangeCount.Text = "X20CTL Community Hub"; PrimaryHint.Text = " Select"; OverviewHint.Text = ""; DraftChip.Text = "Community"; }
         else { if (Setups == null) { Setups = new(setupStore, new ControllerCatalog(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Data/catalog.json"))), Model.Id, this, RegisterFocus, () => SetupSnapshot.Capture(Model.Id, Draft, Curves.Draft, macroDraft, vibrationDraft), LoadSetup, legacySources, activeSetup); Setups.Changed += () => { if (Dashboard != null) ManagementBodyHost.Children.Remove(Dashboard); Dashboard = null; UpdateSetupContext(); }; Setups.BrowseCommunitySetupsRequested += () => { ShowManagement("Community"); Community?.SetPresetCategoryAndRefresh("setup"); }; Setups.ShareSetupRequested += saved => { ShowManagement("Community"); Community?.OpenShareDialog("setup", saved.Name, saved.Snapshot); }; } Setups.RefreshCurrent(); ShowMgmtPanel(Setups.Body); ManagementShelfHost.Children.Add(Setups.Shelf); UpdateSetupContext(); }
         PrimaryGlyph.Text = page == "Tester" ? "↵" : "A"; BackGlyph.Text = page is "Tester" or "Diagnostics" ? "Esc" : "B"; SecondaryFooterHint.Visibility = ActualWidth < 1100 || page is "Tester" or "Diagnostics" ? Visibility.Collapsed : Visibility.Visible;
         Grid.SetRowSpan(StudioBody, page is "Setups" or "Dashboard" or "Diagnostics" or "Mouse" or "Keyboard" or "PcMode" or "Device" or "X10Native" or "D10Native" or "RGB" or "Screen" or "Community" ? 2 : 1);
@@ -1693,7 +1699,7 @@ public partial class StudioScene : UserControl
 
     private void HideManagement(bool restoreButtons)
     {
-        Screen?.StopPreview(); DashboardFlip.Visibility = Visibility.Hidden;
+        Screen?.StopPreview(); Community?.SetHostVisible(false); DashboardFlip.Visibility = Visibility.Hidden;
         StopTry();
         if (ManagementPage == null) return;
         if (ManagementPage == "Diagnostics") Diagnostics?.Stop();

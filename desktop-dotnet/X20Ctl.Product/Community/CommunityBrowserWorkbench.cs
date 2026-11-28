@@ -7,6 +7,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 using X20Ctl.Zone.Community;
 
 namespace X20Ctl.Product.Community;
@@ -81,11 +82,31 @@ public sealed class CommunityBrowserWorkbench
     private readonly StackPanel _profileBtnContent = new() { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock _profileLabel = Kit.Text("Sign In", 12, "DS.Text", FontWeights.SemiBold);
 
-    // Body content regions
+    // Body content regions (persistent panes so switching tabs costs ~0ms)
     private readonly Grid _workspaceHost = new();
+    private readonly Grid _explorePane = new();
     private readonly StackPanel _sidebarStack = new();
     private readonly StackPanel _mainFeedStack = new();
-    private readonly ScrollViewer _mainScroller = new() { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
+    private readonly ScrollViewer _exploreScroller = new() { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
+    private readonly StackPanel _savedStack = new();
+    private readonly ScrollViewer _savedPane = new() { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
+    private readonly StackPanel _requestsStack = new();
+    private readonly ScrollViewer _requestsPane = new() { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
+    private readonly Grid _chatPane = new();
+    private readonly StackPanel _leaderboardStack = new();
+    private readonly ScrollViewer _leaderboardPane = new() { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
+    private readonly Dictionary<string, (Button Btn, TextBlock Label, Border Bar)> _navTabs = new(StringComparer.OrdinalIgnoreCase);
+
+    private int _refreshSeq;
+    private DateTime _lastProfileSyncUtc;
+    private DateTime _lastPulseSyncUtc;
+    private bool _exploreBuilt;
+    private string _lastFacetsSig = string.Empty;
+    private string _lastExploreRenderSig = string.Empty;
+    private string _lastSavedRenderSig = string.Empty;
+    private string _lastRequestsRenderSig = string.Empty;
+    private string _lastLeaderboardRenderSig = string.Empty;
+
     private readonly Grid _modalHost = new() { Visibility = Visibility.Collapsed };
     private readonly TextBlock _statusLine = Kit.Text("Ready", 11.5, "DS.TextMuted");
     private readonly TextBox _searchBox;
@@ -252,6 +273,8 @@ public sealed class CommunityBrowserWorkbench
         Body.Children.Add(headerBar);
 
         InitHardwareSelectors();
+        InitWorkspacePanes();
+        InitTopTabs();
 
         Grid.SetRow(_workspaceHost, 1);
         Body.Children.Add(_workspaceHost);
@@ -267,7 +290,61 @@ public sealed class CommunityBrowserWorkbench
         Body.Children.Add(_modalHost);
 
         RebuildTopTabs();
-        Body.Loaded += (_, _) => _ = RefreshAsync();
+        ShowActivePane(_subTab);
+        Body.Loaded += (_, _) => _ = RefreshAsync(force: true);
+    }
+
+    private void InitWorkspacePanes()
+    {
+        _savedPane.Content = _savedStack;
+        _requestsPane.Content = _requestsStack;
+        _leaderboardPane.Content = _leaderboardStack;
+
+        EnsureExploreLayout(CommunityCapabilities.GetCapabilitySet(_selectedModelId, _selectedMode));
+
+        _workspaceHost.Children.Add(_explorePane);
+        _workspaceHost.Children.Add(_savedPane);
+        _workspaceHost.Children.Add(_requestsPane);
+        _workspaceHost.Children.Add(_chatPane);
+        _workspaceHost.Children.Add(_leaderboardPane);
+    }
+
+    private void InitTopTabs()
+    {
+        _navTabHost.Children.Clear();
+        _navTabs.Clear();
+        foreach (var (id, label) in new (string, string)[]
+        {
+            ("explore", "Browse"),
+            ("saved", "Saved & Mine"),
+            ("requests", "Requests"),
+            ("lounge", "Chat"),
+            ("leaderboard", "Leaderboard"),
+        })
+        {
+            var captured = id;
+            var bar = new Border
+            {
+                Height = 2,
+                Margin = new Thickness(0, 5, 0, 0),
+                CornerRadius = new CornerRadius(1),
+                Background = Brushes.Transparent
+            };
+            var text = new TextBlock
+            {
+                Text = label,
+                FontSize = 13,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = new SolidColorBrush(Color.FromRgb(148, 163, 184))
+            };
+            var tab = CommunityUI.UnderlineTabButton(label, _subTab == id);
+            tab.Content = new StackPanel { Children = { text, bar } };
+            tab.MouseEnter += (_, _) => { if (_subTab != captured) text.Foreground = Brushes.White; };
+            tab.MouseLeave += (_, _) => { if (_subTab != captured) text.Foreground = new SolidColorBrush(Color.FromRgb(148, 163, 184)); };
+            tab.Click += (_, _) => SelectSubTab(captured);
+            _navTabs[id] = (tab, text, bar);
+            _navTabHost.Children.Add(tab);
+        }
     }
 
     private void InitHardwareSelectors()
@@ -314,35 +391,55 @@ public sealed class CommunityBrowserWorkbench
 
     private void RebuildTopTabs()
     {
-        _navTabHost.Children.Clear();
-        foreach (var (id, label) in new (string, string)[]
+        foreach (var (id, pair) in _navTabs)
         {
-            ("explore", "Browse"),
-            ("saved", "Saved & Mine"),
-            ("requests", "Requests"),
-            ("lounge", "Chat"),
-            ("leaderboard", "Leaderboard"),
-        })
-        {
-            var captured = id;
-            var tab = CommunityUI.UnderlineTabButton(label, _subTab == id);
-            tab.Click += (_, _) =>
-            {
-                SelectSubTab(captured);
-            };
-            _navTabHost.Children.Add(tab);
+            bool active = string.Equals(_subTab, id, StringComparison.OrdinalIgnoreCase);
+            pair.Bar.Background = active ? new SolidColorBrush(Color.FromRgb(56, 189, 248)) : Brushes.Transparent;
+            pair.Label.FontWeight = active ? FontWeights.Bold : FontWeights.SemiBold;
+            pair.Label.Foreground = new SolidColorBrush(active ? Colors.White : Color.FromRgb(148, 163, 184));
         }
+    }
+
+    private void ShowActivePane(string tabId)
+    {
+        static void SetPane(UIElement el, bool active)
+        {
+            el.Visibility = active ? Visibility.Visible : Visibility.Collapsed;
+            el.IsHitTestVisible = active;
+        }
+        SetPane(_explorePane, tabId == "explore");
+        SetPane(_savedPane, tabId == "saved");
+        SetPane(_requestsPane, tabId == "requests");
+        SetPane(_chatPane, tabId == "lounge");
+        SetPane(_leaderboardPane, tabId == "leaderboard");
+    }
+
+    public void SetHostVisible(bool visible)
+    {
+        if (!visible)
+            _chatWorkbench?.StopPolling();
+        else if (_subTab == "lounge")
+            _chatWorkbench?.StartPolling();
     }
 
     public void SelectSubTab(string subTabId)
     {
-        _subTab = string.Equals(subTabId, "chat", StringComparison.OrdinalIgnoreCase) ? "lounge" : subTabId;
+        var normalized = string.Equals(subTabId, "chat", StringComparison.OrdinalIgnoreCase) ? "lounge" : subTabId;
+        bool changed = _subTab != normalized;
+        _subTab = normalized;
         if (_subTab != "lounge")
             _chatWorkbench?.StopPolling();
         _filterUid = null;
         RebuildTopTabs();
+        if (_subTab == "lounge")
+        {
+            var chat = EnsureChatWorkbench();
+            ShowChatInWorkspace(chat);
+            chat.StartPolling();
+        }
+        ShowActivePane(_subTab);
         RenderCachedSubTabSync();
-        _ = RefreshAsync();
+        _ = RefreshAsync(force: !changed);
     }
 
     private void RenderCachedSubTabSync()
@@ -473,10 +570,15 @@ public sealed class CommunityBrowserWorkbench
         ShowModal(backdrop);
     }
 
-    public async Task RefreshAsync()
+    public Task RefreshAsync() => RefreshAsync(force: true);
+
+    public async Task RefreshAsync(bool force)
     {
+        int seq = ++_refreshSeq;
         RebuildTopTabs();
+        ShowActivePane(_subTab);
         RenderCachedSubTabSync();
+
         if (_client.IsNetworkDisabled)
         {
             _presenceDot.Background = new SolidColorBrush(Color.FromRgb(148, 163, 184));
@@ -491,55 +593,77 @@ public sealed class CommunityBrowserWorkbench
 
         try
         {
-            var profRes = await _client.GetProfileWithStatsAsync(_client.Identity.Uid);
-            if (profRes.Ok)
-            {
-                _myProfile = profRes.Data.Creator;
-                _myStats = profRes.Data.Stats;
-                foreach (var b in profRes.Data.Badges) _badgeMap[b.Id] = b;
-                UpdateProfileButton();
-                _chatWorkbench?.SetCurrentProfile(_myProfile, _badgeMap);
-            }
-
-            if (!_client.IsNetworkDisabled)
-            {
-                var pRes = await _client.GetPulseAsync();
-                if (pRes.Ok && pRes.Data != null && !pRes.Data.NotModified)
-                    ApplyPulse(pRes.Data);
-            }
-
             if (_subTab != "lounge")
                 _chatWorkbench?.StopPolling();
 
-            if (_subTab == "explore")
-                await RenderExploreWorkshopAsync();
-            else if (_subTab == "requests")
-                await RenderRequestsBoardAsync();
-            else if (_subTab == "lounge")
-                await RenderLoungeBoardAsync();
-            else if (_subTab == "saved")
-                await RenderSavedAndMineAsync();
-            else
-                await RenderLeaderboardAndWatchingAsync();
+            var now = DateTime.UtcNow;
+            bool needProfile = force || _myProfile == null || (now - _lastProfileSyncUtc).TotalSeconds >= 45;
+            bool needPulse = !_client.IsNetworkDisabled && (force || (now - _lastPulseSyncUtc).TotalSeconds >= 20);
+
+            var profTask = needProfile
+                ? SyncProfileAsync()
+                : Task.CompletedTask;
+            var pulseTask = needPulse
+                ? SyncPulseAsync()
+                : Task.CompletedTask;
+
+            Task tabTask = _subTab switch
+            {
+                "explore" => RenderExploreWorkshopAsync(seq),
+                "requests" => RenderRequestsBoardAsync(seq),
+                "lounge" => RenderLoungeBoardAsync(force),
+                "saved" => RenderSavedAndMineAsync(seq),
+                _ => RenderLeaderboardAndWatchingAsync(seq)
+            };
+
+            await Task.WhenAll(profTask, pulseTask, tabTask);
         }
         catch (Exception ex)
         {
             _statusLine.Text = $"Sync failed: {ex.Message}";
-            SetSingleColumnContent(new StackPanel
+            if (_subTab != "lounge")
             {
-                Children =
+                ShowPaneContent(_subTab, new StackPanel
                 {
-                    CommunityUI.CardSurface(new StackPanel
+                    Children =
                     {
-                        Children =
+                        CommunityUI.CardSurface(new StackPanel
                         {
-                            Kit.Text("Community Feed Unavailable", 15, "DS.Text", FontWeights.Bold),
-                            Kit.Text(ex.Message, 12.5, "DS.TextSoft").Also(t => { t.TextWrapping = TextWrapping.Wrap; t.Margin = new Thickness(0, 6, 0, 12); }),
-                            CommunityUI.RectButton("Retry Connection", RectBtnKind.Primary, 32, 12).Also(b => { b.HorizontalAlignment = HorizontalAlignment.Left; b.Click += (_, _) => _ = RefreshAsync(); })
-                        }
-                    }, new Thickness(18))
-                }
-            });
+                            Children =
+                            {
+                                Kit.Text("Community Feed Unavailable", 15, "DS.Text", FontWeights.Bold),
+                                Kit.Text(ex.Message, 12.5, "DS.TextSoft").Also(t => { t.TextWrapping = TextWrapping.Wrap; t.Margin = new Thickness(0, 6, 0, 12); }),
+                                CommunityUI.RectButton("Retry Connection", RectBtnKind.Primary, 32, 12).Also(b => { b.HorizontalAlignment = HorizontalAlignment.Left; b.Click += (_, _) => _ = RefreshAsync(); })
+                            }
+                        }, new Thickness(18))
+                    }
+                });
+            }
+        }
+    }
+
+    private async Task SyncProfileAsync()
+    {
+        var profRes = await _client.GetProfileWithStatsAsync(_client.Identity.Uid);
+        if (profRes.Ok)
+        {
+            _lastProfileSyncUtc = DateTime.UtcNow;
+            _myProfile = profRes.Data.Creator;
+            _myStats = profRes.Data.Stats;
+            foreach (var b in profRes.Data.Badges) _badgeMap[b.Id] = b;
+            UpdateProfileButton();
+            _chatWorkbench?.SetCurrentProfile(_myProfile, _badgeMap);
+        }
+    }
+
+    private async Task SyncPulseAsync()
+    {
+        var pRes = await _client.GetPulseAsync();
+        if (pRes.Ok && pRes.Data != null)
+        {
+            _lastPulseSyncUtc = DateTime.UtcNow;
+            if (!pRes.Data.NotModified)
+                ApplyPulse(pRes.Data);
         }
     }
 
@@ -558,15 +682,20 @@ public sealed class CommunityBrowserWorkbench
         if (flair != null) _profileBtnContent.Children.Add(flair);
     }
 
-    private void SetSingleColumnContent(UIElement content)
+    private void ShowPaneContent(string tabId, StackPanel content)
     {
-        _workspaceHost.Children.Clear();
-        _workspaceHost.ColumnDefinitions.Clear();
-        _mainScroller.Content = content;
-        _workspaceHost.Children.Add(_mainScroller);
+        var target = tabId switch
+        {
+            "saved" => _savedStack,
+            "requests" => _requestsStack,
+            "leaderboard" => _leaderboardStack,
+            _ => _mainFeedStack
+        };
+        target.Children.Clear();
+        target.Children.Add(content);
     }
 
-    private async Task RenderExploreWorkshopAsync()
+    private async Task RenderExploreWorkshopAsync(int seq = 0)
     {
         var caps = CommunityCapabilities.GetCapabilitySet(_selectedModelId, _selectedMode);
         if (_categoryFilter != "all" && !caps.AllowsCategory(_categoryFilter))
@@ -585,10 +714,14 @@ public sealed class CommunityBrowserWorkbench
             WatchingOf = _watchingOnly ? _client.Identity.Uid : null
         });
 
+        if (seq != 0 && seq != _refreshSeq && _subTab != "explore")
+            return;
+
         if (!catRes.Ok || catRes.Data == null)
         {
             EnsureExploreLayout(caps);
             _statusLine.Text = catRes.Error ?? "Failed to reach server.";
+            _lastExploreRenderSig = string.Empty;
             _mainFeedStack.Children.Clear();
             _mainFeedStack.Children.Add(CommunityUI.CardSurface(new StackPanel
             {
@@ -604,45 +737,66 @@ public sealed class CommunityBrowserWorkbench
 
         _cachedCatalogKey = CurrentCatalogCacheKey();
         _cachedCatalog = catRes.Data;
-        RenderExploreContent(caps, catRes.Data);
+        if (_subTab == "explore")
+            RenderExploreContent(caps, catRes.Data);
     }
 
     private void EnsureExploreLayout(CommunityCapabilitySet caps)
     {
-        _workspaceHost.Children.Clear();
-        _workspaceHost.ColumnDefinitions.Clear();
-        _workspaceHost.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(248) });
-        _workspaceHost.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(16) });
-        _workspaceHost.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        if (!_exploreBuilt)
+        {
+            _exploreBuilt = true;
+            _explorePane.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(248) });
+            _explorePane.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(16) });
+            _explorePane.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        // Left Faceted Sidebar (Modrinth / Steam Workshop Pattern)
-        var sidebarScroll = new ScrollViewer
-        {
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Content = _sidebarStack
-        };
-        var sidebarBorder = new Border
-        {
-            CornerRadius = new CornerRadius(8),
-            Background = new SolidColorBrush(CommunityUI.BgSidebar),
-            BorderBrush = new SolidColorBrush(CommunityUI.BorderSubtle),
-            BorderThickness = new Thickness(1),
-            Padding = new Thickness(12),
-            Child = sidebarScroll
-        };
+            var sidebarScroll = new ScrollViewer
+            {
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                Content = _sidebarStack
+            };
+            var sidebarBorder = new Border
+            {
+                CornerRadius = new CornerRadius(8),
+                Background = new SolidColorBrush(CommunityUI.BgSidebar),
+                BorderBrush = new SolidColorBrush(CommunityUI.BorderSubtle),
+                BorderThickness = new Thickness(1),
+                Padding = new Thickness(12),
+                Child = sidebarScroll
+            };
+            _explorePane.Children.Add(sidebarBorder);
+
+            _exploreScroller.Content = _mainFeedStack;
+            _exploreScroller.Padding = new Thickness(0, 0, 4, 8);
+            Grid.SetColumn(_exploreScroller, 2);
+            _explorePane.Children.Add(_exploreScroller);
+        }
         BuildSidebarFacets(caps);
-        _workspaceHost.Children.Add(sidebarBorder);
-
-        _mainScroller.Content = _mainFeedStack;
-        _mainScroller.Padding = new Thickness(0, 0, 4, 8);
-        Grid.SetColumn(_mainScroller, 2);
-        _workspaceHost.Children.Add(_mainScroller);
     }
 
     private void RenderExploreContent(CommunityCapabilitySet caps, CatalogResponse data)
     {
         EnsureExploreLayout(caps);
+
+        _ogWindowOpen = data.OgV0026Open;
+        if (!_client.IsNetworkDisabled)
+            _onlineText.Text = $"{data.OnlineCount} online";
+        _badgeMap.Clear();
+        foreach (var b in data.BadgeCatalog) _badgeMap[b.Id] = b;
+        UpdateProfileButton();
+        _statusLine.Text = $"Showing {data.Items.Count} {(data.Items.Count == 1 ? "result" : "results")}";
+
+        string sig = CurrentCatalogCacheKey() + "|"
+            + string.Join(",", data.Items.Select(i => $"{i.Id}:{i.Version}:{i.Upvotes}:{i.Installs}:{i.WorksCount}:{i.FeaturedRank}")) + "|"
+            + string.Join(",", data.Notes.Take(2).Select(n => $"{n.Id}:{n.HeartsCount}:{n.ThumbsCount}:{n.FireCount}")) + "|"
+            + string.Join(",", data.Challenges.Take(1).Select(c => $"{c.Id}:{c.Status}")) + "|"
+            + string.Join(",", data.Polls.Take(1).Select(p => $"{p.Id}:{p.Closed}:{string.Join("-", p.Options.Select(o => o.Votes))}"));
+
+        if (sig == _lastExploreRenderSig && _mainFeedStack.Children.Count > 0)
+            return;
+        _lastExploreRenderSig = sig;
+
         _mainFeedStack.Children.Clear();
 
         _ogWindowOpen = data.OgV0026Open;
@@ -756,6 +910,11 @@ public sealed class CommunityBrowserWorkbench
     private void BuildSidebarFacets(CommunityCapabilitySet caps)
     {
         UpdatePublishButtonLabel();
+        string facetSig = $"{caps.ModelId}|{caps.ConnectionMode}|{_categoryFilter}|{_mediaFilter}|{_watchingOnly}|{_gameTagFilter}|{_sort}|{_searchQuery}";
+        if (facetSig == _lastFacetsSig && _sidebarStack.Children.Count > 0)
+            return;
+        _lastFacetsSig = facetSig;
+
         static void Detach(FrameworkElement el)
         {
             if (el.Parent is Panel p) p.Children.Remove(el);
@@ -1013,7 +1172,11 @@ public sealed class CommunityBrowserWorkbench
             _ = Task.Run(async () =>
             {
                 var bytes = await _client.DownloadAssetAsync(item.AssetUrl, item.AssetSha256);
-                if (bytes != null) oled.Dispatcher.Invoke(() => oled.LoadBytes(bytes, "160x80"));
+                if (bytes != null)
+                {
+                    var frames = AnimatedMediaView.DecodeBytesOffThread(bytes);
+                    _ = oled.Dispatcher.BeginInvoke(DispatcherPriority.Background, () => oled.LoadDecodedFrames(frames, "160x80"));
+                }
             });
             DockPanel.SetDock(oled, Dock.Left);
             mainDock.Children.Add(oled);
@@ -1116,7 +1279,10 @@ public sealed class CommunityBrowserWorkbench
             {
                 var bytes = await _client.DownloadAssetAsync(item.AssetUrl, item.AssetSha256);
                 if (bytes != null)
-                    _ = visualizer.Dispatcher.BeginInvoke(() => visualizer.SetScreenMedia(bytes, item.MediaType == "gif"));
+                {
+                    _ = AnimatedMediaView.DecodeBytesOffThread(bytes);
+                    _ = visualizer.Dispatcher.BeginInvoke(DispatcherPriority.Background, () => visualizer.SetScreenMedia(bytes, item.MediaType == "gif"));
+                }
             });
         }
 
@@ -1400,32 +1566,42 @@ public sealed class CommunityBrowserWorkbench
         ShowModal(wrap);
     }
 
-    private async Task RenderSavedAndMineAsync()
+    private async Task RenderSavedAndMineAsync(int seq = 0)
     {
-        var savedRes = await _client.GetCatalogAsync(new CatalogQuery { BookmarkedBy = _client.Identity.Uid, Sort = "new" });
-        var mineRes = await _client.GetCatalogAsync(new CatalogQuery { Uid = _client.Identity.Uid, Status = "mine", Sort = "new" });
-        var saved = savedRes.Ok && savedRes.Data != null ? savedRes.Data.Items : new List<CommunityItem>();
-        var mine = mineRes.Ok && mineRes.Data != null ? mineRes.Data.Items : new List<CommunityItem>();
+        var savedTask = _client.GetCatalogAsync(new CatalogQuery { BookmarkedBy = _client.Identity.Uid, Sort = "new" });
+        var mineTask = _client.GetCatalogAsync(new CatalogQuery { Uid = _client.Identity.Uid, Status = "mine", Sort = "new" });
+        await Task.WhenAll(savedTask, mineTask);
+        if (seq != 0 && seq != _refreshSeq && _subTab != "saved") return;
+
+        var saved = savedTask.Result.Ok && savedTask.Result.Data != null ? savedTask.Result.Data.Items : new List<CommunityItem>();
+        var mine = mineTask.Result.Ok && mineTask.Result.Data != null ? mineTask.Result.Data.Items : new List<CommunityItem>();
         _cachedSavedMine = (saved, mine);
         if (_subTab == "saved") RenderSavedAndMineContent(saved, mine);
     }
 
     private void RenderSavedAndMineContent(List<CommunityItem> saved, List<CommunityItem> mine)
     {
-        var stack = new StackPanel();
-        stack.Children.Add(Kit.Text("Saved Bookmarks", 16, "DS.Text", FontWeights.Bold).Also(t => t.Margin = new Thickness(0, 0, 0, 10)));
+        string sig = string.Join(",", saved.Select(s => $"{s.Id}:{s.Version}:{s.Upvotes}:{s.Installs}"))
+            + "|"
+            + string.Join(",", mine.Select(m => $"{m.Id}:{m.Status}:{m.Version}:{m.Score}:{m.Installs}"));
+        if (sig == _lastSavedRenderSig && _savedStack.Children.Count > 0)
+            return;
+        _lastSavedRenderSig = sig;
+
+        _savedStack.Children.Clear();
+        _savedStack.Children.Add(Kit.Text("Saved Bookmarks", 16, "DS.Text", FontWeights.Bold).Also(t => t.Margin = new Thickness(0, 0, 0, 10)));
         if (saved.Count > 0)
         {
             var grid = new UniformGrid { Columns = 2, Margin = new Thickness(-5, 0, -5, 16) };
             foreach (var s in saved) grid.Children.Add(BuildWorkshopCard(s).Also(b => b.Margin = new Thickness(5)));
-            stack.Children.Add(grid);
+            _savedStack.Children.Add(grid);
         }
         else
         {
-            stack.Children.Add(CommunityUI.CardSurface(Kit.Text("No bookmarked setups yet. Open any Workshop card and click Bookmark.", 12.5, "DS.TextMuted"), new Thickness(16)).Also(b => b.Margin = new Thickness(0, 0, 0, 16)));
+            _savedStack.Children.Add(CommunityUI.CardSurface(Kit.Text("No bookmarked setups yet. Open any Workshop card and click Bookmark.", 12.5, "DS.TextMuted"), new Thickness(16)).Also(b => b.Margin = new Thickness(0, 0, 0, 16)));
         }
 
-        stack.Children.Add(Kit.Text("My Published & Pending Uploads", 16, "DS.Text", FontWeights.Bold).Also(t => t.Margin = new Thickness(0, 0, 0, 10)));
+        _savedStack.Children.Add(Kit.Text("My Published & Pending Uploads", 16, "DS.Text", FontWeights.Bold).Also(t => t.Margin = new Thickness(0, 0, 0, 10)));
         if (mine.Count > 0)
         {
             foreach (var myItem in mine)
@@ -1459,20 +1635,19 @@ public sealed class CommunityBrowserWorkbench
                         Kit.Text($"{myItem.Category}  ·  Score {myItem.Score}  ·  {myItem.Installs} installs", 12, "DS.TextMuted")
                     }
                 });
-                stack.Children.Add(CommunityUI.CardSurface(row, new Thickness(12)).Also(b => b.Margin = new Thickness(0, 0, 0, 8)));
+                _savedStack.Children.Add(CommunityUI.CardSurface(row, new Thickness(12)).Also(b => b.Margin = new Thickness(0, 0, 0, 8)));
             }
         }
         else
         {
-            stack.Children.Add(CommunityUI.CardSurface(Kit.Text("You have not submitted any community creations from this device yet.", 12.5, "DS.TextMuted"), new Thickness(16)));
+            _savedStack.Children.Add(CommunityUI.CardSurface(Kit.Text("You have not submitted any community creations from this device yet.", 12.5, "DS.TextMuted"), new Thickness(16)));
         }
-
-        SetSingleColumnContent(stack);
     }
 
-    private async Task RenderRequestsBoardAsync()
+    private async Task RenderRequestsBoardAsync(int seq = 0)
     {
         var reqRes = await _client.GetRequestsAsync();
+        if (seq != 0 && seq != _refreshSeq && _subTab != "requests") return;
         var list = reqRes.Ok && reqRes.Data != null ? reqRes.Data : new List<CommunityRequest>();
         _cachedRequests = list;
         if (_subTab == "requests") RenderRequestsContent(list);
@@ -1480,7 +1655,12 @@ public sealed class CommunityBrowserWorkbench
 
     private void RenderRequestsContent(List<CommunityRequest> list)
     {
-        var stack = new StackPanel();
+        string sig = string.Join(",", list.Select(r => $"{r.Id}:{r.Upvotes}:{r.Status}"));
+        if (sig == _lastRequestsRenderSig && _requestsStack.Children.Count > 0)
+            return;
+        _lastRequestsRenderSig = sig;
+
+        _requestsStack.Children.Clear();
         var createStack = new StackPanel();
         createStack.Children.Add(Kit.Text("Request a Setup, Curve, or Screen Art", 14.5, "DS.Text", FontWeights.SemiBold).Also(t => t.Margin = new Thickness(0, 0, 0, 8)));
         var rTitle = CommunityUI.RectInput("", 32);
@@ -1500,7 +1680,7 @@ public sealed class CommunityBrowserWorkbench
         createStack.Children.Add(Kit.Text("Target Game (optional)", 11.5, "DS.TextSoft"));
         createStack.Children.Add(rGame);
         createStack.Children.Add(rBtn);
-        stack.Children.Add(CommunityUI.CardSurface(createStack, new Thickness(16)).Also(b => b.Margin = new Thickness(0, 0, 0, 14)));
+        _requestsStack.Children.Add(CommunityUI.CardSurface(createStack, new Thickness(16)).Also(b => b.Margin = new Thickness(0, 0, 0, 14)));
 
         if (list.Count > 0)
         {
@@ -1525,15 +1705,13 @@ public sealed class CommunityBrowserWorkbench
                         Kit.Text($"{r.ModelId} / {r.ConnectionMode}  ·  By {r.Creator?.Handle ?? r.Uid}  ·  {r.GameTag}", 12, "DS.TextMuted")
                     }
                 });
-                stack.Children.Add(CommunityUI.CardSurface(row, new Thickness(12)).Also(b => b.Margin = new Thickness(0, 0, 0, 8)));
+                _requestsStack.Children.Add(CommunityUI.CardSurface(row, new Thickness(12)).Also(b => b.Margin = new Thickness(0, 0, 0, 8)));
             }
         }
         else
         {
-            stack.Children.Add(CommunityUI.CardSurface(Kit.Text("No open setup requests yet. Ask the community for a game profile above.", 12.5, "DS.TextMuted"), new Thickness(16)));
+            _requestsStack.Children.Add(CommunityUI.CardSurface(Kit.Text("No open setup requests yet. Ask the community for a game profile above.", 12.5, "DS.TextMuted"), new Thickness(16)));
         }
-
-        SetSingleColumnContent(stack);
     }
 
     private CommunityChatWorkbench EnsureChatWorkbench()
@@ -1555,17 +1733,23 @@ public sealed class CommunityBrowserWorkbench
 
     private void ShowChatInWorkspace(CommunityChatWorkbench chat)
     {
-        _workspaceHost.Children.Clear();
-        _workspaceHost.ColumnDefinitions.Clear();
-        _workspaceHost.Children.Add(chat);
+        if (_chatPane.Children.Count != 1 || !ReferenceEquals(_chatPane.Children[0], chat))
+        {
+            _chatPane.Children.Clear();
+            _chatPane.Children.Add(chat);
+        }
+        ShowActivePane("lounge");
     }
 
-    private async Task RenderLoungeBoardAsync()
+    private async Task RenderLoungeBoardAsync(bool force = true)
     {
         var chat = EnsureChatWorkbench();
         ShowChatInWorkspace(chat);
         chat.StartPolling();
-        await chat.RefreshAsync();
+        if (force)
+            await chat.RefreshAsync();
+        else
+            await chat.RefreshIfStaleAsync();
     }
 
     private async Task OpenOnlineMembersModalAsync()
@@ -1677,10 +1861,15 @@ public sealed class CommunityBrowserWorkbench
         AddMemberGroup("OFFLINE CLAIMED HANDLES", res.Data.Offline, false);
     }
 
-    private async Task RenderLeaderboardAndWatchingAsync()
+    private async Task RenderLeaderboardAndWatchingAsync(int seq = 0)
     {
-        var lbRes = await _client.GetLeaderboardAsync(_leaderboardMetric);
-        var watchRes = await _client.GetWatchListsAsync();
+        var lbTask = _client.GetLeaderboardAsync(_leaderboardMetric);
+        var watchTask = _client.GetWatchListsAsync();
+        await Task.WhenAll(lbTask, watchTask);
+        if (seq != 0 && seq != _refreshSeq && _subTab != "leaderboard") return;
+
+        var lbRes = lbTask.Result;
+        var watchRes = watchTask.Result;
         var makers = lbRes.Ok ? lbRes.Data.Makers : new List<CreatorProfile>();
         var watchers = watchRes.Ok ? watchRes.Data.Watchers : new List<CreatorProfile>();
         var watching = watchRes.Ok ? watchRes.Data.Watching : new List<CreatorProfile>();
@@ -1694,7 +1883,14 @@ public sealed class CommunityBrowserWorkbench
 
     private void RenderLeaderboardContent(List<CreatorProfile> makers, List<CreatorProfile> watchers, List<CreatorProfile> watching)
     {
-        var stack = new StackPanel();
+        string sig = _leaderboardMetric + "|"
+            + string.Join(",", makers.Select(m => $"{m.Uid}:{m.ApprovedCount}:{m.InstallsReceived}:{m.Karma}:{m.WatchersCount}:{m.EquippedBadge}")) + "|"
+            + string.Join(",", watching.Select(w => $"{w.Uid}:{w.Karma}")) + "|" + watchers.Count;
+        if (sig == _lastLeaderboardRenderSig && _leaderboardStack.Children.Count > 0)
+            return;
+        _lastLeaderboardRenderSig = sig;
+
+        _leaderboardStack.Children.Clear();
         var wPanel = new StackPanel();
         wPanel.Children.Add(Kit.Text($"Watching ({watching.Count}) & Watchers ({watchers.Count})", 15, "DS.Text", FontWeights.Bold).Also(t => t.Margin = new Thickness(0, 0, 0, 8)));
         var chips = new WrapPanel();
@@ -1702,14 +1898,14 @@ public sealed class CommunityBrowserWorkbench
         {
             var btn = CommunityUI.RectButton($"{maker.Handle} ({maker.Karma} karma)", RectBtnKind.Secondary, 28, 11.5);
             btn.Margin = new Thickness(0, 0, 6, 6);
-            btn.Click += (_, _) => { _filterUid = maker.Uid; _subTab = "explore"; _ = RefreshAsync(); };
+            btn.Click += (_, _) => { _filterUid = maker.Uid; SelectSubTab("explore"); };
             chips.Children.Add(btn);
         }
         if (chips.Children.Count == 0)
             wPanel.Children.Add(Kit.Text("Not Watching any Makers yet. Click any creator handle to Watch their setups.", 12.5, "DS.TextMuted"));
         else
             wPanel.Children.Add(chips);
-        stack.Children.Add(CommunityUI.CardSurface(wPanel, new Thickness(14)).Also(b => b.Margin = new Thickness(0, 0, 0, 14)));
+        _leaderboardStack.Children.Add(CommunityUI.CardSurface(wPanel, new Thickness(14)).Also(b => b.Margin = new Thickness(0, 0, 0, 14)));
 
         var lbHeader = new DockPanel { Margin = new Thickness(0, 0, 0, 10) };
         var metricBar = new StackPanel { Orientation = Orientation.Horizontal };
@@ -1725,7 +1921,7 @@ public sealed class CommunityBrowserWorkbench
         DockPanel.SetDock(metricBar, Dock.Right);
         lbHeader.Children.Add(metricBar);
         lbHeader.Children.Add(Kit.Text("Top Community Makers", 16, "DS.Text", FontWeights.Bold).Also(t => t.VerticalAlignment = VerticalAlignment.Center));
-        stack.Children.Add(lbHeader);
+        _leaderboardStack.Children.Add(lbHeader);
 
         if (makers.Count > 0)
         {
@@ -1752,15 +1948,13 @@ public sealed class CommunityBrowserWorkbench
                 if (flair != null) line.Children.Add(flair);
                 line.Children.Add(Kit.Text($"   ·   Uploads {maker.ApprovedCount}   ·   Installs {maker.InstallsReceived}   ·   Karma {maker.Karma}   ·   Watchers {maker.WatchersCount}", 12.5, "DS.TextSoft").Also(t => t.VerticalAlignment = VerticalAlignment.Center));
                 row.Children.Add(line);
-                stack.Children.Add(CommunityUI.CardSurface(row, new Thickness(12), podiumBorder).Also(b => b.Margin = new Thickness(0, 0, 0, 6)));
+                _leaderboardStack.Children.Add(CommunityUI.CardSurface(row, new Thickness(12), podiumBorder).Also(b => b.Margin = new Thickness(0, 0, 0, 6)));
             }
         }
         else
         {
-            stack.Children.Add(CommunityUI.CardSurface(Kit.Text("No published makers on the leaderboard yet. Publish your first setup, curve, or Screen Art to claim #1!", 12.5, "DS.TextMuted"), new Thickness(16)));
+            _leaderboardStack.Children.Add(CommunityUI.CardSurface(Kit.Text("No published makers on the leaderboard yet. Publish your first setup, curve, or Screen Art to claim #1!", 12.5, "DS.TextMuted"), new Thickness(16)));
         }
-
-        SetSingleColumnContent(stack);
     }
 
     public CreatorProfileDialog OpenProfileDialogForTest()

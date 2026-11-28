@@ -142,6 +142,7 @@ internal static class IllustratedThemeUI
     public static void Skin(DependencyObject root)
     {
         if(Current is not {} spec)return;
+        if(root is UIElement ue && ue.Visibility == Visibility.Collapsed)return;
         if(root is Control control)StyleControl(control);
         if(root is Border border)StyleBorder(border);
         if(root is System.Windows.Controls.Image image&&!spec.Native)
