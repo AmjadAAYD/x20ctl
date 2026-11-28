@@ -13,6 +13,7 @@ namespace X20Ctl.Product.Community;
 public sealed class CreatorHoverCard : Border
 {
     public event Action<string>? FilterByCreatorRequested;
+    public event Action<CreatorProfile>? MessageCreatorRequested;
     public event Func<string, Task<(bool Watching, int WatchersCount)>>? WatchToggled;
 
     public CreatorHoverCard(
@@ -46,11 +47,33 @@ public sealed class CreatorHoverCard : Border
 
         var nameStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         var titleRow = new StackPanel { Orientation = Orientation.Horizontal };
-        titleRow.Children.Add(Kit.Text(creator.Handle, 16, "DS.Text", FontWeights.Bold).Also(t => t.VerticalAlignment = VerticalAlignment.Center));
+        var roleColor = ParseHexColor(creator.RoleColor, Color.FromRgb(226, 232, 240));
+        var handleText = Kit.Text(creator.Handle, 16, "DS.Text", FontWeights.Bold);
+        handleText.Foreground = new SolidColorBrush(roleColor);
+        handleText.VerticalAlignment = VerticalAlignment.Center;
+        titleRow.Children.Add(handleText);
         var flair = BadgeChip.CreateFlair(creator, badgeCatalog, compact: true);
         if (flair != null) titleRow.Children.Add(flair);
         nameStack.Children.Add(titleRow);
-        nameStack.Children.Add(Kit.Text($"{creator.Uid}  |  {creator.TrustTier.ToUpperInvariant()}", 11.5, "DS.TextMuted").Also(t => t.Margin = new Thickness(0, 3, 0, 0)));
+
+        var statusLine = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 3, 0, 0) };
+        statusLine.Children.Add(new Border
+        {
+            Width = 7,
+            Height = 7,
+            CornerRadius = new CornerRadius(2),
+            Background = new SolidColorBrush(creator.IsOnline ? Color.FromRgb(34, 197, 94) : Color.FromRgb(100, 116, 139)),
+            Margin = new Thickness(0, 0, 6, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        statusLine.Children.Add(new TextBlock
+        {
+            Text = $"{(creator.IsOnline ? "Online" : "Offline")}  |  {creator.RoleTitle}  |  {creator.Uid}",
+            FontSize = 11.5,
+            Foreground = new SolidColorBrush(Color.FromRgb(148, 163, 184)),
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        nameStack.Children.Add(statusLine);
         top.Children.Add(nameStack);
         root.Children.Add(top);
 
@@ -93,6 +116,12 @@ public sealed class CreatorHoverCard : Border
         var actions = new StackPanel { Orientation = Orientation.Horizontal };
         if (!isSelf)
         {
+            var msgBtn = CommunityUI.RectButton("Message", RectBtnKind.Primary, 32, 12);
+            msgBtn.Tag = "creator:message";
+            msgBtn.Margin = new Thickness(0, 0, 8, 0);
+            msgBtn.Click += (_, _) => MessageCreatorRequested?.Invoke(creator);
+            actions.Children.Add(msgBtn);
+
             var watchBtn = CommunityUI.RectButton(creator.IsWatching ? "Watching Maker" : "Watch Maker", creator.IsWatching ? RectBtnKind.Primary : RectBtnKind.Secondary, 32, 12);
             watchBtn.Margin = new Thickness(0, 0, 8, 0);
             watchBtn.Click += async (_, _) =>
@@ -121,6 +150,15 @@ public sealed class CreatorHoverCard : Border
         root.Children.Add(actions);
 
         Child = root;
+    }
+
+    private static Color ParseHexColor(string? hex, Color fallback)
+    {
+        if (string.IsNullOrWhiteSpace(hex)) return fallback;
+        string s = hex.Trim().TrimStart('#');
+        if (s.Length == 6 && uint.TryParse(s, System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out uint rgb))
+            return Color.FromRgb((byte)((rgb >> 16) & 0xFF), (byte)((rgb >> 8) & 0xFF), (byte)(rgb & 0xFF));
+        return fallback;
     }
 
     private static string GetInitials(string? name)

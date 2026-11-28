@@ -57,8 +57,17 @@ public sealed class CreatorProfileDialog : Grid
 
     public async Task<bool> UploadAvatarBytesAsync(byte[] bytes, string declaredType = "image")
     {
+        bool isGif = string.Equals(declaredType, "gif", StringComparison.OrdinalIgnoreCase)
+            || (bytes.Length >= 4 && bytes[0] == 'G' && bytes[1] == 'I' && bytes[2] == 'F' && bytes[3] == '8');
+        bool canGif = _profile != null && (_profile.CanUseGifPfp || _profile.IsOwner || _profile.IsSupporter);
+        if (isGif && !canGif)
+        {
+            _statusText.Text = "Animated GIF avatars are exclusive to Supporters and Verified Owners.";
+            return false;
+        }
+
         _statusText.Text = "Disarming and uploading avatar...";
-        var res = await _client.UpdateProfileAsync(pfpBytes: bytes, pfpDeclaredType: declaredType);
+        var res = await _client.UpdateProfileAsync(pfpBytes: bytes, pfpDeclaredType: isGif ? "gif" : "image");
         if (res.Ok && res.Data != null)
         {
             _profile = res.Data;
@@ -268,11 +277,25 @@ public sealed class CreatorProfileDialog : Grid
                 "DS.TextSoft").Also(t => t.Margin = new Thickness(0, 3, 0, 6)));
 
             var btnRow = new StackPanel { Orientation = Orientation.Horizontal };
-            var uploadPfpBtn = CommunityUI.RectButton("Upload 64x64 Avatar", RectBtnKind.Secondary, 28, 11.5);
+            bool canGif = _profile.CanUseGifPfp || _profile.IsOwner || _profile.IsSupporter;
+            var uploadPfpBtn = CommunityUI.RectButton(
+                canGif ? "Upload 64x64 Avatar (PNG / GIF)" : "Upload 64x64 Avatar (PNG)",
+                RectBtnKind.Secondary,
+                28,
+                11.5);
+            uploadPfpBtn.Tag = "profile:uploadpfp";
             uploadPfpBtn.Margin = new Thickness(0, 0, 8, 0);
             uploadPfpBtn.Click += async (_, _) =>
             {
-                var dlg = new OpenFileDialog { Filter = "PNG or GIF (*.png;*.gif)|*.png;*.gif", Title = "Choose 64x64 PNG or Animated GIF Avatar" };
+                var dlg = new OpenFileDialog
+                {
+                    Filter = canGif
+                        ? "PNG or Animated GIF (*.png;*.gif)|*.png;*.gif"
+                        : "Static PNG (*.png)|*.png",
+                    Title = canGif
+                        ? "Choose 64x64 PNG or Animated GIF Avatar"
+                        : "Choose 64x64 PNG Avatar (GIF unlocked for Supporters)"
+                };
                 if (dlg.ShowDialog() != true) return;
                 var bytes = await File.ReadAllBytesAsync(dlg.FileName);
                 var declared = dlg.FileName.EndsWith(".gif", StringComparison.OrdinalIgnoreCase) ? "gif" : "image";
@@ -314,7 +337,24 @@ public sealed class CreatorProfileDialog : Grid
                 flairPreview.Children.Add(Kit.Text("  None equipped", 11.5, "DS.TextMuted").Also(t => t.VerticalAlignment = VerticalAlignment.Center));
             }
             flairStrip.Children.Add(flairPreview);
-            root.Children.Add(CommunityUI.CardSurface(flairStrip, new Thickness(12, 8, 12, 8)).Also(b => b.Margin = new Thickness(0, 0, 0, 14)));
+            root.Children.Add(CommunityUI.CardSurface(flairStrip, new Thickness(12, 8, 12, 8)).Also(b => b.Margin = new Thickness(0, 0, 0, 10)));
+
+            // Tier & Badge Perks Strip
+            var roleCol = ParseHexColor(_profile.RoleColor, Color.FromRgb(226, 232, 240));
+            var perksRow = new WrapPanel { VerticalAlignment = VerticalAlignment.Center };
+            perksRow.Children.Add(CommunityUI.SquareTag(
+                $"ROLE: {_profile.RoleTitle.ToUpperInvariant()}",
+                roleCol,
+                Color.FromArgb(45, roleCol.R, roleCol.G, roleCol.B),
+                roleCol));
+            perksRow.Children.Add(CommunityUI.SquareTag(
+                canGif ? "GIF AVATAR: UNLOCKED" : "GIF AVATAR: SUPPORTER ONLY",
+                canGif ? Color.FromRgb(134, 239, 172) : Color.FromRgb(148, 163, 184)));
+            perksRow.Children.Add(CommunityUI.SquareTag(
+                _profile.InstantApproval ? "SUBMISSIONS: INSTANT & UNLIMITED" : "SUBMISSIONS: REVIEW QUEUE",
+                _profile.InstantApproval ? Color.FromRgb(253, 230, 138) : Color.FromRgb(148, 163, 184)));
+            perksRow.Children.Add(CommunityUI.SquareTag("CHAT COLOR: ACTIVE", roleCol));
+            root.Children.Add(CommunityUI.CardSurface(perksRow, new Thickness(12, 8, 12, 8)).Also(b => b.Margin = new Thickness(0, 0, 0, 14)));
 
             // Unlocked & Locked Achievements Showcase with Filter Bar
             var unlockedSet = new HashSet<string>(_profile.Badges, StringComparer.OrdinalIgnoreCase);
@@ -408,5 +448,14 @@ public sealed class CreatorProfileDialog : Grid
         card.Child = new ScrollViewer { Content = root, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Padding = new Thickness(0, 0, 4, 0) };
         CommunityUI.AnimateModalIn(card);
         Children.Add(card);
+    }
+
+    private static Color ParseHexColor(string? hex, Color fallback)
+    {
+        if (string.IsNullOrWhiteSpace(hex)) return fallback;
+        string s = hex.Trim().TrimStart('#');
+        if (s.Length == 6 && uint.TryParse(s, System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out uint rgb))
+            return Color.FromRgb((byte)((rgb >> 16) & 0xFF), (byte)((rgb >> 8) & 0xFF), (byte)(rgb & 0xFF));
+        return fallback;
     }
 }

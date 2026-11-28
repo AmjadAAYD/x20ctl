@@ -112,7 +112,8 @@ public sealed partial class CommunitySubmitDialog : Grid
         string? fulfillRequestId = null,
         Func<string, (object? Payload, string? ShareCode, byte[]? MediaBytes, string? MediaType)>? exportForCategory = null,
         string? parentItemId = null,
-        IReadOnlyList<string>? initialGameTags = null)
+        IReadOnlyList<string>? initialGameTags = null,
+        CreatorProfile? creatorProfile = null)
     {
         _client = client;
         _modelId = CommunityCapabilities.NormalizeModelId(modelId);
@@ -152,10 +153,13 @@ public sealed partial class CommunitySubmitDialog : Grid
         header.Children.Add(Kit.Text(!string.IsNullOrEmpty(_parentItemId) ? "Push Version Update" : "Publish to Workshop", 18, "DS.Text", FontWeights.Bold));
         root.Children.Add(header);
 
+        string reviewLine = creatorProfile?.InstantApproval == true
+            ? $"Target: {caps.ModelName} ({caps.ConnectionMode})  |  {creatorProfile.RoleTitle} Perk: Instant live publishing with zero cooldown."
+            : $"Target: {caps.ModelName} ({caps.ConnectionMode})  |  Reviewed in X20ADMIN before publishing to the catalog.";
         root.Children.Add(Kit.Text(
             !string.IsNullOrEmpty(_parentItemId)
                 ? $"Updating existing item {_parentItemId} (auto-increments v2+) on {caps.ModelName} ({caps.ConnectionMode})."
-                : $"Target: {caps.ModelName} ({caps.ConnectionMode})  |  Reviewed in X20ADMIN before publishing to the catalog.",
+                : reviewLine,
             12, "DS.TextMuted").Also(t => { t.TextWrapping = TextWrapping.Wrap; t.Margin = new Thickness(0, 0, 0, 8); }));
 
         if (!string.IsNullOrEmpty(_remixSourceId))

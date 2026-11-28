@@ -45,13 +45,16 @@ public sealed class CommunityBrowserWorkbench
     private CatalogResponse? _cachedCatalog;
     private (List<CommunityItem> Saved, List<CommunityItem> Mine)? _cachedSavedMine;
     private List<CommunityRequest>? _cachedRequests;
-    private (List<LoungeMessage> Messages, int SlowSec, bool Paused)? _cachedLounge;
     private (List<CreatorProfile> Makers, List<CreatorProfile> Watchers, List<CreatorProfile> Watching)? _cachedLeaderboard;
 
     public string CurrentSubTab => _subTab;
     public CommunitySubmitDialog? ActiveSubmitDialog { get; private set; }
     public CommunityDiffDrawer? ActiveDiffDrawer { get; private set; }
+    public CommunityChatWorkbench? ActiveChatWorkbench => _chatWorkbench;
     public Grid ActiveModalContent => _modalHost;
+    private ItemInspectVisualizer? _activeVisualizer;
+    private CommunityChatWorkbench? _chatWorkbench;
+    private Button _onlineBtn = null!;
     private Button _publishBtn = null!;
     private Button _alertsBtn = null!;
     private readonly Border _toastBanner = new()
@@ -159,7 +162,8 @@ public sealed class CommunityBrowserWorkbench
                 ? _exportCurrentForSubmit(cat, _selectedMode)
                 : (payload, shareCode, mediaBytes, mediaType),
             parentItemId: parentItemId,
-            initialGameTags: initialGameTags);
+            initialGameTags: initialGameTags,
+            creatorProfile: _myProfile);
         dlg.CloseRequested += CloseModal;
         dlg.Submitted += item =>
         {
@@ -199,11 +203,17 @@ public sealed class CommunityBrowserWorkbench
         var rightBar = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
         DockPanel.SetDock(rightBar, Dock.Right);
 
-        var onlineWrap = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 14, 0) };
+        var onlineWrap = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
         _onlineText.VerticalAlignment = VerticalAlignment.Center;
         onlineWrap.Children.Add(_presenceDot);
         onlineWrap.Children.Add(_onlineText);
-        rightBar.Children.Add(onlineWrap);
+        _onlineBtn = CommunityUI.RectButton("", RectBtnKind.Secondary, 30, 11.5);
+        _onlineBtn.Tag = "community:onlinebtn";
+        _onlineBtn.Content = onlineWrap;
+        _onlineBtn.Margin = new Thickness(0, 0, 10, 0);
+        _onlineBtn.ToolTip = "Click to view online and claimed members";
+        _onlineBtn.Click += (_, _) => _ = OpenOnlineMembersModalAsync();
+        rightBar.Children.Add(_onlineBtn);
 
         _alertsBtn = CommunityUI.RectButton("Alerts", RectBtnKind.Secondary, 32, 12);
         _alertsBtn.Tag = "community:alerts";
@@ -310,7 +320,7 @@ public sealed class CommunityBrowserWorkbench
             ("explore", "Browse"),
             ("saved", "Saved & Mine"),
             ("requests", "Requests"),
-            ("lounge", "Lounge"),
+            ("lounge", "Chat"),
             ("leaderboard", "Leaderboard"),
         })
         {
@@ -326,7 +336,9 @@ public sealed class CommunityBrowserWorkbench
 
     public void SelectSubTab(string subTabId)
     {
-        _subTab = subTabId;
+        _subTab = string.Equals(subTabId, "chat", StringComparison.OrdinalIgnoreCase) ? "lounge" : subTabId;
+        if (_subTab != "lounge")
+            _chatWorkbench?.StopPolling();
         _filterUid = null;
         RebuildTopTabs();
         RenderCachedSubTabSync();
@@ -348,9 +360,10 @@ public sealed class CommunityBrowserWorkbench
         {
             RenderRequestsContent(_cachedRequests);
         }
-        else if (_subTab == "lounge" && _cachedLounge is { } l)
+        else if (_subTab == "lounge")
         {
-            RenderLoungeContent(l.Messages, l.SlowSec, l.Paused);
+            var chat = EnsureChatWorkbench();
+            ShowChatInWorkspace(chat);
         }
         else if (_subTab == "leaderboard" && _cachedLeaderboard is { } lb)
         {
@@ -485,6 +498,7 @@ public sealed class CommunityBrowserWorkbench
                 _myStats = profRes.Data.Stats;
                 foreach (var b in profRes.Data.Badges) _badgeMap[b.Id] = b;
                 UpdateProfileButton();
+                _chatWorkbench?.SetCurrentProfile(_myProfile, _badgeMap);
             }
 
             if (!_client.IsNetworkDisabled)
@@ -493,6 +507,9 @@ public sealed class CommunityBrowserWorkbench
                 if (pRes.Ok && pRes.Data != null && !pRes.Data.NotModified)
                     ApplyPulse(pRes.Data);
             }
+
+            if (_subTab != "lounge")
+                _chatWorkbench?.StopPolling();
 
             if (_subTab == "explore")
                 await RenderExploreWorkshopAsync();
@@ -1088,49 +1105,26 @@ public sealed class CommunityBrowserWorkbench
             tagRow.Children.Add(CommunityUI.SquareTag(g, Color.FromRgb(186, 230, 253), Color.FromArgb(65, 56, 189, 248)));
         modalRoot.Children.Add(tagRow);
 
-        var heroRow = new DockPanel { Margin = new Thickness(0, 0, 0, 12) };
+        _activeVisualizer?.StopAnimations();
+        var visualizer = new ItemInspectVisualizer(item) { Margin = new Thickness(0, 0, 0, 10) };
+        _activeVisualizer = visualizer;
+        modalRoot.Children.Add(visualizer);
+
         if (item.Category == "screen" && !string.IsNullOrEmpty(item.AssetUrl))
         {
-            var inspectorScreen = new AnimatedMediaView(160, 80, pixelArt: true, cornerRadius: 6)
-            {
-                BorderBrush = new SolidColorBrush(CommunityUI.BorderFocus),
-                BorderThickness = new Thickness(1),
-                Margin = new Thickness(0, 0, 14, 0)
-            };
-            inspectorScreen.Tag = "inspector:screenview";
-            inspectorScreen.SetPlaceholder("160x80");
             _ = Task.Run(async () =>
             {
                 var bytes = await _client.DownloadAssetAsync(item.AssetUrl, item.AssetSha256);
-                if (bytes != null) inspectorScreen.Dispatcher.Invoke(() => inspectorScreen.LoadBytes(bytes, "160x80"));
+                if (bytes != null)
+                    _ = visualizer.Dispatcher.BeginInvoke(() => visualizer.SetScreenMedia(bytes, item.MediaType == "gif"));
             });
-            bool isZoomed = false;
-            var zoomBtn = CommunityUI.RectButton("Zoom 2x (320x160)", RectBtnKind.Secondary, 28, 11.5);
-            zoomBtn.Tag = "inspector:zoom2x";
-            zoomBtn.Margin = new Thickness(0, 6, 0, 0);
-            zoomBtn.HorizontalAlignment = HorizontalAlignment.Left;
-            zoomBtn.Click += (_, _) =>
-            {
-                isZoomed = !isZoomed;
-                inspectorScreen.Width = isZoomed ? 320 : 160;
-                inspectorScreen.Height = isZoomed ? 160 : 80;
-                zoomBtn.Content = isZoomed ? "Reset 1x (160x80)" : "Zoom 2x (320x160)";
-            };
-            var leftVisual = new StackPanel { Margin = new Thickness(0, 0, 14, 0) };
-            leftVisual.Children.Add(inspectorScreen);
-            leftVisual.Children.Add(zoomBtn);
-            DockPanel.SetDock(leftVisual, Dock.Left);
-            heroRow.Children.Add(leftVisual);
         }
-        else
+
+        if (!string.IsNullOrWhiteSpace(item.Description))
         {
-            var largeThumb = CommunityUI.BuildPreviewThumb(item.Category, item.ShareCode, item.Payload, 156, 112);
-            largeThumb.Margin = new Thickness(0, 0, 14, 0);
-            DockPanel.SetDock(largeThumb, Dock.Left);
-            heroRow.Children.Add(largeThumb);
+            modalRoot.Children.Add(Kit.Text(item.Description, 12.5, "DS.TextSoft")
+                .Also(t => { t.TextWrapping = TextWrapping.Wrap; t.Margin = new Thickness(0, 0, 0, 12); }));
         }
-        heroRow.Children.Add(Kit.Text(item.Description, 13, "DS.TextSoft").Also(t => { t.TextWrapping = TextWrapping.Wrap; t.VerticalAlignment = VerticalAlignment.Top; }));
-        modalRoot.Children.Add(heroRow);
 
         var actionRow = new WrapPanel { Margin = new Thickness(0, 0, 0, 14) };
         actionRow.Children.Add(CommunityUI.RectButton("Install Setup", RectBtnKind.Primary, 32, 12).Also(b =>
@@ -1274,8 +1268,8 @@ public sealed class CommunityBrowserWorkbench
 
         var sheet = new Border
         {
-            Width = 620,
-            MaxHeight = 680,
+            Width = 740,
+            MaxHeight = 760,
             VerticalAlignment = VerticalAlignment.Center,
             HorizontalAlignment = HorizontalAlignment.Center,
             CornerRadius = new CornerRadius(10),
@@ -1371,6 +1365,17 @@ public sealed class CommunityBrowserWorkbench
         {
             var r = await _client.ToggleWatchAsync(targetUid);
             return r.Ok ? r.Data : (profile.IsWatching, profile.WatchersCount);
+        };
+        card.MessageCreatorRequested += target =>
+        {
+            CloseModal();
+            _subTab = "lounge";
+            _filterUid = null;
+            RebuildTopTabs();
+            var chat = EnsureChatWorkbench();
+            ShowChatInWorkspace(chat);
+            chat.StartPolling();
+            _ = chat.OpenDirectMessageAsync(target);
         };
         card.FilterByCreatorRequested += targetUid =>
         {
@@ -1531,59 +1536,145 @@ public sealed class CommunityBrowserWorkbench
         SetSingleColumnContent(stack);
     }
 
-    private async Task RenderLoungeBoardAsync()
+    private CommunityChatWorkbench EnsureChatWorkbench()
     {
-        var lRes = await _client.GetLoungeAsync();
-        if (!lRes.Ok)
+        if (_chatWorkbench == null)
         {
-            var errStack = new StackPanel();
-            errStack.Children.Add(CommunityUI.CardSurface(Kit.Text(lRes.Error ?? "Lounge unavailable right now.", 12.5, "DS.TextSoft"), new Thickness(16)));
-            if (_subTab == "lounge") SetSingleColumnContent(errStack);
-            return;
+            _chatWorkbench = new CommunityChatWorkbench(_client, _myProfile, _badgeMap);
+            _chatWorkbench.MemberClicked += m => _ = ShowCreatorCardAsync(m);
+            _chatWorkbench.SignInRequested += OpenProfileDialog;
+            _chatWorkbench.RosterUpdated += (onlineCount, _) =>
+            {
+                if (!_client.IsNetworkDisabled)
+                    _onlineText.Text = $"{onlineCount} online";
+            };
         }
-        _cachedLounge = lRes.Data;
-        if (_subTab == "lounge") RenderLoungeContent(lRes.Data.Messages, lRes.Data.SlowmodeSec, lRes.Data.Paused);
+        _chatWorkbench.SetCurrentProfile(_myProfile, _badgeMap);
+        return _chatWorkbench;
     }
 
-    private void RenderLoungeContent(List<LoungeMessage> msgs, int slowSec, bool paused)
+    private void ShowChatInWorkspace(CommunityChatWorkbench chat)
     {
-        var stack = new StackPanel();
-        stack.Children.Add(Kit.Text($"Community Lounge  ·  Slow-mode: {slowSec}s  ·  {(paused ? "Paused by Owner" : "Open")}", 13, "DS.AccentHi", FontWeights.SemiBold).Also(t => t.Margin = new Thickness(0, 0, 0, 10)));
+        _workspaceHost.Children.Clear();
+        _workspaceHost.ColumnDefinitions.Clear();
+        _workspaceHost.Children.Add(chat);
+    }
 
-        var composer = new DockPanel { Margin = new Thickness(0, 0, 0, 12) };
-        var sendBtn = CommunityUI.RectButton("Send", RectBtnKind.Primary, 34, 12.5);
-        DockPanel.SetDock(sendBtn, Dock.Right);
-        var box = CommunityUI.RectInput("", 34);
-        box.Margin = new Thickness(0, 0, 8, 0);
-        sendBtn.Click += async (_, _) =>
+    private async Task RenderLoungeBoardAsync()
+    {
+        var chat = EnsureChatWorkbench();
+        ShowChatInWorkspace(chat);
+        chat.StartPolling();
+        await chat.RefreshAsync();
+    }
+
+    private async Task OpenOnlineMembersModalAsync()
+    {
+        var modalRoot = new StackPanel();
+        var top = new DockPanel { Margin = new Thickness(0, 0, 0, 12) };
+        var closeBtn = CommunityUI.RectButton("Close", RectBtnKind.Secondary, 30, 11.5);
+        closeBtn.Click += (_, _) => CloseModal();
+        DockPanel.SetDock(closeBtn, Dock.Right);
+        top.Children.Add(closeBtn);
+        top.Children.Add(Kit.Text("Online & Claimed Members", 17, "DS.Text", FontWeights.Bold));
+        modalRoot.Children.Add(top);
+
+        var listHost = new StackPanel();
+        listHost.Children.Add(Kit.Text("Loading member roster...", 12.5, "DS.TextMuted"));
+        modalRoot.Children.Add(new ScrollViewer { MaxHeight = 480, Content = listHost, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
+
+        var sheet = new Border
         {
-            var r = await _client.PostLoungeAsync(box.Text.Trim());
-            if (r.Ok) await RefreshAsync();
-            else _statusLine.Text = r.Error ?? "Sign in first to chat.";
+            Width = 520,
+            MaxHeight = 600,
+            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            CornerRadius = new CornerRadius(10),
+            BorderBrush = new SolidColorBrush(CommunityUI.BorderSubtle),
+            BorderThickness = new Thickness(1),
+            Background = new SolidColorBrush(CommunityUI.BgCard),
+            Padding = new Thickness(20),
+            Child = modalRoot
         };
-        composer.Children.Add(sendBtn);
-        composer.Children.Add(box);
-        stack.Children.Add(composer);
+        var backdrop = new Grid { Background = new SolidColorBrush(Color.FromArgb(200, 3, 6, 16)), Children = { sheet } };
+        CommunityUI.AnimateModalIn(sheet);
+        backdrop.MouseLeftButtonDown += (_, e) => { if (e.OriginalSource == backdrop) CloseModal(); };
+        ShowModal(backdrop);
 
-        if (msgs.Count == 0)
+        var res = await _client.GetMembersAsync();
+        listHost.Children.Clear();
+        if (!res.Ok || res.Data == null)
         {
-            stack.Children.Add(CommunityUI.CardSurface(Kit.Text("No messages in the lounge yet. Say hello!", 12.5, "DS.TextMuted"), new Thickness(16)));
+            listHost.Children.Add(Kit.Text(res.Error ?? "Could not load member list.", 12.5, "DS.TextSoft"));
+            return;
         }
-        else
+
+        if (!_client.IsNetworkDisabled)
+            _onlineText.Text = $"{res.Data.OnlineCount} online";
+
+        void AddMemberGroup(string heading, List<CreatorProfile> members, bool isOnline)
         {
-            foreach (var m in msgs.AsEnumerable().Reverse())
+            listHost.Children.Add(Kit.Text($"{heading} ({members.Count})", 11, isOnline ? "DS.AccentHi" : "DS.TextMuted", FontWeights.Bold)
+                .Also(t => t.Margin = new Thickness(0, 8, 0, 6)));
+            if (members.Count == 0)
             {
-                var mRow = new StackPanel();
-                var top = new StackPanel { Orientation = Orientation.Horizontal };
-                top.Children.Add(Kit.Text(m.Creator?.Handle ?? m.Uid, 12.5, "DS.AccentHi", FontWeights.Bold));
-                var mFlair = m.Creator != null ? BadgeChip.CreateFlair(m.Creator, _badgeMap, compact: true) : null;
-                if (mFlair != null) top.Children.Add(mFlair);
-                mRow.Children.Add(top);
-                mRow.Children.Add(Kit.Text(m.Body, 13, "DS.Text").Also(t => t.TextWrapping = TextWrapping.Wrap));
-                stack.Children.Add(CommunityUI.CardSurface(mRow, new Thickness(10)).Also(b => b.Margin = new Thickness(0, 0, 0, 6)));
+                listHost.Children.Add(Kit.Text(isOnline ? "No members currently active." : "None", 12, "DS.TextMuted")
+                    .Also(t => t.Margin = new Thickness(0, 0, 0, 6)));
+                return;
+            }
+            foreach (var m in members)
+            {
+                var member = m;
+                var row = new DockPanel();
+                var actions = new StackPanel { Orientation = Orientation.Horizontal };
+                if (member.Uid != _client.Identity.Uid)
+                {
+                    var dmBtn = CommunityUI.RectButton("Message", RectBtnKind.Primary, 26, 11);
+                    dmBtn.Margin = new Thickness(0, 0, 6, 0);
+                    dmBtn.Click += (_, _) =>
+                    {
+                        CloseModal();
+                        _subTab = "lounge";
+                        RebuildTopTabs();
+                        var chat = EnsureChatWorkbench();
+                        ShowChatInWorkspace(chat);
+                        chat.StartPolling();
+                        _ = chat.OpenDirectMessageAsync(member);
+                    };
+                    actions.Children.Add(dmBtn);
+                }
+                var profBtn = CommunityUI.RectButton("Profile", RectBtnKind.Secondary, 26, 11);
+                profBtn.Click += async (_, _) => await ShowCreatorCardAsync(member);
+                actions.Children.Add(profBtn);
+                DockPanel.SetDock(actions, Dock.Right);
+                row.Children.Add(actions);
+
+                var left = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+                left.Children.Add(new Border
+                {
+                    Width = 8,
+                    Height = 8,
+                    CornerRadius = new CornerRadius(2),
+                    Background = new SolidColorBrush(isOnline ? Color.FromRgb(34, 197, 94) : Color.FromRgb(100, 116, 139)),
+                    Margin = new Thickness(0, 0, 8, 0),
+                    VerticalAlignment = VerticalAlignment.Center
+                });
+                left.Children.Add(Kit.Text($"@{member.Handle}", 13, "DS.Text", FontWeights.Bold).Also(t => t.VerticalAlignment = VerticalAlignment.Center));
+                var flair = BadgeChip.CreateFlair(member, _badgeMap, compact: true);
+                if (flair != null) left.Children.Add(flair);
+                left.Children.Add(Kit.Text($"  - {member.RoleTitle}", 11, "DS.TextMuted").Also(t => t.VerticalAlignment = VerticalAlignment.Center));
+                row.Children.Add(left);
+
+                listHost.Children.Add(CommunityUI.CardSurface(row, new Thickness(10, 8, 10, 8)).Also(b =>
+                {
+                    b.Margin = new Thickness(0, 0, 0, 5);
+                    b.Opacity = isOnline ? 1.0 : 0.78;
+                }));
             }
         }
-        SetSingleColumnContent(stack);
+
+        AddMemberGroup("ONLINE NOW", res.Data.Online, true);
+        AddMemberGroup("OFFLINE CLAIMED HANDLES", res.Data.Offline, false);
     }
 
     private async Task RenderLeaderboardAndWatchingAsync()
@@ -1699,6 +1790,8 @@ public sealed class CommunityBrowserWorkbench
 
     private void CloseModal()
     {
+        _activeVisualizer?.StopAnimations();
+        _activeVisualizer = null;
         ActiveSubmitDialog = null;
         ActiveDiffDrawer = null;
         _modalHost.Visibility = Visibility.Collapsed;

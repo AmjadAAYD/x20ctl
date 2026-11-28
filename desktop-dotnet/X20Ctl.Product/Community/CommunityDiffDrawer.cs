@@ -14,6 +14,7 @@ public sealed class CommunityDiffDrawer : Grid
 {
     private readonly CommunityItem _item;
     private readonly Dictionary<string, CheckBox> _sectionChecks = new();
+    private readonly ItemInspectVisualizer _visualizer;
     private DispatcherTimer? _sandboxTimer;
 
     public Button InstallSelectedButton { get; }
@@ -32,8 +33,8 @@ public sealed class CommunityDiffDrawer : Grid
 
         var card = new Border
         {
-            MaxWidth = 740,
-            MaxHeight = 640,
+            MaxWidth = 780,
+            MaxHeight = 680,
             VerticalAlignment = VerticalAlignment.Center,
             HorizontalAlignment = HorizontalAlignment.Center,
             CornerRadius = new CornerRadius(10),
@@ -55,6 +56,9 @@ public sealed class CommunityDiffDrawer : Grid
         header.Children.Add(closeBtn);
         header.Children.Add(Kit.Text($"Compare & Cherry-Pick: {item.Title}", 17, "DS.Text", FontWeights.Bold));
         root.Children.Add(header);
+
+        _visualizer = new ItemInspectVisualizer(item, compact: true) { Margin = new Thickness(0, 0, 0, 12) };
+        root.Children.Add(_visualizer);
 
         var cols = new Grid { Margin = new Thickness(0, 0, 0, 14) };
         cols.ColumnDefinitions.Add(new() { Width = new GridLength(1, GridUnitType.Star) });
@@ -145,6 +149,7 @@ public sealed class CommunityDiffDrawer : Grid
     {
         _sandboxTimer?.Stop();
         _sandboxTimer = null;
+        _visualizer.StopAnimations();
     }
 
     private List<string> SelectedSections() =>
