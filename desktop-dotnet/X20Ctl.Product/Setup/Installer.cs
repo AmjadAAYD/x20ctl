@@ -165,6 +165,8 @@ internal static class Installer
         // only a folder that really holds X20CTL, and only the one setup made
         if (File.Exists(ExePath)) for (int i = 0; i < 8; i++) { try { Directory.Delete(InstallDir, true); break; } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { Thread.Sleep(400); } }
         if (purge) { progress.Report((.75, "Removing your settings")); foreach (string dir in new[] { DataRoot, LocalDataRoot }) try { if (Directory.Exists(dir)) Directory.Delete(dir, true); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { } }
+        // HKCU\Software\X20CTL\IdentityVault and %APPDATA%\X20CTL-Vault are intentionally preserved across uninstalls
+        // so players retain their claimed Community handle if they reinstall or redownload later.
         progress.Report((.9, "Removing the entry in Windows Apps"));
         try { Registry.CurrentUser.DeleteSubKeyTree(RegistryKey, false); } catch (Exception e) when (e is UnauthorizedAccessException or System.Security.SecurityException) { }
         progress.Report((1, "Done"));

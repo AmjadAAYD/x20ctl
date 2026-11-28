@@ -200,4 +200,147 @@ public sealed class CommunityTests
             if (File.Exists(path)) File.Delete(path);
         }
     }
+
+    [Fact]
+    public void IdentityVault_RestoresHandleWhenLocalFileDeleted()
+    {
+        var prevRead = CommunityIdentity.PlatformVaultRead;
+        var prevWrite = CommunityIdentity.PlatformVaultWrite;
+        var defaultPath = CommunityIdentity.GetDefaultPath();
+        var backupPath = CommunityIdentity.GetBackupVaultPath();
+        var savedPrimary = File.Exists(defaultPath) ? File.ReadAllText(defaultPath) : null;
+        var savedBackup = File.Exists(backupPath) ? File.ReadAllText(backupPath) : null;
+
+        CommunityIdentityData? inMemoryVault = null;
+        try
+        {
+            CommunityIdentity.PlatformVaultRead = () => inMemoryVault;
+            CommunityIdentity.PlatformVaultWrite = d => inMemoryVault = d;
+
+            using var created = CommunityIdentity.CreateNew("AmjadVaultTest");
+            created.Save();
+            Assert.NotNull(inMemoryVault);
+            Assert.Equal("AmjadVaultTest", inMemoryVault!.Handle);
+
+            if (File.Exists(defaultPath)) File.Delete(defaultPath);
+            if (File.Exists(backupPath)) File.Delete(backupPath);
+
+            using var recovered = CommunityIdentity.LoadOrCreate();
+            Assert.Equal(created.Uid, recovered.Uid);
+            Assert.Equal(created.PublicKeyBase64, recovered.PublicKeyBase64);
+            Assert.Equal("AmjadVaultTest", recovered.Handle);
+            Assert.True(File.Exists(defaultPath));
+        }
+        finally
+        {
+            CommunityIdentity.PlatformVaultRead = prevRead;
+            CommunityIdentity.PlatformVaultWrite = prevWrite;
+            if (savedPrimary != null)
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(defaultPath)!);
+                File.WriteAllText(defaultPath, savedPrimary);
+            }
+            else if (File.Exists(defaultPath))
+            {
+                File.Delete(defaultPath);
+            }
+            if (savedBackup != null)
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(backupPath)!);
+                File.WriteAllText(backupPath, savedBackup);
+            }
+            else if (File.Exists(backupPath))
+            {
+                File.Delete(backupPath);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task Client_SupportsMembersRosterAndDiscordChatApis()
+    {
+        var prevGuard = CommunityClient.SandboxOfflineGuard;
+        try
+        {
+            CommunityClient.SandboxOfflineGuard = false;
+            using var id = CommunityIdentity.CreateNew("ChatTester");
+            var cacheDir = Path.Combine(Path.GetTempPath(), "x20-chat-cache-" + Guid.NewGuid().ToString("N"));
+            var cache = new CommunityCache(cacheDir);
+            var handler = new MockHandler(req =>
+            {
+                var path = req.RequestUri!.AbsolutePath;
+                if (path == "/api/community/members")
+                {
+                    return new HttpResponseMessage(HttpStatusCode.OK)
+                    {
+                        Content = new StringContent(
+                            "{\"success\":true,\"onlineCount\":1,\"totalMembers\":2,\"online\":[{\"uid\":\"X20-AAAA-1111\",\"handle\":\"SupporterOne\",\"isSupporter\":true,\"canUseGifPfp\":true,\"instantApproval\":true,\"roleColor\":\"#C084FC\",\"roleTitle\":\"Supporter\",\"isOnline\":true}],\"offline\":[{\"uid\":\"X20-BBBB-2222\",\"handle\":\"OfflineUser\",\"isOnline\":false}]}",
+                            Encoding.UTF8,
+                            "application/json")
+                    };
+                }
+                if (path == "/api/community/lounge" && req.Method == HttpMethod.Get)
+                {
+                    return new HttpResponseMessage(HttpStatusCode.OK)
+                    {
+                        Content = new StringContent(
+                            "{\"success\":true,\"channel\":\"general\",\"channels\":[{\"id\":\"general\",\"name\":\"general\",\"topic\":\"Main\"}],\"dmPeers\":[],\"messages\":[{\"id\":\"MSG-1\",\"uid\":\"X20-AAAA-1111\",\"body\":\"hello discord\",\"channel\":\"general\",\"reactions\":{\"🔥\":[\"X20-AAAA-1111\"]},\"pinned\":false,\"createdAt\":\"2026-11-28T12:00:00Z\"}],\"slowmodeSeconds\":15,\"paused\":false}",
+                            Encoding.UTF8,
+                            "application/json")
+                    };
+                }
+                if (path == "/api/community/lounge" && (req.Method == HttpMethod.Post || req.Method == HttpMethod.Patch))
+                {
+                    return new HttpResponseMessage(HttpStatusCode.OK)
+                    {
+                        Content = new StringContent(
+                            "{\"success\":true,\"message\":{\"id\":\"MSG-2\",\"uid\":\"X20-AAAA-1111\",\"body\":\"yo\",\"channel\":\"general\",\"reactions\":{\"❤️\":[\"X20-AAAA-1111\"]},\"createdAt\":\"2026-11-28T12:01:00Z\"}}",
+                            Encoding.UTF8,
+                            "application/json")
+                    };
+                }
+                if (path == "/api/community/lounge" && req.Method == HttpMethod.Delete)
+                {
+                    return new HttpResponseMessage(HttpStatusCode.OK)
+                    {
+                        Content = new StringContent("{\"success\":true}", Encoding.UTF8, "application/json")
+                    };
+                }
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            });
+
+            var client = new CommunityClient(id, cache, "https://example.invalid", handler);
+            var members = await client.GetMembersAsync();
+            Assert.True(members.Ok);
+            Assert.Equal(1, members.Data!.OnlineCount);
+            Assert.Single(members.Data.Online);
+            Assert.True(members.Data.Online[0].CanUseGifPfp);
+            Assert.True(members.Data.Online[0].InstantApproval);
+            Assert.Equal("#C084FC", members.Data.Online[0].RoleColor);
+            Assert.Single(members.Data.Offline);
+
+            var chat = await client.GetChatAsync("general");
+            Assert.True(chat.Ok);
+            Assert.Single(chat.Data!.Messages);
+            Assert.Equal("hello discord", chat.Data.Messages[0].Body);
+            Assert.True(chat.Data.Messages[0].Reactions.ContainsKey("🔥"));
+
+            var posted = await client.PostChatAsync("yo", "general");
+            Assert.True(posted.Ok);
+            Assert.Equal("MSG-2", posted.Data!.Id);
+
+            var reacted = await client.ToggleReactionAsync("MSG-2", "❤️");
+            Assert.True(reacted.Ok);
+            Assert.True(reacted.Data!.Reactions.ContainsKey("❤️"));
+
+            var deleted = await client.DeleteChatMessageAsync("MSG-2");
+            Assert.True(deleted.Ok);
+
+            if (Directory.Exists(cacheDir)) Directory.Delete(cacheDir, true);
+        }
+        finally
+        {
+            CommunityClient.SandboxOfflineGuard = prevGuard;
+        }
+    }
 }

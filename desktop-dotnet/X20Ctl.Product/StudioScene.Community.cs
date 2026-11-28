@@ -24,6 +24,7 @@ public partial class StudioScene
 
     public CommunityClient EnsureCommunityClient()
     {
+        WindowsIdentityVault.Install();
         CommunityClient.SandboxOfflineGuard = ReviewSandbox.Active;
         bool offline = pcLink?.Preferences?.CommunityOffline == true;
         if (_communityClient == null)

@@ -451,25 +451,85 @@ public sealed class CommunityClient
         using (doc) return ApiResult<CommunityRequest>.Success(doc.RootElement.GetProperty("request").Deserialize<CommunityRequest>(JsonOpts)!);
     }
 
-    public async Task<ApiResult<(List<LoungeMessage> Messages, int SlowmodeSec, bool Paused)>> GetLoungeAsync(CancellationToken ct = default)
+    public async Task<ApiResult<ChatChannelResponse>> GetChatAsync(
+        string channel = "general",
+        string? peerUid = null,
+        int limit = 60,
+        CancellationToken ct = default)
     {
-        var (ok, doc, err) = await SendJsonAsync(HttpMethod.Get, "/api/community/lounge", "", null, ct).ConfigureAwait(false);
-        if (!ok || doc == null) return ApiResult<(List<LoungeMessage>, int, bool)>.Fail(err ?? "Lounge unavailable");
+        var qs = $"channel={Uri.EscapeDataString(channel)}&limit={limit}";
+        if (!string.IsNullOrWhiteSpace(peerUid))
+            qs += $"&peerUid={Uri.EscapeDataString(peerUid)}";
+        var (ok, doc, err) = await SendJsonAsync(HttpMethod.Get, $"/api/community/lounge?{qs}", "", null, ct).ConfigureAwait(false);
+        if (!ok || doc == null) return ApiResult<ChatChannelResponse>.Fail(err ?? "Chat unavailable");
         using (doc)
         {
-            var msgs = doc.RootElement.GetProperty("messages").Deserialize<List<LoungeMessage>>(JsonOpts) ?? new();
-            var slow = doc.RootElement.GetProperty("slowmodeSeconds").GetInt32();
-            var paused = doc.RootElement.GetProperty("paused").GetBoolean();
-            return ApiResult<(List<LoungeMessage>, int, bool)>.Success((msgs, slow, paused));
+            var resp = doc.RootElement.Deserialize<ChatChannelResponse>(JsonOpts) ?? new ChatChannelResponse();
+            return ApiResult<ChatChannelResponse>.Success(resp);
         }
     }
 
-    public async Task<ApiResult<LoungeMessage>> PostLoungeAsync(string bodyText, CancellationToken ct = default)
+    public async Task<ApiResult<LoungeMessage>> PostChatAsync(
+        string bodyText,
+        string channel = "general",
+        string? recipientUid = null,
+        string? replyToId = null,
+        CancellationToken ct = default)
     {
-        var (ok, doc, err) = await SendJsonAsync(HttpMethod.Post, "/api/community/lounge", "lounge:post", new { body = bodyText }, ct).ConfigureAwait(false);
+        var (ok, doc, err) = await SendJsonAsync(
+            HttpMethod.Post,
+            "/api/community/lounge",
+            "lounge:post",
+            new { body = bodyText, channel, recipientUid, replyToId },
+            ct).ConfigureAwait(false);
         if (!ok || doc == null) return ApiResult<LoungeMessage>.Fail(err ?? "Message rejected");
         using (doc) return ApiResult<LoungeMessage>.Success(doc.RootElement.GetProperty("message").Deserialize<LoungeMessage>(JsonOpts)!);
     }
+
+    public async Task<ApiResult<LoungeMessage>> ToggleReactionAsync(string messageId, string emoji, CancellationToken ct = default)
+    {
+        var (ok, doc, err) = await SendJsonAsync(
+            HttpMethod.Patch,
+            "/api/community/lounge",
+            "lounge:react",
+            new { messageId, emoji },
+            ct).ConfigureAwait(false);
+        if (!ok || doc == null) return ApiResult<LoungeMessage>.Fail(err ?? "Reaction failed");
+        using (doc) return ApiResult<LoungeMessage>.Success(doc.RootElement.GetProperty("message").Deserialize<LoungeMessage>(JsonOpts)!);
+    }
+
+    public async Task<ApiResult<bool>> DeleteChatMessageAsync(string messageId, CancellationToken ct = default)
+    {
+        var (ok, doc, err) = await SendJsonAsync(
+            HttpMethod.Delete,
+            "/api/community/lounge",
+            "lounge:delete",
+            new { messageId },
+            ct).ConfigureAwait(false);
+        doc?.Dispose();
+        return ok ? ApiResult<bool>.Success(true) : ApiResult<bool>.Fail(err ?? "Delete failed");
+    }
+
+    public async Task<ApiResult<CommunityMembersResponse>> GetMembersAsync(CancellationToken ct = default)
+    {
+        var (ok, doc, err) = await SendJsonAsync(HttpMethod.Get, "/api/community/members", "", null, ct).ConfigureAwait(false);
+        if (!ok || doc == null) return ApiResult<CommunityMembersResponse>.Fail(err ?? "Members unavailable");
+        using (doc)
+        {
+            var roster = doc.RootElement.Deserialize<CommunityMembersResponse>(JsonOpts) ?? new CommunityMembersResponse();
+            return ApiResult<CommunityMembersResponse>.Success(roster);
+        }
+    }
+
+    public async Task<ApiResult<(List<LoungeMessage> Messages, int SlowmodeSec, bool Paused)>> GetLoungeAsync(CancellationToken ct = default)
+    {
+        var res = await GetChatAsync("general", null, 50, ct).ConfigureAwait(false);
+        if (!res.Ok || res.Data == null) return ApiResult<(List<LoungeMessage>, int, bool)>.Fail(res.Error ?? "Lounge unavailable");
+        return ApiResult<(List<LoungeMessage>, int, bool)>.Success((res.Data.Messages, res.Data.SlowmodeSeconds, res.Data.Paused));
+    }
+
+    public Task<ApiResult<LoungeMessage>> PostLoungeAsync(string bodyText, CancellationToken ct = default)
+        => PostChatAsync(bodyText, "general", null, null, ct);
 
     public async Task<ApiResult<CommunityPoll>> VotePollAsync(string pollId, int optionIndex, CancellationToken ct = default)
     {

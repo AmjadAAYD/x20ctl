@@ -69,6 +69,12 @@ public sealed class CreatorProfile
     public string Uid { get; set; } = string.Empty;
     public string Handle { get; set; } = string.Empty;
     public bool IsOwner { get; set; }
+    public bool IsSupporter { get; set; }
+    public string RoleColor { get; set; } = "#E2E8F0";
+    public string RoleTitle { get; set; } = "Member";
+    public bool CanUseGifPfp { get; set; }
+    public bool InstantApproval { get; set; }
+    public bool IsOnline { get; set; }
     public List<string> Badges { get; set; } = new();
     public string? EquippedBadge { get; set; }
     public int Karma { get; set; }
@@ -192,8 +198,42 @@ public sealed class LoungeMessage
     public string Id { get; set; } = string.Empty;
     public string Uid { get; set; } = string.Empty;
     public string Body { get; set; } = string.Empty;
+    public string Channel { get; set; } = "general";
+    public string? RecipientUid { get; set; }
+    public string? ReplyToId { get; set; }
+    public string? ReplyToHandle { get; set; }
+    public string? ReplyToBody { get; set; }
+    public Dictionary<string, List<string>> Reactions { get; set; } = new();
+    public bool Pinned { get; set; }
     public string CreatedAt { get; set; } = string.Empty;
     public CreatorProfile? Creator { get; set; }
+}
+
+public sealed class ChatChannelInfo
+{
+    public string Id { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Topic { get; set; } = string.Empty;
+    public bool OwnerOnly { get; set; }
+}
+
+public sealed class ChatChannelResponse
+{
+    public string Channel { get; set; } = "general";
+    public string? PeerUid { get; set; }
+    public List<ChatChannelInfo> Channels { get; set; } = new();
+    public List<CreatorProfile> DmPeers { get; set; } = new();
+    public List<LoungeMessage> Messages { get; set; } = new();
+    public int SlowmodeSeconds { get; set; } = 15;
+    public bool Paused { get; set; }
+}
+
+public sealed class CommunityMembersResponse
+{
+    public int OnlineCount { get; set; }
+    public int TotalMembers { get; set; }
+    public List<CreatorProfile> Online { get; set; } = new();
+    public List<CreatorProfile> Offline { get; set; } = new();
 }
 
 public sealed class NotificationItem

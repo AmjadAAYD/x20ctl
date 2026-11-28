@@ -27,6 +27,7 @@ public partial class App : Application
 
     private async void OnStartup(object sender, StartupEventArgs e)
     {
+        Community.WindowsIdentityVault.Install();
         KeepTooltipsInside();
         try
         {
