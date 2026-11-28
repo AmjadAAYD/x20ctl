@@ -14,6 +14,7 @@
 ### Fixed
 
 - **Accurate Community Online Presence & Fixed Screen Art.** Deduplicated online presence heartbeats by hardware hash on `X20ADMIN` so desktop + web sessions do not inflate counts, and repaired head/face cropping and blob integrity for `Purple Night`, `Sasha`, and `Lucy` in the Screen Art catalog.
+- **Instant Community & Studio Tab Switching.** Replaced full visual-tree teardown and synchronous UI-thread image decoding with persistent cached panes, persistent top navigation tabs, parallel throttled network sync, background thread GIF decoding with SHA-256 frame caching, hidden-pane animation pausing, collapsed-subtree skin skips, and cached top-bar layout keys.
 
 ## [V0.026] - 2026-11-25
 
